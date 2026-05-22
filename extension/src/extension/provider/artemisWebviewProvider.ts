@@ -448,13 +448,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             case 'workspace-exercise': {
                 this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
-                if (entry?.course) {
-                    this._appStateManager.showCourseDetail(toCourseDetailData(entry.course));
+                const detail = toCourseDetailData(entry?.course);
+                if (detail) {
+                    this._appStateManager.showCourseDetail(detail);
                     this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
                     await this.openExerciseDetails(result.exerciseId);
                     if (this._appStateManager.currentState === 'exercise-detail') {
                         return;
                     }
+                } else {
+                    logger.viewError(`workspace-exercise start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
                 }
                 break;
             }
@@ -462,11 +465,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             case 'workspace-course': {
                 this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
-                if (entry?.course) {
+                const detail = toCourseDetailData(entry?.course);
+                if (detail) {
                     this._courseAccessStorage.onCourseAccessed(result.courseId);
-                    this.showCourseDetail(toCourseDetailData(entry.course));
+                    this.showCourseDetail(detail);
                     return;
                 }
+                logger.viewError(`workspace-course start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
                 break;
             }
 

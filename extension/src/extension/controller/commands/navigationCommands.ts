@@ -59,10 +59,12 @@ export class NavigationCommandModule {
                 ? (courseData.course as CourseDashboardCourse | undefined)
                 : courseData;
 
-            // Convert to CourseDetailData format expected by state manager
-            const courseDetailData = toCourseDetailData(
-                ('course' in courseData ? courseData.course! : courseData) as CourseDashboardCourse
-            );
+            const courseDetailData = toCourseDetailData(course);
+            if (!courseDetailData) {
+                logger.viewError('View course details: course is missing an id; cannot show');
+                vscode.window.showErrorMessage('Course data is incomplete');
+                return;
+            }
 
             this.context.appStateManager.showCourseDetail(courseDetailData);
 
@@ -216,7 +218,13 @@ export class NavigationCommandModule {
             if (courseId) {
                 // Fetch fresh course data from the single-course dashboard endpoint.
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
-                const courseData = toCourseDetailData(dashboardDTO.course as CourseDashboardCourse);
+                const courseData = toCourseDetailData(dashboardDTO.course);
+                if (!courseData) {
+                    logger.viewError(`Reload course detail: course ${courseId} resolved without a valid id`);
+                    vscode.window.showErrorMessage('Course data is incomplete');
+                    this.context.actionHandler.sendInitData();
+                    return;
+                }
 
                 this.context.appStateManager.showCourseDetail(courseData);
                 // Send updated data to React without re-rendering
@@ -276,8 +284,11 @@ export class NavigationCommandModule {
                 if (courseId) {
                     const courseEntry = coursesData.courses.find(c => c.course?.id === courseId);
                     if (courseEntry?.course) {
-                        parentCourseDetailData = toCourseDetailData(courseEntry.course);
-                        logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${courseEntry.course.title}`);
+                        const mapped = toCourseDetailData(courseEntry.course);
+                        if (mapped) {
+                            parentCourseDetailData = mapped;
+                            logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${courseEntry.course.title}`);
+                        }
                     }
                 }
 
@@ -288,9 +299,12 @@ export class NavigationCommandModule {
                         const foundExercise = exercises.find((ex) => ex?.id === exerciseId);
 
                         if (foundExercise && courseEntry.course) {
-                            parentCourseDetailData = toCourseDetailData(courseEntry.course);
-                            logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
-                            break;
+                            const mapped = toCourseDetailData(courseEntry.course);
+                            if (mapped) {
+                                parentCourseDetailData = mapped;
+                                logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
+                                break;
+                            }
                         }
                     }
                 }

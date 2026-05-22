@@ -50,5 +50,6 @@ export interface CourseDetailData {
         instructorGroupName?: string;
         isArchived?: boolean;
         shortName?: string;
+        startDate?: string;
     };
 }
