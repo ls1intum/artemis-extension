@@ -21,7 +21,7 @@ import { useDashboardStore } from '@webview/stores/useDashboardStore';
 import { getIcon } from '@webview/utils/iconMap';
 
 import styles from './DashboardView.module.css';
-import type { DashboardViewProps, Exercise, RecentCourseNode } from './types';
+import type { DashboardViewProps, RecentCourseNode } from './types';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
     const {

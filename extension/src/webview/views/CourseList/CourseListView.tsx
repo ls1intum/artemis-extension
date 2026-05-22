@@ -20,7 +20,7 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 
 import styles from './CourseListView.module.css';
-import type { ArchivedCourse, CourseData, CourseListPersistedState, CourseListViewProps } from './types';
+import type { ArchivedCourse, CourseDetailData, CourseListPersistedState, CourseListViewProps } from './types';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
     const {
@@ -134,7 +134,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         postCommand(vscodeApi, 'toggleCourseListFullscreen');
     };
 
-    const handleViewCourseDetails = (courseData: CourseData) => {
+    const handleViewCourseDetails = (courseData: CourseDetailData) => {
         postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as CourseDashboardCourse });
     };
 

@@ -2,33 +2,11 @@
  * Domain types shared between extension and webview messages.
  */
 
-export interface CourseData {
-    course: {
-        id?: number;
-        title: string;
-        description?: string;
-        semester?: string;
-        color?: string;
-        exercises?: Exercise[];
-        numberOfStudents?: number;
-        instructorGroupName?: string;
-        startDate?: string;
-    };
-}
+import type { ExerciseDetail } from '../types/apiResponses';
 
 export interface RecentCourseNode {
-    courseData: CourseData;
-    exercises: Exercise[];
-}
-
-export interface Exercise {
-    id?: number;
-    title?: string;
-    type?: string;
-    releaseDate?: string;
-    startDate?: string;
-    dueDate?: string;
-    maxPoints?: number;
+    courseData: CourseDetailData;
+    exercises: ExerciseDetail[];
 }
 
 export interface ArchivedCourse {
@@ -45,7 +23,7 @@ export interface CourseDetailData {
         description?: string;
         semester?: string;
         color?: string;
-        exercises?: Exercise[];
+        exercises?: ExerciseDetail[];
         numberOfStudents?: number;
         instructorGroupName?: string;
         isArchived?: boolean;

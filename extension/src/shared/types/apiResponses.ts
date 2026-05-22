@@ -81,6 +81,7 @@ export interface ExerciseDetail {
     dueDate?: string;
     maxPoints?: number;
     bonusPoints?: number;
+    repositoryUri?: string;
     problemStatement?: string;
     mode?: string;
     includedInScore?: boolean;

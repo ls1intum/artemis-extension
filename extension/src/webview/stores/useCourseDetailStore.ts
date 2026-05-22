@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-import { type CourseDetailData, type Exercise, postCommand, type VsCodeApi } from '@shared/messageContracts';
+import { type CourseDetailData, postCommand, type VsCodeApi } from '@shared/messageContracts';
+import type { ExerciseDetail } from '@shared/types';
 
 interface CourseDetailState {
     courseData: CourseDetailData | null;
@@ -21,13 +22,13 @@ interface CourseDetailState {
     loadCourseDetail: (vscodeApi: VsCodeApi, courseId?: number) => void;
 
     // Derived
-    filteredExercises: () => Exercise[];
+    filteredExercises: () => ExerciseDetail[];
 }
 
 /**
  * Filter exercises by search term (case-insensitive, matches title or type).
  */
-function filterExercises(exercises: Exercise[], searchTerm: string): Exercise[] {
+function filterExercises(exercises: ExerciseDetail[], searchTerm: string): ExerciseDetail[] {
     const lowerSearchTerm = searchTerm.toLowerCase().trim();
     if (!lowerSearchTerm) {
         return exercises;
@@ -43,7 +44,7 @@ function filterExercises(exercises: Exercise[], searchTerm: string): Exercise[] 
 /**
  * Sort exercises based on selected sort option.
  */
-function sortExercises(exercises: Exercise[], sortBy: string): Exercise[] {
+function sortExercises(exercises: ExerciseDetail[], sortBy: string): ExerciseDetail[] {
     const sorted = [...exercises];
 
     switch (sortBy) {

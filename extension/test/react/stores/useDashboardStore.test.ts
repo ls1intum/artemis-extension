@@ -43,7 +43,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 
@@ -69,7 +69,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 
@@ -119,11 +119,11 @@ describe('useDashboardStore', () => {
 
 		const courses: RecentCourseNode[] = [
 			{
-				courseData: { course: { title: 'Course without startDate' } },
+				courseData: { course: { id: 1, title: 'Course without startDate' } },
 				exercises: [],
 			},
 			{
-				courseData: { course: { title: 'Course with startDate', startDate: '2023-05-01' } },
+				courseData: { course: { id: 2, title: 'Course with startDate', startDate: '2023-05-01' } },
 				exercises: [],
 			},
 		];
@@ -157,7 +157,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 
@@ -186,7 +186,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 

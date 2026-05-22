@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { CourseDetailData, Exercise } from '@shared/messageContracts';
+import type { CourseDetailData } from '@shared/messageContracts';
+import type { ExerciseDetail } from '@shared/types';
 
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 
@@ -17,7 +18,7 @@ const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {
 	},
 });
 
-const makeExercise = (overrides: Partial<Exercise> = {}): Exercise => ({
+const makeExercise = (overrides: Partial<ExerciseDetail> = {}): ExerciseDetail => ({
 	id: 1,
 	title: 'Test Exercise',
 	type: 'programming',

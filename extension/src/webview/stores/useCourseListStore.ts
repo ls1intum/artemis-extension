@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-import { type ArchivedCourse, type CourseData, postCommand, type VsCodeApi } from '@shared/messageContracts';
+import { type ArchivedCourse, type CourseDetailData, postCommand, type VsCodeApi } from '@shared/messageContracts';
 
 interface CourseListState {
-    courses: CourseData[];
+    courses: CourseDetailData[];
     archivedCourses: ArchivedCourse[];
     archivedLoaded: boolean;
     isLoading: boolean;
@@ -14,7 +14,7 @@ interface CourseListState {
     sortBy: string;
 
     // Actions
-    setCourses: (courses: CourseData[], archived?: ArchivedCourse[]) => void;
+    setCourses: (courses: CourseDetailData[], archived?: ArchivedCourse[]) => void;
     setArchivedCourses: (archived: ArchivedCourse[]) => void;
     setLoading: (loading: boolean) => void;
     setSearchTerm: (term: string) => void;
@@ -26,7 +26,7 @@ interface CourseListState {
     loadArchivedCourses: (vscodeApi: VsCodeApi) => void;
 
     // Derived
-    filteredCourses: () => { active: CourseData[]; archived: ArchivedCourse[] };
+    filteredCourses: () => { active: CourseDetailData[]; archived: ArchivedCourse[] };
 }
 
 /**

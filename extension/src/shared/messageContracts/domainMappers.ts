@@ -31,10 +31,7 @@ export function toCourseDetailData(
             description: course.description,
             semester: course.semester,
             color: course.color,
-            // TASK-2-SCAFFOLD: cast survives until Task 2 widens
-            // CourseDetailData.course.exercises to ExerciseDetail[].
-            // Deleted in the Task 2 commit.
-            exercises: course.exercises as unknown as CourseDetailData['course']['exercises'],
+            exercises: course.exercises,
             numberOfStudents: course.numberOfStudents,
             instructorGroupName: course.instructorGroupName,
             shortName: course.shortName,
