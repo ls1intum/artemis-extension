@@ -16,7 +16,9 @@
 		"paths": {
 			"@extension/*": ["src/extension/*"],
 			"@webview/*": ["src/webview/*"],
-			"@shared/*": ["src/shared/*"]
+			"@shared/*": ["src/shared/*"],
+			"@test/*": ["test/*"],
+			"@root/package.json": ["package.json"]
 		},
 		"plugins": [
 			{ "name": "typescript-plugin-css-modules" }
