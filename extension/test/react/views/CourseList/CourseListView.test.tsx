@@ -2,14 +2,14 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import type { CourseData } from '@shared/messageContracts';
+import type { CourseDetailData } from '@shared/messageContracts';
 
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 import { CourseListView } from '@webview/views/CourseList/CourseListView';
 
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
-const makeCourseData = (overrides: Partial<CourseData['course']> = {}): CourseData => ({
+const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData => ({
 	course: {
 		id: 1,
 		title: 'Test Course',
@@ -35,7 +35,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			courses: [makeCourseData({ title: 'Algorithms', id: 1 })],
+			courses: [makeCourseDetailData({ title: 'Algorithms', id: 1 })],
 		});
 
 		await waitFor(() => {
@@ -49,7 +49,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			courses: [makeCourseData({ title: 'Software Engineering', semester: 'WS24/25', id: 2 })],
+			courses: [makeCourseDetailData({ title: 'Software Engineering', semester: 'WS24/25', id: 2 })],
 		});
 
 		await waitFor(() => {
@@ -66,7 +66,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			courses: [makeCourseData({ title: 'Click Me Course', id: 42 })],
+			courses: [makeCourseDetailData({ title: 'Click Me Course', id: 42 })],
 		});
 
 		await waitFor(() => {
@@ -104,7 +104,7 @@ describe('CourseListView', () => {
 		dispatchExtensionMessage({
 			type: 'courseListInit',
 			courses: [
-				makeCourseData({
+				makeCourseDetailData({
 					title: 'Course with Exercises',
 					id: 10,
 					exercises: [
@@ -127,7 +127,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			courses: [makeCourseData({ id: 1 })],
+			courses: [makeCourseDetailData({ id: 1 })],
 		});
 
 		await waitFor(() => {
@@ -142,8 +142,8 @@ describe('CourseListView', () => {
 		dispatchExtensionMessage({
 			type: 'courseListInit',
 			courses: [
-				makeCourseData({ title: 'Algorithms', id: 1 }),
-				makeCourseData({ title: 'Biology 101', id: 2 }),
+				makeCourseDetailData({ title: 'Algorithms', id: 1 }),
+				makeCourseDetailData({ title: 'Biology 101', id: 2 }),
 			],
 		});
 
@@ -166,7 +166,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			courses: [makeCourseData({ id: 1 })],
+			courses: [makeCourseDetailData({ id: 1 })],
 		});
 
 		await waitFor(() => {
@@ -180,7 +180,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			courses: [makeCourseData({ id: 1 })],
+			courses: [makeCourseDetailData({ id: 1 })],
 		});
 
 		await waitFor(() => {

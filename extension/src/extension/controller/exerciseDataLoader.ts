@@ -4,7 +4,7 @@ import type { PendingSubmissionStatus } from '@shared/types/apiResponses';
 
 import type { ArtemisApiService } from '../api';
 import { LogCategory, logger } from '../services/loggingService';
-import type { CourseDashboardCourse, CourseDashboardResponse, ExerciseDetailsResponse } from '../types';
+import type { ExerciseDetailsResponse } from '../types';
 import { ApiError, MalformedResponseError } from '../types';
 import { pickHighestId } from '../utils/participationHelpers';
 
@@ -133,8 +133,9 @@ export async function fetchArchivedCourseDetail(
     courseId: number,
 ): Promise<CourseDetailData> {
     const dashboardDTO = await api.getCourseForDashboard(courseId);
-    return toCourseDetailData(
-        dashboardDTO.course as CourseDashboardCourse,
-        { isArchived: true }
-    );
+    const mapped = toCourseDetailData(dashboardDTO.course, { isArchived: true });
+    if (!mapped) {
+        throw new Error(`Archived course ${courseId} is missing an id`);
+    }
+    return mapped;
 }

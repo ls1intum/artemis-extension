@@ -2,22 +2,41 @@ import type { CourseDashboardCourse } from '../types/apiResponses';
 import type { CourseDetailData } from './domainTypes';
 
 /**
- * Maps a raw CourseDashboardCourse to CourseDetailData.
- * Spreads the raw course to preserve all server-provided fields,
- * then overlays the required fields with safe defaults.
+ * Maps a raw `CourseDashboardCourse` (server response, all fields optional,
+ * carries unknown extra keys) to the validated `CourseDetailData` shape used
+ * by the webview state.
+ *
+ * Returns `null` when the input is missing the only field the webview cannot
+ * tolerate (a numeric `id`). Callers are expected to log and either bail out
+ * or drop the row. The mapper itself stays pure: no logging, no throwing,
+ * no `[key: string]: unknown` leakage into the domain DTO. Fields are listed
+ * explicitly so unknown server keys (e.g. `exams`) are dropped at the
+ * boundary instead of being smuggled into webview state.
+ *
+ * Runtime check is `typeof course.id !== 'number'` rather than `=== undefined`
+ * so a malformed server payload sending `null` or a string id also drops to
+ * null instead of being smuggled past static optionality.
  */
 export function toCourseDetailData(
-    course: CourseDashboardCourse,
+    course: CourseDashboardCourse | undefined,
     opts?: { isArchived?: boolean }
-): CourseDetailData {
-    // Drop any server-provided exam data — exam mode is not supported.
-    const { exams: _exams, ...rest } = course;
+): CourseDetailData | null {
+    if (!course || typeof course.id !== 'number') {
+        return null;
+    }
     return {
         course: {
-            ...rest,
-            id: course.id!,
+            id: course.id,
             title: course.title || 'Untitled Course',
+            description: course.description,
+            semester: course.semester,
+            color: course.color,
+            exercises: course.exercises,
+            numberOfStudents: course.numberOfStudents,
+            instructorGroupName: course.instructorGroupName,
+            shortName: course.shortName,
+            startDate: course.startDate,
             isArchived: opts?.isArchived,
-        } as CourseDetailData['course'],
+        },
     };
 }

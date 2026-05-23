@@ -9,7 +9,7 @@ import type {
     SubmissionSummary,
 } from '../types/apiResponses';
 import type { ChatContextType } from '../types/context';
-import type { ArchivedCourse, CourseData, CourseDetailData, RecentCourseNode } from './domainTypes';
+import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
 /**
  * Display-facing projection of the websocket connection state. Both the chat
@@ -98,7 +98,7 @@ interface ExtensionMsgPayloads {
         } | null;
     };
     courseListInit: {
-        courses: CourseData[];
+        courses: CourseDetailData[];
         archivedCourses?: ArchivedCourse[];
     };
     courseDetailInit: {

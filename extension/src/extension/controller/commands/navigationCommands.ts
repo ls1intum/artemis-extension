@@ -5,11 +5,9 @@ import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 
 import { logger } from '@extension/services/loggingService';
-import type { CourseDashboardCourse, CourseDashboardEntry } from '@extension/types';
 
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../exerciseDataLoader';
 import type { CommandContext, CommandMap } from './types';
-
 
 export class NavigationCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -45,70 +43,78 @@ export class NavigationCommandModule {
 
     private handleViewCourseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseData } = getPayload<WebCmd<'viewCourseDetails'>>(message);
-            await this.processCourseDetails(courseData);
+            const { courseId } = getPayload<WebCmd<'viewCourseDetails'>>(message);
+            const cached = this.context.appStateManager.coursesData
+                ?.courses
+                ?.find(e => e.course?.id === courseId);
+
+            let courseDTO = cached?.course;
+            if (!courseDTO) {
+                const fetched = await this.context.artemisApi.getCourseForDashboard(courseId);
+                courseDTO = fetched.course;
+            }
+
+            const detail = toCourseDetailData(courseDTO);
+            if (!detail) {
+                logger.viewError(`Course ${courseId} resolved without a valid id; cannot show`);
+                vscode.window.showErrorMessage('Course data is incomplete');
+                return;
+            }
+
+            await this.processCourseDetails(detail);
         } catch (error: unknown) {
             logger.viewError('View course details error:', error);
             vscode.window.showErrorMessage('Error viewing course details');
         }
     };
 
-    private async processCourseDetails(courseData: CourseDashboardEntry | CourseDashboardCourse): Promise<void> {
-        try {
-            const course: CourseDashboardCourse | undefined = 'course' in courseData
-                ? (courseData.course as CourseDashboardCourse | undefined)
-                : courseData;
+    private async processCourseDetails(detail: CourseDetailData): Promise<void> {
+        const course = detail.course;
+        const courseId = course.id;
 
-            // Convert to CourseDetailData format expected by state manager
-            const courseDetailData = toCourseDetailData(
-                ('course' in courseData ? courseData.course! : courseData) as CourseDashboardCourse
-            );
+        this.context.appStateManager.showCourseDetail(detail);
+        this.context.courseAccessStorage?.onCourseAccessed(courseId);
 
-            this.context.appStateManager.showCourseDetail(courseDetailData);
+        const registry = this.context.exerciseRegistry;
+        registry.registerFromCourseData({
+            course: {
+                id: courseId,
+                title: course.title,
+                exercises: course.exercises,
+            },
+        });
 
-            if (course?.id !== undefined) {
-                this.context.courseAccessStorage?.onCourseAccessed(course.id);
-            }
-
-            const registry = this.context.exerciseRegistry;
-            // Pass the entry format for registration (expects CourseDashboardEntry)
-            const entryFormat: CourseDashboardEntry = 'course' in courseData ? courseData : { course: courseData };
-            registry.registerFromCourseData(entryFormat);
-
-            const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
-            if (course) {
-                const courseTitle = course.title || 'Untitled Course';
-                const courseId = course.id || 0;
-                const shortName = course.shortName;
-
-                if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
-                    chatProvider.updateDetectedCourse(courseTitle, courseId, shortName);
-                    logger.view('📚 [Course Detection] Notified chat about course:', courseTitle);
-                }
-
-                if (course.exercises && Array.isArray(course.exercises) && chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                    course.exercises.forEach((exercise) => {
-                        // Type guard: exercise is from CourseDashboardCourse which uses optional fields
-                        if (exercise && typeof exercise === 'object' && 'studentParticipations' in exercise &&
-                            Array.isArray(exercise.studentParticipations) && exercise.studentParticipations.length > 0) {
-                            const exerciseTitle = exercise.title ?? 'Untitled Exercise';
-                            const exerciseId = exercise.id ?? 0;
-                            const releaseDate = exercise.releaseDate ?? exercise.startDate;
-                            const dueDate = exercise.dueDate;
-                            const shortName = exercise.shortName;
-
-                            chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, releaseDate, dueDate, shortName, courseId);
-                            logger.view(`📚 [Course Exercises] Updated exercise from course: ${exerciseTitle} (ID: ${exerciseId})`);
-                        }
-                    });
-                }
-            }
-
-            this.context.actionHandler.render();
-        } catch (error: unknown) {
-            logger.viewError('View course details error:', error);
-            vscode.window.showErrorMessage('Error viewing course details');
+        const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
+        const courseTitle = course.title;
+        const shortName = course.shortName;
+        if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
+            chatProvider.updateDetectedCourse(courseTitle, courseId, shortName);
+            logger.view('📚 [Course Detection] Notified chat about course:', courseTitle);
         }
+
+        if (course.exercises && chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
+            for (const exercise of course.exercises) {
+                if (
+                    exercise &&
+                    Array.isArray(exercise.studentParticipations) &&
+                    exercise.studentParticipations.length > 0 &&
+                    typeof exercise.id === 'number' &&
+                    typeof exercise.title === 'string'
+                ) {
+                    chatProvider.updateDetectedExercise(
+                        exercise.title,
+                        exercise.id,
+                        exercise.releaseDate ?? exercise.startDate,
+                        exercise.dueDate,
+                        exercise.shortName,
+                        courseId,
+                    );
+                    logger.view(`📚 [Course Exercises] Updated exercise from course: ${exercise.title} (ID: ${exercise.id})`);
+                }
+            }
+        }
+
+        this.context.actionHandler.render();
     }
 
     private handleBackToDashboard = async (_message: WebviewToExtensionMessage): Promise<void> => {
@@ -216,7 +222,13 @@ export class NavigationCommandModule {
             if (courseId) {
                 // Fetch fresh course data from the single-course dashboard endpoint.
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
-                const courseData = toCourseDetailData(dashboardDTO.course as CourseDashboardCourse);
+                const courseData = toCourseDetailData(dashboardDTO.course);
+                if (!courseData) {
+                    logger.viewError(`Reload course detail: course ${courseId} resolved without a valid id`);
+                    vscode.window.showErrorMessage('Course data is incomplete');
+                    this.context.actionHandler.sendInitData();
+                    return;
+                }
 
                 this.context.appStateManager.showCourseDetail(courseData);
                 // Send updated data to React without re-rendering
@@ -276,8 +288,11 @@ export class NavigationCommandModule {
                 if (courseId) {
                     const courseEntry = coursesData.courses.find(c => c.course?.id === courseId);
                     if (courseEntry?.course) {
-                        parentCourseDetailData = toCourseDetailData(courseEntry.course);
-                        logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${courseEntry.course.title}`);
+                        const mapped = toCourseDetailData(courseEntry.course);
+                        if (mapped) {
+                            parentCourseDetailData = mapped;
+                            logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${courseEntry.course.title}`);
+                        }
                     }
                 }
 
@@ -288,9 +303,12 @@ export class NavigationCommandModule {
                         const foundExercise = exercises.find((ex) => ex?.id === exerciseId);
 
                         if (foundExercise && courseEntry.course) {
-                            parentCourseDetailData = toCourseDetailData(courseEntry.course);
-                            logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
-                            break;
+                            const mapped = toCourseDetailData(courseEntry.course);
+                            if (mapped) {
+                                parentCourseDetailData = mapped;
+                                logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
+                                break;
+                            }
                         }
                     }
                 }

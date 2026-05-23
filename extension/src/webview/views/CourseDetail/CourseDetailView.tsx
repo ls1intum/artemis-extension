@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import type { Exercise } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+import type { ExerciseDetail } from '@shared/types';
 
 import type { DropdownOption } from '@webview/components';
 import {
@@ -254,7 +254,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
                 {exercises.length > 0 && (
                     <div className={styles.exercisesList}>
-                        {exercises.map((exercise: Exercise) => {
+                        {exercises.map((exercise: ExerciseDetail) => {
                             const isWorkspaceExercise = exercise.id === workspaceExerciseId;
                             const points = exercise.maxPoints || 0;
 

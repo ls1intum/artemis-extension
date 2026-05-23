@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
-import type { CourseDashboardCourse } from '@shared/types/apiResponses';
 
 import type { DropdownOption } from '@webview/components';
 import {
@@ -20,7 +19,7 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 
 import styles from './CourseListView.module.css';
-import type { ArchivedCourse, CourseData, CourseListPersistedState, CourseListViewProps } from './types';
+import type { ArchivedCourse, CourseDetailData, CourseListPersistedState, CourseListViewProps } from './types';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
     const {
@@ -134,8 +133,8 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         postCommand(vscodeApi, 'toggleCourseListFullscreen');
     };
 
-    const handleViewCourseDetails = (courseData: CourseData) => {
-        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as CourseDashboardCourse });
+    const handleViewCourseDetails = (courseData: CourseDetailData) => {
+        postCommand(vscodeApi, 'viewCourseDetails', { courseId: courseData.course.id });
     };
 
     const handleViewArchivedCourse = (courseId: number) => {

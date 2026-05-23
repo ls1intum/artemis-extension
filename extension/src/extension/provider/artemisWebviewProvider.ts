@@ -448,13 +448,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             case 'workspace-exercise': {
                 this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
-                if (entry?.course) {
-                    this._appStateManager.showCourseDetail(toCourseDetailData(entry.course));
+                const detail = toCourseDetailData(entry?.course);
+                if (detail) {
+                    this._appStateManager.showCourseDetail(detail);
                     this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
                     await this.openExerciseDetails(result.exerciseId);
                     if (this._appStateManager.currentState === 'exercise-detail') {
                         return;
                     }
+                } else {
+                    logger.viewError(`workspace-exercise start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
                 }
                 break;
             }
@@ -462,11 +465,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             case 'workspace-course': {
                 this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
-                if (entry?.course) {
+                const detail = toCourseDetailData(entry?.course);
+                if (detail) {
                     this._courseAccessStorage.onCourseAccessed(result.courseId);
-                    this.showCourseDetail(toCourseDetailData(entry.course));
+                    this.showCourseDetail(detail);
                     return;
                 }
+                logger.viewError(`workspace-course start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
                 break;
             }
 
@@ -622,18 +627,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         const courses = coursesData?.courses || [];
         const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
 
-        const mappedCourses = courses.map((entry) => ({
-            course: {
-                id: entry.course?.id || 0,
-                title: entry.course?.title || 'Untitled Course',
-                description: entry.course?.description,
-                semester: entry.course?.semester,
-                color: entry.course?.color,
-                exercises: entry.course?.exercises,
-                numberOfStudents: entry.course?.numberOfStudents,
-                instructorGroupName: entry.course?.instructorGroupName,
+        const mappedCourses: CourseDetailData[] = courses.flatMap((entry) => {
+            const detail = toCourseDetailData(entry.course);
+            if (!detail) {
+                logger.warn(`Course list fullscreen: dropping course without numeric id (title=${entry.course?.title ?? '<unknown>'})`, LogCategory.VIEW);
+                return [];
             }
-        }));
+            return [detail];
+        });
 
         this._fullscreenPanelManager.openCourseListFullscreen(mappedCourses, archivedCourses);
     }

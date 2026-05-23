@@ -218,19 +218,15 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         expect(msg.command).toBe('reloadCourses');
     });
 
-    it('ViewCourseDetailsCommand has courseData payload', () => {
+    it('ViewCourseDetailsCommand has courseId payload', () => {
         const msg = {
             type: 'command' as const,
             command: 'viewCourseDetails' as const,
-            payload: {
-                courseData: {
-                    course: { id: 1, title: 'Test', shortName: 'T' },
-                },
-            },
+            payload: { courseId: 1 },
         } satisfies WebCmd<'viewCourseDetails'>;
 
         expect(msg.command).toBe('viewCourseDetails');
-        expect(msg.payload.courseData.course.id).toBe(1);
+        expect(msg.payload.courseId).toBe(1);
     });
 
     it('SendMessageCommand has text + correlation IDs payload', () => {

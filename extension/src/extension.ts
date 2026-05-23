@@ -110,13 +110,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		const courses = data.courses;
 		if (courses && Array.isArray(courses)) {
 			for (const entry of courses) {
-				const courseExercises = entry.course?.exercises || entry.exercises || [];
-				if (courseExercises.length > 0) {
-					exerciseRegistry.registerFromCourseData({
-						course: entry.course || entry,
-						exercises: courseExercises,
-					});
-				}
+				exerciseRegistry.registerFromCourseData(entry);
 			}
 		}
 	}));

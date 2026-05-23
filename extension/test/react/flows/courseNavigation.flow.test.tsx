@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import type { CourseData } from '@shared/messageContracts';
+import type { CourseDetailData } from '@shared/messageContracts';
 
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
@@ -19,7 +19,7 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vs
  * with mocked store data. Exercises full postMessage round-trip verification.
  */
 
-function makeCourseData(overrides: Partial<CourseData['course']> = {}): CourseData {
+function makeCourseDetailData(overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData {
 	return {
 		course: {
 			id: 1,
@@ -41,8 +41,8 @@ describe('Course Navigation Flow', () => {
 			dispatchExtensionMessage({
 				type: 'courseListInit',
 				courses: [
-					makeCourseData({ id: 1, title: 'Algorithms', semester: 'WS24/25' }),
-					makeCourseData({ id: 2, title: 'Data Structures', semester: 'SS25' }),
+					makeCourseDetailData({ id: 1, title: 'Algorithms', semester: 'WS24/25' }),
+					makeCourseDetailData({ id: 2, title: 'Data Structures', semester: 'SS25' }),
 				],
 			});
 
@@ -60,7 +60,7 @@ describe('Course Navigation Flow', () => {
 			// Load courses via message
 			dispatchExtensionMessage({
 				type: 'courseListInit',
-				courses: [makeCourseData({ id: 10, title: 'Software Engineering', semester: 'SS25' })],
+				courses: [makeCourseDetailData({ id: 10, title: 'Software Engineering', semester: 'SS25' })],
 			});
 
 			await waitFor(() => {
@@ -75,9 +75,7 @@ describe('Course Navigation Flow', () => {
 				expect.objectContaining({
 					type: 'command',
 					command: 'viewCourseDetails',
-					payload: expect.objectContaining({
-						courseData: expect.objectContaining({ id: 10 }),
-					}),
+					payload: { courseId: 10 },
 				})
 			);
 		});
