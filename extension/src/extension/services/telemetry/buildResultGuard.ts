@@ -14,9 +14,8 @@
  *     first course-load window.
  */
 
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ResultDTO } from '@extension/types';
-
-import type { ExerciseRegistry } from '../exerciseRegistry';
 
 export function shouldAcceptBuildResult(
     result: ResultDTO,

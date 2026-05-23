@@ -3,8 +3,8 @@ import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Container } from '@webview/components/Container';
 import { Skeleton } from '@webview/components/Skeleton/Skeleton';
+import type { ProblemStatementProps } from '@webview/views/ExerciseDetail/types';
 
-import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 
 const SSR_TIMEOUT_MS = 10_000;

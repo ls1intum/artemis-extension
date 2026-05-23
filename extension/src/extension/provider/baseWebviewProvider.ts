@@ -4,7 +4,7 @@ import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shar
 import { WebviewMsgType } from '@shared/messageContracts';
 import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 
-import { LogCategory, logger } from '../services/loggingService';
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 /**
  * Shared base class for webview providers.

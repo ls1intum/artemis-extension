@@ -2,12 +2,12 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { ObservationRegistry } from '@extension/services/telemetry/recording/observation/observationRegistry';
+import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
+import type { StartupCapture, StartupContext } from '@extension/services/telemetry/recording/startup/startupCapture';
+import type { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
+import type { RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
 
-import type { ObservationRegistry } from '../observation/observationRegistry';
-import type { SnapshotManager } from '../snapshots/snapshotManager';
-import type { StartupCapture, StartupContext } from '../startup/startupCapture';
-import type { RecordingStorageWriter } from '../storageWriter';
-import type { RecordedEvent, SessionMetadata } from '../types';
 import type { RecorderLifecycleState, RecorderPhase } from './recorderLifecycleState';
 
 interface RecordInternalOptions {

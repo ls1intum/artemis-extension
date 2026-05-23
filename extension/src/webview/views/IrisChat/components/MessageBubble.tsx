@@ -8,8 +8,8 @@ import { Streamdown } from 'streamdown';
 
 import { useStreamdownConfig } from '@webview/hooks/useStreamdownConfig';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
+import type { ChatMessage } from '@webview/views/IrisChat/types';
 
-import type { ChatMessage } from '../types';
 import styles from './MessageBubble.module.css';
 
 interface MessageBubbleProps {

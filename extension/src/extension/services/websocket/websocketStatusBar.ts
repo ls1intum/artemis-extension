@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 
 import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
+import { LogCategory, logger } from '@extension/services/loggingService';
 import { VSCODE_CONFIG } from '@extension/utils';
 
-import { LogCategory, logger } from '../loggingService';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 
 /**

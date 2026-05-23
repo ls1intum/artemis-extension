@@ -22,7 +22,7 @@ vi.mock('streamdown', () => ({
 
 // Mock CodeBlock to avoid Shiki complexity
 vi.mock(
-	'../../../../../src/webview/views/IrisChat/components/CodeBlock',
+	'@webview/views/IrisChat/components/CodeBlock',
 	() => ({
 		CodeBlock: ({ language, children }: { language?: string; children?: string }) => (
 			<pre data-language={language}><code>{children}</code></pre>

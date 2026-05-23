@@ -3,11 +3,11 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 import type { ArtemisApiService } from '@extension/api';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
+import { ExerciseRegistry, type ExerciseRegistryEntry } from '@extension/services/exerciseRegistry';
+import { logger } from '@extension/services/loggingService';
 import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 
-import type { CourseDataCache } from '../courseDataCache';
-import { ExerciseRegistry, type ExerciseRegistryEntry } from '../exerciseRegistry';
-import { logger } from '../loggingService';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 
 const execFileAsync = promisify(execFile);

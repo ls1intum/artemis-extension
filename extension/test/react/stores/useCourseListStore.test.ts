@@ -1,11 +1,10 @@
+import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
 
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
-
-import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 
 const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData => ({
 	course: {

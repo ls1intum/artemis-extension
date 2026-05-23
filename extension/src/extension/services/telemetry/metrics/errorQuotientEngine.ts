@@ -6,7 +6,8 @@ import {
     ErrorSnapshot,
     SessionResettable,
     SessionStartContext,
-} from '../types';
+} from '@extension/services/telemetry/types';
+
 import { shouldDedupSnapshot } from './snapshotDedup';
 
 /**

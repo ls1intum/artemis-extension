@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-import { LogCategory, logger } from '../loggingService';
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 const execFileAsync = promisify(execFile);
 

@@ -1,3 +1,4 @@
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -8,10 +9,8 @@ import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
-
 // Mock useWebSocketUpdates — not under test here
-vi.mock('../../../../src/webview/hooks/useWebSocketUpdates', () => ({
+vi.mock('@webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
 

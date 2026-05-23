@@ -1,4 +1,4 @@
-import { InterventionFilter } from '../interventionFilter';
+import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
 import {
     EQConfidence,
     InterventionBlockedReason,
@@ -6,7 +6,7 @@ import {
     InterventionState,
     RecommendedAction,
     TriggerType,
-} from '../types';
+} from '@extension/services/telemetry/types';
 
 /**
  * EQ-to-Intervention thresholds.

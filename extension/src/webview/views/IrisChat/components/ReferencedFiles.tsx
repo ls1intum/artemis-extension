@@ -4,7 +4,8 @@ import FileText from 'lucide-react/dist/esm/icons/file-text';
 import XCircle from 'lucide-react/dist/esm/icons/x-circle';
 import { useState } from 'react';
 
-import type { ReferencedFilesData } from '../types';
+import type { ReferencedFilesData } from '@webview/views/IrisChat/types';
+
 import styles from './ReferencedFiles.module.css';
 
 interface ReferencedFilesProps {

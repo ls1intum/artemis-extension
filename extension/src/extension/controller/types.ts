@@ -1,6 +1,7 @@
 import type { CourseDetailData } from '@shared/messageContracts';
 
-import type { ExerciseDetailsResponse } from '../types';
+import type { ExerciseDetailsResponse } from '@extension/types';
+
 import type { UserInfo } from './appStateManager';
 
 /**

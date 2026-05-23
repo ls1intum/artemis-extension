@@ -11,7 +11,7 @@ import type {
     IrisStageDTO,
     ReferencedFilesData,
     StreamingState,
-} from '../views/IrisChat/types';
+} from '@webview/views/IrisChat/types';
 
 /**
  * Webview-side connection status. Mirrors the extension's

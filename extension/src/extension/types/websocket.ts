@@ -1,4 +1,4 @@
-import type { ProgrammingSubmission, ResultDTO, SubmissionProcessingMessage } from '../domain';
+import type { ProgrammingSubmission, ResultDTO, SubmissionProcessingMessage } from '@extension/domain';
 
 export interface WebSocketMessageHandler {
     onNewResult?: (result: ResultDTO) => void;

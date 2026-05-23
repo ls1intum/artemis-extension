@@ -1,3 +1,4 @@
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
@@ -5,8 +6,6 @@ import { describe, expect, it } from 'vitest';
 import type { RecentCourseNode } from '@webview/stores/useDashboardStore';
 import { useDashboardStore } from '@webview/stores/useDashboardStore';
 import { DashboardView } from '@webview/views/Dashboard/DashboardView';
-
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 const makeCourseNode = (id: number, title: string, exercises: Array<{ id: number; title: string }> = []): RecentCourseNode => ({
 	courseData: {

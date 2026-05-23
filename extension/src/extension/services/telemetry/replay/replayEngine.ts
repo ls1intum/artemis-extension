@@ -6,14 +6,15 @@
  * behavior against serialized recording data.
  */
 
-import { ErrorQuotientEngine } from '../metrics/errorQuotientEngine';
+import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
 import type {
     EqEngineStateEvent,
     RecordedEvent,
     SerializedDiagnostic,
-} from '../recording/types';
-import type { EQConfig, ErrorSnapshot } from '../types';
-import { DEFAULT_EQ_CONFIG } from '../types';
+} from '@extension/services/telemetry/recording/types';
+import type { EQConfig, ErrorSnapshot } from '@extension/services/telemetry/types';
+import { DEFAULT_EQ_CONFIG } from '@extension/services/telemetry/types';
+
 import { createSnapshotFromBuildEvent, createSnapshotFromDiagnosticState } from './snapshotReconstructor';
 
 interface ReplayEqSnapshot {

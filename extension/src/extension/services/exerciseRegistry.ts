@@ -1,6 +1,7 @@
 import type { ExerciseRef } from '@shared/types';
 
-import type { CourseDashboardEntry } from '../types';
+import type { CourseDashboardEntry } from '@extension/types';
+
 import { logger } from './loggingService';
 import { getEntryExercises, toExerciseSource } from './workspace';
 

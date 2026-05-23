@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { PlatformCapabilities } from '@extension/theia';
-
 import {
     collectDiagnostics,
     collectFileSwitch,
@@ -11,11 +9,12 @@ import {
     collectTextChange,
     collectVisibleRangeChange,
     collectWindowFocus,
-} from '../eventCollectors';
-import type { RecorderLifecycleState } from '../lifecycle/recorderLifecycleState';
-import type { SnapshotManager } from '../snapshots/snapshotManager';
-import type { RecordedEvent } from '../types';
-import { shouldRecordUri } from '../uriFilter';
+} from '@extension/services/telemetry/recording/eventCollectors';
+import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycle/recorderLifecycleState';
+import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
+import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';
+import type { PlatformCapabilities } from '@extension/theia';
 
 interface PendingExecution {
     output: string;

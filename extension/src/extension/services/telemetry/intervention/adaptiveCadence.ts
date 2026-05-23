@@ -5,7 +5,7 @@ import {
     SessionStartContext,
     TriggerConfig,
     TriggerType,
-} from '../types';
+} from '@extension/services/telemetry/types';
 
 /**
  * Adaptive Cadence — manages escalating thresholds for idle/selection triggers.

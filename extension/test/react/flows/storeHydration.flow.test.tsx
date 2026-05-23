@@ -1,3 +1,16 @@
+// Test helpers
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+// Fixture factories
+import {
+    createCourseDetailPayload,
+    createCourseListPayload,
+    createDashboardPayload,
+    createExerciseDetailPayload,
+    createGitCredentialsPayload,
+    createIrisInitPayload,
+    createRecommendedExtensionsPayload,
+    createServiceStatusPayload,
+} from '@test/react/fixtures';
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
@@ -16,20 +29,6 @@ import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentials
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
 import { RecommendedExtensionsView } from '@webview/views/RecommendedExtensions/RecommendedExtensionsView';
 import { ServiceStatusView } from '@webview/views/ServiceStatus/ServiceStatusView';
-
-// Test helpers
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
-// Fixture factories
-import {
-    createCourseDetailPayload,
-    createCourseListPayload,
-    createDashboardPayload,
-    createExerciseDetailPayload,
-    createGitCredentialsPayload,
-    createIrisInitPayload,
-    createRecommendedExtensionsPayload,
-    createServiceStatusPayload,
-} from '../fixtures';
 
 /**
  * Store hydration flow integration tests.

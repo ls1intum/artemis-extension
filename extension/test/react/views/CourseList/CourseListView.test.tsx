@@ -1,3 +1,4 @@
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
@@ -6,8 +7,6 @@ import type { CourseDetailData } from '@shared/messageContracts';
 
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 import { CourseListView } from '@webview/views/CourseList/CourseListView';
-
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData => ({
 	course: {

@@ -1,8 +1,9 @@
 import clsx from 'clsx';
 import { ReactNode, useEffect, useState } from 'react';
 
-import { Badge } from '../Badge';
-import { Button } from '../Button';
+import { Badge } from '@webview/components/Badge';
+import { Button } from '@webview/components/Button';
+
 import styles from './SubmissionStatus.module.css';
 
 export type SubmissionStatusType =

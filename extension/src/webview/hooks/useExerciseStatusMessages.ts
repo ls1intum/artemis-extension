@@ -1,7 +1,8 @@
 import type { VsCodeApi } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 
-import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+
 import { useExtensionMessage } from './useExtensionMessage';
 
 /**

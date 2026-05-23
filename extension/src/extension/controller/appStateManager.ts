@@ -1,13 +1,13 @@
 import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
 
-import type { CourseDataCache } from '../services/courseDataCache';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
 import type {
     CourseDashboardEntry,
     CourseDashboardResponse,
     ExerciseDetailsResponse,
-} from '../types';
-import type { ArtemisUser } from '../types';
-import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../utils/recommendedExtensions';
+} from '@extension/types';
+import type { ArtemisUser } from '@extension/types';
+import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '@extension/utils/recommendedExtensions';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials';
 

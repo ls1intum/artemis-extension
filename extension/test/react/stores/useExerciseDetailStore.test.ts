@@ -1,10 +1,9 @@
+import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { ExerciseDetailsResponse, ParticipationSummary, ResultSummary, SubmissionSummary } from '@extension/types';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-
-import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 
 const makeExerciseData = (overrides: Partial<ExerciseDetailsResponse> = {}): ExerciseDetailsResponse => ({
 	exercise: {

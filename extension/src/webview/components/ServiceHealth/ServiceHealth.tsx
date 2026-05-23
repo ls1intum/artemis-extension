@@ -3,7 +3,8 @@ import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
 import { useState } from 'react';
 
-import { Badge } from '../Badge';
+import { Badge } from '@webview/components/Badge';
+
 import styles from './ServiceHealth.module.css';
 
 export type ServiceStatus = 'online' | 'offline' | 'checking' | 'unknown';

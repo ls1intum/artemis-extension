@@ -1,4 +1,5 @@
-import { Button } from '../Button';
+import { Button } from '@webview/components/Button';
+
 import styles from './EmptyState.module.css';
 
 interface EmptyStateProps {

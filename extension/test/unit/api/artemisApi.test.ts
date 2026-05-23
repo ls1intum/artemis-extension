@@ -1,10 +1,9 @@
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 import * as assert from 'assert';
 
 import { ArtemisApiService } from '@extension/api/artemisApi';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { ApiError, MalformedResponseError } from '@extension/types';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 // Mock fetch
 const originalFetch = global.fetch;

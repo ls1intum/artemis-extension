@@ -1,3 +1,4 @@
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
@@ -8,8 +9,6 @@ import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
 import { CourseListView } from '@webview/views/CourseList/CourseListView';
-
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**
  * Course navigation flow integration tests.

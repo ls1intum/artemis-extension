@@ -1,6 +1,6 @@
-import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '../domain/problemStatementRendering';
-import { AuthManager } from '../services/auth/authManager';
-import { LogCategory, logger } from '../services/loggingService';
+import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '@extension/domain/problemStatementRendering';
+import { AuthManager } from '@extension/services/auth/authManager';
+import { LogCategory, logger } from '@extension/services/loggingService';
 import type {
     ArtemisParticipation,
     ArtemisUser,
@@ -9,7 +9,7 @@ import type {
     IrisHealthStatus,
     ProfileInfo,
     ProgrammingSubmission,
-} from '../types';
+} from '@extension/types';
 import type {
     CourseDashboardCourse,
     CourseDashboardEntry,
@@ -21,7 +21,7 @@ import type {
     IrisChatSessionSummary,
     IrisSettingsResponse,
     ResultSummary,
-} from '../types';
+} from '@extension/types';
 import {
     ApiError,
     expectArray,
@@ -35,8 +35,8 @@ import {
     parseProfileInfo,
     parseProgrammingSubmission,
     PROFILE_IRIS,
-} from '../types';
-import { CONFIG, getUserAgent, resolveServerUrl } from '../utils';
+} from '@extension/types';
+import { CONFIG, getUserAgent, resolveServerUrl } from '@extension/utils';
 
 export class ArtemisApiService {
     private authManager: AuthManager;

@@ -1,4 +1,5 @@
-import type { AuthManager } from '../services/auth/authManager';
+import type { AuthManager } from '@extension/services/auth/authManager';
+
 import type { TheiaEnvironment } from './types';
 
 /**
