@@ -32,13 +32,13 @@
  * malformed lines with a warning (already best-practice; required here).
  */
 
-import pkg from '@root/package.json';
 import * as crypto from 'crypto';
 import * as fsSync from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import pkg from '@root/package.json';
 
 import type { RecordedEvent, SessionMetadata } from './types';
 

@@ -1,4 +1,7 @@
 // Test helpers
+import { act, render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 // Fixture factories
 import {
@@ -11,9 +14,6 @@ import {
     createRecommendedExtensionsPayload,
     createServiceStatusPayload,
 } from '@test/react/fixtures';
-import { act, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-
 // View components
 import { useChatStore } from '@webview/stores/useChatStore';
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';

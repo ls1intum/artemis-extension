@@ -1,4 +1,3 @@
-import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -6,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ExtensionMsg } from '@shared/messageContracts';
 import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
 
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 

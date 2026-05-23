@@ -1,4 +1,3 @@
-import { MockMemento } from '@test/unit/mocks/vscodeMocks';
 import * as assert from 'assert';
 
 import {
@@ -8,6 +7,7 @@ import {
     type CourseAccessScope,
     CourseAccessStorageService,
 } from '@extension/services/courseAccessStorageService';
+import { MockMemento } from '@test/unit/mocks/vscodeMocks';
 
 function waitFor(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));

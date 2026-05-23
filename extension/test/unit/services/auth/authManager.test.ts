@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { AuthManager } from '@extension/services/auth/authManager';
 import { CONFIG } from '@extension/utils/constants';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('AuthManager Test Suite', () => {
     let context: MockExtensionContext;

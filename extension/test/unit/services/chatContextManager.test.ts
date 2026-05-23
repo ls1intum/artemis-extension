@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
@@ -7,6 +6,7 @@ import { ChatContextManager, pickBestContextFromSnapshot } from '@extension/serv
 import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('ChatContextManager Test Suite', () => {
     let chatContextManager: ChatContextManager;

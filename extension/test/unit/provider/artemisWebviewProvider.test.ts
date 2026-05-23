@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
@@ -11,6 +10,7 @@ import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {

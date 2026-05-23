@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
@@ -9,6 +8,7 @@ import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthManager } from '@extension/services/auth';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {
