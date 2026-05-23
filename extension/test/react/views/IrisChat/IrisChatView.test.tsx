@@ -2,10 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { useChatStore } from '@webview/stores/useChatStore';
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
-
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock streamdown — ESM-only package
 vi.mock('streamdown', () => ({
@@ -25,7 +24,7 @@ vi.mock('use-stick-to-bottom', () => ({
 }));
 
 // Mock Shiki/CodeBlock to avoid dynamic imports
-vi.mock('../../../../src/webview/views/IrisChat/components/CodeBlock', () => ({
+vi.mock('@webview/views/IrisChat/components/CodeBlock', () => ({
 	CodeBlock: ({ children }: { language?: string; children?: string }) => (
 		<pre><code>{children}</code></pre>
 	),

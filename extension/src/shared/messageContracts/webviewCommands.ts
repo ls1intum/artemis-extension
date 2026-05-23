@@ -2,7 +2,7 @@
  * Webview -> Extension command contracts.
  */
 
-import type { ChatContextType } from '../types/context';
+import type { ChatContextType } from '@shared/types/context';
 
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {

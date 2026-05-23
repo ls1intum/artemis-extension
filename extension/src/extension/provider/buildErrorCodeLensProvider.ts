@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
-import type { ParsedBuildError } from '../types';
-import { normalizeRelativePath } from '../utils';
+import type { ParsedBuildError } from '@extension/types';
+import { normalizeRelativePath } from '@extension/utils';
 
 /**
  * CodeLens provider for displaying build errors above the affected line

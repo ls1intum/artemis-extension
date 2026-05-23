@@ -4,8 +4,7 @@ import * as assert from 'assert';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import type { ResultDTO } from '@extension/types';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 /**
  * Flush the microtask queue so that connect() progresses past its async

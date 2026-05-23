@@ -1,10 +1,10 @@
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api';
+import { extractIrisMessageContent } from '@extension/services/iris/chat/messageUtils';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ActiveContext, IrisChatMessage, IrisChatSession } from '@extension/types';
 
-import { extractIrisMessageContent } from '../chat/messageUtils';
 import { contextToIrisMode } from './contextChatMode';
 import { ContextStore } from './contextStore';
 import { resolveCourseIdFromContext } from './courseIdResolver';

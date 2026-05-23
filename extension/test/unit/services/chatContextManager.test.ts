@@ -6,8 +6,7 @@ import { ChatContextManager, pickBestContextFromSnapshot } from '@extension/serv
 import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('ChatContextManager Test Suite', () => {
     let chatContextManager: ChatContextManager;

@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 
-import type { ArtemisApiService } from '../api';
-import type { CourseDashboardEntry, CourseDashboardResponse } from '../types';
+import type { ArtemisApiService } from '@extension/api';
+import type { CourseDashboardEntry, CourseDashboardResponse } from '@extension/types';
+
 import { LogCategory, logger } from './loggingService';
 
 /**

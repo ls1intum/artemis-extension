@@ -12,6 +12,8 @@ export default defineConfig({
 			'@extension': new URL('./src/extension', import.meta.url).pathname,
 			'@webview': new URL('./src/webview', import.meta.url).pathname,
 			'@shared': new URL('./src/shared', import.meta.url).pathname,
+			'@test': new URL('./test', import.meta.url).pathname,
+			'@root/package.json': new URL('./package.json', import.meta.url).pathname,
 		},
 	},
 	test: {

@@ -38,8 +38,8 @@ import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import pkg from '@root/package.json';
 
-import pkg from '../../../../../package.json';
 import type { RecordedEvent, SessionMetadata } from './types';
 
 const BUFFER_THRESHOLD = 10;

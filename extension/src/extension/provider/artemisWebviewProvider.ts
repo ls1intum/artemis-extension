@@ -9,21 +9,21 @@ import type {
     TestResultsOverviewOpenedPayload,
 } from '@shared/messageContracts/webviewCommands';
 
-import { ArtemisApiService } from '../api';
-import { AppStateManager, type UserInfo } from '../controller/appStateManager';
-import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
-import type { WebViewActionHandler } from '../controller/types';
-import { getViewHtml } from '../controller/viewRouter';
-import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
-import { AuthFlowHandler, AuthManager } from '../services/auth';
-import { type CourseAccessScope, CourseAccessStorageService } from '../services/courseAccessStorageService';
-import type { CourseDataCache } from '../services/courseDataCache';
-import { ExerciseRegistry } from '../services/exerciseRegistry';
-import { LogCategory, logger } from '../services/loggingService';
-import { ProblemStatementRenderService } from '../services/problemStatementRenderService';
-import type { TelemetryManager } from '../services/telemetry';
-import type { IProviderRegistry } from '../services/ui';
-import type { StartPageResult } from '../services/ui';
+import { ArtemisApiService } from '@extension/api';
+import { AppStateManager, type UserInfo } from '@extension/controller/appStateManager';
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '@extension/controller/exerciseDataLoader';
+import type { WebViewActionHandler } from '@extension/controller/types';
+import { getViewHtml } from '@extension/controller/viewRouter';
+import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
+import { type CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
+import type { TelemetryManager } from '@extension/services/telemetry';
+import type { IProviderRegistry } from '@extension/services/ui';
+import type { StartPageResult } from '@extension/services/ui';
 import {
     BuildDiagnosticsService,
     ExerciseOpeningService,
@@ -31,24 +31,25 @@ import {
     StartPageResolver,
     SubmissionWebSocketHandler,
     ViewInitDataService,
-} from '../services/ui';
-import { ArtemisWebsocketService } from '../services/websocket';
+} from '@extension/services/ui';
+import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
     collectExerciseSources,
     findExerciseByRepositoryUrl,
     findWorkspaceCourseInArchive,
     getWorkspaceRepositoryUrl,
-} from '../services/workspace';
-import type { ExerciseDetailsResponse } from '../types';
-import { WebSocketMessageHandler } from '../types';
-import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
+} from '@extension/services/workspace';
+import type { ExerciseDetailsResponse } from '@extension/types';
+import { WebSocketMessageHandler } from '@extension/types';
+import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
 import {
     AI_EXTENSIONS_BLOCKLIST,
     CONFIG,
     getRecommendedExtensionsByCategory,
     resolveServerUrl,
     VSCODE_CONFIG,
-} from '../utils';
+} from '@extension/utils';
+
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 

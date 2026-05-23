@@ -8,8 +8,7 @@ import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessio
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import * as workspaceFileChecker from '@extension/services/workspace/workspaceFileChecker';
 import type { ActiveContext } from '@extension/types';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('ChatMessageService', () => {
     let sandbox: sinon.SinonSandbox;

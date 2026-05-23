@@ -3,9 +3,8 @@ import { fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { LoginView } from '@webview/views/Login/LoginView';
-
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**
  * Auth flow integration tests.

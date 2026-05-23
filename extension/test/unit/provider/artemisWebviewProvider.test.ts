@@ -10,8 +10,7 @@ import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {

@@ -1,12 +1,12 @@
 import { ExtensionMsg } from '@shared/messageContracts';
 
+import { resolveCourseIdFromContext } from '@extension/services/iris/context/courseIdResolver';
+import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
+import { fetchSessionsWithMessages, importSessionsToStore } from '@extension/services/iris/context/sessionSyncUtils';
+import type { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '@extension/types';
 
-import { resolveCourseIdFromContext } from '../context/courseIdResolver';
-import type { IrisServiceDeps } from '../context/sessionSyncUtils';
-import { fetchSessionsWithMessages, importSessionsToStore } from '../context/sessionSyncUtils';
-import type { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
 import { extractIrisMessageContent } from './messageUtils';
 
 /**

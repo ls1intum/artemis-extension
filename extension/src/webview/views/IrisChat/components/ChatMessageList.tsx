@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 
 import { useAutoScroll } from '@webview/hooks/useAutoScroll';
+import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
-import type { ChatMessage, IrisStageDTO, StreamingState } from '../types';
 import styles from './ChatMessageList.module.css';
 import { MessageBubble } from './MessageBubble';
 import { ThinkingIndicator } from './ThinkingIndicator';

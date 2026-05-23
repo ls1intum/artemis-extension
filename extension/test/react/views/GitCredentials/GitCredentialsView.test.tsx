@@ -2,9 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentialsView';
-
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 /** Dispatch gitIdentityInfo so the view transitions past the loading skeleton. */
 function initView(overrides?: { name?: string; email?: string }) {

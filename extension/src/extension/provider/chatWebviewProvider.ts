@@ -3,12 +3,12 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
-import { ArtemisApiService } from '../api';
-import { openFileInWorkspace, openSettings } from '../controller/commands/utilityCommands';
-import type { CourseDataCache } from '../services/courseDataCache';
-import { ExerciseRegistry } from '../services/exerciseRegistry';
-import type { ChatContextReason, IrisServiceDeps } from '../services/iris';
-import { IrisWebSocketMessageHandler } from '../services/iris';
+import { ArtemisApiService } from '@extension/api';
+import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { ChatContextReason, IrisServiceDeps } from '@extension/services/iris';
+import { IrisWebSocketMessageHandler } from '@extension/services/iris';
 import {
     ChatContextManager,
     ChatDiagnosticsService,
@@ -17,20 +17,21 @@ import {
     IRIS_CHAT_HELP_MARKDOWN,
     IrisChatSessionService,
     IrisWebSocketSessionClient,
-} from '../services/iris';
-import { LogCategory, logger } from '../services/loggingService';
-import { type StruggleContext, TelemetryManager } from '../services/telemetry';
-import { getReactWebviewHtml } from '../services/ui';
-import { ArtemisWebsocketService } from '../services/websocket';
+} from '@extension/services/iris';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { type StruggleContext, TelemetryManager } from '@extension/services/telemetry';
+import { getReactWebviewHtml } from '@extension/services/ui';
+import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
     detectAndRegisterWorkspaceExercise,
     FileMonitorService,
     getEntryExercises,
     NoAiDetectionService,
     toExerciseSource,
-} from '../services/workspace';
-import { ActiveContext, ChatContextType } from '../types';
-import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
+} from '@extension/services/workspace';
+import { ActiveContext, ChatContextType } from '@extension/types';
+import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
+
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import { ChatViewStatePresenter } from './chatViewStatePresenter';
 

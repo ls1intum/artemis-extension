@@ -1,4 +1,5 @@
-import { Button, Container } from '..';
+import { Button, Container } from '@webview/components';
+
 import styles from './AskIris.module.css';
 
 interface AskIrisProps {

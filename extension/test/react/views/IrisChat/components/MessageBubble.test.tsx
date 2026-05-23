@@ -13,7 +13,7 @@ vi.mock('streamdown', () => ({
 
 // Mock CodeBlock to avoid Shiki complexity in MessageBubble tests
 vi.mock(
-	'../../../../../src/webview/views/IrisChat/components/CodeBlock',
+	'@webview/views/IrisChat/components/CodeBlock',
 	() => ({
 		CodeBlock: ({ language, children }: { language?: string; children?: string }) => (
 			<pre data-testid="code-block" data-language={language}><code>{children}</code></pre>

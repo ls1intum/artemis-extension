@@ -1,9 +1,7 @@
 import * as vscode from 'vscode';
 
-import { ResultDTO } from '@extension/types';
-
-import { shouldDedupSnapshot } from '../metrics/snapshotDedup';
-import { shouldRecordUri } from '../recording/uriFilter';
+import { shouldDedupSnapshot } from '@extension/services/telemetry/metrics/snapshotDedup';
+import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';
 import {
     BuildResultClassification,
     CompileEquivalentEvent,
@@ -12,7 +10,9 @@ import {
     ErrorSnapshot,
     SessionResettable,
     SessionStartContext,
-} from '../types';
+} from '@extension/services/telemetry/types';
+import { ResultDTO } from '@extension/types';
+
 import { LINT_SOURCE_DENYLIST } from './lintDenylist';
 
 /**

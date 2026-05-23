@@ -2,11 +2,11 @@ import type { CourseDetailData } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 import type { PendingSubmissionStatus } from '@shared/types/apiResponses';
 
-import type { ArtemisApiService } from '../api';
-import { LogCategory, logger } from '../services/loggingService';
-import type { ExerciseDetailsResponse } from '../types';
-import { ApiError, MalformedResponseError } from '../types';
-import { pickHighestId } from '../utils/participationHelpers';
+import type { ArtemisApiService } from '@extension/api';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { ExerciseDetailsResponse } from '@extension/types';
+import { ApiError, MalformedResponseError } from '@extension/types';
+import { pickHighestId } from '@extension/utils/participationHelpers';
 
 /**
  * Enrichment-error policy:

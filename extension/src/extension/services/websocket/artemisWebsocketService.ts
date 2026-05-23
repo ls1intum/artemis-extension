@@ -4,12 +4,12 @@ import WebSocket from 'ws';
 
 import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
+import { AuthManager } from '@extension/services/auth';
+import { LogCategory, logger } from '@extension/services/loggingService';
 import type { WebSocketMessageHandler } from '@extension/types';
 import { parseProgrammingSubmission, parseResultDTO, parseSubmissionProcessingMessage } from '@extension/types';
 import { CONFIG, getUserAgent, resolveServerUrl, WEBSOCKET_TOPICS } from '@extension/utils';
 
-import { AuthManager } from '../auth';
-import { LogCategory, logger } from '../loggingService';
 import type { ConnectionState } from './connectionState';
 import { deriveDisplayStatus } from './displayStatus';
 

@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 
-import type { ArtemisApiService } from '../api/artemisApi';
-import type { ProblemStatementRenderRequest, TestFeedbackInput } from '../domain/problemStatementRendering';
-import { CONFIG, VSCODE_CONFIG } from '../utils/constants';
-import { extractLatestFeedbacks } from '../utils/participationHelpers';
+import type { ArtemisApiService } from '@extension/api/artemisApi';
+import type { ProblemStatementRenderRequest, TestFeedbackInput } from '@extension/domain/problemStatementRendering';
+import { CONFIG, VSCODE_CONFIG } from '@extension/utils/constants';
+import { extractLatestFeedbacks } from '@extension/utils/participationHelpers';
+
 import { LogCategory, logger } from './loggingService';
 
 /** Minimal feedback shape needed for test input mapping */

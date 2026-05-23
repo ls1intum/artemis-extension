@@ -5,10 +5,10 @@ import { ExtensionMsg } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api';
 import type { UserInfo } from '@extension/controller/appStateManager';
+import { LogCategory, logger } from '@extension/services/loggingService';
 import { getTheiaEnvironment } from '@extension/theia';
 import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 
-import { LogCategory, logger } from '../loggingService';
 import { AuthManager } from './authManager';
 
 export class AuthFlowHandler {

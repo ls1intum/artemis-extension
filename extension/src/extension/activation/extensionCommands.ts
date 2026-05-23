@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
 
-import type { ArtemisApiService } from '../api';
-import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
-import type { AuthManager } from '../services/auth';
-import { LogCategory, logger } from '../services/loggingService';
-import type { TelemetryManager } from '../services/telemetry';
-import { executeReplayCommand } from '../services/telemetry/replay';
-import type { IProviderRegistry } from '../services/ui';
-import type { ArtemisWebsocketService } from '../services/websocket';
-import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '../theia';
-import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '../utils';
+import type { ArtemisApiService } from '@extension/api';
+import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
+import type { AuthManager } from '@extension/services/auth';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { TelemetryManager } from '@extension/services/telemetry';
+import { executeReplayCommand } from '@extension/services/telemetry/replay';
+import type { IProviderRegistry } from '@extension/services/ui';
+import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
+import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
 
 // ── Individual command registrations ─────────────────────────────────
 

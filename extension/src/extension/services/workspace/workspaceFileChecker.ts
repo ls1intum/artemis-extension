@@ -3,9 +3,8 @@ import { execFile } from 'child_process';
 import * as fs from 'fs';
 import { promisify } from 'util';
 
+import { LogCategory, logger, LogLevel } from '@extension/services/loggingService';
 import { MAX_FILE_SIZE_BYTES } from '@extension/utils/constants';
-
-import { LogCategory, logger, LogLevel } from '../loggingService';
 
 const execFileAsync = promisify(execFile);
 const readFileAsync = promisify(fs.readFile);

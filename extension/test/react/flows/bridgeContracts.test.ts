@@ -21,7 +21,7 @@ import {
     createGitCredentialsPayload,
     createRecommendedExtensionsPayload,
     createServiceStatusPayload,
-} from '../fixtures';
+} from '@test/react/fixtures';
 
 describe('Bridge Contracts', () => {
 

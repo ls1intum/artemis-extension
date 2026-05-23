@@ -5,18 +5,18 @@ import { ExtensionMsg, toCourseDetailData } from '@shared/messageContracts';
 
 import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
-import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
-import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
-
-import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '../courseAccessStorageService';
-import { LogCategory, logger } from '../loggingService';
-import type { TelemetryManager } from '../telemetry/telemetryManager';
-import { GitService } from '../workspace/gitService';
+import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import { GitService } from '@extension/services/workspace/gitService';
 import {
     collectExerciseSources,
     detectWorkspaceExercise,
     detectWorkspaceForRepoUris,
-} from '../workspace/workspaceDetectionService';
+} from '@extension/services/workspace/workspaceDetectionService';
+import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
+import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
+
 import { selectRecentCourses } from './recentCourseSelector';
 
 export class ViewInitDataService {

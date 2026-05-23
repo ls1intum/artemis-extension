@@ -4,9 +4,9 @@ import type { CourseDetailData, WebCmd, WebviewToExtensionMessage } from '@share
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '@extension/controller/exerciseDataLoader';
 import { logger } from '@extension/services/loggingService';
 
-import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../exerciseDataLoader';
 import type { CommandContext, CommandMap } from './types';
 
 export class NavigationCommandModule {

@@ -3,14 +3,15 @@ import * as vscode from 'vscode';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { getCommand } from '@shared/messageContracts';
 
-import { ArtemisApiService } from '../api';
-import { AuthManager } from '../services/auth';
-import type { CourseAccessStorageService } from '../services/courseAccessStorageService';
-import type { CourseDataCache } from '../services/courseDataCache';
-import { ExerciseRegistry } from '../services/exerciseRegistry';
-import { LogCategory, logger, LogLevel } from '../services/loggingService';
-import type { IProviderRegistry } from '../services/ui';
-import { ArtemisWebsocketService } from '../services/websocket';
+import { ArtemisApiService } from '@extension/api';
+import { AuthManager } from '@extension/services/auth';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { LogCategory, logger, LogLevel } from '@extension/services/loggingService';
+import type { IProviderRegistry } from '@extension/services/ui';
+import { ArtemisWebsocketService } from '@extension/services/websocket';
+
 import { AppStateManager } from './appStateManager';
 import { AuthCommandModule } from './commands/authCommands';
 import { HealthCommandModule } from './commands/healthCommands';

@@ -4,8 +4,7 @@ import * as sinon from 'sinon';
 
 import { AuthManager } from '@extension/services/auth/authManager';
 import { CONFIG } from '@extension/utils/constants';
-
-import { MockExtensionContext } from '../../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('AuthManager Test Suite', () => {
     let context: MockExtensionContext;

@@ -14,8 +14,8 @@ import type { ChatContextType } from '@shared/types/context';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
+import type { ChatContext, ChatSession, ContextItem } from '@webview/views/IrisChat/types';
 
-import type { ChatContext, ChatSession, ContextItem } from '../types';
 import styles from './ContextSelector.module.css';
 
 interface ContextSelectorProps {

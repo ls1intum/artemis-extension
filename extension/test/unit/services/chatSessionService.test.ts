@@ -7,8 +7,7 @@ import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessio
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { ActiveContext } from '@extension/types';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('IrisChatSessionService Test Suite', () => {
     let chatSessionService: IrisChatSessionService;

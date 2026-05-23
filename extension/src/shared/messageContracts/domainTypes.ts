@@ -2,7 +2,7 @@
  * Domain types shared between extension and webview messages.
  */
 
-import type { ExerciseDetail } from '../types/apiResponses';
+import type { ExerciseDetail } from '@shared/types/apiResponses';
 
 export interface RecentCourseNode {
     courseData: CourseDetailData;

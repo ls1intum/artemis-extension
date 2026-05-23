@@ -5,13 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { ExtensionMsg } from '@shared/messageContracts';
 import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
 
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
-
 // Mock useWebSocketUpdates — not under test here
-vi.mock('../../../../src/webview/hooks/useWebSocketUpdates', () => ({
+vi.mock('@webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
 

@@ -9,8 +9,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { parseRecordedEvent, parseSessionMetadata } from '../recording/parseRecordedData';
-import type { RecordedEvent, SessionMetadata } from '../recording/types';
+import { parseRecordedEvent, parseSessionMetadata } from '@extension/services/telemetry/recording/parseRecordedData';
+import type { RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
+
 import { replaySession } from './replayEngine';
 
 export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promise<void> {

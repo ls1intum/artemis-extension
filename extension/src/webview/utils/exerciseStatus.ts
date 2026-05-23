@@ -1,6 +1,6 @@
-import type { ParticipationStatusType } from '../components/exercise/ParticipationActions';
-import type { SubmissionStatusType, TestCase } from '../components/exercise/SubmissionStatus';
-import type { PendingSubmissionInfo } from '../stores/useExerciseDetailStore';
+import type { ParticipationStatusType } from '@webview/components/exercise/ParticipationActions';
+import type { SubmissionStatusType, TestCase } from '@webview/components/exercise/SubmissionStatus';
+import type { PendingSubmissionInfo } from '@webview/stores/useExerciseDetailStore';
 
 export function determineSubmissionStatus(
     pendingSubmission: PendingSubmissionInfo | null,

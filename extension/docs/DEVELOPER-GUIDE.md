@@ -946,17 +946,29 @@ See [VS Code Theme Color Reference](https://code.visualstudio.com/api/references
 
 ### TypeScript Conventions
 
-**No path aliases:**
+**Path aliases:**
 
-The codebase does **not** use TypeScript path aliases (`@/` imports). Use relative imports:
+The codebase uses TypeScript path aliases for all upward-going imports. Sibling imports (`./foo`) stay relative.
+
+| Alias | Maps to | Use for |
+|-------|---------|---------|
+| `@extension/*` | `src/extension/*` | Anything inside the extension host layer |
+| `@webview/*` | `src/webview/*` | Anything inside the React webview layer |
+| `@shared/*` | `src/shared/*` | Types and contracts shared across layers |
+| `@test/*` | `test/*` | Test helpers, mocks, fixtures |
+| `@root/package.json` | `./package.json` | The extension package's `package.json` (only valid `@root/` target) |
 
 ```typescript
 // Good
-import { Button } from '../../components/Button';
+import { Button } from '@webview/components/Button';
+import { logger } from '@extension/services/loggingService';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
-// Bad (not configured)
-import { Button } from '@/components/Button';
+// Bad (ESLint will reject)
+import { Button } from '../../components/Button';
 ```
+
+ESLint enforces this via `no-restricted-imports` (static imports/exports) and `no-restricted-syntax` (dynamic `import()`, `require()`, `vi.mock()`). Layer-boundary patterns continue to forbid `@webview` from `@extension` code and vice versa.
 
 **Strict typing:**
 
@@ -970,7 +982,7 @@ import { Button } from '@/components/Button';
 Use `import type` for type-only imports to avoid bundling:
 
 ```typescript
-import type { VsCodeApi } from '../../../shared/messageContracts';
+import type { VsCodeApi } from '@shared/messageContracts';
 ```
 
 ### Git Conventions

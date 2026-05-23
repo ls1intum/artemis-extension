@@ -3,8 +3,7 @@ import * as assert from 'assert';
 
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { ActiveContext } from '@extension/types';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('ContextStore Test Suite', () => {
     let contextStore: ContextStore;

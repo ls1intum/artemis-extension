@@ -8,8 +8,7 @@ import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthManager } from '@extension/services/auth';
-
-import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {

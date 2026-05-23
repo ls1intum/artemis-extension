@@ -1,9 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
 import { RecentCourseNode, useDashboardStore } from '@webview/stores/useDashboardStore';
-
-import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 
 describe('useDashboardStore', () => {
 	it('initializes with empty state', () => {

@@ -4,7 +4,8 @@ import CircleX from 'lucide-react/dist/esm/icons/circle-x';
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
-import { IconButton } from '../Button';
+import { IconButton } from '@webview/components/Button';
+
 import type { TestCase } from './SubmissionStatus';
 import styles from './TestResultsOverlay.module.css';
 

@@ -3,12 +3,12 @@ import * as vscode from 'vscode';
 import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 
+import { isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
+import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import type { IrisChatMessage } from '@extension/types';
 
-import { isVisibleIrisStage } from '../parseIrisWs';
-import { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
 import { extractIrisMessageContent } from './messageUtils';
 
 type ReconnectResult =

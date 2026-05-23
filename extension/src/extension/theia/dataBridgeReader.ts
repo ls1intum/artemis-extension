@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { LogCategory, logger } from '../services/loggingService';
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 const DATA_BRIDGE_COMMAND = 'dataBridge.getEnv';
 const POLL_INTERVAL_MS = 500;

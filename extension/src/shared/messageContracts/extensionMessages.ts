@@ -7,8 +7,9 @@ import type {
     IrisStageDTO,
     ResultSummary,
     SubmissionSummary,
-} from '../types/apiResponses';
-import type { ChatContextType } from '../types/context';
+} from '@shared/types/apiResponses';
+import type { ChatContextType } from '@shared/types/context';
+
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
 /**

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
-import { LogCategory, logger } from '../services/loggingService';
+import { LogCategory, logger } from '@extension/services/loggingService';
+
 import { readEnvVarsViaDataBridge } from './dataBridgeReader';
 import { type TheiaEnvironment, VSCODE_ENVIRONMENT } from './types';
 

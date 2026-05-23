@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo } from 'react';
 
-import { CodeBlock } from '../views/IrisChat/components/CodeBlock';
+import { CodeBlock } from '@webview/views/IrisChat/components/CodeBlock';
 
 /**
  * Shared Streamdown component configuration for rendering fenced code blocks

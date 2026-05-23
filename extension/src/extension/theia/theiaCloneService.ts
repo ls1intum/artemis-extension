@@ -3,8 +3,9 @@ import { execFile } from 'child_process';
 import * as path from 'path';
 import { promisify } from 'util';
 
-import { LogCategory, logger } from '../services/loggingService';
-import { getWorkspaceRepositoryUrl, normalizeRepositoryUrl } from '../services/workspace';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { getWorkspaceRepositoryUrl, normalizeRepositoryUrl } from '@extension/services/workspace';
+
 import type { TheiaEnvironment } from './types';
 
 const execFileAsync = promisify(execFile);

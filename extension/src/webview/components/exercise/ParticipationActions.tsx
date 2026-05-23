@@ -4,9 +4,9 @@ import FlaskConical from 'lucide-react/dist/esm/icons/flask-conical';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 
+import { Button } from '@webview/components/Button';
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 
-import { Button } from '../Button';
 import styles from './ParticipationActions.module.css';
 
 export const EXERCISE_TYPES = ['programming', 'quiz', 'modeling', 'text', 'file-upload'] as const;
