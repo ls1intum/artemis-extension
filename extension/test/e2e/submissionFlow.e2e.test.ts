@@ -346,9 +346,7 @@ suite('E2E: Student Submission Flow', function () {
             resultCount += (sub.results ?? []).length;
         }
         // Also count top-level results (some Artemis versions)
-        for (const r of p.results ?? []) {
-            resultCount++;
-        }
+        resultCount += (p.results ?? []).length;
         initialResultCount = resultCount;
 
         logger.info(`[E2E-Sub] Participation ${participation.id}, repo: ${participation.repositoryUri}`, LogCategory.TEST);

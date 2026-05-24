@@ -38,7 +38,6 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
     /** One-shot idle timer (fires once, then waits for activity resume to re-arm) */
     private _idleTimer: NodeJS.Timeout | undefined;
     private _selectionTimer: NodeJS.Timeout | undefined;
-    private _selectionStartTime: number = 0;
 
     private readonly _onDidFireTrigger = new vscode.EventEmitter<TriggerType>();
     public readonly onDidFireTrigger = this._onDidFireTrigger.event;
@@ -131,7 +130,6 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
             clearTimeout(this._selectionTimer);
         }
 
-        this._selectionStartTime = Date.now();
         const threshold = this._adaptiveCadence.getSelectionThreshold();
 
         this._selectionTimer = setTimeout(() => {
@@ -163,7 +161,6 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
             clearTimeout(this._selectionTimer);
             this._selectionTimer = undefined;
         }
-        this._selectionStartTime = 0;
         this._lastTriggerTimestamps = {
             'execution-error': 0,
             'multiline-paste': 0,

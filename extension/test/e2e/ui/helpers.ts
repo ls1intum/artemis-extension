@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ActivityBar, By, SideBarView, until, VSBrowser, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
+import { ActivityBar, By, SideBarView, until, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');

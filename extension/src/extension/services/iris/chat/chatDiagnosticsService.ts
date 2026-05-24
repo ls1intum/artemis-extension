@@ -2,7 +2,6 @@ import { ArtemisApiService } from '@extension/api';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { fetchSessionsWithMessages } from '@extension/services/iris/context/sessionSyncUtils';
-import { logger } from '@extension/services/loggingService';
 
 interface DebugSessionsResult {
     report: string;

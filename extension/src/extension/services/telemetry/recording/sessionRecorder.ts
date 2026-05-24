@@ -68,7 +68,6 @@ import { ObservationRegistry } from './observation/observationRegistry';
 import { SnapshotManager } from './snapshots/snapshotManager';
 import {
     StartupCapture,
-    type StartupContext as StartupContextFromModule,
     type StartupContributor as StartupContributorFromModule,
 } from './startup/startupCapture';
 import { RecordingStorageWriter } from './storageWriter';
@@ -80,7 +79,6 @@ interface RecordingState {
     eventCount: number;
 }
 
-type StartupContext = StartupContextFromModule;
 type StartupContributor = StartupContributorFromModule;
 
 type RecorderPhase = RecorderPhaseFromState;

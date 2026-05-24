@@ -16,7 +16,6 @@ import {
     BuildResultEvent,
     DiagnosticDefinition,
     DiagnosticEvent,
-    EditEvent,
     SaveEvent,
     ScenarioEvent,
     ScenarioMetrics,
@@ -211,7 +210,6 @@ export class StruggleTestRunner {
      */
     private applyBuildEvent(event: BuildResultEvent): void {
         const buildFailed = event.buildFailed ?? !event.success;
-        const hasTestFailure = !event.success && !buildFailed && (event.failedTests?.length ?? 0) > 0;
 
         // Only compiler errors count as "errors" for EQ
         const hasErrors = buildFailed;

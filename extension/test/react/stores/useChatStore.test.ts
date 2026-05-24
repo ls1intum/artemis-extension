@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { ExtMsg } from '@shared/messageContracts';
 
 import { useChatStore } from '@webview/stores/useChatStore';
-import type { ChatContext, ChatMessage, IrisStageDTO, ReferencedFilesData } from '@webview/views/IrisChat/types';
+import type { ChatMessage, IrisStageDTO, ReferencedFilesData } from '@webview/views/IrisChat/types';
 
 const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 	localId: 'local-1',

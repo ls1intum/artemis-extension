@@ -259,7 +259,7 @@ describe('IrisChatView', () => {
 		it('shows loader while messageLoad is null for the active session', () => {
 			seedActiveSession('local-A', 42);
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Welcome state should NOT be shown while we wait for hydration.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
@@ -271,7 +271,7 @@ describe('IrisChatView', () => {
 			// New-session path: local UUID exists, but server has not returned an id yet.
 			seedActiveSession('local-new');
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
@@ -292,7 +292,7 @@ describe('IrisChatView', () => {
 		it('ignores stale LoadMessages for a different local session and leaves the store untouched', () => {
 			seedActiveSession('local-current', 99);
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'loadMessages',
@@ -409,7 +409,7 @@ describe('IrisChatView', () => {
 				hasReceivedInitialIrisState: false,
 			});
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
@@ -429,7 +429,7 @@ describe('IrisChatView', () => {
 				hasReceivedInitialIrisState: false,
 			});
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'updateIrisState',

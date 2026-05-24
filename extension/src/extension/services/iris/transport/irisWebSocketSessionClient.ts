@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { ArtemisApiService } from '@extension/api';
 import { contextToIrisMode } from '@extension/services/iris/context/contextChatMode';
 import { type IrisWebSocketMessage, isIrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
-import { logger, LogLevel } from '@extension/services/loggingService';
+import { logger } from '@extension/services/loggingService';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import { ActiveContext } from '@extension/types';
 

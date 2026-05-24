@@ -143,7 +143,7 @@ export const useCourseListStore = create<CourseListState>()(
 
             filteredCourses: () => {
                 const state = get();
-                const { courses, archivedCourses, searchTerm, typeFilter, semesterFilter, sortBy } = state;
+                const { courses, archivedCourses, searchTerm, semesterFilter, sortBy } = state;
 
                 // Apply search and filters
                 const lowerSearchTerm = searchTerm.toLowerCase().trim();

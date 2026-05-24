@@ -15,7 +15,7 @@ import {
     detectWorkspaceForRepoUris,
 } from '@extension/services/workspace/workspaceDetectionService';
 import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
-import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
+import { resolveServerUrl } from '@extension/utils';
 
 import { selectRecentCourses } from './recentCourseSelector';
 

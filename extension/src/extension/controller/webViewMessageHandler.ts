@@ -8,7 +8,7 @@ import { AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { LogCategory, logger, LogLevel } from '@extension/services/loggingService';
+import { LogCategory, logger } from '@extension/services/loggingService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 

@@ -378,8 +378,6 @@ export class RepositoryCommandModule {
     private handleSubmitExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'submitExercise'>>(message);
-            const participationId = payload.participationId;
-            const exerciseId = payload.exerciseId ?? 0;
             const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
             const commitMessage = payload.commitMessage;
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];

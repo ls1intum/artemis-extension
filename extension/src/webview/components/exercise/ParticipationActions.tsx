@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import FlaskConical from 'lucide-react/dist/esm/icons/flask-conical';
 import Mail from 'lucide-react/dist/esm/icons/mail';
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@webview/components/Button';
 import { useClickOutside } from '@webview/hooks/useClickOutside';

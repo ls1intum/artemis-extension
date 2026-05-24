@@ -3,7 +3,6 @@ import { useState } from 'react';
 
 import { WebviewCmd } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
-import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
 
 import {
     AskIris,
@@ -33,7 +32,7 @@ import { formatDate } from '@webview/utils/formatDate';
 import { getIcon } from '@webview/utils/iconMap';
 import { makeViewId } from '@webview/utils/viewId';
 
-import { ProblemStatement, ScoreInfo } from './components';
+import { ProblemStatement } from './components';
 import styles from './ExerciseDetailView.module.css';
 import type { ExerciseDetailViewProps } from './types';
 
