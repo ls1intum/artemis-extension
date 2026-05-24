@@ -135,7 +135,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         const handler = {
-            onNewResult: (result: ResultDTO) => { }
+            onNewResult: (_result: ResultDTO) => { }
         };
 
         wsService.registerMessageHandler(handler);
