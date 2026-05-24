@@ -23,11 +23,6 @@ export interface TestCase {
   id?: number;
 }
 
-interface Feedback {
-  type: 'positive' | 'negative' | 'neutral';
-  text: string;
-}
-
 interface SubmissionStatusProps {
   status: SubmissionStatusType;
   score?: number;
@@ -37,10 +32,6 @@ interface SubmissionStatusProps {
   passedTests?: number;
   hasTestInfo?: boolean;
   buildFailed?: boolean;
-  feedbacks?: Feedback[];
-  testCases?: TestCase[];
-  buildLogs?: string;
-  onShowDetails?: () => void;
   onViewBuildLog?: () => void;
   onGoToSource?: () => void;
   onOpenTestResults?: () => void;
@@ -59,10 +50,6 @@ export function SubmissionStatus({
   passedTests = 0,
   hasTestInfo = false,
   buildFailed = false,
-  feedbacks = [],
-  testCases = [],
-  buildLogs,
-  onShowDetails,
   onViewBuildLog,
   onGoToSource,
   onOpenTestResults,

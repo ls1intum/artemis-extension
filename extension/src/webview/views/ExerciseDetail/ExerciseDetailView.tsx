@@ -526,7 +526,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         hasTestInfo={hasTestInfo}
                         totalTests={totalTests}
                         passedTests={passedTests}
-                        testCases={testCases}
                         estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
                         buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
                         onOpenTestResults={handleOverviewOpen}
