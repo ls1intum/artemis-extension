@@ -295,7 +295,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
     });
 
     suite('real command module integration', () => {
-        test('registered handlers include representative commands from all 7 modules', () => {
+        test('registered handlers include representative commands from all 11 modules', () => {
             const registeredHandlers = (handler as any).commandHandlers as Map<string, unknown>;
 
             // Must have entries
@@ -310,8 +310,8 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             assert.ok(registeredHandlers.has('viewCourseDetails'), 'Should have "viewCourseDetails" handler (NavigationCommandModule)');
 
             // Repository module commands
-            assert.ok(registeredHandlers.has('cloneRepository'), 'Should have "cloneRepository" handler (RepositoryCommandModule)');
-            assert.ok(registeredHandlers.has('submitExercise'), 'Should have "submitExercise" handler (RepositoryCommandModule)');
+            assert.ok(registeredHandlers.has('cloneRepository'), 'Should have "cloneRepository" handler (RepositoryCloneCommands)');
+            assert.ok(registeredHandlers.has('submitExercise'), 'Should have "submitExercise" handler (RepositorySubmitCommands)');
 
             // Iris module commands
             assert.ok(registeredHandlers.has('askIrisAboutExercise'), 'Should have "askIrisAboutExercise" handler (IrisCommandModule)');

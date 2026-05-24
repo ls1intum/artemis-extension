@@ -4,8 +4,8 @@ import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { GitService } from '@extension/services/workspace';
-import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
+import * as workspaceServices from '@extension/services/workspace';
+import * as fileChecker from '@extension/services/workspace/workspaceFileChecker';
 import { extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
@@ -13,14 +13,32 @@ import type { CommandContext, CommandMap } from './types';
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
 
 /**
- * @deprecated TEMPORARY: submit and identity handlers will move to
- * RepositorySubmitCommands in the next commit. Tracked under #205.
+ * Helper functions injected via the constructor so tests can substitute
+ * deterministic doubles. The defaults wire up to the production modules.
+ *
+ * (This injection seam exists because the production helper is re-exported
+ * through `@extension/services/workspace/workspaceFileChecker`, where the
+ * TS-emitted descriptor is a non-configurable getter that sinon cannot stub.
+ * Direct namespace stubbing fails with "descriptor is not configurable",
+ * so we inject the callable instead.)
  */
-export class RepositoryCommandModule {
-    private readonly gitService: GitService;
+export interface RepositorySubmitCommandsDeps {
+    checkWorkspaceFiles: typeof fileChecker.checkWorkspaceFiles;
+}
 
-    constructor(private readonly context: CommandContext) {
-        this.gitService = new GitService();
+const defaultDeps: RepositorySubmitCommandsDeps = {
+    checkWorkspaceFiles: fileChecker.checkWorkspaceFiles,
+};
+
+export class RepositorySubmitCommands {
+    private readonly deps: RepositorySubmitCommandsDeps;
+
+    constructor(
+        private readonly context: CommandContext,
+        private readonly gitService: workspaceServices.GitService = new workspaceServices.GitService(),
+        deps: Partial<RepositorySubmitCommandsDeps> = {},
+    ) {
+        this.deps = { ...defaultDeps, ...deps };
     }
 
     public getHandlers(): CommandMap {
@@ -51,7 +69,7 @@ export class RepositoryCommandModule {
                 progress.report({ message: 'Preparing repository...' });
 
                 // Use unified workspace file checker (lightweight)
-                const result = await checkWorkspaceFiles(workspaceFolder, {
+                const result = await this.deps.checkWorkspaceFiles(workspaceFolder, {
                     includeContent: false,
                     applyFilters: false
                 });
