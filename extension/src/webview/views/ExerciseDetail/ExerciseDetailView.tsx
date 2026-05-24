@@ -444,7 +444,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 <ParticipationActions
                     exerciseType={exerciseType}
                     participationStatus={participationStatus}
-                    hasRepository={!!repositoryUri}
                     canSubmit={hasParticipation && isProgramming}
                     workspaceStatus={workspaceStatus}
                     isPracticeMode={repoStatus?.isPracticeRepo ?? false}
@@ -479,9 +478,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             });
                         }
                     }}
-                    onOpenRepository={() => {
-                        postCommand(vscodeApi, 'openRepository', { repositoryUri });
-                    }}
+                    onOpenRepository={repositoryUri
+                        ? () => postCommand(vscodeApi, 'openRepository', { repositoryUri })
+                        : undefined}
                     onOpenClonedRepository={() => {
                         if (clonedNotice) {
                             postCommand(vscodeApi, 'openClonedRepository', { participationId: clonedNotice.participationId });
