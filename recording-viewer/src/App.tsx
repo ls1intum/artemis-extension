@@ -44,7 +44,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
     // Live state
-    const [reactionDelayMs, setReactionDelayMs] = useState(300);
     const [lastLabelToast, setLastLabelToast] = useState<AnnotationToast | null>(null);
     const [stickyLive, setStickyLive] = useState(false);
 
@@ -237,8 +236,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     useLiveHotkeys(
         isLiveSession,
         useCallback((label) => {
-            mutator.addLabel(label, live.latestEventTimestamp, reactionDelayMs);
-        }, [mutator, live.latestEventTimestamp, reactionDelayMs]),
+            mutator.addLabel(label, live.latestEventTimestamp);
+        }, [mutator, live.latestEventTimestamp]),
         mutator.undoLast,
         mutator.redoLast,
     );
@@ -533,8 +532,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             connected={live.connected}
                             eventsReceived={live.events.length}
                             latestEventTimestamp={live.latestEventTimestamp}
-                            reactionDelayMs={reactionDelayMs}
-                            onReactionDelayChange={setReactionDelayMs}
                             lastLabelToast={lastLabelToast}
                         />
                     )}

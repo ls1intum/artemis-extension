@@ -10,7 +10,7 @@ export interface AnnotationToast {
 export interface AnnotationMutator {
     /** Enqueue an add. Optimistic insertion happens inside the queue body so the
      *  redo-stack invalidation is atomic with the new entry. */
-    addLabel: (label: AnnotationLabel, referenceTs: number | null, reactionDelayMs: number) => void;
+    addLabel: (label: AnnotationLabel, referenceTs: number | null) => void;
     /** Enqueue an undo of whatever is the last real annotation at the moment
      *  the queue reaches this operation (not at call time). */
     undoLast: () => void;
@@ -79,12 +79,16 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
         });
     }
 
-    const addLabel: AnnotationMutator['addLabel'] = (label, referenceTs, reactionDelayMs) => {
+    const addLabel: AnnotationMutator['addLabel'] = (label, referenceTs) => {
         enqueue(async (capturedGen, sessionId) => {
             // Intent invalidates redo, ATOMIC with the new entry insertion.
             redoStack = [];
 
             const tempId = makeTempId();
+            // referenceTs is used for the LOCAL optimistic display only: it positions
+            // the temp annotation on the timeline at roughly the right moment while
+            // the POST is in-flight. The server always timestamps live annotations
+            // at its own receive time, so we do NOT send referenceTs to it.
             const optimistic: Annotation = {
                 id: tempId,
                 timestamp: referenceTs ?? Date.now(),
@@ -102,8 +106,6 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
                     body: JSON.stringify({
                         label,
                         text: '',
-                        referenceEventTimestamp: referenceTs ?? undefined,
-                        reactionDelayMs,
                     }),
                 });
                 if (capturedGen !== gen) return;
@@ -179,8 +181,7 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
                     body: JSON.stringify({
                         label: popped.label,
                         text: popped.text,
-                        referenceEventTimestamp: popped.timestamp,
-                        reactionDelayMs: 0,
+                        timestamp: popped.timestamp,
                     }),
                 });
                 if (capturedGen !== gen) return;

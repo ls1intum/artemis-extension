@@ -83,7 +83,7 @@ afterEach(() => { h.ctrl.dispose(); });
 
 describe('addLabel', () => {
     it('optimistically inserts temp annotation then replaces with server response', async () => {
-        h.ctrl.addLabel('confident', 1_000, 300);
+        h.ctrl.addLabel('confident', 1_000);
         // Optimistic insert happens inside the queue body; drain one microtask cycle.
         await Promise.resolve();
         await Promise.resolve();
@@ -103,7 +103,7 @@ describe('addLabel', () => {
     });
 
     it('removes the temp annotation on POST failure and reports error', async () => {
-        h.ctrl.addLabel('blocked', null, 0);
+        h.ctrl.addLabel('blocked', null);
         await Promise.resolve(); await Promise.resolve();
         expect(h.annotations).toHaveLength(1);
         h.pending[0].resolve(new Response('nope', { status: 500 }));
@@ -115,7 +115,7 @@ describe('addLabel', () => {
 
     it('uses Date.now() when referenceTs is null', async () => {
         const before = Date.now();
-        h.ctrl.addLabel('idle', null, 0);
+        h.ctrl.addLabel('idle', null);
         await Promise.resolve(); await Promise.resolve();
         expect(h.annotations).toHaveLength(1);
         expect(h.annotations[0].timestamp).toBeGreaterThanOrEqual(before);
@@ -125,7 +125,7 @@ describe('addLabel', () => {
 
 describe('temp-id race (codex r2 critical)', () => {
     it('undoLast queued during in-flight addLabel uses the REAL id', async () => {
-        h.ctrl.addLabel('confident', 1_000, 0);
+        h.ctrl.addLabel('confident', 1_000);
         await Promise.resolve(); await Promise.resolve();
         expect(h.annotations).toHaveLength(1);
         const tempIdAtCall = h.annotations[0].id;
@@ -229,7 +229,7 @@ describe('redoLast', () => {
         expect(h.annotations[1].id).toMatch(/^temp-/);
         expect(h.pending[0].init?.method).toBe('POST');
         const body = JSON.parse((h.pending[0].init?.body as string));
-        expect(body.referenceEventTimestamp).toBe(annot('a2').timestamp);
+        expect(body.timestamp).toBe(annot('a2').timestamp);
         const real = annot('real-redone', { timestamp: 1_000 });
         h.pending[0].resolve(jsonResponse({ annotation: real }));
         await h.ctrl.drain();
@@ -259,7 +259,7 @@ describe('redo invalidation on intent', () => {
         expect(h.ctrl.hasRedo()).toBe(true);
 
         // New add: this should clear redo BEFORE POST.
-        h.ctrl.addLabel('blocked', 5_000, 0);
+        h.ctrl.addLabel('blocked', 5_000);
         await Promise.resolve(); await Promise.resolve();
         expect(h.ctrl.hasRedo()).toBe(false); // cleared at queue body entry
         h.pending[1].resolve(jsonResponse({ annotation: annot('new-1') }));
@@ -282,8 +282,8 @@ describe('reset and generation counter', () => {
 
     it('reset mid-flight (queued not started): later queued add does no UI work', async () => {
         // Send two adds back-to-back. The first one is currently running its body.
-        h.ctrl.addLabel('confident', 100, 0);
-        h.ctrl.addLabel('blocked', 200, 0);
+        h.ctrl.addLabel('confident', 100);
+        h.ctrl.addLabel('blocked', 200);
         // Reset before the first one even gets to its optimistic insert? Not
         // quite: enqueue schedules the body via Promise.then, which fires in
         // the next microtask. Reset NOW bumps gen — both queued bodies will
@@ -300,7 +300,7 @@ describe('reset and generation counter', () => {
     });
 
     it('reset mid-flight (started, optimistic already applied): post-await UI updates are skipped', async () => {
-        h.ctrl.addLabel('confident', 100, 0);
+        h.ctrl.addLabel('confident', 100);
         // Let the queue body start and apply its optimistic insert.
         await Promise.resolve(); await Promise.resolve();
         expect(h.annotations).toHaveLength(1);
@@ -324,8 +324,8 @@ describe('reset and generation counter', () => {
 
 describe('serialization', () => {
     it('add → add → undo → undo resolves in order; final state empty, redo holds both', async () => {
-        h.ctrl.addLabel('confident', 100, 0);
-        h.ctrl.addLabel('blocked', 200, 0);
+        h.ctrl.addLabel('confident', 100);
+        h.ctrl.addLabel('blocked', 200);
         h.ctrl.undoLast();
         h.ctrl.undoLast();
 
@@ -368,13 +368,13 @@ describe('real-load ordering (codex r3 high)', () => {
 describe('no-session and dispose', () => {
     it('addLabel is a no-op when sessionId is null', async () => {
         h.setSessionId(null);
-        h.ctrl.addLabel('confident', 0, 0);
+        h.ctrl.addLabel('confident', 0);
         await h.ctrl.drain();
         expect(h.pending).toHaveLength(0);
     });
 
     it('dispose() causes subsequent queued bodies to bail', async () => {
-        h.ctrl.addLabel('confident', 100, 0);
+        h.ctrl.addLabel('confident', 100);
         await Promise.resolve(); await Promise.resolve();
         expect(h.annotations).toHaveLength(1);
         h.ctrl.dispose();
