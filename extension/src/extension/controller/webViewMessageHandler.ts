@@ -19,6 +19,7 @@ import { ExerciseLifecycleCommands } from './commands/exerciseLifecycleCommands'
 import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
+import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
 import { RepositoryCommandModule } from './commands/repositoryCommands';
 import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
 import type { CommandContext, CommandHandler } from './commands/types';
@@ -70,6 +71,7 @@ export class WebViewMessageHandler {
             new AuthCommandModule(context),
             new NavigationCommandModule(context),
             (this.repositoryModule = new RepositoryCommandModule(context)),
+            new RepositoryCloneCommands(context),
             new IrisCommandModule(context),
             new HealthCommandModule(context),
             new UtilityCommandModule(context),
