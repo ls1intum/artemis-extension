@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ActivityBar, By, SideBarView, until, VSBrowser, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
+import { ActivityBar, By, SideBarView, until, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -30,7 +30,7 @@ export async function openArtemisView(): Promise<SideBarView> {
  * Get a WebviewView page object for the Artemis sidebar webview and
  * switch the driver into its iframe context so you can query DOM elements.
  */
-export async function switchToWebviewFrame(driver: WebDriver): Promise<WebviewView> {
+export async function switchToWebviewFrame(_driver: WebDriver): Promise<WebviewView> {
 	const webview = new WebviewView();
 	await webview.switchToFrame(5000);
 	return webview;
@@ -39,7 +39,7 @@ export async function switchToWebviewFrame(driver: WebDriver): Promise<WebviewVi
 /**
  * Switch back from the webview iframe to the default VS Code context.
  */
-export async function switchBackFromWebview(driver: WebDriver): Promise<void> {
+export async function switchBackFromWebview(_driver: WebDriver): Promise<void> {
 	const webview = new WebviewView();
 	await webview.switchBack();
 }

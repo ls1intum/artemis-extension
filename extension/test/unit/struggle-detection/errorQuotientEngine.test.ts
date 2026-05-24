@@ -13,7 +13,7 @@ import * as assert from 'assert';
 import { InterventionDecisionEngine } from '@extension/services/telemetry/decision/interventionDecisionEngine';
 import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
 import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
-import { DEFAULT_EQ_CONFIG, ErrorSnapshot, InterventionState } from '@extension/services/telemetry/types';
+import { ErrorSnapshot, InterventionState } from '@extension/services/telemetry/types';
 
 function makeSnapshot(
     timestamp: number,

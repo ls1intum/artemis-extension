@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 /**
  * Log levels for the logging service
  */
-export enum LogLevel {
+enum LogLevel {
     DEBUG = 0,
     INFO = 1,
     WARN = 2,

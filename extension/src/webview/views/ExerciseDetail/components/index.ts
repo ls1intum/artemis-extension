@@ -3,4 +3,3 @@
  */
 
 export { ProblemStatement } from './ProblemStatement';
-export { ScoreInfo } from './ScoreInfo';

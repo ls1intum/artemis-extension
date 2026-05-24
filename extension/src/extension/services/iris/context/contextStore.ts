@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import { logger } from '@extension/services/loggingService';
-import type { TrackedCourse, TrackedExercise } from '@extension/types';
+import type { TrackedExercise } from '@extension/types';
 import { ActiveContext, ContextSnapshot } from '@extension/types';
 
 import { ContextPersistence } from './contextPersistence';
@@ -42,7 +42,7 @@ export class ContextStore {
     private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
     public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
 
-    constructor(private readonly context: vscode.ExtensionContext, options?: ContextStoreOptions) {
+    constructor(context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
         this._persistence = new ContextPersistence(context);
         this.state = this._persistence.load();

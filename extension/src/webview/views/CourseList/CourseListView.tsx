@@ -19,7 +19,7 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 
 import styles from './CourseListView.module.css';
-import type { ArchivedCourse, CourseDetailData, CourseListPersistedState, CourseListViewProps } from './types';
+import type { CourseDetailData, CourseListPersistedState, CourseListViewProps } from './types';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
     const {

@@ -48,7 +48,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 				/>
 			);
 			expect(screen.getByRole('button', { name: 'Clone Repository' })).toBeInTheDocument();
@@ -176,7 +175,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 					workspaceStatus="disconnected"
 				/>
 			);
@@ -188,7 +186,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 					workspaceStatus="clean"
 				/>
 			);
@@ -200,7 +197,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 					workspaceStatus="dirty"
 				/>
 			);
@@ -212,7 +208,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 					workspaceStatus="clean"
 				/>
 			);
@@ -228,7 +223,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 				/>
 			);
 			await userEvent.click(screen.getByRole('button', { name: /More options/ }));
@@ -241,7 +235,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 					onCheckWorkspace={handleCheckWorkspace}
 				/>
 			);
@@ -253,13 +246,44 @@ describe('ParticipationActions', () => {
 		});
 	});
 
+	describe('Open Repository entry', () => {
+		it('renders Open Repository entry and calls onOpenRepository when clicked', async () => {
+			const onOpenRepository = vi.fn();
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onOpenRepository={onOpenRepository}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			await userEvent.click(screen.getByRole('button', { name: /Open Repository/i }));
+
+			expect(onOpenRepository).toHaveBeenCalledOnce();
+		});
+
+		it('hides Open Repository entry when onOpenRepository is not provided', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
+		});
+	});
+
 	describe('more options dropdown', () => {
 		it('toggles dropdown open and closed on click', async () => {
 			render(
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 				/>
 			);
 			const toggle = screen.getByRole('button', { name: /More options/ });
@@ -281,7 +305,6 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					hasRepository={true}
 				/>
 			);
 

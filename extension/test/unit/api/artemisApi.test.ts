@@ -30,7 +30,7 @@ suite('Artemis API Service Test Suite', () => {
         apiService = new TestableArtemisApiService(authManager);
 
         // Mock fetch
-        mockFetch = async (url: string, options: any) => {
+        mockFetch = async (_url: string, _options: any) => {
             return {
                 ok: true,
                 status: 200,
@@ -379,7 +379,7 @@ suite('Artemis API Service Test Suite', () => {
         uncommittedFiles.set('file1.java', 'content1');
 
         let attempt = 0;
-        global.fetch = async (url: any, options: any) => {
+        global.fetch = async (_url: any, options: any) => {
             attempt++;
             if (attempt === 1) {
                 // First attempt with files fails

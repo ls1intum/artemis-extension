@@ -11,7 +11,7 @@ import type {
 
 import { ArtemisApiService } from '@extension/api';
 import { AppStateManager, type UserInfo } from '@extension/controller/appStateManager';
-import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '@extension/controller/exerciseDataLoader';
+import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import type { WebViewActionHandler } from '@extension/controller/types';
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
@@ -23,7 +23,6 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { TelemetryManager } from '@extension/services/telemetry';
 import type { IProviderRegistry } from '@extension/services/ui';
-import type { StartPageResult } from '@extension/services/ui';
 import {
     BuildDiagnosticsService,
     ExerciseOpeningService,
@@ -215,7 +214,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public async resolveWebviewView(
         webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
+        _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
         this._drainViewDisposables();
@@ -437,7 +436,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
-        const result = await this._startPageResolver.resolve(userInfo);
+        const result = await this._startPageResolver.resolve();
 
         switch (result.type) {
             case 'course-list':

@@ -77,6 +77,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
 
         previousContextId.current = currentId ?? null;
+        return undefined;
     }, [store.context?.id]);
 
     // Message listener - handles messages from extension
@@ -340,9 +341,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     } else if (store.disabledMessage) {
         disabledPlaceholder = 'Iris chat is not available for this exercise';
     }
-
-    // Check if workspace exercise exists
-    const hasWorkspaceExercise = store.exercises.some(ex => ex.isWorkspace);
 
     // Derive active stage: first stage that is not DONE or SKIPPED.
     // NOT_STARTED is intentionally included: it shows dots immediately while

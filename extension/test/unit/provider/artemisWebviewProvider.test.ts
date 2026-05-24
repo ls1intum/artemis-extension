@@ -32,7 +32,7 @@ class MockArtemisWebsocketService extends ArtemisWebsocketService {
     constructor(authManager: AuthManager) {
         super(authManager);
     }
-    registerMessageHandler(handler: any) { }
+    registerMessageHandler(_handler: any) { }
     isConnected() { return true; }
     connect() { return Promise.resolve(); }
 }
@@ -41,7 +41,7 @@ class MockWebview implements vscode.Webview {
     options: vscode.WebviewOptions = {};
     html: string = '';
     onDidReceiveMessage: vscode.Event<any> = new vscode.EventEmitter<any>().event;
-    postMessage(message: any): Thenable<boolean> {
+    postMessage(_message: any): Thenable<boolean> {
         return Promise.resolve(true);
     }
     asWebviewUri(localResource: vscode.Uri): vscode.Uri {
@@ -75,7 +75,7 @@ class MockWebviewView implements vscode.WebviewView {
     title?: string;
     description?: string;
     badge?: vscode.ViewBadge;
-    show(preserveFocus?: boolean): void { }
+    show(_preserveFocus?: boolean): void { }
     onDidChangeVisibility: vscode.Event<void> = new vscode.EventEmitter<void>().event;
     onDidDispose: vscode.Event<void> = new vscode.EventEmitter<void>().event;
     visible: boolean = true;
@@ -100,7 +100,7 @@ class ControllableWebviewView implements vscode.WebviewView {
         this.webview = spyWebview ?? new MockWebview();
     }
 
-    show(preserveFocus?: boolean): void {}
+    show(_preserveFocus?: boolean): void {}
 
     simulateHide(): void {
         this.visible = false;

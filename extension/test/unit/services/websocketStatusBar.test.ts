@@ -13,7 +13,7 @@ import { WebSocketStatusBarService } from '@extension/services/websocket/websock
  * Uses sinon stubs to control:
  * - vscode.workspace.getConfiguration (controls showWebSocketStatusBar / developerMode)
  * - vscode.window.createStatusBarItem (captures mock status bar item)
- * - vscode.commands.registerCommand (captures command handler)
+ * - vscode.commands.registerCommand (returns a no-op disposable)
  * - ArtemisWebsocketService (mock with captured onDidChangeConnectionState callback)
  *
  * Tests fire the captured callback directly to simulate connection state changes
@@ -39,7 +39,6 @@ suite('WebSocketStatusBarService', () => {
         dispose: sinon.SinonSpy;
     };
     let configValues: Record<string, boolean>;
-    let capturedCommandHandler: (() => void) | undefined;
 
     setup(() => {
         sandbox = sinon.createSandbox();
@@ -78,9 +77,8 @@ suite('WebSocketStatusBarService', () => {
         // Stub onDidChangeConfiguration
         sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').returns({ dispose: () => {} } as vscode.Disposable);
 
-        // Stub registerCommand and capture the handler
-        sandbox.stub(vscode.commands, 'registerCommand').callsFake((_commandId: string, handler: (...args: unknown[]) => unknown) => {
-            capturedCommandHandler = handler as () => void;
+        // Stub registerCommand
+        sandbox.stub(vscode.commands, 'registerCommand').callsFake(() => {
             return { dispose: () => {} } as vscode.Disposable;
         });
 
@@ -110,7 +108,6 @@ suite('WebSocketStatusBarService', () => {
 
     teardown(() => {
         sandbox.restore();
-        capturedCommandHandler = undefined;
     });
 
     // Helper to create the service. Defaults to authenticated=true so the

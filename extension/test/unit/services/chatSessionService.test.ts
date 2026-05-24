@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 

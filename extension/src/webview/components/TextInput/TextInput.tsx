@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import Eye from 'lucide-react/dist/esm/icons/eye';
 import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
-import { FocusEvent, KeyboardEvent, useState } from 'react';
+import { KeyboardEvent, useState } from 'react';
 
 import styles from './TextInput.module.css';
 
@@ -68,14 +68,6 @@ export function TextInput({
     onChange(e.target.value);
   };
 
-  const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
-    if (onBlur) {onBlur();}
-  };
-
-  const handleFocus = (e: FocusEvent<HTMLInputElement>) => {
-    if (onFocus) {onFocus();}
-  };
-
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
@@ -103,8 +95,8 @@ export function TextInput({
       className={inputClasses}
       value={value}
       onChange={handleChange}
-      onBlur={handleBlur}
-      onFocus={handleFocus}
+      onBlur={() => onBlur?.()}
+      onFocus={() => onFocus?.()}
       onKeyDown={onKeyDown}
       placeholder={placeholder}
       disabled={disabled}

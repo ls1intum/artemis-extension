@@ -235,6 +235,27 @@ describe('ExerciseDetailView', () => {
 		);
 	});
 
+	it('posts openRepository command with the repositoryUri when Open Repository is clicked', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+		await userEvent.click(screen.getByRole('button', { name: /Open Repository/i }));
+
+		expect(mockApi.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'openRepository',
+				payload: expect.objectContaining({ repositoryUri: 'https://git.example.com/repo' }),
+			})
+		);
+	});
+
 	it('shows developer tools by default (hideDeveloperTools = false)', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData(),
