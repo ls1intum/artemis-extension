@@ -14,7 +14,7 @@ import { VSCODE_CONFIG } from '@extension/utils';
 
 // ── Result types ─────────────────────────────────────────────────────
 
-export type StartPageResult =
+type StartPageResult =
     | { type: 'dashboard' }
     | { type: 'course-list'; coursesData: CourseDashboardResponse }
     | { type: 'workspace-exercise'; courseId: number; exerciseId: number; coursesData: CourseDashboardResponse; allCourses: CourseDashboardEntry[] }
