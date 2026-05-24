@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { UserInfo } from '@extension/controller/appStateManager';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import {
     collectExerciseSources,
@@ -33,7 +32,7 @@ export class StartPageResolver {
      * Determine which start page to show based on user config and workspace state.
      * Returns a typed result — the provider decides how to render it.
      */
-    public async resolve(userInfo: UserInfo): Promise<StartPageResult> {
+    public async resolve(): Promise<StartPageResult> {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const value = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY);
 

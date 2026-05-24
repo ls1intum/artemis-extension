@@ -437,7 +437,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
-        const result = await this._startPageResolver.resolve(userInfo);
+        const result = await this._startPageResolver.resolve();
 
         switch (result.type) {
             case 'course-list':
