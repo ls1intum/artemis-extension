@@ -620,6 +620,9 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                     sendJson(res, 400, { error: 'Invalid label' });
                     return;
                 }
+                // No upper bound on `timestamp`: explicit timestamps are only used by
+                // the redo path, which restores a value the server itself issued earlier.
+                // Future-dated timestamps would be a client bug, not a security concern.
                 if (parsed.timestamp !== undefined && (typeof parsed.timestamp !== 'number' || !Number.isFinite(parsed.timestamp) || parsed.timestamp < 0)) {
                     sendJson(res, 400, { error: 'Invalid timestamp' });
                     return;

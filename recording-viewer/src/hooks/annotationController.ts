@@ -85,6 +85,10 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
             redoStack = [];
 
             const tempId = makeTempId();
+            // referenceTs is used for the LOCAL optimistic display only: it positions
+            // the temp annotation on the timeline at roughly the right moment while
+            // the POST is in-flight. The server always timestamps live annotations
+            // at its own receive time, so we do NOT send referenceTs to it.
             const optimistic: Annotation = {
                 id: tempId,
                 timestamp: referenceTs ?? Date.now(),
