@@ -11,7 +11,6 @@ suite('FileMonitorService', () => {
     let clock: sinon.SinonFakeTimers;
     let service: FileMonitorService;
     let checkWorkspaceFilesStub: sinon.SinonStub;
-    let saveCallback: (doc: vscode.TextDocument) => void;
     let changeCallback: (e: vscode.TextDocumentChangeEvent) => void;
     let configGetStub: sinon.SinonStub;
     let mockWorkspaceFolders: vscode.WorkspaceFolder[] | undefined;
@@ -54,8 +53,7 @@ suite('FileMonitorService', () => {
         }];
         sandbox.stub(vscode.workspace, 'workspaceFolders').get(() => mockWorkspaceFolders);
 
-        sandbox.stub(vscode.workspace, 'onDidSaveTextDocument').callsFake((listener: any) => {
-            saveCallback = listener;
+        sandbox.stub(vscode.workspace, 'onDidSaveTextDocument').callsFake(() => {
             return { dispose: () => {} };
         });
 

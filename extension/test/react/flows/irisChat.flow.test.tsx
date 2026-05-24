@@ -778,7 +778,7 @@ describe('Iris Chat Flow', () => {
 				hasReceivedInitialIrisState: false,
 			});
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Frame 1: loader, never welcome.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
@@ -836,7 +836,7 @@ describe('Iris Chat Flow', () => {
 				hasReceivedInitialIrisState: false,
 			});
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'loadMessages',

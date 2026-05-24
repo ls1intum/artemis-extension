@@ -3,7 +3,6 @@ import { useState } from 'react';
 
 import { WebviewCmd } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
-import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
 
 import {
     AskIris,
@@ -33,7 +32,7 @@ import { formatDate } from '@webview/utils/formatDate';
 import { getIcon } from '@webview/utils/iconMap';
 import { makeViewId } from '@webview/utils/viewId';
 
-import { ProblemStatement, ScoreInfo } from './components';
+import { ProblemStatement } from './components';
 import styles from './ExerciseDetailView.module.css';
 import type { ExerciseDetailViewProps } from './types';
 
@@ -444,7 +443,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 <ParticipationActions
                     exerciseType={exerciseType}
                     participationStatus={participationStatus}
-                    hasRepository={!!repositoryUri}
                     canSubmit={hasParticipation && isProgramming}
                     workspaceStatus={workspaceStatus}
                     isPracticeMode={repoStatus?.isPracticeRepo ?? false}
@@ -479,9 +477,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             });
                         }
                     }}
-                    onOpenRepository={() => {
-                        postCommand(vscodeApi, 'openRepository', { repositoryUri });
-                    }}
+                    onOpenRepository={repositoryUri
+                        ? () => postCommand(vscodeApi, 'openRepository', { repositoryUri })
+                        : undefined}
                     onOpenClonedRepository={() => {
                         if (clonedNotice) {
                             postCommand(vscodeApi, 'openClonedRepository', { participationId: clonedNotice.participationId });
@@ -527,7 +525,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         hasTestInfo={hasTestInfo}
                         totalTests={totalTests}
                         passedTests={passedTests}
-                        testCases={testCases}
                         estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
                         buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
                         onOpenTestResults={handleOverviewOpen}

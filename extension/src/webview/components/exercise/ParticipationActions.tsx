@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import FlaskConical from 'lucide-react/dist/esm/icons/flask-conical';
 import Mail from 'lucide-react/dist/esm/icons/mail';
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@webview/components/Button';
 import { useClickOutside } from '@webview/hooks/useClickOutside';
@@ -18,15 +18,12 @@ export function isExerciseType(value: string | undefined): value is ExerciseType
 }
 
 export type ParticipationStatusType = 'not-started' | 'in-progress' | 'submitted' | 'graded';
-type RepositoryStatus = 'connected' | 'disconnected' | 'checking' | 'unknown';
 type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo';
 
 interface ParticipationActionsProps {
   exerciseType: ExerciseType;
   participationStatus: ParticipationStatusType;
-  hasRepository?: boolean;
   canSubmit?: boolean;
-  repositoryStatus?: RepositoryStatus;
   workspaceStatus?: WorkspaceStatus;
   workspaceMessage?: string;
   hasUnsavedChanges?: boolean;
@@ -34,7 +31,6 @@ interface ParticipationActionsProps {
   commitMessage?: string;
   onStart?: () => void;
   onSubmit?: () => void;
-  onSync?: () => void;
   onClone?: () => void;
   onOpenRepository?: () => void;
   onPullChanges?: () => void;
@@ -56,9 +52,7 @@ interface ParticipationActionsProps {
 export function ParticipationActions({
   exerciseType,
   participationStatus,
-  hasRepository = false,
   canSubmit = false,
-  repositoryStatus = 'unknown',
   workspaceStatus = 'checking',
   workspaceMessage,
   hasUnsavedChanges = false,
@@ -66,7 +60,6 @@ export function ParticipationActions({
   commitMessage = '',
   onStart,
   onSubmit,
-  onSync,
   onClone,
   onOpenRepository,
   onPullChanges,
@@ -287,6 +280,11 @@ export function ParticipationActions({
                 <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCheckWorkspace?.(); }}>
                   Check workspace status
                 </button>
+                {onOpenRepository && (
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenRepository(); }}>
+                    Open Repository
+                  </button>
+                )}
                 <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges?.(); }}>
                   Pull Changes
                 </button>

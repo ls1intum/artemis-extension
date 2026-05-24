@@ -1,4 +1,4 @@
-import type { ArchivedCourse, CourseDetailData, VsCodeApi } from '@shared/messageContracts';
+import type { CourseDetailData, VsCodeApi } from '@shared/messageContracts';
 
 export interface CourseListViewProps {
     vscodeApi: VsCodeApi;
@@ -12,4 +12,4 @@ export interface CourseListPersistedState {
 }
 
 // Re-export types from messageContracts
-export type { ArchivedCourse, CourseDetailData };
+export type { CourseDetailData };

@@ -66,7 +66,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
      */
     public provideCodeLenses(
         document: vscode.TextDocument,
-        token: vscode.CancellationToken
+        _token: vscode.CancellationToken
     ): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
         const codeLenses: vscode.CodeLens[] = [];
         const relativePath = this.getRelativePath(document);
@@ -103,7 +103,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
      */
     public resolveCodeLens?(
         codeLens: vscode.CodeLens,
-        token: vscode.CancellationToken
+        _token: vscode.CancellationToken
     ): vscode.CodeLens | Thenable<vscode.CodeLens> {
         return codeLens;
     }

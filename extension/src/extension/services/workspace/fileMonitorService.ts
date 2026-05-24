@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { logger, LogLevel } from '@extension/services/loggingService';
+import { logger } from '@extension/services/loggingService';
 
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 

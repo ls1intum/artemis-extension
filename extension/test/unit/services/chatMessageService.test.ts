@@ -19,9 +19,6 @@ suite('ChatMessageService', () => {
     let postSnapshotSpy: sinon.SinonSpy;
     let checkWorkspaceFilesStub: sinon.SinonStub;
     let configGetStub: sinon.SinonStub;
-    // Stubs kept to prevent unhandled vscode.window calls during tests
-    let _showWarningMessageStub: sinon.SinonStub;
-    let _showErrorMessageStub: sinon.SinonStub;
     let mockSessionManager: { currentSessionId: number | undefined };
     let service: ChatMessageService;
 
@@ -106,8 +103,9 @@ suite('ChatMessageService', () => {
             index: 0,
         }]);
 
-        _showWarningMessageStub = sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
-        _showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
+        // Stubs kept to prevent unhandled vscode.window calls during tests
+        sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
+        sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
     });
 
     teardown(() => {

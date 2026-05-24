@@ -7,7 +7,6 @@ import { NoAiDetectionService } from '@extension/services/workspace/noAiDetectio
 suite('NoAiDetectionService', () => {
     let sandbox: sinon.SinonSandbox;
     let mockWorkspaceFolders: vscode.WorkspaceFolder[];
-    let fileExistsChecker: (uri: vscode.Uri) => Promise<boolean>;
     let service: NoAiDetectionService;
 
     function createService(): NoAiDetectionService {
@@ -18,9 +17,6 @@ suite('NoAiDetectionService', () => {
     setup(() => {
         sandbox = sinon.createSandbox();
         mockWorkspaceFolders = [];
-
-        // Default file exists checker (returns false for all files)
-        fileExistsChecker = async () => false;
 
         // Mock workspace folders
         sandbox.stub(vscode.workspace, 'workspaceFolders').get(() => mockWorkspaceFolders);

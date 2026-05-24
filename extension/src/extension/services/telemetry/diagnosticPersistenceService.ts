@@ -84,15 +84,13 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
      * Handle diagnostic change events
      */
     private _handleDiagnosticChange(event: vscode.DiagnosticChangeEvent): void {
-        const now = Date.now();
-
         for (const uri of event.uris) {
             const diagnostics = vscode.languages.getDiagnostics(uri);
             this._updateDiagnosticsForUri(uri, diagnostics);
         }
 
         // Mark diagnostics that no longer exist as resolved
-        this._markMissingDiagnosticsResolved(event.uris, now);
+        this._markMissingDiagnosticsResolved(event.uris);
 
         this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
     }
@@ -153,7 +151,7 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
     /**
      * Mark diagnostics that are no longer present as resolved
      */
-    private _markMissingDiagnosticsResolved(changedUris: readonly vscode.Uri[], now: number): void {
+    private _markMissingDiagnosticsResolved(changedUris: readonly vscode.Uri[]): void {
         const changedUriStrings = new Set(changedUris.map(u => u.toString()));
 
         for (const [id, tracked] of this._trackedDiagnostics) {

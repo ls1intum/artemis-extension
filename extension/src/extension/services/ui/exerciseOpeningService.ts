@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { LogCategory, logger } from '@extension/services/loggingService';
+import { logger } from '@extension/services/loggingService';
 import type { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type { ExerciseDetailsResponse } from '@extension/types';
 

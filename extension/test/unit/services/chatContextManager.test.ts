@@ -15,9 +15,6 @@ suite('ChatContextManager Test Suite', () => {
     let irisSessionManager: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     let postMessageSpy: sinon.SinonSpy;
     let mockContext: MockExtensionContext;
-    // vscode.window stubs kept to prevent unhandled calls
-    let _showInformationMessageStub: sinon.SinonStub;
-    let _showWarningMessageStub: sinon.SinonStub;
 
     setup(() => {
         mockContext = new MockExtensionContext();
@@ -31,9 +28,9 @@ suite('ChatContextManager Test Suite', () => {
 
         postMessageSpy = sinon.spy();
 
-        // Stub vscode.window methods
-        _showInformationMessageStub = sinon.stub(vscode.window, 'showInformationMessage');
-        _showWarningMessageStub = sinon.stub(vscode.window, 'showWarningMessage');
+        // Stub vscode.window methods to prevent unhandled calls
+        sinon.stub(vscode.window, 'showInformationMessage');
+        sinon.stub(vscode.window, 'showWarningMessage');
 
         chatContextManager = new ChatContextManager(
             {
