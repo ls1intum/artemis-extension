@@ -237,8 +237,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     useLiveHotkeys(
         isLiveSession,
         useCallback((label) => {
-            mutator.addLabel(label, live.latestEventTimestamp, reactionDelayMs);
-        }, [mutator, live.latestEventTimestamp, reactionDelayMs]),
+            mutator.addLabel(label, live.latestEventTimestamp);
+        }, [mutator, live.latestEventTimestamp]),
         mutator.undoLast,
         mutator.redoLast,
     );
