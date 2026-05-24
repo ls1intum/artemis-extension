@@ -588,13 +588,16 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         }
 
         // POST /api/recordings/:sessionId/annotations — append a single
-        // anchored annotation (live struggle-tagging endpoint).
+        // annotation. The timestamp is the server receive time unless the
+        // client sends an explicit `timestamp` field (used by the redo path
+        // to restore an annotation at its original moment).
+        //
+        // Legacy fields `referenceEventTimestamp` and `reactionDelayMs` are
+        // accepted in the body for backwards compatibility but ignored.
         const VALID_LABELS = new Set([
             'confident', 'light-struggle', 'medium-struggle', 'high-struggle', 'blocked',
             'idle', 'trial-error', 'reading', 'off-task', 'using-ai',
         ]);
-        const ESTIMATED_FLUSH_LAG_MS = 2_500;
-        const FUTURE_TIMESTAMP_TOLERANCE_MS = 1_000;
 
         const annotPostMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
         if (annotPostMatch && method === 'POST') {
@@ -604,7 +607,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             const annotPath = path.join(sessionDir, 'annotations.json');
 
             void (async () => {
-                let parsed: { label?: unknown; text?: unknown; referenceEventTimestamp?: unknown; reactionDelayMs?: unknown };
+                let parsed: { label?: unknown; text?: unknown; timestamp?: unknown };
                 try {
                     parsed = await readJsonBody(req, 64_000) as typeof parsed;
                 } catch (err) {
@@ -617,17 +620,13 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                     sendJson(res, 400, { error: 'Invalid label' });
                     return;
                 }
-                const text = typeof parsed.text === 'string' ? parsed.text : '';
-                const reactionDelay = (typeof parsed.reactionDelayMs === 'number' && Number.isFinite(parsed.reactionDelayMs) && parsed.reactionDelayMs >= 0)
-                    ? Math.min(parsed.reactionDelayMs, 5_000)
-                    : 300;
-                const now = Date.now();
-                let timestamp: number;
-                if (typeof parsed.referenceEventTimestamp === 'number' && Number.isFinite(parsed.referenceEventTimestamp)) {
-                    timestamp = Math.min(parsed.referenceEventTimestamp + reactionDelay, now + FUTURE_TIMESTAMP_TOLERANCE_MS);
-                } else {
-                    timestamp = now - ESTIMATED_FLUSH_LAG_MS;
+                if (parsed.timestamp !== undefined && (typeof parsed.timestamp !== 'number' || !Number.isFinite(parsed.timestamp) || parsed.timestamp < 0)) {
+                    sendJson(res, 400, { error: 'Invalid timestamp' });
+                    return;
                 }
+                const text = typeof parsed.text === 'string' ? parsed.text : '';
+                const now = Date.now();
+                const timestamp = typeof parsed.timestamp === 'number' ? parsed.timestamp : now;
                 const annotation = {
                     id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
                     timestamp,
