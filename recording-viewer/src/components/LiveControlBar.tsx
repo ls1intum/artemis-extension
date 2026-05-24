@@ -6,8 +6,6 @@ interface Props {
     connected: boolean;
     eventsReceived: number;
     latestEventTimestamp: number | null;
-    reactionDelayMs: number;
-    onReactionDelayChange: (ms: number) => void;
     lastLabelToast: AnnotationToast | null;
 }
 
@@ -25,8 +23,7 @@ function renderToast(toast: AnnotationToast): string {
 }
 
 export function LiveControlBar({
-    connected, eventsReceived, latestEventTimestamp,
-    reactionDelayMs, onReactionDelayChange, lastLabelToast,
+    connected, eventsReceived, latestEventTimestamp, lastLabelToast,
 }: Props) {
     // Re-render every second so the "last event N s ago" updates live
     const [now, setNow] = useState(() => Date.now());
@@ -47,18 +44,6 @@ export function LiveControlBar({
                 {ageMs !== null && (
                     <span className="live-age">last event {(ageMs / 1000).toFixed(1)}s ago</span>
                 )}
-            </div>
-            <div className="live-reaction">
-                <label>
-                    Reaction delay
-                    <input
-                        type="range"
-                        min={0} max={1000} step={50}
-                        value={reactionDelayMs}
-                        onChange={(e) => onReactionDelayChange(Number(e.target.value))}
-                    />
-                    <span>{reactionDelayMs}ms</span>
-                </label>
             </div>
             <div className="live-legend">
                 <strong>Struggle:</strong>
