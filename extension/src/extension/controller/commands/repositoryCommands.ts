@@ -136,8 +136,6 @@ export class RepositoryCommandModule {
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
             [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
             [WebviewCmd.RequestGitIdentity]: this.handleRequestGitIdentity,
-            [WebviewCmd.StartPractice]: this.handleStartPractice,
-            [WebviewCmd.StartExercise]: this.handleStartExercise,
             [WebviewCmd.OpenRepository]: this.handleOpenRepository,
             [WebviewCmd.OpenClonedRepository]: this.handleOpenClonedRepository,
         };
@@ -670,48 +668,6 @@ export class RepositoryCommandModule {
             autoSaveEnabled: autoSave !== 'off'
         });
     }
-
-    private handleStartPractice = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'startPractice'>>(message);
-            const exerciseId = payload.exerciseId;
-            const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
-            vscode.window.showInformationMessage('Starting practice mode...');
-            const participation = await this.context.artemisApi.startPracticeParticipation(exerciseId);
-
-            if (participation) {
-                vscode.window.showInformationMessage(
-                    `Successfully started practice mode for "${exerciseTitle}". You can now clone the practice repository.`
-                );
-
-                await this.context.actionHandler.openExerciseDetails(exerciseId);
-            }
-        } catch (error: unknown) {
-            logger.error('Failed to start practice participation:', LogCategory.SUBMISSION, error);
-            vscode.window.showErrorMessage(
-                `Failed to start practice mode: ${extractErrorMessage(error)}`
-            );
-        }
-    };
-
-    private handleStartExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'startExercise'>>(message);
-            const exerciseId = payload.exerciseId;
-            vscode.window.showInformationMessage('Starting exercise...');
-            const participation = await this.context.artemisApi.startExerciseParticipation(exerciseId);
-
-            if (participation) {
-                vscode.window.showInformationMessage('Successfully started exercise participation.');
-                await this.context.actionHandler.openExerciseDetails(exerciseId);
-            }
-        } catch (error: unknown) {
-            logger.error('Failed to start exercise:', LogCategory.SUBMISSION, error);
-            vscode.window.showErrorMessage(
-                `Failed to start exercise: ${extractErrorMessage(error)}`
-            );
-        }
-    };
 
     private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
