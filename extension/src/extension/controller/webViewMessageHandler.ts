@@ -14,6 +14,7 @@ import { ArtemisWebsocketService } from '@extension/services/websocket';
 
 import { AppStateManager } from './appStateManager';
 import { AuthCommandModule } from './commands/authCommands';
+import { BuildLogCommands } from './commands/buildLogCommands';
 import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
@@ -72,6 +73,7 @@ export class WebViewMessageHandler {
             new HealthCommandModule(context),
             new UtilityCommandModule(context),
             new TestResultsTrackingCommandModule(context),
+            new BuildLogCommands(context),
         ];
 
         modules.forEach(module => {
