@@ -260,6 +260,16 @@
   overflow: hidden;
 }
 
+.dropdownSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdownDivider {
+  height: 1px;
+  background: var(--vscode-panel-border, #e0e0e0);
+}
+
 .dropdownItem {
   background: transparent;
   color: var(--vscode-foreground);
@@ -276,8 +286,44 @@
   background: var(--vscode-list-hoverBackground);
 }
 
-.dropdownItem:not(:last-child) {
-  border-bottom: 1px solid var(--vscode-panel-border, #e0e0e0);
+.cloneUrlItem {
+  display: flex;
+  align-items: stretch;
+}
+
+.cloneUrlPrimary {
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: none;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  flex: 1;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.cloneUrlPrimary:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.cloneUrlSecondary {
+  background: transparent;
+  color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+  border: none;
+  border-left: 1px solid var(--vscode-panel-border, #e0e0e0);
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.cloneUrlSecondary:hover {
+  background: var(--vscode-list-hoverBackground);
+  color: var(--vscode-foreground);
 }
 
 /* Responsive design */

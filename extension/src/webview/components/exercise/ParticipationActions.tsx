@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import FlaskConical from 'lucide-react/dist/esm/icons/flask-conical';
+import KeyRound from 'lucide-react/dist/esm/icons/key-round';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import { useEffect, useRef, useState } from 'react';
 
@@ -272,35 +273,78 @@ export function ParticipationActions({
             </Button>
             {isDropdownOpen && (
               <div className={styles.moreDropdown}>
-                {isWorkspaceConnected && (
-                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onClone?.(); }}>
-                    Clone Repository
+                {/* Section: Workspace */}
+                <div className={styles.dropdownSection}>
+                  {isWorkspaceConnected && (
+                    <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onClone?.(); }}>
+                      Clone Repository
+                    </button>
+                  )}
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCheckWorkspace?.(); }}>
+                    Check workspace status
                   </button>
-                )}
-                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCheckWorkspace?.(); }}>
-                  Check workspace status
-                </button>
-                {onOpenRepository && (
-                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenRepository(); }}>
-                    Open Repository
+                  {onOpenRepository && (
+                    <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenRepository(); }}>
+                      Open Repository
+                    </button>
+                  )}
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges?.(); }}>
+                    Pull Changes
                   </button>
+                </div>
+
+                {/* Section: Share (only when at least one copy callback is available).
+                    Split-button when BOTH copy callbacks are provided.
+                    Single full-width item when only one is provided (preserves
+                    visible label + focus target). */}
+                {(onCopyCloneUrl || onCopyAuthenticatedCloneUrl) && (
+                  <>
+                    <div className={styles.dropdownDivider} />
+                    <div className={styles.dropdownSection}>
+                      {onCopyCloneUrl && onCopyAuthenticatedCloneUrl ? (
+                        <div className={styles.cloneUrlItem}>
+                          <button
+                            className={styles.cloneUrlPrimary}
+                            onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl(); }}
+                          >
+                            Copy Clone URL
+                          </button>
+                          <button
+                            className={styles.cloneUrlSecondary}
+                            onClick={() => { setIsDropdownOpen(false); onCopyAuthenticatedCloneUrl(); }}
+                            title="Copy Clone URL with authentication token"
+                            aria-label="Copy Clone URL with authentication token"
+                          >
+                            <KeyRound size={14} aria-hidden="true" />
+                            <span>with token</span>
+                          </button>
+                        </div>
+                      ) : onCopyCloneUrl ? (
+                        <button
+                          className={styles.dropdownItem}
+                          onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl(); }}
+                        >
+                          Copy Clone URL
+                        </button>
+                      ) : (
+                        <button
+                          className={styles.dropdownItem}
+                          onClick={() => { setIsDropdownOpen(false); onCopyAuthenticatedCloneUrl?.(); }}
+                        >
+                          Copy Clone URL with Token
+                        </button>
+                      )}
+                    </div>
+                  </>
                 )}
-                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges?.(); }}>
-                  Pull Changes
-                </button>
-                {onCopyCloneUrl && (
-                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl(); }}>
-                    Copy Clone URL
+
+                {/* Section: External */}
+                <div className={styles.dropdownDivider} />
+                <div className={styles.dropdownSection}>
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
+                    Open in browser
                   </button>
-                )}
-                {onCopyAuthenticatedCloneUrl && (
-                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCopyAuthenticatedCloneUrl(); }}>
-                    Copy Clone URL with Token
-                  </button>
-                )}
-                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
-                  Open in browser
-                </button>
+                </div>
               </div>
             )}
           </div>

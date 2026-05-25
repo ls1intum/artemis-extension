@@ -278,6 +278,138 @@ describe('ParticipationActions', () => {
 		});
 	});
 
+	describe('Copy Clone URL entries', () => {
+		it('renders split-button (primary + secondary) when both copy callbacks are provided', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onCopyCloneUrl={vi.fn()}
+					onCopyAuthenticatedCloneUrl={vi.fn()}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.getByRole('button', { name: 'Copy Clone URL' })).toBeInTheDocument();
+			expect(
+				screen.getByRole('button', { name: /Copy Clone URL with authentication token/i }),
+			).toBeInTheDocument();
+		});
+
+		it('renders a single full-width "Copy Clone URL" item when only onCopyCloneUrl is provided', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onCopyCloneUrl={vi.fn()}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.getByRole('button', { name: 'Copy Clone URL' })).toBeInTheDocument();
+			expect(
+				screen.queryByRole('button', { name: /Copy Clone URL with authentication token/i }),
+			).not.toBeInTheDocument();
+		});
+
+		it('renders a single full-width "Copy Clone URL with Token" item when only onCopyAuthenticatedCloneUrl is provided', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onCopyAuthenticatedCloneUrl={vi.fn()}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.getByRole('button', { name: 'Copy Clone URL with Token' })).toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Copy Clone URL' })).not.toBeInTheDocument();
+		});
+
+		it('split-button primary click calls onCopyCloneUrl, closes dropdown, does not call auth callback', async () => {
+			const handleCopy = vi.fn();
+			const handleCopyAuth = vi.fn();
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onCopyCloneUrl={handleCopy}
+					onCopyAuthenticatedCloneUrl={handleCopyAuth}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			await userEvent.click(screen.getByRole('button', { name: 'Copy Clone URL' }));
+
+			expect(handleCopy).toHaveBeenCalledOnce();
+			expect(handleCopyAuth).not.toHaveBeenCalled();
+			expect(screen.queryByRole('button', { name: 'Copy Clone URL' })).not.toBeInTheDocument();
+		});
+
+		it('split-button secondary click calls onCopyAuthenticatedCloneUrl, closes dropdown, does not call primary callback', async () => {
+			const handleCopy = vi.fn();
+			const handleCopyAuth = vi.fn();
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onCopyCloneUrl={handleCopy}
+					onCopyAuthenticatedCloneUrl={handleCopyAuth}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			await userEvent.click(
+				screen.getByRole('button', { name: /Copy Clone URL with authentication token/i }),
+			);
+
+			expect(handleCopyAuth).toHaveBeenCalledOnce();
+			expect(handleCopy).not.toHaveBeenCalled();
+			expect(
+				screen.queryByRole('button', { name: /Copy Clone URL with authentication token/i }),
+			).not.toBeInTheDocument();
+		});
+
+		it('single auth-only item click calls onCopyAuthenticatedCloneUrl', async () => {
+			const handleCopyAuth = vi.fn();
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onCopyAuthenticatedCloneUrl={handleCopyAuth}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			await userEvent.click(screen.getByRole('button', { name: 'Copy Clone URL with Token' }));
+
+			expect(handleCopyAuth).toHaveBeenCalledOnce();
+		});
+
+		it('hides the Share section entirely when neither copy callback is provided', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.queryByRole('button', { name: 'Copy Clone URL' })).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Copy Clone URL with Token' })).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole('button', { name: /Copy Clone URL with authentication token/i }),
+			).not.toBeInTheDocument();
+		});
+	});
+
 	describe('more options dropdown', () => {
 		it('toggles dropdown open and closed on click', async () => {
 			render(
