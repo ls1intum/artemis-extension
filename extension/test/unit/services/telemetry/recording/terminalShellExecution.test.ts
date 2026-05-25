@@ -130,7 +130,7 @@ function makeEntry(overrides: Partial<{
 
 // ── Suite ──────────────────────────────────────────────────────────────────
 
-suite('TerminalCollector — characterization tests (pre-extraction)', () => {
+suite('TerminalCollector characterization tests', () => {
     let recorder: SessionRecorder;
     let fs: FakeFs;
 
@@ -338,5 +338,121 @@ suite('TerminalCollector — characterization tests (pre-extraction)', () => {
             'a stale-generation entry must not produce a terminalCommand event in the current session');
 
         await recorder.endSession();
+    });
+
+    // ── Test 6: full integration via captured listeners + fake execution.read()
+
+    test('full lifecycle: shellExecStart, async read, shellExecEnd emits terminalCommand with captured output, end fields, and start-time generation', async () => {
+        // Monkey-patch vscode.window so we can capture the listener bodies that
+        // TerminalCollector.register() registers, then trigger them by hand.
+        // This exercises the registration path, the async read consumer, the
+        // end-listener emission gate, and the generation flow end-to-end. The
+        // earlier whitebox tests cover the abort and emission predicates;
+        // this test covers the path that actually wires the recorder up to
+        // VS Code's terminal events.
+        let startListener: ((event: { execution: vscode.TerminalShellExecution }) => void) | undefined;
+        let endListener: ((event: {
+            execution: vscode.TerminalShellExecution;
+            exitCode: number | undefined;
+            terminal: vscode.Terminal;
+        }) => void) | undefined;
+
+        const originalOnDidStart = vscode.window.onDidStartTerminalShellExecution;
+        const originalOnDidEnd = vscode.window.onDidEndTerminalShellExecution;
+
+        (vscode.window as unknown as {
+            onDidStartTerminalShellExecution: (listener: typeof startListener) => vscode.Disposable;
+        }).onDidStartTerminalShellExecution = (listener) => {
+            startListener = listener;
+            return { dispose: () => { startListener = undefined; } };
+        };
+        (vscode.window as unknown as {
+            onDidEndTerminalShellExecution: (listener: typeof endListener) => vscode.Disposable;
+        }).onDidEndTerminalShellExecution = (listener) => {
+            endListener = listener;
+            return { dispose: () => { endListener = undefined; } };
+        };
+
+        try {
+            recorder.enable();
+            await recorder.startSession(42);
+
+            const startGen = (recorder as unknown as { _currentGeneration: number })._currentGeneration;
+
+            assert.ok(startListener, 'shellExecStart listener must be registered after enable()');
+            assert.ok(endListener, 'shellExecEnd listener must be registered after enable()');
+
+            // Fake execution that yields two output chunks then completes.
+            const fakeExecution = {
+                commandLine: { value: 'npm test', confidence: 2, isTrusted: true },
+                cwd: vscode.Uri.file('/tmp/proj'),
+                read: async function* () {
+                    yield 'first chunk\n';
+                    yield 'second chunk\n';
+                },
+            } as unknown as vscode.TerminalShellExecution;
+
+            const fakeTerminal = { name: 'zsh' } as vscode.Terminal;
+
+            startListener!({ execution: fakeExecution });
+
+            const pending = pendingExecutions(recorder);
+            assert.strictEqual(pending.size, 1, 'exactly one pending execution after shellExecStart');
+            const entry = pending.get(fakeExecution);
+            assert.ok(entry, 'pending execution entry must be present');
+            assert.strictEqual(entry.generation, startGen, 'entry generation captured at start time matches the current session');
+            assert.strictEqual(entry.aborted, false, 'fresh entry must not be aborted');
+
+            // Drain microtasks so the async generator iterator runs to completion.
+            for (let i = 0; i < 20; i++) { await Promise.resolve(); }
+
+            assert.strictEqual(entry.readerDone, true, 'reader must complete after the iterator drains');
+            assert.strictEqual(entry.output, 'first chunk\nsecond chunk\n', 'output must accumulate both chunks in order');
+            assert.strictEqual(entry.truncated, false, 'short output must not be truncated');
+
+            // No terminalCommand event yet because endInfo is still unset.
+            const termBeforeEnd = collectWrittenEvents(fs).filter(e => e.type === 'terminalCommand');
+            assert.strictEqual(termBeforeEnd.length, 0, 'no terminalCommand before shellExecEnd fires');
+
+            endListener!({
+                execution: fakeExecution,
+                exitCode: 0,
+                terminal: fakeTerminal,
+            });
+
+            assert.strictEqual(pending.has(fakeExecution), false, 'execution must be removed from pending map after end');
+
+            await recorder.endSession();
+
+            const termEvents = collectWrittenEvents(fs).filter(e => e.type === 'terminalCommand') as Array<{
+                type: 'terminalCommand';
+                command: string;
+                exitCode: number | undefined;
+                output: string;
+                outputTruncated: boolean;
+                cwd: string | undefined;
+                terminalName: string;
+                durationMs: number;
+                timestamp: number;
+            }>;
+            assert.strictEqual(termEvents.length, 1, 'exactly one terminalCommand event must be emitted');
+            const tc = termEvents[0];
+            assert.strictEqual(tc.command, 'npm test', 'command preserved');
+            assert.strictEqual(tc.exitCode, 0, 'exitCode preserved');
+            assert.strictEqual(tc.output, 'first chunk\nsecond chunk\n', 'output preserved');
+            assert.strictEqual(tc.outputTruncated, false);
+            assert.strictEqual(tc.terminalName, 'zsh');
+            assert.strictEqual(tc.cwd, vscode.Uri.file('/tmp/proj').toString(), 'cwd preserved as the fake URI');
+            assert.ok(tc.durationMs >= 0, 'durationMs must be non-negative');
+        } finally {
+            // Restore the real vscode.window APIs so other tests in the run
+            // are not affected by the monkey-patch.
+            (vscode.window as unknown as {
+                onDidStartTerminalShellExecution: typeof originalOnDidStart;
+            }).onDidStartTerminalShellExecution = originalOnDidStart;
+            (vscode.window as unknown as {
+                onDidEndTerminalShellExecution: typeof originalOnDidEnd;
+            }).onDidEndTerminalShellExecution = originalOnDidEnd;
+        }
     });
 });
