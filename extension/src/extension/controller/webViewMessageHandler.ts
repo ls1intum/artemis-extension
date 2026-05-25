@@ -14,10 +14,14 @@ import { ArtemisWebsocketService } from '@extension/services/websocket';
 
 import { AppStateManager } from './appStateManager';
 import { AuthCommandModule } from './commands/authCommands';
+import { BuildLogCommands } from './commands/buildLogCommands';
+import { ExerciseLifecycleCommands } from './commands/exerciseLifecycleCommands';
 import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
-import { RepositoryCommandModule } from './commands/repositoryCommands';
+import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
+import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
+import { RepositorySubmitCommands } from './commands/repositorySubmitCommands';
 import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
 import type { CommandContext, CommandHandler } from './commands/types';
 import { UtilityCommandModule } from './commands/utilityCommands';
@@ -32,7 +36,7 @@ export class WebViewMessageHandler {
         logger.debug('Message to send to webview:', LogCategory.VIEW, message);
     };
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
-    private readonly repositoryModule: RepositoryCommandModule;
+    private readonly repositoryStatusModule: RepositoryStatusCommands;
     private _websocketService?: ArtemisWebsocketService;
     private _senderQueue: Promise<void> = Promise.resolve();
 
@@ -64,14 +68,21 @@ export class WebViewMessageHandler {
             courseAccessStorage,
         };
 
+        this.repositoryStatusModule = new RepositoryStatusCommands(context);
+        context.recheckRepoStatus = () => this.repositoryStatusModule.recheckCurrentRepoStatus();
+
         const modules = [
             new AuthCommandModule(context),
             new NavigationCommandModule(context),
-            (this.repositoryModule = new RepositoryCommandModule(context)),
+            this.repositoryStatusModule,
+            new RepositoryCloneCommands(context),
+            new RepositorySubmitCommands(context),
             new IrisCommandModule(context),
             new HealthCommandModule(context),
             new UtilityCommandModule(context),
             new TestResultsTrackingCommandModule(context),
+            new BuildLogCommands(context),
+            new ExerciseLifecycleCommands(context),
         ];
 
         modules.forEach(module => {
@@ -126,7 +137,7 @@ export class WebViewMessageHandler {
      * Dispose the handler and its command modules.
      */
     public dispose(): void {
-        this.repositoryModule.dispose();
+        this.repositoryStatusModule.dispose();
     }
 
     /**
@@ -148,11 +159,11 @@ export class WebViewMessageHandler {
      * can automatically detect changes without a manual check.
      */
     public setRepositoryContext(repoUrl: string, exerciseId: number): void {
-        this.repositoryModule.setRepositoryContext(repoUrl, exerciseId);
+        this.repositoryStatusModule.setRepositoryContext(repoUrl, exerciseId);
     }
 
     public clearRepositoryContext(): void {
-        this.repositoryModule.clearRepositoryContext();
+        this.repositoryStatusModule.clearRepositoryContext();
     }
 
     private async updateAuthContext(isAuthenticated: boolean): Promise<void> {
