@@ -16,21 +16,7 @@ import type { RecordedEvent } from '@extension/services/telemetry/recording/type
 import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';
 import type { PlatformCapabilities } from '@extension/theia';
 
-interface PendingExecution {
-    output: string;
-    startTime: number;
-    truncated: boolean;
-    readerDone: boolean;
-    endInfo: {
-        exitCode: number | undefined;
-        terminalName: string;
-        command: string;
-        cwd: string | undefined;
-    } | undefined;
-    aborted: boolean;
-    /** Generation token captured when the execution started. */
-    generation: number;
-}
+import { TerminalCollector } from './terminalCollector';
 
 interface ObservationRegistryDeps {
     state: RecorderLifecycleState;
@@ -45,8 +31,7 @@ interface ObservationRegistryDeps {
 
 /**
  * Owns every VS Code `onDidChange*` subscription used by the recorder, plus
- * the debounce state for selection/visibleRange events and the pending-
- * execution state for terminal shell-integration output.
+ * the debounce state for selection/visibleRange events.
  *
  * Listener lifetime matches the consent enable/disable cycle, not the
  * session lifecycle: once enabled, subscriptions persist across session
@@ -56,15 +41,13 @@ interface ObservationRegistryDeps {
  * Three explicit teardown paths replace the old single `_disposeEventListeners`:
  *   - `flushDebouncesForEnd(gen)`: on regular sessionEnd, flushes buffered
  *     debounce payloads into the record sink with `allowDuringEnding`.
- *   - `discardDebouncesForConsentDowngrade()`: GDPR path — drops all pending
- *     debounce payloads AND aborts terminal pending executions without any
+ *   - `discardDebouncesForConsentDowngrade()`: GDPR path, drops all pending
+ *     debounce payloads and aborts terminal pending executions without any
  *     record call.
  *   - `disposeSubscriptions()`: final cleanup on consent-disable or dispose.
  *     Clears timers + disposes all vscode.Disposable subscriptions. Idempotent.
  */
 export class ObservationRegistry {
-    static readonly MAX_OUTPUT_CHARS = 10240;
-
     /**
      * Debounce windows for selection and visible-range events. Engineering
      * choice calibrated by manual testing during recorder development, not a
@@ -91,9 +74,14 @@ export class ObservationRegistry {
     private readonly _visibleRangeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
     private readonly _pendingSelectionPayloads = new Map<string, RecordedEvent>();
     private readonly _pendingVisibleRangePayloads = new Map<string, RecordedEvent>();
-    private readonly _pendingExecutions = new Map<vscode.TerminalShellExecution, PendingExecution>();
+    private readonly _terminalCollector: TerminalCollector;
 
-    constructor(private readonly _deps: ObservationRegistryDeps) {}
+    constructor(private readonly _deps: ObservationRegistryDeps) {
+        this._terminalCollector = new TerminalCollector({
+            state: this._deps.state,
+            record: this._deps.record,
+        });
+    }
 
     setExerciseContext(root: vscode.Uri | undefined): void {
         this._exerciseRootUri = root;
@@ -268,34 +256,7 @@ export class ObservationRegistry {
 
         // Terminal shell execution tracking — only available in VS Code Desktop
         if (this._deps.capabilities?.hasTerminalShellExecution !== false) {
-            const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
-                if (!recordingPhase()) { return; }
-                const entry: PendingExecution = {
-                    output: '', startTime: Date.now(), truncated: false,
-                    readerDone: false, endInfo: undefined, aborted: false,
-                    generation: this._deps.state.currentGeneration,
-                };
-                this._pendingExecutions.set(event.execution, entry);
-                void this._collectExecutionOutput(event.execution, entry);
-            });
-            this._eventListenerDisposables.push(shellExecStart);
-
-            const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
-                if (!recordingPhase()) { return; }
-                const entry = this._pendingExecutions.get(event.execution);
-                if (!entry) { return; }
-                this._pendingExecutions.delete(event.execution);
-                entry.endInfo = {
-                    exitCode: event.exitCode,
-                    terminalName: event.terminal.name,
-                    command: event.execution.commandLine.value,
-                    cwd: event.execution.cwd?.toString(),
-                };
-                if (entry.readerDone) {
-                    this._emitTerminalCommand(entry);
-                }
-            });
-            this._eventListenerDisposables.push(shellExecEnd);
+            this._terminalCollector.register(this._eventListenerDisposables);
         }
     }
 
@@ -327,10 +288,7 @@ export class ObservationRegistry {
         this._pendingVisibleRangePayloads.clear();
 
         // Abort any still-running terminal shell executions.
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
-        }
-        this._pendingExecutions.clear();
+        this._terminalCollector.abortAllPending();
     }
 
     /**
@@ -352,10 +310,7 @@ export class ObservationRegistry {
         this._visibleRangeDebounceTimers.clear();
         this._pendingVisibleRangePayloads.clear();
 
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
-        }
-        this._pendingExecutions.clear();
+        this._terminalCollector.abortAllPending();
     }
 
     /**
@@ -384,10 +339,7 @@ export class ObservationRegistry {
         }
         this._visibleRangeDebounceTimers.clear();
         this._pendingVisibleRangePayloads.clear();
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
-        }
-        this._pendingExecutions.clear();
+        this._terminalCollector.abortAllPending();
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();
@@ -436,48 +388,4 @@ export class ObservationRegistry {
         }, {}, this._deps.state.currentGeneration);
     }
 
-    // ── Terminal output helpers ───────────────────────────────────────
-
-    private async _collectExecutionOutput(
-        execution: vscode.TerminalShellExecution,
-        entry: PendingExecution,
-    ): Promise<void> {
-        try {
-            for await (const data of execution.read()) {
-                if (entry.aborted) { return; }
-                if (!entry.truncated) {
-                    const remaining = ObservationRegistry.MAX_OUTPUT_CHARS - entry.output.length;
-                    if (data.length <= remaining) {
-                        entry.output += data;
-                    } else {
-                        entry.output += data.substring(0, remaining);
-                        entry.truncated = true;
-                    }
-                }
-            }
-        } catch (err) {
-            logger.error('Failed to read terminal execution output', LogCategory.TELEMETRY, err);
-        }
-        entry.readerDone = true;
-        if (entry.endInfo && !entry.aborted) {
-            this._emitTerminalCommand(entry);
-        }
-    }
-
-    private _emitTerminalCommand(entry: PendingExecution): void {
-        if (!entry.endInfo) { return; }
-        if (this._deps.state.phase !== 'recording') { return; }
-        const now = Date.now();
-        this._deps.record({
-            type: 'terminalCommand',
-            timestamp: now,
-            command: entry.endInfo.command,
-            exitCode: entry.endInfo.exitCode,
-            output: entry.output,
-            outputTruncated: entry.truncated,
-            cwd: entry.endInfo.cwd,
-            terminalName: entry.endInfo.terminalName,
-            durationMs: now - entry.startTime,
-        }, {}, entry.generation);
-    }
 }

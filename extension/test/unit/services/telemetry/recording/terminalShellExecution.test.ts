@@ -27,14 +27,14 @@ function pendingExecutions(
     recorder: SessionRecorder,
 ): Map<vscode.TerminalShellExecution, any> {
     return (recorder as unknown as {
-        _observation: { _pendingExecutions: Map<vscode.TerminalShellExecution, any> };
-    })._observation._pendingExecutions;
+        _observation: { _terminalCollector: { _pendingExecutions: Map<vscode.TerminalShellExecution, any> } };
+    })._observation._terminalCollector._pendingExecutions;
 }
 
 function emitTerminalCommand(recorder: SessionRecorder, entry: any): void {
     (recorder as unknown as {
-        _observation: { _emitTerminalCommand: (e: any) => void };
-    })._observation._emitTerminalCommand(entry);
+        _observation: { _terminalCollector: { _emitTerminalCommand: (e: any) => void } };
+    })._observation._terminalCollector._emitTerminalCommand(entry);
 }
 
 // ── Fake FS ────────────────────────────────────────────────────────────────
