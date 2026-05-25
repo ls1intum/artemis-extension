@@ -932,3 +932,216 @@ suite('SessionRecorder — intervention suppression and configuration provenance
         try { await recorder.dispose(); } catch { /* ignore */ }
     });
 });
+
+// ── Characterization tests: normal-end vs consent-downgrade finalization ──
+
+suite('SessionRecorder — finalization path characterization', () => {
+
+    // ── Test A: metadata is equally well-formed for both finalization paths ──
+
+    test('Test A1: normal endSession produces well-formed metadata and sessionEnd as last event', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(10);
+        recorder.recordIrisChatSent('msg-a1');
+        recorder.recordIrisChatSent('msg-a2');
+        recorder.recordIrisChatSent('msg-a3');
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+
+        // Final JSONL line must be sessionEnd.
+        assert.strictEqual(events[events.length - 1].type, 'sessionEnd',
+            'last event must be sessionEnd for normal endSession path');
+
+        // Exactly one metadata write with non-null endTime.
+        const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
+        const finalMeta = [...metadataWrites].reverse().find(Boolean);
+        assert.ok(finalMeta, 'metadata.json must be written');
+        const meta = JSON.parse(finalMeta!.data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(meta.endTime !== null && typeof meta.endTime === 'number',
+            'final metadata.endTime must be non-null after normal endSession');
+        assert.ok(meta.endTime >= meta.startTime,
+            'metadata.endTime must be >= metadata.startTime');
+        assert.strictEqual(meta.eventCount, events.length,
+            `metadata.eventCount (${meta.eventCount}) must equal JSONL event count (${events.length})`);
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    test('Test A2: consent-downgrade path produces well-formed metadata and sessionEnd as last event', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(11);
+        recorder.recordIrisChatSent('msg-b1');
+        recorder.recordIrisChatSent('msg-b2');
+        recorder.recordIrisChatSent('msg-b3');
+
+        // Consent revoked via disable() - triggers consent-downgrade finalization.
+        recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 40));
+
+        const events = collectWrittenEvents(fs);
+
+        // Final JSONL line must be sessionEnd.
+        assert.strictEqual(events[events.length - 1].type, 'sessionEnd',
+            'last event must be sessionEnd for consent-downgrade path');
+
+        // Exactly one metadata write with non-null endTime (the final write).
+        const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
+        const finalMeta = [...metadataWrites].reverse().find(Boolean);
+        assert.ok(finalMeta, 'metadata.json must be written on consent-downgrade path');
+        const meta = JSON.parse(finalMeta!.data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(meta.endTime !== null && typeof meta.endTime === 'number',
+            'final metadata.endTime must be non-null after consent-downgrade');
+        assert.ok(meta.endTime >= meta.startTime,
+            'metadata.endTime must be >= metadata.startTime on downgrade path');
+        assert.strictEqual(meta.eventCount, events.length,
+            `metadata.eventCount (${meta.eventCount}) must equal JSONL event count (${events.length})`);
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    // ── Test B: flush vs discard for pending debounce payloads ──────────
+
+    test('Test B: endSession flushes pending debounce; disable discards it', async () => {
+        const fakeUri = 'file:///proj/CharTest.java';
+        const pendingPayload: RecordedEvent = {
+            type: 'selectionChange',
+            timestamp: Date.now(),
+            uri: fakeUri,
+            selections: [{ startLine: 7, startCharacter: 0, endLine: 7, endCharacter: 4 }],
+            kind: undefined,
+        };
+
+        // Scenario 1: endSession flushes the pending payload.
+        const s1 = makeRecorder();
+        s1.recorder.enable();
+        await s1.recorder.startSession(20);
+        pendingDebounceMaps(s1.recorder)._pendingSelectionPayloads.set(fakeUri, { ...pendingPayload });
+        await s1.recorder.endSession();
+
+        const s1Events = collectWrittenEvents(s1.fs);
+        const s1Types = s1Events.map(e => e.type);
+        const s1SelIdx = s1Events.findIndex(
+            e => e.type === 'selectionChange' && (e as { uri?: string }).uri === fakeUri,
+        );
+        const s1EndIdx = s1Events.findIndex(e => e.type === 'sessionEnd');
+        assert.ok(s1SelIdx >= 0,
+            `endSession must flush pending selectionChange — it was not found. types=${s1Types.join(',')}`);
+        assert.ok(s1EndIdx > s1SelIdx,
+            'flushed selectionChange must appear before sessionEnd');
+        try { await s1.recorder.dispose(); } catch { /* ignore */ }
+
+        // Scenario 2: disable discards the pending payload.
+        const s2 = makeRecorder();
+        s2.recorder.enable();
+        await s2.recorder.startSession(21);
+        pendingDebounceMaps(s2.recorder)._pendingSelectionPayloads.set(fakeUri, { ...pendingPayload });
+
+        s2.recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 40));
+
+        const s2Events = collectWrittenEvents(s2.fs);
+        const s2Types = s2Events.map(e => e.type);
+        const s2SelEvents = s2Events.filter(
+            e => e.type === 'selectionChange' && (e as { uri?: string }).uri === fakeUri,
+        );
+        assert.strictEqual(s2SelEvents.length, 0,
+            `disable must discard pending selectionChange — it was found in the stream. types=${s2Types.join(',')}`);
+
+        // The stream must still contain consentChange then sessionEnd.
+        const s2ConsentIdx = s2Types.lastIndexOf('consentChange');
+        const s2EndIdx = s2Types.lastIndexOf('sessionEnd');
+        assert.ok(s2ConsentIdx >= 0, 'consentChange must appear after disable()');
+        assert.ok(s2EndIdx > s2ConsentIdx, 'sessionEnd must come after consentChange');
+        try { await s2.recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    // ── Test C: recorder can start a new session cleanly after both paths ──
+
+    test('Test C1: two sequential endSession calls produce correct isolated streams', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+
+        await recorder.startSession(30);
+        recorder.recordIrisChatSent('session-30-msg');
+        await recorder.endSession();
+
+        await recorder.startSession(31);
+        recorder.recordIrisChatSent('session-31-msg');
+        await recorder.endSession();
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+
+        const events = collectWrittenEvents(fs);
+        const starts = events.filter(e => e.type === 'sessionStart') as Array<{ exerciseId: number }>;
+        const ends = events.filter(e => e.type === 'sessionEnd');
+        const consents = events.filter(e => e.type === 'consentChange');
+
+        assert.deepStrictEqual(starts.map(s => s.exerciseId), [30, 31],
+            'two sessionStart events with exerciseIds 30 then 31');
+        assert.strictEqual(ends.length, 2, 'two sessionEnd events');
+        assert.strictEqual(consents.length, 0, 'no consentChange events on normal end path');
+
+        // Verify ordering: each sessionStart precedes the next sessionEnd.
+        const start30Idx = events.findIndex(e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 30);
+        const end30Idx = events.findIndex(e => e.type === 'sessionEnd');
+        const start31Idx = events.findIndex(e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 31);
+        const end31Idx = events.map(e => e.type).lastIndexOf('sessionEnd');
+        assert.ok(start30Idx < end30Idx, 'sessionStart(30) must precede first sessionEnd');
+        assert.ok(end30Idx < start31Idx, 'first sessionEnd must precede sessionStart(31)');
+        assert.ok(start31Idx < end31Idx, 'sessionStart(31) must precede second sessionEnd');
+    });
+
+    test('Test C2: disable then re-enable then endSession produces correct isolated streams', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+
+        await recorder.startSession(40);
+        recorder.recordIrisChatSent('session-40-msg');
+        recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 40));
+
+        recorder.enable();
+        await recorder.startSession(41);
+        recorder.recordIrisChatSent('session-41-msg');
+        await recorder.endSession();
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+
+        const events = collectWrittenEvents(fs);
+        const starts = events.filter(e => e.type === 'sessionStart') as Array<{ exerciseId: number }>;
+        const ends = events.filter(e => e.type === 'sessionEnd');
+        const consents = events.filter(e => e.type === 'consentChange');
+
+        assert.deepStrictEqual(starts.map(s => s.exerciseId), [40, 41],
+            'two sessionStart events with exerciseIds 40 then 41');
+        assert.strictEqual(ends.length, 2, 'two sessionEnd events — one per session');
+        assert.strictEqual(consents.length, 1, 'exactly one consentChange from the disable that ended session 40');
+
+        // The consentChange must appear between the two sessions.
+        const start40Idx = events.findIndex(
+            e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 40,
+        );
+        const end40Idx = events.findIndex(e => e.type === 'sessionEnd');
+        const consentIdx = events.findIndex(e => e.type === 'consentChange');
+        const start41Idx = events.findIndex(
+            e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 41,
+        );
+        const end41Idx = events.map(e => e.type).lastIndexOf('sessionEnd');
+
+        assert.ok(consentIdx > start40Idx, 'consentChange must appear after sessionStart(40)');
+        assert.ok(end40Idx > consentIdx, 'sessionEnd(40) must appear after consentChange');
+        assert.ok(start41Idx > end40Idx, 'sessionStart(41) must appear after sessionEnd(40)');
+        assert.ok(end41Idx > start41Idx, 'sessionEnd(41) must appear after sessionStart(41)');
+    });
+});
