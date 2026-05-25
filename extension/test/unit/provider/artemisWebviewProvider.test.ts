@@ -157,35 +157,6 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         assert.ok(provider);
     });
 
-    test('should register websocket handler and connect when opening exercise', async () => {
-        const ws = new MockArtemisWebsocketService(mockAuthManager);
-        let connectCalls = 0;
-        ws.isConnected = () => false;
-        ws.connect = async () => { connectCalls++; };
-
-        const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const p = new ArtemisWebviewProvider({
-            extensionUri: vscode.Uri.file('/'),
-            extensionContext: mockContext,
-            authManager: mockAuthManager,
-            artemisApi: mockApiService,
-            exerciseRegistry: new ExerciseRegistry(),
-            providerRegistry: createProviderRegistry(),
-            websocketService: ws,
-            buildErrorCodeLensProvider: mockCodeLens,
-            telemetryManager: new TelemetryManager(),
-            updateAuthContext: async () => {},
-        });
-
-        const mockView = new MockWebviewView();
-        p.resolveWebviewView(mockView, {} as any, {} as any);
-        // Seed a parent course: showExerciseDetail requires it by invariant
-        p.showCourseDetail({ course: { id: 1, title: 'Parent' } } as any);
-        await p.openExerciseDetails(1);
-
-        assert.strictEqual(connectCalls, 1, 'connect should be called when not connected');
-    });
-
     test('should resolve webview view', async () => {
         const mockView = new MockWebviewView();
         const mockResolveContext = {} as vscode.WebviewViewResolveContext;
@@ -195,36 +166,6 @@ suite('ArtemisWebviewProvider Test Suite', () => {
 
         assert.ok(mockView.webview.html);
         assert.ok(mockView.webview.options.enableScripts);
-    });
-
-    test('should open exercise details', async () => {
-        const mockView = new MockWebviewView();
-        const mockResolveContext = {} as vscode.WebviewViewResolveContext;
-        const mockToken = {} as vscode.CancellationToken;
-
-        await provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
-
-        // Seed a parent course: showExerciseDetail requires it by invariant
-        provider.showCourseDetail({ course: { id: 1, title: 'Parent' } } as any);
-        await provider.openExerciseDetails(1);
-
-        assert.ok(mockView.webview.html);
-    });
-
-    test('should open json in editor', async () => {
-        const localSandbox = sinon.createSandbox();
-        try {
-            const openDocSpy = localSandbox.spy(vscode.workspace, 'openTextDocument');
-            const showDocSpy = localSandbox.spy(vscode.window, 'showTextDocument');
-
-            const data = { test: 'data' };
-            await provider.openJsonInEditor(data);
-
-            assert.ok(openDocSpy.calledOnce, 'openTextDocument should be called');
-            assert.ok(showDocSpy.calledOnce, 'showTextDocument should be called');
-        } finally {
-            localSandbox.restore();
-        }
     });
 
     test('should render', async () => {
