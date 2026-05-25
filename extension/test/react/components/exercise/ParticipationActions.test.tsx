@@ -212,10 +212,9 @@ describe('ParticipationActions', () => {
 				/>
 			);
 			await userEvent.click(screen.getByRole('button', { name: /More options/ }));
-			// The dropdown Clone is a plain <button>, not a Button component
-			const dropdownClone = screen.getByText('Clone Repository');
-			expect(dropdownClone).toBeInTheDocument();
-			expect(dropdownClone.tagName).toBe('BUTTON');
+			// The dropdown Clone is a plain <button>, not a Button component.
+			// Use getByRole so the assertion is robust to icon children inside the button.
+			expect(screen.getByRole('button', { name: 'Clone Repository' })).toBeInTheDocument();
 		});
 
 		it('shows "Check workspace status" in dropdown', async () => {

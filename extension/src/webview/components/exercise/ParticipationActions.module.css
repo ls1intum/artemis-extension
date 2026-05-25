@@ -279,6 +279,9 @@
   cursor: pointer;
   width: 100%;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   transition: background-color 0.15s ease;
 }
 
@@ -300,6 +303,9 @@
   cursor: pointer;
   flex: 1;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   transition: background-color 0.15s ease;
 }
 

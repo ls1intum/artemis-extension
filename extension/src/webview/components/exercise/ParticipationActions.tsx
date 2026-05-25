@@ -1,7 +1,13 @@
 import clsx from 'clsx';
+import Activity from 'lucide-react/dist/esm/icons/activity';
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
+import ArrowDownToLine from 'lucide-react/dist/esm/icons/arrow-down-to-line';
+import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
 import FlaskConical from 'lucide-react/dist/esm/icons/flask-conical';
+import FolderOpen from 'lucide-react/dist/esm/icons/folder-open';
+import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
 import KeyRound from 'lucide-react/dist/esm/icons/key-round';
+import Link from 'lucide-react/dist/esm/icons/link';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import { useEffect, useRef, useState } from 'react';
 
@@ -277,19 +283,23 @@ export function ParticipationActions({
                 <div className={styles.dropdownSection}>
                   {isWorkspaceConnected && (
                     <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onClone?.(); }}>
-                      Clone Repository
+                      <GitBranch size={14} aria-hidden="true" />
+                      <span>Clone Repository</span>
                     </button>
                   )}
                   <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCheckWorkspace?.(); }}>
-                    Check workspace status
+                    <Activity size={14} aria-hidden="true" />
+                    <span>Check workspace status</span>
                   </button>
                   {onOpenRepository && (
                     <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenRepository(); }}>
-                      Open Repository
+                      <FolderOpen size={14} aria-hidden="true" />
+                      <span>Open Repository</span>
                     </button>
                   )}
                   <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges?.(); }}>
-                    Pull Changes
+                    <ArrowDownToLine size={14} aria-hidden="true" />
+                    <span>Pull Changes</span>
                   </button>
                 </div>
 
@@ -307,7 +317,8 @@ export function ParticipationActions({
                             className={styles.cloneUrlPrimary}
                             onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl(); }}
                           >
-                            Copy Clone URL
+                            <Link size={14} aria-hidden="true" />
+                            <span>Copy Clone URL</span>
                           </button>
                           <button
                             className={styles.cloneUrlSecondary}
@@ -324,14 +335,16 @@ export function ParticipationActions({
                           className={styles.dropdownItem}
                           onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl(); }}
                         >
-                          Copy Clone URL
+                          <Link size={14} aria-hidden="true" />
+                          <span>Copy Clone URL</span>
                         </button>
                       ) : (
                         <button
                           className={styles.dropdownItem}
                           onClick={() => { setIsDropdownOpen(false); onCopyAuthenticatedCloneUrl?.(); }}
                         >
-                          Copy Clone URL with Token
+                          <KeyRound size={14} aria-hidden="true" />
+                          <span>Copy Clone URL with Token</span>
                         </button>
                       )}
                     </div>
@@ -342,7 +355,8 @@ export function ParticipationActions({
                 <div className={styles.dropdownDivider} />
                 <div className={styles.dropdownSection}>
                   <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
-                    Open in browser
+                    <ExternalLink size={14} aria-hidden="true" />
+                    <span>Open in browser</span>
                   </button>
                 </div>
               </div>
