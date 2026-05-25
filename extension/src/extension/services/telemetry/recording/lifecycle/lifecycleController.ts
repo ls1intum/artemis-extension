@@ -15,6 +15,8 @@ interface RecordInternalOptions {
     allowDuringEnding?: boolean;
 }
 
+type TerminationReason = 'user-end' | 'deactivate' | 'consent-downgrade';
+
 interface LifecycleControllerDeps {
     state: RecorderLifecycleState;
     writer: RecordingStorageWriter;
@@ -40,6 +42,9 @@ interface LifecycleControllerDeps {
  * - `enable/disable/startSession/endSession/dispose` drive the phase FSM
  *   through `RecorderLifecycleState`; heavy work is queued on the
  *   lifecycle mutex to serialise transitions.
+ * - `_doFinalize(reason)` is the single finalization path shared by normal
+ *   session end and consent-downgrade teardown; the two paths differ only in
+ *   pre-conditions, the pre-sessionEnd marker, and the debounce policy.
  *
  * Re-check points in `_doStart` (pre-commit, post-snapshot, final) match
  * the invariant described in the plan v5 flow and preserve byte-exact
@@ -102,7 +107,7 @@ export class LifecycleController {
         if (state.phase === 'disabling' || state.phase === 'disabled') {
             return;
         }
-        return this._enqueueLifecycle('endSession', () => this._doEnd(reason));
+        return this._enqueueLifecycle('endSession', () => this._doFinalize(reason));
     }
 
     /** Drains any pending lifecycle op. Used by SessionRecorder.dispose(). */
@@ -175,9 +180,9 @@ export class LifecycleController {
         if (requestedGen !== state.requestedGeneration) { return; }
         if (phase() === 'disabling' || phase() === 'disabled') { return; }
 
-        // End any in-flight session first. _doEnd sets phase back to idle.
+        // End any in-flight session first. _doFinalize sets phase back to idle.
         if (phase() === 'recording') {
-            await this._doEnd('user-end');
+            await this._doFinalize('user-end');
             if (requestedGen !== state.requestedGeneration) { return; }
             if (phase() === 'disabling' || phase() === 'disabled') { return; }
         }
@@ -246,7 +251,7 @@ export class LifecycleController {
             return; // _doDisable will finalize the committed session
         }
         if (requestedGen !== state.requestedGeneration) {
-            await this._doEnd('user-end');
+            await this._doFinalize('user-end');
             return;
         }
 
@@ -270,7 +275,7 @@ export class LifecycleController {
             return;
         }
         if (requestedGen !== state.requestedGeneration) {
-            await this._doEnd('user-end');
+            await this._doFinalize('user-end');
             return;
         }
 
@@ -284,19 +289,52 @@ export class LifecycleController {
         logger.info(`Recording session started: ${sessionId}`, LogCategory.TELEMETRY);
     }
 
-    // ── Private: _doEnd ──────────────────────────────────────────────
+    // ── Private: _doFinalize ─────────────────────────────────────────
 
-    private async _doEnd(reason: 'user-end' | 'deactivate'): Promise<void> {
+    private async _doFinalize(
+        reason: TerminationReason,
+        generationForDowngrade?: number,
+    ): Promise<void> {
         const state = this._deps.state;
-        if (state.phase !== 'recording' && state.phase !== 'starting') { return; }
+        const isConsentDowngrade = reason === 'consent-downgrade';
+
+        // Pre-conditions differ by reason.
+        if (isConsentDowngrade) {
+            if (state.currentGeneration !== generationForDowngrade
+                || state.activeSession?.sessionStartWritten !== true) {
+                return;
+            }
+        } else {
+            if (state.phase !== 'recording' && state.phase !== 'starting') { return; }
+        }
+
         const active = state.activeSession;
         if (!active) { return; }
 
         const generation = state.currentGeneration;
-        state.transitionPhase(['recording', 'starting'], 'ending');
 
-        // Flush pending debounced payloads + abort pending terminal execs.
-        this._deps.observation.flushDebouncesForEnd(generation);
+        if (!isConsentDowngrade) {
+            state.transitionPhase(['recording', 'starting'], 'ending');
+        }
+
+        // Pre-sessionEnd marker: consent-downgrade only.
+        if (isConsentDowngrade) {
+            this.writeLifecycleEvent({
+                type: 'consentChange',
+                timestamp: Date.now(),
+                level: 'downgraded',
+            });
+        }
+
+        // Debounce policy: flush (normal end) vs discard (consent-downgrade).
+        if (isConsentDowngrade) {
+            // Defence-in-depth: sync prelude already discarded; this catches
+            // anything that might have slipped back in async.
+            this._deps.observation.discardDebouncesForConsentDowngrade();
+        } else {
+            // Flush pending debounced payloads + abort pending terminal execs.
+            this._deps.observation.flushDebouncesForEnd(generation);
+        }
 
         const exerciseId = active.exerciseId;
         this.writeLifecycleEvent({
@@ -319,20 +357,26 @@ export class LifecycleController {
         await this._deps.writer.endSession();
 
         logger.info(
-            `Recording session ended (${reason}): ${active.sessionId} (${active.eventCount} events)`,
+            `Recording session finalized (${reason}): ${active.sessionId} (${active.eventCount} events)`,
             LogCategory.TELEMETRY,
         );
 
         // Clear state ONLY after writer finalization, so concurrent disable()
         // still sees sessionStartWritten=true and routes through downgrade.
         state.clearCommitAfterFinalize();
-        this._deps.observation.setExerciseContext(undefined);
+
+        if (!isConsentDowngrade) {
+            this._deps.observation.setExerciseContext(undefined);
+        }
         this._deps.snapshots.reset();
         state.clearActiveSessionAfterFinalize();
-        this._deps.onStateChange();
+
+        if (!isConsentDowngrade) {
+            this._deps.onStateChange();
+        }
     }
 
-    // ── Private: _doDisable + finalize ───────────────────────────────
+    // ── Private: _doDisable ──────────────────────────────────────────
 
     private async _doDisable(
         params: { shouldFinalize: boolean; generation: number | undefined },
@@ -347,7 +391,7 @@ export class LifecycleController {
 
         if (finalizeNow) {
             try {
-                await this._doFinalizeAfterDisable(generation);
+                await this._doFinalize('consent-downgrade', generation);
             } catch (err) {
                 logger.error('Failed to finalize session during disable', LogCategory.TELEMETRY, err);
             }
@@ -361,47 +405,4 @@ export class LifecycleController {
         logger.info('SessionRecorder disabled', LogCategory.TELEMETRY);
     }
 
-    private async _doFinalizeAfterDisable(generation: number): Promise<void> {
-        const state = this._deps.state;
-        if (state.currentGeneration !== generation || state.activeSession?.sessionStartWritten !== true) {
-            return;
-        }
-        const active = state.activeSession;
-        if (!active) { return; }
-
-        const exerciseId = active.exerciseId;
-
-        this.writeLifecycleEvent({
-            type: 'consentChange',
-            timestamp: Date.now(),
-            level: 'downgraded',
-        });
-
-        // Defence-in-depth: sync prelude already discarded; this catches
-        // anything that might have slipped back in async.
-        this._deps.observation.discardDebouncesForConsentDowngrade();
-
-        this.writeLifecycleEvent({
-            type: 'sessionEnd',
-            timestamp: Date.now(),
-            exerciseId,
-        });
-
-        const metadata: SessionMetadata = {
-            sessionId: active.sessionId,
-            exerciseId,
-            participantId: active.participantId,
-            startTime: active.sessionStartTime,
-            endTime: Date.now(),
-            eventCount: active.eventCount,
-        };
-
-        await this._deps.writer.flush();
-        await this._deps.writer.writeMetadata(metadata);
-        await this._deps.writer.endSession();
-
-        state.clearCommitAfterFinalize();
-        this._deps.snapshots.reset();
-        state.clearActiveSessionAfterFinalize();
-    }
 }
