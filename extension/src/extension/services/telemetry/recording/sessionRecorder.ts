@@ -16,7 +16,7 @@
  * `_phase` replaces the legacy `_isRecording` / `_isEnabled` booleans. Phase
  * transitions other than the synchronous `disable()` kick-off happen inside
  * the lifecycle mutex (`_lifecyclePromise`), so only one of `_doStart`,
- * `_doEnd`, or `_doDisable` runs at a time.
+ * `_doFinalize`, or `_doDisable` runs at a time.
  *
  * ## Session Generation Token
  *

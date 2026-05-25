@@ -18,11 +18,11 @@ recording/
 ├── eventCollectors.ts         Pure fns: vscode.* objects → RecordedEvent
 ├── index.ts                   Barrel (SessionRecorder + RecordingStatusBarService)
 │
-├── lifecycle/
-│   ├── recorderLifecycleState.ts   Pure state: phase FSM + generation counters
-│   │                               + ActiveSessionState. No I/O, no vscode.
-│   └── lifecycleController.ts      _doStart / _doEnd / _doDisable orchestration.
-│                                   Hosts recordInternal + writeLifecycleEvent.
+├── lifecycleController.ts     RecorderLifecycleState (pure state: phase FSM,
+│                              generation counters, ActiveSessionState) plus
+│                              LifecycleController (_doStart / _doFinalize /
+│                              _doDisable orchestration, recordInternal,
+│                              writeLifecycleEvent). Both classes co-located.
 │
 ├── snapshots/
 │   └── snapshotManager.ts     File snapshots with retry (max 3) + in-flight
@@ -82,7 +82,7 @@ lifecycle points.
 
 ## Key invariants
 
-- **Commit boundary:** `sessionStart` on disk = `state.activeSession.sessionStartWritten` true. Pre-commit aborts call `writer.abort()`. Post-commit aborts go through `_doEnd`.
+- **Commit boundary:** `sessionStart` on disk = `state.activeSession.sessionStartWritten` true. Pre-commit aborts call `writer.abort()`. Post-commit aborts go through `_doFinalize` (with `reason: 'user-end' | 'deactivate' | 'consent-downgrade'`).
 - **Generation token:** every async callback captures `state.currentGeneration` at trigger time and passes it to `recordInternal`. Stale callbacks from a rotated session are dropped.
 - **Phase FSM:** `idle → starting → recording → ending → idle`  (normal) /  `{any} → disabling → disabled` (consent downgrade). Only `LifecycleController.disable()` may force-flip from any phase.
 - **Three teardown paths:** regular end flushes debounces; consent downgrade *discards* them (GDPR); dispose runs through dispose-specific finalize.

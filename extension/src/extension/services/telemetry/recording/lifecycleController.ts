@@ -564,10 +564,15 @@ export class LifecycleController {
         await this._deps.writer.writeMetadata(metadata);
         await this._deps.writer.endSession();
 
-        logger.info(
-            `Recording session finalized (${reason}): ${active.sessionId} (${active.eventCount} events)`,
-            LogCategory.TELEMETRY,
-        );
+        // Preserve the pre-unification logging: normal-end paths logged
+        // "Recording session ended", consent-downgrade finalization did not
+        // log at this point.
+        if (!isConsentDowngrade) {
+            logger.info(
+                `Recording session ended (${reason}): ${active.sessionId} (${active.eventCount} events)`,
+                LogCategory.TELEMETRY,
+            );
+        }
 
         // Clear state ONLY after writer finalization, so concurrent disable()
         // still sees sessionStartWritten=true and routes through downgrade.

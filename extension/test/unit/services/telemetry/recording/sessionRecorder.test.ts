@@ -935,7 +935,7 @@ suite('SessionRecorder — intervention suppression and configuration provenance
 
 // ── Characterization tests: normal-end vs consent-downgrade finalization ──
 
-suite('SessionRecorder — finalization path characterization', () => {
+suite('SessionRecorder finalization path characterization', () => {
 
     // ── Test A: metadata is equally well-formed for both finalization paths ──
 
@@ -956,15 +956,19 @@ suite('SessionRecorder — finalization path characterization', () => {
 
         // Exactly one metadata write with non-null endTime.
         const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
-        const finalMeta = [...metadataWrites].reverse().find(Boolean);
-        assert.ok(finalMeta, 'metadata.json must be written');
-        const meta = JSON.parse(finalMeta!.data) as {
+        const finalizedMetaWrites = metadataWrites.filter(w => {
+            const parsed = JSON.parse(w.data) as { endTime: number | null };
+            return parsed.endTime !== null;
+        });
+        assert.strictEqual(finalizedMetaWrites.length, 1,
+            `exactly one metadata.json write with non-null endTime expected for normal endSession, got ${finalizedMetaWrites.length}`);
+        const meta = JSON.parse(finalizedMetaWrites[0].data) as {
             startTime: number;
             endTime: number | null;
             eventCount: number;
         };
         assert.ok(meta.endTime !== null && typeof meta.endTime === 'number',
-            'final metadata.endTime must be non-null after normal endSession');
+            'finalized metadata.endTime must be non-null');
         assert.ok(meta.endTime >= meta.startTime,
             'metadata.endTime must be >= metadata.startTime');
         assert.strictEqual(meta.eventCount, events.length,
@@ -993,9 +997,13 @@ suite('SessionRecorder — finalization path characterization', () => {
 
         // Exactly one metadata write with non-null endTime (the final write).
         const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
-        const finalMeta = [...metadataWrites].reverse().find(Boolean);
-        assert.ok(finalMeta, 'metadata.json must be written on consent-downgrade path');
-        const meta = JSON.parse(finalMeta!.data) as {
+        const finalizedMetaWrites = metadataWrites.filter(w => {
+            const parsed = JSON.parse(w.data) as { endTime: number | null };
+            return parsed.endTime !== null;
+        });
+        assert.strictEqual(finalizedMetaWrites.length, 1,
+            `exactly one metadata.json write with non-null endTime expected for consent-downgrade, got ${finalizedMetaWrites.length}`);
+        const meta = JSON.parse(finalizedMetaWrites[0].data) as {
             startTime: number;
             endTime: number | null;
             eventCount: number;
@@ -1036,7 +1044,7 @@ suite('SessionRecorder — finalization path characterization', () => {
         );
         const s1EndIdx = s1Events.findIndex(e => e.type === 'sessionEnd');
         assert.ok(s1SelIdx >= 0,
-            `endSession must flush pending selectionChange — it was not found. types=${s1Types.join(',')}`);
+            `endSession must flush pending selectionChange (not found). types=${s1Types.join(',')}`);
         assert.ok(s1EndIdx > s1SelIdx,
             'flushed selectionChange must appear before sessionEnd');
         try { await s1.recorder.dispose(); } catch { /* ignore */ }
@@ -1056,7 +1064,7 @@ suite('SessionRecorder — finalization path characterization', () => {
             e => e.type === 'selectionChange' && (e as { uri?: string }).uri === fakeUri,
         );
         assert.strictEqual(s2SelEvents.length, 0,
-            `disable must discard pending selectionChange — it was found in the stream. types=${s2Types.join(',')}`);
+            `disable must discard pending selectionChange (it appeared in the stream). types=${s2Types.join(',')}`);
 
         // The stream must still contain consentChange then sessionEnd.
         const s2ConsentIdx = s2Types.lastIndexOf('consentChange');
@@ -1125,7 +1133,7 @@ suite('SessionRecorder — finalization path characterization', () => {
 
         assert.deepStrictEqual(starts.map(s => s.exerciseId), [40, 41],
             'two sessionStart events with exerciseIds 40 then 41');
-        assert.strictEqual(ends.length, 2, 'two sessionEnd events — one per session');
+        assert.strictEqual(ends.length, 2, 'two sessionEnd events, one per session');
         assert.strictEqual(consents.length, 1, 'exactly one consentChange from the disable that ended session 40');
 
         // The consentChange must appear between the two sessions.
