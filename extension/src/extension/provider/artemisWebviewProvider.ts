@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
-import { ExtensionMsg } from '@shared/messageContracts';
 import type {
     TaskFeedbackClosedPayload,
     TaskFeedbackOpenedPayload,
@@ -39,14 +38,16 @@ import { CONFIG, resolveServerUrl } from '@extension/utils';
 import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import { WebviewNavigationFacade } from './webviewNavigationFacade';
+import { WebviewSSRCoordinator } from './webviewSSRCoordinator';
 
 /**
  * Main webview provider for the Artemis sidebar panel.
  *
  * After #206 this class is the thin coordinator that owns the
  * `vscode.WebviewView` and wires services together. Navigation actions live in
- * `WebviewNavigationFacade`; a follow-up will extract SSR coordination into a
- * dedicated coordinator. Provider keeps `showLogin()` as a public delegation
+ * `WebviewNavigationFacade`; background problem-statement SSR (including the
+ * theme-change listener that invalidates the render cache) lives in
+ * `WebviewSSRCoordinator`. Provider keeps `showLogin()` as a public delegation
  * so external callers in `extension.ts` and `extensionCommands.ts` do not need
  * to know about the facade.
  */
@@ -77,6 +78,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _websocketHandler: WebSocketMessageHandler;
     private readonly _telemetryManager: TelemetryManager;
     private readonly _renderService: ProblemStatementRenderService;
+    private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;
 
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
@@ -148,6 +150,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             () => this._messageHandler,
         );
 
+        // 7b. SSR coordinator — owns the theme listener and background SSR.
+        //     Must be built BEFORE the navigation facade because the facade's
+        //     backgroundRenderProblemStatement callback routes through it.
+        this._ssrCoordinator = new WebviewSSRCoordinator({
+            appStateManager: this._appStateManager,
+            renderService: this._renderService,
+            postMessage: (msg) => this._postMessageSafe(msg),
+        });
+        this._disposables.push(this._ssrCoordinator);
+
         // 8. Navigation facade — constructed BEFORE the message handler because
         //    the message handler receives the facade as its actionHandler.
         this._navigationFacade = new WebviewNavigationFacade({
@@ -163,7 +175,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             postMessage: (msg) => this._postMessageSafe(msg),
             render: () => this.render(),
             sendInitData: () => this.sendInitData(),
-            backgroundRenderProblemStatement: () => this._backgroundRenderProblemStatement(),
+            backgroundRenderProblemStatement: () => void this._ssrCoordinator.scheduleRender(),
             getServerUrl: () => resolveServerUrl(),
         });
 
@@ -226,15 +238,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._onDidCloseTestResultsOverview,
             this._onDidOpenTaskFeedback,
             this._onDidCloseTaskFeedback,
-        );
-
-        // 15. Re-render SSR when VS Code theme changes (darkMode parameter differs).
-        this._disposables.push(
-            vscode.window.onDidChangeActiveColorTheme(() => {
-                this._renderService.invalidateAll();
-                this._appStateManager.serverRenderedProblemStatement = null;
-                this._backgroundRenderProblemStatement();
-            }),
         );
     }
 
@@ -414,48 +417,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             serverUrl,
             principal: { id: info.user?.id, login: info.username || info.user?.login },
         };
-    }
-
-    // ── Server-side problem statement rendering ─────────────────────
-
-    private async _backgroundRenderProblemStatement(): Promise<void> {
-        // SSR is for the exercise detail view only.
-        if (this._appStateManager.currentState !== 'exercise-detail') { return; }
-
-        const exerciseData = this._appStateManager.currentExerciseData;
-        if (!exerciseData?.exercise?.problemStatement) {
-            logger.info('[SSR] No exercise data or problemStatement, skipping', LogCategory.GENERAL);
-            return;
-        }
-
-        const exercise = exerciseData.exercise;
-        const exerciseId = exercise.id;
-        const participation = exercise.studentParticipations?.[0];
-
-        logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
-
-        try {
-            const rendered = await this._renderService.render(exercise, { participation });
-
-            // Guard: verify same exercise is still active after await
-            const current = this._appStateManager.currentExerciseData;
-            if (current?.exercise?.id !== exerciseId) { return; }
-
-            if (rendered) {
-                // Store in app state so sendExerciseDetailInit includes it
-                this._appStateManager.serverRenderedProblemStatement = {
-                    html: rendered.html,
-                };
-                // Also send as separate message for cases where init was already sent
-                this._postMessageSafe({
-                    type: ExtensionMsg.ProblemStatementRendered,
-                    html: rendered.html,
-                });
-                logger.info(`[SSR] Server render cached + sent (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
-            }
-        } catch (error) {
-            logger.info(`[SSR] Background render failed: ${error}`, LogCategory.GENERAL);
-        }
     }
 
 }
