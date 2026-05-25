@@ -64,6 +64,22 @@ interface ObservationRegistryDeps {
  */
 export class ObservationRegistry {
     static readonly MAX_OUTPUT_CHARS = 10240;
+
+    /**
+     * Debounce windows for selection and visible-range events. Engineering
+     * choice calibrated by manual testing during recorder development, not a
+     * paper citation.
+     *
+     * Both event types arrive in high-frequency bursts: selection during
+     * typing and rapid cursor movement, visible-range during scroll inertia.
+     * The chosen windows coalesce a burst into one recorded event while
+     * keeping distinct user actions separable in the recording.
+     *
+     * Tighter values would inflate JSONL size without obvious analysis
+     * benefit; looser values would risk merging semantically distinct
+     * selections or scrolls. Revisit if downstream analysis needs higher
+     * temporal resolution.
+     */
     static readonly SELECTION_DEBOUNCE_MS = 200;
     static readonly VISIBLE_RANGE_DEBOUNCE_MS = 300;
 
@@ -211,33 +227,18 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(terminalClose);
 
-        // File workspace events (Block K)
-        const fileCreate = vscode.workspace.onDidCreateFiles(event => {
-            if (!recordingPhase()) { return; }
-            const gen = this._deps.state.currentGeneration;
-            for (const uri of event.files) {
-                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._deps.record({
-                    type: 'fileCreate',
-                    timestamp: Date.now(),
-                    uri: uri.toString(),
-                }, {}, gen);
-            }
-        });
+        // File workspace events (Block K). fileCreate/fileDelete and
+        // textDocumentOpen/textDocumentClose share the same phase-gate +
+        // URI-filter + record pattern and route through private helpers
+        // (`_emitMultiFileEvent`, `_emitTextDocumentEvent`). fileRename has its
+        // own shape (two URIs per entry, accept-if-either-side-in-root) and
+        // stays inline.
+        const fileCreate = vscode.workspace.onDidCreateFiles(event =>
+            this._emitMultiFileEvent(event.files, 'fileCreate'));
         this._eventListenerDisposables.push(fileCreate);
 
-        const fileDelete = vscode.workspace.onDidDeleteFiles(event => {
-            if (!recordingPhase()) { return; }
-            const gen = this._deps.state.currentGeneration;
-            for (const uri of event.files) {
-                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._deps.record({
-                    type: 'fileDelete',
-                    timestamp: Date.now(),
-                    uri: uri.toString(),
-                }, {}, gen);
-            }
-        });
+        const fileDelete = vscode.workspace.onDidDeleteFiles(event =>
+            this._emitMultiFileEvent(event.files, 'fileDelete'));
         this._eventListenerDisposables.push(fileDelete);
 
         const fileRename = vscode.workspace.onDidRenameFiles(event => {
@@ -257,28 +258,12 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(fileRename);
 
-        const textDocumentOpen = vscode.workspace.onDidOpenTextDocument(doc => {
-            if (!recordingPhase()) { return; }
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
-            const gen = this._deps.state.currentGeneration;
-            this._deps.record({
-                type: 'textDocumentOpen',
-                timestamp: Date.now(),
-                uri: doc.uri.toString(),
-            }, {}, gen);
-        });
+        const textDocumentOpen = vscode.workspace.onDidOpenTextDocument(doc =>
+            this._emitTextDocumentEvent(doc, 'textDocumentOpen'));
         this._eventListenerDisposables.push(textDocumentOpen);
 
-        const textDocumentClose = vscode.workspace.onDidCloseTextDocument(doc => {
-            if (!recordingPhase()) { return; }
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
-            const gen = this._deps.state.currentGeneration;
-            this._deps.record({
-                type: 'textDocumentClose',
-                timestamp: Date.now(),
-                uri: doc.uri.toString(),
-            }, {}, gen);
-        });
+        const textDocumentClose = vscode.workspace.onDidCloseTextDocument(doc =>
+            this._emitTextDocumentEvent(doc, 'textDocumentClose'));
         this._eventListenerDisposables.push(textDocumentClose);
 
         // Terminal shell execution tracking — only available in VS Code Desktop
@@ -377,6 +362,16 @@ export class ObservationRegistry {
      * Final cleanup: clear any leftover timers and dispose all vscode
      * subscriptions. Idempotent. Last-active-editor is reset so a fresh
      * enable starts with a clean slate.
+     *
+     * Pending terminal executions are aborted and cleared here too. In normal
+     * call ordering the caller (LifecycleController) already invokes
+     * `flushDebouncesForEnd` or `discardDebouncesForConsentDowngrade` first,
+     * which empties this map. The explicit clear here is defense-in-depth so
+     * that the invariant "no pending execution can emit after
+     * `disposeSubscriptions`" is enforced by this method alone, not by caller
+     * ordering. Note: `execution.read()` cannot be cancelled, so the async
+     * reader may continue to consume output until VS Code closes its stream;
+     * the `entry.aborted` flag suppresses any subsequent record call.
      */
     disposeSubscriptions(): void {
         for (const timer of this._selectionDebounceTimers.values()) {
@@ -389,11 +384,56 @@ export class ObservationRegistry {
         }
         this._visibleRangeDebounceTimers.clear();
         this._pendingVisibleRangePayloads.clear();
+        for (const entry of this._pendingExecutions.values()) {
+            entry.aborted = true;
+        }
+        this._pendingExecutions.clear();
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();
         }
         this._lastActiveEditorUri = undefined;
+    }
+
+    // ── Event emit helpers ────────────────────────────────────────────
+
+    /**
+     * Emit a recorder event for each URI in a file-set workspace event
+     * (`onDidCreateFiles` / `onDidDeleteFiles`). Phase gate + URI filter
+     * applied per-URI. Generation is captured once at handler entry so all
+     * events from the same workspace event carry the same generation token.
+     */
+    private _emitMultiFileEvent(
+        uris: readonly vscode.Uri[],
+        type: 'fileCreate' | 'fileDelete',
+    ): void {
+        if (this._deps.state.phase !== 'recording') { return; }
+        const gen = this._deps.state.currentGeneration;
+        for (const uri of uris) {
+            if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
+            this._deps.record({
+                type,
+                timestamp: Date.now(),
+                uri: uri.toString(),
+            }, {}, gen);
+        }
+    }
+
+    /**
+     * Emit a recorder event for a single text-document workspace event
+     * (`onDidOpenTextDocument` / `onDidCloseTextDocument`).
+     */
+    private _emitTextDocumentEvent(
+        doc: vscode.TextDocument,
+        type: 'textDocumentOpen' | 'textDocumentClose',
+    ): void {
+        if (this._deps.state.phase !== 'recording') { return; }
+        if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
+        this._deps.record({
+            type,
+            timestamp: Date.now(),
+            uri: doc.uri.toString(),
+        }, {}, this._deps.state.currentGeneration);
     }
 
     // ── Terminal output helpers ───────────────────────────────────────

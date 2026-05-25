@@ -10,7 +10,7 @@ active when consent is **extended**. Writes to
 
 ```
 recording/
-├── sessionRecorder.ts         Facade: public API + module wiring (405 LOC)
+├── sessionRecorder.ts         Facade: public API + module wiring (504 LOC)
 ├── types.ts                   All RecordedEvent interfaces (discriminated union)
 ├── storageWriter.ts           JSONL writer + snapshot I/O + lane mutex
 ├── recordingStatusBar.ts      Status-bar Play/Stop indicator
@@ -100,8 +100,8 @@ and `eventCount`.
 Not everything recorder-related lives here. The core is self-contained, but:
 
 - `activation/sessionRecorderWiring.ts` — wires the recorder into the extension
-  (instantiates it, registers the four startup contributors for Iris session,
-  panel visibility, consent, and struggle).
+  (instantiates it, registers the three startup contributors for EQ engine
+  state, panel visibility, and struggle-detection configuration).
 - `telemetry/replay/` — consumer side. Reads recordings back for EQ tuning.
   Imports `RecordedEvent` from here, produces nothing.
 - `telemetry/buildResultGuard.ts` — shared `shouldAcceptBuildResult()` used by
