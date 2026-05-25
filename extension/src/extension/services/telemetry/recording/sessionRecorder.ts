@@ -16,7 +16,7 @@
  * `_phase` replaces the legacy `_isRecording` / `_isEnabled` booleans. Phase
  * transitions other than the synchronous `disable()` kick-off happen inside
  * the lifecycle mutex (`_lifecyclePromise`), so only one of `_doStart`,
- * `_doEnd`, or `_doDisable` runs at a time.
+ * `_doFinalize`, or `_doDisable` runs at a time.
  *
  * ## Session Generation Token
  *
@@ -59,11 +59,11 @@ import { shouldAcceptBuildResult } from '@extension/services/telemetry/buildResu
 import type { PlatformCapabilities } from '@extension/theia';
 
 import { collectBuildResult } from './eventCollectors';
-import { LifecycleController } from './lifecycle/lifecycleController';
 import {
+    LifecycleController,
     RecorderLifecycleState,
     type RecorderPhase as RecorderPhaseFromState,
-} from './lifecycle/recorderLifecycleState';
+} from './lifecycleController';
 import { ObservationRegistry } from './observation/observationRegistry';
 import { SnapshotManager } from './snapshots/snapshotManager';
 import {

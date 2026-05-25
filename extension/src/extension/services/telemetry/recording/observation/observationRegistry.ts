@@ -10,7 +10,7 @@ import {
     collectVisibleRangeChange,
     collectWindowFocus,
 } from '@extension/services/telemetry/recording/eventCollectors';
-import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycle/recorderLifecycleState';
+import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
 import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';

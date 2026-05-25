@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycle/recorderLifecycleState';
+import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
 import type { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
 import type { FileSnapshotErrorEvent, RecordedEvent } from '@extension/services/telemetry/recording/types';
 import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';
