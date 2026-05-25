@@ -4,6 +4,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+- **Exercise "More options" Dropdown**: Grouped entries into Workspace, Share, and External sections with icons, and merged the two "Copy Clone URL" entries into a single split-button.
 - **Iris Chat Feedback Icons**: Fixed the broken thumbs-down icon on assistant messages (previously rendered as a filled blob when selected).
 - **Webview Icon Consistency**: Replaced ~25 hand-rolled inline SVG icons across the chat, exam, and shared components with their Lucide equivalents for visual consistency and to prevent future malformed-path bugs.
 - **Live Recording Viewer**: Faster live view (no more lag on long sessions), undo/redo for markers via Cmd/Ctrl+Z, and live sessions appear in the list immediately.
