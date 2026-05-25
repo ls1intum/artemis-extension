@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 
-import type { CourseDetailData, ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
-import { ExtensionMsg, toCourseDetailData } from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
 import type {
     TaskFeedbackClosedPayload,
     TaskFeedbackOpenedPayload,
@@ -10,9 +9,8 @@ import type {
 } from '@shared/messageContracts/webviewCommands';
 
 import { ArtemisApiService } from '@extension/api';
-import { AppStateManager, type UserInfo } from '@extension/controller/appStateManager';
+import { AppStateManager } from '@extension/controller/appStateManager';
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
-import type { WebViewActionHandler } from '@extension/controller/types';
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
@@ -32,38 +30,39 @@ import {
     ViewInitDataService,
 } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
-import {
-    collectExerciseSources,
-    findExerciseByRepositoryUrl,
-    findWorkspaceCourseInArchive,
-    getWorkspaceRepositoryUrl,
-} from '@extension/services/workspace';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
 import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
-import {
-    AI_EXTENSIONS_BLOCKLIST,
-    CONFIG,
-    getRecommendedExtensionsByCategory,
-    resolveServerUrl,
-    VSCODE_CONFIG,
-} from '@extension/utils';
+import { CONFIG, resolveServerUrl } from '@extension/utils';
 
+import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
-import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
+import { WebviewNavigationFacade } from './webviewNavigationFacade';
+import { WebviewSSRCoordinator } from './webviewSSRCoordinator';
 
 /**
  * Main webview provider for the Artemis sidebar panel.
  *
- * NOTE: This class (~1100 lines) coordinates view lifecycle, message routing,
- * state sync, and service integration. A future refactor could extract
- * render-data preparation into a dedicated ViewDataService.
+ * After #206 this class is the thin coordinator that owns the
+ * `vscode.WebviewView` and wires services together. Navigation actions live in
+ * `WebviewNavigationFacade`; background problem-statement SSR (including the
+ * theme-change listener that invalidates the render cache) lives in
+ * `WebviewSSRCoordinator`. Provider keeps `showLogin()` as a public delegation
+ * so external callers in `extension.ts` and `extensionCommands.ts` do not need
+ * to know about the facade.
  */
-export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, vscode.Disposable, IArtemisWebviewProvider {
+export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IArtemisWebviewProvider {
     // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
     // ── Instance properties ────────────────────────────────────────────
+    private readonly _extensionUri: vscode.Uri;
+    private readonly _extensionContext: vscode.ExtensionContext;
+    private readonly _authManager: AuthManager;
+    private readonly _artemisApi: ArtemisApiService;
+    private readonly _exerciseRegistry: ExerciseRegistry;
+    private readonly _providerRegistry: IProviderRegistry;
+    private readonly _courseDataCache?: CourseDataCache;
     private _appStateManager: AppStateManager;
     private _messageHandler: WebViewMessageHandler;
     private _viewInitDataService: ViewInitDataService;
@@ -79,6 +78,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _websocketHandler: WebSocketMessageHandler;
     private readonly _telemetryManager: TelemetryManager;
     private readonly _renderService: ProblemStatementRenderService;
+    private readonly _ssrCoordinator: WebviewSSRCoordinator;
+    private readonly _navigationFacade: WebviewNavigationFacade;
 
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
@@ -97,37 +98,93 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     public readonly onDidCloseTaskFeedback = this._onDidCloseTaskFeedback.event;
 
     // ── Constructor ────────────────────────────────────────────────────
-    constructor(
-        private readonly _extensionUri: vscode.Uri,
-        private readonly _extensionContext: vscode.ExtensionContext,
-        private readonly _authManager: AuthManager,
-        private readonly _artemisApi: ArtemisApiService,
-        private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _providerRegistry: IProviderRegistry,
-        websocketService: ArtemisWebsocketService,
-        buildErrorCodeLensProvider: BuildErrorCodeLensProvider,
-        telemetryManager: TelemetryManager,
-        updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
-        private readonly _courseDataCache?: CourseDataCache,
-    ) {
+    constructor(deps: ArtemisWebviewProviderDeps) {
         super();
-        this._websocketService = websocketService;
-        this._telemetryManager = telemetryManager;
-        this._authContextUpdater = updateAuthContext;
+        this._extensionUri = deps.extensionUri;
+        this._extensionContext = deps.extensionContext;
+        this._authManager = deps.authManager;
+        this._artemisApi = deps.artemisApi;
+        this._exerciseRegistry = deps.exerciseRegistry;
+        this._providerRegistry = deps.providerRegistry;
+        this._websocketService = deps.websocketService;
+        this._telemetryManager = deps.telemetryManager;
+        this._authContextUpdater = deps.updateAuthContext;
+        this._courseDataCache = deps.courseDataCache;
+        const buildErrorCodeLensProvider = deps.buildErrorCodeLensProvider;
 
+        // 1. AppStateManager — depends on nothing.
         this._appStateManager = new AppStateManager();
         if (this._courseDataCache) {
             this._appStateManager.setCourseDataCache(this._courseDataCache);
         }
+
+        // 2. CourseAccessStorage — its scope callback resolves on the provider.
         this._courseAccessStorage = new CourseAccessStorageService(
             this._extensionContext.globalState,
             () => this._currentCourseAccessScope(),
         );
+
+        // 3. SSR render service.
+        this._renderService = new ProblemStatementRenderService(this._artemisApi);
+        this._disposables.push(this._renderService);
+
+        // 4. Build diagnostics — wires the build-error code lens.
+        this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
+        this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
+
+        // 5. Exercise opening side-effects (registry, telemetry, chat).
+        this._exerciseOpeningService = new ExerciseOpeningService(
+            this._exerciseRegistry,
+            this._providerRegistry,
+            this._telemetryManager,
+            this._courseAccessStorage,
+        );
+
+        // 6. Start page resolver.
+        this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseDataCache);
+
+        // 7. Fullscreen panel manager — only stores the getter, safe before _messageHandler exists.
+        this._fullscreenPanelManager = new FullscreenPanelManager(
+            this._extensionUri,
+            this._extensionContext,
+            () => this._messageHandler,
+        );
+
+        // 7b. SSR coordinator — owns the theme listener and background SSR.
+        //     Must be built BEFORE the navigation facade because the facade's
+        //     backgroundRenderProblemStatement callback routes through it.
+        this._ssrCoordinator = new WebviewSSRCoordinator({
+            appStateManager: this._appStateManager,
+            renderService: this._renderService,
+            postMessage: (msg) => this._postMessageSafe(msg),
+        });
+        this._disposables.push(this._ssrCoordinator);
+
+        // 8. Navigation facade — constructed BEFORE the message handler because
+        //    the message handler receives the facade as its actionHandler.
+        this._navigationFacade = new WebviewNavigationFacade({
+            appStateManager: this._appStateManager,
+            artemisApi: this._artemisApi,
+            websocketService: this._websocketService,
+            exerciseRegistry: this._exerciseRegistry,
+            courseAccessStorage: this._courseAccessStorage,
+            fullscreenPanelManager: this._fullscreenPanelManager,
+            exerciseOpeningService: this._exerciseOpeningService,
+            startPageResolver: this._startPageResolver,
+            courseDataCache: this._courseDataCache,
+            postMessage: (msg) => this._postMessageSafe(msg),
+            render: () => this.render(),
+            sendInitData: () => this.sendInitData(),
+            backgroundRenderProblemStatement: () => void this._ssrCoordinator.scheduleRender(),
+            getServerUrl: () => resolveServerUrl(),
+        });
+
+        // 9. Webview message handler — now routes commands through the facade.
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
             this._artemisApi,
             this._appStateManager,
-            this,
+            this._navigationFacade,
             this._extensionContext,
             this._exerciseRegistry,
             this._providerRegistry,
@@ -136,6 +193,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseAccessStorage,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
+
+        // 10. Init data service — depends on the message handler being ready.
         this._viewInitDataService = new ViewInitDataService(
             this._appStateManager,
             this._telemetryManager,
@@ -143,42 +202,31 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             (msg) => this._postMessageSafe(msg),
             this._courseAccessStorage,
         );
-        this._renderService = new ProblemStatementRenderService(this._artemisApi);
-        this._disposables.push(this._renderService);
-        this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
-        this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
-        this._exerciseOpeningService = new ExerciseOpeningService(
-            this._exerciseRegistry,
-            this._providerRegistry,
-            this._telemetryManager,
-            this._courseAccessStorage,
-        );
-        this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseDataCache);
+
+        // 11. Submission WS handler — fans build results into diagnostics.
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
             (result) => this._buildDiagnosticsService.handleBuildResult(result),
         );
-        this._fullscreenPanelManager = new FullscreenPanelManager(
-            this._extensionUri,
-            this._extensionContext,
-            () => this._messageHandler,
-        );
+
+        // 12. Auth flow handler — callbacks route through the navigation facade.
         this._authFlowHandler = new AuthFlowHandler(
             this._authManager,
             this._artemisApi,
             () => this._authContextUpdater,
             (msg) => this._postMessageSafe(msg),
             {
-                onAuthenticated: (userInfo) => this.navigateToStartPage(userInfo),
-                hideLoadingAndSendServerUrl: () => this.hideLoadingAndSendServerUrl(),
-                showLogin: () => this.showLogin(),
+                onAuthenticated: (userInfo) => this._navigationFacade.navigateToStartPage(userInfo),
+                hideLoadingAndSendServerUrl: () => this._navigationFacade.hideLoadingAndSendServerUrl(),
+                showLogin: () => this._navigationFacade.showLogin(),
             },
         );
 
-        // Wire WebSocket subscription handler
+        // 13. Wire WebSocket subscription handler
         this._websocketHandler = this._submissionWsHandler.createHandler();
         this._websocketService.registerMessageHandler(this._websocketHandler);
 
+        // 14. Forward state changes as view navigation events.
         this._appStateManager.onStateChange = (from, to) => {
             this._onDidChangeViewNavigation.fire({ from, to });
         };
@@ -190,15 +238,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._onDidCloseTestResultsOverview,
             this._onDidOpenTaskFeedback,
             this._onDidCloseTaskFeedback,
-        );
-
-        // Re-render SSR when VS Code theme changes (darkMode parameter differs)
-        this._disposables.push(
-            vscode.window.onDidChangeActiveColorTheme(() => {
-                this._renderService.invalidateAll();
-                this._appStateManager.serverRenderedProblemStatement = null;
-                this._backgroundRenderProblemStatement();
-            }),
         );
     }
 
@@ -251,7 +290,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         });
         this._viewDisposables.push(messageListener);
 
-        // Handle visibility changes — resend data when panel becomes visible
+        // Handle visibility changes - resend data when panel becomes visible
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             this._onDidChangePanelVisibility.fire(webviewView.visible);
             if (webviewView.visible) {
@@ -266,7 +305,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     }
 
                     // Re-fetch exercise data to capture any WebSocket updates missed while hidden.
-                    // Swallow fetch errors only — state-transition errors (invariant breaches)
+                    // Swallow fetch errors only - state-transition errors (invariant breaches)
                     // must propagate so latent bugs don't get hidden by this refresh path.
                     if (currentState === 'exercise-detail') {
                         const exerciseData = this._appStateManager.currentExerciseData;
@@ -324,10 +363,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._viewInitDataService.sendInitData();
     }
 
-    public backgroundRenderProblemStatement(): void {
-        this._backgroundRenderProblemStatement();
-    }
-
     // ── IArtemisWebviewProvider: fire methods ──────────────────────────
 
     public fireTestResultsOverviewOpened(payload: TestResultsOverviewOpenedPayload): void {
@@ -346,297 +381,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._onDidCloseTaskFeedback.fire(payload);
     }
 
-    // ── Public API ─────────────────────────────────────────────────────
+    // ── Public API: navigation delegation ──────────────────────────────
 
-    // WebViewActionHandler interface implementation
-    public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {
-        try {
-            const document = await vscode.workspace.openTextDocument({
-                content: JSON.stringify(data, null, 2),
-                language: 'json',
-            });
-            await vscode.window.showTextDocument(document, {
-                preview: false,
-                viewColumn: vscode.ViewColumn.One,
-            });
-        } catch (error) {
-            logger.error('Error opening JSON in editor:', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage('Failed to open JSON in editor');
-        }
-    }
-
-    public async openExerciseDetails(exerciseId: number): Promise<void> {
-        // Split fetch failures (user-facing I/O errors) from state-transition
-        // failures (programmer errors that violate the navigation invariant):
-        // only the fetch is caught and user-reported; invariant breaks propagate.
-        let data: ExerciseDetailsResponse;
-        try {
-            data = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
-        } catch (error) {
-            logger.error('Error fetching exercise details:', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage('Failed to fetch exercise details');
-            return;
-        }
-        this._appStateManager.showExerciseDetail(data);
-        this.render();
-
-        // Fire background server render for progressive enhancement
-        this._backgroundRenderProblemStatement();
-
-        // Ensure WebSocket is connected for real-time updates
-        if (this._websocketService && !this._websocketService.isConnected()) {
-            logger.websocket('Exercise opened - ensuring WebSocket connection for real-time updates...');
-            try {
-                await this._websocketService.connect();
-            } catch (error) {
-                logger.websocketWarn('Failed to connect WebSocket', error);
-            }
-        }
-
-        // Handle post-open side effects (registry, telemetry, chat notify).
-        const exerciseData = this._appStateManager.currentExerciseData;
-        if (exerciseData?.exercise) {
-            this._exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId);
-        }
-    }
-
-    public async showDashboard(userInfo: UserInfo): Promise<void> {
-        // Set state immediately so concurrent logic sees 'dashboard' during fetch
-        this._appStateManager.showDashboard(userInfo);
-
-        // Fetch courses into the shared cache (swallow error — dashboard renders with empty state)
-        try {
-            await this._courseDataCache?.fetch();
-        } catch (error) {
-            logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
-        }
-
-        if (this._view) {
-            this.render();
-        }
-
-        // Check archived courses in the background.
-        // Flag prevents sendDashboardInit from publishing workspace result too early.
-        this._appStateManager.archiveCheckComplete = false;
-        void findWorkspaceCourseInArchive(
-            this._artemisApi, this._appStateManager.coursesData?.courses || []
-        ).then(archivedEntry => {
-            if (archivedEntry) {
-                this._appStateManager.injectCourseEntry(archivedEntry);
-            }
-        }).catch((err: unknown) => {
-            logger.error('Failed to check archived courses for dashboard', LogCategory.VIEW, err);
-        }).finally(() => {
-            this._appStateManager.archiveCheckComplete = true;
-            this.sendInitData();
-            void this._suggestWorkspaceStartPage().catch((err: unknown) => {
-                logger.error('Failed to suggest workspace start page', LogCategory.VIEW, err);
-            });
-        });
-    }
-
-    public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
-        const result = await this._startPageResolver.resolve();
-
-        switch (result.type) {
-            case 'course-list':
-                this._appStateManager.seedAuthenticatedSession(userInfo);
-                this._appStateManager.showCourseList();
-                if (this._view) { this.render(); }
-                return;
-
-            case 'workspace-exercise': {
-                this._appStateManager.seedAuthenticatedSession(userInfo);
-                const entry = result.allCourses.find(e => e.course?.id === result.courseId);
-                const detail = toCourseDetailData(entry?.course);
-                if (detail) {
-                    this._appStateManager.showCourseDetail(detail);
-                    this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
-                    await this.openExerciseDetails(result.exerciseId);
-                    if (this._appStateManager.currentState === 'exercise-detail') {
-                        return;
-                    }
-                } else {
-                    logger.viewError(`workspace-exercise start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
-                }
-                break;
-            }
-
-            case 'workspace-course': {
-                this._appStateManager.seedAuthenticatedSession(userInfo);
-                const entry = result.allCourses.find(e => e.course?.id === result.courseId);
-                const detail = toCourseDetailData(entry?.course);
-                if (detail) {
-                    this._courseAccessStorage.onCourseAccessed(result.courseId);
-                    this.showCourseDetail(detail);
-                    return;
-                }
-                logger.viewError(`workspace-course start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
-                break;
-            }
-
-            case 'dashboard':
-                break;
-        }
-
-        // Default: full dashboard with archive check
-        await this.showDashboard(userInfo);
-    }
-
+    /**
+     * Thin delegation so external callers (extension.ts, extensionCommands.ts)
+     * do not need to reach into the facade.
+     */
     public showLogin(): void {
-        this._appStateManager.showLogin();
-        if (this._view) {
-            this.render();
-
-            // Send the server URL to the login page for status checking
-            this.postServerUrl();
-        }
-    }
-
-    public async showCourseList(): Promise<void> {
-        try {
-            // Ensure courses are in the cache before navigating
-            if (this._courseDataCache) {
-                await this._courseDataCache.fetch();
-            }
-            this._appStateManager.showCourseList();
-            if (this._view) {
-                this.render();
-            }
-        } catch (error) {
-            logger.error('Error loading courses', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage('Failed to load courses');
-        }
-    }
-
-    public showAiConfig(): void {
-        // Map installed extensions by ID for quick lookup
-        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
-        for (const ext of vscode.extensions.all) {
-            installedExtensions.set(ext.id.toLowerCase(), ext);
-        }
-
-        const aiExtensions = Object.entries(AI_EXTENSIONS_BLOCKLIST)
-            .flatMap(([providerName, providerData]) => {
-                return providerData.extensions.map(blocklistExt => {
-                    const installedExt = installedExtensions.get(blocklistExt.id.toLowerCase());
-                    const packageJson = (installedExt?.packageJSON ?? {}) as { publisher?: string; version?: string };
-
-                    return {
-                        id: blocklistExt.id,
-                        name: blocklistExt.name,
-                        publisher: packageJson.publisher ?? 'Not installed',
-                        version: packageJson.version ?? '—',
-                        description: blocklistExt.description,
-                        isInstalled: installedExt !== undefined,
-                        provider: providerName,
-                        providerColor: providerData.color
-                    };
-                });
-            });
-
-        this._appStateManager.showAiConfig(aiExtensions);
-        if (this._view) {
-            this.render();
-        }
-    }
-
-    public showRecommendedExtensions(): void {
-        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
-        for (const ext of vscode.extensions.all) {
-            installedExtensions.set(ext.id.toLowerCase(), ext);
-        }
-
-        const recommendedCategories = getRecommendedExtensionsByCategory().map(category => ({
-            ...category,
-            extensions: category.extensions.map(extension => {
-                const installedExt = installedExtensions.get(extension.id.toLowerCase());
-                const packageJson = (installedExt?.packageJSON ?? {}) as { version?: string };
-
-                return {
-                    ...extension,
-                    isInstalled: installedExt !== undefined,
-                    version: packageJson.version ?? extension.version
-                };
-            })
-        }));
-
-        this._appStateManager.showRecommendedExtensions(recommendedCategories);
-        if (this._view) {
-            this.render();
-        }
-    }
-
-    public showServiceStatus(): void {
-        this._appStateManager.showServiceStatus();
-        if (this._view) {
-            this.render();
-        }
-    }
-
-    public showStruggleDetection(): void {
-        this._appStateManager.showStruggleDetection();
-        if (this._view) {
-            this.render();
-        }
-    }
-
-    public showGitCredentials(): void {
-        this._appStateManager.showGitCredentials();
-        if (this._view) {
-            this.render();
-        }
-    }
-
-    public showCourseDetail(courseData: CourseDetailData): void {
-        this._appStateManager.showCourseDetail(courseData);
-
-        // Populate exercise registry with repository URLs for workspace matching
-        const registry = this._exerciseRegistry;
-        const courseName = courseData?.course?.title || 'Unknown Course';
-        logger.info(`Loading course: ${courseName}`, LogCategory.VIEW);
-
-        registry.registerFromCourseData(courseData);
-
-        // Log what was registered
-        const allExercises = registry.getAllExercises();
-        logger.info(`Registry now contains ${allExercises.length} exercises total`, LogCategory.VIEW);
-        if (allExercises.length > 0) {
-            logger.debug('Exercises in registry:', LogCategory.VIEW);
-            allExercises.forEach(ex => {
-                logger.debug(`   - ${ex.id}: ${ex.title}`, LogCategory.VIEW);
-                logger.debug(`     Repository: ${ex.repositoryUri}`, LogCategory.VIEW);
-            });
-        }
-
-        if (this._view) {
-            this.render();
-        }
-    }
-
-    public async openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void> {
-        this._fullscreenPanelManager.openExerciseFullscreen(exerciseData);
-    }
-
-    public async openCourseFullscreen(courseData: CourseDetailData): Promise<void> {
-        this._fullscreenPanelManager.openCourseFullscreen(courseData);
-    }
-
-    public async openCourseListFullscreen(): Promise<void> {
-        const coursesData = this._appStateManager.coursesData;
-        const courses = coursesData?.courses || [];
-        const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
-
-        const mappedCourses: CourseDetailData[] = courses.flatMap((entry) => {
-            const detail = toCourseDetailData(entry.course);
-            if (!detail) {
-                logger.warn(`Course list fullscreen: dropping course without numeric id (title=${entry.course?.title ?? '<unknown>'})`, LogCategory.VIEW);
-                return [];
-            }
-            return [detail];
-        });
-
-        this._fullscreenPanelManager.openCourseListFullscreen(mappedCourses, archivedCourses);
+        this._navigationFacade.showLogin();
     }
 
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
@@ -651,59 +403,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     // ── Private: Helpers ───────────────────────────────────────────────
 
-    private postServerUrl(serverUrl?: string): void {
-        this._postMessageSafe({
-            type: ExtensionMsg.SetServerUrl,
-            serverUrl: serverUrl ?? this._getServerUrl()
-        });
-    }
-
-    private hideLoadingAndSendServerUrl(): void {
-        this._postMessageSafe({ type: ExtensionMsg.HideLoading });
-        this.postServerUrl();
-    }
-
-    private _getServerUrl(): string {
-        return resolveServerUrl();
-    }
-
     /**
-     * Shows a one-time notification suggesting workspace-aware start page
-     * when a workspace exercise is detected on the dashboard.
+     * Scope key for `CourseAccessStorageService`. Stays on the provider because
+     * the storage service is constructed in this ctor with this getter as a
+     * callback - moving it to the facade would create a cycle.
      */
-    private async _suggestWorkspaceStartPage(): Promise<void> {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-
-        // Only suggest if the user is on the default dashboard start page
-        const startPage = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY, 'dashboard');
-        if (startPage !== 'dashboard') { return; }
-
-        // Check the "don't show again" flag
-        if (!config.get<boolean>(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, true)) { return; }
-
-        // Check if there's a workspace exercise match in the loaded courses
-        const repoUrl = await getWorkspaceRepositoryUrl();
-        if (!repoUrl) { return; }
-
-        const courses = this._appStateManager.coursesData?.courses || [];
-        if (courses.length === 0) { return; }
-
-        const detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources(courses));
-        if (!detected) { return; }
-
-        const result = await vscode.window.showInformationMessage(
-            `Detected "${detected.title}" in your workspace. You can configure Artemis to open it automatically on login. You can change this later in Settings.`,
-            'Always open exercise',
-            "Don't show again"
-        );
-
-        if (result === 'Always open exercise') {
-            await config.update(VSCODE_CONFIG.START_PAGE_KEY, 'workspace-exercise', vscode.ConfigurationTarget.Global);
-        } else if (result === "Don't show again") {
-            await config.update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
-        }
-    }
-
     private _currentCourseAccessScope(): CourseAccessScope | null {
         const info = this._appStateManager.userInfo;
         if (!info) { return null; }
@@ -713,48 +417,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             serverUrl,
             principal: { id: info.user?.id, login: info.username || info.user?.login },
         };
-    }
-
-    // ── Server-side problem statement rendering ─────────────────────
-
-    private async _backgroundRenderProblemStatement(): Promise<void> {
-        // SSR is for the exercise detail view only.
-        if (this._appStateManager.currentState !== 'exercise-detail') { return; }
-
-        const exerciseData = this._appStateManager.currentExerciseData;
-        if (!exerciseData?.exercise?.problemStatement) {
-            logger.info('[SSR] No exercise data or problemStatement, skipping', LogCategory.GENERAL);
-            return;
-        }
-
-        const exercise = exerciseData.exercise;
-        const exerciseId = exercise.id;
-        const participation = exercise.studentParticipations?.[0];
-
-        logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
-
-        try {
-            const rendered = await this._renderService.render(exercise, { participation });
-
-            // Guard: verify same exercise is still active after await
-            const current = this._appStateManager.currentExerciseData;
-            if (current?.exercise?.id !== exerciseId) { return; }
-
-            if (rendered) {
-                // Store in app state so sendExerciseDetailInit includes it
-                this._appStateManager.serverRenderedProblemStatement = {
-                    html: rendered.html,
-                };
-                // Also send as separate message for cases where init was already sent
-                this._postMessageSafe({
-                    type: ExtensionMsg.ProblemStatementRendered,
-                    html: rendered.html,
-                });
-                logger.info(`[SSR] Server render cached + sent (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
-            }
-        } catch (error) {
-            logger.info(`[SSR] Background render failed: ${error}`, LogCategory.GENERAL);
-        }
     }
 
 }

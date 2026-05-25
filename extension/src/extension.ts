@@ -115,12 +115,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	const artemisWebviewProvider = new ArtemisWebviewProvider(
-		context.extensionUri, context, authManager, artemisApiService,
-		exerciseRegistry, providerRegistry,
-		artemisWebsocketService, buildErrorCodeLensProvider, telemetryManager, updateAuthContext,
+	const artemisWebviewProvider = new ArtemisWebviewProvider({
+		extensionUri: context.extensionUri,
+		extensionContext: context,
+		authManager,
+		artemisApi: artemisApiService,
+		exerciseRegistry,
+		providerRegistry,
+		websocketService: artemisWebsocketService,
+		buildErrorCodeLensProvider,
+		telemetryManager,
+		updateAuthContext,
 		courseDataCache,
-	);
+	});
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
