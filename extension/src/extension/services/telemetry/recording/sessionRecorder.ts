@@ -59,11 +59,11 @@ import { shouldAcceptBuildResult } from '@extension/services/telemetry/buildResu
 import type { PlatformCapabilities } from '@extension/theia';
 
 import { collectBuildResult } from './eventCollectors';
-import { LifecycleController } from './lifecycle/lifecycleController';
 import {
+    LifecycleController,
     RecorderLifecycleState,
     type RecorderPhase as RecorderPhaseFromState,
-} from './lifecycle/recorderLifecycleState';
+} from './lifecycleController';
 import { ObservationRegistry } from './observation/observationRegistry';
 import { SnapshotManager } from './snapshots/snapshotManager';
 import {
