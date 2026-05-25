@@ -49,8 +49,8 @@ import {
     VSCODE_CONFIG,
 } from '@extension/utils';
 
+import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
-import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 
 /**
  * Main webview provider for the Artemis sidebar panel.
@@ -64,6 +64,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
     // ── Instance properties ────────────────────────────────────────────
+    private readonly _extensionUri: vscode.Uri;
+    private readonly _extensionContext: vscode.ExtensionContext;
+    private readonly _authManager: AuthManager;
+    private readonly _artemisApi: ArtemisApiService;
+    private readonly _exerciseRegistry: ExerciseRegistry;
+    private readonly _providerRegistry: IProviderRegistry;
+    private readonly _courseDataCache?: CourseDataCache;
     private _appStateManager: AppStateManager;
     private _messageHandler: WebViewMessageHandler;
     private _viewInitDataService: ViewInitDataService;
@@ -97,23 +104,19 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     public readonly onDidCloseTaskFeedback = this._onDidCloseTaskFeedback.event;
 
     // ── Constructor ────────────────────────────────────────────────────
-    constructor(
-        private readonly _extensionUri: vscode.Uri,
-        private readonly _extensionContext: vscode.ExtensionContext,
-        private readonly _authManager: AuthManager,
-        private readonly _artemisApi: ArtemisApiService,
-        private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _providerRegistry: IProviderRegistry,
-        websocketService: ArtemisWebsocketService,
-        buildErrorCodeLensProvider: BuildErrorCodeLensProvider,
-        telemetryManager: TelemetryManager,
-        updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
-        private readonly _courseDataCache?: CourseDataCache,
-    ) {
+    constructor(deps: ArtemisWebviewProviderDeps) {
         super();
-        this._websocketService = websocketService;
-        this._telemetryManager = telemetryManager;
-        this._authContextUpdater = updateAuthContext;
+        this._extensionUri = deps.extensionUri;
+        this._extensionContext = deps.extensionContext;
+        this._authManager = deps.authManager;
+        this._artemisApi = deps.artemisApi;
+        this._exerciseRegistry = deps.exerciseRegistry;
+        this._providerRegistry = deps.providerRegistry;
+        this._websocketService = deps.websocketService;
+        this._telemetryManager = deps.telemetryManager;
+        this._authContextUpdater = deps.updateAuthContext;
+        this._courseDataCache = deps.courseDataCache;
+        const buildErrorCodeLensProvider = deps.buildErrorCodeLensProvider;
 
         this._appStateManager = new AppStateManager();
         if (this._courseDataCache) {

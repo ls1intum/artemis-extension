@@ -135,18 +135,18 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
-        provider = new ArtemisWebviewProvider(
-            vscode.Uri.file('/'),
-            mockContext,
-            mockAuthManager,
-            mockApiService,
-            new ExerciseRegistry(),
-            createProviderRegistry(),
-            mockWebsocket,
-            mockCodeLens,
-            mockTelemetry,
-            mockUpdateAuth,
-        );
+        provider = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            artemisApi: mockApiService,
+            exerciseRegistry: new ExerciseRegistry(),
+            providerRegistry: createProviderRegistry(),
+            websocketService: mockWebsocket,
+            buildErrorCodeLensProvider: mockCodeLens,
+            telemetryManager: mockTelemetry,
+            updateAuthContext: mockUpdateAuth,
+        });
     });
 
     teardown(() => {
@@ -164,11 +164,18 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         ws.connect = async () => { connectCalls++; };
 
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const p = new ArtemisWebviewProvider(
-            vscode.Uri.file('/'), mockContext, mockAuthManager, mockApiService,
-            new ExerciseRegistry(), createProviderRegistry(),
-            ws, mockCodeLens, new TelemetryManager(), async () => {},
-        );
+        const p = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            artemisApi: mockApiService,
+            exerciseRegistry: new ExerciseRegistry(),
+            providerRegistry: createProviderRegistry(),
+            websocketService: ws,
+            buildErrorCodeLensProvider: mockCodeLens,
+            telemetryManager: new TelemetryManager(),
+            updateAuthContext: async () => {},
+        });
 
         const mockView = new MockWebviewView();
         p.resolveWebviewView(mockView, {} as any, {} as any);
@@ -253,18 +260,18 @@ suite('Panel hide/show state persistence', () => {
         const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
-        provider = new ArtemisWebviewProvider(
-            vscode.Uri.file('/'),
-            mockContext,
-            mockAuthManager,
-            mockApiService,
-            new ExerciseRegistry(),
-            createProviderRegistry(),
-            mockWebsocket,
-            mockCodeLens,
-            mockTelemetry,
-            mockUpdateAuth,
-        );
+        provider = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            artemisApi: mockApiService,
+            exerciseRegistry: new ExerciseRegistry(),
+            providerRegistry: createProviderRegistry(),
+            websocketService: mockWebsocket,
+            buildErrorCodeLensProvider: mockCodeLens,
+            telemetryManager: mockTelemetry,
+            updateAuthContext: mockUpdateAuth,
+        });
 
         spyWebview = new SpyWebview();
         controllableView = new ControllableWebviewView(spyWebview);
