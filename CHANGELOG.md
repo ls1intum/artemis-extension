@@ -12,6 +12,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Iris Context Dropdown**: Conversations sort newest-first, the dropdown panel now spans exactly down to the chat input (no input controls peek through), scroll shadows appear when lists overflow, and exercise rows align consistently whether or not a course tag is shown.
 - **Iris Chat**: Updated to the unified Iris API in Artemis 9.2+ so chat keeps working after the upstream session-endpoint consolidation.
 - **Iris Chat New Conversation**: Fixed "New Conversation" silently jumping back to the workspace exercise instead of starting a new session in the currently selected context.
+- **Iris Chat Connectivity Resilience**: Network drops and server errors now show a "temporarily unavailable" banner with a Retry button instead of the misleading "instructor disabled Iris" overlay, and the chat reloads automatically when the WebSocket reconnects.
 
 ## [0.4.4] - 2026-05-10
 

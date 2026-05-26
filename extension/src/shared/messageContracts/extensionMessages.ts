@@ -63,6 +63,8 @@ export const ExtensionMsg = {
     UpdateWebSocketStatus: 'updateWebSocketStatus',
     ShowDisabledState: 'showDisabledState',
     HideDisabledState: 'hideDisabledState',
+    ShowUnavailableState: 'showUnavailableState',
+    HideUnavailableState: 'hideUnavailableState',
     UpdateNoAiStatus: 'updateNoAiStatus',
     UpdateIrisStages: 'updateIrisStages',
     SendRejected: 'sendRejected',
@@ -221,6 +223,8 @@ interface ExtensionMsgPayloads {
     updateWebSocketStatus: { status: WebSocketDisplayStatus };
     showDisabledState: { message: string };
     hideDisabledState: undefined;
+    showUnavailableState: { message: string };
+    hideUnavailableState: undefined;
     updateNoAiStatus: {
         isNoAiDetected: boolean;
         noAiFilePath?: string;
@@ -238,7 +242,7 @@ interface ExtensionMsgPayloads {
     sendRejected: {
         localId: string;
         localSessionId: string;
-        reason: 'no-ai' | 'no-context' | 'iris-disabled';
+        reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
         errorMessage: string;
     };
 

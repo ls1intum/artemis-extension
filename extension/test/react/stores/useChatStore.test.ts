@@ -43,6 +43,7 @@ describe('useChatStore', () => {
 		expect(result.current.isLoading).toBe(false);
 		expect(result.current.webSocketStatus).toBe('unknown');
 		expect(result.current.disabledMessage).toBeNull();
+		expect(result.current.unavailableMessage).toBeNull();
 		expect(result.current.isNoAiDetected).toBe(false);
 		expect(result.current.referencedFiles).toBeNull();
 		expect(result.current.showDiagnostics).toBe(false);
@@ -214,6 +215,86 @@ describe('useChatStore', () => {
 			result.current.setDisabledMessage(null);
 		});
 
+		expect(result.current.disabledMessage).toBeNull();
+	});
+
+	it('setUnavailableMessage sets transient unavailability reason', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Iris is temporarily unavailable. Retry to reload.');
+		});
+
+		expect(result.current.unavailableMessage).toBe('Iris is temporarily unavailable. Retry to reload.');
+	});
+
+	it('setUnavailableMessage can be cleared with null', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+
+		act(() => {
+			result.current.setUnavailableMessage(null);
+		});
+
+		expect(result.current.unavailableMessage).toBeNull();
+	});
+
+	it('setUnavailableMessage clears any existing disabledMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setDisabledMessage('Disabled reason');
+		});
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+
+		expect(result.current.unavailableMessage).toBe('Unavailable reason');
+		expect(result.current.disabledMessage).toBeNull();
+	});
+
+	it('setDisabledMessage clears any existing unavailableMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+		act(() => {
+			result.current.setDisabledMessage('Disabled reason');
+		});
+
+		expect(result.current.disabledMessage).toBe('Disabled reason');
+		expect(result.current.unavailableMessage).toBeNull();
+	});
+
+	it('setUnavailableMessage(null) does NOT clear an existing disabledMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setDisabledMessage('Disabled reason');
+		});
+		act(() => {
+			result.current.setUnavailableMessage(null);
+		});
+
+		expect(result.current.disabledMessage).toBe('Disabled reason');
+		expect(result.current.unavailableMessage).toBeNull();
+	});
+
+	it('setDisabledMessage(null) does NOT clear an existing unavailableMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+		act(() => {
+			result.current.setDisabledMessage(null);
+		});
+
+		expect(result.current.unavailableMessage).toBe('Unavailable reason');
 		expect(result.current.disabledMessage).toBeNull();
 	});
 
