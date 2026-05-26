@@ -8,10 +8,12 @@ import { AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { WebSocketMessageHandler } from '@extension/types';
 import { parseProgrammingSubmission, parseResultDTO, parseSubmissionProcessingMessage } from '@extension/types';
-import { CONFIG, getUserAgent, resolveServerUrl, WEBSOCKET_TOPICS } from '@extension/utils';
+import { getUserAgent, resolveServerUrl, WEBSOCKET_TOPICS } from '@extension/utils';
 
 import type { ConnectionState } from './connectionState';
 import { deriveDisplayStatus } from './displayStatus';
+import { extractJwtFromHeaders } from './jwtExtractor';
+import { buildWebSocketUrl } from './webSocketUrl';
 
 interface Deferred<T> {
     promise: Promise<T>;
@@ -194,13 +196,13 @@ export class ArtemisWebsocketService {
         // Validation only: the JWT itself isn't forwarded as a STOMP connect
         // header (connectHeaders stays empty); we just want to fail fast when
         // the cookie carries no usable token.
-        if (!this._extractJwtFromHeaders(authHeaders)) {
+        if (!extractJwtFromHeaders(authHeaders)) {
             const errorMsg = 'Failed to extract JWT token from auth headers';
             this._log(`⚠️ ${errorMsg}`);
             throw new Error(errorMsg);
         }
 
-        const wsUrl = this._buildWebSocketUrl(serverUrl);
+        const wsUrl = buildWebSocketUrl(serverUrl);
         this._log(`Connecting to ${wsUrl}`);
         return { authHeaders, wsUrl };
     }
@@ -505,7 +507,7 @@ export class ArtemisWebsocketService {
             maxReconnectAttempts: MAX_CONNECTION_ATTEMPTS,
             sessionId: this._sessionId,
             serverUrl,
-            websocketUrl: this._buildWebSocketUrl(serverUrl),
+            websocketUrl: buildWebSocketUrl(serverUrl),
         };
     }
 
@@ -629,33 +631,6 @@ export class ArtemisWebsocketService {
         this._settleDeferred(new Error(message));
         this._clearSubscriptions();
         this._transitionTo('disconnected');
-    }
-
-    private _buildWebSocketUrl(serverUrl: string): string {
-        // Convert HTTP(S) URL to WS(S) URL
-        const url = new URL(serverUrl);
-        const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-
-        // Artemis uses /websocket/websocket to bypass SockJS and use STOMP directly
-        const wsEndpoint = `${protocol}//${url.host}/websocket/websocket`;
-
-        this._log(`Using direct STOMP endpoint (no SockJS): ${wsEndpoint}`);
-        return wsEndpoint;
-    }
-
-    private _extractJwtFromHeaders(headers: Record<string, string>): string | undefined {
-        const bearer = headers['Authorization'];
-        if (bearer) {
-            return bearer.replace(/^Bearer\s+/, '');
-        }
-
-        const cookie = headers['Cookie'];
-        if (cookie) {
-            const jwtMatch = cookie.match(new RegExp(`${CONFIG.AUTH_COOKIE_NAME}=([^;]+)`));
-            return jwtMatch ? jwtMatch[1] : undefined;
-        }
-
-        return undefined;
     }
 
     private _transitionTo(newState: ConnectionState): void {
