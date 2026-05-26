@@ -88,8 +88,9 @@ export class ArtemisWebsocketService {
                 log: (m) => this._log(m),
             }));
             // Note: NO attachClient() here. The registry attaches only inside
-            // _onStompConnected (after recordConnected) so "client attached"
-            // is equivalent to "state === 'connected'" by construction.
+            // _onStompConnected (immediately before recordConnected fires the
+            // public event) so synchronous consumers reacting to the connected
+            // event always observe an attached registry.
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this._log(`❌ Failed to connect to WebSocket: ${err.message}`);
