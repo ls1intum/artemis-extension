@@ -17,7 +17,7 @@ export interface ChatMessage {
      * meaningful right now (e.g. `iris-disabled` is persistent; `no-ai`
      * stays non-retryable as long as `.noai` is still detected).
      */
-    errorReason?: 'no-ai' | 'no-context' | 'iris-disabled';
+    errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
 }
 
 // Chat session summary (from extension)

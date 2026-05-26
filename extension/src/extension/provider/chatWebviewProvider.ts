@@ -33,6 +33,7 @@ import { ActiveContext, ChatContextType } from '@extension/types';
 import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
 
 import { BaseWebviewProvider } from './baseWebviewProvider';
+import { shouldAutoRetryReload } from './chatReloadDecision';
 import { ChatViewStatePresenter } from './chatViewStatePresenter';
 
 interface ExerciseContextChangeEvent {
@@ -56,6 +57,23 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _chatContextManager: ChatContextManager;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _noAiDetectionService: NoAiDetectionService;
+
+    /**
+     * Context-keyed single-flight guard for chat-session reloads. Auto-retry
+     * on websocket reconnect, manual Retry button, and any other future
+     * reload trigger latch onto the in-flight reload for the SAME context.
+     * A trigger for a different context (after the user switched) bypasses
+     * the join and starts a fresh reload — otherwise a hung reload (no fetch
+     * timeout) for context A would silently swallow retries for context B.
+     */
+    private _reloadInFlight: { promise: Promise<void>; contextKey: string } | null = null;
+
+    /**
+     * Debounce timer for the websocket-reconnect → reload trigger. Coalesces
+     * the rapid `connected: true` re-emits we sometimes see when a flap
+     * settles. The single-flight guard catches everything else.
+     */
+    private _reloadDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
@@ -122,6 +140,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                         exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
                     });
                 }
+                // Real context change (type/id differs from previous — the
+                // event fires only on actual changes). Drop any stale
+                // availability classification from the outgoing context so
+                // the reconnect hook does not auto-retry the new context
+                // against the old context's banner state, and hide any
+                // visible banner so the user starts the new context from a
+                // clean slate.
+                this._chatSessionService.resetAvailability();
+                this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
+                this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
             })
         );
         this._viewStatePresenter = new ChatViewStatePresenter(this._contextStore, (msg) => this._postMessageSafe(msg));
@@ -173,6 +201,28 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._disposables.push(
                 this._irisSessionManager.onDidConnectionStateChange(() => this._websocketMessageHandler.publishCurrentStatus())
             );
+
+            // Auto-retry chat reload on websocket reconnect when the chat is
+            // currently in an `unavailable` state for the active context.
+            // The 500 ms debounce coalesces rapid flap re-emits; the
+            // single-flight reload guard catches concurrent reconnect +
+            // manual-Retry presses.
+            this._disposables.push(
+                this._websocketService.onDidChangeConnectionState(({ connected }) => {
+                    if (!connected) {
+                        return;
+                    }
+                    if (this._reloadDebounceTimer) {
+                        clearTimeout(this._reloadDebounceTimer);
+                    }
+                    this._reloadDebounceTimer = setTimeout(() => {
+                        this._reloadDebounceTimer = undefined;
+                        if (this._shouldAutoRetryReload()) {
+                            void this._reloadChatSession('websocket-reconnect');
+                        }
+                    }, 500);
+                })
+            );
         }
 
         this._disposables.push(
@@ -195,7 +245,68 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     public dispose(): void {
+        if (this._reloadDebounceTimer) {
+            clearTimeout(this._reloadDebounceTimer);
+            this._reloadDebounceTimer = undefined;
+        }
         this._drainDisposables();
+    }
+
+    // ── Reload helpers (auto-retry + manual Retry share this path) ─────
+
+    /**
+     * Decide whether a websocket reconnect should trigger an auto-retry of
+     * the chat-session reload. The pure decision logic lives in
+     * {@link shouldAutoRetryReload} so it can be unit-tested in isolation;
+     * this method just plumbs the current state in.
+     */
+    private _shouldAutoRetryReload(): boolean {
+        return shouldAutoRetryReload(
+            this._chatSessionService.lastAvailability,
+            this._contextStore.getActiveContext(),
+        );
+    }
+
+    /**
+     * Trigger a chat-session reload, deduplicating concurrent triggers for
+     * the same context (auto-retry on reconnect, manual Retry button,
+     * future webview commands). A trigger for a different context bypasses
+     * the join and starts a fresh reload — otherwise a hung reload for the
+     * previous context would block recovery of the current one.
+     */
+    private _reloadChatSession(reason: string): Promise<void> {
+        const current = this._contextStore.getActiveContext();
+        if (!current) {
+            return Promise.resolve();
+        }
+        const currentKey = `${current.type}:${current.id}`;
+        if (this._reloadInFlight && this._reloadInFlight.contextKey === currentKey) {
+            logger.info(`Reload (${reason}) joined existing in-flight reload for ${currentKey}`, LogCategory.IRIS_CHAT);
+            return this._reloadInFlight.promise;
+        }
+        if (this._reloadInFlight) {
+            logger.info(`Reload (${reason}) for ${currentKey} starts fresh (in-flight is for ${this._reloadInFlight.contextKey})`, LogCategory.IRIS_CHAT);
+        } else {
+            logger.info(`Reload chat session (${reason})`, LogCategory.IRIS_CHAT);
+        }
+        const entry: { promise: Promise<void>; contextKey: string } = {
+            contextKey: currentKey,
+            promise: this._chatSessionService
+                .loadAllSessionsForContext()
+                .catch((err: unknown) => {
+                    logger.error(`Reload chat session (${reason}) threw`, LogCategory.IRIS_CHAT, err);
+                })
+                .finally(() => {
+                    // Only clear if WE are still the registered in-flight.
+                    // A later context-switch + new reload may have replaced
+                    // us; in that case the new entry owns the slot.
+                    if (this._reloadInFlight === entry) {
+                        this._reloadInFlight = null;
+                    }
+                }),
+        };
+        this._reloadInFlight = entry;
+        return entry.promise;
     }
 
     public resolveWebviewView(
@@ -440,6 +551,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                         vscode.window.showErrorMessage('Failed to reconnect. Please try again.');
                     });
                     break;
+                case WebviewCmd.ReloadChatSession:
+                    // Manual Retry from the unavailable banner. Single-flight
+                    // is enforced inside _reloadChatSession so a button mash
+                    // or a concurrent reconnect can't kick off duplicates.
+                    void this._reloadChatSession('manual-retry');
+                    break;
                 case WebviewCmd.MessageFeedback: {
                     const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(message);
                     void this._handleMessageFeedback({
@@ -508,7 +625,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * AddMessage handler already calls resetTransientChatUi.
      */
     private _handleRejectedSend(
-        result: { sent: false; reason: 'no-ai' | 'no-context' | 'iris-disabled'; contextLabel?: string },
+        result: { sent: false; reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable'; contextLabel?: string; capturedContext?: ActiveContext },
         localId: string | undefined,
         localSessionId: string | undefined,
     ): void {
@@ -524,11 +641,30 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 // message communicates this fully.
                 break;
             case 'iris-disabled':
-                this._postMessageSafe({
-                    type: ExtensionMsg.ShowDisabledState,
-                    message: `Iris chat is not enabled for this ${result.contextLabel ?? 'context'}. Please contact your instructor.`
-                });
+            case 'iris-unavailable': {
+                // Persistent availability emit is gated on "captured context
+                // still matches the live active context". Without this gate,
+                // a slow checkAndLoadIrisSettings that returns after the
+                // user switched would mislabel the NEW context's banner
+                // state with the OLD context's classification (race surfaced
+                // by codex review). If they diverge, skip the banner — the
+                // SendRejected message-level signal is still delivered so
+                // the optimistic user message gets marked failed.
+                const live = this._contextStore.getActiveContext();
+                const captured = result.capturedContext;
+                if (!live || !captured || live.type !== captured.type || live.id !== captured.id) {
+                    break;
+                }
+                if (result.reason === 'iris-disabled') {
+                    this._chatSessionService.postAvailability({ kind: 'disabled' }, captured);
+                } else {
+                    this._chatSessionService.postAvailability(
+                        { kind: 'unavailable', reason: 'Send rejected: iris-unavailable' },
+                        captured,
+                    );
+                }
                 break;
+            }
         }
 
         if (localId && localSessionId) {
@@ -556,7 +692,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
-    private _friendlyRejectionMessage(result: { reason: 'no-ai' | 'no-context' | 'iris-disabled'; contextLabel?: string }): string {
+    private _friendlyRejectionMessage(result: { reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable'; contextLabel?: string }): string {
         switch (result.reason) {
             case 'no-ai':
                 return 'Not sent because AI assistance is disabled for this workspace.';
@@ -564,6 +700,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 return 'Please select a course or exercise context first.';
             case 'iris-disabled':
                 return `Iris chat is disabled for this ${result.contextLabel ?? 'context'}.`;
+            case 'iris-unavailable':
+                return 'Iris is temporarily unavailable. Try again in a moment.';
         }
     }
 

@@ -62,6 +62,7 @@ describe('IrisChatView', () => {
 			isLoading: false,
 			webSocketStatus: 'connected',
 			disabledMessage: null,
+			unavailableMessage: null,
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
@@ -226,6 +227,170 @@ describe('IrisChatView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
 		expect(screen.getByText('WebSocket disconnected')).toBeInTheDocument();
+	});
+
+	describe('Iris unavailable banner', () => {
+		it('renders the unavailable banner with a Retry button when unavailableMessage is set', () => {
+			useChatStore.setState({
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.getByText('Iris is temporarily unavailable. Retry to reload.')).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+		});
+
+		it('posts reloadChatSession when the unavailable Retry button is clicked', async () => {
+			useChatStore.setState({
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+
+			expect(mockApi.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: 'command',
+					command: 'reloadChatSession',
+				})
+			);
+		});
+
+		it('does NOT render the loader when unavailableMessage is set even if an active session is awaiting hydration', () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				activeSessionId: 'local-A',
+				sessions: [{
+					id: 'local-A',
+					artemisSessionId: 42,
+					preview: '',
+					title: '',
+					messageCount: 0,
+					createdAt: 0,
+					lastActivity: 0,
+				}],
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// The previous bug (#219) left the loader spinning forever when
+			// the chat became unavailable. The banner is the terminal state
+			// — no spinner should coexist with it.
+			expect(screen.queryByText(/Loading conversation/i)).not.toBeInTheDocument();
+		});
+
+		it('does NOT render the loader when disabledMessage is set (parallel fix to the spinning-forever bug)', () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				activeSessionId: 'local-A',
+				sessions: [{
+					id: 'local-A',
+					artemisSessionId: 42,
+					preview: '',
+					title: '',
+					messageCount: 0,
+					createdAt: 0,
+					lastActivity: 0,
+				}],
+				disabledMessage: 'Iris chat is not enabled for this exercise. Please contact your instructor.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.queryByText(/Loading conversation/i)).not.toBeInTheDocument();
+		});
+
+		it('suppresses the websocket-disconnected banner when the unavailable banner is active (avoid duplicate Retry affordances)', () => {
+			useChatStore.setState({
+				webSocketStatus: 'disconnected',
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// The unavailable banner already has the Retry action — surfacing
+			// the websocket banner alongside would give the user two
+			// competing recovery affordances for the same underlying problem.
+			expect(screen.queryByText('WebSocket disconnected')).not.toBeInTheDocument();
+		});
+
+		it('lets the disabled banner win when both fields are non-null (defensive — extension never emits both)', () => {
+			useChatStore.setState({
+				disabledMessage: 'Iris chat is not enabled for this exercise.',
+				unavailableMessage: 'Iris is temporarily unavailable.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Disabled is the more specific signal, so it wins. The store
+			// cross-clears in normal flow, so this state shouldn't arise —
+			// but if it ever does, the user must not be told two
+			// contradictory things at once.
+			expect(screen.getByText('Iris chat is not enabled for this exercise.')).toBeInTheDocument();
+			expect(screen.queryByText('Iris is temporarily unavailable.')).not.toBeInTheDocument();
+		});
+
+		it('disables the chat input with an unavailable-specific placeholder', () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				...HYDRATED,
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const input = screen.getByPlaceholderText(/temporarily unavailable/i);
+			expect(input).toBeDisabled();
+		});
+	});
+
+	describe('ShowUnavailableState / HideUnavailableState message handling', () => {
+		it('sets unavailableMessage on ShowUnavailableState and clears it on HideUnavailableState', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'showUnavailableState',
+				message: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Iris is temporarily unavailable. Retry to reload.')).toBeInTheDocument();
+			});
+
+			dispatchExtensionMessage({ type: 'hideUnavailableState' });
+
+			await waitFor(() => {
+				expect(screen.queryByText('Iris is temporarily unavailable. Retry to reload.')).not.toBeInTheDocument();
+			});
+		});
 	});
 
 	describe('Message hydration loader', () => {

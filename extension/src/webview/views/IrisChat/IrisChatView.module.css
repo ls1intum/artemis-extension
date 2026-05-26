@@ -152,6 +152,36 @@
     background: var(--vscode-button-hoverBackground);
 }
 
+.unavailableBanner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--vscode-inputValidation-warningBackground);
+    color: var(--vscode-inputValidation-warningForeground);
+    border-bottom: 1px solid var(--vscode-inputValidation-warningBorder);
+    flex-shrink: 0;
+}
+
+.unavailableBanner > span {
+    flex: 1;
+}
+
+.retryButton {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.15s;
+}
+
+.retryButton:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
 /* Messages Section */
 .messagesSection {
     flex: 1;

@@ -84,6 +84,7 @@ export const WebviewCmd = {
     SwitchToWorkspaceContext: 'switchToWorkspaceContext',
     ResetChatSessions: 'resetChatSessions',
     ReconnectWebSocket: 'reconnectWebSocket',
+    ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
@@ -175,6 +176,7 @@ interface WebviewCmdPayloads {
     switchToWorkspaceContext: undefined;
     resetChatSessions: undefined;
     reconnectWebSocket: undefined;
+    reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     openFile: { filePath: string };
     openDiagnostics: undefined;

@@ -81,7 +81,7 @@ suite('ChatMessageService', () => {
         mockChatSessionService = sinon.createStubInstance(IrisChatSessionService);
         mockChatSessionService.initializeIrisSessionAndLoadMessages.resolves();
         // Stub Iris settings check to return enabled by default
-        mockChatSessionService.checkAndLoadIrisSettings.resolves(true);
+        mockChatSessionService.checkAndLoadIrisSettings.resolves({ kind: 'enabled' });
         postSnapshotSpy = sinon.spy();
 
         mockSessionManager = { currentSessionId: 42 };
@@ -128,13 +128,38 @@ suite('ChatMessageService', () => {
         });
 
         test('should return iris-disabled when Iris is not enabled', async () => {
-            mockChatSessionService.checkAndLoadIrisSettings.resolves(false);
+            mockChatSessionService.checkAndLoadIrisSettings.resolves({ kind: 'disabled' });
             createService();
             const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
             assert.ok(!result.sent);
             if (!result.sent) {
                 assert.strictEqual(result.reason, 'iris-disabled');
                 assert.strictEqual(result.contextLabel, 'exercise');
+                // capturedContext is the contract the provider uses to detect
+                // a stale send-rejection after a mid-flight context switch;
+                // pin it here so the contract cannot regress silently.
+                assert.ok(result.capturedContext, 'capturedContext must be threaded through');
+                assert.strictEqual(result.capturedContext.id, activeContext.id);
+                assert.strictEqual(result.capturedContext.type, activeContext.type);
+            }
+        });
+
+        test('returns iris-unavailable when settings check classifies as unavailable', async () => {
+            mockChatSessionService.checkAndLoadIrisSettings.resolves({
+                kind: 'unavailable',
+                reason: 'Server returned 500',
+            });
+            createService();
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+            assert.ok(!result.sent);
+            if (!result.sent) {
+                assert.strictEqual(result.reason, 'iris-unavailable');
+                assert.strictEqual(result.contextLabel, 'exercise');
+                // Same contract as iris-disabled: the captured context flows
+                // through so the provider can drop stale rejections.
+                assert.ok(result.capturedContext, 'capturedContext must be threaded through');
+                assert.strictEqual(result.capturedContext.id, activeContext.id);
+                assert.strictEqual(result.capturedContext.type, activeContext.type);
             }
         });
 

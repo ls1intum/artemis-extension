@@ -60,6 +60,13 @@ interface ChatState {
     isLoading: boolean;
     webSocketStatus: ChatWebSocketStatus;
     disabledMessage: string | null;   // Non-null = Iris disabled (reason as string)
+    /**
+     * Non-null = Iris is currently unreachable due to a transient infrastructure
+     * failure (network, 5xx, timeout). Distinct from `disabledMessage`, which
+     * means Iris is intentionally off for this context. Mutually exclusive: a
+     * Set on one always clears the other.
+     */
+    unavailableMessage: string | null;
     isNoAiDetected: boolean;
     referencedFiles: ReferencedFilesData | null;
     showDiagnostics: boolean;
@@ -97,6 +104,7 @@ interface ChatState {
     setLoading: (loading: boolean) => void;
     setWebSocketStatus: (status: ChatWebSocketStatus) => void;
     setDisabledMessage: (message: string | null) => void;
+    setUnavailableMessage: (message: string | null) => void;
     setNoAiDetected: (detected: boolean) => void;
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
     setShowDiagnostics: (show: boolean) => void;
@@ -123,6 +131,7 @@ export const useChatStore = create<ChatState>()(
             isLoading: false,
             webSocketStatus: 'unknown',
             disabledMessage: null,
+            unavailableMessage: null,
             isNoAiDetected: false,
             referencedFiles: null,
             showDiagnostics: false,
@@ -233,7 +242,29 @@ export const useChatStore = create<ChatState>()(
             },
 
             setDisabledMessage: (message) => {
-                set({ disabledMessage: message }, false, 'setDisabledMessage');
+                // Setting a real disabled reason clears any transient
+                // unavailable banner — disabled is a strictly more specific
+                // signal. Clearing (null) leaves unavailable untouched.
+                set(
+                    message === null
+                        ? { disabledMessage: null }
+                        : { disabledMessage: message, unavailableMessage: null },
+                    false,
+                    'setDisabledMessage',
+                );
+            },
+
+            setUnavailableMessage: (message) => {
+                // Symmetric to setDisabledMessage: setting a real unavailable
+                // reason clears any stale disabled banner (defensive — the
+                // extension-side helper normally enforces this already).
+                set(
+                    message === null
+                        ? { unavailableMessage: null }
+                        : { unavailableMessage: message, disabledMessage: null },
+                    false,
+                    'setUnavailableMessage',
+                );
             },
 
             setNoAiDetected: (detected) => {
