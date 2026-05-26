@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { Client, IFrame, IMessage, ReconnectionTimeMode, StompConfig, StompSubscription } from '@stomp/stompjs';
-import WebSocket from 'ws';
+import { Client, IMessage, StompConfig, StompSubscription } from '@stomp/stompjs';
 
 import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
@@ -8,11 +7,12 @@ import { AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { WebSocketMessageHandler } from '@extension/types';
 import { parseProgrammingSubmission, parseResultDTO, parseSubmissionProcessingMessage } from '@extension/types';
-import { getUserAgent, resolveServerUrl, WEBSOCKET_TOPICS } from '@extension/utils';
+import { resolveServerUrl, WEBSOCKET_TOPICS } from '@extension/utils';
 
 import type { ConnectionState } from './connectionState';
 import { deriveDisplayStatus } from './displayStatus';
 import { extractJwtFromHeaders } from './jwtExtractor';
+import { buildStompConfig } from './stompConfigBuilder';
 import { buildWebSocketUrl } from './webSocketUrl';
 
 interface Deferred<T> {
@@ -34,11 +34,6 @@ const SAFETY_TIMEOUT_MS = 15000;
 const CONNECTION_STATE_DELAY_MS = 5000;
 
 const MAX_CONNECTION_ATTEMPTS = 20;
-
-const INITIAL_RECONNECT_DELAY_MS = 500;
-const MAX_RECONNECT_DELAY_MS = 10000;
-const CONNECTION_TIMEOUT_MS = 10000;
-const HEARTBEAT_INTERVAL_MS = 10000;
 
 /**
  * Manages STOMP/WebSocket connections to Artemis for real-time updates
@@ -123,7 +118,18 @@ export class ArtemisWebsocketService {
         try {
             await this._teardownExistingClient();
             const { authHeaders, wsUrl } = await this._prepareConnectionContext();
-            this._client = this._createClient(this._buildStompConfig(generation, authHeaders, wsUrl));
+            this._client = this._createClient(buildStompConfig({
+                generation,
+                authHeaders,
+                wsUrl,
+                currentGeneration: () => this._connectionGeneration,
+                onConnected: () => this._onConnected(),
+                onStompError: (msg) => this._onError(msg),
+                onWebSocketError: (msg) => this._onError(msg),
+                onDisconnected: () => this._onDisconnected(),
+                onWebSocketBeforeOpen: () => { this._disconnectCountedThisAttempt = false; },
+                log: (msg) => this._log(msg),
+            }));
         } catch (error) {
             this._handleConnectError(error);
             throw error;
@@ -205,73 +211,6 @@ export class ArtemisWebsocketService {
         const wsUrl = buildWebSocketUrl(serverUrl);
         this._log(`Connecting to ${wsUrl}`);
         return { authHeaders, wsUrl };
-    }
-
-    private _buildStompConfig(
-        generation: number,
-        authHeaders: Record<string, string>,
-        wsUrl: string,
-    ): StompConfig {
-        this._log(`Reconnect config: delay=${INITIAL_RECONNECT_DELAY_MS}ms, timeout=${CONNECTION_TIMEOUT_MS}ms, heartbeat=${HEARTBEAT_INTERVAL_MS}ms`);
-
-        return {
-            brokerURL: wsUrl,
-            connectHeaders: {},
-            reconnectDelay: INITIAL_RECONNECT_DELAY_MS,
-            reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
-            maxReconnectDelay: MAX_RECONNECT_DELAY_MS,
-            connectionTimeout: CONNECTION_TIMEOUT_MS,
-            // Must match Artemis server heartbeat (10s)
-            heartbeatIncoming: HEARTBEAT_INTERVAL_MS,
-            heartbeatOutgoing: HEARTBEAT_INTERVAL_MS,
-            discardWebsocketOnCommFailure: true,
-
-            webSocketFactory: () => {
-                this._disconnectCountedThisAttempt = false;
-                const ws = new WebSocket(wsUrl, {
-                    headers: {
-                        ...authHeaders,
-                        'User-Agent': getUserAgent(),
-                    },
-                });
-
-                ws.on('error', (err) => {
-                    this._log(`WebSocket error: ${err.message}`);
-                });
-
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return -- STOMP library expects generic WebSocket type
-                return ws as any;
-            },
-
-            onConnect: () => {
-                if (this._connectionGeneration !== generation) { return; }
-                this._onConnected();
-            },
-
-            onStompError: (frame: IFrame) => {
-                if (this._connectionGeneration !== generation) { return; }
-                const body = frame.body ? ` body=${frame.body.substring(0, 500)}` : '';
-                this._onError(`STOMP error: ${frame.headers['message']}${body}`);
-            },
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- STOMP library onWebSocketError uses generic event type
-            onWebSocketError: (event: any) => {
-                if (this._connectionGeneration !== generation) { return; }
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- event shape is untyped
-                const detail = event?.message || event?.type || 'unknown';
-                this._onError(`WebSocket error: ${detail}`);
-            },
-
-            onDisconnect: () => {
-                if (this._connectionGeneration !== generation) { return; }
-                this._onDisconnected();
-            },
-
-            onWebSocketClose: () => {
-                if (this._connectionGeneration !== generation) { return; }
-                this._onDisconnected();
-            },
-        };
     }
 
     /**
