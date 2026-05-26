@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
-import { Client, IMessage, StompConfig, StompSubscription } from '@stomp/stompjs';
+import { Client, StompConfig } from '@stomp/stompjs';
 
 import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
 import { AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { WebSocketMessageHandler } from '@extension/types';
-import { parseProgrammingSubmission, parseResultDTO, parseSubmissionProcessingMessage } from '@extension/types';
-import { resolveServerUrl, WEBSOCKET_TOPICS } from '@extension/utils';
+import { resolveServerUrl } from '@extension/utils';
 
 import type { ConnectionState } from './connectionState';
 import { deriveDisplayStatus } from './displayStatus';
 import { extractJwtFromHeaders } from './jwtExtractor';
 import { buildStompConfig } from './stompConfigBuilder';
+import { SubscriptionRegistry } from './subscriptionRegistry';
 import { buildWebSocketUrl } from './webSocketUrl';
 
 interface Deferred<T> {
@@ -50,9 +50,8 @@ export class ArtemisWebsocketService {
     private _wasConnectedOnce: boolean = false;
     private _connectionStateDebounceTimer?: ReturnType<typeof setTimeout>;
 
-    private _subscriptions: Map<string, StompSubscription> = new Map();
+    private readonly _subscriptions = new SubscriptionRegistry({ log: (m) => this._log(m) });
     private _sessionId: string = '';
-    private _messageHandlers: WebSocketMessageHandler[] = [];
 
     private readonly _onDidChangeConnectionState = new vscode.EventEmitter<{ connected: boolean; wasEverConnected: boolean }>();
     public readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
@@ -73,17 +72,12 @@ export class ArtemisWebsocketService {
 
     /** Register a message handler for WebSocket events. */
     public registerMessageHandler(handler: WebSocketMessageHandler): void {
-        if (this._messageHandlers.includes(handler)) { return; }
-        this._messageHandlers.push(handler);
-        this._log(`Message handler registered. Total handlers: ${this._messageHandlers.length}`);
+        this._subscriptions.registerMessageHandler(handler);
     }
 
     /** Unregister a previously registered message handler. */
     public unregisterMessageHandler(handler: WebSocketMessageHandler): void {
-        const index = this._messageHandlers.indexOf(handler);
-        if (index !== -1) {
-            this._messageHandlers.splice(index, 1);
-        }
+        this._subscriptions.unregisterMessageHandler(handler);
     }
 
     /** Check if the WebSocket is currently connected. */
@@ -178,7 +172,8 @@ export class ArtemisWebsocketService {
         if (!this._client) { return; }
         this._log('Deactivating existing connection before reconnect');
         await this._client.deactivate();
-        this._clearSubscriptions();
+        this._subscriptions.clearAll();
+        this._subscriptions.detachClient();
         this._client = undefined;
     }
 
@@ -223,7 +218,8 @@ export class ArtemisWebsocketService {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         this._log(`❌ Failed to connect to WebSocket: ${errorMessage}`);
         logger.error(`Failed to connect to WebSocket: ${errorMessage}`, LogCategory.WEBSOCKET);
-        this._clearSubscriptions();
+        this._subscriptions.clearAll();
+        this._subscriptions.detachClient();
         this._transitionTo('disconnected');
         const settleError = error instanceof Error ? error : new Error(String(error));
         this._settleDeferred(settleError);
@@ -277,7 +273,8 @@ export class ArtemisWebsocketService {
 
         if (this._client) {
             this._log('Disconnecting from Artemis WebSocket (intentional)');
-            this._clearSubscriptions();
+            this._subscriptions.clearAll();
+            this._subscriptions.detachClient();
 
             try {
                 await this._client.deactivate();
@@ -297,109 +294,24 @@ export class ArtemisWebsocketService {
         this._transitionTo('disconnected');
     }
 
-    private _subscribeToTopic<T>(
-        topic: string,
-        parser: (data: unknown) => T,
-        dispatch: (handler: WebSocketMessageHandler, parsed: T) => void,
-        logFormatter: (parsed: T) => string,
-    ): void {
-        if (this._connectionState !== 'connected' || !this._client) {
-            this._log('Cannot subscribe: not connected');
-            return;
-        }
-
-        if (this._subscriptions.has(topic)) {
-            this._log(`Already subscribed to ${topic}`);
-            return;
-        }
-
-        const subscription = this._client.subscribe(topic, (message: IMessage) => {
-            try {
-                const parsed = parser(JSON.parse(message.body));
-                this._log(logFormatter(parsed));
-                [...this._messageHandlers].forEach(handler => dispatch(handler, parsed));
-            } catch (error) {
-                const stack = error instanceof Error ? error.stack : String(error);
-                this._log(`Error processing message on ${topic}: ${stack}`);
-            }
-        });
-
-        this._subscriptions.set(topic, subscription);
-        this._log(`Subscribed to ${topic}`);
-    }
-
     /** Subscribe to personal result updates for the authenticated user. */
     public subscribeToPersonalResults(): void {
-        this._subscribeToTopic(
-            WEBSOCKET_TOPICS.NEW_RESULTS,
-            (data) => parseResultDTO(data),
-            (handler, result) => handler.onNewResult?.(result),
-            (result) => `Received new result: score=${result.score}, successful=${result.successful}`,
-        );
+        this._subscriptions.subscribeToPersonalResults();
     }
 
     /** Subscribe to personal submission updates. */
     public subscribeToPersonalSubmissions(): void {
-        this._subscribeToTopic(
-            WEBSOCKET_TOPICS.NEW_SUBMISSIONS,
-            (data) => parseProgrammingSubmission(data),
-            (handler, submission) => handler.onNewSubmission?.(submission),
-            (submission) => `Received new submission: ${submission.id}`,
-        );
+        this._subscriptions.subscribeToPersonalSubmissions();
     }
 
     /** Subscribe to submission processing updates (build status). */
     public subscribeToSubmissionProcessing(): void {
-        this._subscribeToTopic(
-            WEBSOCKET_TOPICS.SUBMISSION_PROCESSING,
-            (data) => parseSubmissionProcessingMessage(data),
-            (handler, msg) => handler.onSubmissionProcessing?.(msg),
-            (msg) => `Received submission processing update: participationId=${msg.participationId}`,
-        );
+        this._subscriptions.subscribeToSubmissionProcessing();
     }
 
     /** Subscribe to Iris chat session updates for the given session ID. */
     public subscribeToIrisSession(sessionId: number, onMessage: (message: unknown) => void): () => void {
-        if (this._connectionState !== 'connected' || !this._client) {
-            this._log('Cannot subscribe: not connected');
-            throw new Error('WebSocket not connected');
-        }
-
-        // Use /user/topic/ prefix for user-specific authenticated messages
-        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
-
-        // Replace stale subscription if one exists (e.g. after reconnect)
-        if (this._subscriptions.has(topic)) {
-            this._log(`Replacing existing subscription for ${topic}`);
-            const oldSub = this._subscriptions.get(topic);
-            try { oldSub?.unsubscribe(); } catch { /* stale sub, ignore */ }
-            this._subscriptions.delete(topic);
-        }
-
-        const subscription = this._client.subscribe(topic, (message: IMessage) => {
-            try {
-                const data: unknown = JSON.parse(message.body);
-                this._log(`Received Iris message for session ${sessionId}`);
-                onMessage(data);
-            } catch (error) {
-                const stack = error instanceof Error ? error.stack : String(error);
-                this._log(`Error processing Iris message: ${stack}`);
-                logger.error('Full error processing Iris message', LogCategory.WEBSOCKET, error as Error);
-            }
-        });
-
-        this._subscriptions.set(topic, subscription);
-        this._log(`✅ Subscribed to Iris session: ${topic}`);
-
-        // Return unsubscribe function — capture ref to guard against stale closures
-        const capturedSub = subscription;
-        return () => {
-            capturedSub.unsubscribe();
-            if (this._subscriptions.get(topic) === capturedSub) {
-                this._subscriptions.delete(topic);
-            }
-            this._log(`Unsubscribed from ${topic}`);
-        };
+        return this._subscriptions.subscribeToIrisSession(sessionId, onMessage);
     }
 
     /** Public read-only accessor for connection state. */
@@ -441,7 +353,7 @@ export class ArtemisWebsocketService {
             clientConnected: this._client?.connected ?? false,
             clientActive: this._client?.active ?? false,
             subscriptionCount: this._subscriptions.size,
-            subscriptions: Array.from(this._subscriptions.keys()),
+            subscriptions: this._subscriptions.topics,
             reconnectAttempts: this._reconnectAttempts,
             maxReconnectAttempts: MAX_CONNECTION_ATTEMPTS,
             sessionId: this._sessionId,
@@ -454,27 +366,13 @@ export class ArtemisWebsocketService {
     public dispose(): void {
         this._log('Disposing WebSocket service');
         this._onDidChangeConnectionState.dispose();
-        this._messageHandlers = [];
+        this._subscriptions.clearMessageHandlers();
 
         if (this._connectionStateDebounceTimer) {
             clearTimeout(this._connectionStateDebounceTimer);
             this._connectionStateDebounceTimer = undefined;
         }
         void this.disconnect().catch(err => this._log(`Error during disconnect in dispose: ${err}`));
-    }
-
-    // Private helper methods
-
-    private _clearSubscriptions(): void {
-        this._subscriptions.forEach((subscription, topic) => {
-            try {
-                subscription.unsubscribe();
-                this._log(`Unsubscribed from ${topic}`);
-            } catch {
-                // Stale subscription after disconnect — safe to ignore
-            }
-        });
-        this._subscriptions.clear();
     }
 
     private _onConnected(): void {
@@ -499,6 +397,13 @@ export class ArtemisWebsocketService {
         }
 
         this._log('✅ Connected to Artemis WebSocket');
+
+        // Attach client to registry BEFORE firing the connected event.
+        // Synchronous consumers (e.g. IrisWebSocketSessionClient) may call
+        // subscribeToIrisSession during the fire callback; the registry must
+        // already own a client at that moment. Auto-subscribes below also
+        // rely on an attached client.
+        this._subscriptions.attachClient(this._client!);
 
         // Immediately notify of connection (no delay for connect events)
         this._onDidChangeConnectionState.fire({ connected: true, wasEverConnected: this._wasConnectedOnce });
@@ -529,8 +434,9 @@ export class ArtemisWebsocketService {
 
         // Transition to disconnected if we were connected
         if (this._connectionState === 'connected') {
+            this._subscriptions.detachClient();
             this._transitionTo('disconnected');
-            this._clearSubscriptions();
+            this._subscriptions.clearAll();
             this._log('Disconnected from Artemis WebSocket');
         }
 
@@ -567,8 +473,9 @@ export class ArtemisWebsocketService {
     private _onError(message: string): void {
         this._log(`❌ ${message}`);
         logger.error(message, LogCategory.WEBSOCKET);
+        this._subscriptions.detachClient();
         this._settleDeferred(new Error(message));
-        this._clearSubscriptions();
+        this._subscriptions.clearAll();
         this._transitionTo('disconnected');
     }
 
