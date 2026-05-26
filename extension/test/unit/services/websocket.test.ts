@@ -119,29 +119,28 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
     public mockClient?: MockStompClient;
     public connectCallCount: number = 0;
 
-    // Expose private fields for testing via getters
-    public get isConnectingState(): boolean {
-        return (this as any)._connectionState === 'connecting';
-    }
-
-    public get isDisconnectingState(): boolean {
-        return (this as any)._connectionState === 'disconnecting';
-    }
-
-    public get connectionGaveUpState(): boolean {
-        return (this as any)._connectionState === 'gave-up';
-    }
+    // Expose private fields for testing via getters. After the
+    // ConnectionLifecycle extraction, state and counters live on
+    // `_lifecycle`; we reach in via `as any` to keep the same public
+    // testing surface.
+    public get isConnectingState(): boolean { return this._lifecycleState() === 'connecting'; }
+    public get isDisconnectingState(): boolean { return this._lifecycleState() === 'disconnecting'; }
+    public get connectionGaveUpState(): boolean { return this._lifecycleState() === 'gave-up'; }
 
     public get reconnectAttemptsCount(): number {
-        return (this as any)._reconnectAttempts;
+        return ((this as any)._lifecycle._reconnectAttempts) as number;
     }
 
     public get wasConnectedOnceState(): boolean {
-        return (this as any)._wasConnectedOnce;
+        return ((this as any)._lifecycle._wasConnectedOnce) as boolean;
     }
 
     public get connectionGeneration(): number {
-        return (this as any)._connectionGeneration;
+        return ((this as any)._lifecycle._generation) as number;
+    }
+
+    private _lifecycleState(): string {
+        return (this as any)._lifecycle._state as string;
     }
 
     // Override client creation to use mock
@@ -165,32 +164,22 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
         connectionGaveUp?: boolean;
         reconnectAttempts?: number;
     }): void {
-        if (state.connectionGaveUp === true) {
-            (this as any)._connectionState = 'gave-up';
-        } else if (state.isDisconnecting === true) {
-            (this as any)._connectionState = 'disconnecting';
-        } else if (state.isConnecting === true) {
-            (this as any)._connectionState = 'connecting';
-        }
+        const lc: any = (this as any)._lifecycle;
+        if (state.connectionGaveUp === true) { lc._state = 'gave-up'; }
+        else if (state.isDisconnecting === true) { lc._state = 'disconnecting'; }
+        else if (state.isConnecting === true) { lc._state = 'connecting'; }
         // When setting flags to false, only change state if it currently matches
         // that flag (don't clobber 'connected' when clearing 'isConnecting')
-        if (state.isConnecting === false && (this as any)._connectionState === 'connecting') {
-            (this as any)._connectionState = 'disconnected';
-        }
-        if (state.isDisconnecting === false && (this as any)._connectionState === 'disconnecting') {
-            (this as any)._connectionState = 'disconnected';
-        }
-        if (state.connectionGaveUp === false && (this as any)._connectionState === 'gave-up') {
-            (this as any)._connectionState = 'disconnected';
-        }
-        if (state.reconnectAttempts !== undefined) {
-            (this as any)._reconnectAttempts = state.reconnectAttempts;
-        }
+        if (state.isConnecting === false && lc._state === 'connecting') { lc._state = 'disconnected'; }
+        if (state.isDisconnecting === false && lc._state === 'disconnecting') { lc._state = 'disconnected'; }
+        if (state.connectionGaveUp === false && lc._state === 'gave-up') { lc._state = 'disconnected'; }
+        if (state.reconnectAttempts !== undefined) { lc._reconnectAttempts = state.reconnectAttempts; }
     }
 
-    // Helper to trigger onDisconnected
+    // Helper to trigger onDisconnected (now routed through the orchestrator's
+    // STOMP callback which delegates to the lifecycle).
     public triggerOnDisconnected(): void {
-        (this as any)._onDisconnected();
+        (this as any)._onStompDisconnected();
     }
 
 }
