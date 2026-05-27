@@ -55,4 +55,15 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(detectStub.callCount, 1);
         disposable.dispose();
     });
+
+    test('onDidChangeWorkspaceFolders event triggers re-detection', async () => {
+        const sink = makeSinkSpy();
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        await Promise.resolve();
+        detectStub.resetHistory();
+        folderEmitter.fire({ added: [], removed: [] });
+        await Promise.resolve();
+        assert.strictEqual(detectStub.callCount, 1);
+        disposable.dispose();
+    });
 });

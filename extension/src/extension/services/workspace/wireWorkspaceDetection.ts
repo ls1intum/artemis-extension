@@ -40,5 +40,11 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
     };
 
     void runDetection();
-    return { dispose: () => undefined };
+    const folderSub = vscode.workspace.onDidChangeWorkspaceFolders(() => void runDetection());
+
+    return {
+        dispose: () => {
+            folderSub.dispose();
+        },
+    };
 }
