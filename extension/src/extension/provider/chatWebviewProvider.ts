@@ -115,13 +115,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
         private readonly _extensionUri: vscode.Uri,
-        private readonly _extensionContext: vscode.ExtensionContext,
+        _extensionContext: vscode.ExtensionContext,
         private readonly _artemisApiService: ArtemisApiService | undefined,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _courseDataCache?: CourseDataCache,
-        private readonly _telemetryManager?: TelemetryManager,
+        private readonly _courseDataCache: CourseDataCache | undefined,
+        private readonly _telemetryManager: TelemetryManager | undefined,
+        contextStore: ContextStore,
     ) {
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -129,8 +130,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidAttemptIrisChatSend);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
-        this._contextStore = new ContextStore(this._extensionContext);
-        this._disposables.push(this._contextStore);
+        this._contextStore = contextStore;
         this._disposables.push(
             this._contextStore.onDidChangeActiveContext(({ current, previous }) => {
                 if (current?.type === 'exercise') {
@@ -466,6 +466,29 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     public getSelectedExerciseId(): number | undefined {
         return this._chatContextManager.getSelectedExerciseId();
+    }
+
+    // ── Workspace detection sink ──────────────────────────────────────
+    // Called by wireWorkspaceDetection at activation. The provider implements
+    // the sink because it owns the ChatContextManager + presenter that need
+    // to be refreshed when the workspace exercise changes.
+
+    public registerWorkspaceExercise(input: {
+        id: number;
+        title: string;
+        shortName?: string;
+        courseId?: number;
+        repositoryUri?: string;
+        source: 'workspace-detected';
+        isWorkspace: true;
+    }): void {
+        this._chatContextManager.registerExerciseAndAutoSelect(input);
+    }
+
+    public clearWorkspaceExercise(): void {
+        this._chatContextManager.clearStaleWorkspaceContext();
+        this._contextStore.clearWorkspaceFlag();
+        this._viewStatePresenter.postSnapshot();
     }
 
     public setCourseContext(

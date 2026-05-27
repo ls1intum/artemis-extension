@@ -8,6 +8,7 @@ import { AuthManager } from '@extension/services/auth';
 import { ConsentService } from '@extension/services/auth';
 import { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { SessionRecorder } from '@extension/services/telemetry';
 import { TelemetryManager } from '@extension/services/telemetry';
@@ -132,9 +133,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
+	const contextStore = new ContextStore(context);
+	context.subscriptions.push(contextStore);
+
 	const chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
 		noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager,
+		contextStore,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
