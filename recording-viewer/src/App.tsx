@@ -530,7 +530,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                     {isLiveSession && (
                         <LiveControlBar
                             connected={live.connected}
-                            eventsReceived={live.events.length}
+                            bufferSize={live.events.length}
+                            totalReceived={live.totalReceived}
                             latestEventTimestamp={live.latestEventTimestamp}
                             lastLabelToast={lastLabelToast}
                         />
