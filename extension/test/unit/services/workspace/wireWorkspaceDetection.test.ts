@@ -142,4 +142,53 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(sink._clear.callCount, 1, 'only fresh detection should reach sink');
         disposable.dispose();
     });
+
+    test('dispose guard: callbacks after dispose are no-ops', async () => {
+        const sink = makeSinkSpy();
+        let resolve!: () => void;
+        let captured!: {
+            registerExercise: (input: WorkspaceRegisterInput) => void;
+            clearStaleWorkspaceContext: () => void;
+        };
+        detectStub.callsFake(async (_api: unknown, cb: typeof captured) => {
+            captured = cb;
+            await new Promise<void>(r => { resolve = r; });
+        });
+
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        await Promise.resolve();          // detection in flight
+        disposable.dispose();
+
+        captured.registerExercise({ id: 1, title: 'X', source: 'workspace-detected', isWorkspace: true });
+        captured.clearStaleWorkspaceContext();
+        resolve();
+        await Promise.resolve();
+
+        assert.strictEqual(sink._register.callCount, 0);
+        assert.strictEqual(sink._clear.callCount, 0);
+    });
+
+    test('dispose unsubscribes both event listeners: later folder/courses events do not re-trigger detection', async () => {
+        const sink = makeSinkSpy();
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        await Promise.resolve();
+        disposable.dispose();
+        detectStub.resetHistory();
+        folderEmitter.fire({ added: [], removed: [] });
+        coursesEmitter.fire(undefined);
+        await Promise.resolve();
+        assert.strictEqual(detectStub.callCount, 0);
+    });
+
+    test('no-match path invokes sink.clearWorkspaceExercise exactly once per detection', async () => {
+        const sink = makeSinkSpy();
+        detectStub.callsFake(async (_api: unknown, cb: { clearStaleWorkspaceContext: () => void }) => {
+            cb.clearStaleWorkspaceContext();
+        });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        await Promise.resolve();
+        assert.strictEqual(sink._clear.callCount, 1);
+        assert.strictEqual(sink._register.callCount, 0);
+        disposable.dispose();
+    });
 });

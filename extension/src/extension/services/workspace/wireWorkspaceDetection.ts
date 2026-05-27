@@ -30,16 +30,21 @@ export interface WorkspaceDetectionDeps {
 
 export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Disposable {
     let generation = 0;
+    let disposed = false;
 
     const runDetection = async (): Promise<void> => {
         const token = ++generation;
         const callbacks = {
             registerExercise: (input: WorkspaceRegisterInput) => {
-                if (token !== generation) return;
+                if (disposed || token !== generation) {
+                    return;
+                }
                 deps.sink.registerWorkspaceExercise(input);
             },
             clearStaleWorkspaceContext: () => {
-                if (token !== generation) return;
+                if (disposed || token !== generation) {
+                    return;
+                }
                 deps.sink.clearWorkspaceExercise();
             },
         };
@@ -54,6 +59,7 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
 
     return {
         dispose: () => {
+            disposed = true;
             folderSub.dispose();
             coursesSub.dispose();
         },
