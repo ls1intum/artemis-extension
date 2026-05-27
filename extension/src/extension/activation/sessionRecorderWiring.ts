@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { SessionRecorder, TelemetryManager } from '@extension/services/telemetry';
 import {
     RecordingStatusBarService as RecordingStatusBarServiceImpl,
@@ -22,6 +23,7 @@ interface RecorderWiringDeps {
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
+    contextStore: ContextStore;
 }
 
 interface RecorderWiringResult {
@@ -33,7 +35,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     const {
         context, consentService, artemisWebsocketService,
         telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-        capabilities, exerciseRegistry,
+        capabilities, exerciseRegistry, contextStore,
     } = deps;
 
     const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry);
@@ -238,7 +240,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // Recording status bar button
     const recordingStatusBar = new RecordingStatusBarServiceImpl(
         sessionRecorder,
-        () => chatWebviewProvider.getSelectedExerciseId(),
+        () => contextStore.getWorkspaceExerciseId(),
     );
     disposables.push(recordingStatusBar);
 
