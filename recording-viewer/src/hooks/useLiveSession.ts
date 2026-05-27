@@ -6,14 +6,22 @@ export interface LiveSessionState {
     events: RecordedEvent[];
     latestEventTimestamp: number | null;
     error: string | null;
+    /** Cumulative count of unique events received from the server since
+     *  this session connected. Strictly monotonic — does not decrease when
+     *  the sliding window trims old events. */
+    totalReceived: number;
 }
 
-const INITIAL: LiveSessionState = { connected: false, events: [], latestEventTimestamp: null, error: null };
+const INITIAL: LiveSessionState = { connected: false, events: [], latestEventTimestamp: null, error: null, totalReceived: 0 };
 
 /** Maximum number of live events retained in browser memory. Older events
  * drop off the front as new ones arrive; the full archive remains
- * accessible via /api/recordings/:id/events after the session ends. */
-export const MAX_LIVE_EVENTS = 5000;
+ * accessible via /api/recordings/:id/events after the session ends.
+ *
+ * Sized to cover realistic study-session volumes (observed worst case so far:
+ * ~4k events). Bumping further is bounded less by RAM (~400 bytes/event) than
+ * by re-derivation cost in EventStream/TrackingTimeline on each RAF flush. */
+export const MAX_LIVE_EVENTS = 50_000;
 
 type ScheduleHandle = { cancel: () => void };
 
@@ -38,6 +46,7 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
         const eventsBuf: RecordedEvent[] = [];
         const pendingBuf: RecordedEvent[] = [];
         let maxLineNo = 0;
+        let totalReceived = 0;
         let sessionEndPending = false;
         let scheduled: ScheduleHandle | null = null;
 
@@ -78,6 +87,7 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
                 ...s,
                 events: snapshot,
                 latestEventTimestamp: last?.timestamp ?? s.latestEventTimestamp,
+                totalReceived,
                 connected: ended ? false : s.connected,
                 // Clear any stale "Disconnected, retrying..." error: if we're
                 // flushing real events, we obviously aren't disconnected.
@@ -109,6 +119,7 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
             try {
                 const parsed = JSON.parse(evt.data) as RecordedEvent;
                 pendingBuf.push(parsed);
+                totalReceived += 1;
                 const isSessionEnd = (parsed as { type?: string }).type === 'sessionEnd';
                 if (isSessionEnd) {
                     sessionEndPending = true;

@@ -9,7 +9,11 @@ const CONTEXT_KEY_BY_VALUE: Record<string, string> = Object.fromEntries(
 
 interface Props {
     connected: boolean;
-    eventsReceived: number;
+    /** Number of events currently in the browser buffer (the sliding window). */
+    bufferSize: number;
+    /** Cumulative number of events received since this session connected.
+     *  When this exceeds bufferSize, the window has been trimming oldest events. */
+    totalReceived: number;
     latestEventTimestamp: number | null;
     lastLabelToast: AnnotationToast | null;
 }
@@ -28,7 +32,7 @@ function renderToast(toast: AnnotationToast): string {
 }
 
 export function LiveControlBar({
-    connected, eventsReceived, latestEventTimestamp, lastLabelToast,
+    connected, bufferSize, totalReceived, latestEventTimestamp, lastLabelToast,
 }: Props) {
     // Re-render every second so the "last event N s ago" updates live
     const [now, setNow] = useState(() => Date.now());
@@ -45,7 +49,11 @@ export function LiveControlBar({
             <div className="live-status">
                 <span className={`live-dot ${connected ? 'on' : 'off'}`} />
                 <strong>{connected ? 'LIVE' : 'Disconnected'}</strong>
-                <span className="live-counter">{eventsReceived} events</span>
+                <span className="live-counter">
+                    {bufferSize < totalReceived
+                        ? `${bufferSize.toLocaleString()} of ${totalReceived.toLocaleString()} events`
+                        : `${totalReceived.toLocaleString()} events`}
+                </span>
                 {ageMs !== null && (
                     <span className="live-age">last event {(ageMs / 1000).toFixed(1)}s ago</span>
                 )}
