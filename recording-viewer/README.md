@@ -39,7 +39,7 @@ Active sessions show a red **LIVE** badge.
 ### Hotkeys (when viewing a live session)
 
 - `1`-`5`: Struggle level (confident, light, medium, high, blocked)
-- `q`/`w`/`e`/`r`/`t`/`i`: Context marker (idle, trial-error, reading, off-task, using-ai, iris-moment)
+- `q`/`w`/`e`/`r`/`t`/`i`/`u`: Context marker (idle, trial-error, reading, off-task, using-ai, iris-moment, reading-test-results)
 - The reaction-delay slider (0-1000ms) tunes the offset added to the last
   observed event timestamp before the annotation is stamped (default 300ms).
 

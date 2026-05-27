@@ -5,7 +5,7 @@ const STRUGGLE_KEYS: Record<string, StruggleLevel> = {
     '1': 'confident', '2': 'light-struggle', '3': 'medium-struggle', '4': 'high-struggle', '5': 'blocked',
 };
 export const CONTEXT_KEYS: Record<string, ContextMarker> = {
-    'q': 'idle', 'w': 'trial-error', 'e': 'reading', 'r': 'off-task', 't': 'using-ai', 'i': 'iris-moment',
+    'q': 'idle', 'w': 'trial-error', 'e': 'reading', 'r': 'off-task', 't': 'using-ai', 'i': 'iris-moment', 'u': 'reading-test-results',
 };
 
 export interface LiveHotkeyHandlers {

@@ -596,7 +596,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         // accepted in the body for backwards compatibility but ignored.
         const VALID_LABELS = new Set([
             'confident', 'light-struggle', 'medium-struggle', 'high-struggle', 'blocked',
-            'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment',
+            'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results',
         ]);
 
         const annotPostMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
