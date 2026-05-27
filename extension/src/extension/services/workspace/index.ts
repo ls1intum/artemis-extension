@@ -3,6 +3,7 @@ export { GitService } from './gitService';
 export { NoAiDetectionService } from './noAiDetectionService';
 export {
     collectExerciseSources,
+    detectAndRegisterWorkspaceExercise,
     type DetectedExercise,
     findExerciseByRepositoryUrl,
     findWorkspaceCourseInArchive,

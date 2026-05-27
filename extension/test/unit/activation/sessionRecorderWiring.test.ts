@@ -28,7 +28,6 @@ import type {
 import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth';
-import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {
     ConfigurationChangeEvent,
@@ -109,26 +108,21 @@ function stubWebviewProvider(): ArtemisWebviewProvider {
     } as unknown as ArtemisWebviewProvider;
 }
 
-type ChatProviderStub = ChatWebviewProvider & { _selectedExerciseIdSpy: sinon.SinonSpy };
-
-function stubChatProvider(): ChatProviderStub {
+function stubChatProvider(): ChatWebviewProvider {
     const onDidSendIrisChatMessage = new vscode.EventEmitter<string>();
     const onDidAttemptIrisChatSend = new vscode.EventEmitter<{ content: string; status: 'pending' | 'sent' | 'failed'; errorMessage?: string }>();
     const onDidProvideIrisChatFeedback = new vscode.EventEmitter<{ messageId: string; helpful: boolean }>();
     const onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     const onDidReceiveIrisChatMessage = new vscode.EventEmitter<{ content: string; messageId?: string; sessionId?: string; sentAt?: number }>();
-    const _selectedExerciseIdSpy = sinon.spy(() => 42);
-    const chat = {
+    return {
         getCurrentVisibility: () => false,
-        getSelectedExerciseId: _selectedExerciseIdSpy,
+        getSelectedExerciseId: () => 42,
         onDidSendIrisChatMessage: onDidSendIrisChatMessage.event,
         onDidAttemptIrisChatSend: onDidAttemptIrisChatSend.event,
         onDidProvideIrisChatFeedback: onDidProvideIrisChatFeedback.event,
         onDidChangePanelVisibility: onDidChangePanelVisibility.event,
         websocketMessageHandler: { onDidReceiveIrisChatMessage: onDidReceiveIrisChatMessage.event },
-        _selectedExerciseIdSpy,
-    };
-    return chat as unknown as ChatProviderStub;
+    } as unknown as ChatWebviewProvider;
 }
 
 /** Read every events.jsonl file produced under tmpDir/recordings/<sessionId>/ and return the parsed events. */
@@ -160,11 +154,9 @@ interface WiringHarness {
     telemetryManager: TelemetryManager;
     recorder: SessionRecorder;
     artemisWebviewProvider: ArtemisWebviewProvider;
-    chatProvider: ChatProviderStub;
     tmpDir: string;
     configState: MutableConfigState;
     capturedConfigListener: () => ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
-    clickRecord: () => Promise<void>;
     dispose: () => Promise<void>;
 }
 
@@ -177,7 +169,6 @@ interface WiringHarness {
 async function makeWiringHarness(
     sandbox: sinon.SinonSandbox,
     initial: MutableConfigState,
-    contextStore: ContextStore = { getWorkspaceExerciseId: () => 42 } as unknown as ContextStore,
 ): Promise<WiringHarness> {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiring-test-'));
     const configState: MutableConfigState = { ...initial };
@@ -193,16 +184,9 @@ async function makeWiringHarness(
     // The extension under test is already activated by the test runner and has
     // registered `artemis.toggleRecording`. Stub registerCommand so the wiring's
     // RecordingStatusBarService does not collide with that pre-existing
-    // registration. Capture the handler so tests can invoke the Record click
-    // directly without hitting the live extension's already-registered command.
-    // Same story for createStatusBarItem (avoid duplicating the real status bar item).
-    let capturedRecordHandler: (() => Promise<void>) | undefined;
-    sandbox.stub(vscode.commands, 'registerCommand').callsFake((id: string, handler: () => Promise<void>) => {
-        if (id === 'artemis.toggleRecording') {
-            capturedRecordHandler = handler;
-        }
-        return new vscode.Disposable(() => { /* noop */ });
-    });
+    // registration. Same story for createStatusBarItem (avoid duplicating the
+    // real status bar item).
+    sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
     sandbox.stub(vscode.window, 'createStatusBarItem').returns({
         text: '', tooltip: undefined, backgroundColor: undefined, command: undefined,
         show: sandbox.stub(), hide: sandbox.stub(), dispose: sandbox.stub(),
@@ -212,33 +196,24 @@ async function makeWiringHarness(
     const telemetryManager = new TelemetryManager();
     const ctx = { globalStorageUri: vscode.Uri.file(tmpDir), subscriptions: [] } as unknown as vscode.ExtensionContext;
     const artemisProvider = stubWebviewProvider();
-    const chatProvider = stubChatProvider();
     const wiring = wireSessionRecorder({
         context: ctx,
         consentService: stubConsent(true),
         artemisWebsocketService: stubWebsocket(sandbox),
         telemetryManager,
         artemisWebviewProvider: artemisProvider,
-        chatWebviewProvider: chatProvider,
+        chatWebviewProvider: stubChatProvider(),
         capabilities: undefined,
         exerciseRegistry: undefined,
-        contextStore,
     });
 
     return {
         telemetryManager,
         recorder: wiring.sessionRecorder,
         artemisWebviewProvider: artemisProvider,
-        chatProvider,
         tmpDir,
         configState,
         capturedConfigListener: () => captured,
-        clickRecord: async () => {
-            if (!capturedRecordHandler) {
-                throw new Error('Record-toggle handler was not registered');
-            }
-            await capturedRecordHandler();
-        },
         dispose: async () => {
             wiring.disposable.dispose();
             try { await wiring.sessionRecorder.dispose(); } catch { /* ignore */ }
@@ -375,24 +350,6 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             const change = events.find(e => e.type === 'configurationChange') as ConfigurationChangeEvent | undefined;
             assert.ok(change, 'configurationChange missing');
             assert.deepStrictEqual(change!.changes, { showInterventions: false });
-        } finally {
-            await harness.dispose();
-        }
-    });
-
-    test('recorder gate reads from contextStore.getWorkspaceExerciseId; chat getter is unused', async () => {
-        const workspaceGetter = sinon.spy(() => 99);
-        const contextStore = { getWorkspaceExerciseId: workspaceGetter } as unknown as ContextStore;
-        const initial: MutableConfigState = {
-            enabled: true,
-            showInterventions: true,
-            developerMode: false,
-        };
-        const harness = await makeWiringHarness(sandbox, initial, contextStore);
-        try {
-            await harness.clickRecord();
-            assert.strictEqual(workspaceGetter.callCount, 1, 'workspace getter should be called once per click');
-            assert.ok(!harness.chatProvider._selectedExerciseIdSpy.called, 'chat getter must NOT be called by the wiring');
         } finally {
             await harness.dispose();
         }

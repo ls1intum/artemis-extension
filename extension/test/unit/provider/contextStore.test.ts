@@ -609,37 +609,3 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(after.courses.length, 0);
     });
 });
-
-suite('ContextStore workspace accessors', () => {
-    let store: ContextStore;
-
-    setup(() => {
-        store = new ContextStore(new MockExtensionContext());
-    });
-
-    test('getWorkspaceExerciseId returns the id of the flagged exercise', () => {
-        store.registerExercise({ id: 7, title: 'Ws', isWorkspace: true });
-        assert.strictEqual(store.getWorkspaceExerciseId(), 7);
-    });
-
-    test('getWorkspaceExerciseId returns undefined when no exercise is flagged', () => {
-        store.registerExercise({ id: 8, title: 'NotWs' });
-        assert.strictEqual(store.getWorkspaceExerciseId(), undefined);
-    });
-
-    test('clearWorkspaceFlag clears the flag', () => {
-        store.registerExercise({ id: 9, title: 'Ws', isWorkspace: true });
-        assert.ok(store.getWorkspaceExercise(), 'precondition');
-        store.clearWorkspaceFlag();
-        assert.strictEqual(store.getWorkspaceExercise(), undefined);
-    });
-
-    test('clearWorkspaceFlag does NOT fire onDidChangeActiveContext (silent by design)', () => {
-        store.registerExercise({ id: 10, title: 'Ws', isWorkspace: true });
-        const calls: unknown[] = [];
-        const sub = store.onDidChangeActiveContext(ev => calls.push(ev));
-        store.clearWorkspaceFlag();
-        sub.dispose();
-        assert.strictEqual(calls.length, 0);
-    });
-});

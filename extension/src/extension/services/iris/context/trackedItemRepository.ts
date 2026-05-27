@@ -86,13 +86,6 @@ export class TrackedItemRepository {
         return this._getState().exercises.find(ex => ex.isWorkspace);
     }
 
-    public clearAllWorkspaceFlags(): void {
-        const state = this._getState();
-        state.exercises = state.exercises.map(ex =>
-            ex.isWorkspace ? { ...ex, isWorkspace: false } : ex,
-        );
-    }
-
     public upsertCourse(input: CourseInput): TrackedCourse {
         const state = this._getState();
         const existing = state.courses.find(c => c.id === input.id);

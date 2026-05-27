@@ -23,6 +23,7 @@ import { type StruggleContext, TelemetryManager } from '@extension/services/tele
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
+    detectAndRegisterWorkspaceExercise,
     FileMonitorService,
     getEntryExercises,
     NoAiDetectionService,
@@ -114,14 +115,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
         private readonly _extensionUri: vscode.Uri,
-        _extensionContext: vscode.ExtensionContext,
+        private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _artemisApiService: ArtemisApiService | undefined,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _courseDataCache: CourseDataCache | undefined,
-        private readonly _telemetryManager: TelemetryManager | undefined,
-        contextStore: ContextStore,
+        private readonly _courseDataCache?: CourseDataCache,
+        private readonly _telemetryManager?: TelemetryManager,
     ) {
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -129,7 +129,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidAttemptIrisChatSend);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
-        this._contextStore = contextStore;
+        this._contextStore = new ContextStore(this._extensionContext);
+        this._disposables.push(this._contextStore);
         this._disposables.push(
             this._contextStore.onDidChangeActiveContext(({ current, previous }) => {
                 if (current?.type === 'exercise') {
@@ -344,6 +345,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
         this._viewDisposables.push(visibilityListener);
 
+        const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            void this._detectWorkspaceExercise().catch((err: unknown) => {
+                logger.error('Failed to detect workspace exercise after folder change', LogCategory.IRIS_CHAT, err);
+            });
+        });
+        this._viewDisposables.push(workspaceListener);
+
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
                 this.refreshTheme();
@@ -370,6 +378,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
+        await this._detectWorkspaceExercise();
         await this._populateAvailableContexts();
         void this._loadIrisMessagesIfNeeded().catch((err: unknown) => {
             logger.error('Failed to load Iris messages during init', LogCategory.IRIS_CHAT, err);
@@ -457,29 +466,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     public getSelectedExerciseId(): number | undefined {
         return this._chatContextManager.getSelectedExerciseId();
-    }
-
-    // ── Workspace detection sink ──────────────────────────────────────
-    // Called by wireWorkspaceDetection at activation. The provider implements
-    // the sink because it owns the ChatContextManager + presenter that need
-    // to be refreshed when the workspace exercise changes.
-
-    public registerWorkspaceExercise(input: {
-        id: number;
-        title: string;
-        shortName?: string;
-        courseId?: number;
-        repositoryUri?: string;
-        source: 'workspace-detected';
-        isWorkspace: true;
-    }): void {
-        this._chatContextManager.registerExerciseAndAutoSelect(input);
-    }
-
-    public clearWorkspaceExercise(): void {
-        this._chatContextManager.clearStaleWorkspaceContext();
-        this._contextStore.clearWorkspaceFlag();
-        this._viewStatePresenter.postSnapshot();
     }
 
     public setCourseContext(
@@ -776,6 +762,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         } catch (error) {
             logger.debug('Failed to populate available contexts', LogCategory.IRIS_CHAT, error);
         }
+    }
+
+    private async _detectWorkspaceExercise(): Promise<void> {
+        await detectAndRegisterWorkspaceExercise(
+            this._artemisApiService,
+            {
+                registerExercise: (input) => this._chatContextManager.registerExerciseAndAutoSelect(input),
+                clearStaleWorkspaceContext: () => this._chatContextManager.clearStaleWorkspaceContext(),
+            },
+            this._exerciseRegistry,
+            this._courseDataCache,
+        );
     }
 
     private _handleContextSelection(contextType: ChatContextType, itemId: number, itemName: string, itemShortName?: string): void {

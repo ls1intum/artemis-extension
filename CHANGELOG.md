@@ -13,7 +13,6 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Iris Chat**: Updated to the unified Iris API in Artemis 9.2+ so chat keeps working after the upstream session-endpoint consolidation.
 - **Iris Chat New Conversation**: Fixed "New Conversation" silently jumping back to the workspace exercise instead of starting a new session in the currently selected context.
 - **Iris Chat Connectivity Resilience**: Network drops and server errors now show a "temporarily unavailable" banner with a Retry button instead of the misleading "instructor disabled Iris" overlay, and the chat reloads automatically when the WebSocket reconnects.
-- **Recorder Gate**: the Record button now reads from the workspace-detected exercise instead of the Iris chat selection. Clicking Record before opening Iris no longer shows the misleading "Select an exercise context" warning.
 
 ## [0.4.4] - 2026-05-10
 

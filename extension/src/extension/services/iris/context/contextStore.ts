@@ -80,20 +80,6 @@ export class ContextStore {
         return this._repository.getWorkspaceExercise();
     }
 
-    public getWorkspaceExerciseId(): number | undefined {
-        return this._repository.getWorkspaceExercise()?.id;
-    }
-
-    /**
-     * Clears the `isWorkspace` flag on all tracked exercises. Silent: does NOT fire
-     * `onDidChangeActiveContext`. Callers that need a UI refresh must post a snapshot
-     * themselves — see `ChatWebviewProvider.clearWorkspaceExercise`.
-     */
-    public clearWorkspaceFlag(): void {
-        this._repository.clearAllWorkspaceFlags();
-        this._persistence.save(this.state);
-    }
-
     public registerExercise(input: ExerciseInput): ContextSnapshot {
         this._repository.upsertExercise(input);
         this._repository.trimExerciseHistory();
