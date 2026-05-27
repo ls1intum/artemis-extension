@@ -137,6 +137,7 @@ describe('handleLiveHotkey — label hotkeys still work', () => {
         ['e', 'reading'],
         ['r', 'off-task'],
         ['t', 'using-ai'],
+        ['i', 'iris-moment'],
     ] as Array<[string, AnnotationLabel]>)('"%s" → onLabel("%s")', (key, expected) => {
         const h = makeHandlers();
         handleLiveHotkey(makeEvent({ key }), h);

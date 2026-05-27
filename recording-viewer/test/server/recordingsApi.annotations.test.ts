@@ -76,6 +76,17 @@ describe('POST /api/recordings/:id/annotations', () => {
         expect(stored[0].id).toBe('old');
     });
 
+    it('accepts iris-moment label', async () => {
+        const api = createRecordingsApi(cfg());
+        const handle = makeRes();
+        await invoke(api, makeReq('POST', '/api/recordings/sess-1/annotations',
+            JSON.stringify({ label: 'iris-moment', text: '' })),
+            handle);
+        expect(handle.captured.status).toBe(200);
+        const stored = JSON.parse(fs.readFileSync(path.join(tmpDir, 'sess-1/annotations.json'), 'utf-8'));
+        expect(stored[0].label).toBe('iris-moment');
+    });
+
     it('rejects unknown label values', async () => {
         const api = createRecordingsApi(cfg());
         const handle = makeRes();

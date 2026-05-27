@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { STRUGGLE_LABELS, CONTEXT_LABELS, ALL_LABELS } from '../types';
+import { CONTEXT_KEYS } from '../hooks/useLiveHotkeys';
 import type { AnnotationToast } from '../hooks/useAnnotationMutations';
+
+const CONTEXT_KEY_BY_VALUE: Record<string, string> = Object.fromEntries(
+    Object.entries(CONTEXT_KEYS).map(([key, value]) => [value, key]),
+);
 
 interface Props {
     connected: boolean;
@@ -51,8 +56,8 @@ export function LiveControlBar({
                     <span key={s.value} style={{ color: s.color }}>{i + 1}={s.label}</span>
                 ))}
                 <strong>Context:</strong>
-                {CONTEXT_LABELS.map((s, i) => (
-                    <span key={s.value} style={{ color: s.color }}>{'qwert'[i]}={s.label}</span>
+                {CONTEXT_LABELS.map(s => (
+                    <span key={s.value} style={{ color: s.color }}>{CONTEXT_KEY_BY_VALUE[s.value] ?? '?'}={s.label}</span>
                 ))}
             </div>
             {toastVisible && (
