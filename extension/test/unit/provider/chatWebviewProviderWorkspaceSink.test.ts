@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
+import * as detectionModule from '@extension/services/workspace/workspaceDetectionService';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonSandbox; mockContext: MockExtensionContext } {
@@ -74,5 +75,66 @@ suite('ChatWebviewProvider workspace sink', () => {
         assert.ok(c.calledOnce, 'postSnapshot should fire');
         assert.ok(a.calledBefore(b), 'clearStale must run before clearFlag');
         assert.ok(b.calledBefore(c), 'clearFlag must run before postSnapshot');
+    });
+});
+
+suite('ChatWebviewProvider stops detecting workspace', () => {
+    let sandbox: sinon.SinonSandbox;
+    let detectStub: sinon.SinonStub;
+    let onDidChangeFoldersStub: sinon.SinonStub;
+    let provider: ChatWebviewProvider;
+
+    setup(() => {
+        const built = buildProvider();
+        provider = built.provider;
+        sandbox = built.sandbox;
+        detectStub = sandbox.stub(detectionModule, 'detectAndRegisterWorkspaceExercise').resolves();
+        onDidChangeFoldersStub = sandbox.stub(vscode.workspace, 'onDidChangeWorkspaceFolders').returns({ dispose: () => undefined });
+    });
+
+    teardown(() => {
+        provider.dispose();
+        sandbox.restore();
+    });
+
+    function makeWebviewStub(): vscode.WebviewView {
+        const webview = {
+            options: {} as vscode.WebviewOptions,
+            html: '',
+            onDidReceiveMessage: () => ({ dispose: () => undefined }),
+            asWebviewUri: (u: vscode.Uri) => u,
+            cspSource: 'https://example',
+        } as unknown as vscode.Webview;
+        return {
+            webview,
+            onDidDispose: () => ({ dispose: () => undefined }),
+            onDidChangeVisibility: () => ({ dispose: () => undefined }),
+            visible: false,
+            show: () => undefined,
+            title: '',
+            description: '',
+            badge: undefined,
+            viewType: 'irisChat',
+        } as unknown as vscode.WebviewView;
+    }
+
+    test('resolveWebviewView does NOT register onDidChangeWorkspaceFolders', () => {
+        provider.resolveWebviewView(makeWebviewStub(), {} as never, {} as never);
+        assert.ok(!onDidChangeFoldersStub.called, 'resolveWebviewView must not subscribe to workspace folder changes');
+    });
+
+    test('the provider never calls detectAndRegisterWorkspaceExercise (resolveWebviewView path)', async () => {
+        provider.resolveWebviewView(makeWebviewStub(), {} as never, {} as never);
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.strictEqual(detectStub.callCount, 0, 'resolveWebviewView path must not detect workspace');
+    });
+
+    test('_sendInitData does not invoke workspace detection', async () => {
+        // _sendInitData is private but is the path that previously called detection.
+        // Cast through unknown to invoke it directly — this is a regression guard,
+        // documenting that the detection call has been deleted from that codepath.
+        await (provider as unknown as { _sendInitData: () => Promise<void> })._sendInitData();
+        assert.strictEqual(detectStub.callCount, 0, '_sendInitData must not detect workspace');
     });
 });
