@@ -65,3 +65,19 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
         },
     };
 }
+
+/**
+ * Build a WorkspaceDetectionSink that routes register/clear calls through a
+ * ChatWebviewProvider (or any object with the same two methods). Extracted so
+ * the sink construction is unit-testable and so `extension.ts` does not contain
+ * untestable inline closures.
+ */
+export function buildChatProviderSink(provider: {
+    registerWorkspaceExercise: WorkspaceDetectionSink['registerWorkspaceExercise'];
+    clearWorkspaceExercise: WorkspaceDetectionSink['clearWorkspaceExercise'];
+}): WorkspaceDetectionSink {
+    return {
+        registerWorkspaceExercise: (input) => provider.registerWorkspaceExercise(input),
+        clearWorkspaceExercise: () => provider.clearWorkspaceExercise(),
+    };
+}

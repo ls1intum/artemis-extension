@@ -16,6 +16,10 @@ import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
 import {
+    buildChatProviderSink,
+    wireWorkspaceDetection,
+} from '@extension/services/workspace/wireWorkspaceDetection';
+import {
     authenticateFromEnvironment,
     autoCloneIfNeeded,
     detectPlatformCapabilities,
@@ -150,6 +154,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
+
+	context.subscriptions.push(wireWorkspaceDetection({
+		api: artemisApiService,
+		registry: exerciseRegistry,
+		courseDataCache,
+		sink: buildChatProviderSink(chatWebviewProvider),
+	}));
+
 	context.subscriptions.push(telemetryManager);
 	context.subscriptions.push(artemisWebsocketService);
 	context.subscriptions.push(websocketStatusBarService);

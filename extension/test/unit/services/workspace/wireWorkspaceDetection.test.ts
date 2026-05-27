@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
+    buildChatProviderSink,
     wireWorkspaceDetection,
     type WorkspaceDetectionSink,
     type WorkspaceRegisterInput,
@@ -190,5 +191,28 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(sink._clear.callCount, 1);
         assert.strictEqual(sink._register.callCount, 0);
         disposable.dispose();
+    });
+});
+
+suite('buildChatProviderSink', () => {
+    test('registerWorkspaceExercise delegates to the provider method', () => {
+        const provider = {
+            registerWorkspaceExercise: sinon.spy(),
+            clearWorkspaceExercise: sinon.spy(),
+        };
+        const sink = buildChatProviderSink(provider);
+        const input = { id: 1, title: 'X', source: 'workspace-detected' as const, isWorkspace: true as const };
+        sink.registerWorkspaceExercise(input);
+        assert.ok((provider.registerWorkspaceExercise as sinon.SinonSpy).calledOnceWith(input));
+    });
+
+    test('clearWorkspaceExercise delegates to the provider method', () => {
+        const provider = {
+            registerWorkspaceExercise: sinon.spy(),
+            clearWorkspaceExercise: sinon.spy(),
+        };
+        const sink = buildChatProviderSink(provider);
+        sink.clearWorkspaceExercise();
+        assert.ok((provider.clearWorkspaceExercise as sinon.SinonSpy).calledOnce);
     });
 });
