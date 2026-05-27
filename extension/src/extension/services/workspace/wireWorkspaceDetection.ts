@@ -41,10 +41,12 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
 
     void runDetection();
     const folderSub = vscode.workspace.onDidChangeWorkspaceFolders(() => void runDetection());
+    const coursesSub = deps.courseDataCache.onCoursesLoaded(() => void runDetection());
 
     return {
         dispose: () => {
             folderSub.dispose();
+            coursesSub.dispose();
         },
     };
 }

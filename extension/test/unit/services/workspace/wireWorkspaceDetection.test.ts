@@ -66,4 +66,15 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(detectStub.callCount, 1);
         disposable.dispose();
     });
+
+    test('courseDataCache.onCoursesLoaded event triggers re-detection', async () => {
+        const sink = makeSinkSpy();
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        await Promise.resolve();
+        detectStub.resetHistory();
+        coursesEmitter.fire(undefined);
+        await Promise.resolve();
+        assert.strictEqual(detectStub.callCount, 1);
+        disposable.dispose();
+    });
 });
