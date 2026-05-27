@@ -1,6 +1,6 @@
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
 
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -89,8 +89,8 @@ suite('wireWorkspaceDetection', () => {
         }> = [];
         detectStub.callsFake(async (_api: unknown, cb: typeof capturedCallbacks[number]) => {
             capturedCallbacks.push(cb);
-            if (capturedCallbacks.length === 1) await new Promise<void>(r => { resolveA = r; });
-            else await new Promise<void>(r => { resolveB = r; });
+            if (capturedCallbacks.length === 1) {await new Promise<void>(r => { resolveA = r; });}
+            else {await new Promise<void>(r => { resolveB = r; });}
         });
 
         const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
@@ -125,8 +125,8 @@ suite('wireWorkspaceDetection', () => {
         }> = [];
         detectStub.callsFake(async (_api: unknown, cb: typeof capturedCallbacks[number]) => {
             capturedCallbacks.push(cb);
-            if (capturedCallbacks.length === 1) await new Promise<void>(r => { resolveA = r; });
-            else await new Promise<void>(r => { resolveB = r; });
+            if (capturedCallbacks.length === 1) {await new Promise<void>(r => { resolveA = r; });}
+            else {await new Promise<void>(r => { resolveB = r; });}
         });
 
         const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });

@@ -1,6 +1,6 @@
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
 
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
