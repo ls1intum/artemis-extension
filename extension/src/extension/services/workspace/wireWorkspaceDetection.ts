@@ -29,9 +29,15 @@ export interface WorkspaceDetectionDeps {
 }
 
 export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Disposable {
+    let generation = 0;
+
     const runDetection = async (): Promise<void> => {
+        const token = ++generation;
         const callbacks = {
-            registerExercise: (input: WorkspaceRegisterInput) => deps.sink.registerWorkspaceExercise(input),
+            registerExercise: (input: WorkspaceRegisterInput) => {
+                if (token !== generation) return;
+                deps.sink.registerWorkspaceExercise(input);
+            },
             clearStaleWorkspaceContext: () => deps.sink.clearWorkspaceExercise(),
         };
         await detectAndRegisterWorkspaceExercise(

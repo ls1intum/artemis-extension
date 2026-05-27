@@ -77,4 +77,40 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(detectStub.callCount, 1);
         disposable.dispose();
     });
+
+    test('generation guard: stale registerExercise from older detection is a no-op', async () => {
+        const sink = makeSinkSpy();
+        let resolveA!: () => void;
+        let resolveB!: () => void;
+        const capturedCallbacks: Array<{
+            registerExercise: (input: WorkspaceRegisterInput) => void;
+            clearStaleWorkspaceContext: () => void;
+        }> = [];
+        detectStub.callsFake(async (_api: unknown, cb: typeof capturedCallbacks[number]) => {
+            capturedCallbacks.push(cb);
+            if (capturedCallbacks.length === 1) await new Promise<void>(r => { resolveA = r; });
+            else await new Promise<void>(r => { resolveB = r; });
+        });
+
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        await Promise.resolve();          // schedule detection A
+        folderEmitter.fire({ added: [], removed: [] });
+        await Promise.resolve();          // schedule detection B (A still pending)
+
+        // A finishes late; its callback must be a no-op.
+        capturedCallbacks[0].registerExercise({
+            id: 1, title: 'Stale', source: 'workspace-detected', isWorkspace: true,
+        });
+        // B finishes normally.
+        capturedCallbacks[1].registerExercise({
+            id: 2, title: 'Fresh', source: 'workspace-detected', isWorkspace: true,
+        });
+
+        resolveA(); resolveB();
+        await Promise.resolve();
+
+        assert.strictEqual(sink._register.callCount, 1, 'only fresh detection should reach sink');
+        assert.strictEqual(sink._register.firstCall.args[0].id, 2);
+        disposable.dispose();
+    });
 });
