@@ -14,7 +14,9 @@
  * the union has a dedicated validator, wired through the `EVENT_PARSERS` table.
  * That table is `satisfies Record<RecordedEvent['type'], EventParser>`, so
  * adding a new event variant to `recording/types.ts` without adding its parser
- * here fails to compile — schema drift cannot silently land.
+ * here fails to compile — schema drift cannot silently land. The same table's
+ * keys are re-exported as `KNOWN_EVENT_TYPES` so `scripts/validate-recording.ts`
+ * shares one list instead of maintaining its own (see #215).
  */
 
 import type {
@@ -720,6 +722,13 @@ const EVENT_PARSERS = {
     breakpointChange: parseBreakpointChange,
     submission: parseSubmission,
 } satisfies Record<RecordedEvent['type'], EventParser>;
+
+// Runtime mirror of the recordable event-type set, derived from the dispatch
+// table's keys so it cannot drift from the parser. Typed as
+// `ReadonlySet<string>` (not `ReadonlySet<RecordedEvent['type']>`) so consumers
+// like `scripts/validate-recording.ts` can call `.has(ev.type)` on an untrusted
+// string read off disk without a cast. See #215.
+export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.keys(EVENT_PARSERS));
 
 /**
  * Parse one line of an `events.jsonl` recording. Returns `null` on any shape
