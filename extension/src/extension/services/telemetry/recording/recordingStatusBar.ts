@@ -80,7 +80,7 @@ export class RecordingStatusBarService implements vscode.Disposable {
 
         const exerciseId = this._getExerciseId();
         if (exerciseId === undefined) {
-            vscode.window.showWarningMessage('Select an exercise context before starting a recording.');
+            vscode.window.showWarningMessage('No Artemis exercise detected for the current workspace.');
             return;
         }
 
