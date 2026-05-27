@@ -21,7 +21,7 @@ export interface WorkspaceDetectionSink {
     clearWorkspaceExercise(): void;
 }
 
-export interface WorkspaceDetectionDeps {
+interface WorkspaceDetectionDeps {
     api: ArtemisApiService | undefined;
     registry: ExerciseRegistry;
     courseDataCache: CourseDataCache;
