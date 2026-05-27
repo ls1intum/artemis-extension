@@ -113,4 +113,33 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(sink._register.firstCall.args[0].id, 2);
         disposable.dispose();
     });
+
+    test('generation guard: stale clearWorkspaceExercise from older detection is a no-op', async () => {
+        const sink = makeSinkSpy();
+        let resolveA!: () => void;
+        let resolveB!: () => void;
+        const capturedCallbacks: Array<{
+            registerExercise: (input: WorkspaceRegisterInput) => void;
+            clearStaleWorkspaceContext: () => void;
+        }> = [];
+        detectStub.callsFake(async (_api: unknown, cb: typeof capturedCallbacks[number]) => {
+            capturedCallbacks.push(cb);
+            if (capturedCallbacks.length === 1) await new Promise<void>(r => { resolveA = r; });
+            else await new Promise<void>(r => { resolveB = r; });
+        });
+
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        await Promise.resolve();
+        folderEmitter.fire({ added: [], removed: [] });
+        await Promise.resolve();
+
+        capturedCallbacks[0].clearStaleWorkspaceContext();   // stale, must be no-op
+        capturedCallbacks[1].clearStaleWorkspaceContext();   // fresh
+
+        resolveA(); resolveB();
+        await Promise.resolve();
+
+        assert.strictEqual(sink._clear.callCount, 1, 'only fresh detection should reach sink');
+        disposable.dispose();
+    });
 });

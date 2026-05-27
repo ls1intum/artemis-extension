@@ -38,7 +38,10 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
                 if (token !== generation) return;
                 deps.sink.registerWorkspaceExercise(input);
             },
-            clearStaleWorkspaceContext: () => deps.sink.clearWorkspaceExercise(),
+            clearStaleWorkspaceContext: () => {
+                if (token !== generation) return;
+                deps.sink.clearWorkspaceExercise();
+            },
         };
         await detectAndRegisterWorkspaceExercise(
             deps.api, callbacks, deps.registry, deps.courseDataCache,
