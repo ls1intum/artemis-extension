@@ -202,11 +202,18 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
     }, [live.error, live.events, loadFromApi]);
 
+    // Hotkeys enabled for any rater with a session loaded. In live mode the
+    // reference timestamp is the latest observed event; in offline mode it is
+    // the current video playback cursor projected onto the absolute event
+    // timeline (or session start as a fallback when no video is playing).
     useLiveHotkeys(
-        isLiveSession && !isResearcher,
+        !isResearcher && session !== null,
         useCallback((label) => {
-            mutator.addLabel(label, live.latestEventTimestamp);
-        }, [mutator, live.latestEventTimestamp]),
+            const referenceTs = isLiveSession
+                ? live.latestEventTimestamp
+                : (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000;
+            mutator.addLabel(label, referenceTs);
+        }, [mutator, live.latestEventTimestamp, isLiveSession, session]),
         mutator.undoLast,
         mutator.redoLast,
     );
