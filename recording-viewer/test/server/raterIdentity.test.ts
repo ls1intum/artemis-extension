@@ -17,13 +17,21 @@ describe('normalizeRaterName', () => {
         expect(normalizeRaterName('Alice')).toBe('Alice');
         expect(normalizeRaterName('ALICE')).toBe('ALICE');
     });
-    it('throws on empty after trim', () => {
+    it('throws RaterNameError with "required" message on empty after trim', () => {
         expect(() => normalizeRaterName('   ')).toThrow(RaterNameError);
+        expect(() => normalizeRaterName('   ')).toThrow(/required/i);
         expect(() => normalizeRaterName('')).toThrow(RaterNameError);
     });
-    it('throws on names longer than 80 chars after normalization', () => {
+    it('throws RaterNameError with "80" message on names longer than 80 chars', () => {
         expect(() => normalizeRaterName('a'.repeat(81))).toThrow(RaterNameError);
+        expect(() => normalizeRaterName('a'.repeat(81))).toThrow(/80/);
         expect(normalizeRaterName('a'.repeat(80))).toBe('a'.repeat(80));
+    });
+    it('length cap is measured in UTF-16 code units (pins emoji/CJK behavior)', () => {
+        // '😀' is one user-perceived char but two UTF-16 code units, so 40 emojis
+        // consume the 80-unit budget exactly and 41 overflow it.
+        expect(normalizeRaterName('😀'.repeat(40))).toBe('😀'.repeat(40));
+        expect(() => normalizeRaterName('😀'.repeat(41))).toThrow(RaterNameError);
     });
 });
 
@@ -35,6 +43,13 @@ describe('deriveRaterId', () => {
     });
     it('case-folds: same id for "Alice" and "alice"', () => {
         expect(deriveRaterId('Alice')).toBe(deriveRaterId('alice'));
+    });
+    it('case-folds with stable en-US locale (Turkish-i safety regression guard)', () => {
+        // Stable across machines: a future refactor dropping the locale arg
+        // would let a Turkish-locale runtime produce different ids for 'IRIS'
+        // vs 'iris' (because Turkish maps I -> ı, not i). This pins en-US.
+        expect(deriveRaterId('IRIS')).toBe(deriveRaterId('iris'));
+        expect(deriveRaterId('İris')).not.toBe(deriveRaterId('iris')); // dotted-capital-I is a different code point
     });
     it('treats typos as different raters', () => {
         expect(deriveRaterId('alice')).not.toBe(deriveRaterId('alise'));
