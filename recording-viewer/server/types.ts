@@ -1,9 +1,13 @@
 export interface AppConfig {
     /** Absolute path to the recordings root directory. */
     recordingsDir: string;
-    /** Token required for authenticated requests. If undefined, no auth is required (and server must bind to localhost). */
+    /** Token for a rater login. If undefined, rater login is not configured. */
     liveToken: string | undefined;
-    /** When true, mutating endpoints (delete/rename/upload/open-folder/full-replace annotations) are accepted. */
+    /** Token for a researcher login (`/annotations/all` access). If undefined, researcher login is not configured. */
+    researcherToken: string | undefined;
+    /** HMAC secret for signed `ViewerSession` cookies. Must be at least 32 bytes worth of entropy. */
+    sessionSecret: string;
+    /** When true, mutating endpoints (delete/rename/upload/open-folder) are accepted. */
     allowWrite: boolean;
 }
 
