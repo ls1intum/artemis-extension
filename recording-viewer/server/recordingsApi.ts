@@ -8,7 +8,7 @@ import { normalizeRaterName, deriveRaterId } from './raterIdentity';
 import type { ViewerSession } from './viewerSession';
 import { LiveTailerRegistry } from './liveTailerRegistry';
 import { readLastNLines, readLinesAfter } from './eventsReader';
-import { materialize, appendAdd, appendDelete, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
+import { materialize, materializeLegacy, listRaterIds, appendAdd, appendDelete, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
 
 const TAIL_LIMIT_MAX = 50_000;
 const SSE_DEFAULT_TAIL = 5_000;
@@ -617,6 +617,42 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 sendJson(res, 500, { error: String(err) });
             }
             return;
+        }
+
+        // GET /api/recordings/:sessionId/annotations/all — researcher: all rater lanes + legacy synthetic.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/all$/);
+            if (m && method === 'GET') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!session || session.role !== 'researcher') {
+                    sendJson(res, 403, { error: 'This endpoint is for the researcher role.' });
+                    return;
+                }
+                void (async () => {
+                    try {
+                        const raterIds = await listRaterIds(sessionDir);
+                        const lanes: Array<{ raterId: string; raterName: string; annotations: StoredAnnotation[] }> = [];
+                        for (const raterId of raterIds) {
+                            const list = await materialize(sessionDir, raterId);
+                            const laneName = list.find(a => a.raterName.length > 0)?.raterName ?? raterId;
+                            lanes.push({ raterId, raterName: laneName, annotations: list });
+                        }
+                        const legacy = await materializeLegacy(sessionDir);
+                        if (legacy.length > 0) {
+                            lanes.push({ raterId: 'legacy', raterName: 'Legacy', annotations: legacy });
+                        }
+                        sendJson(res, 200, lanes);
+                    } catch (err) {
+                        if (err instanceof AnnotationCorruptionError) {
+                            sendJson(res, 500, { error: err.message });
+                        } else {
+                            sendJson(res, 500, { error: String(err) });
+                        }
+                    }
+                })();
+                return;
+            }
         }
 
         // GET /api/recordings/:sessionId/annotations — current rater's marks only.

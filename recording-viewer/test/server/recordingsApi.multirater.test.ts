@@ -185,3 +185,52 @@ it('PUT /api/recordings/:id/annotations returns 405 regardless of allowWrite', a
         JSON.stringify([]), { cookie, 'content-type': 'application/json' }), h);
     expect(h.captured.status).toBe(405);
 });
+
+describe('GET /api/recordings/:id/annotations/all', () => {
+    it('returns 403 for a rater', async () => {
+        const cookie = await loginAsRater('Alice');
+        const h = makeRes();
+        await invoke(s.api, makeReq('GET', `/api/recordings/${s.sessionId}/annotations/all`, undefined, { cookie }), h);
+        expect(h.captured.status).toBe(403);
+    });
+
+    it('returns lanes for each rater including legacy when present', async () => {
+        fs.writeFileSync(path.join(s.sessionDir, 'annotations.json'), JSON.stringify([
+            { id: 'l1', timestamp: 100, text: 'note', label: 'reading', createdAt: 110 },
+        ]));
+        const aliceCookie = await loginAsRater('Alice');
+        const bobCookie = await loginAsRater('Bob');
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident' }), { cookie: aliceCookie, 'content-type': 'application/json' }), makeRes());
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'blocked' }), { cookie: bobCookie, 'content-type': 'application/json' }), makeRes());
+
+        const researcherCookie = await loginAsResearcher();
+        const h = makeRes();
+        await invoke(s.api, makeReq('GET', `/api/recordings/${s.sessionId}/annotations/all`, undefined, { cookie: researcherCookie }), h);
+        expect(h.captured.status).toBe(200);
+        const lanes = JSON.parse(h.captured.body) as Array<{ raterId: string; raterName: string; annotations: unknown[] }>;
+        const byId = Object.fromEntries(lanes.map(l => [l.raterId, l]));
+        expect(byId['legacy']?.raterName).toBe('Legacy');
+        expect(byId['legacy']?.annotations).toHaveLength(1);
+        const aliceLane = lanes.find(l => l.raterName === 'Alice');
+        const bobLane = lanes.find(l => l.raterName === 'Bob');
+        expect(aliceLane?.annotations).toHaveLength(1);
+        expect(bobLane?.annotations).toHaveLength(1);
+    });
+
+    it('lane raterName is the first non-empty stored raterName in the file', async () => {
+        const lower = await loginAsRater('alice');
+        const upper = await loginAsRater('Alice'); // same raterId after case-fold
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident' }), { cookie: lower, 'content-type': 'application/json' }), makeRes());
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'blocked' }), { cookie: upper, 'content-type': 'application/json' }), makeRes());
+        const researcherCookie = await loginAsResearcher();
+        const h = makeRes();
+        await invoke(s.api, makeReq('GET', `/api/recordings/${s.sessionId}/annotations/all`, undefined, { cookie: researcherCookie }), h);
+        const lanes = JSON.parse(h.captured.body) as Array<{ raterName: string; annotations: unknown[] }>;
+        const lane = lanes.find(l => l.annotations.length === 2);
+        expect(lane?.raterName).toBe('alice');
+    });
+});
