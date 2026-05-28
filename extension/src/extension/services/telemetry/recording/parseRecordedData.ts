@@ -557,6 +557,7 @@ function parseTaskFeedbackView(d: Record<string, unknown>, timestamp: number): T
         if (!isFiniteNumber(d.totalTests) || !isFiniteNumber(d.passedTests) || !isFiniteNumber(d.failedTests)) {
             return null;
         }
+        if (!isOptFiniteNumber(d.notExecutedTests)) { return null; }
         return stripUndefined<TaskFeedbackViewOpenedEvent>({
             type: 'taskFeedbackView',
             action: 'opened',
@@ -570,6 +571,7 @@ function parseTaskFeedbackView(d: Record<string, unknown>, timestamp: number): T
             totalTests: d.totalTests,
             passedTests: d.passedTests,
             failedTests: d.failedTests,
+            notExecutedTests: d.notExecutedTests as number | undefined,
         });
     }
     if (d.action === 'closed') {

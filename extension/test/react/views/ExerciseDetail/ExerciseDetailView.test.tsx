@@ -375,4 +375,132 @@ describe('ExerciseDetailView', () => {
 		expect(payload.failedTests).toBe(0);
 		expect(typeof payload.viewId).toBe('string');
 	});
+
+	// ── Task overlay state coverage ──────────────────────────────────────
+	//
+	// Each test sets up exerciseData to drive classifyTaskTests through a
+	// distinct branch, then clicks a task span and verifies the rendered
+	// empty-state copy. Catches regressions in the full click→classify→
+	// overlay-render pipeline that unit/component tests can't reach.
+
+	function exerciseWithFeedbacks(feedbacks: unknown[] | undefined, successful = false): ExerciseDetailsResponse {
+		const submission: Record<string, unknown> = {
+			id: 1,
+			submissionDate: '2025-01-01T00:00:00Z',
+			results: [{
+				id: 10,
+				score: successful ? 100 : 50,
+				successful,
+				completionDate: '2025-01-01T00:00:00Z',
+				...(feedbacks !== undefined ? { feedbacks } : {}),
+			}],
+		};
+		return makeExerciseData({
+			exercise: {
+				id: 42, title: 'My Exercise', type: 'programming',
+				maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+				course: { id: 1, title: 'Test Course', shortName: 'TC' },
+				studentParticipations: [{
+					id: 99,
+					repositoryUri: 'https://git.example.com/repo',
+					submissions: [submission],
+				}],
+			},
+		});
+	}
+
+	function exerciseWithoutResult(): ExerciseDetailsResponse {
+		return makeExerciseData({
+			exercise: {
+				id: 42, title: 'My Exercise', type: 'programming',
+				maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+				course: { id: 1, title: 'Test Course', shortName: 'TC' },
+				studentParticipations: [{
+					id: 99,
+					repositoryUri: 'https://git.example.com/repo',
+					submissions: [],
+				}],
+			},
+		});
+	}
+
+	const taskHtml = (testIds: string) =>
+		`<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="${testIds}">taskA</span></body></html>`;
+
+	async function clickTaskAndOpenOverlay(html: string) {
+		const mockApi = createMockVsCodeApi();
+		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
+		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html });
+		await waitFor(() => {
+			expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
+		});
+		await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
+	}
+
+	it('task overlay shows no-result copy when there is no latest result', async () => {
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithoutResult(), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/no build results yet/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows no-feedbacks copy when the latest build returned no feedbacks', async () => {
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithFeedbacks([], false), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/produced no test feedback/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows legacy-success copy when result is successful without inline feedbacks', async () => {
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithFeedbacks(undefined, true), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/All 2 tests passed/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows not-executed count when feedbacks do not cover the task tests', async () => {
+		// Task references tests 50/51, but feedbacks only cover unrelated tests.
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseWithFeedbacks([
+				{ testCase: { id: 1, testName: 'other_test' }, positive: true },
+			], false),
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('50,51'));
+		expect(screen.getByText(/2 tests in this task did not run/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows the Failed section plus a Not-executed note when partial coverage hits a failure', async () => {
+		// Task references tests 1/2/99: 1 passes, 2 fails, 99 has no feedback (not-executed).
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseWithFeedbacks([
+				{ testCase: { id: 1, testName: 'pass_test' }, positive: true },
+				{ testCase: { id: 2, testName: 'fail_test' }, positive: false, detailText: 'boom' },
+			], false),
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('1,2,99'));
+		expect(screen.getByText('Failed (1)')).toBeInTheDocument();
+		expect(screen.getByText('Passed (1)')).toBeInTheDocument();
+		expect(screen.getByText(/1 test in this task did not run/i)).toBeInTheDocument();
+	});
+
+	it('task overlay re-classifies when exerciseData updates while the modal is open', async () => {
+		// Start with no-result, open the modal, then push a successful result
+		// via setState (mirroring the WS-driven store patch). The open modal
+		// must reflect the new state without reopening.
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithoutResult(), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/no build results yet/i)).toBeInTheDocument();
+
+		// Patch in feedbacks that pass both task tests.
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseWithFeedbacks([
+				{ testCase: { id: 1, testName: 'tA' }, positive: true },
+				{ testCase: { id: 2, testName: 'tB' }, positive: true },
+			], false),
+		});
+
+		await waitFor(() => {
+			expect(screen.queryByText(/no build results yet/i)).not.toBeInTheDocument();
+		});
+		expect(screen.getByText('Passed (2)')).toBeInTheDocument();
+	});
 });

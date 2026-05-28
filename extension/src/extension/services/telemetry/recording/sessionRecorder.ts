@@ -350,6 +350,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         totalTests: number;
         passedTests: number;
         failedTests: number;
+        notExecutedTests?: number;
     }): void {
         this._record({
             type: 'taskFeedbackView',

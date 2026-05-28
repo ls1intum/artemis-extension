@@ -378,6 +378,7 @@ export interface TaskFeedbackViewOpenedEvent {
     totalTests: number;
     passedTests: number;
     failedTests: number;
+    notExecutedTests?: number;
 }
 
 export interface TaskFeedbackViewClosedEvent {
