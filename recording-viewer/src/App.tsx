@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect, useDeferredValue } from 'react';
-import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, SessionStartEvent, ReplayEqSnapshot, VideoSyncConfig } from './types';
+import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, SessionStartEvent, ReplayEqSnapshot, VideoSyncConfig } from './types';
 import { resolveSchemaVersion } from './parseSession';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
@@ -13,7 +13,6 @@ import type { VideoPlayerHandle } from './components/VideoPlayer';
 import { VideoUpload } from './components/VideoUpload';
 import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
-import { FreeAnnotationForm } from './components/FreeAnnotationForm';
 import { LiveControlBar } from './components/LiveControlBar';
 import { ALL_EVENT_TYPES } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
@@ -58,51 +57,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const isLiveSession = stickyLive;
     const isReadOnly = !authStatus.allowWrite;
     const writesDisabled = isLiveSession || isReadOnly;
-
-    const saveAnnotations = useCallback(async (updated: Annotation[]) => {
-        const previous = annotations;
-        const sessionIdAtRequest = activeSessionId.current;
-        setAnnotations(updated);
-        if (!sessionIdAtRequest) return;
-        try {
-            const res = await apiFetch(`/api/recordings/${sessionIdAtRequest}/annotations`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updated),
-            });
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
-            }
-        } catch (err) {
-            console.warn('Failed to persist annotations:', err);
-            // Only revert if we're still on the same session AND the UI still
-            // reflects the failed optimistic write. Otherwise the user has
-            // either navigated away or made further edits, and rolling back
-            // would clobber unrelated state.
-            if (activeSessionId.current === sessionIdAtRequest) {
-                setAnnotations((current) => current === updated ? previous : current);
-            }
-        }
-    }, [annotations, apiFetch]);
-
-    const handleAddAnnotation = useCallback((timestamp: number, text: string, label?: AnnotationLabel) => {
-        const annotation: Annotation = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            timestamp,
-            text,
-            label,
-            createdAt: Date.now(),
-        };
-        saveAnnotations([...annotations, annotation]);
-    }, [annotations, saveAnnotations]);
-
-    const handleUpdateAnnotation = useCallback((id: string, text: string) => {
-        saveAnnotations(annotations.map(a => a.id === id ? { ...a, text } : a));
-    }, [annotations, saveAnnotations]);
-
-    const handleDeleteAnnotation = useCallback((id: string) => {
-        saveAnnotations(annotations.filter(a => a.id !== id));
-    }, [annotations, saveAnnotations]);
 
     const loadFromApi = useCallback(async (sessionId: string, isLive: boolean, tailLimit?: number) => {
         activeSessionId.current = sessionId; // claim ownership before any await
@@ -571,14 +525,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 )}
                             </div>
                         )}
-                        {!writesDisabled && (
-                            <FreeAnnotationForm
-                                sessionStartTime={sessionStartTime}
-                                onAdd={handleAddAnnotation}
-                                videoTimeRef={videoSyncConfig ? videoTimeRef : undefined}
-                                annotationCount={annotations.length}
-                            />
-                        )}
                     </div>
                     {viewMode === 'timeline' && effectiveXDomain && (
                         <div className="stacked-timelines">
@@ -598,9 +544,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 fullXDomain={xDomain}
                                 annotations={annotations}
                                 enabledTypes={ALL_ENABLED}
-                                onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
-                                onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
-                                onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
                                 readOnly={writesDisabled}
                                 onViewInList={handleViewInList}
                                 videoTimeRef={videoTimeRef}
@@ -616,9 +559,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             sessionStartTime={sessionStartTime}
                             annotations={annotations}
                             enabledTypes={ALL_ENABLED}
-                            onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
-                            onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
-                            onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
                             readOnly={writesDisabled}
                             scrollToTimestamp={scrollToTimestamp}
                             onScrollComplete={handleScrollComplete}
