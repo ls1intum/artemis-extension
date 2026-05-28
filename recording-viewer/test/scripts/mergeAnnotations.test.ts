@@ -65,3 +65,52 @@ describe('mergeAnnotationsLong', () => {
         expect(csv).toContain('"line1\rline2"');
     });
 });
+
+import { mergeAnnotationsMatrix, type MatrixOptions } from '../../scripts/merge-annotations';
+
+describe('mergeAnnotationsMatrix', () => {
+    function seed(): MatrixOptions {
+        fs.mkdirSync(path.join(tmp, 'annotations'));
+        fs.writeFileSync(path.join(tmp, 'annotations', 'r_a.jsonl'),
+            JSON.stringify({ op: 'add', annotation: { id: 'a1', raterId: 'r_a', raterName: 'Alice', timestamp: 1100, createdAt: 1110, label: 'confident', text: '' } }) + '\n' +
+            JSON.stringify({ op: 'add', annotation: { id: 'a2', raterId: 'r_a', raterName: 'Alice', timestamp: 2100, createdAt: 2110, label: 'medium-struggle', text: '' } }) + '\n');
+        fs.writeFileSync(path.join(tmp, 'annotations', 'r_b.jsonl'),
+            JSON.stringify({ op: 'add', annotation: { id: 'b1', raterId: 'r_b', raterName: 'Bob', timestamp: 1200, createdAt: 1210, label: 'confident', text: '' } }) + '\n');
+        return { binMs: 1000, labelSet: 'struggle', conflict: 'first', missing: 'NA' };
+    }
+
+    it('emits one column per rater + a bin column', async () => {
+        const opts = seed();
+        const csv = await mergeAnnotationsMatrix(tmp, opts);
+        const lines = csv.trim().split('\n');
+        const header = lines[0].split(',');
+        expect(header).toContain('binStartMs');
+        expect(header).toContain('Alice');
+        expect(header).toContain('Bob');
+    });
+
+    it('places marks into the right bins', async () => {
+        const opts = seed();
+        const csv = await mergeAnnotationsMatrix(tmp, opts);
+        const lines = csv.trim().split('\n');
+        const bin0 = lines.find(l => l.startsWith('0,') || l.startsWith('"0",'));
+        expect(bin0).toContain('confident');
+    });
+
+    it('honors --conflict=error and exits non-zero on same-rater-same-bin conflict', async () => {
+        const opts = seed();
+        fs.writeFileSync(path.join(tmp, 'annotations', 'r_c.jsonl'),
+            JSON.stringify({ op: 'add', annotation: { id: 'c1', raterId: 'r_c', raterName: 'Carol', timestamp: 1100, createdAt: 1110, label: 'confident', text: '' } }) + '\n' +
+            JSON.stringify({ op: 'add', annotation: { id: 'c2', raterId: 'r_c', raterName: 'Carol', timestamp: 1300, createdAt: 1310, label: 'blocked', text: '' } }) + '\n');
+        await expect(mergeAnnotationsMatrix(tmp, { ...opts, conflict: 'error' })).rejects.toThrow(/conflict/i);
+    });
+
+    it('--label-set=context filters to context markers only', async () => {
+        const opts = seed();
+        fs.writeFileSync(path.join(tmp, 'annotations', 'r_c.jsonl'),
+            JSON.stringify({ op: 'add', annotation: { id: 'c1', raterId: 'r_c', raterName: 'Carol', timestamp: 1100, createdAt: 1110, label: 'idle', text: '' } }) + '\n');
+        const csv = await mergeAnnotationsMatrix(tmp, { ...opts, labelSet: 'context' });
+        expect(csv).toContain('idle');
+        expect(csv).not.toContain('confident');
+    });
+});
