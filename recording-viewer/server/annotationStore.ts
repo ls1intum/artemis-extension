@@ -76,6 +76,27 @@ export async function materialize(sessionDir: string, raterId: string): Promise<
     return applyEventLog(file, raw);
 }
 
+function isAnnotationRecord(x: unknown): x is AnnotationRecord {
+    if (!x || typeof x !== 'object') return false;
+    const o = x as Record<string, unknown>;
+    if (o.op === 'add') {
+        const a = o.annotation;
+        if (!a || typeof a !== 'object') return false;
+        const ann = a as Record<string, unknown>;
+        return typeof ann.id === 'string'
+            && typeof ann.raterId === 'string'
+            && typeof ann.raterName === 'string'
+            && typeof ann.timestamp === 'number'
+            && typeof ann.createdAt === 'number'
+            && typeof ann.label === 'string'
+            && typeof ann.text === 'string';
+    }
+    if (o.op === 'delete') {
+        return typeof o.id === 'string' && typeof o.raterId === 'string' && typeof o.deletedAt === 'number';
+    }
+    return false;
+}
+
 /** Sequential replay; see spec §3.2 and §7. */
 export function applyEventLog(filepath: string, raw: string): StoredAnnotation[] {
     const endsWithNewline = raw.endsWith('\n');
@@ -90,23 +111,28 @@ export function applyEventLog(filepath: string, raw: string): StoredAnnotation[]
         const line = lines[i];
         if (line.length === 0) continue;
         const isFinal = i === total - 1 && !endsWithNewline;
-        let parsed: AnnotationRecord;
+        let parsed: unknown;
         try {
             parsed = JSON.parse(line);
         } catch {
             if (isFinal) continue; // tolerate torn write of final line only
             throw new AnnotationCorruptionError(filepath, i + 1, line);
         }
+        if (!isAnnotationRecord(parsed)) {
+            if (isFinal) continue;
+            throw new AnnotationCorruptionError(filepath, i + 1, line);
+        }
         if (parsed.op === 'add') {
             if (tombstoned.has(parsed.annotation.id)) continue;
             if (live.has(parsed.annotation.id)) continue; // duplicate add ignored
             live.set(parsed.annotation.id, parsed.annotation);
-        } else if (parsed.op === 'delete') {
-            tombstoned.add(parsed.id);
-            live.delete(parsed.id);
         } else {
-            if (isFinal) continue;
-            throw new AnnotationCorruptionError(filepath, i + 1, line);
+            // Spec §3.2 / §7: delete-before-add is silently ignored. Only
+            // tombstone ids that were materialized; otherwise the tombstone
+            // would suppress a later legitimate add of the same id.
+            if (live.delete(parsed.id)) {
+                tombstoned.add(parsed.id);
+            }
         }
     }
     return [...live.values()];

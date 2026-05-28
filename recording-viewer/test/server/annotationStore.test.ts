@@ -104,4 +104,29 @@ describe('annotationStore', () => {
         const ids = await listRaterIds(tmp);
         expect(ids.sort()).toEqual(['r_abc', 'r_xyz']);
     });
+
+    it('same-id delete-before-add does NOT block the subsequent add (spec §3.2)', async () => {
+        await appendDelete(tmp, 'r_abc', 'a1');     // ghost delete for id 'a1'
+        await appendAdd(tmp, annotation({ id: 'a1' }));  // same id reused
+        const list = await materialize(tmp, 'r_abc');
+        expect(list.map(a => a.id)).toEqual(['a1']);
+    });
+
+    it('rejects mid-file records with the right op but malformed payload', async () => {
+        await appendAdd(tmp, annotation({ id: 'a1' }));
+        const f = path.join(tmp, 'annotations', 'r_abc.jsonl');
+        // Valid JSON, wrong shape: op:add without annotation field.
+        fs.appendFileSync(f, JSON.stringify({ op: 'add' }) + '\n');
+        await appendAdd(tmp, annotation({ id: 'a3' }));
+        await expect(materialize(tmp, 'r_abc')).rejects.toThrow(AnnotationCorruptionError);
+        await expect(materialize(tmp, 'r_abc')).rejects.toThrow(/line 2/);
+    });
+
+    it('tolerates a torn final line that is valid JSON but wrong shape', async () => {
+        await appendAdd(tmp, annotation({ id: 'a1' }));
+        const f = path.join(tmp, 'annotations', 'r_abc.jsonl');
+        fs.appendFileSync(f, JSON.stringify({ op: 'add' })); // no trailing newline, malformed
+        const list = await materialize(tmp, 'r_abc');
+        expect(list.map(a => a.id)).toEqual(['a1']);
+    });
 });
