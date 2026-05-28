@@ -168,7 +168,40 @@ export async function listRaterIds(sessionDir: string): Promise<string[]> {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
         throw err;
     }
+    // Spec §3.1 storage layout: per-rater files are `r_<22-char>.jsonl`.
+    // Restricting to that shape prevents stray non-rater JSONL files in
+    // the directory from appearing as ghost rater lanes.
     return entries
-        .filter(name => name.endsWith('.jsonl'))
+        .filter(name => /^r_[A-Za-z0-9_-]+\.jsonl$/.test(name))
         .map(name => name.slice(0, -'.jsonl'.length));
+}
+
+/**
+ * Return the first non-empty `raterName` written to the rater's file, scanning
+ * in insertion order — including records that were later tombstoned. This is
+ * the spec §3.8 lane-naming rule for the researcher view: the lane keeps the
+ * original display name even after the rater deletes all their marks.
+ */
+export async function firstStoredRaterName(sessionDir: string, raterId: string): Promise<string | null> {
+    const file = raterFilepath(sessionDir, raterId);
+    let raw: string;
+    try {
+        raw = await fs.readFile(file, 'utf8');
+    } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw err;
+    }
+    for (const line of raw.split('\n')) {
+        if (line.length === 0) continue;
+        let rec: unknown;
+        try { rec = JSON.parse(line); } catch { continue; }
+        if (rec && typeof rec === 'object' && (rec as { op?: unknown }).op === 'add') {
+            const ann = (rec as { annotation?: unknown }).annotation;
+            if (ann && typeof ann === 'object') {
+                const name = (ann as { raterName?: unknown }).raterName;
+                if (typeof name === 'string' && name.length > 0) return name;
+            }
+        }
+    }
+    return null;
 }

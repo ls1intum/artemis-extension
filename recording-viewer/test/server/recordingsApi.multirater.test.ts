@@ -233,4 +233,21 @@ describe('GET /api/recordings/:id/annotations/all', () => {
         const lane = lanes.find(l => l.annotations.length === 2);
         expect(lane?.raterName).toBe('alice');
     });
+
+    it('lane raterName is preserved when the rater tombstones all their marks', async () => {
+        const aliceCookie = await loginAsRater('Alice');
+        const postH = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident' }), { cookie: aliceCookie, 'content-type': 'application/json' }), postH);
+        const aliceId = JSON.parse(postH.captured.body).annotation.id;
+        await invoke(s.api, makeReq('DELETE', `/api/recordings/${s.sessionId}/annotations/${aliceId}`, undefined, { cookie: aliceCookie }), makeRes());
+
+        const researcherCookie = await loginAsResearcher();
+        const h = makeRes();
+        await invoke(s.api, makeReq('GET', `/api/recordings/${s.sessionId}/annotations/all`, undefined, { cookie: researcherCookie }), h);
+        const lanes = JSON.parse(h.captured.body) as Array<{ raterName: string; annotations: unknown[] }>;
+        const aliceLane = lanes.find(l => l.raterName === 'Alice');
+        expect(aliceLane).toBeDefined();
+        expect(aliceLane?.annotations).toHaveLength(0);
+    });
 });

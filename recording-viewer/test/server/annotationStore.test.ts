@@ -8,6 +8,7 @@ import {
     materialize,
     materializeLegacy,
     listRaterIds,
+    firstStoredRaterName,
     AnnotationCorruptionError,
 } from '../../server/annotationStore';
 
@@ -128,5 +129,30 @@ describe('annotationStore', () => {
         fs.appendFileSync(f, JSON.stringify({ op: 'add' })); // no trailing newline, malformed
         const list = await materialize(tmp, 'r_abc');
         expect(list.map(a => a.id)).toEqual(['a1']);
+    });
+
+    it('listRaterIds ignores non-r_-prefixed jsonl files', async () => {
+        await appendAdd(tmp, annotation({ id: 'a1' }));
+        fs.writeFileSync(path.join(tmp, 'annotations', 'stray.jsonl'), '');
+        fs.writeFileSync(path.join(tmp, 'annotations', 'r_other.jsonl'), '');
+        const ids = await listRaterIds(tmp);
+        expect(ids.sort()).toEqual(['r_abc', 'r_other']);
+    });
+
+    it('firstStoredRaterName returns the original name even after all marks are tombstoned', async () => {
+        await appendAdd(tmp, { ...annotation({ id: 'a1' }), raterName: 'Alice' });
+        await appendDelete(tmp, 'r_abc', 'a1');
+        expect(await firstStoredRaterName(tmp, 'r_abc')).toBe('Alice');
+    });
+
+    it('firstStoredRaterName returns the first non-empty name when later records have different casing', async () => {
+        await appendAdd(tmp, { ...annotation({ id: 'a1' }), raterName: 'Alice' });
+        await appendDelete(tmp, 'r_abc', 'a1');
+        await appendAdd(tmp, { ...annotation({ id: 'a2' }), raterName: 'alice' });
+        expect(await firstStoredRaterName(tmp, 'r_abc')).toBe('Alice');
+    });
+
+    it('firstStoredRaterName returns null when the rater file does not exist', async () => {
+        expect(await firstStoredRaterName(tmp, 'r_missing')).toBeNull();
     });
 });

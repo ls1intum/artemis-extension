@@ -8,7 +8,7 @@ import { normalizeRaterName, deriveRaterId } from './raterIdentity';
 import type { ViewerSession } from './viewerSession';
 import { LiveTailerRegistry } from './liveTailerRegistry';
 import { readLastNLines, readLinesAfter } from './eventsReader';
-import { materialize, materializeLegacy, listRaterIds, appendAdd, appendDelete, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
+import { materialize, materializeLegacy, listRaterIds, firstStoredRaterName, appendAdd, appendDelete, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
 
 const TAIL_LIMIT_MAX = 50_000;
 const SSE_DEFAULT_TAIL = 5_000;
@@ -648,7 +648,11 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                         const lanes: Array<{ raterId: string; raterName: string; annotations: StoredAnnotation[] }> = [];
                         for (const raterId of raterIds) {
                             const list = await materialize(sessionDir, raterId);
-                            const laneName = list.find(a => a.raterName.length > 0)?.raterName ?? raterId;
+                            // Spec §3.8: lane name is the first non-empty stored
+                            // raterName in the file, even if the original record
+                            // was tombstoned. Falls back to raterId only if no
+                            // add record ever carried a name.
+                            const laneName = (await firstStoredRaterName(sessionDir, raterId)) ?? raterId;
                             lanes.push({ raterId, raterName: laneName, annotations: list });
                         }
                         const legacy = await materializeLegacy(sessionDir);
