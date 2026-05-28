@@ -1,7 +1,9 @@
 import * as crypto from 'crypto';
+import { signSession, verifySession } from './cookieSign';
+import type { ViewerSession } from './viewerSession';
 
 export const SESSION_COOKIE_NAME = 'recording_viewer_session';
-const SESSION_MAX_AGE_SECONDS = 7 * 24 * 3600; // 7 days
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 3600;
 
 export function isValidToken(provided: string, expected: string | undefined): boolean {
     if (!expected || !provided) return false;
@@ -11,25 +13,39 @@ export function isValidToken(provided: string, expected: string | undefined): bo
     return crypto.timingSafeEqual(a, b);
 }
 
-export interface CookieOptions { clear?: boolean }
+export interface BuildCookieOpts {
+    isHttps: boolean;
+}
 
-export function buildSessionCookie(value: string, opts: CookieOptions = {}): string {
+export function buildSessionCookie(session: ViewerSession, secret: string, opts: BuildCookieOpts): string {
+    const value = signSession(session, secret);
     const parts = [
-        `${SESSION_COOKIE_NAME}=${opts.clear ? '' : encodeURIComponent(value)}`,
+        `${SESSION_COOKIE_NAME}=${encodeURIComponent(value)}`,
         'Path=/',
         'HttpOnly',
         'SameSite=Strict',
+        `Max-Age=${SESSION_MAX_AGE_SECONDS}`,
     ];
-    parts.push(`Max-Age=${opts.clear ? 0 : SESSION_MAX_AGE_SECONDS}`);
+    if (opts.isHttps) parts.push('Secure');
     return parts.join('; ');
 }
 
-export function isSessionCookieValid(
+export function clearSessionCookie(): string {
+    return [
+        `${SESSION_COOKIE_NAME}=`,
+        'Path=/',
+        'HttpOnly',
+        'SameSite=Strict',
+        'Max-Age=0',
+    ].join('; ');
+}
+
+export function readSessionFromCookies(
     cookies: Record<string, string>,
-    expectedToken: string | undefined,
-): boolean {
-    if (!expectedToken) return false;
-    const c = cookies[SESSION_COOKIE_NAME];
-    if (!c) return false;
-    return isValidToken(c, expectedToken);
+    secret: string,
+    nowSeconds: number,
+): ViewerSession | null {
+    const raw = cookies[SESSION_COOKIE_NAME];
+    if (!raw) return null;
+    return verifySession(raw, secret, nowSeconds);
 }
