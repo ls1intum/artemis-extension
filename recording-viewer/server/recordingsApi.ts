@@ -166,29 +166,44 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         }
 
         // ─── Auth gate for /api/recordings and /api/live ──────────────────
+        let session: ViewerSession | null = null;
         if (urlPath.startsWith('/api/recordings') || urlPath.startsWith('/api/live')) {
-            if (config.liveToken) {
+            const authRequired = Boolean(config.liveToken || config.researcherToken);
+            if (authRequired) {
                 const cookies = parseCookies(req);
-                if (!isSessionCookieValid(cookies, config.liveToken)) {
+                session = readSessionFromCookies(cookies, config.sessionSecret, Math.floor(Date.now() / 1000));
+                if (!session) {
+                    // Per spec §6: clear the cookie on bad-signature/expired/wrong-version
+                    // so the browser re-authenticates cleanly on the next request.
+                    res.setHeader('Set-Cookie', clearSessionCookie());
                     sendJson(res, 401, { error: 'Authentication required' });
                     return;
                 }
             }
-            // Mutating-endpoint gate.
-            // Live mode (allowWrite=false) blocks all writes EXCEPT the two live
-            // annotation shapes: POST /annotations (add) and DELETE
-            // /annotations/:id (undo).
-            const isLiveAnnotationMutation =
+
+            // PUT /annotations is always 405 regardless of live-mode allowWrite.
+            // This branch must run BEFORE the generic live-mode mutation gate, so the
+            // response code is deterministic for clients that probe the endpoint.
+            if (method === 'PUT' && /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath)) {
+                sendJson(res, 405, { error: 'Bulk PUT is not supported; use POST/DELETE on annotations.' });
+                return;
+            }
+
+            // Researcher role: read-only. No POST/DELETE/PUT.
+            if (session?.role === 'researcher' && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
+                sendJson(res, 403, { error: 'Researcher role cannot modify annotations.' });
+                return;
+            }
+
+            // Mutating-endpoint gate for live mode (allowWrite=false). The carved-out
+            // mutations are POST /annotations and DELETE /annotations/:id, which the
+            // rater path needs.
+            const isRaterAnnotationMutation =
                 (method === 'POST' && /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath)) ||
                 (method === 'DELETE' && /^\/api\/recordings\/[^/]+\/annotations\/[^/]+$/.test(urlPath));
-            const isMutating =
-                method === 'PUT' ||
-                method === 'DELETE' ||
-                method === 'POST';
-            if (isMutating && !config.allowWrite && !isLiveAnnotationMutation) {
-                sendJson(res, 403, {
-                    error: 'Write operation disabled in live mode (set RECORDING_VIEWER_ALLOW_WRITE=1 to enable)',
-                });
+            const isMutating = method === 'POST' || method === 'PUT' || method === 'DELETE';
+            if (isMutating && !config.allowWrite && !isRaterAnnotationMutation) {
+                sendJson(res, 403, { error: 'Write operation disabled in live mode (set RECORDING_VIEWER_ALLOW_WRITE=1 to enable)' });
                 return;
             }
         }
