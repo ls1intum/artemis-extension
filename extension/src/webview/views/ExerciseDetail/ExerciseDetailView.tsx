@@ -21,8 +21,9 @@ import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessa
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-import { filterTestCasesByIds } from '@webview/utils/exerciseStatus';
 import {
+    classifyTaskTests,
+    countsForTelemetry,
     determineParticipationStatus,
     determineSubmissionStatus,
     getLatestById,
@@ -280,17 +281,20 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: number[] }) => {
         if (!exerciseData?.exercise?.id) { return; }
-        const filtered = filterTestCasesByIds(testCases, testIds);
+        const classification = classifyTaskTests(testIds, latestResult);
+        // Telemetry: keep existing totalTests/passedTests/failedTests semantics
+        // (matched tests for this task). Add notExecutedTests as additive field.
+        const { passedCount, failedCount, notExecutedCount } = countsForTelemetry(classification);
+        const totalTestCount = passedCount + failedCount;
         const viewId = makeViewId();
         const openedAt = Date.now();
         const exerciseId = exerciseData.exercise.id;
         const resultId = latestResult?.id;
-        const totalTestCount = filtered.length;
-        const passedTestCount = filtered.filter(t => t.passed).length;
-        const failedTests = totalTestCount - passedTestCount;
         postCommand(vscodeApi, WebviewCmd.TaskFeedbackOpened, {
             viewId, exerciseId, participationId, resultId,
-            taskName, testIds, totalTests: totalTestCount, passedTests: passedTestCount, failedTests,
+            taskName, testIds,
+            totalTests: totalTestCount, passedTests: passedCount, failedTests: failedCount,
+            notExecutedTests: notExecutedCount,
         });
         setOpenTaskView({
             viewId,
@@ -603,15 +607,17 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <TestResultsOverlay
                 open={openOverviewView !== null}
                 onClose={handleOverviewClose}
-                testCases={testCases}
+                state={{ kind: 'all', testCases }}
             />
 
-            <TestResultsOverlay
-                open={openTaskView !== null}
-                onClose={handleTaskClose}
-                testCases={openTaskView !== null ? filterTestCasesByIds(testCases, openTaskView.testIds) : []}
-                taskName={openTaskView?.taskName}
-            />
+            {openTaskView !== null && (
+                <TestResultsOverlay
+                    open
+                    onClose={handleTaskClose}
+                    state={classifyTaskTests(openTaskView.testIds, latestResult)}
+                    taskName={openTaskView.taskName}
+                />
+            )}
         </div>
     );
 }

@@ -214,6 +214,7 @@ interface WebviewCmdPayloads {
         totalTests: number;
         passedTests: number;
         failedTests: number;
+        notExecutedTests?: number;
     };
     taskFeedbackClosed: {
         viewId: string;
