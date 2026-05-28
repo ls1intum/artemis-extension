@@ -12,13 +12,23 @@ import {
 } from 'recharts';
 import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
+import { raterLaneColor } from '../utils/raterColor.ts';
 import { SessionChartOverlay } from './SessionChartOverlay';
+
+interface ResearcherLane {
+    raterId: string;
+    raterName: string;
+    annotations: Annotation[];
+}
 
 interface Props {
     events: RecordedEvent[];
     sessionStartTime: number;
     replayEq?: ReplayEqSnapshot[];
     annotations?: Annotation[];
+    /** Researcher-only: per-rater lanes. When set, the component renders one
+     *  read-only row of marker dots per lane below the EQ chart. */
+    researcherLanes?: ResearcherLane[];
     xDomain?: [number, number];
     /** The currently zoomed range to highlight (from TrackingTimeline) */
     zoomedRange?: [number, number];
@@ -277,11 +287,12 @@ const SessionLineChart = memo(function SessionLineChart({
 });
 
 
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, zoomedRange, videoTimeRef }: Props) {
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], researcherLanes, xDomain: externalXDomain, zoomedRange, videoTimeRef }: Props) {
     const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
+    const hasLanes = !!researcherLanes && researcherLanes.length > 0;
 
-    if (eqEvents.length === 0 && !hasReplay) {
+    if (eqEvents.length === 0 && !hasReplay && !hasLanes) {
         return (
             <div className="eq-chart empty">
                 <h2>Session Timeline</h2>
@@ -317,32 +328,102 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
             if (off < xMin) xMin = off;
             if (off > xMax) xMax = off;
         }
+        if (researcherLanes) {
+            for (const lane of researcherLanes) {
+                for (const a of lane.annotations) {
+                    const off = a.timestamp - sessionStartTime;
+                    if (off < xMin) xMin = off;
+                    if (off > xMax) xMax = off;
+                }
+            }
+        }
+        if (!isFinite(xMin) || !isFinite(xMax)) {
+            xMin = 0;
+            xMax = 1000;
+        }
         const xPadding = Math.max((xMax - xMin) * 0.03, 1000);
         xDomain = [Math.max(0, xMin - xPadding), xMax + xPadding];
     }
 
+    const xSpan = xDomain[1] - xDomain[0];
+
     return (
         <div className="eq-chart stacked">
-            <div className="eq-chart-grid">
-                <div className="eq-chart-label">
-                    <span className="event-badge eqSnapshot">EQ</span>
+            {(eqEvents.length > 0 || hasReplay) && (
+                <div className="eq-chart-grid">
+                    <div className="eq-chart-label">
+                        <span className="event-badge eqSnapshot">EQ</span>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                        <SessionLineChart
+                            events={events}
+                            sessionStartTime={sessionStartTime}
+                            replayEq={replayEq}
+                            annotations={annotations}
+                            xDomain={xDomain}
+                        />
+                        <SessionChartOverlay
+                            xDomain={xDomain}
+                            zoomedRange={zoomedRange}
+                            videoTimeRef={videoTimeRef}
+                            sessionStartTime={sessionStartTime}
+                        />
+                    </div>
                 </div>
-                <div style={{ position: 'relative' }}>
-                    <SessionLineChart
-                        events={events}
-                        sessionStartTime={sessionStartTime}
-                        replayEq={replayEq}
-                        annotations={annotations}
-                        xDomain={xDomain}
-                    />
-                    <SessionChartOverlay
-                        xDomain={xDomain}
-                        zoomedRange={zoomedRange}
-                        videoTimeRef={videoTimeRef}
-                        sessionStartTime={sessionStartTime}
-                    />
+            )}
+            {hasLanes && (
+                <div className="researcher-lanes">
+                    {researcherLanes!.map(lane => {
+                        const color = raterLaneColor(lane.raterId);
+                        return (
+                            <div key={lane.raterId} className="eq-chart-grid researcher-lane-row">
+                                <div className="eq-chart-label">
+                                    <span
+                                        className="event-badge"
+                                        title={`${lane.raterName} (${lane.annotations.length} marks)`}
+                                        style={{ background: color, color: '#1e1e2e', fontWeight: 600 }}
+                                    >
+                                        {lane.raterName}
+                                    </span>
+                                </div>
+                                <div
+                                    style={{
+                                        position: 'relative',
+                                        height: 24,
+                                        background: 'rgba(255,255,255,0.02)',
+                                        borderTop: '1px solid #222',
+                                        borderBottom: '1px solid #222',
+                                    }}
+                                >
+                                    {lane.annotations.map(a => {
+                                        const off = a.timestamp - sessionStartTime;
+                                        const leftPct = xSpan > 0 ? ((off - xDomain[0]) / xSpan) * 100 : 0;
+                                        if (leftPct < 0 || leftPct > 100) return null;
+                                        return (
+                                            <div
+                                                key={a.id}
+                                                title={`${a.label ?? 'note'}${a.text ? `: ${a.text}` : ''} @ ${formatOffset(off)}`}
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: `${leftPct}%`,
+                                                    top: '50%',
+                                                    transform: 'translate(-50%, -50%)',
+                                                    width: 10,
+                                                    height: 10,
+                                                    borderRadius: '50%',
+                                                    background: color,
+                                                    border: '1.5px solid #1e1e2e',
+                                                    boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
-            </div>
+            )}
         </div>
     );
 }
