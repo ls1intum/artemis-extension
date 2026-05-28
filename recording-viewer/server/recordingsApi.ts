@@ -180,6 +180,19 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                     sendJson(res, 401, { error: 'Authentication required' });
                     return;
                 }
+            } else {
+                // No-auth local mode (server bound to 127.0.0.1). Synthesize a
+                // local rater session so annotation endpoints (which enforce
+                // role === 'rater') stay usable for single-user dev workflow.
+                // The annotation store uses raterId 'local' as the file owner.
+                session = {
+                    v: 1,
+                    role: 'rater',
+                    raterId: 'local',
+                    raterName: 'Local',
+                    iat: 0,
+                    exp: Number.MAX_SAFE_INTEGER,
+                };
             }
 
             // PUT /annotations is always 405 regardless of live-mode allowWrite.
