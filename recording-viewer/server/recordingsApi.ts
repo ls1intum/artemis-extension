@@ -8,7 +8,7 @@ import { normalizeRaterName, deriveRaterId } from './raterIdentity';
 import type { ViewerSession } from './viewerSession';
 import { LiveTailerRegistry } from './liveTailerRegistry';
 import { readLastNLines, readLinesAfter } from './eventsReader';
-import { materialize, appendAdd, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
+import { materialize, appendAdd, appendDelete, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
 
 const TAIL_LIMIT_MAX = 50_000;
 const SSE_DEFAULT_TAIL = 5_000;
@@ -710,83 +710,43 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             }
         }
 
-        // DELETE /api/recordings/:sessionId/annotations/:id — remove a single
-        // annotation by id. Live-mode carve-out (alongside POST) lets the
-        // viewer undo struggle-tagging hotkeys without enabling full write
-        // access. Sync read-modify-write keeps it atomic against concurrent
-        // POSTs on the same file (Node's single-threaded event loop guarantees
-        // no other handler runs between the readFileSync and the renameSync).
-        //
-        // Annotation ids look like `${ms-timestamp}-${random-base36}`. We
-        // restrict to that shape to prevent path traversal via the id segment.
-        const annotDeleteMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/([^/]+)$/);
-        if (annotDeleteMatch && method === 'DELETE') {
-            const sessionDir = resolveSessionDir(annotDeleteMatch[1]);
-            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
-            let annotId: string;
-            try {
-                annotId = decodeURIComponent(annotDeleteMatch[2]);
-            } catch {
-                sendJson(res, 400, { error: 'Invalid annotation ID' });
-                return;
-            }
-            if (!/^[A-Za-z0-9_-]+$/.test(annotId)) {
-                sendJson(res, 400, { error: 'Invalid annotation ID' });
-                return;
-            }
-            const annotPath = path.join(sessionDir, 'annotations.json');
-            try {
-                if (!fs.existsSync(annotPath)) { sendJson(res, 404, { error: 'No annotations to delete' }); return; }
-                const raw = fs.readFileSync(annotPath, 'utf-8');
-                let arr: unknown;
+        // DELETE /api/recordings/:sessionId/annotations/:id — tombstone in current rater's file.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/([^/]+)$/);
+            if (m && method === 'DELETE') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!session || session.role !== 'rater') {
+                    sendJson(res, 403, { error: 'Only the rater role can delete annotations.' });
+                    return;
+                }
+                let annotId: string;
                 try {
-                    arr = JSON.parse(raw);
+                    annotId = decodeURIComponent(m[2]);
                 } catch {
-                    sendJson(res, 409, { error: 'Existing annotations.json is corrupt JSON; refusing to overwrite' });
+                    sendJson(res, 400, { error: 'Invalid annotation ID' });
                     return;
                 }
-                if (!Array.isArray(arr)) {
-                    sendJson(res, 409, { error: 'Existing annotations.json is not an array' });
+                if (!/^[A-Za-z0-9_-]+$/.test(annotId)) {
+                    sendJson(res, 400, { error: 'Invalid annotation ID' });
                     return;
                 }
-                const filtered = arr.filter(a => !(a && typeof a === 'object' && (a as { id?: unknown }).id === annotId));
-                if (filtered.length === arr.length) {
-                    sendJson(res, 404, { error: 'Annotation not found' });
-                    return;
-                }
-                const tmp = annotPath + '.tmp';
-                fs.writeFileSync(tmp, JSON.stringify(filtered, null, 2), 'utf-8');
-                fs.renameSync(tmp, annotPath);
-                sendJson(res, 200, { ok: true, deletedId: annotId });
-            } catch (err) {
-                sendJson(res, 500, { error: String(err) });
-            }
-            return;
-        }
-
-        // PUT /api/recordings/:sessionId/annotations
-        const annotPutMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
-        if (annotPutMatch && method === 'PUT') {
-            const sessionDir = resolveSessionDir(annotPutMatch[1]);
-            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
-            const annotPath = path.join(sessionDir, 'annotations.json');
-            try {
-                if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return; }
-                let body = '';
-                req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
-                req.on('end', () => {
+                const raterId = session.raterId;
+                void (async () => {
                     try {
-                        const annotations = JSON.parse(body);
-                        fs.writeFileSync(annotPath, JSON.stringify(annotations, null, 2));
-                        sendJson(res, 200, { ok: true });
+                        const list = await materialize(sessionDir, raterId);
+                        if (!list.some(a => a.id === annotId)) {
+                            sendJson(res, 404, { error: 'Annotation not found' });
+                            return;
+                        }
+                        await appendDelete(sessionDir, raterId, annotId);
+                        sendJson(res, 200, { ok: true, deletedId: annotId });
                     } catch (err) {
-                        sendJson(res, 400, { error: String(err) });
+                        sendJson(res, 500, { error: String(err) });
                     }
-                });
-            } catch (err) {
-                sendJson(res, 500, { error: String(err) });
+                })();
+                return;
             }
-            return;
         }
 
         // GET /api/recordings/:sessionId/metadata

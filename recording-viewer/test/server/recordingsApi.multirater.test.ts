@@ -131,3 +131,57 @@ describe('POST /api/recordings/:id/annotations', () => {
         expect(h.captured.status).toBe(403);
     });
 });
+
+describe('DELETE /api/recordings/:id/annotations/:annotationId', () => {
+    it('removes a marker the rater owns', async () => {
+        const cookie = await loginAsRater('Alice');
+        const postH = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident', text: '' }),
+            { cookie, 'content-type': 'application/json' }), postH);
+        const id = JSON.parse(postH.captured.body).annotation.id;
+
+        const delH = makeRes();
+        await invoke(s.api, makeReq('DELETE', `/api/recordings/${s.sessionId}/annotations/${id}`, undefined, { cookie }), delH);
+        expect(delH.captured.status).toBe(200);
+
+        const getH = makeRes();
+        await invoke(s.api, makeReq('GET', `/api/recordings/${s.sessionId}/annotations`, undefined, { cookie }), getH);
+        expect(JSON.parse(getH.captured.body)).toEqual([]);
+    });
+
+    it("returns 404 when rater A tries to delete rater B's marker", async () => {
+        const aliceCookie = await loginAsRater('Alice');
+        const bobCookie = await loginAsRater('Bob');
+        const postH = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident', text: '' }),
+            { cookie: aliceCookie, 'content-type': 'application/json' }), postH);
+        const id = JSON.parse(postH.captured.body).annotation.id;
+        const delH = makeRes();
+        await invoke(s.api, makeReq('DELETE', `/api/recordings/${s.sessionId}/annotations/${id}`, undefined, { cookie: bobCookie }), delH);
+        expect(delH.captured.status).toBe(404);
+    });
+
+    it('returns 404 for an unknown id with the same body shape', async () => {
+        const cookie = await loginAsRater('Alice');
+        const h = makeRes();
+        await invoke(s.api, makeReq('DELETE', `/api/recordings/${s.sessionId}/annotations/nonexistent-id`, undefined, { cookie }), h);
+        expect(h.captured.status).toBe(404);
+    });
+
+    it('researcher gets 403 on DELETE', async () => {
+        const cookie = await loginAsResearcher();
+        const h = makeRes();
+        await invoke(s.api, makeReq('DELETE', `/api/recordings/${s.sessionId}/annotations/any-id`, undefined, { cookie }), h);
+        expect(h.captured.status).toBe(403);
+    });
+});
+
+it('PUT /api/recordings/:id/annotations returns 405 regardless of allowWrite', async () => {
+    const cookie = await loginAsRater('Alice');
+    const h = makeRes();
+    await invoke(s.api, makeReq('PUT', `/api/recordings/${s.sessionId}/annotations`,
+        JSON.stringify([]), { cookie, 'content-type': 'application/json' }), h);
+    expect(h.captured.status).toBe(405);
+});
