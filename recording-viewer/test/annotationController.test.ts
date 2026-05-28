@@ -41,6 +41,7 @@ function makeHarness(initialSessionId: string | null = 'sess-1'): Harness {
 
     const ctrl = createAnnotationController({
         getSessionId: () => currentSessionId,
+        getRaterName: () => undefined,
         setAnnotations,
         onToast,
         onError,
@@ -426,6 +427,80 @@ describe('toast describeAnnotation fallback', () => {
         await h.ctrl.drain();
         const toast = (h.onToast.mock.calls[0]?.[0] ?? {}) as AnnotationToast;
         expect(toast.text).toBe('annotation');
+    });
+});
+
+describe('redo with rater identity mismatch', () => {
+    it('refuses to redo a marker whose raterName differs from the current session', async () => {
+        let pending: PendingFetch[] = [];
+        const fakeFetch: typeof fetch = (url, init) => new Promise((resolve, reject) => {
+            pending.push({ url: String(url), init, resolve, reject });
+        });
+        const setAnnotations = vi.fn();
+        const onToast = vi.fn();
+        const onError = vi.fn();
+        const ctrl = createAnnotationController({
+            getSessionId: () => 'sess1',
+            getRaterName: () => 'Alice',
+            setAnnotations,
+            onToast,
+            onError,
+            getFetcher: () => fakeFetch,
+        });
+
+        ctrl.reset([
+            { id: 'a1', timestamp: 1000, text: '', label: 'confident', createdAt: 1100, raterName: 'Bob' },
+        ]);
+        ctrl.undoLast();
+        await Promise.resolve();
+        pending[0]?.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+        await ctrl.drain();
+        pending = [];
+
+        ctrl.redoLast();
+        await ctrl.drain();
+
+        expect(onError).toHaveBeenCalledWith(
+            expect.stringMatching(/different rater session/i),
+        );
+        expect(pending).toHaveLength(0);
+        expect(ctrl.hasRedo()).toBe(false);
+    });
+
+    it('allows redo when raterName matches', async () => {
+        let pending: PendingFetch[] = [];
+        const fakeFetch: typeof fetch = (url, init) => new Promise((resolve) => {
+            pending.push({ url: String(url), init, resolve, reject: () => {} });
+        });
+        const setAnnotations = vi.fn();
+        const onToast = vi.fn();
+        const onError = vi.fn();
+        const ctrl = createAnnotationController({
+            getSessionId: () => 'sess1',
+            getRaterName: () => 'Alice',
+            setAnnotations,
+            onToast,
+            onError,
+            getFetcher: () => fakeFetch,
+        });
+        ctrl.reset([
+            { id: 'a1', timestamp: 1000, text: '', label: 'confident', createdAt: 1100, raterName: 'Alice' },
+        ]);
+        ctrl.undoLast();
+        await Promise.resolve();
+        pending[0]?.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+        await ctrl.drain();
+        pending = [];
+
+        ctrl.redoLast();
+        await new Promise(r => setTimeout(r, 0));
+        expect(pending).toHaveLength(1);
+        expect(pending[0].init?.method).toBe('POST');
+        pending[0].resolve(new Response(JSON.stringify({
+            annotation: { id: 'srv-1', timestamp: 1000, text: '', label: 'confident', createdAt: 9999, raterName: 'Alice' },
+        }), { status: 200 }));
+        await ctrl.drain();
+        expect(onError).not.toHaveBeenCalled();
     });
 });
 

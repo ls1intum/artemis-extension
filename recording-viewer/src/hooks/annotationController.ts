@@ -32,6 +32,7 @@ export interface AnnotationController extends AnnotationMutator {
 
 export interface AnnotationControllerArgs {
     getSessionId: () => string | null;
+    getRaterName: () => string | undefined;
     setAnnotations: (next: Annotation[]) => void;
     onToast: (toast: AnnotationToast) => void;
     onError: (message: string) => void;
@@ -167,6 +168,12 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
         enqueue(async (capturedGen, sessionId) => {
             if (redoStack.length === 0) return;
             const popped = redoStack[redoStack.length - 1];
+            const myName = args.getRaterName();
+            if (popped.raterName && myName && popped.raterName !== myName) {
+                redoStack = redoStack.slice(0, -1);
+                args.onError("Marker belongs to a different rater session and won't be restored.");
+                return;
+            }
             redoStack = redoStack.slice(0, -1);
 
             const tempId = makeTempId();

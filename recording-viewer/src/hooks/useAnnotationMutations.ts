@@ -10,6 +10,9 @@ export type { AnnotationMutator, AnnotationToast } from './annotationController'
 
 interface UseAnnotationMutationsArgs {
     sessionId: string | null;
+    /** Current rater's display name (from auth). Used to gate redo on identity
+     *  mismatch so a rater can't restore another rater's marker. */
+    raterName: string | undefined;
     setAnnotations: (next: Annotation[]) => void;
     onToast: AnnotationControllerArgs['onToast'];
     onError: (message: string) => void;
@@ -43,6 +46,7 @@ export function useAnnotationMutations(args: UseAnnotationMutationsArgs): Annota
     // eslint-disable-next-line react-hooks/refs
     const [controller] = useState(() => createAnnotationController({
         getSessionId: () => argsRef.current.sessionId,
+        getRaterName: () => argsRef.current.raterName,
         setAnnotations: (a) => argsRef.current.setAnnotations(a),
         onToast: (t) => argsRef.current.onToast(t),
         onError: (m) => argsRef.current.onError(m),

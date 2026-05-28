@@ -177,6 +177,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     }, []);
     const mutator = useAnnotationMutations({
         sessionId: activeSessionId.current,
+        raterName: authStatus.raterName,
         setAnnotations,
         onToast: setLastLabelToast,
         onError: showAnnotationError,
