@@ -43,11 +43,49 @@ Active sessions show a red **LIVE** badge.
 - The reaction-delay slider (0-1000ms) tunes the offset added to the last
   observed event timestamp before the annotation is stamped (default 300ms).
 
+### Multi-rater study setup
+
+For Inter-Rater-Reliability studies, configure both a rater and a researcher
+token so multiple coders can annotate independently while the researcher
+reviews all lanes.
+
+```bash
+export RECORDING_VIEWER_TOKEN=$(openssl rand -hex 24)            # rater token (shared by all raters)
+export RECORDING_VIEWER_RESEARCHER_TOKEN=$(openssl rand -hex 24) # researcher token (single role-holder)
+export RECORDING_VIEWER_SESSION_SECRET=$(openssl rand -hex 32)   # signs the auth cookie; set this for persistent sessions
+cd artemis-extension/recording-viewer
+npm run dev:live
+```
+
+If `RECORDING_VIEWER_SESSION_SECRET` is unset, the server generates an
+ephemeral one and prints a warning; logins won't survive a server restart.
+Set it explicitly for real study runs.
+
+Raters log in with the rater token and a chosen display name. Each rater
+sees only their own marks. The researcher logs in with the researcher token
+(no name required) and sees all rater lanes side-by-side, read-only.
+
+For post-study Cohen's/Fleiss' κ analysis:
+
+```bash
+npm run merge-annotations -- <session-dir> --format=long --out=marks.csv
+npm run merge-annotations -- <session-dir> --format=irr-matrix --bin-ms=1000 --label-set=struggle --conflict=error --out=matrix.csv
+```
+
+The wide-format matrix CSV feeds directly into R's `irr` package and
+Python's `statsmodels.stats.inter_rater`.
+
 ### Security
 
-- `RECORDING_VIEWER_TOKEN` must be set when binding to a non-local interface.
-  Without it the server only listens on `127.0.0.1`.
+- `RECORDING_VIEWER_TOKEN` and/or `RECORDING_VIEWER_RESEARCHER_TOKEN` must
+  be set when binding to a non-local interface. With neither set, the
+  server only listens on `127.0.0.1`.
+- The two tokens must differ. Startup fails fast if both are set and equal.
+- `RECORDING_VIEWER_SESSION_SECRET` should be set for production runs
+  (32-byte hex). Auto-generated otherwise.
 - Mutating endpoints (delete/rename/upload) are blocked in live mode. Set
   `RECORDING_VIEWER_ALLOW_WRITE=1` to opt in.
 - Pin to a specific LAN interface: `RECORDING_VIEWER_BIND=192.168.1.42 npm run dev:live`.
-- Cookies are HttpOnly + SameSite=Strict, valid for 7 days.
+- Cookies are HttpOnly + SameSite=Strict + signed HMAC, valid for 7 days.
+  The `Secure` attribute is added when the request comes through an HTTPS
+  reverse proxy (`X-Forwarded-Proto: https`).
