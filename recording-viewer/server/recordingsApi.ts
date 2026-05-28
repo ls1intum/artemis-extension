@@ -8,6 +8,7 @@ import { normalizeRaterName, deriveRaterId } from './raterIdentity';
 import type { ViewerSession } from './viewerSession';
 import { LiveTailerRegistry } from './liveTailerRegistry';
 import { readLastNLines, readLinesAfter } from './eventsReader';
+import { materialize, AnnotationCorruptionError } from './annotationStore';
 
 const TAIL_LIMIT_MAX = 50_000;
 const SSE_DEFAULT_TAIL = 5_000;
@@ -618,24 +619,31 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // GET /api/recordings/:sessionId/annotations
-        const annotGetMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
-        if (annotGetMatch && method === 'GET') {
-            const sessionDir = resolveSessionDir(annotGetMatch[1]);
-            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
-            const annotPath = path.join(sessionDir, 'annotations.json');
-            try {
-                if (!fs.existsSync(annotPath)) {
-                    sendJson(res, 200, []);
+        // GET /api/recordings/:sessionId/annotations — current rater's marks only.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
+            if (m && method === 'GET') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!session || session.role !== 'rater') {
+                    sendJson(res, 403, { error: 'This endpoint is for the rater role.' });
                     return;
                 }
-                res.setHeader('Content-Type', 'application/json');
-                const data = fs.readFileSync(annotPath, 'utf-8');
-                res.end(data);
-            } catch (err) {
-                sendJson(res, 500, { error: String(err) });
+                const raterId = session.raterId;
+                void (async () => {
+                    try {
+                        const list = await materialize(sessionDir, raterId);
+                        sendJson(res, 200, list);
+                    } catch (err) {
+                        if (err instanceof AnnotationCorruptionError) {
+                            sendJson(res, 500, { error: err.message });
+                        } else {
+                            sendJson(res, 500, { error: String(err) });
+                        }
+                    }
+                })();
+                return;
             }
-            return;
         }
 
         // POST /api/recordings/:sessionId/annotations — append a single
