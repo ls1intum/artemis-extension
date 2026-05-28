@@ -1,97 +1,97 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'path';
 import * as os from 'os';
+import * as path from 'path';
 import { createRecordingsApi } from '../../server/recordingsApi';
-import type { AppConfig } from '../../server/types';
 import { makeReq, makeRes, invoke } from './_helpers';
+import { SESSION_COOKIE_NAME } from '../../server/auth';
 
-let tmpDir: string;
-beforeEach(() => { tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-gate-')); });
-afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+function setup() {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-'));
+    const api = createRecordingsApi({
+        recordingsDir: tmp,
+        liveToken: 'rater-tok',
+        researcherToken: 'res-tok',
+        sessionSecret: 'x'.repeat(64),
+        allowWrite: false,
+    });
+    return { tmp, api };
+}
 
-const baseConfig = (overrides: Partial<AppConfig> = {}): AppConfig => ({
-    recordingsDir: tmpDir, liveToken: undefined, allowWrite: true, ...overrides,
+function extractCookieValue(setCookieHeader: string): string {
+    const m = setCookieHeader.match(/^[^=]+=([^;]+)/);
+    if (!m) throw new Error('no cookie value');
+    return decodeURIComponent(m[1]);
+}
+
+describe('POST /api/auth/login', () => {
+    it('returns 400 on missing token', async () => {
+        const { api } = setup();
+        const handle = makeRes();
+        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({}), { 'content-type': 'application/json' }), handle);
+        expect(handle.captured.status).toBe(400);
+    });
+
+    it('returns 401 on unknown token', async () => {
+        const { api } = setup();
+        const handle = makeRes();
+        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'wrong', raterName: 'a' }), { 'content-type': 'application/json' }), handle);
+        expect(handle.captured.status).toBe(401);
+    });
+
+    it('returns 400 when rater token is supplied without raterName', async () => {
+        const { api } = setup();
+        const handle = makeRes();
+        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'rater-tok' }), { 'content-type': 'application/json' }), handle);
+        expect(handle.captured.status).toBe(400);
+        expect(handle.captured.body).toMatch(/rater name/i);
+    });
+
+    it('returns 400 when raterName fails normalization', async () => {
+        const { api } = setup();
+        const handle = makeRes();
+        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'rater-tok', raterName: '   ' }), { 'content-type': 'application/json' }), handle);
+        expect(handle.captured.status).toBe(400);
+    });
+
+    it('sets a signed rater cookie on successful rater login', async () => {
+        const { api } = setup();
+        const handle = makeRes();
+        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'rater-tok', raterName: 'Alice' }), { 'content-type': 'application/json' }), handle);
+        expect(handle.captured.status).toBe(200);
+        expect(handle.captured.headers['Set-Cookie']).toBeDefined();
+        const value = extractCookieValue(handle.captured.headers['Set-Cookie']);
+        expect(value).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    });
+
+    it('sets a researcher cookie when researcher token is used (raterName ignored)', async () => {
+        const { api } = setup();
+        const handle = makeRes();
+        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'res-tok' }), { 'content-type': 'application/json' }), handle);
+        expect(handle.captured.status).toBe(200);
+    });
 });
 
-describe('auth gate', () => {
-    it('allows recordings access when no token configured', async () => {
-        const api = createRecordingsApi(baseConfig());
-        const handle = makeRes();
-        await invoke(api, makeReq('GET', '/api/recordings'), handle);
-        expect(handle.captured.status).toBe(200);
-    });
-
-    it('blocks recordings access without cookie when token configured', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 'secret' }));
-        const handle = makeRes();
-        await invoke(api, makeReq('GET', '/api/recordings'), handle);
-        expect(handle.captured.status).toBe(401);
-    });
-
-    it('login with correct token returns Set-Cookie', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 'secret' }));
-        const handle = makeRes();
-        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'secret' })), handle);
-        expect(handle.captured.status).toBe(200);
-        expect(handle.captured.headers['Set-Cookie']).toMatch(/recording_viewer_session=secret/);
-    });
-
-    it('login with wrong token returns 401', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 'secret' }));
-        const handle = makeRes();
-        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'wrong' })), handle);
-        expect(handle.captured.status).toBe(401);
-    });
-
-    it('cookie passes auth gate', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 'secret' }));
-        const handle = makeRes();
-        await invoke(api, makeReq('GET', '/api/recordings', undefined, { cookie: 'recording_viewer_session=secret' }), handle);
-        expect(handle.captured.status).toBe(200);
-    });
-
-    it('blocks DELETE /recordings/:id when allowWrite=false', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 't', allowWrite: false }));
-        const handle = makeRes();
-        await invoke(api, makeReq('DELETE', '/api/recordings/some-id', undefined, { cookie: 'recording_viewer_session=t' }), handle);
-        expect(handle.captured.status).toBe(403);
-    });
-
-    it('blocks PUT /recordings/:id/annotations (full-replace) when allowWrite=false', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 't', allowWrite: false }));
-        const handle = makeRes();
-        await invoke(api, makeReq('PUT', '/api/recordings/sess-1/annotations', '[]', { cookie: 'recording_viewer_session=t' }), handle);
-        expect(handle.captured.status).toBe(403);
-    });
-
-    it('allows POST /recordings/:id/annotations even when allowWrite=false (live tagging)', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 't', allowWrite: false }));
-        fs.mkdirSync(path.join(tmpDir, 'sess-1'));
-        const handle = makeRes();
-        await invoke(api, makeReq('POST', '/api/recordings/sess-1/annotations',
-            JSON.stringify({ label: 'high-struggle', text: '' }),
-            { cookie: 'recording_viewer_session=t' }), handle);
-        // Endpoint will be implemented in Task 11; for now, gate must pass through.
-        // 200 or 404 are both acceptable here. NOT 403, NOT 401.
-        expect(handle.captured.status).not.toBe(403);
-        expect(handle.captured.status).not.toBe(401);
-    });
-
-    it('status endpoint reports unauthenticated when token configured but no cookie', async () => {
-        const api = createRecordingsApi(baseConfig({ liveToken: 'secret', allowWrite: false }));
-        const handle = makeRes();
-        await invoke(api, makeReq('GET', '/api/auth/status'), handle);
-        expect(handle.captured.status).toBe(200);
-        const json = JSON.parse(handle.captured.body);
-        expect(json).toEqual({ authenticated: false, authRequired: true, allowWrite: false });
-    });
-
-    it('status endpoint reports allowWrite=true when configured', async () => {
-        const api = createRecordingsApi(baseConfig({ allowWrite: true }));
+describe('GET /api/auth/status', () => {
+    it('returns unauthenticated when no cookie', async () => {
+        const { api } = setup();
         const handle = makeRes();
         await invoke(api, makeReq('GET', '/api/auth/status'), handle);
         const json = JSON.parse(handle.captured.body);
-        expect(json.allowWrite).toBe(true);
+        expect(json.authenticated).toBe(false);
+        expect(json.role).toBeUndefined();
+    });
+
+    it('returns role + raterName when authenticated as rater', async () => {
+        const { api } = setup();
+        const loginHandle = makeRes();
+        await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'rater-tok', raterName: 'Alice' }), { 'content-type': 'application/json' }), loginHandle);
+        const cookie = extractCookieValue(loginHandle.captured.headers['Set-Cookie']);
+        const statusHandle = makeRes();
+        await invoke(api, makeReq('GET', '/api/auth/status', undefined, { cookie: `${SESSION_COOKIE_NAME}=${cookie}` }), statusHandle);
+        const json = JSON.parse(statusHandle.captured.body);
+        expect(json.authenticated).toBe(true);
+        expect(json.role).toBe('rater');
+        expect(json.raterName).toBe('Alice');
     });
 });

@@ -3,7 +3,9 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import type { AppConfig, IncomingRequest, ServerResponse } from './types';
 import { sendJson, parseCookies, readJsonBody } from './http';
-import { isValidToken, buildSessionCookie, isSessionCookieValid } from './auth';
+import { isValidToken, buildSessionCookie, clearSessionCookie, readSessionFromCookies } from './auth';
+import { normalizeRaterName, deriveRaterId } from './raterIdentity';
+import type { ViewerSession } from './viewerSession';
 import { LiveTailerRegistry } from './liveTailerRegistry';
 import { readLastNLines, readLinesAfter } from './eventsReader';
 
@@ -98,14 +100,45 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         if (urlPath === '/api/auth/login' && method === 'POST') {
             void (async () => {
                 try {
-                    const body = await readJsonBody(req, 4096);
-                    const token = (body as { token?: unknown })?.token;
-                    if (typeof token !== 'string' || !isValidToken(token, config.liveToken)) {
-                        sendJson(res, 401, { error: 'Invalid token' });
+                    const body = await readJsonBody(req, 4096) as { token?: unknown; raterName?: unknown };
+                    const token = body.token;
+                    if (typeof token !== 'string') {
+                        sendJson(res, 400, { error: 'Token is required' });
                         return;
                     }
-                    res.setHeader('Set-Cookie', buildSessionCookie(token));
-                    sendJson(res, 200, { ok: true });
+
+                    const now = Math.floor(Date.now() / 1000);
+                    const isHttps = (req.headers?.['x-forwarded-proto'] === 'https') || false;
+
+                    if (isValidToken(token, config.researcherToken)) {
+                        const session: ViewerSession = { v: 1, role: 'researcher', iat: now, exp: now + 7 * 24 * 3600 };
+                        res.setHeader('Set-Cookie', buildSessionCookie(session, config.sessionSecret, { isHttps }));
+                        sendJson(res, 200, { ok: true });
+                        return;
+                    }
+
+                    if (isValidToken(token, config.liveToken)) {
+                        const raterName = body.raterName;
+                        if (typeof raterName !== 'string') {
+                            sendJson(res, 400, { error: 'Rater name is required' });
+                            return;
+                        }
+                        let displayName: string;
+                        try {
+                            displayName = normalizeRaterName(raterName);
+                        } catch (err) {
+                            const msg = err instanceof Error ? err.message : 'Invalid rater name';
+                            sendJson(res, 400, { error: msg });
+                            return;
+                        }
+                        const raterId = deriveRaterId(displayName);
+                        const session: ViewerSession = { v: 1, role: 'rater', raterId, raterName: displayName, iat: now, exp: now + 7 * 24 * 3600 };
+                        res.setHeader('Set-Cookie', buildSessionCookie(session, config.sessionSecret, { isHttps }));
+                        sendJson(res, 200, { ok: true });
+                        return;
+                    }
+
+                    sendJson(res, 401, { error: 'Invalid token' });
                 } catch {
                     sendJson(res, 400, { error: 'Invalid request body' });
                 }
@@ -114,17 +147,20 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         }
 
         if (urlPath === '/api/auth/logout' && method === 'POST') {
-            res.setHeader('Set-Cookie', buildSessionCookie('', { clear: true }));
+            res.setHeader('Set-Cookie', clearSessionCookie());
             sendJson(res, 200, { ok: true });
             return;
         }
 
         if (urlPath === '/api/auth/status' && method === 'GET') {
             const cookies = parseCookies(req);
+            const session = readSessionFromCookies(cookies, config.sessionSecret, Math.floor(Date.now() / 1000));
             sendJson(res, 200, {
-                authenticated: isSessionCookieValid(cookies, config.liveToken),
-                authRequired: Boolean(config.liveToken),
+                authenticated: session !== null,
+                authRequired: Boolean(config.liveToken || config.researcherToken),
                 allowWrite: config.allowWrite,
+                role: session?.role,
+                raterName: session?.role === 'rater' ? session.raterName : undefined,
             });
             return;
         }
