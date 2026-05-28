@@ -13,6 +13,7 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+import type { ResultDTO } from '@extension/domain';
 import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
 import { type CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
@@ -37,6 +38,7 @@ import { CONFIG, resolveServerUrl } from '@extension/utils';
 
 import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
+import { shouldRefreshPSForResult } from './problemStatementRefreshDecision';
 import { WebviewNavigationFacade } from './webviewNavigationFacade';
 import { WebviewSSRCoordinator } from './webviewSSRCoordinator';
 
@@ -157,6 +159,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             appStateManager: this._appStateManager,
             renderService: this._renderService,
             postMessage: (msg) => this._postMessageSafe(msg),
+            fetchExerciseDetails: (exerciseId) => fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId),
         });
         this._disposables.push(this._ssrCoordinator);
 
@@ -203,10 +206,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseAccessStorage,
         );
 
-        // 11. Submission WS handler — fans build results into diagnostics.
+        // 11. Submission WS handler — fans build results into diagnostics
+        //     and, for results on the currently-rendered participation, triggers
+        //     a re-fetch + PS re-render so test-case checkmarks stay current.
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
             (result) => this._buildDiagnosticsService.handleBuildResult(result),
+            (result) => this._onResultForPSRefresh(result),
         );
 
         // 12. Auth flow handler — callbacks route through the navigation facade.
@@ -315,7 +321,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                             try {
                                 freshData = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
                             } catch { /* fall through to sendInitData with cached data */ }
-                            if (freshData) {
+                            // Guard: a concurrent refresh (e.g. WS newResult-driven) may
+                            // have advanced state during the await. Apply only if we are
+                            // still on the same exercise.
+                            if (freshData
+                                && this._appStateManager.currentState === 'exercise-detail'
+                                && this._appStateManager.currentExerciseData?.exercise?.id === exerciseId) {
                                 this._appStateManager.showExerciseDetail(freshData);
                             }
                         }
@@ -417,6 +428,19 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             serverUrl,
             principal: { id: info.user?.id, login: info.username || info.user?.login },
         };
+    }
+
+    /**
+     * Called for every WebSocket newResult event. Delegates the decision
+     * to {@link shouldRefreshPSForResult} (kept pure for unit testing) and
+     * forwards to the SSR coordinator when a refresh is warranted.
+     */
+    private _onResultForPSRefresh(result: ResultDTO): void {
+        const exercise = this._appStateManager.currentExerciseData?.exercise;
+        if (!shouldRefreshPSForResult(this._appStateManager.currentState, exercise, result)) { return; }
+        const exerciseId = exercise?.id;
+        if (exerciseId === undefined) { return; }
+        this._ssrCoordinator.refreshFromServer({ exerciseId });
     }
 
 }
