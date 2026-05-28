@@ -21,18 +21,14 @@ export function signSession(session: ViewerSession, secret: string): string {
  * Otherwise returns `null` so the caller can clear the cookie.
  */
 export function verifySession(cookieValue: string, secret: string, nowSeconds: number): ViewerSession | null {
+    if (cookieValue.length > 4096) return null;
     const dot = cookieValue.indexOf('.');
     if (dot < 0 || cookieValue.indexOf('.', dot + 1) >= 0) return null;
     const payloadB64 = cookieValue.slice(0, dot);
     const sigB64 = cookieValue.slice(dot + 1);
 
     const expectedSig = createHmac('sha256', secret).update(payloadB64).digest();
-    let providedSig: Buffer;
-    try {
-        providedSig = Buffer.from(sigB64, 'base64url');
-    } catch {
-        return null;
-    }
+    const providedSig = Buffer.from(sigB64, 'base64url');
     if (providedSig.length !== expectedSig.length) return null;
     if (!timingSafeEqual(providedSig, expectedSig)) return null;
 
@@ -59,7 +55,7 @@ function isViewerSession(x: unknown): x is ViewerSession {
     if (!x || typeof x !== 'object') return false;
     const o = x as Record<string, unknown>;
     if (o.v !== 1) return false;
-    if (typeof o.iat !== 'number' || typeof o.exp !== 'number') return false;
+    if (!Number.isFinite(o.iat) || !Number.isFinite(o.exp)) return false;
     if (o.role === 'rater') {
         return typeof o.raterId === 'string' && typeof o.raterName === 'string';
     }

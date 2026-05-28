@@ -42,6 +42,11 @@ describe('signSession / verifySession', () => {
         expect(verifySession(cookie, SECRET, raterPayload.exp + 1)).toBeNull();
     });
 
+    it('rejects session expiring exactly now (boundary)', () => {
+        const cookie = signSession(raterPayload, SECRET);
+        expect(verifySession(cookie, SECRET, raterPayload.exp)).toBeNull();
+    });
+
     it('rejects a wrong-version payload', () => {
         const wrong = { ...raterPayload, v: 2 as 1 };
         const cookie = signSession(wrong as ViewerSession, SECRET);
@@ -50,6 +55,11 @@ describe('signSession / verifySession', () => {
 
     it('rejects malformed cookie (no dot)', () => {
         expect(verifySession('not-a-cookie', SECRET, now + 1)).toBeNull();
+    });
+
+    it('rejects cookie with extra dot', () => {
+        const cookie = signSession(raterPayload, SECRET);
+        expect(verifySession(cookie + '.junk', SECRET, now + 1)).toBeNull();
     });
 
     it('rejects when secret mismatches', () => {
