@@ -14,6 +14,7 @@ export class SubmissionWebSocketHandler {
     constructor(
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         private readonly _onBuildResult?: (result: ResultDTO) => void,
+        private readonly _onResultReceived?: (result: ResultDTO) => void,
     ) {}
 
     public createHandler(): WSHandler {
@@ -51,6 +52,7 @@ export class SubmissionWebSocketHandler {
             data: summary,
         });
         this._onBuildResult?.(result);
+        this._onResultReceived?.(result);
     }
 
     public handleNewSubmission(submission: ProgrammingSubmission): void {
