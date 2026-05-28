@@ -73,3 +73,61 @@ describe('GET /api/recordings/:id/annotations', () => {
         expect(JSON.parse(h.captured.body)).toEqual([]);
     });
 });
+
+describe('POST /api/recordings/:id/annotations', () => {
+    it('appends an add record for the current rater and returns the stored annotation', async () => {
+        const cookie = await loginAsRater('Alice');
+        const h = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident', text: '' }),
+            { cookie, 'content-type': 'application/json' }), h);
+        expect(h.captured.status).toBe(200);
+        const json = JSON.parse(h.captured.body);
+        expect(json.annotation.label).toBe('confident');
+        expect(json.annotation.raterName).toBe('Alice');
+        expect(json.annotation.raterId).toMatch(/^r_/);
+    });
+
+    it('rejects 400 on invalid label', async () => {
+        const cookie = await loginAsRater('Alice');
+        const h = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'nonsense', text: '' }),
+            { cookie, 'content-type': 'application/json' }), h);
+        expect(h.captured.status).toBe(400);
+    });
+
+    it('two raters see disjoint lists', async () => {
+        const aliceCookie = await loginAsRater('Alice');
+        const bobCookie = await loginAsRater('Bob');
+
+        const h1 = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident', text: '' }),
+            { cookie: aliceCookie, 'content-type': 'application/json' }), h1);
+
+        const h2 = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'blocked', text: '' }),
+            { cookie: bobCookie, 'content-type': 'application/json' }), h2);
+
+        const ga = makeRes();
+        await invoke(s.api, makeReq('GET', `/api/recordings/${s.sessionId}/annotations`, undefined, { cookie: aliceCookie }), ga);
+        const gb = makeRes();
+        await invoke(s.api, makeReq('GET', `/api/recordings/${s.sessionId}/annotations`, undefined, { cookie: bobCookie }), gb);
+
+        const aList = JSON.parse(ga.captured.body);
+        const bList = JSON.parse(gb.captured.body);
+        expect(aList.map((a: { label: string }) => a.label)).toEqual(['confident']);
+        expect(bList.map((a: { label: string }) => a.label)).toEqual(['blocked']);
+    });
+
+    it('researcher gets 403 on POST', async () => {
+        const cookie = await loginAsResearcher();
+        const h = makeRes();
+        await invoke(s.api, makeReq('POST', `/api/recordings/${s.sessionId}/annotations`,
+            JSON.stringify({ label: 'confident', text: '' }),
+            { cookie, 'content-type': 'application/json' }), h);
+        expect(h.captured.status).toBe(403);
+    });
+});

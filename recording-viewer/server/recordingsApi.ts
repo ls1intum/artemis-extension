@@ -8,7 +8,7 @@ import { normalizeRaterName, deriveRaterId } from './raterIdentity';
 import type { ViewerSession } from './viewerSession';
 import { LiveTailerRegistry } from './liveTailerRegistry';
 import { readLastNLines, readLinesAfter } from './eventsReader';
-import { materialize, AnnotationCorruptionError } from './annotationStore';
+import { materialize, appendAdd, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
 
 const TAIL_LIMIT_MAX = 50_000;
 const SSE_DEFAULT_TAIL = 5_000;
@@ -658,72 +658,56 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results',
         ]);
 
-        const annotPostMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
-        if (annotPostMatch && method === 'POST') {
-            const sessionDir = resolveSessionDir(annotPostMatch[1]);
-            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
-            if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return; }
-            const annotPath = path.join(sessionDir, 'annotations.json');
-
-            void (async () => {
-                let parsed: { label?: unknown; text?: unknown; timestamp?: unknown };
-                try {
-                    parsed = await readJsonBody(req, 64_000) as typeof parsed;
-                } catch (err) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    sendJson(res, 400, { error: msg });
+        // POST /api/recordings/:sessionId/annotations — append `add` to current rater's file.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
+            if (m && method === 'POST') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return; }
+                if (!session || session.role !== 'rater') {
+                    sendJson(res, 403, { error: 'Only the rater role can add annotations.' });
                     return;
                 }
-
-                if (parsed.label !== undefined && (typeof parsed.label !== 'string' || !VALID_LABELS.has(parsed.label))) {
-                    sendJson(res, 400, { error: 'Invalid label' });
-                    return;
-                }
-                // No upper bound on `timestamp`: explicit timestamps are only used by
-                // the redo path, which restores a value the server itself issued earlier.
-                // Future-dated timestamps would be a client bug, not a security concern.
-                if (parsed.timestamp !== undefined && (typeof parsed.timestamp !== 'number' || !Number.isFinite(parsed.timestamp) || parsed.timestamp < 0)) {
-                    sendJson(res, 400, { error: 'Invalid timestamp' });
-                    return;
-                }
-                const text = typeof parsed.text === 'string' ? parsed.text : '';
-                const now = Date.now();
-                const timestamp = typeof parsed.timestamp === 'number' ? parsed.timestamp : now;
-                const annotation = {
-                    id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
-                    timestamp,
-                    text,
-                    label: parsed.label,
-                    createdAt: now,
-                };
-
-                let existing: unknown[] = [];
-                if (fs.existsSync(annotPath)) {
+                const raterId = session.raterId;
+                const raterName = session.raterName;
+                void (async () => {
+                    let parsed: { label?: unknown; text?: unknown; timestamp?: unknown };
                     try {
-                        const raw = fs.readFileSync(annotPath, 'utf-8');
-                        const arr = JSON.parse(raw);
-                        if (!Array.isArray(arr)) {
-                            sendJson(res, 409, { error: 'Existing annotations.json is not an array' });
-                            return;
-                        }
-                        existing = arr;
-                    } catch {
-                        sendJson(res, 409, { error: 'Existing annotations.json is corrupt JSON; refusing to overwrite' });
+                        parsed = await readJsonBody(req, 64_000) as typeof parsed;
+                    } catch (err) {
+                        sendJson(res, 400, { error: err instanceof Error ? err.message : String(err) });
                         return;
                     }
-                }
-                existing.push(annotation);
-
-                try {
-                    const tmp = annotPath + '.tmp';
-                    fs.writeFileSync(tmp, JSON.stringify(existing, null, 2), 'utf-8');
-                    fs.renameSync(tmp, annotPath);
-                    sendJson(res, 200, { ok: true, annotation });
-                } catch (err) {
-                    sendJson(res, 500, { error: String(err) });
-                }
-            })();
-            return;
+                    if (parsed.label !== undefined && (typeof parsed.label !== 'string' || !VALID_LABELS.has(parsed.label))) {
+                        sendJson(res, 400, { error: 'Invalid label' });
+                        return;
+                    }
+                    if (parsed.timestamp !== undefined && (typeof parsed.timestamp !== 'number' || !Number.isFinite(parsed.timestamp) || parsed.timestamp < 0)) {
+                        sendJson(res, 400, { error: 'Invalid timestamp' });
+                        return;
+                    }
+                    const text = typeof parsed.text === 'string' ? parsed.text : '';
+                    const now = Date.now();
+                    const timestamp = typeof parsed.timestamp === 'number' ? parsed.timestamp : now;
+                    const ann: StoredAnnotation = {
+                        id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
+                        raterId,
+                        raterName,
+                        timestamp,
+                        createdAt: now,
+                        label: (parsed.label as string | undefined) ?? '',
+                        text,
+                    };
+                    try {
+                        await appendAdd(sessionDir, ann);
+                        sendJson(res, 200, { ok: true, annotation: ann });
+                    } catch (err) {
+                        sendJson(res, 500, { error: String(err) });
+                    }
+                })();
+                return;
+            }
         }
 
         // DELETE /api/recordings/:sessionId/annotations/:id — remove a single
