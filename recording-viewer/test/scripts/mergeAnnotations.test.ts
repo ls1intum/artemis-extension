@@ -113,4 +113,20 @@ describe('mergeAnnotationsMatrix', () => {
         expect(csv).toContain('idle');
         expect(csv).not.toContain('confident');
     });
+
+    it('rejects binMs=0 with a clear error (would otherwise hang on Infinity)', async () => {
+        const opts = seed();
+        await expect(mergeAnnotationsMatrix(tmp, { ...opts, binMs: 0 })).rejects.toThrow(/positive integer/);
+    });
+
+    it('rejects negative binMs', async () => {
+        const opts = seed();
+        await expect(mergeAnnotationsMatrix(tmp, { ...opts, binMs: -500 })).rejects.toThrow(/positive integer/);
+    });
+
+    it('rejects non-integer binMs (e.g. NaN)', async () => {
+        const opts = seed();
+        await expect(mergeAnnotationsMatrix(tmp, { ...opts, binMs: NaN })).rejects.toThrow(/positive integer/);
+        await expect(mergeAnnotationsMatrix(tmp, { ...opts, binMs: 1.5 })).rejects.toThrow(/positive integer/);
+    });
 });

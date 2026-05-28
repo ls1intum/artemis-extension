@@ -81,6 +81,9 @@ export async function mergeAnnotationsMatrix(sessionDir: string, opts: MatrixOpt
     if (opts.labelSet === 'all') {
         throw new Error('--label-set=all emits two files; use --format=irr-matrix once per dimension or call mergeAnnotationsMatrix twice with struggle and context.');
     }
+    if (!Number.isFinite(opts.binMs) || !Number.isInteger(opts.binMs) || opts.binMs <= 0) {
+        throw new Error(`binMs must be a positive integer (got ${opts.binMs})`);
+    }
     const startTime = await resolveSessionStartTime(sessionDir);
     const allowed = labelFilter(opts.labelSet);
 
