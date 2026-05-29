@@ -20,6 +20,7 @@ import { useLiveSessions } from './hooks/useLiveSessions';
 import { useLiveSession } from './hooks/useLiveSession';
 import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
+import { useResearcherLanePolling } from './hooks/useResearcherLanePolling';
 
 const ALL_ENABLED = new Set(ALL_EVENT_TYPES);
 
@@ -201,6 +202,11 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             }, 500);
         }
     }, [live.error, live.events, loadFromApi]);
+
+    // While a researcher watches a LIVE session, poll the all-lanes endpoint
+    // once a second so raters' new marks appear without a manual reload. Only
+    // the lanes refresh; the researcher's video/zoom/scroll stay put.
+    useResearcherLanePolling(isResearcher && isLiveSession, activeSessionId, apiFetch, setResearcherLanes);
 
     // Hotkeys enabled for any rater with a session loaded. In live mode the
     // reference timestamp is the latest observed event; in offline mode it is
