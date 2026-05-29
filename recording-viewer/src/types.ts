@@ -42,6 +42,10 @@ export interface Annotation {
     text: string;
     label?: AnnotationLabel;
     createdAt: number;
+    /** Opaque rater id from the server. Optional on the wire for backward-compat with legacy annotations.json. */
+    raterId?: string;
+    /** Display name as the rater entered it at login time. Optional for legacy compat. */
+    raterName?: string;
 }
 
 export interface ReplayEqSnapshot {

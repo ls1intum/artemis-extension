@@ -155,7 +155,7 @@ export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
                 {data.sessions.map(entry => (
                     <div
                         key={entry.id}
-                        className={`session-table-row ${deleting === entry.id ? 'deleting' : ''}`}
+                        className={`session-table-row ${deleting === entry.id ? 'deleting' : ''} ${liveIds?.has(entry.id) ? 'live' : ''}`}
                         onClick={() => renaming !== entry.id && onSelectSession(entry.id)}
                     >
                         {renaming === entry.id ? (
@@ -173,8 +173,8 @@ export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
                             />
                         ) : (
                             <span className="mono session-id-cell" title={entry.id}>
-                                {entry.id.length > 30 ? entry.id.slice(0, 30) + '...' : entry.id}
                                 {liveIds?.has(entry.id) && <LiveSessionBadge />}
+                                {entry.id.length > 30 ? entry.id.slice(0, 30) + '...' : entry.id}
                             </span>
                         )}
                         <span>{entry.metadata?.exerciseId ?? '—'}</span>
