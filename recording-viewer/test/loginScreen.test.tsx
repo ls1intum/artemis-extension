@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { LoginScreen } from '../src/components/LoginScreen';
 
@@ -44,5 +44,40 @@ describe('LoginScreen', () => {
         fireEvent.click(screen.getByRole('button', { name: /connect/i }));
         await new Promise(r => setTimeout(r, 0));
         expect(await screen.findByRole('alert')).toHaveTextContent('Rater name is required');
+    });
+
+    describe('URL param prefill', () => {
+        afterEach(() => {
+            // Reset the URL so prefilled params do not bleed into other tests.
+            window.history.replaceState({}, '', '/');
+        });
+
+        it('prefills rater name and token from ?type=rater&name=&pw=', async () => {
+            window.history.replaceState({}, '', '/?type=rater&name=Alice&pw=secret');
+            const onLogin = vi.fn().mockResolvedValue({ ok: true });
+            render(<LoginScreen onLogin={onLogin} />);
+            expect(screen.getByLabelText(/rater name/i)).toHaveValue('Alice');
+            expect(screen.getByLabelText(/access token/i)).toHaveValue('secret');
+            fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+            await Promise.resolve();
+            expect(onLogin).toHaveBeenCalledWith({ mode: 'rater', token: 'secret', raterName: 'Alice' });
+        });
+
+        it('selects researcher mode and prefills token from ?type=researcher&pw=', () => {
+            window.history.replaceState({}, '', '/?type=researcher&pw=res');
+            const onLogin = vi.fn().mockResolvedValue({ ok: true });
+            render(<LoginScreen onLogin={onLogin} />);
+            expect(screen.getByRole('tab', { name: /researcher/i })).toHaveAttribute('aria-selected', 'true');
+            expect(screen.queryByLabelText(/rater name/i)).toBeNull();
+            expect(screen.getByLabelText(/access token/i)).toHaveValue('res');
+        });
+
+        it('defaults to empty rater mode when no params are present', () => {
+            const onLogin = vi.fn().mockResolvedValue({ ok: true });
+            render(<LoginScreen onLogin={onLogin} />);
+            expect(screen.getByRole('tab', { name: /rater/i })).toHaveAttribute('aria-selected', 'true');
+            expect(screen.getByLabelText(/rater name/i)).toHaveValue('');
+            expect(screen.getByLabelText(/access token/i)).toHaveValue('');
+        });
     });
 });

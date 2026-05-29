@@ -7,10 +7,27 @@ interface Props {
 
 type Mode = 'rater' | 'researcher';
 
+/**
+ * Prefill the login fields from URL query params (`?type=`, `?name=`, `?pw=`).
+ * Convenience for launching several pre-configured rater/researcher windows in
+ * a study setup. `type=researcher` selects researcher mode; anything else
+ * (or absent) defaults to rater.
+ */
+function readPrefill(): { mode: Mode; name: string; pw: string } {
+    if (typeof window === 'undefined') return { mode: 'rater', name: '', pw: '' };
+    const p = new URLSearchParams(window.location.search);
+    return {
+        mode: p.get('type') === 'researcher' ? 'researcher' : 'rater',
+        name: p.get('name') ?? '',
+        pw: p.get('pw') ?? '',
+    };
+}
+
 export function LoginScreen({ onLogin }: Props) {
-    const [mode, setMode] = useState<Mode>('rater');
-    const [token, setToken] = useState('');
-    const [raterName, setRaterName] = useState('');
+    const [prefill] = useState(readPrefill);
+    const [mode, setMode] = useState<Mode>(prefill.mode);
+    const [token, setToken] = useState(prefill.pw);
+    const [raterName, setRaterName] = useState(prefill.name);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
