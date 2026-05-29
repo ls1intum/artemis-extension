@@ -24,7 +24,7 @@ For fast iteration on the same network without picking a token, use the
 convenience script with a baked-in token:
 
 ```bash
-npm run dev:live:token   # token = dev-only-do-not-use-in-prod
+npm run dev:live:token   # token = artemis_admin
 ```
 
 Do NOT use this in a real study or on a shared/public network. The token is in

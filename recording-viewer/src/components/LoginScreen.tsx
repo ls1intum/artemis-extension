@@ -58,6 +58,7 @@ export function LoginScreen({ onLogin }: Props) {
                         type="text" value={raterName}
                         onChange={(e) => setRaterName(e.target.value)}
                         placeholder="Your name"
+                        autoFocus
                         autoComplete="off" disabled={submitting}
                         aria-label="Rater name"
                     />
