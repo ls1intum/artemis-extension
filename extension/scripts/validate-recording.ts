@@ -76,6 +76,12 @@ const KNOWN_EVENT_TYPES = new Set([
     'terminalCommand', 'terminalOpenClose',
     // Build
     'buildResult',
+    // Config
+    'configurationSnapshot', 'configurationChange',
+    // Views
+    'testResultsOverviewView', 'taskFeedbackView',
+    // Debug
+    'debugSession', 'breakpointChange',
     // Chat (Iris)
     'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback',
     // Telemetry / struggle detection
