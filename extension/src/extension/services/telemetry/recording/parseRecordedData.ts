@@ -48,6 +48,7 @@ import type {
     SessionMetadata,
     SessionStartEvent,
     StartupPhaseCompleteEvent,
+    SubmissionEvent,
     TaskFeedbackViewClosedEvent,
     TaskFeedbackViewEvent,
     TaskFeedbackViewOpenedEvent,
@@ -645,6 +646,27 @@ function parseBreakpointChange(d: Record<string, unknown>, timestamp: number): B
     return { type: 'breakpointChange', timestamp, action: d.action, breakpoints };
 }
 
+function parseSubmission(d: Record<string, unknown>, timestamp: number): SubmissionEvent | null {
+    if (!isOneOf(d.status, ['started', 'succeeded', 'failed'] as const)) { return null; }
+    if (!isFiniteNumber(d.participationId)) { return null; }
+    if (!isOptFiniteNumber(d.exerciseId)) { return null; }
+    if (!isOptString(d.commitMessage)) { return null; }
+    if (d.failureReason !== undefined
+        && !isOneOf(d.failureReason,
+            ['no-workspace', 'no-changes', 'git-identity-missing', 'merge-conflict', 'push-failed', 'other'] as const)) {
+        return null;
+    }
+    return stripUndefined({
+        type: 'submission' as const,
+        timestamp,
+        status: d.status,
+        participationId: d.participationId,
+        exerciseId: d.exerciseId as number | undefined,
+        commitMessage: d.commitMessage as string | undefined,
+        failureReason: d.failureReason as SubmissionEvent['failureReason'],
+    });
+}
+
 // ── Public dispatcher ─────────────────────────────────────────────────
 
 type EventParser = (d: Record<string, unknown>, timestamp: number) => RecordedEvent | null;
@@ -696,6 +718,7 @@ const EVENT_PARSERS = {
     taskFeedbackView: parseTaskFeedbackView,
     debugSession: parseDebugSession,
     breakpointChange: parseBreakpointChange,
+    submission: parseSubmission,
 } satisfies Record<RecordedEvent['type'], EventParser>;
 
 /**
