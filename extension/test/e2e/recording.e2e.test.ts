@@ -580,7 +580,9 @@ suite('Session Recorder — E2E (VS Code only)', function () {
 
         const bpEvents = events.filter((e): e is BreakpointChangeEvent => e.type === 'breakpointChange');
 
-        // Exactly one 'added' and one 'removed' (no active debug session ⇒ no 'changed' noise).
+        // Exactly one 'added' and one 'removed'. This test never mutates a breakpoint
+        // after adding it, so no 'changed' event is produced; filtering by action also
+        // keeps these counts robust if VS Code ever emitted an unrelated 'changed'.
         const added = bpEvents.filter(e => e.action === 'added');
         const removed = bpEvents.filter(e => e.action === 'removed');
         assert.strictEqual(added.length, 1, `exactly 1 'added' breakpointChange (got ${added.length})`);
