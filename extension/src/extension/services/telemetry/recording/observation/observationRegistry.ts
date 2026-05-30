@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import {
+    collectBreakpointChange,
+    collectDebugSession,
     collectDiagnostics,
     collectFileSwitch,
     collectSave,
@@ -9,6 +11,7 @@ import {
     collectTextChange,
     collectVisibleRangeChange,
     collectWindowFocus,
+    filterRecordableSourceBreakpoints,
 } from '@extension/services/telemetry/recording/eventCollectors';
 import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
 import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
@@ -254,6 +257,32 @@ export class ObservationRegistry {
             this._emitTextDocumentEvent(doc, 'textDocumentClose'));
         this._eventListenerDisposables.push(textDocumentClose);
 
+        // Debug session lifecycle
+        const debugStart = vscode.debug.onDidStartDebugSession(s =>
+            this._recordDebugSession('started', s));
+        this._eventListenerDisposables.push(debugStart);
+
+        const debugTerminate = vscode.debug.onDidTerminateDebugSession(s =>
+            this._recordDebugSession('terminated', s));
+        this._eventListenerDisposables.push(debugTerminate);
+
+        const debugActive = vscode.debug.onDidChangeActiveDebugSession(s =>
+            this._recordDebugSession('activeChanged', s));
+        this._eventListenerDisposables.push(debugActive);
+
+        // Breakpoint changes. onDidChangeBreakpoints carries three arrays; each
+        // is processed independently and empty arrays emit nothing. The VS Code
+        // API does not guarantee one event per user action, so no coalescing is
+        // assumed; breakpoint changes are low-frequency, no debounce is applied.
+        const breakpointChange = vscode.debug.onDidChangeBreakpoints(event => {
+            if (!recordingPhase()) { return; }
+            const gen = this._deps.state.currentGeneration;
+            this._emitBreakpointChange('added', event.added, gen);
+            this._emitBreakpointChange('removed', event.removed, gen);
+            this._emitBreakpointChange('changed', event.changed, gen);
+        });
+        this._eventListenerDisposables.push(breakpointChange);
+
         // Terminal shell execution tracking — only available in VS Code Desktop
         if (this._deps.capabilities?.hasTerminalShellExecution !== false) {
             this._terminalCollector.register(this._eventListenerDisposables);
@@ -386,6 +415,33 @@ export class ObservationRegistry {
             timestamp: Date.now(),
             uri: doc.uri.toString(),
         }, {}, this._deps.state.currentGeneration);
+    }
+
+    /**
+     * Emit a debugSession event. Session fields are populated for
+     * started / terminated and for activeChanged with a session; they are left
+     * undefined when activeChanged fires with no active session.
+     */
+    private _recordDebugSession(
+        action: 'started' | 'terminated' | 'activeChanged',
+        session: vscode.DebugSession | undefined,
+    ): void {
+        if (this._deps.state.phase !== 'recording') { return; }
+        this._deps.record(collectDebugSession(action, session), {}, this._deps.state.currentGeneration);
+    }
+
+    /**
+     * Emit one breakpointChange event for a non-empty, in-root, source-only
+     * subset of a breakpoint-change array. Empty subsets emit nothing.
+     */
+    private _emitBreakpointChange(
+        action: 'added' | 'removed' | 'changed',
+        breakpoints: readonly vscode.Breakpoint[],
+        gen: number,
+    ): void {
+        const source = filterRecordableSourceBreakpoints(breakpoints, this._exerciseRootUri);
+        if (source.length === 0) { return; }
+        this._deps.record(collectBreakpointChange(action, source), {}, gen);
     }
 
 }
