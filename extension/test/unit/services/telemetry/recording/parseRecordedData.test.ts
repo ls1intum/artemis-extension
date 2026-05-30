@@ -51,6 +51,11 @@ suite('parseRecordedEvent — dispatcher-level rejection', () => {
     test('unknown type literal returns null', () => {
         assert.strictEqual(parseRecordedEvent({ type: 'somethingNew', timestamp: ts }), null);
     });
+    test('prototype-named type literals return null (no Object.prototype leakage)', () => {
+        for (const t of ['toString', 'constructor', 'valueOf', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', '__proto__']) {
+            assert.strictEqual(parseRecordedEvent({ type: t, timestamp: ts }), null, `type '${t}' must parse to null`);
+        }
+    });
 });
 
 // ── Per-variant happy-path roundtrips ──────────────────────────────────
@@ -331,6 +336,45 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         };
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
+
+    // ── debugSession ───────────────────────────────────────────────────
+    test('debugSession — started with all session fields', () => {
+        const e: RecordedEvent = {
+            type: 'debugSession', timestamp: ts, action: 'started',
+            sessionId: 's1', sessionName: 'Launch', sessionType: 'java', parentSessionId: 'p0',
+        };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
+
+    test('debugSession — activeChanged with no session fields', () => {
+        const e: RecordedEvent = { type: 'debugSession', timestamp: ts, action: 'activeChanged' };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
+
+    // ── breakpointChange ───────────────────────────────────────────────
+    test('breakpointChange — added with full breakpoint payload', () => {
+        const e: RecordedEvent = {
+            type: 'breakpointChange', timestamp: ts, action: 'added',
+            breakpoints: [{
+                id: 'b1', uri: 'file:///workspace/ex1/Main.java', line: 9, column: 4,
+                enabled: true, condition: 'x > 0', hitCondition: '>= 3', logMessage: 'hit',
+            }],
+        };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
+
+    test('breakpointChange — removed with minimal breakpoint (no optionals)', () => {
+        const e: RecordedEvent = {
+            type: 'breakpointChange', timestamp: ts, action: 'removed',
+            breakpoints: [{ id: 'b1', uri: 'file:///workspace/ex1/Main.java', line: 0, column: 0, enabled: false }],
+        };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
+
+    test('breakpointChange — empty breakpoints array is accepted (matches other array parsers)', () => {
+        const e: RecordedEvent = { type: 'breakpointChange', timestamp: ts, action: 'changed', breakpoints: [] };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
 });
 
 // ── Per-variant rejection of tricky shapes ─────────────────────────────
@@ -527,5 +571,47 @@ suite('parseSessionMetadata', () => {
             startTime: NaN, endTime: null, eventCount: 0,
         };
         assert.strictEqual(parseSessionMetadata(bad), null);
+    });
+});
+
+suite('parseRecordedEvent — debug/breakpoint per-variant rejection', () => {
+    test('debugSession rejects an invalid action', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'debugSession', timestamp: ts, action: 'paused' }), null);
+    });
+    test('debugSession rejects a missing action', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'debugSession', timestamp: ts }), null);
+    });
+    test('debugSession rejects a non-string sessionId', () => {
+        assert.strictEqual(
+            parseRecordedEvent({ type: 'debugSession', timestamp: ts, action: 'started', sessionId: 42 }),
+            null,
+        );
+    });
+    test('breakpointChange rejects an invalid action', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'breakpointChange', timestamp: ts, action: 'moved', breakpoints: [] }), null);
+    });
+    test('breakpointChange rejects a missing action', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'breakpointChange', timestamp: ts, breakpoints: [] }), null);
+    });
+    test('breakpointChange rejects a non-array breakpoints', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'breakpointChange', timestamp: ts, action: 'added', breakpoints: {} }), null);
+    });
+    test('breakpointChange rejects a breakpoint missing a required field', () => {
+        assert.strictEqual(
+            parseRecordedEvent({
+                type: 'breakpointChange', timestamp: ts, action: 'added',
+                breakpoints: [{ id: 'b1', uri: 'file:///x', line: 1 /* column missing */, enabled: true }],
+            }),
+            null,
+        );
+    });
+    test('breakpointChange rejects a breakpoint with a wrong-typed optional', () => {
+        assert.strictEqual(
+            parseRecordedEvent({
+                type: 'breakpointChange', timestamp: ts, action: 'added',
+                breakpoints: [{ id: 'b1', uri: 'file:///x', line: 1, column: 0, enabled: true, condition: 5 }],
+            }),
+            null,
+        );
     });
 });
