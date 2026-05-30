@@ -27,3 +27,13 @@ export function shortenUri(uri: string | undefined): string {
     const parts = uri.replace(/^file:\/\//, '').split('/');
     return parts.slice(-2).join('/');
 }
+
+/** Trailing " | name (type)" for a debug session; empty parts are omitted. */
+export function formatDebugSessionMeta(name?: string, type?: string): string {
+    return `${name ? ` | ${name}` : ''}${type ? ` (${type})` : ''}`;
+}
+
+/** Shortened file + 1-based line for a breakpoint (stored line is 0-based). */
+export function formatBreakpointLocation(uri: string, line: number): string {
+    return `${shortenUri(uri)}:${line + 1}`;
+}

@@ -205,15 +205,17 @@ export function filterRecordableSourceBreakpoints(
  * `line`/`column` are 0-based (raw Position values), consistent with
  * SerializedRange; the viewer adds +1 for display. `id`, `enabled`,
  * `condition`, `hitCondition` and `logMessage` are inherited from the base
- * vscode.Breakpoint.
+ * vscode.Breakpoint. `timestamp` defaults to now; the startup snapshot passes
+ * the captured session-start time instead.
  */
 export function collectBreakpointChange(
     action: 'added' | 'removed' | 'changed',
     breakpoints: readonly vscode.SourceBreakpoint[],
+    timestamp: number = Date.now(),
 ): BreakpointChangeEvent {
     return {
         type: 'breakpointChange',
-        timestamp: Date.now(),
+        timestamp,
         action,
         breakpoints: breakpoints.map(bp => ({
             id: bp.id,
@@ -243,5 +245,5 @@ export function collectInitialBreakpointSnapshot(
     if (source.length === 0) {
         return null;
     }
-    return { ...collectBreakpointChange('added', source), timestamp };
+    return collectBreakpointChange('added', source, timestamp);
 }

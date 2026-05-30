@@ -275,11 +275,9 @@ export class ObservationRegistry {
         // API does not guarantee one event per user action, so no coalescing is
         // assumed; breakpoint changes are low-frequency, no debounce is applied.
         const breakpointChange = vscode.debug.onDidChangeBreakpoints(event => {
-            if (!recordingPhase()) { return; }
-            const gen = this._deps.state.currentGeneration;
-            this._emitBreakpointChange('added', event.added, gen);
-            this._emitBreakpointChange('removed', event.removed, gen);
-            this._emitBreakpointChange('changed', event.changed, gen);
+            this._emitBreakpointChange('added', event.added);
+            this._emitBreakpointChange('removed', event.removed);
+            this._emitBreakpointChange('changed', event.changed);
         });
         this._eventListenerDisposables.push(breakpointChange);
 
@@ -437,11 +435,11 @@ export class ObservationRegistry {
     private _emitBreakpointChange(
         action: 'added' | 'removed' | 'changed',
         breakpoints: readonly vscode.Breakpoint[],
-        gen: number,
     ): void {
+        if (this._deps.state.phase !== 'recording') { return; }
         const source = filterRecordableSourceBreakpoints(breakpoints, this._exerciseRootUri);
         if (source.length === 0) { return; }
-        this._deps.record(collectBreakpointChange(action, source), {}, gen);
+        this._deps.record(collectBreakpointChange(action, source), {}, this._deps.state.currentGeneration);
     }
 
 }

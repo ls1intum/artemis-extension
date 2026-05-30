@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
 import { SWIM_LANE_TYPES } from '../constants';
-import { formatOffset, formatDuration, shortenUri } from '../utils/format';
+import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from '../utils/format';
 import { useTimelinePan } from '../hooks/useTimelinePan';
 import {
     AXIS_HEIGHT,
@@ -136,10 +136,10 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
         case 'textDocumentClose':
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
         case 'debugSession':
-            return <><span className="tt-time">{time}</span> {event.action}{event.sessionName ? ` | ${event.sessionName}` : ''}{event.sessionType ? ` (${event.sessionType})` : ''}</>;
+            return <><span className="tt-time">{time}</span> {event.action}{formatDebugSessionMeta(event.sessionName, event.sessionType)}</>;
         case 'breakpointChange': {
             const first = event.breakpoints[0];
-            const where = first ? `${shortenUri(first.uri)}:${first.line + 1}` : '';
+            const where = first ? formatBreakpointLocation(first.uri, first.line) : '';
             return <><span className="tt-time">{time}</span> {event.action} | {event.breakpoints.length} bp{event.breakpoints.length === 1 ? '' : 's'}{where ? ` | ${where}` : ''}</>;
         }
         default:

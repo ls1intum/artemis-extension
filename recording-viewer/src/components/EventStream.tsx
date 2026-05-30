@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { ALL_LABELS } from '../types.ts';
-import { formatOffset, formatDuration, shortenUri } from '../utils/format.ts';
+import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from '../utils/format.ts';
 
 interface Props {
     events: RecordedEvent[];
@@ -278,7 +278,7 @@ export function EventDetail({ event }: { event: RecordedEvent }) {
         case 'debugSession':
             return (
                 <span className="event-detail">
-                    {event.action}{event.sessionName && ` | ${event.sessionName}`}{event.sessionType && ` (${event.sessionType})`}
+                    {event.action}{formatDebugSessionMeta(event.sessionName, event.sessionType)}
                 </span>
             );
         case 'breakpointChange': {
@@ -286,7 +286,7 @@ export function EventDetail({ event }: { event: RecordedEvent }) {
             return (
                 <span className="event-detail">
                     {event.action} | {event.breakpoints.length} breakpoint(s)
-                    {first && ` | ${shortenUri(first.uri)}:${first.line + 1}`}
+                    {first && ` | ${formatBreakpointLocation(first.uri, first.line)}`}
                 </span>
             );
         }
