@@ -31,6 +31,7 @@ import type { ConsentService } from '@extension/services/auth';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {
+    BreakpointChangeEvent,
     ConfigurationChangeEvent,
     ConfigurationSnapshotEvent,
     InterventionEvent,
@@ -299,6 +300,36 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             assert.strictEqual(snap!.struggleDetectionEnabled, true);
             assert.strictEqual(snap!.showInterventions, false);
         } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('initial breakpoint snapshot is emitted at startup for in-root breakpoints only', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const exerciseRoot = vscode.Uri.file(path.join(harness.tmpDir, 'ex'));
+        const inRootUri = vscode.Uri.file(path.join(exerciseRoot.fsPath, 'Main.java'));
+        const outOfRootUri = vscode.Uri.file(path.join(os.tmpdir(), `wiring-bp-out-${process.pid}.java`));
+        const inRootBp = new vscode.SourceBreakpoint(new vscode.Location(inRootUri, new vscode.Position(4, 0)));
+        const outOfRootBp = new vscode.SourceBreakpoint(new vscode.Location(outOfRootUri, new vscode.Position(0, 0)));
+        try {
+            // Pre-existing breakpoints BEFORE the session (idle phase ⇒ the live
+            // listener does not record the add; only the startup contributor does).
+            vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
+            vscode.debug.addBreakpoints([inRootBp, outOfRootBp]);
+
+            await harness.recorder.startSession(42, undefined, exerciseRoot.toString());
+            await harness.recorder.endSession();
+
+            const events = await readAllRecordedEvents(harness.tmpDir);
+            const snap = events.find(e => e.type === 'breakpointChange') as BreakpointChangeEvent | undefined;
+            assert.ok(snap, 'breakpoint snapshot missing — startup contributor not registered by the wiring?');
+            assert.strictEqual(snap!.action, 'added', 'snapshot action is added');
+            assert.strictEqual(snap!.breakpoints.length, 1, 'only the in-root breakpoint is captured (out-of-root filtered)');
+            assert.strictEqual(snap!.breakpoints[0].uri, inRootUri.toString(), 'snapshot uri = in-root');
+            assert.strictEqual(snap!.breakpoints[0].line, 4, 'snapshot line 0-based 4');
+            assert.strictEqual(snap!.breakpoints[0].id, inRootBp.id, 'snapshot bp id matches the SourceBreakpoint');
+        } finally {
+            vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
             await harness.dispose();
         }
     });
