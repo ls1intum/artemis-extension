@@ -290,6 +290,14 @@ export function EventDetail({ event }: { event: RecordedEvent }) {
                 </span>
             );
         }
+        case 'submission':
+            return (
+                <span className="event-detail">
+                    SUBMIT {event.status.toUpperCase()} | participation {event.participationId}
+                    {event.commitMessage && ` | "${event.commitMessage.length > 60 ? event.commitMessage.slice(0, 60) + '...' : event.commitMessage}"`}
+                    {event.failureReason && <span className="event-error"> — {event.failureReason}</span>}
+                </span>
+            );
         default:
             return null;
     }
