@@ -59,17 +59,22 @@ suite('RepositorySubmitCommands', () => {
         sendMessage: sinon.SinonStub;
         showGitCredentials: sinon.SinonStub;
         recheckRepoStatus: sinon.SinonStub;
+        fireSubmission: sinon.SinonStub;
     } {
         const sendMessage = overrides.sendMessage ?? sandbox.stub();
         const recheckRepoStatus = overrides.recheckRepoStatus ?? sandbox.stub().resolves();
         const showGitCredentials = overrides.showGitCredentials ?? sandbox.stub();
+        const fireSubmission = sandbox.stub();
         const ctx = {
             actionHandler: { showGitCredentials },
             sendMessage,
             recheckRepoStatus,
             getWebsocketService: overrides.getWebsocketService,
+            providerRegistry: {
+                getArtemisWebviewProvider: () => ({ fireSubmission }),
+            },
         } as unknown as CommandContext;
-        return { ctx, sendMessage, showGitCredentials, recheckRepoStatus };
+        return { ctx, sendMessage, showGitCredentials, recheckRepoStatus, fireSubmission };
     }
 
     setup(() => {
@@ -423,5 +428,148 @@ suite('RepositorySubmitCommands', () => {
             name: '',
             email: '',
         });
+    });
+
+    test('happy path emits started then succeeded (exactly one terminal)', async () => {
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'My change' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.deepStrictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+        assert.deepStrictEqual(fireSubmission.getCall(0).args[0].participationId, 42);
+        assert.deepStrictEqual(fireSubmission.getCall(1).args[0].status, 'succeeded');
+        assert.deepStrictEqual(fireSubmission.getCall(1).args[0].participationId, 42);
+    });
+
+    test('no-changes emits started then failed with reason no-changes', async () => {
+        checkWorkspaceFiles.resolves({ hasChanges: false, files: [] });
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Ex', commitMessage: '' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'no-changes');
+    });
+
+    test('merge-conflict emits failed with reason merge-conflict', async () => {
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService({ pullWithRebase: sandbox.stub().rejects(new Error('CONFLICT (content): Merge conflict in foo.ts')) });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: '' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'merge-conflict');
+    });
+
+    test('push failure emits failed with reason push-failed', async () => {
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService({ push: sandbox.stub().rejects(new Error('fatal: push rejected')) });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: '' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'push-failed');
+    });
+
+    test('git-identity-not-configured emits failed with reason git-identity-missing', async () => {
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService({ getIdentity: sandbox.stub().resolves(undefined) });
+        showWarningMessage.resolves('Configure Git Identity' as never);
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: '' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'git-identity-missing');
+    });
+
+    test('no-workspace emits started then failed with reason no-workspace', async () => {
+        // The default setup stubs workspaceFolders to a present folder, so override it to undefined
+        // for this test. Mirror the existing "no workspace folder" abort test's sandbox-reset approach.
+        sandbox.restore();
+        sandbox = sinon.createSandbox();
+        showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+        showWarningMessage = sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as never);
+        showInformationMessage = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as never);
+        sandbox.stub(vscode.workspace, 'workspaceFolders').value(undefined);
+        withProgress = sandbox.stub(vscode.window, 'withProgress');
+        checkWorkspaceFiles = sandbox.stub();
+
+        // buildContext() is called AFTER the fresh sandbox is set up so its fireSubmission stub
+        // belongs to the active sandbox and is the one the handler actually calls.
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Ex', commitMessage: '' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'no-workspace');
+    });
+
+    test('generic failure emits failed with reason other', async () => {
+        // Default setup (workspace present, hasChanges true). An early git step throws a generic
+        // error (non-conflict, non-sentinel) so the catch falls through to the default 'other'.
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService({ addAll: sandbox.stub().rejects(new Error('disk full')) });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'other');
+    });
+
+    test('emits nothing when the payload has no participationId', async () => {
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 0);
     });
 });
