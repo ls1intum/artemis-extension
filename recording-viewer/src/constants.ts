@@ -34,6 +34,8 @@ export const MARKER_COLORS: Record<EventType, string> = {
     fileRename: '#fdba74',
     textDocumentOpen: '#7dd3fc',
     textDocumentClose: '#93c5fd',
+    debugSession: '#f59e0b',
+    breakpointChange: '#ef4444',
 };
 
 export const ALL_EVENT_TYPES = [
@@ -49,6 +51,7 @@ export const ALL_EVENT_TYPES = [
     'testResultsOverviewView', 'taskFeedbackView',
     'selectionChange', 'visibleRangeChange',
     'terminalCommand', 'terminalOpenClose',
+    'debugSession', 'breakpointChange',
     'fileSnapshotError',
     'fileCreate', 'fileDelete', 'fileRename',
     'textDocumentOpen', 'textDocumentClose',

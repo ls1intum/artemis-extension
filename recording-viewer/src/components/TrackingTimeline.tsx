@@ -52,7 +52,8 @@ interface AnnotationPopover {
 
 const MAX_TOOLTIP_EVENTS = 5;
 
-function eventSummary(event: RecordedEvent, sessionStartTime: number): React.ReactNode {
+// eslint-disable-next-line react-refresh/only-export-components -- exported for unit testing of the render switch (not a component shared at runtime)
+export function eventSummary(event: RecordedEvent, sessionStartTime: number): React.ReactNode {
     const time = formatOffset(event.timestamp - sessionStartTime);
     switch (event.type) {
         case 'textChange': {
@@ -134,6 +135,13 @@ function eventSummary(event: RecordedEvent, sessionStartTime: number): React.Rea
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
         case 'textDocumentClose':
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'debugSession':
+            return <><span className="tt-time">{time}</span> {event.action}{event.sessionName ? ` | ${event.sessionName}` : ''}{event.sessionType ? ` (${event.sessionType})` : ''}</>;
+        case 'breakpointChange': {
+            const first = event.breakpoints[0];
+            const where = first ? `${shortenUri(first.uri)}:${first.line + 1}` : '';
+            return <><span className="tt-time">{time}</span> {event.action} | {event.breakpoints.length} bp{event.breakpoints.length === 1 ? '' : 's'}{where ? ` | ${where}` : ''}</>;
+        }
         default:
             return <span className="tt-time">{time}</span>;
     }

@@ -61,7 +61,7 @@ function stripAnsi(text: string): string {
     /* eslint-enable no-control-regex */
 }
 
-function EventDetail({ event }: { event: RecordedEvent }) {
+export function EventDetail({ event }: { event: RecordedEvent }) {
     switch (event.type) {
         case 'eqSnapshot':
             return (
@@ -275,6 +275,21 @@ function EventDetail({ event }: { event: RecordedEvent }) {
             return <span className="event-detail">{shortenUri(event.uri)}</span>;
         case 'textDocumentClose':
             return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'debugSession':
+            return (
+                <span className="event-detail">
+                    {event.action}{event.sessionName && ` | ${event.sessionName}`}{event.sessionType && ` (${event.sessionType})`}
+                </span>
+            );
+        case 'breakpointChange': {
+            const first = event.breakpoints[0];
+            return (
+                <span className="event-detail">
+                    {event.action} | {event.breakpoints.length} breakpoint(s)
+                    {first && ` | ${shortenUri(first.uri)}:${first.line + 1}`}
+                </span>
+            );
+        }
         default:
             return null;
     }
