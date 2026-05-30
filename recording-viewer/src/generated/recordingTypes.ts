@@ -373,6 +373,7 @@ export interface TaskFeedbackViewOpenedEvent {
     totalTests: number;
     passedTests: number;
     failedTests: number;
+    notExecutedTests?: number;
 }
 
 export interface TaskFeedbackViewClosedEvent {
@@ -391,6 +392,36 @@ export interface TaskFeedbackViewClosedEvent {
 export type TaskFeedbackViewEvent =
     | TaskFeedbackViewOpenedEvent
     | TaskFeedbackViewClosedEvent;
+
+// ── Debugger events ───────────────────────────────────────────────────
+
+export interface DebugSessionEvent {
+    type: 'debugSession';
+    timestamp: number;
+    action: 'started' | 'terminated' | 'activeChanged';
+    // Present for started / terminated, and for activeChanged when a session
+    // became active. Omitted for activeChanged -> no active session.
+    sessionId?: string;
+    sessionName?: string;
+    sessionType?: string;
+    parentSessionId?: string;
+}
+
+export interface BreakpointChangeEvent {
+    type: 'breakpointChange';
+    timestamp: number;
+    action: 'added' | 'removed' | 'changed';
+    breakpoints: {
+        id: string;            // vscode.Breakpoint.id, stable; correlates add/remove/change
+        uri: string;           // absolute file:// URI (SourceBreakpoint only)
+        line: number;          // 0-based, from location.range.start.line; consistent with SerializedRange
+        column: number;        // 0-based, from location.range.start.character (always populated by the collector)
+        enabled: boolean;
+        condition?: string;
+        hitCondition?: string;
+        logMessage?: string;
+    }[];
+}
 
 // ── Discriminated union ───────────────────────────────────────────────
 
@@ -427,7 +458,9 @@ export type RecordedEvent =
     | TextDocumentOpenEvent
     | TextDocumentCloseEvent
     | TestResultsOverviewViewEvent
-    | TaskFeedbackViewEvent;
+    | TaskFeedbackViewEvent
+    | DebugSessionEvent
+    | BreakpointChangeEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 

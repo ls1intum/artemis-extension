@@ -9,6 +9,9 @@ import {
     RecordingStatusBarService as RecordingStatusBarServiceImpl,
     SessionRecorder as SessionRecorderImpl,
 } from '@extension/services/telemetry';
+import {
+    collectInitialBreakpointSnapshot,
+} from '@extension/services/telemetry/recording/eventCollectors';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { PlatformCapabilities } from '@extension/theia';
@@ -201,6 +204,15 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
             struggleDetectionEnabled: enabled,
             showInterventions,
         }];
+    }));
+
+    // Initial breakpoint snapshot — onDidChangeBreakpoints is delta-only, so
+    // breakpoints already set when recording starts would otherwise be invisible
+    // in replay. Breakpoints are workspace-global, independent of debug sessions.
+    disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
+        const root = ctx.exerciseRoot ? vscode.Uri.parse(ctx.exerciseRoot) : undefined;
+        const snapshot = collectInitialBreakpointSnapshot(vscode.debug.breakpoints, root, ctx.timestamp);
+        return snapshot ? [snapshot] : [];
     }));
 
     // Runtime configuration changes for struggle-detection settings — recorded

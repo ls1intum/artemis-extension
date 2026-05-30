@@ -19,8 +19,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+import { parseRecordedEvent } from '@extension/services/telemetry/recording/parseRecordedData';
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {
+    BreakpointChangeEvent,
     FileCreateEvent,
     FileDeleteEvent,
     FileRenameEvent,
@@ -531,16 +533,115 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         try { await vscode.workspace.fs.delete(file2); } catch { /* ignore */ }
         try { await vscode.workspace.fs.delete(leakProbe); } catch { /* ignore */ }
     });
+
+    test('breakpoint add/remove flows through the live listener into JSONL with exact payloads', async () => {
+        // vscode.debug.breakpoints is a persistent global — clear any leftover state first.
+        vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
+        await sleep(150);
+
+        storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-storage-bp-'));
+        const storageUri = vscode.Uri.file(storageDir);
+        const workspaceUri = vscode.Uri.file(workspaceDir);
+
+        recorder = new SessionRecorder(storageUri);
+        recorder.enable();
+        await recorder.startSession(30, 'bp-test', workspaceUri.toString());
+        await sleep(300); // startup phase
+
+        // One in-root breakpoint (recorded) + one out-of-root (must be filtered out).
+        // The files need not exist on disk — breakpoints carry a location regardless.
+        const inRootUri = vscode.Uri.file(path.join(workspaceDir, 'Bp.java'));
+        const outOfRootUri = vscode.Uri.file(path.join(os.tmpdir(), `outside-bp-${process.pid}.java`));
+        const inRootBp = new vscode.SourceBreakpoint(
+            new vscode.Location(inRootUri, new vscode.Position(9, 4)),
+            true, 'x > 0', undefined, 'log here',
+        );
+        const outOfRootBp = new vscode.SourceBreakpoint(
+            new vscode.Location(outOfRootUri, new vscode.Position(2, 0)),
+        );
+
+        // Add both → onDidChangeBreakpoints{added} → listener filters to in-root only.
+        vscode.debug.addBreakpoints([inRootBp, outOfRootBp]);
+        await sleep(400);
+        // Remove the in-root one → onDidChangeBreakpoints{removed}.
+        vscode.debug.removeBreakpoints([inRootBp]);
+        await sleep(400);
+
+        await recorder.endSession();
+
+        const recordingsDir = path.join(storageDir, 'recordings');
+        const sessionDirs = fs.readdirSync(recordingsDir).filter(d =>
+            fs.statSync(path.join(recordingsDir, d)).isDirectory(),
+        );
+        assert.strictEqual(sessionDirs.length, 1, 'exactly one session dir');
+        const sessionDir = path.join(recordingsDir, sessionDirs[0]);
+        const events: RecordedEvent[] = fs.readFileSync(path.join(sessionDir, 'events.jsonl'), 'utf-8')
+            .trim().split('\n').map(l => JSON.parse(l) as RecordedEvent);
+
+        const bpEvents = events.filter((e): e is BreakpointChangeEvent => e.type === 'breakpointChange');
+
+        // Exactly one 'added' and one 'removed'. This test never mutates a breakpoint
+        // after adding it, so no 'changed' event is produced; filtering by action also
+        // keeps these counts robust if VS Code ever emitted an unrelated 'changed'.
+        const added = bpEvents.filter(e => e.action === 'added');
+        const removed = bpEvents.filter(e => e.action === 'removed');
+        assert.strictEqual(added.length, 1, `exactly 1 'added' breakpointChange (got ${added.length})`);
+        assert.strictEqual(removed.length, 1, `exactly 1 'removed' breakpointChange (got ${removed.length})`);
+
+        // 'added' carries exactly the in-root breakpoint with the exact payload.
+        assert.strictEqual(added[0].breakpoints.length, 1, 'out-of-root breakpoint filtered from added');
+        const b = added[0].breakpoints[0];
+        assert.strictEqual(b.uri, inRootUri.toString(), 'added uri = in-root');
+        assert.strictEqual(b.line, 9, 'added line is 0-based 9');
+        assert.strictEqual(b.column, 4, 'added column is 0-based 4');
+        assert.strictEqual(b.enabled, true, 'added enabled');
+        assert.strictEqual(b.condition, 'x > 0', 'added condition preserved');
+        assert.strictEqual(b.logMessage, 'log here', 'added logMessage preserved');
+        assert.strictEqual(b.id, inRootBp.id, 'added id correlates with the SourceBreakpoint');
+
+        // The out-of-root URI must never appear in any recorded breakpoint.
+        const allUris = bpEvents.flatMap(e => e.breakpoints.map(bp => bp.uri));
+        assert.ok(!allUris.includes(outOfRootUri.toString()), 'out-of-root breakpoint filtered everywhere');
+
+        // 'removed' references the in-root breakpoint by id.
+        assert.ok(removed[0].breakpoints.some(bp => bp.id === inRootBp.id), 'removed references in-root bp id');
+
+        // Timestamp monotonicity across the whole stream.
+        for (let i = 1; i < events.length; i++) {
+            assert.ok(events[i].timestamp >= events[i - 1].timestamp, `timestamp regression at event[${i}]`);
+        }
+
+        // The recording validates clean (exit 0 = no error-severity issues).
+        // Run with --verbose so warnings print, then assert the validate-recording
+        // known-types sync (Task 2) actually took effect: no UNKNOWN_TYPE warning
+        // for the new event types. This is the ONLY assertion that verifies Task 2.
+        const validate = runCliCheck('validate-recording', sessionDir, ['--verbose']);
+        const validateOut = String(validate.stdout);
+        assert.ok(!validateOut.includes("unknown event type 'breakpointChange'"), 'breakpointChange is a known validate-recording type');
+        assert.ok(!validateOut.includes("unknown event type 'debugSession'"), 'debugSession is a known validate-recording type');
+
+        // The validated parser round-trips the new events (regression guard for the
+        // parseRecordedData gap this work closes).
+        for (const e of bpEvents) {
+            assert.deepStrictEqual(parseRecordedEvent(e), e, 'breakpointChange round-trips through parseRecordedEvent');
+        }
+
+        vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
+    });
 });
 
 /**
  * Run a recorder CLI script against the session directory and fail the
  * test if the script exits non-zero.
  */
-function runCliCheck(script: 'validate-recording' | 'roundtrip-recording', sessionDir: string): void {
+function runCliCheck(
+    script: 'validate-recording' | 'roundtrip-recording',
+    sessionDir: string,
+    extraArgs: string[] = [],
+): ReturnType<typeof spawnSync> {
     const extensionRoot = path.resolve(__dirname, '..', '..', '..');
     const scriptPath = path.join(extensionRoot, 'scripts', `${script}.ts`);
-    const result = spawnSync('npx', ['tsx', scriptPath, sessionDir], {
+    const result = spawnSync('npx', ['tsx', scriptPath, sessionDir, ...extraArgs], {
         cwd: extensionRoot,
         encoding: 'utf-8',
         timeout: 60_000,
@@ -550,4 +651,5 @@ function runCliCheck(script: 'validate-recording' | 'roundtrip-recording', sessi
         0,
         `${script} failed (exit ${result.status}):\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
     );
+    return result;
 }

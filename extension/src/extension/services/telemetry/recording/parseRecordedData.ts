@@ -10,18 +10,20 @@
  * `undefined`. The contract used to be `JSON.parse(...) as SessionMetadata`
  * (a blind cast) — see #183 for the audit that surfaced it.
  *
- * The `RecordedEvent` validator is strict per-variant: each of the 33 type
- * literals has a dedicated validator that checks the fields declared in
- * `recording/types.ts`. Adding a new event variant requires adding both a
- * type interface there and a matching parser case here — a deliberate review
- * affordance so schema drift can't silently land.
+ * The `RecordedEvent` validator is strict per-variant: every `type` literal in
+ * the union has a dedicated validator, wired through the `EVENT_PARSERS` table.
+ * That table is `satisfies Record<RecordedEvent['type'], EventParser>`, so
+ * adding a new event variant to `recording/types.ts` without adding its parser
+ * here fails to compile — schema drift cannot silently land.
  */
 
 import type {
+    BreakpointChangeEvent,
     BuildResultEvent,
     ConfigurationChangeEvent,
     ConfigurationSnapshotEvent,
     ConsentChangeEvent,
+    DebugSessionEvent,
     DiagnosticsEvent,
     EqEngineStateEvent,
     EqSnapshotEvent,
@@ -593,55 +595,126 @@ function parseTaskFeedbackView(d: Record<string, unknown>, timestamp: number): T
     return null;
 }
 
+function parseDebugSession(d: Record<string, unknown>, timestamp: number): DebugSessionEvent | null {
+    if (!isOneOf(d.action, ['started', 'terminated', 'activeChanged'] as const)) { return null; }
+    if (!isStringOrUndefined(d.sessionId) || !isStringOrUndefined(d.sessionName)
+        || !isStringOrUndefined(d.sessionType) || !isStringOrUndefined(d.parentSessionId)) {
+        return null;
+    }
+    return stripUndefined({
+        type: 'debugSession' as const,
+        timestamp,
+        action: d.action,
+        sessionId: d.sessionId,
+        sessionName: d.sessionName,
+        sessionType: d.sessionType,
+        parentSessionId: d.parentSessionId,
+    });
+}
+
+function parseRecordedBreakpoint(data: unknown): BreakpointChangeEvent['breakpoints'][number] | null {
+    if (!isObject(data)) { return null; }
+    if (!isString(data.id) || !isString(data.uri)) { return null; }
+    if (!isFiniteNumber(data.line) || !isFiniteNumber(data.column)) { return null; }
+    if (!isBoolean(data.enabled)) { return null; }
+    if (!isStringOrUndefined(data.condition) || !isStringOrUndefined(data.hitCondition)
+        || !isStringOrUndefined(data.logMessage)) {
+        return null;
+    }
+    return stripUndefined({
+        id: data.id,
+        uri: data.uri,
+        line: data.line,
+        column: data.column,
+        enabled: data.enabled,
+        condition: data.condition,
+        hitCondition: data.hitCondition,
+        logMessage: data.logMessage,
+    });
+}
+
+function parseBreakpointChange(d: Record<string, unknown>, timestamp: number): BreakpointChangeEvent | null {
+    if (!isOneOf(d.action, ['added', 'removed', 'changed'] as const)) { return null; }
+    if (!Array.isArray(d.breakpoints)) { return null; }
+    const breakpoints: BreakpointChangeEvent['breakpoints'] = [];
+    for (const raw of d.breakpoints) {
+        const parsed = parseRecordedBreakpoint(raw);
+        if (!parsed) { return null; }
+        breakpoints.push(parsed);
+    }
+    return { type: 'breakpointChange', timestamp, action: d.action, breakpoints };
+}
+
 // ── Public dispatcher ─────────────────────────────────────────────────
+
+type EventParser = (d: Record<string, unknown>, timestamp: number) => RecordedEvent | null;
+
+/**
+ * Dispatch table from every `RecordedEvent['type']` literal to its validator.
+ *
+ * The `satisfies Record<RecordedEvent['type'], EventParser>` clause makes the
+ * table EXHAUSTIVE at compile time: adding a variant to the `RecordedEvent`
+ * union without registering a parser here is a TYPE ERROR (missing key), and a
+ * typo'd key that is not a real event type is also a TYPE ERROR (excess key).
+ * This replaces the previous prose-only "remember to add a case" affordance —
+ * which silently failed for `debugSession` / `breakpointChange` in PR #233,
+ * letting them land on disk with no validator.
+ */
+const EVENT_PARSERS = {
+    textChange: parseTextChange,
+    save: parseSave,
+    fileSwitch: parseFileSwitch,
+    diagnostics: parseDiagnostics,
+    buildResult: parseBuildResult,
+    windowFocus: parseWindowFocus,
+    fileSnapshot: parseFileSnapshot,
+    sessionStart: parseSessionStart,
+    sessionEnd: parseSessionEnd,
+    consentChange: parseConsentChange,
+    startupPhaseComplete: parseStartupPhaseComplete,
+    configurationSnapshot: parseConfigurationSnapshot,
+    configurationChange: parseConfigurationChange,
+    irisChatMessage: parseIrisChatMessage,
+    irisChatSendAttempt: parseIrisChatSendAttempt,
+    irisChatFeedback: parseIrisChatFeedback,
+    eqSnapshot: parseEqSnapshot,
+    eqEngineState: parseEqEngineState,
+    intervention: parseIntervention,
+    viewNavigation: parseViewNavigation,
+    panelVisibility: parsePanelVisibility,
+    selectionChange: parseSelectionChange,
+    visibleRangeChange: parseVisibleRangeChange,
+    terminalCommand: parseTerminalCommand,
+    terminalOpenClose: parseTerminalOpenClose,
+    fileSnapshotError: parseFileSnapshotError,
+    fileCreate: parseFileCreate,
+    fileDelete: parseFileDelete,
+    fileRename: parseFileRename,
+    textDocumentOpen: parseTextDocumentOpen,
+    textDocumentClose: parseTextDocumentClose,
+    testResultsOverviewView: parseTestResultsOverviewView,
+    taskFeedbackView: parseTaskFeedbackView,
+    debugSession: parseDebugSession,
+    breakpointChange: parseBreakpointChange,
+} satisfies Record<RecordedEvent['type'], EventParser>;
 
 /**
  * Parse one line of an `events.jsonl` recording. Returns `null` on any shape
- * failure so the replay command can skip the line. Adding a new event variant
- * to `RecordedEvent` requires a matching `case` here — the `default` branch
- * deliberately rejects unknown types instead of silently widening.
+ * failure (unknown type, missing/mistyped field) so the replay path can skip
+ * the offending line instead of dereferencing `undefined`.
  */
 export function parseRecordedEvent(data: unknown): RecordedEvent | null {
     if (!isObject(data)) { return null; }
     if (!isFiniteNumber(data.timestamp)) { return null; }
     if (!isString(data.type)) { return null; }
-    const ts = data.timestamp;
-    switch (data.type) {
-        case 'textChange': return parseTextChange(data, ts);
-        case 'save': return parseSave(data, ts);
-        case 'fileSwitch': return parseFileSwitch(data, ts);
-        case 'diagnostics': return parseDiagnostics(data, ts);
-        case 'buildResult': return parseBuildResult(data, ts);
-        case 'windowFocus': return parseWindowFocus(data, ts);
-        case 'fileSnapshot': return parseFileSnapshot(data, ts);
-        case 'sessionStart': return parseSessionStart(data, ts);
-        case 'sessionEnd': return parseSessionEnd(data, ts);
-        case 'consentChange': return parseConsentChange(data, ts);
-        case 'startupPhaseComplete': return parseStartupPhaseComplete(data, ts);
-        case 'configurationSnapshot': return parseConfigurationSnapshot(data, ts);
-        case 'configurationChange': return parseConfigurationChange(data, ts);
-        case 'irisChatMessage': return parseIrisChatMessage(data, ts);
-        case 'irisChatSendAttempt': return parseIrisChatSendAttempt(data, ts);
-        case 'irisChatFeedback': return parseIrisChatFeedback(data, ts);
-        case 'eqSnapshot': return parseEqSnapshot(data, ts);
-        case 'eqEngineState': return parseEqEngineState(data, ts);
-        case 'intervention': return parseIntervention(data, ts);
-        case 'viewNavigation': return parseViewNavigation(data, ts);
-        case 'panelVisibility': return parsePanelVisibility(data, ts);
-        case 'selectionChange': return parseSelectionChange(data, ts);
-        case 'visibleRangeChange': return parseVisibleRangeChange(data, ts);
-        case 'terminalCommand': return parseTerminalCommand(data, ts);
-        case 'terminalOpenClose': return parseTerminalOpenClose(data, ts);
-        case 'fileSnapshotError': return parseFileSnapshotError(data, ts);
-        case 'fileCreate': return parseFileCreate(data, ts);
-        case 'fileDelete': return parseFileDelete(data, ts);
-        case 'fileRename': return parseFileRename(data, ts);
-        case 'textDocumentOpen': return parseTextDocumentOpen(data, ts);
-        case 'textDocumentClose': return parseTextDocumentClose(data, ts);
-        case 'testResultsOverviewView': return parseTestResultsOverviewView(data, ts);
-        case 'taskFeedbackView': return parseTaskFeedbackView(data, ts);
-        default: return null;
-    }
+    // Own-property check FIRST: EVENT_PARSERS is a plain object literal, so a
+    // bare `EVENT_PARSERS[data.type]` would resolve inherited Object.prototype
+    // members for adversarial `type` values like 'toString' / 'constructor' /
+    // '__proto__' (returning garbage or throwing). The old `switch` returned
+    // null for those; this preserves that exact behaviour.
+    if (!Object.prototype.hasOwnProperty.call(EVENT_PARSERS, data.type)) { return null; }
+    const parser = (EVENT_PARSERS as Record<string, EventParser>)[data.type];
+    return parser(data, data.timestamp);
 }
 
 /**

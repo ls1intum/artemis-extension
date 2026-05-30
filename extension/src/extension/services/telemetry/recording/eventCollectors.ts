@@ -8,7 +8,9 @@ import * as vscode from 'vscode';
 import type { ResultDTO } from '@extension/types';
 
 import type {
+    BreakpointChangeEvent,
     BuildResultEvent,
+    DebugSessionEvent,
     DiagnosticsEvent,
     FileSwitchEvent,
     SaveEvent,
@@ -19,6 +21,7 @@ import type {
     VisibleRangeChangeEvent,
     WindowFocusEvent,
 } from './types';
+import { shouldRecordUri } from './uriFilter';
 
 // ── Serialization helpers ─────────────────────────────────────────────
 
@@ -158,4 +161,89 @@ export function collectVisibleRangeChange(editor: vscode.TextEditor): VisibleRan
         uri: editor.document.uri.toString(),
         visibleRanges: editor.visibleRanges.map(serializeRange),
     };
+}
+
+// ── Debugger collectors ───────────────────────────────────────────────
+
+/**
+ * Build a debugSession event. Session fields are populated from the session
+ * when present, and left undefined when activeChanged fires with no active
+ * session (so JSON.stringify omits them). Inherited from vscode.DebugSession.
+ */
+export function collectDebugSession(
+    action: 'started' | 'terminated' | 'activeChanged',
+    session: vscode.DebugSession | undefined,
+): DebugSessionEvent {
+    return {
+        type: 'debugSession',
+        timestamp: Date.now(),
+        action,
+        sessionId: session?.id,
+        sessionName: session?.name,
+        sessionType: session?.type,
+        parentSessionId: session?.parentSession?.id,
+    };
+}
+
+/**
+ * Keep only source breakpoints (the only kind with a file location) whose URI
+ * is inside the exercise root. Function breakpoints have no URI and are dropped.
+ */
+export function filterRecordableSourceBreakpoints(
+    breakpoints: readonly vscode.Breakpoint[],
+    exerciseRoot: vscode.Uri | undefined,
+): vscode.SourceBreakpoint[] {
+    return breakpoints.filter(
+        (bp): bp is vscode.SourceBreakpoint =>
+            bp instanceof vscode.SourceBreakpoint
+            && shouldRecordUri(bp.location.uri, exerciseRoot),
+    );
+}
+
+/**
+ * Map already-filtered source breakpoints to a BreakpointChangeEvent.
+ * `line`/`column` are 0-based (raw Position values), consistent with
+ * SerializedRange; the viewer adds +1 for display. `id`, `enabled`,
+ * `condition`, `hitCondition` and `logMessage` are inherited from the base
+ * vscode.Breakpoint. `timestamp` defaults to now; the startup snapshot passes
+ * the captured session-start time instead.
+ */
+export function collectBreakpointChange(
+    action: 'added' | 'removed' | 'changed',
+    breakpoints: readonly vscode.SourceBreakpoint[],
+    timestamp: number = Date.now(),
+): BreakpointChangeEvent {
+    return {
+        type: 'breakpointChange',
+        timestamp,
+        action,
+        breakpoints: breakpoints.map(bp => ({
+            id: bp.id,
+            uri: bp.location.uri.toString(),
+            line: bp.location.range.start.line,
+            column: bp.location.range.start.character,
+            enabled: bp.enabled,
+            condition: bp.condition,
+            hitCondition: bp.hitCondition,
+            logMessage: bp.logMessage,
+        })),
+    };
+}
+
+/**
+ * Build the session-start breakpoint snapshot from the current workspace-global
+ * breakpoints. Returns null when no in-root source breakpoints exist (so the
+ * caller emits nothing). The provided timestamp is used so the snapshot aligns
+ * with the startup event sequence.
+ */
+export function collectInitialBreakpointSnapshot(
+    breakpoints: readonly vscode.Breakpoint[],
+    exerciseRoot: vscode.Uri | undefined,
+    timestamp: number,
+): BreakpointChangeEvent | null {
+    const source = filterRecordableSourceBreakpoints(breakpoints, exerciseRoot);
+    if (source.length === 0) {
+        return null;
+    }
+    return collectBreakpointChange('added', source, timestamp);
 }

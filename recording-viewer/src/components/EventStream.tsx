@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { ALL_LABELS } from '../types.ts';
-import { formatOffset, formatDuration, shortenUri } from '../utils/format.ts';
+import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from '../utils/format.ts';
 
 interface Props {
     events: RecordedEvent[];
@@ -61,7 +61,7 @@ function stripAnsi(text: string): string {
     /* eslint-enable no-control-regex */
 }
 
-function EventDetail({ event }: { event: RecordedEvent }) {
+export function EventDetail({ event }: { event: RecordedEvent }) {
     switch (event.type) {
         case 'eqSnapshot':
             return (
@@ -275,6 +275,21 @@ function EventDetail({ event }: { event: RecordedEvent }) {
             return <span className="event-detail">{shortenUri(event.uri)}</span>;
         case 'textDocumentClose':
             return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'debugSession':
+            return (
+                <span className="event-detail">
+                    {event.action}{formatDebugSessionMeta(event.sessionName, event.sessionType)}
+                </span>
+            );
+        case 'breakpointChange': {
+            const first = event.breakpoints[0];
+            return (
+                <span className="event-detail">
+                    {event.action} | {event.breakpoints.length} breakpoint(s)
+                    {first && ` | ${formatBreakpointLocation(first.uri, first.line)}`}
+                </span>
+            );
+        }
         default:
             return null;
     }
