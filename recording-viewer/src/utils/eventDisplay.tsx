@@ -117,8 +117,7 @@ export function eventDetail(event: RecordedEvent): React.ReactNode {
         case 'intervention':
             return (
                 <span className="event-detail">
-                    {event.action.toUpperCase()} | {event.level}
-                    {' '} EQ: <strong>{Math.round(event.eq * 100)}%</strong>
+                    {event.action.toUpperCase()} | {event.level} | EQ: <strong>{Math.round(event.eq * 100)}%</strong>
                     {event.triggerType && ` | ${event.triggerType}`}
                 </span>
             );
@@ -266,11 +265,11 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
         case 'fileSwitch':
             return <><span className="tt-time">{time}</span> {shortenUri(event.fromUri)} → {shortenUri(event.toUri)}</>;
         case 'buildResult':
-            return <><span className="tt-time">{time}</span> {event.buildFailed ? 'BUILD FAILED' : event.successful ? 'PASSED' : `${event.errorCount} error(s)`}</>;
+            return <><span className="tt-time">{time}</span> {event.buildFailed ? 'BUILD FAILED' : event.successful ? 'PASSED' : `${event.errorCount} error(s)`}{event.failedTests.length > 0 ? ` | ${event.failedTests.length} test(s) failed` : ''}</>;
         case 'eqSnapshot':
             return <><span className="tt-time">{time}</span> EQ: {Math.round(event.eq * 100)}% ({event.confidence})</>;
         case 'eqEngineState':
-            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.currentEQ * 100)}% | {event.snapshots.length} snapshot(s)</>;
+            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.currentEQ * 100)}% ({event.confidence}) | {event.snapshots.length} snapshot(s)</>;
         case 'sessionStart':
             return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}{event.participantId ? ` | ${event.participantId}` : ''}</>;
         case 'sessionEnd':
@@ -286,11 +285,11 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
         case 'fileSnapshot':
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
         case 'selectionChange':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.selections[0]?.startLine ?? 0}{event.kind ? ` (${event.kind})` : ''}</>;
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.selections[0]?.startLine ?? 0}:{event.selections[0]?.startCharacter ?? 0}{event.kind ? ` (${event.kind})` : ''}</>;
         case 'visibleRangeChange':
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}</>;
         case 'intervention':
-            return <><span className="tt-time">{time}</span> {event.action} | {event.level} | EQ: {Math.round(event.eq * 100)}%{event.triggerType ? ` | ${event.triggerType}` : ''}</>;
+            return <><span className="tt-time">{time}</span> {event.action.toUpperCase()} | {event.level} | EQ: {Math.round(event.eq * 100)}%{event.triggerType ? ` | ${event.triggerType}` : ''}</>;
         case 'viewNavigation':
             return <><span className="tt-time">{time}</span> {event.from} → {event.to}</>;
         case 'panelVisibility':
@@ -316,7 +315,7 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
             return <><span className="tt-time">{time}</span> {parts.join(' | ')}</>;
         }
         case 'terminalCommand':
-            return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'}</>;
+            return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'} ({Math.round(event.durationMs / 1000)}s){event.outputTruncated ? ' [truncated]' : ''}</>;
         case 'terminalOpenClose':
             return <><span className="tt-time">{time}</span> {event.action} | {event.terminalName}</>;
         case 'fileSnapshotError':
@@ -339,7 +338,7 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
             return <><span className="tt-time">{time}</span> {event.action} | {event.breakpoints.length} bp{event.breakpoints.length === 1 ? '' : 's'}{where ? ` | ${where}` : ''}</>;
         }
         case 'submission':
-            return <><span className="tt-time">{time}</span> SUBMIT {event.status.toUpperCase()} | participation {event.participationId}{event.failureReason ? ` — ${event.failureReason}` : ''}</>;
+            return <><span className="tt-time">{time}</span> SUBMIT {event.status.toUpperCase()} | participation {event.participationId}{event.commitMessage ? ` | "${event.commitMessage.length > 40 ? event.commitMessage.slice(0, 40) + '...' : event.commitMessage}"` : ''}{event.failureReason ? ` — ${event.failureReason}` : ''}</>;
         default:
             return <span className="tt-time">{time}</span>;
     }
