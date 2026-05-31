@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import { shouldDedupSnapshot } from '@extension/services/telemetry/metrics/snapshotDedup';
-import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 import {
     BuildResultClassification,
     CompileEquivalentEvent,

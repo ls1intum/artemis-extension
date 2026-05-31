@@ -7,7 +7,7 @@
 
 import { LINT_SOURCE_DENYLIST } from '@extension/services/telemetry/eventPipeline/lintDenylist';
 import type { BuildResultEvent, SerializedDiagnostic } from '@extension/services/telemetry/recording/types';
-import { shouldRecordUriString } from '@extension/services/telemetry/recording/uriFilter';
+import { shouldRecordUriString } from '@extension/services/telemetry/uriFilter';
 import type { ErrorSnapshot } from '@extension/services/telemetry/types';
 
 /**

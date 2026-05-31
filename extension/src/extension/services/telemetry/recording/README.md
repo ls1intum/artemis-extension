@@ -14,9 +14,11 @@ recording/
 ├── types.ts                   All RecordedEvent interfaces (discriminated union)
 ├── storageWriter.ts           JSONL writer + snapshot I/O + lane mutex
 ├── recordingStatusBar.ts      Status-bar Play/Stop indicator
-├── uriFilter.ts               shouldRecordUri: scheme + exercise-root check
 ├── eventCollectors.ts         Pure fns: vscode.* objects → RecordedEvent
 ├── index.ts                   Barrel (SessionRecorder + RecordingStatusBarService)
+│
+│   (uriFilter.ts now lives at services/telemetry/uriFilter.ts — moved out of
+│    recording/ so the EQ engine can import it without coupling into recording/)
 │
 ├── lifecycleController.ts     RecorderLifecycleState (pure state: phase FSM,
 │                              generation counters, ActiveSessionState) plus

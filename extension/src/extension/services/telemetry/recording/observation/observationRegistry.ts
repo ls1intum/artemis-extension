@@ -16,7 +16,7 @@ import {
 import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
 import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
-import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 import type { PlatformCapabilities } from '@extension/theia';
 
 import { TerminalCollector } from './terminalCollector';

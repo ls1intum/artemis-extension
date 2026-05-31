@@ -21,7 +21,7 @@ import type {
     VisibleRangeChangeEvent,
     WindowFocusEvent,
 } from './types';
-import { shouldRecordUri } from './uriFilter';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 
 // ── Serialization helpers ─────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { collectDiagnostics, collectSelectionChange, collectVisibleRangeChange } from '@extension/services/telemetry/recording/eventCollectors';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
-import { shouldRecordUri } from '@extension/services/telemetry/recording/uriFilter';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 
 /**
  * Context supplied to startup contributors. Contributors run synchronously
