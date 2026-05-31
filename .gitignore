@@ -53,3 +53,12 @@ pnpm-lock.yml
 
 proposal/
 claudeworktrees/
+
+# Claude / scheduler runtime
+.claude/scheduled_tasks.lock
+
+# Local build/share artifact (redundant snapshot of recording-viewer/ source)
+extension/recording-viewer.zip
+
+# Superpowers planning artifacts (kept locally as design notes, not tracked)
+docs/superpowers/
