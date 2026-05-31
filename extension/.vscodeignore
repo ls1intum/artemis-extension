@@ -24,6 +24,7 @@ docs/**
 .agents/**
 test/**
 coverage/**
+reports/**
 .husky/**
 .github/**
 CONTRIBUTING.md
