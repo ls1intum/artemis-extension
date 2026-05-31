@@ -1,6 +1,7 @@
 .vscode/**
 .vscode-test/**
 out/**
+build/**
 node_modules/**
 src/**
 .venv/**
@@ -27,6 +28,6 @@ coverage/**
 .github/**
 CONTRIBUTING.md
 renovate.json
-dist/meta.json
+dist/meta-*.json
 .env
 .env.*
