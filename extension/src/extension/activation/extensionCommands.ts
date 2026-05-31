@@ -5,7 +5,6 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { TelemetryManager } from '@extension/services/telemetry';
-import { executeReplayCommand } from '@extension/services/telemetry/replay';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
@@ -532,19 +531,6 @@ function registerStruggleScoreCommand(telemetryManager: TelemetryManager): vscod
     });
 }
 
-function registerReplaySessionCommand(globalStorageUri: vscode.Uri): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.replaySession', async () => {
-        await executeReplayCommand(globalStorageUri);
-    });
-}
-
-function registerOpenRecordingsFolderCommand(globalStorageUri: vscode.Uri): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.openRecordingsFolder', async () => {
-        const recordingsUri = vscode.Uri.joinPath(globalStorageUri, 'recordings');
-        await vscode.commands.executeCommand('revealFileInOS', recordingsUri);
-    });
-}
-
 /**
  * Developer-only command: copy the current raw JWT to the clipboard for use
  * in curl/Postman based server testing. Gated on the `artemis.developerMode`
@@ -718,8 +704,6 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerSetServerUrlCommand(),
         registerClearTrustedDomainsCommand(deps.context),
         registerStruggleScoreCommand(deps.telemetryManager),
-        registerReplaySessionCommand(deps.context.globalStorageUri),
-        registerOpenRecordingsFolderCommand(deps.context.globalStorageUri),
         registerShowJwtTokenCommand(deps.authManager),
         registerShowTheiaEnvironmentCommand(),
     );
