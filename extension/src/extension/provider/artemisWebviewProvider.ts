@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { createRecordingWebviewHandlers } from '@dataCollection';
 
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
 import type {
@@ -10,7 +11,6 @@ import type {
 
 import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
-import { createRecordingWebviewHandlers } from '@dataCollection';
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';

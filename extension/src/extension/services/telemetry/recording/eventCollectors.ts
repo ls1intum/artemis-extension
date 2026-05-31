@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 import type { ResultDTO } from '@extension/types';
 
 import type {
@@ -21,7 +22,6 @@ import type {
     VisibleRangeChangeEvent,
     WindowFocusEvent,
 } from './types';
-import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 
 // ── Serialization helpers ─────────────────────────────────────────────
 

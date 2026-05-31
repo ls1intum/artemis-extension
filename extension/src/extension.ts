@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-
 import { wireDataCollection } from '@dataCollection';
+
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';

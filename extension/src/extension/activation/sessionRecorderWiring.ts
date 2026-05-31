@@ -4,12 +4,12 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { ConsentService } from '@extension/services/auth';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { TelemetryManager } from '@extension/services/telemetry';
 import type { SessionRecorder } from '@extension/services/telemetry/recording';
 import {
     RecordingStatusBarService as RecordingStatusBarServiceImpl,
     SessionRecorder as SessionRecorderImpl,
 } from '@extension/services/telemetry/recording';
-import type { TelemetryManager } from '@extension/services/telemetry';
 import {
     collectInitialBreakpointSnapshot,
 } from '@extension/services/telemetry/recording/eventCollectors';
