@@ -96,9 +96,60 @@ jobs:
       - run: npm run package
       - run: npx @vscode/vsce package --no-dependencies
 
+  viewer-lint:
+    name: Viewer lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: recording-viewer
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: recording-viewer/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  viewer-test:
+    name: Viewer unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: recording-viewer
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: recording-viewer/package-lock.json
+      - run: npm ci
+      - run: npx vitest run
+
+  viewer-build:
+    name: Viewer build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: recording-viewer
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: recording-viewer/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
   ci-gate:
     name: CI gate
-    needs: [typecheck, lint, test, knip, build]
+    needs: [typecheck, lint, test, knip, build, viewer-lint, viewer-test, viewer-build]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     if: always()
