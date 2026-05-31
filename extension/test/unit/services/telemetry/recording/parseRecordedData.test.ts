@@ -615,3 +615,57 @@ suite('parseRecordedEvent — debug/breakpoint per-variant rejection', () => {
         );
     });
 });
+
+suite('parseRecordedEvent — submission', () => {
+    test('round-trips a started submission', () => {
+        const ev = { type: 'submission', timestamp: 100, status: 'started', participationId: 42, commitMessage: 'wip' };
+        assert.deepStrictEqual(parseRecordedEvent(ev), ev);
+    });
+
+    test('round-trips a succeeded submission with exerciseId', () => {
+        const ev = { type: 'submission', timestamp: 200, status: 'succeeded', participationId: 42, exerciseId: 7, commitMessage: 'final' };
+        assert.deepStrictEqual(parseRecordedEvent(ev), ev);
+    });
+
+    test('round-trips a failed submission with a failureReason', () => {
+        const ev = { type: 'submission', timestamp: 300, status: 'failed', participationId: 42, failureReason: 'merge-conflict' };
+        assert.deepStrictEqual(parseRecordedEvent(ev), ev);
+    });
+
+    test('omits absent optional fields (no undefined keys)', () => {
+        const ev = { type: 'submission', timestamp: 400, status: 'started', participationId: 1 };
+        const parsed = parseRecordedEvent(ev);
+        assert.deepStrictEqual(parsed, ev);
+        assert.ok(parsed && parsed.type === 'submission', 'should parse as a submission event');
+        assert.ok(parsed && !('exerciseId' in parsed));
+        assert.ok(parsed && !('failureReason' in parsed));
+    });
+
+    test('rejects missing status', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, participationId: 1 }), null);
+    });
+
+    test('rejects an unknown status', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'queued', participationId: 1 }), null);
+    });
+
+    test('rejects missing participationId', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'started' }), null);
+    });
+
+    test('rejects a non-numeric participationId', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'started', participationId: '1' }), null);
+    });
+
+    test('rejects an unknown failureReason', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'failed', participationId: 1, failureReason: 'nope' }), null);
+    });
+
+    test('rejects a non-numeric exerciseId', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'started', participationId: 1, exerciseId: '7' }), null);
+    });
+
+    test('rejects a non-string commitMessage', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'started', participationId: 1, commitMessage: 123 }), null);
+    });
+});

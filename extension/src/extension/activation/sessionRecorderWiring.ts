@@ -146,6 +146,12 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordTaskFeedbackClosed(payload);
     }));
 
+    // Submission tracking. Provider events flow from handleSubmitExercise ->
+    // ArtemisWebviewProvider.fireSubmission -> here.
+    disposables.push(artemisWebviewProvider.onDidSubmission(payload => {
+        sessionRecorder.recordSubmission(payload);
+    }));
+
     // ── Startup contributors ─────────────────────────────────────────
     // These run synchronously inside SessionRecorder._doStart, between the
     // initial-state events and the `startupPhaseComplete` marker. They

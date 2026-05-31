@@ -36,6 +36,7 @@ import type {
     ConfigurationSnapshotEvent,
     InterventionEvent,
     RecordedEvent,
+    SubmissionPayload,
 } from '@extension/services/telemetry/recording/types';
 import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type { InterventionDecision } from '@extension/services/telemetry/types';
@@ -95,6 +96,7 @@ function stubWebviewProvider(): ArtemisWebviewProvider {
     const onDidCloseOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
     const onDidOpenTask = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
     const onDidCloseTask = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
+    const onDidSubmission = new vscode.EventEmitter<SubmissionPayload>();
     return {
         getCurrentVisibility: () => false,
         onDidChangeViewNavigation: onDidChangeViewNavigation.event,
@@ -107,6 +109,8 @@ function stubWebviewProvider(): ArtemisWebviewProvider {
         fireTestResultsOverviewClosed: (p: TestResultsOverviewClosedPayload) => onDidCloseOverview.fire(p),
         fireTaskFeedbackOpened: (p: TaskFeedbackOpenedPayload) => onDidOpenTask.fire(p),
         fireTaskFeedbackClosed: (p: TaskFeedbackClosedPayload) => onDidCloseTask.fire(p),
+        onDidSubmission: onDidSubmission.event,
+        fireSubmission: (p: SubmissionPayload) => onDidSubmission.fire(p),
     } as unknown as ArtemisWebviewProvider;
 }
 
@@ -380,6 +384,19 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             const payload: TaskFeedbackClosedPayload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 100, closeReason: 'button' };
             (harness.artemisWebviewProvider as unknown as { fireTaskFeedbackClosed: (p: TaskFeedbackClosedPayload) => void })
                 .fireTaskFeedbackClosed(payload);
+            sinon.assert.calledOnceWithExactly(recordStub, payload);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidSubmission to the recorder', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const recordStub = sandbox.stub(harness.recorder, 'recordSubmission');
+            const payload: SubmissionPayload = { status: 'started', participationId: 99, commitMessage: 'wip' };
+            (harness.artemisWebviewProvider as unknown as { fireSubmission: (p: SubmissionPayload) => void })
+                .fireSubmission(payload);
             sinon.assert.calledOnceWithExactly(recordStub, payload);
         } finally {
             await harness.dispose();

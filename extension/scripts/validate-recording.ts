@@ -75,7 +75,7 @@ const KNOWN_EVENT_TYPES = new Set([
     // Terminal
     'terminalCommand', 'terminalOpenClose',
     // Build
-    'buildResult',
+    'buildResult', 'submission',
     // Config
     'configurationSnapshot', 'configurationChange',
     // Views

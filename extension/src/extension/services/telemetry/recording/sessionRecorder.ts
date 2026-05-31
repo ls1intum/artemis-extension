@@ -42,7 +42,7 @@ import * as vscode from 'vscode';
 
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { RecordedEvent, SerializedErrorSnapshot } from './types';
+import type { RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -435,6 +435,21 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             type: 'panelVisibility',
             panel,
             visible,
+        });
+    }
+
+    /**
+     * Record a submission lifecycle event (started/succeeded/failed). `exerciseId`
+     * is stamped from the active session, consistent with how buildResult is stamped.
+     */
+    recordSubmission(payload: SubmissionPayload): void {
+        this._record({
+            type: 'submission',
+            status: payload.status,
+            participationId: payload.participationId,
+            exerciseId: this._activeExerciseId,
+            commitMessage: payload.commitMessage,
+            failureReason: payload.failureReason,
         });
     }
 

@@ -24,6 +24,7 @@ import type {
     ConfigurationSnapshotEvent,
     InterventionEvent,
     RecordedEvent,
+    SubmissionEvent,
 } from '@extension/services/telemetry/recording/types';
 
 /**
@@ -665,6 +666,40 @@ suite('SessionRecorder (Block AB+E)', () => {
         const panelEvents = events.filter(e => e.type === 'panelVisibility');
         assert.strictEqual(panelEvents.length, 0,
             'panelVisibility before startSession must not be recorded');
+    });
+
+    // ── Test: recordSubmission stamps exerciseId and respects recording phase ──
+
+    test('recordSubmission stamps exerciseId from the active session and records the payload', async () => {
+        recorder.enable();
+        await recorder.startSession(7);
+        recorder.recordSubmission({ status: 'started', participationId: 42, commitMessage: 'wip' });
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const submission = events.find((e): e is SubmissionEvent => e.type === 'submission');
+        assert.ok(submission, 'expected a submission event');
+        assert.strictEqual(submission!.status, 'started');
+        assert.strictEqual(submission!.participationId, 42);
+        assert.strictEqual(submission!.exerciseId, 7);
+        assert.strictEqual(submission!.commitMessage, 'wip');
+    });
+
+    test('recordSubmission is dropped when not recording', async () => {
+        // Recorder is enabled but no session has started, so the phase is not
+        // 'recording' and _record must short-circuit. Mirroring the
+        // recordPanelVisibility no-op test, we prove nothing was written by
+        // inspecting the actual event stream, not just the trivial eventCount.
+        recorder.enable();
+
+        recorder.recordSubmission({ status: 'failed', participationId: 1, failureReason: 'push-failed' });
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const events = collectWrittenEvents(fs);
+        assert.strictEqual(events.filter(e => e.type === 'submission').length, 0,
+            'submission before startSession must not be recorded');
+        assert.strictEqual(recorder.eventCount, 0);
     });
 
     // ── Block J: Per-URI debounce tests ───────────────────────────────────

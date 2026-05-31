@@ -428,6 +428,40 @@ export interface BreakpointChangeEvent {
     }[];
 }
 
+// ── Submission events ─────────────────────────────────────────────────
+
+export type SubmissionFailureReason =
+    | 'no-workspace' | 'no-changes' | 'git-identity-missing'
+    | 'merge-conflict' | 'push-failed' | 'other';
+
+/**
+ * A student's Submit action. Recorded as a lifecycle (mirrors irisChatSendAttempt):
+ * `started` at the click instant, then `succeeded` after a successful push or
+ * `failed` with a categorised reason. Standalone but correlatable to the later
+ * `buildResult` by `participationId` + timestamp ordering (the server-assigned
+ * submissionId does not exist at submit time).
+ */
+export interface SubmissionEvent {
+    type: 'submission';
+    timestamp: number;
+    status: 'started' | 'succeeded' | 'failed';
+    /** Correlation key with buildResult. Required (submitExercise payload guarantees it). */
+    participationId: number;
+    /** Stamped by the recorder from the active session, consistent with buildResult. */
+    exerciseId?: number;
+    /** Raw intended text on `started`; resolved committed text on `succeeded`; omitted on `failed`. */
+    commitMessage?: string;
+    /** Present only on status === 'failed'. */
+    failureReason?: SubmissionFailureReason;
+}
+
+/**
+ * Data the submit command emits about a submission. The recorder stamps
+ * `timestamp` and `exerciseId`; everything else comes from the command.
+ * Pick keeps the field types a single source of truth with SubmissionEvent.
+ */
+export type SubmissionPayload = Pick<SubmissionEvent, 'status' | 'participationId' | 'commitMessage' | 'failureReason'>;
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -465,7 +499,8 @@ export type RecordedEvent =
     | TestResultsOverviewViewEvent
     | TaskFeedbackViewEvent
     | DebugSessionEvent
-    | BreakpointChangeEvent;
+    | BreakpointChangeEvent
+    | SubmissionEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 

@@ -15,6 +15,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Iris Chat Connectivity Resilience**: Network drops and server errors now show a "temporarily unavailable" banner with a Retry button instead of the misleading "instructor disabled Iris" overlay, and the chat reloads automatically when the WebSocket reconnects.
 - **Recorder Gate**: the Record button now reads from the workspace-detected exercise instead of the Iris chat selection. Clicking Record before opening Iris no longer shows the misleading "Select an exercise context" warning.
 - **Debugger Recording**: The session recorder now captures debug session lifecycle and in-exercise breakpoint changes, visible in the recording timeline and live viewer.
+- **Submission Recording**: The session recorder now captures explicit submit actions (started, succeeded, or failed with a reason), visible in the recording timeline and live viewer and correlatable with the build result.
 
 ## [0.4.4] - 2026-05-10
 

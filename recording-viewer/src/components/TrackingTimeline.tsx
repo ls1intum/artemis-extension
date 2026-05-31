@@ -142,6 +142,8 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
             const where = first ? formatBreakpointLocation(first.uri, first.line) : '';
             return <><span className="tt-time">{time}</span> {event.action} | {event.breakpoints.length} bp{event.breakpoints.length === 1 ? '' : 's'}{where ? ` | ${where}` : ''}</>;
         }
+        case 'submission':
+            return <><span className="tt-time">{time}</span> SUBMIT {event.status.toUpperCase()} | participation {event.participationId}{event.failureReason ? ` — ${event.failureReason}` : ''}</>;
         default:
             return <span className="tt-time">{time}</span>;
     }

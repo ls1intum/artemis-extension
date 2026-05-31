@@ -4,6 +4,7 @@ import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SubmissionFailureReason, SubmissionPayload } from '@extension/services/telemetry/recording/types';
 import * as workspaceServices from '@extension/services/workspace';
 import * as fileChecker from '@extension/services/workspace/workspaceFileChecker';
 import { extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
@@ -11,6 +12,22 @@ import { extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 import type { CommandContext, CommandMap } from './types';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
+
+/**
+ * Maximum length of a commit message stored in the session recording. The full message is
+ * always used for the actual git commit; only the recorded copy is capped so a large pasted
+ * message cannot bloat events.jsonl, consistent with the truncation applied to file snapshots
+ * and terminal output elsewhere in the recorder.
+ */
+const MAX_RECORDED_COMMIT_MESSAGE_LENGTH = 512;
+
+/** Cap a commit message for the recording only — never the value committed to git. */
+function capRecordedCommitMessage(message: string | undefined): string | undefined {
+    if (message === undefined || message.length <= MAX_RECORDED_COMMIT_MESSAGE_LENGTH) {
+        return message;
+    }
+    return message.slice(0, MAX_RECORDED_COMMIT_MESSAGE_LENGTH);
+}
 
 /**
  * Helper functions injected via the constructor so tests can substitute
@@ -50,14 +67,31 @@ export class RepositorySubmitCommands {
     }
 
     private handleSubmitExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
+        let participationId: number | undefined;
+        let failureReason: SubmissionFailureReason = 'other';
+        let resolvedCommitMessage: string | undefined;   // function-scoped: assigned inside withProgress, read at the succeeded emit
+        let succeededEmitted = false;
+        const fireSubmission = (payload: SubmissionPayload): void => {
+            this.context.providerRegistry.getArtemisWebviewProvider()?.fireSubmission(payload);
+        };
         try {
             const payload = getPayload<WebCmd<'submitExercise'>>(message);
+            // participationId is contractually required, but guard: a malformed/partial message must
+            // not produce a submission event with a missing participationId (the parser rejects that).
+            participationId = typeof payload.participationId === 'number' ? payload.participationId : undefined;
             const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
             const commitMessage = payload.commitMessage;
+            const rawCommitMessage = capRecordedCommitMessage(commitMessage?.trim() || undefined);
+            if (participationId !== undefined) {
+                // fireSubmission is synchronous; the recorder's _record phase guard drops the event
+                // if no session is recording, so no session-state guard is needed at any call site.
+                fireSubmission({ status: 'started', participationId, commitMessage: rawCommitMessage });
+            }
+
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
-                vscode.window.showErrorMessage('Open the exercise repository in VS Code before submitting.');
-                return;
+                failureReason = 'no-workspace';
+                throw new Error('Open the exercise repository in VS Code before submitting.');
             }
 
             const cwd = workspaceFolder.uri.fsPath;
@@ -68,13 +102,13 @@ export class RepositorySubmitCommands {
             }, async progress => {
                 progress.report({ message: 'Preparing repository...' });
 
-                // Use unified workspace file checker (lightweight)
                 const result = await this.deps.checkWorkspaceFiles(workspaceFolder, {
                     includeContent: false,
                     applyFilters: false
                 });
 
                 if (!result.hasChanges) {
+                    failureReason = 'no-changes';
                     throw new Error('No local changes detected to submit.');
                 }
 
@@ -86,27 +120,41 @@ export class RepositorySubmitCommands {
                     VSCODE_CONFIG.DEFAULT_COMMIT_MESSAGE_KEY,
                     'Solution submission via Iris extension'
                 );
-                const messageText = (commitMessage && commitMessage.trim()) || configuredDefault;
+                resolvedCommitMessage = (commitMessage && commitMessage.trim()) || configuredDefault;
 
                 await this.ensureGitIdentityConfigured(cwd);
 
                 progress.report({ message: 'Committing changes...' });
-                await this.gitService.commit(messageText, { cwd });
+                await this.gitService.commit(resolvedCommitMessage, { cwd });
 
                 progress.report({ message: 'Syncing with remote...' });
                 try {
                     await this.gitService.pullWithRebase({ cwd });
                 } catch (pullError: unknown) {
-                    const errorMessage = pullError instanceof Error ? pullError.message : '';
-                    if (errorMessage && errorMessage.includes('CONFLICT')) {
+                    const pullMessage = pullError instanceof Error ? pullError.message : '';
+                    if (pullMessage && pullMessage.includes('CONFLICT')) {
+                        failureReason = 'merge-conflict';
                         throw new Error('Merge conflict detected. Please resolve conflicts manually using git and try again.');
                     }
-                    logger.warn('Pull failed, but continuing with push:', LogCategory.SUBMISSION, errorMessage);
+                    logger.warn('Pull failed, but continuing with push:', LogCategory.SUBMISSION, pullMessage);
                 }
 
                 progress.report({ message: 'Pushing to Artemis...' });
-                await this.gitService.push({ cwd });
+                try {
+                    await this.gitService.push({ cwd });
+                } catch (pushError: unknown) {
+                    failureReason = 'push-failed';
+                    throw pushError;
+                }
             });
+
+            // succeeded — the only success site. The post-success work below cannot throw into the
+            // outer catch (the websocket reconnect has its own inner try/catch), but succeededEmitted
+            // also hardens the "exactly one terminal per started" invariant against future edits.
+            if (participationId !== undefined) {
+                fireSubmission({ status: 'succeeded', participationId, commitMessage: capRecordedCommitMessage(resolvedCommitMessage) });
+                succeededEmitted = true;
+            }
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
 
@@ -127,11 +175,16 @@ export class RepositorySubmitCommands {
             logger.error('Submit exercise error:', LogCategory.SUBMISSION, error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';
 
-            // Don't show error notification if user is being directed to Git Credentials Helper
-            if (errorMessage !== GIT_IDENTITY_NOT_CONFIGURED) {
+            if (errorMessage === GIT_IDENTITY_NOT_CONFIGURED) {
+                // Sentinel constant (not free-text parsing): identity flow already navigated the user.
+                failureReason = 'git-identity-missing';
+            } else {
                 vscode.window.showErrorMessage(errorMessage);
             }
 
+            if (participationId !== undefined && !succeededEmitted) {
+                fireSubmission({ status: 'failed', participationId, failureReason });
+            }
         }
     };
 

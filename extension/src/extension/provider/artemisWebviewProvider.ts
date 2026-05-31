@@ -21,6 +21,7 @@ import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { TelemetryManager } from '@extension/services/telemetry';
+import type { SubmissionPayload } from '@extension/services/telemetry/recording/types';
 import type { IProviderRegistry } from '@extension/services/ui';
 import {
     BuildDiagnosticsService,
@@ -93,11 +94,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _onDidCloseTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
     private readonly _onDidOpenTaskFeedback = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
     private readonly _onDidCloseTaskFeedback = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
+    private readonly _onDidSubmission = new vscode.EventEmitter<SubmissionPayload>();
 
     public readonly onDidOpenTestResultsOverview = this._onDidOpenTestResultsOverview.event;
     public readonly onDidCloseTestResultsOverview = this._onDidCloseTestResultsOverview.event;
     public readonly onDidOpenTaskFeedback = this._onDidOpenTaskFeedback.event;
     public readonly onDidCloseTaskFeedback = this._onDidCloseTaskFeedback.event;
+    public readonly onDidSubmission = this._onDidSubmission.event;
 
     // ── Constructor ────────────────────────────────────────────────────
     constructor(deps: ArtemisWebviewProviderDeps) {
@@ -244,6 +247,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._onDidCloseTestResultsOverview,
             this._onDidOpenTaskFeedback,
             this._onDidCloseTaskFeedback,
+            this._onDidSubmission,
         );
     }
 
@@ -390,6 +394,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public fireTaskFeedbackClosed(payload: TaskFeedbackClosedPayload): void {
         this._onDidCloseTaskFeedback.fire(payload);
+    }
+
+    public fireSubmission(payload: SubmissionPayload): void {
+        this._onDidSubmission.fire(payload);
     }
 
     // ── Public API: navigation delegation ──────────────────────────────
