@@ -250,7 +250,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
             </Container>
 
             {/* Developer tools */}
-            {data.developerMode && (
+            {__IRIS_RECORDING__ && data.developerMode && (
                 <Container
                     header={
                         <div style={{ fontSize: '15px', fontWeight: 600 }}>
