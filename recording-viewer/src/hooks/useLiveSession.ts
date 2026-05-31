@@ -21,7 +21,7 @@ const INITIAL: LiveSessionState = { connected: false, events: [], latestEventTim
  * Sized to cover realistic study-session volumes (observed worst case so far:
  * ~4k events). Bumping further is bounded less by RAM (~400 bytes/event) than
  * by re-derivation cost in EventStream/TrackingTimeline on each RAF flush. */
-export const MAX_LIVE_EVENTS = 50_000;
+const MAX_LIVE_EVENTS = 50_000;
 
 type ScheduleHandle = { cancel: () => void };
 
