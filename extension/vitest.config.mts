@@ -20,7 +20,7 @@ export default defineConfig({
 		globals: true,
 		environment: 'happy-dom',
 		setupFiles: ['./test/react/__helpers__/vitest.setup.ts'],
-		include: ['test/react/**/*.test.{ts,tsx}'],
+		include: ['test/react/**/*.test.{ts,tsx}', 'test/logic/**/*.test.{ts,tsx}'],
 		css: true,
 		reporters: ['default', 'junit'],
 		outputFile: {
