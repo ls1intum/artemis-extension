@@ -574,15 +574,21 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                         </div>
                         {viewMode === 'timeline' && xDomain && (
                             <div className="zoom-controls">
-                                <button
-                                    className={`zoom-btn ${hideEmptyLanes ? 'active' : ''}`}
-                                    onClick={() => setHideEmptyLanes(v => !v)}
+                                <label
+                                    className="lane-toggle"
                                     title={hideEmptyLanes
-                                        ? 'Showing only lanes with events — click to show all lanes'
-                                        : 'Showing all lanes — click to hide the empty ones'}
+                                        ? 'Showing only lanes with events — switch off to show all lanes'
+                                        : 'Showing all lanes — switch on to hide the empty ones'}
                                 >
-                                    {hideEmptyLanes ? 'Show all lanes' : 'Hide empty lanes'}
-                                </button>
+                                    <span className="lane-toggle-text">Hide empty lanes</span>
+                                    <input
+                                        type="checkbox"
+                                        className="lane-toggle-input"
+                                        checked={hideEmptyLanes}
+                                        onChange={e => setHideEmptyLanes(e.target.checked)}
+                                    />
+                                    <span className="lane-toggle-slider" />
+                                </label>
                                 <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
                                 <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
                                 {zoomedXDomain && (

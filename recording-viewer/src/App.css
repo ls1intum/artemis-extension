@@ -1717,6 +1717,65 @@
     align-items: center;
 }
 
+/* Slider-style toggle (e.g. hide empty lanes), sized to sit in the controls row */
+.lane-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 9px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.15s, color 0.15s;
+}
+.lane-toggle:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+.lane-toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.lane-toggle-slider {
+    position: relative;
+    width: 30px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: var(--border);
+    transition: background 0.15s;
+}
+.lane-toggle-slider::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.15s, background 0.15s;
+}
+.lane-toggle-input:checked + .lane-toggle-slider {
+    background: var(--accent);
+}
+.lane-toggle-input:checked + .lane-toggle-slider::before {
+    transform: translateX(14px);
+    background: #fff;
+}
+.lane-toggle-input:focus-visible + .lane-toggle-slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 .zoom-btn {
     font-family: var(--sans);
     font-size: 14px;
