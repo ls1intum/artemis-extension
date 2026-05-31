@@ -140,6 +140,12 @@ export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
                     </button>
                 )}
             </div>
+            {(liveIds?.size ?? 0) > 0 && (
+                <div className="live-hint">
+                    <span className="live-dot on" />
+                    Live recording in progress — press <kbd>Space</kbd> to open it.
+                </div>
+            )}
             <div className="session-table">
                 <div className="session-table-header">
                     <span>Session</span>

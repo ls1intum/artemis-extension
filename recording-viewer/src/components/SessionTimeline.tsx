@@ -13,6 +13,7 @@ import {
 import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
 import { raterLaneColor } from '../utils/raterColor.ts';
+import { EventBadge } from './EventBadge.tsx';
 import { SessionChartOverlay } from './SessionChartOverlay';
 
 interface ResearcherLane {
@@ -352,7 +353,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
             {(eqEvents.length > 0 || hasReplay) && (
                 <div className="eq-chart-grid">
                     <div className="eq-chart-label">
-                        <span className="event-badge eqSnapshot">EQ</span>
+                        <EventBadge type="eqSnapshot" label="EQ" />
                     </div>
                     <div style={{ position: 'relative' }}>
                         <SessionLineChart

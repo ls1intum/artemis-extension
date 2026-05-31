@@ -53,6 +53,30 @@
     margin-bottom: 0;
 }
 
+/* Discoverability hint for the Space-to-open-live shortcut; only shown while a
+   live recording exists. */
+.live-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font-size: 13px;
+}
+.live-hint kbd {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text);
+}
+
 .toolbar-btn {
     font-family: var(--sans);
     font-size: 12px;
@@ -357,6 +381,11 @@
     gap: 6px;
 }
 
+/* Types with no events are shown but de-emphasized (and sorted to the bottom). */
+.event-count-row.empty {
+    opacity: 0.45;
+}
+
 .event-count {
     font-family: var(--mono);
     font-size: 12px;
@@ -599,37 +628,9 @@
     text-align: center;
 }
 
-.event-badge.eqSnapshot { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
-.event-badge.buildResult { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.event-badge.textChange { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
-.event-badge.save { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.event-badge.diagnostics { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-.event-badge.fileSwitch { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
-.event-badge.windowFocus { background: rgba(251, 191, 36, 0.1); color: #fbbf24; }
-.event-badge.fileSnapshot { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
-.event-badge.sessionStart { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
-.event-badge.sessionEnd { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-.event-badge.irisChatMessage { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
-.event-badge.irisChatSendAttempt { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
-.event-badge.irisChatFeedback { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
-.event-badge.intervention { background: rgba(249, 115, 22, 0.15); color: #f97316; }
-.event-badge.eqEngineState { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
-.event-badge.viewNavigation { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
-.event-badge.panelVisibility { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
-.event-badge.selectionChange { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
-.event-badge.visibleRangeChange { background: rgba(20, 184, 166, 0.15); color: #14b8a6; }
-.event-badge.terminalCommand { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
-.event-badge.terminalOpenClose { background: rgba(103, 232, 249, 0.12); color: #67e8f9; }
-.event-badge.fileSnapshotError { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-.event-badge.fileCreate { background: rgba(134, 239, 172, 0.15); color: #86efac; }
-.event-badge.fileDelete { background: rgba(252, 165, 165, 0.15); color: #fca5a5; }
-.event-badge.fileRename { background: rgba(253, 186, 116, 0.15); color: #fdba74; }
-.event-badge.textDocumentOpen { background: rgba(125, 211, 252, 0.15); color: #7dd3fc; }
-.event-badge.textDocumentClose { background: rgba(147, 197, 253, 0.15); color: #93c5fd; }
-.event-badge.configurationSnapshot { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
-.event-badge.configurationChange { background: rgba(203, 213, 225, 0.15); color: #cbd5e1; }
-.event-badge.testResultsOverviewView { background: rgba(45, 212, 191, 0.15); color: #2dd4bf; }
-.event-badge.taskFeedbackView { background: rgba(94, 234, 212, 0.15); color: #5eead4; }
+/* Per-type badge colors live in MARKER_COLORS (src/constants.ts) and are applied
+   inline by <EventBadge>, so badge pills and canvas dots share one source of
+   truth. The special `.event-badge.annotation` rule below is intentionally kept. */
 
 /* ── Event details ───────────────────────────────────────────────────── */
 
@@ -1198,6 +1199,7 @@
     flex-direction: column;
     border-right: 1px solid var(--border);
     background: var(--bg-elevated);
+    overflow: hidden;
 }
 
 .lane-label {
@@ -1205,10 +1207,33 @@
     align-items: center;
     justify-content: flex-end;
     padding: 0 10px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* Long type names (CONFIGURATIONSNAPSHOT, STARTUPPHASECOMPLETE) must not spill
+   out of the fixed-width label column. Clip to the column with an ellipsis as a
+   hard guarantee; the smaller font lets the long labels fit in practice, and the
+   badge's title attribute exposes the full name on hover. */
+.lane-label .event-badge {
+    min-width: 0;
+    max-width: 100%;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 9px;
+    letter-spacing: 0.2px;
 }
 
 .lane-label.axis-label {
     border-top: 1px solid var(--border);
+}
+
+/* Lanes with no events in this session are still shown (sorted to the bottom)
+   but de-emphasized. */
+.lane-label.empty {
+    opacity: 0.45;
 }
 
 .lane-svg-container {
@@ -1716,6 +1741,65 @@
     align-items: center;
 }
 
+/* Slider-style toggle (e.g. hide empty lanes), sized to sit in the controls row */
+.lane-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 9px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.15s, color 0.15s;
+}
+.lane-toggle:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+.lane-toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.lane-toggle-slider {
+    position: relative;
+    width: 30px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: var(--border);
+    transition: background 0.15s;
+}
+.lane-toggle-slider::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.15s, background 0.15s;
+}
+.lane-toggle-input:checked + .lane-toggle-slider {
+    background: var(--accent);
+}
+.lane-toggle-input:checked + .lane-toggle-slider::before {
+    transform: translateX(14px);
+    background: #fff;
+}
+.lane-toggle-input:focus-visible + .lane-toggle-slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 .zoom-btn {
     font-family: var(--sans);
     font-size: 14px;
@@ -1817,6 +1901,7 @@
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .live-status { display: flex; align-items: center; gap: 0.75rem; }
 .live-counter, .live-age { color: #94a3b8; font-variant-numeric: tabular-nums; }
+.live-elapsed { color: #e2e8f0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .live-legend { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .live-legend span { font-family: monospace; }
 .live-toast {

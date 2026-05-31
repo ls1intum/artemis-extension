@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
 import { SWIM_LANE_TYPES } from '../constants';
 import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from '../utils/format';
+import { EventBadge } from './EventBadge';
 import { useTimelinePan } from '../hooks/useTimelinePan';
 import {
     AXIS_HEIGHT,
@@ -13,6 +14,7 @@ import {
     groupEventsByType,
     hitTestAnnotation,
     hitTestDot,
+    orderTypesActiveFirst,
     xToTime,
     type AnnotationGroup,
     type Bin,
@@ -26,6 +28,8 @@ interface Props {
     fullXDomain?: [number, number];
     annotations: Annotation[];
     enabledTypes: Set<EventType>;
+    /** When true, only lanes with events are shown (the empty ones are hidden). */
+    hideEmptyLanes?: boolean;
     onAddAnnotation?: (timestamp: number, text: string) => void;
     onUpdateAnnotation?: (id: string, text: string) => void;
     onDeleteAnnotation?: (id: string) => void;
@@ -156,6 +160,7 @@ export function TrackingTimeline({
     fullXDomain,
     annotations,
     enabledTypes,
+    hideEmptyLanes = false,
     onAddAnnotation,
     onUpdateAnnotation,
     onDeleteAnnotation,
@@ -185,10 +190,16 @@ export function TrackingTimeline({
     // events.filter pass per lane on every xDomain/zoom/pan update.
     const eventsByType = useMemo(() => groupEventsByType(events), [events]);
 
-    // Visible lanes: only types enabled AND with events
+    // Visible lanes: every enabled type is shown (even with no events), with the
+    // empty ones sorted to the bottom while keeping the curated order otherwise.
+    // When hideEmptyLanes is on, the empty lanes are dropped entirely.
     const visibleLanes = useMemo(() => {
-        return SWIM_LANE_TYPES.filter(t => enabledTypes.has(t) && eventsByType.has(t));
-    }, [eventsByType, enabledTypes]);
+        const enabled = SWIM_LANE_TYPES.filter(t => enabledTypes.has(t));
+        if (hideEmptyLanes) {
+            return enabled.filter(t => eventsByType.has(t));
+        }
+        return orderTypesActiveFirst(enabled, t => eventsByType.has(t));
+    }, [eventsByType, enabledTypes, hideEmptyLanes]);
 
     // Per-lane bins
     const laneBins = useMemo(() => {
@@ -472,8 +483,12 @@ export function TrackingTimeline({
                 {/* Lane labels */}
                 <div className="lane-labels">
                     {visibleLanes.map(type => (
-                        <div key={type} className="lane-label" style={{ height: LANE_HEIGHT }}>
-                            <span className={`event-badge ${type}`}>{type}</span>
+                        <div
+                            key={type}
+                            className={`lane-label${eventsByType.has(type) ? '' : ' empty'}`}
+                            style={{ height: LANE_HEIGHT }}
+                        >
+                            <EventBadge type={type} title={type} />
                         </div>
                     ))}
                     <div className="lane-label axis-label" style={{ height: AXIS_HEIGHT }} />
@@ -517,7 +532,7 @@ export function TrackingTimeline({
                             onMouseLeave={() => setHoveringTooltip(false)}
                         >
                             <div className="tooltip-type">
-                                <span className={`event-badge ${tooltip.laneType}`}>{tooltip.laneType}</span>
+                                <EventBadge type={tooltip.laneType} />
                                 <span className="tooltip-count">&times;{tooltip.bin.count}</span>
                                 {videoTimeAtSessionStartSeconds != null && (
                                     <span className="tooltip-video-time">

@@ -17,6 +17,7 @@ import { LiveControlBar } from './components/LiveControlBar';
 import { ALL_EVENT_TYPES } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
 import { useLiveSessions } from './hooks/useLiveSessions';
+import { useOpenLiveOnSpace } from './hooks/useOpenLiveOnSpace';
 import { useLiveSession } from './hooks/useLiveSession';
 import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
@@ -162,6 +163,10 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setStickyLive(true);
         }
     }, [liveSessionIds, endedLiveSessionId]);
+
+    // On the session list, Space opens a live recording (live-only convenience).
+    const openLiveSession = useCallback((id: string) => { void loadFromApi(id, true); }, [loadFromApi]);
+    useOpenLiveOnSpace(!session && !loading, liveSessionIds, openLiveSession);
 
     // Whenever sticky-live transitions ON, reseed the mutator from the latest
     // annotations so any archive-mode edits made before the latch don't leave
@@ -333,10 +338,32 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
         return min;
     }, [session, displayedEvents]);
+
+    // Authoritative session start for the live elapsed timer: metadata.startTime,
+    // else the sessionStart event's timestamp. Deliberately NOT the generic
+    // earliest-event fallback above — on a late join that would understate
+    // elapsed. Latched per session so that once an authoritative start is seen
+    // it survives the live buffer trimming the sessionStart event out of the
+    // sliding window. 0 (hidden) until a source is observed.
+    const liveStartRef = useRef<{ id: string | null; start: number }>({ id: null, start: 0 });
+    const liveElapsedStart = useMemo(() => {
+        const id = session?.fileName ?? null;
+        if (liveStartRef.current.id !== id) {
+            liveStartRef.current = { id, start: 0 };
+        }
+        if (liveStartRef.current.start === 0 && session) {
+            const authoritative = session.metadata?.startTime
+                ?? displayedEvents.find(e => e.type === 'sessionStart')?.timestamp
+                ?? 0;
+            if (authoritative > 0) liveStartRef.current.start = authoritative;
+        }
+        return liveStartRef.current.start;
+    }, [session, displayedEvents]);
     const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
     const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
     const [autoFollowLive, setAutoFollowLive] = useState(true);
+    const [hideEmptyLanes, setHideEmptyLanes] = useState(false);
 
     const handleViewInList = useCallback((timestamp: number) => {
         setScrollToTimestamp(timestamp);
@@ -530,6 +557,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             bufferSize={live.events.length}
                             totalReceived={live.totalReceived}
                             latestEventTimestamp={live.latestEventTimestamp}
+                            startTime={liveElapsedStart}
                             lastLabelToast={lastLabelToast}
                         />
                     )}
@@ -551,8 +579,24 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                         </div>
                         {viewMode === 'timeline' && xDomain && (
                             <div className="zoom-controls">
-                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
-                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
+                                <label
+                                    className="lane-toggle"
+                                    title={hideEmptyLanes
+                                        ? 'Showing only lanes with events — switch off to show all lanes'
+                                        : 'Showing all lanes — switch on to hide the empty ones'}
+                                >
+                                    <span className="lane-toggle-text">Hide empty lanes</span>
+                                    <input
+                                        type="checkbox"
+                                        className="lane-toggle-input"
+                                        checked={hideEmptyLanes}
+                                        onChange={e => setHideEmptyLanes(e.target.checked)}
+                                    />
+                                    <span className="lane-toggle-slider" />
+                                </label>
+                                {/* Reset/Follow sit between the toggle and the zoom +/- buttons,
+                                    so the +/- stay pinned to the right edge and don't shift when
+                                    these conditional buttons appear/disappear. */}
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
                                 )}
@@ -565,6 +609,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                         Follow
                                     </button>
                                 )}
+                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
+                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
                             </div>
                         )}
                     </div>
@@ -587,6 +633,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 fullXDomain={xDomain}
                                 annotations={displayAnnotations}
                                 enabledTypes={ALL_ENABLED}
+                                hideEmptyLanes={hideEmptyLanes}
                                 readOnly={writesDisabled}
                                 onViewInList={handleViewInList}
                                 videoTimeRef={videoTimeRef}

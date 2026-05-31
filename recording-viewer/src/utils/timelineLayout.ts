@@ -9,6 +9,20 @@ export const DENSE_THRESHOLD = 3;
 export const ANNOTATION_GROUP_PX = 5;
 export const ANNOTATION_HIT_PX = 4;
 
+/**
+ * Stable partition: keep the given (curated) order but move entries with no
+ * events to the end. Used so both the lane labels and the event breakdown can
+ * always show every type while pushing the empty ones to the bottom.
+ */
+export function orderTypesActiveFirst<T>(types: readonly T[], hasEvents: (t: T) => boolean): T[] {
+    const active: T[] = [];
+    const inactive: T[] = [];
+    for (const t of types) {
+        (hasEvents(t) ? active : inactive).push(t);
+    }
+    return [...active, ...inactive];
+}
+
 export interface Bin {
     x: number;
     count: number;
