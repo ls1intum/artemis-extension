@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
 import { SWIM_LANE_TYPES } from '../constants';
-import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from '../utils/format';
+import { formatOffset } from '../utils/format';
+import { eventSummary } from '../utils/eventDisplay';
 import { EventBadge } from './EventBadge';
 import { useTimelinePan } from '../hooks/useTimelinePan';
 import {
@@ -55,103 +56,6 @@ interface AnnotationPopover {
 }
 
 const MAX_TOOLTIP_EVENTS = 5;
-
-// eslint-disable-next-line react-refresh/only-export-components -- exported for unit testing of the render switch (not a component shared at runtime)
-export function eventSummary(event: RecordedEvent, sessionStartTime: number): React.ReactNode {
-    const time = formatOffset(event.timestamp - sessionStartTime);
-    switch (event.type) {
-        case 'textChange': {
-            let inserted = 0, deleted = 0;
-            for (const c of event.changes) { inserted += c.text.length; deleted += c.rangeLength; }
-            const op = inserted > 0 && deleted > 0 ? `replaced ${deleted} → ${inserted} chars`
-                : inserted > 0 ? `+${inserted} chars` : `-${deleted} chars`;
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {op}</>;
-        }
-        case 'save':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'diagnostics':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.diagnostics.length} diagnostic(s)</>;
-        case 'fileSwitch':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.fromUri)} → {shortenUri(event.toUri)}</>;
-        case 'buildResult':
-            return <><span className="tt-time">{time}</span> {event.buildFailed ? 'BUILD FAILED' : event.successful ? 'PASSED' : `${event.errorCount} error(s)`}</>;
-        case 'eqSnapshot':
-            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.eq * 100)}% ({event.confidence})</>;
-        case 'eqEngineState':
-            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.currentEQ * 100)}% | {event.snapshots.length} snapshot(s)</>;
-        case 'sessionStart':
-            return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}{event.participantId ? ` | ${event.participantId}` : ''}</>;
-        case 'sessionEnd':
-            return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}</>;
-        case 'irisChatMessage':
-            return <><span className="tt-time">{time}</span> {event.direction === 'sent' ? 'SENT' : 'RECV'}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.messageId ? ` (id:${event.messageId})` : ''}</>;
-        case 'irisChatSendAttempt':
-            return <><span className="tt-time">{time}</span> {event.status.toUpperCase()}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.errorMessage ? ` — ${event.errorMessage}` : ''}</>;
-        case 'irisChatFeedback':
-            return <><span className="tt-time">{time}</span> msg:{event.messageId} | {event.helpful ? 'helpful' : 'not helpful'}</>;
-        case 'windowFocus':
-            return <><span className="tt-time">{time}</span> {event.focused ? 'focused' : 'blurred'}</>;
-        case 'fileSnapshot':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'selectionChange':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.selections[0]?.startLine ?? 0}{event.kind ? ` (${event.kind})` : ''}</>;
-        case 'visibleRangeChange':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}</>;
-        case 'intervention':
-            return <><span className="tt-time">{time}</span> {event.action} | {event.level} | EQ: {Math.round(event.eq * 100)}%{event.triggerType ? ` | ${event.triggerType}` : ''}</>;
-        case 'viewNavigation':
-            return <><span className="tt-time">{time}</span> {event.from} → {event.to}</>;
-        case 'panelVisibility':
-            return <><span className="tt-time">{time}</span> {event.panel} | {event.visible ? 'visible' : 'hidden'}</>;
-        case 'testResultsOverviewView':
-            return event.action === 'opened'
-                ? <><span className="tt-time">{time}</span> Test results overview opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)</>
-                : <><span className="tt-time">{time}</span> Test results overview closed | {formatDuration(event.durationMs)} ({event.closeReason})</>;
-        case 'taskFeedbackView':
-            return event.action === 'opened'
-                ? <><span className="tt-time">{time}</span> Task "{event.taskName}" opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)</>
-                : <><span className="tt-time">{time}</span> Task "{event.taskName}" closed | {formatDuration(event.durationMs)} ({event.closeReason})</>;
-        case 'configurationSnapshot':
-            return <><span className="tt-time">{time}</span> struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'}</>;
-        case 'configurationChange': {
-            const parts: string[] = [];
-            if (event.changes.struggleDetectionEnabled !== undefined) {
-                parts.push(`struggleDetection:${event.changes.struggleDetectionEnabled ? 'on' : 'off'}`);
-            }
-            if (event.changes.showInterventions !== undefined) {
-                parts.push(`interventions:${event.changes.showInterventions ? 'on' : 'off'}`);
-            }
-            return <><span className="tt-time">{time}</span> {parts.join(' | ')}</>;
-        }
-        case 'terminalCommand':
-            return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'}</>;
-        case 'terminalOpenClose':
-            return <><span className="tt-time">{time}</span> {event.action} | {event.terminalName}</>;
-        case 'fileSnapshotError':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.reason}</>;
-        case 'fileCreate':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'fileDelete':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'fileRename':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.oldUri)} → {shortenUri(event.newUri)}</>;
-        case 'textDocumentOpen':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'textDocumentClose':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'debugSession':
-            return <><span className="tt-time">{time}</span> {event.action}{formatDebugSessionMeta(event.sessionName, event.sessionType)}</>;
-        case 'breakpointChange': {
-            const first = event.breakpoints[0];
-            const where = first ? formatBreakpointLocation(first.uri, first.line) : '';
-            return <><span className="tt-time">{time}</span> {event.action} | {event.breakpoints.length} bp{event.breakpoints.length === 1 ? '' : 's'}{where ? ` | ${where}` : ''}</>;
-        }
-        case 'submission':
-            return <><span className="tt-time">{time}</span> SUBMIT {event.status.toUpperCase()} | participation {event.participationId}{event.failureReason ? ` — ${event.failureReason}` : ''}</>;
-        default:
-            return <span className="tt-time">{time}</span>;
-    }
-}
 
 export function TrackingTimeline({
     events,
