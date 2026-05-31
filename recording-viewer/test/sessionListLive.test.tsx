@@ -30,6 +30,9 @@ describe('SessionList live indicator', () => {
         // Badge must be the FIRST child so overflow:hidden cannot clip it (the bug).
         expect(cell?.firstElementChild?.classList.contains('live-session-badge')).toBe(true);
         expect(cell?.querySelector('.live-session-badge')?.textContent).toBe('LIVE');
+
+        // The Space-to-open hint is shown while a live recording exists.
+        expect(container.querySelector('.live-hint')?.textContent).toContain('Space');
     });
 
     it('does not mark archived (non-live) sessions', async () => {
@@ -51,5 +54,6 @@ describe('SessionList live indicator', () => {
         await waitFor(() => expect(container.querySelectorAll('.session-table-row').length).toBe(2));
         expect(container.querySelectorAll('.session-table-row.live')).toHaveLength(0);
         expect(container.querySelector('.live-session-badge')).toBeNull();
+        expect(container.querySelector('.live-hint')).toBeNull();
     });
 });
