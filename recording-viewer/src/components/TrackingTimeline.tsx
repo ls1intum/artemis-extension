@@ -28,6 +28,8 @@ interface Props {
     fullXDomain?: [number, number];
     annotations: Annotation[];
     enabledTypes: Set<EventType>;
+    /** When true, only lanes with events are shown (the empty ones are hidden). */
+    hideEmptyLanes?: boolean;
     onAddAnnotation?: (timestamp: number, text: string) => void;
     onUpdateAnnotation?: (id: string, text: string) => void;
     onDeleteAnnotation?: (id: string) => void;
@@ -158,6 +160,7 @@ export function TrackingTimeline({
     fullXDomain,
     annotations,
     enabledTypes,
+    hideEmptyLanes = false,
     onAddAnnotation,
     onUpdateAnnotation,
     onDeleteAnnotation,
@@ -189,10 +192,14 @@ export function TrackingTimeline({
 
     // Visible lanes: every enabled type is shown (even with no events), with the
     // empty ones sorted to the bottom while keeping the curated order otherwise.
+    // When hideEmptyLanes is on, the empty lanes are dropped entirely.
     const visibleLanes = useMemo(() => {
         const enabled = SWIM_LANE_TYPES.filter(t => enabledTypes.has(t));
+        if (hideEmptyLanes) {
+            return enabled.filter(t => eventsByType.has(t));
+        }
         return orderTypesActiveFirst(enabled, t => eventsByType.has(t));
-    }, [eventsByType, enabledTypes]);
+    }, [eventsByType, enabledTypes, hideEmptyLanes]);
 
     // Per-lane bins
     const laneBins = useMemo(() => {
