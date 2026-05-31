@@ -10,6 +10,7 @@ import type {
 
 import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
+import { createRecordingWebviewHandlers } from '@dataCollection';
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
@@ -197,6 +198,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._websocketService,
             this._courseDataCache,
             this._courseAccessStorage,
+            createRecordingWebviewHandlers(this._extensionContext.globalStorageUri),
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
 
