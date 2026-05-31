@@ -903,12 +903,32 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             let headerValidated = false;
             let rejected = false;
             let requestEnded = false;
+            let settled = false;
 
             const cleanup = () => {
                 ws.destroy();
                 try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
                 uploadInProgress.delete(sessionId);
             };
+
+            // Send exactly one response for this upload. Guards every exit path
+            // (reject, success, stream error) against a double-send.
+            const respond = (status: number, payload: unknown) => {
+                if (settled) return;
+                settled = true;
+                sendJson(res, status, payload);
+            };
+
+            // The write stream does async I/O, so an error (its lazy fd open
+            // losing a race with a concurrent directory removal — e.g. a test's
+            // afterEach cleanup — or a disk failure) must be handled. Left
+            // unhandled it crashes the process. Tear down and, if nothing has
+            // responded yet, fail the upload.
+            ws.on('error', () => {
+                rejected = true;
+                cleanup();
+                respond(500, { error: 'Video upload failed' });
+            });
 
             req.on('data', (chunk: Buffer) => {
                 if (rejected) return;
@@ -928,7 +948,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                     if (!valid) {
                         rejected = true;
                         cleanup();
-                        sendJson(res, 400, { error: `Invalid ${ext.toUpperCase()} file (bad magic bytes)` });
+                        respond(400, { error: `Invalid ${ext.toUpperCase()} file (bad magic bytes)` });
                         return;
                     }
                     // Write accumulated header buffer
@@ -970,11 +990,11 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                         }
 
                         uploadInProgress.delete(sessionId);
-                        sendJson(res, 200, { ok: true, videoExtension: ext });
+                        respond(200, { ok: true, videoExtension: ext });
                     } catch (err) {
                         try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
                         uploadInProgress.delete(sessionId);
-                        sendJson(res, 500, { error: String(err) });
+                        respond(500, { error: String(err) });
                     }
                 });
             });
@@ -982,6 +1002,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             req.on('error', () => {
                 if (rejected) return;
                 rejected = true;
+                settled = true; // client gone; suppress any late error response
                 cleanup();
             });
 
@@ -990,6 +1011,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 if (rejected || requestEnded) return;
                 // Request closed before 'end' fired — this is a genuine abort
                 rejected = true;
+                settled = true; // genuine abort; suppress any late error response
                 cleanup();
             });
 
