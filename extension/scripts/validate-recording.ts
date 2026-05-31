@@ -21,6 +21,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { KNOWN_EVENT_TYPES } from '@extension/services/telemetry/recording/parseRecordedData';
+
 // ──────────────────────────────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────────────────────────────
@@ -55,42 +57,14 @@ interface RecordedEvent {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Known event types (kept in sync with extension/src/.../recording/types.ts)
-// Unknown types produce warnings, not errors — lets the validator survive
-// additive schema changes gracefully.
-// ──────────────────────────────────────────────────────────────────────
-
-const KNOWN_EVENT_TYPES = new Set([
-    // Lifecycle
-    'sessionStart', 'sessionEnd', 'consentChange', 'startupPhaseComplete',
-    // Editor
-    'textChange', 'save', 'fileSwitch', 'diagnostics',
-    'selectionChange', 'visibleRangeChange',
-    'fileSnapshot', 'fileSnapshotError',
-    // Workspace
-    'fileCreate', 'fileDelete', 'fileRename',
-    'textDocumentOpen', 'textDocumentClose',
-    // Window / panels
-    'windowFocus', 'viewNavigation', 'panelVisibility',
-    // Terminal
-    'terminalCommand', 'terminalOpenClose',
-    // Build
-    'buildResult', 'submission',
-    // Config
-    'configurationSnapshot', 'configurationChange',
-    // Views
-    'testResultsOverviewView', 'taskFeedbackView',
-    // Debug
-    'debugSession', 'breakpointChange',
-    // Chat (Iris)
-    'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback',
-    // Telemetry / struggle detection
-    'eqSnapshot', 'eqEngineState', 'intervention',
-]);
-
-// ──────────────────────────────────────────────────────────────────────
 // Core validator
 // ──────────────────────────────────────────────────────────────────────
+//
+// `KNOWN_EVENT_TYPES` is imported from the runtime parser (derived from its
+// EVENT_PARSERS dispatch table) so this script and `parseRecordedEvent` stay in
+// lock-step instead of maintaining two hand-synced lists that drift (see #215).
+// Unknown types produce warnings, not errors — lets the validator survive
+// additive schema changes gracefully.
 
 function validateRecording(dir: string): ValidationResult {
     const issues: ValidationIssue[] = [];

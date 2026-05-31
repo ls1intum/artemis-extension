@@ -19,7 +19,7 @@
 
 import * as assert from 'assert';
 
-import { parseRecordedEvent, parseSessionMetadata } from '@extension/services/telemetry/recording/parseRecordedData';
+import { KNOWN_EVENT_TYPES, parseRecordedEvent, parseSessionMetadata } from '@extension/services/telemetry/recording/parseRecordedData';
 import type { RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
 
 const ts = 1700000000000;
@@ -667,5 +667,39 @@ suite('parseRecordedEvent — submission', () => {
 
     test('rejects a non-string commitMessage', () => {
         assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'started', participationId: 1, commitMessage: 123 }), null);
+    });
+});
+
+// ── KNOWN_EVENT_TYPES drift regression (#215) ─────────────────────────
+//
+// `scripts/validate-recording.ts` used to keep its own hand-synced Set of
+// known event types, which drifted from the parser. KNOWN_EVENT_TYPES is now
+// derived from the EVENT_PARSERS dispatch table and shared with the validator,
+// so the two can no longer drift. These assertions guard that the shared set
+// still recognizes the event types that historically drifted (or were added
+// after the original drift), and excludes unknown / inherited-prototype keys.
+
+suite('KNOWN_EVENT_TYPES — drift regression for #215', () => {
+    test('contains the event types that historically drifted out of the validator', () => {
+        // The original #215 drift cases (missing from the validator's old Set)
+        // plus the debugger / submission types added afterwards in #233 / #236.
+        const mustContain = [
+            'configurationSnapshot',
+            'configurationChange',
+            'testResultsOverviewView',
+            'taskFeedbackView',
+            'debugSession',
+            'breakpointChange',
+            'submission',
+        ];
+        for (const t of mustContain) {
+            assert.ok(KNOWN_EVENT_TYPES.has(t), `KNOWN_EVENT_TYPES is missing '${t}'`);
+        }
+    });
+
+    test('excludes unknown and inherited-prototype keys', () => {
+        for (const t of ['', 'totallyMadeUp', 'toString', '__proto__', 'constructor']) {
+            assert.ok(!KNOWN_EVENT_TYPES.has(t), `KNOWN_EVENT_TYPES unexpectedly contains '${t}'`);
+        }
     });
 });
