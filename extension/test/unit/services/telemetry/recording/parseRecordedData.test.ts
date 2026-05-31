@@ -660,4 +660,12 @@ suite('parseRecordedEvent — submission', () => {
     test('rejects an unknown failureReason', () => {
         assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'failed', participationId: 1, failureReason: 'nope' }), null);
     });
+
+    test('rejects a non-numeric exerciseId', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'started', participationId: 1, exerciseId: '7' }), null);
+    });
+
+    test('rejects a non-string commitMessage', () => {
+        assert.strictEqual(parseRecordedEvent({ type: 'submission', timestamp: 1, status: 'started', participationId: 1, commitMessage: 123 }), null);
+    });
 });

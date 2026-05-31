@@ -14,6 +14,22 @@ import type { CommandContext, CommandMap } from './types';
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
 
 /**
+ * Maximum length of a commit message stored in the session recording. The full message is
+ * always used for the actual git commit; only the recorded copy is capped so a large pasted
+ * message cannot bloat events.jsonl, consistent with the truncation applied to file snapshots
+ * and terminal output elsewhere in the recorder.
+ */
+const MAX_RECORDED_COMMIT_MESSAGE_LENGTH = 512;
+
+/** Cap a commit message for the recording only — never the value committed to git. */
+function capRecordedCommitMessage(message: string | undefined): string | undefined {
+    if (message === undefined || message.length <= MAX_RECORDED_COMMIT_MESSAGE_LENGTH) {
+        return message;
+    }
+    return message.slice(0, MAX_RECORDED_COMMIT_MESSAGE_LENGTH);
+}
+
+/**
  * Helper functions injected via the constructor so tests can substitute
  * deterministic doubles. The defaults wire up to the production modules.
  *
@@ -65,7 +81,7 @@ export class RepositorySubmitCommands {
             participationId = typeof payload.participationId === 'number' ? payload.participationId : undefined;
             const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
             const commitMessage = payload.commitMessage;
-            const rawCommitMessage = commitMessage?.trim() || undefined;
+            const rawCommitMessage = capRecordedCommitMessage(commitMessage?.trim() || undefined);
             if (participationId !== undefined) {
                 // fireSubmission is synchronous; the recorder's _record phase guard drops the event
                 // if no session is recording, so no session-state guard is needed at any call site.
@@ -136,7 +152,7 @@ export class RepositorySubmitCommands {
             // outer catch (the websocket reconnect has its own inner try/catch), but succeededEmitted
             // also hardens the "exactly one terminal per started" invariant against future edits.
             if (participationId !== undefined) {
-                fireSubmission({ status: 'succeeded', participationId, commitMessage: resolvedCommitMessage });
+                fireSubmission({ status: 'succeeded', participationId, commitMessage: capRecordedCommitMessage(resolvedCommitMessage) });
                 succeededEmitted = true;
             }
 

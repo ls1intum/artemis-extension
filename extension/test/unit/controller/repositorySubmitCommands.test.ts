@@ -445,6 +445,47 @@ suite('RepositorySubmitCommands', () => {
         assert.deepStrictEqual(fireSubmission.getCall(0).args[0].participationId, 42);
         assert.deepStrictEqual(fireSubmission.getCall(1).args[0].status, 'succeeded');
         assert.deepStrictEqual(fireSubmission.getCall(1).args[0].participationId, 42);
+        // commitMessage is the field that distinguishes the lifecycle states (raw on started,
+        // resolved on succeeded); here both carry the provided text verbatim.
+        assert.strictEqual(fireSubmission.getCall(0).args[0].commitMessage, 'My change');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].commitMessage, 'My change');
+    });
+
+    test('blank commitMessage: started carries undefined, succeeded carries the configured default', async () => {
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: '' },
+        } as never);
+
+        assert.strictEqual(fireSubmission.callCount, 2);
+        // Raw (started) text is blank -> undefined; resolved (succeeded) falls back to the configured default.
+        // This is the only case where the raw and resolved values diverge.
+        assert.strictEqual(fireSubmission.getCall(0).args[0].commitMessage, undefined);
+        assert.strictEqual(fireSubmission.getCall(1).args[0].commitMessage, 'Solution submission via Iris extension');
+    });
+
+    test('recorded commitMessage is capped to 512 chars without truncating the real git commit', async () => {
+        const longMessage = 'a'.repeat(1000);
+        const { ctx, fireSubmission } = buildContext();
+        const { svc, stubs } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: longMessage },
+        } as never);
+
+        // The actual git commit must receive the FULL message — the cap is recording-only.
+        sinon.assert.calledOnceWithExactly(stubs.commit, longMessage, { cwd: '/ws' });
+
+        // Both recorded events carry the capped (512-char) copy.
+        assert.strictEqual(fireSubmission.getCall(0).args[0].commitMessage.length, 512);
+        assert.strictEqual(fireSubmission.getCall(1).args[0].commitMessage.length, 512);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].commitMessage, longMessage.slice(0, 512));
     });
 
     test('no-changes emits started then failed with reason no-changes', async () => {
