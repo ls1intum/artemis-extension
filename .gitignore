@@ -60,5 +60,8 @@ claudeworktrees/
 # Local build/share artifact (redundant snapshot of recording-viewer/ source)
 extension/recording-viewer.zip
 
+# Staging directory for openvsx clean packaging
+extension/build/
+
 # Superpowers planning artifacts (kept locally as design notes, not tracked)
 docs/superpowers/
