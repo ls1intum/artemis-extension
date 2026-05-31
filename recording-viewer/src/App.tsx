@@ -17,6 +17,7 @@ import { LiveControlBar } from './components/LiveControlBar';
 import { ALL_EVENT_TYPES } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
 import { useLiveSessions } from './hooks/useLiveSessions';
+import { useOpenLiveOnSpace } from './hooks/useOpenLiveOnSpace';
 import { useLiveSession } from './hooks/useLiveSession';
 import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
@@ -162,6 +163,10 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setStickyLive(true);
         }
     }, [liveSessionIds, endedLiveSessionId]);
+
+    // On the session list, Space opens a live recording (live-only convenience).
+    const openLiveSession = useCallback((id: string) => { void loadFromApi(id, true); }, [loadFromApi]);
+    useOpenLiveOnSpace(!session && !loading, liveSessionIds, openLiveSession);
 
     // Whenever sticky-live transitions ON, reseed the mutator from the latest
     // annotations so any archive-mode edits made before the latch don't leave
@@ -589,8 +594,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                     />
                                     <span className="lane-toggle-slider" />
                                 </label>
-                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
-                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
+                                {/* Reset/Follow sit between the toggle and the zoom +/- buttons,
+                                    so the +/- stay pinned to the right edge and don't shift when
+                                    these conditional buttons appear/disappear. */}
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
                                 )}
@@ -603,6 +609,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                         Follow
                                     </button>
                                 )}
+                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
+                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
                             </div>
                         )}
                     </div>
