@@ -333,6 +333,27 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
         return min;
     }, [session, displayedEvents]);
+
+    // Authoritative session start for the live elapsed timer: metadata.startTime,
+    // else the sessionStart event's timestamp. Deliberately NOT the generic
+    // earliest-event fallback above — on a late join that would understate
+    // elapsed. Latched per session so that once an authoritative start is seen
+    // it survives the live buffer trimming the sessionStart event out of the
+    // sliding window. 0 (hidden) until a source is observed.
+    const liveStartRef = useRef<{ id: string | null; start: number }>({ id: null, start: 0 });
+    const liveElapsedStart = useMemo(() => {
+        const id = session?.fileName ?? null;
+        if (liveStartRef.current.id !== id) {
+            liveStartRef.current = { id, start: 0 };
+        }
+        if (liveStartRef.current.start === 0 && session) {
+            const authoritative = session.metadata?.startTime
+                ?? displayedEvents.find(e => e.type === 'sessionStart')?.timestamp
+                ?? 0;
+            if (authoritative > 0) liveStartRef.current.start = authoritative;
+        }
+        return liveStartRef.current.start;
+    }, [session, displayedEvents]);
     const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
     const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
@@ -530,6 +551,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             bufferSize={live.events.length}
                             totalReceived={live.totalReceived}
                             latestEventTimestamp={live.latestEventTimestamp}
+                            startTime={liveElapsedStart}
                             lastLabelToast={lastLabelToast}
                         />
                     )}

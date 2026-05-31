@@ -3,6 +3,7 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { ALL_LABELS } from '../types.ts';
 import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from '../utils/format.ts';
+import { EventBadge } from './EventBadge.tsx';
 
 interface Props {
     events: RecordedEvent[];
@@ -539,7 +540,7 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                     <span className="event-time mono">
                         {formatOffset(event.timestamp - sessionStartTime)}
                     </span>
-                    <span className={`event-badge ${event.type}`}>{event.type}</span>
+                    <EventBadge type={event.type} />
                     <EventDetail event={event} />
                     {isTermCmd && (
                         <span className="expand-hint">{isTermExpanded ? '▾' : '▸'}</span>

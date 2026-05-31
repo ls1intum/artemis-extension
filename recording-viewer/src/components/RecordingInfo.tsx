@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { EventBadge } from './EventBadge.tsx';
+
 const categories = [
     {
         title: 'Editor Activity',
@@ -92,7 +94,7 @@ export function RecordingInfo() {
                                 <div className="info-items">
                                     {cat.items.map((item) => (
                                         <div key={item.badge} className="info-item">
-                                            <span className={`event-badge ${item.badge}`}>{item.label}</span>
+                                            <EventBadge type={item.badge} label={item.label} />
                                             <span className="info-desc">{item.desc}</span>
                                         </div>
                                     ))}

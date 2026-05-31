@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
 import { SWIM_LANE_TYPES } from '../constants';
 import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from '../utils/format';
+import { EventBadge } from './EventBadge';
 import { useTimelinePan } from '../hooks/useTimelinePan';
 import {
     AXIS_HEIGHT,
@@ -473,7 +474,7 @@ export function TrackingTimeline({
                 <div className="lane-labels">
                     {visibleLanes.map(type => (
                         <div key={type} className="lane-label" style={{ height: LANE_HEIGHT }}>
-                            <span className={`event-badge ${type}`}>{type}</span>
+                            <EventBadge type={type} title={type} />
                         </div>
                     ))}
                     <div className="lane-label axis-label" style={{ height: AXIS_HEIGHT }} />
@@ -517,7 +518,7 @@ export function TrackingTimeline({
                             onMouseLeave={() => setHoveringTooltip(false)}
                         >
                             <div className="tooltip-type">
-                                <span className={`event-badge ${tooltip.laneType}`}>{tooltip.laneType}</span>
+                                <EventBadge type={tooltip.laneType} />
                                 <span className="tooltip-count">&times;{tooltip.bin.count}</span>
                                 {videoTimeAtSessionStartSeconds != null && (
                                     <span className="tooltip-video-time">

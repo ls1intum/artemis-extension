@@ -1,5 +1,6 @@
 import type { LoadedSession } from '../types.ts';
 import { formatDuration, formatTime } from '../utils/format.ts';
+import { EventBadge } from './EventBadge.tsx';
 
 interface Props {
     session: LoadedSession;
@@ -51,7 +52,7 @@ export function SessionInfo({ session }: Props) {
                     .sort((a, b) => b[1] - a[1])
                     .map(([type, count]) => (
                         <div key={type} className="event-count-row">
-                            <span className={`event-badge ${type}`}>{type}</span>
+                            <EventBadge type={type} />
                             <span className="event-count">{count}</span>
                         </div>
                     ))}
