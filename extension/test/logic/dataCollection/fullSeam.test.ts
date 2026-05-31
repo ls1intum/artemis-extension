@@ -15,7 +15,7 @@ vi.mock('vscode', () => ({
     commands: { executeCommand: vi.fn().mockResolvedValue(undefined), registerCommand: h.registerCommand },
     Disposable: { from: (...items: { dispose(): void }[]) => ({ dispose: () => items.forEach(i => i.dispose()) }) },
 }));
-vi.mock('@extension/services/auth', () => ({
+vi.mock('@extension/services/auth/consentService', () => ({
     ConsentService: class { promptIfPending = h.promptIfPending; dispose = h.consentDispose; },
 }));
 vi.mock('@extension/activation/sessionRecorderWiring', () => ({
