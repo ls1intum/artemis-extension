@@ -6,8 +6,8 @@ export const AXIS_HEIGHT = 28;
 export const DOT_RADIUS = 4;
 export const DOT_RADIUS_DENSE = 6;
 export const DENSE_THRESHOLD = 3;
-export const ANNOTATION_GROUP_PX = 5;
-export const ANNOTATION_HIT_PX = 4;
+const ANNOTATION_GROUP_PX = 5;
+const ANNOTATION_HIT_PX = 4;
 
 /**
  * Stable partition: keep the given (curated) order but move entries with no

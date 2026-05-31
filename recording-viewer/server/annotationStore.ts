@@ -98,7 +98,7 @@ function isAnnotationRecord(x: unknown): x is AnnotationRecord {
 }
 
 /** Sequential replay; see spec §3.2 and §7. */
-export function applyEventLog(filepath: string, raw: string): StoredAnnotation[] {
+function applyEventLog(filepath: string, raw: string): StoredAnnotation[] {
     const endsWithNewline = raw.endsWith('\n');
     const lines = raw.split('\n');
     if (endsWithNewline) lines.pop(); // ignore the empty trailing element from split
