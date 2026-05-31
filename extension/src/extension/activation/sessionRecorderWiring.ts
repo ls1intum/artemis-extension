@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
-import type { ConsentService } from '@extension/services/auth';
+import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { TelemetryManager } from '@extension/services/telemetry';

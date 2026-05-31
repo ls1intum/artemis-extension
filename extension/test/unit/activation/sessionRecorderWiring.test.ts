@@ -27,7 +27,7 @@ import type {
 
 import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
-import type { ConsentService } from '@extension/services/auth';
+import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
 import type { CommandMap } from '@extension/controller/commands/types';
-import { ConsentService } from '@extension/services/auth';
+import { ConsentService } from '@extension/services/auth/consentService';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { SessionRecorder } from '@extension/services/telemetry/recording';
 import { executeReplayCommand } from '@extension/services/telemetry/replay';
