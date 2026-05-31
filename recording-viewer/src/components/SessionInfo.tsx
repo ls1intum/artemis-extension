@@ -1,5 +1,7 @@
 import type { LoadedSession } from '../types.ts';
+import { ALL_EVENT_TYPES } from '../constants.ts';
 import { formatDuration, formatTime } from '../utils/format.ts';
+import { orderTypesActiveFirst } from '../utils/timelineLayout.ts';
 import { EventBadge } from './EventBadge.tsx';
 
 interface Props {
@@ -13,6 +15,12 @@ export function SessionInfo({ session }: Props) {
     for (const event of events) {
         eventTypeCounts.set(event.type, (eventTypeCounts.get(event.type) ?? 0) + 1);
     }
+    // Always list every event type (0 count included), keeping the curated order
+    // but pushing the types with no events to the bottom.
+    const orderedTypes = orderTypesActiveFirst(
+        ALL_EVENT_TYPES,
+        t => (eventTypeCounts.get(t) ?? 0) > 0,
+    );
 
     const firstTs = events[0]?.timestamp;
     const lastTs = events[events.length - 1]?.timestamp;
@@ -48,14 +56,15 @@ export function SessionInfo({ session }: Props) {
 
             <h3>Event Breakdown</h3>
             <div className="event-breakdown">
-                {Array.from(eventTypeCounts.entries())
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([type, count]) => (
-                        <div key={type} className="event-count-row">
+                {orderedTypes.map(type => {
+                    const count = eventTypeCounts.get(type) ?? 0;
+                    return (
+                        <div key={type} className={`event-count-row${count === 0 ? ' empty' : ''}`}>
                             <EventBadge type={type} />
                             <span className="event-count">{count}</span>
                         </div>
-                    ))}
+                    );
+                })}
             </div>
         </div>
     );

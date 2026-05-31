@@ -14,6 +14,7 @@ import {
     groupEventsByType,
     hitTestAnnotation,
     hitTestDot,
+    orderTypesActiveFirst,
     xToTime,
     type AnnotationGroup,
     type Bin,
@@ -186,9 +187,11 @@ export function TrackingTimeline({
     // events.filter pass per lane on every xDomain/zoom/pan update.
     const eventsByType = useMemo(() => groupEventsByType(events), [events]);
 
-    // Visible lanes: only types enabled AND with events
+    // Visible lanes: every enabled type is shown (even with no events), with the
+    // empty ones sorted to the bottom while keeping the curated order otherwise.
     const visibleLanes = useMemo(() => {
-        return SWIM_LANE_TYPES.filter(t => enabledTypes.has(t) && eventsByType.has(t));
+        const enabled = SWIM_LANE_TYPES.filter(t => enabledTypes.has(t));
+        return orderTypesActiveFirst(enabled, t => eventsByType.has(t));
     }, [eventsByType, enabledTypes]);
 
     // Per-lane bins
@@ -473,7 +476,11 @@ export function TrackingTimeline({
                 {/* Lane labels */}
                 <div className="lane-labels">
                     {visibleLanes.map(type => (
-                        <div key={type} className="lane-label" style={{ height: LANE_HEIGHT }}>
+                        <div
+                            key={type}
+                            className={`lane-label${eventsByType.has(type) ? '' : ' empty'}`}
+                            style={{ height: LANE_HEIGHT }}
+                        >
                             <EventBadge type={type} title={type} />
                         </div>
                     ))}

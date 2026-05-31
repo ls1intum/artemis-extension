@@ -357,6 +357,11 @@
     gap: 6px;
 }
 
+/* Types with no events are shown but de-emphasized (and sorted to the bottom). */
+.event-count-row.empty {
+    opacity: 0.45;
+}
+
 .event-count {
     font-family: var(--mono);
     font-size: 12px;
@@ -1199,6 +1204,12 @@
 
 .lane-label.axis-label {
     border-top: 1px solid var(--border);
+}
+
+/* Lanes with no events in this session are still shown (sorted to the bottom)
+   but de-emphasized. */
+.lane-label.empty {
+    opacity: 0.45;
 }
 
 .lane-svg-container {
