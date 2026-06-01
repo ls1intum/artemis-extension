@@ -115,16 +115,41 @@ jobs:
             exit 1
           fi
 
-      - name: Verify CHANGELOG entry exists
+      - name: Extract and validate changelog notes
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          marker="## [$INPUT_VERSION]"
-          if ! grep -qF "$marker" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md has no entry for version $INPUT_VERSION (expected line containing '$marker')."
+          # Exactly one matching section header (prefix match, same as the extraction
+          # below; catches duplicate '## [version]' sections).
+          header_count=$(awk -v ver="$INPUT_VERSION" 'index($0, "## [" ver "]") == 1 { c++ } END { print c+0 }' CHANGELOG.md)
+          if [[ "$header_count" -ne 1 ]]; then
+            echo "::error::CHANGELOG.md must have exactly one '## [$INPUT_VERSION]' section header (found $header_count)."
             exit 1
           fi
+          # Extract the section body once here; release reuses these exact bytes via
+          # the release-notes artifact (validated == published).
+          awk -v ver="$INPUT_VERSION" '
+            index($0, "## [" ver "]") == 1 { matching=1; next }
+            matching && /^## \[/ { exit }
+            matching { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          # Reject empty or whitespace-only sections (header present, no real content).
+          if ! grep -q '[^[:space:]]' /tmp/release-notes.md; then
+            echo "::error::CHANGELOG.md section for $INPUT_VERSION is empty (header present but no content below it)."
+            exit 1
+          fi
+          echo "Notes preview:"
+          head -20 /tmp/release-notes.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: release-notes
+          path: /tmp/release-notes.md
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
 
       - name: Verify tag does not already exist
         env:
@@ -241,6 +266,7 @@ jobs:
           path: extension/${{ steps.vsix.outputs.name }}
           retention-days: 30
           if-no-files-found: error
+          overwrite: true
 
       - name: Upload Open VSX VSIX
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -249,6 +275,7 @@ jobs:
           path: extension/${{ steps.openvsx.outputs.name }}
           retention-days: 30
           if-no-files-found: error
+          overwrite: true
 
       - name: Generate artifact attestation
         if: ${{ !inputs.dry_run }}
@@ -311,7 +338,7 @@ jobs:
               curl -fsSL -o /tmp/remote.vsix "$remote_url"
               remote_sha256=$(sha256sum /tmp/remote.vsix | cut -d' ' -f1)
               if [[ "$LOCAL_SHA256" != "$remote_sha256" ]]; then
-                echo "::error::Open VSX has $INPUT_VERSION but with sha256=$remote_sha256, CI-built is $LOCAL_SHA256. Cannot rerun safely; investigate manually."
+                echo "::error::Open VSX already has $INPUT_VERSION with sha256=$remote_sha256, but the CI-built VSIX is $LOCAL_SHA256. If this is recovery after a partial failure, use 'Re-run failed jobs' on the ORIGINAL run (it reuses the already-built artifact, so the checksum matches) instead of a new dispatch (which rebuilds and may differ). Investigate manually only if the mismatch persists."
                 exit 1
               fi
               echo "::warning::Version already published with matching checksum. Skipping ovsx publish (treating as retry)."
@@ -362,16 +389,37 @@ jobs:
           "$RUNNER_TEMP/vsce-cli/node_modules/.bin/vsce" --version
 
       # --skip-duplicate: vsce exits 0 if the version already exists on
-      # Marketplace, making retries idempotent without a separate pre-check.
-      # Drops the brittle 'vsce show' parsing (network/auth/schema errors
-      # could otherwise be misclassified as "version missing" -> publish).
+      # Marketplace, making retries idempotent without a separate PRE-check.
+      # A 'vsce show' pre-check was deliberately dropped (network/auth/schema
+      # errors could be misclassified as "version missing" -> publish). We instead
+      # verify existence AFTER publishing, which is fail-closed-safe.
       - name: Publish to VS Marketplace (idempotent via --skip-duplicate)
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
           VSIX_FILE: ${{ needs.build.outputs.marketplace-vsix-name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE"
+          vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE" 2>&1 | tee /tmp/vsce_out.txt
+          if grep -qiE 'already (exists|published)|skipping' /tmp/vsce_out.txt; then
+            echo "::warning::Marketplace already had $INPUT_VERSION; --skip-duplicate skipped the upload (treated as a retry). Note: Marketplace has no byte-level parity check here (unlike Open VSX), so existing content is not re-verified byte-for-byte."
+          fi
+          # Post-publish existence verification (fail-closed). Marketplace indexing can
+          # lag a few seconds after publish, so retry briefly before failing. A genuine
+          # failure here is safe to re-run: --skip-duplicate skips the upload and this
+          # check passes once the version is indexed.
+          ok=false
+          for i in 1 2 3 4 5; do
+            if vsce show aet-tum.iris-thaumantias --json | jq -e --arg v "$INPUT_VERSION" 'any(.versions[]?; .version == $v)' >/dev/null; then
+              ok=true; break
+            fi
+            echo "Version $INPUT_VERSION not visible on Marketplace yet (attempt $i/5); retrying..."
+            sleep 15
+          done
+          if [[ "$ok" != "true" ]]; then
+            echo "::error::Marketplace does not report version $INPUT_VERSION after publish (checked 5x). If this is indexing lag, use 'Re-run failed jobs'."
+            exit 1
+          fi
 
   release:
     name: Tag + GitHub Release
@@ -406,24 +454,12 @@ jobs:
           name: vsix-openvsx
           path: ./
 
-      - name: Extract changelog section for this version (awk, literal match)
-        env:
-          INPUT_VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          awk -v ver="$INPUT_VERSION" '
-            index($0, "## [" ver "]") == 1 { matching=1; next }
-            matching && /^## \[/ { exit }
-            matching { print }
-          ' CHANGELOG.md > /tmp/release-notes.md
-          if [[ ! -s /tmp/release-notes.md ]]; then
-            echo "::error::Empty changelog notes extracted for $INPUT_VERSION."
-            exit 1
-          fi
-          echo "Notes preview:"
-          head -20 /tmp/release-notes.md
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: release-notes
+          path: ./
 
-      - name: Create tag and GitHub Release with VSIX asset
+      - name: Create or converge GitHub Release (idempotent)
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_VERSION: ${{ inputs.version }}
@@ -432,8 +468,37 @@ jobs:
           OPENVSX_VSIX_FILE: ${{ needs.build.outputs.openvsx-vsix-name }}
         run: |
           set -euo pipefail
-          gh release create "$INPUT_VERSION" \
-            --target "$SHA" \
-            --title "$INPUT_VERSION" \
-            --notes-file /tmp/release-notes.md \
-            "$VSIX_FILE" "$OPENVSX_VSIX_FILE"
+          TAG="$INPUT_VERSION"
+          notes="./release-notes.md"
+          assets=("$VSIX_FILE" "$OPENVSX_VSIX_FILE")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Recovery path: reached only via "Re-run failed jobs" (a fresh dispatch is
+            # blocked earlier by the tag-not-exist check). Converge WITHOUT --clobber so
+            # an already-good asset is never deleted by a retry that might then fail.
+            echo "::warning::Release $TAG already exists; converging idempotently (no --clobber)."
+            gh release edit "$TAG" --title "$TAG" --notes-file "$notes"
+            existing=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+            for a in "${assets[@]}"; do
+              base=$(basename "$a")
+              if grep -qxF "$base" <<<"$existing"; then
+                echo "Asset $base already attached; leaving as-is."
+              else
+                gh release upload "$TAG" "$a"
+              fi
+            done
+          else
+            gh release create "$TAG" \
+              --target "$SHA" \
+              --title "$TAG" \
+              --notes-file "$notes" \
+              "${assets[@]}"
+          fi
+          # Fail-closed: both expected assets must be present on the release.
+          final=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for a in "${assets[@]}"; do
+            base=$(basename "$a")
+            grep -qxF "$base" <<<"$final" || {
+              echo "::error::Asset $base missing from release $TAG after publish."
+              exit 1
+            }
+          done

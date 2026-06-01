@@ -31,5 +31,12 @@ run(`node scripts/generate-clean-manifest.js ${path.join(staging, 'package.json'
 const pkg = JSON.parse(fs.readFileSync(path.join(staging, 'package.json'), 'utf8'));
 const vsixName = `${pkg.name}-${pkg.version}-openvsx.vsix`;
 const vsixOut = path.join(root, vsixName);
-run(`npx --yes @vscode/vsce@3.9.1 package --no-dependencies --out ${vsixOut}`, { cwd: staging });
+// Prefer the pinned vsce already on PATH (the release workflow installs it under
+// RUNNER_TEMP) for deterministic, supply-chain-controlled packaging; fall back to a
+// pinned npx for local runs where vsce is not on PATH.
+const hasVsce = (() => {
+    try { execSync('vsce --version', { stdio: 'ignore' }); return true; } catch { return false; }
+})();
+const vsceCmd = hasVsce ? 'vsce' : 'npx --yes @vscode/vsce@3.9.1';
+run(`${vsceCmd} package --no-dependencies --out ${vsixOut}`, { cwd: staging });
 console.log(`[package-openvsx] wrote ${vsixOut}`);
