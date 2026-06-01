@@ -1,11 +1,14 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { forbiddenInputs } = require('../../../scripts/verify-clean-bundle.js');
+// Resolve the plain-JS verifier (in scripts/, no path alias). join(__dirname, ...)
+// keeps the require argument computed (not an upward-relative literal, per lint rule)
+// and avoids import.meta (disallowed under the CommonJS type-check target).
+const { forbiddenInputs } = require(join(__dirname, '../../../scripts/verify-clean-bundle.js')) as {
+    forbiddenInputs: (metafilePath: string) => string[];
+};
 
 function metaWith(inputs: string[]): string {
     const dir = mkdtempSync(join(tmpdir(), 'meta-'));
