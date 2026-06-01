@@ -166,8 +166,10 @@ jobs:
       run:
         working-directory: extension
     outputs:
-      vsix-name: ${{ steps.vsix.outputs.name }}
-      vsix-sha256: ${{ steps.vsix.outputs.sha256 }}
+      marketplace-vsix-name: ${{ steps.vsix.outputs.name }}
+      marketplace-vsix-sha256: ${{ steps.vsix.outputs.sha256 }}
+      openvsx-vsix-name: ${{ steps.openvsx.outputs.name }}
+      openvsx-vsix-sha256: ${{ steps.openvsx.outputs.sha256 }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -210,11 +212,31 @@ jobs:
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
           echo "Built $name (sha256=$sha256)"
 
-      - name: Upload VSIX artifact
+      - name: Package + verify Open VSX (clean) VSIX
+        id: openvsx
+        run: |
+          set -euo pipefail
+          node scripts/package-openvsx.js
+          node scripts/verify-clean-bundle.js
+          name=$(ls *-openvsx.vsix)
+          sha256=$(sha256sum "$name" | cut -d' ' -f1)
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "Built $name (sha256=$sha256)"
+
+      - name: Upload Marketplace VSIX
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: vsix
+          name: vsix-marketplace
           path: extension/${{ steps.vsix.outputs.name }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload Open VSX VSIX
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix-openvsx
+          path: extension/${{ steps.openvsx.outputs.name }}
           retention-days: 30
           if-no-files-found: error
 
@@ -222,7 +244,9 @@ jobs:
         if: ${{ !inputs.dry_run }}
         uses: actions/attest-build-provenance@62fc1d596301d0ab9914e1fec14dc5c8d93f65cd # v3.2.0
         with:
-          subject-path: extension/${{ steps.vsix.outputs.name }}
+          subject-path: |
+            extension/${{ steps.vsix.outputs.name }}
+            extension/${{ steps.openvsx.outputs.name }}
 
   publish_openvsx:
     name: Publish to Open VSX
@@ -236,7 +260,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: vsix
+          name: vsix-openvsx
           path: ./
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -256,8 +280,8 @@ jobs:
         id: existing
         env:
           INPUT_VERSION: ${{ inputs.version }}
-          LOCAL_SHA256: ${{ needs.build.outputs.vsix-sha256 }}
-          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+          LOCAL_SHA256: ${{ needs.build.outputs.openvsx-vsix-sha256 }}
+          VSIX_FILE: ${{ needs.build.outputs.openvsx-vsix-name }}
         run: |
           set -euo pipefail
           status=$(curl -s -o /tmp/ovsx_resp.json -w "%{http_code}" \
@@ -294,7 +318,7 @@ jobs:
         if: ${{ steps.existing.outputs.skip_publish != 'true' }}
         env:
           OVSX_PAT: ${{ secrets.OPENVSX_TOKEN }}
-          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+          VSIX_FILE: ${{ needs.build.outputs.openvsx-vsix-name }}
         run: |
           set -euo pipefail
           ovsx publish "$VSIX_FILE"
@@ -311,7 +335,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: vsix
+          name: vsix-marketplace
           path: ./
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -334,7 +358,7 @@ jobs:
       - name: Publish to VS Marketplace (idempotent via --skip-duplicate)
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+          VSIX_FILE: ${{ needs.build.outputs.marketplace-vsix-name }}
         run: |
           set -euo pipefail
           vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE"
@@ -364,7 +388,12 @@ jobs:
 
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: vsix
+          name: vsix-marketplace
+          path: ./
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vsix-openvsx
           path: ./
 
       - name: Extract changelog section for this version (awk, literal match)
@@ -389,11 +418,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           INPUT_VERSION: ${{ inputs.version }}
           SHA: ${{ needs.prepare.outputs.sha }}
-          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+          VSIX_FILE: ${{ needs.build.outputs.marketplace-vsix-name }}
+          OPENVSX_VSIX_FILE: ${{ needs.build.outputs.openvsx-vsix-name }}
         run: |
           set -euo pipefail
           gh release create "$INPUT_VERSION" \
             --target "$SHA" \
             --title "$INPUT_VERSION" \
             --notes-file /tmp/release-notes.md \
-            "$VSIX_FILE"
+            "$VSIX_FILE" "$OPENVSX_VSIX_FILE"

@@ -6,7 +6,6 @@ import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContr
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import { executeReplayCommand } from '@extension/services/telemetry/replay';
 import { CONFIG, extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
@@ -63,8 +62,6 @@ export class UtilityCommandModule {
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
             [WebviewCmd.FreshSsrPreview]: this.handleFreshSsrPreview,
-            [WebviewCmd.OpenRecordingsFolder]: this.handleOpenRecordingsFolder,
-            [WebviewCmd.ReplaySession]: this.handleReplaySession,
         };
     }
 
@@ -285,15 +282,6 @@ export class UtilityCommandModule {
                 await vscode.env.clipboard.writeText(uri);
             }
         }
-    };
-
-    private handleOpenRecordingsFolder = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        const recordingsUri = vscode.Uri.joinPath(this.context.extensionContext.globalStorageUri, 'recordings');
-        await vscode.commands.executeCommand('revealFileInOS', recordingsUri);
-    };
-
-    private handleReplaySession = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        await executeReplayCommand(this.context.extensionContext.globalStorageUri);
     };
 
     private handleOpenFile = async (message: WebviewToExtensionMessage): Promise<void> => {

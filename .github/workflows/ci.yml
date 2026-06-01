@@ -95,6 +95,10 @@ jobs:
       - run: npm ci
       - run: npm run package
       - run: npx @vscode/vsce package --no-dependencies
+      - name: Build Open VSX (clean) variant
+        run: node esbuild.js --production --variant=openvsx
+      - name: Verify clean bundle excludes recorder/consent
+        run: node scripts/verify-clean-bundle.js
 
   viewer-lint:
     name: Viewer lint

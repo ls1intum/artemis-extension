@@ -17,7 +17,8 @@
 			"@webview/*": ["./src/webview/*"],
 			"@shared/*": ["./src/shared/*"],
 			"@test/*": ["./test/*"],
-			"@root/package.json": ["./package.json"]
+			"@root/package.json": ["./package.json"],
+			"@dataCollection": ["./src/extension/dataCollection/index.ts"]
 		},
 		"plugins": [
 			{ "name": "typescript-plugin-css-modules" }

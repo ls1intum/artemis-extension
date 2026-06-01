@@ -18,12 +18,13 @@ import { BuildLogCommands } from './commands/buildLogCommands';
 import { ExerciseLifecycleCommands } from './commands/exerciseLifecycleCommands';
 import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
+import { mergeRecordingHandlers } from './commands/mergeCommandHandlers';
 import { NavigationCommandModule } from './commands/navigationCommands';
 import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
 import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
 import { RepositorySubmitCommands } from './commands/repositorySubmitCommands';
 import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
-import type { CommandContext, CommandHandler } from './commands/types';
+import type { CommandContext, CommandHandler, CommandMap } from './commands/types';
 import { UtilityCommandModule } from './commands/utilityCommands';
 import type { WebViewActionHandler } from './types';
 
@@ -51,6 +52,7 @@ export class WebViewMessageHandler {
         websocketService?: ArtemisWebsocketService,
         courseDataCache?: CourseDataCache,
         courseAccessStorage?: CourseAccessStorageService,
+        recordingHandlers: CommandMap = {},
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -94,6 +96,8 @@ export class WebViewMessageHandler {
                 this.commandHandlers.set(command, handler);
             });
         });
+
+        mergeRecordingHandlers(this.commandHandlers, recordingHandlers);
     }
 
     /**

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { createRecordingWebviewHandlers } from '@dataCollection';
 
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
 import type {
@@ -197,6 +198,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._websocketService,
             this._courseDataCache,
             this._courseAccessStorage,
+            createRecordingWebviewHandlers(this._extensionContext.globalStorageUri),
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
 

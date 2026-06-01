@@ -1,16 +1,15 @@
 import * as vscode from 'vscode';
+import { wireDataCollection } from '@dataCollection';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
-import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
 import { ArtemisApiService } from '@extension/api';
+import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
 import { AuthManager } from '@extension/services/auth';
-import { ConsentService } from '@extension/services/auth';
 import { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { SessionRecorder } from '@extension/services/telemetry';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
@@ -29,7 +28,7 @@ import { VSCODE_CONFIG } from '@extension/utils';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;
-let activeSessionRecorder: SessionRecorder | undefined;
+let activeDataCollection: DataCollectionHandle | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
 	logger.initialize();
@@ -90,9 +89,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const noAiDetectionService = new NoAiDetectionService();
 	context.subscriptions.push(noAiDetectionService);
-
-	const consentService = new ConsentService();
-	context.subscriptions.push(consentService);
 
 	noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
 		if (isNoAiDetected) {
@@ -177,7 +173,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	void vscode.commands.executeCommand('setContext', 'iris:extensionReady', true);
 
 	// ── Phase B: async initialization (UI already responsive) ────────
-	consentService.promptIfPending();
 
 	// 401 handler: environment-aware auth teardown
 	if (theiaEnv.isTheia) {
@@ -223,14 +218,18 @@ export async function activate(context: vscode.ExtensionContext) {
 		websocketStatusBarService.setAuthenticated(false);
 	}
 
-	// Session recorder wiring
-	const { sessionRecorder, disposable: recorderDisposable } = wireSessionRecorder({
-		context, consentService, artemisWebsocketService,
-		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		capabilities, exerciseRegistry, contextStore,
+	// Data collection (consent + recorder + recording commands). Excluded from the
+	// Open VSX build via the @dataCollection alias swap.
+	activeDataCollection = wireDataCollection({
+		context,
+		artemisWebsocketService,
+		telemetryManager,
+		artemisWebviewProvider,
+		chatWebviewProvider,
+		capabilities,
+		exerciseRegistry,
+		contextStore,
 	});
-	activeSessionRecorder = sessionRecorder;
-	context.subscriptions.push(recorderDisposable);
 
 	// Configuration listener
 	if (theiaEnv.isManagedEnvironment) {
@@ -276,16 +275,13 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
-	// Await the recorder dispose so all buffered events reach disk before
-	// the extension host tears us down. VS Code accepts a Promise return
-	// from deactivate and waits for it during graceful shutdown.
-	if (activeSessionRecorder) {
+	if (activeDataCollection) {
 		try {
-			await activeSessionRecorder.dispose();
+			await activeDataCollection.dispose();
 		} catch (err) {
-			logger.error('Failed to dispose SessionRecorder during deactivate', LogCategory.TELEMETRY, err);
+			logger.error('Failed to dispose data collection during deactivate', LogCategory.TELEMETRY, err);
 		}
-		activeSessionRecorder = undefined;
+		activeDataCollection = undefined;
 	}
 	if (activeTelemetryManager) {
 		try {
