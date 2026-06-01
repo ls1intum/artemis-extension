@@ -34,11 +34,16 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Removed
 
-- **Exam Mode**: Removed the unused exam-mode code paths from the extension.
+- **Exam Mode**: Removed entirely.
 
 ### Internal
 
-- Release pipeline hardening (idempotent GitHub Release, single-sourced and validated changelog notes, Marketplace post-publish existence check, single release-branch selector), broad refactors (WebSocket/provider/recorder decomposition), stricter TypeScript, and runtime validation at the API/WebSocket/replay boundaries. No user-facing impact.
+- **Release Pipeline**: Idempotent GitHub Release, validated single-sourced changelog notes, Marketplace post-publish existence check, and a single release-branch selector.
+- **Architecture**: Decomposed the WebSocket service, webview provider, and session recorder into smaller cohesive units.
+- **TypeScript**: Enabled stricter flags (`noUnused*`, `noImplicitReturns`, `noFallthrough`).
+- **Runtime Validation**: Added schema validation at the API, Iris WebSocket, and replay-parse boundaries.
+- **Imports**: Introduced `@`-path import aliases and consistent import ordering.
+- **Cleanup**: Removed dead code and no-op indirection layers.
 
 ## [0.4.4] - 2026-05-10
 
