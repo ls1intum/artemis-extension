@@ -1,20 +1,15 @@
 name: Release to Open VSX and VS Marketplace
 
 on:
+  # The branch to release from is the one chosen in the "Use workflow from"
+  # dropdown (github.ref); the prepare job enforces it is main or dev. There is no
+  # separate "source branch" input - one selector decides both the workflow and the code.
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to release (semver, e.g., 0.4.4). Must match extension/package.json version.'
         required: true
         type: string
-      ref:
-        description: 'Source branch to release from. Default "main" (released code). Pick "dev" only for ad-hoc / hotfix releases of pre-merge work.'
-        required: true
-        default: 'main'
-        type: choice
-        options:
-          - main
-          - dev
       dry_run:
         description: 'Dry run: build + validate, skip publish/tag/release'
         required: true
@@ -53,10 +48,23 @@ jobs:
     outputs:
       sha: ${{ steps.sha.outputs.sha }}
     steps:
+      # Checks out the branch picked in "Use workflow from" (github.ref) - the single
+      # selector that decides both which workflow runs and which code gets released.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: refs/heads/${{ inputs.ref }}
           fetch-depth: 0
+
+      - name: Validate release branch (main or dev only)
+        # Compare the full github.ref so a TAG named main/dev (refs/tags/...) is also
+        # rejected - only the refs/heads/{main,dev} branches may be released.
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF" != "refs/heads/main" && "$REF" != "refs/heads/dev" ]]; then
+            echo "::error::Releases must run from branch 'main' or 'dev' (got ref '$REF' in 'Use workflow from'; tags are not allowed). Default to main; pick dev only for ad-hoc / hotfix releases of pre-merge work."
+            exit 1
+          fi
 
       - name: Validate version is strict semver
         env:
@@ -80,11 +88,13 @@ jobs:
             exit 1
           fi
 
-      - name: Verify extension/ directory exists on ref
+      - name: Verify extension/ directory exists on the selected branch
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           if [[ ! -d extension ]]; then
-            echo "::error::extension/ directory missing on ref '${{ inputs.ref }}'. Did you point to a pre-rename commit on main? Release blocked until dev->main merge brings the rename to main."
+            echo "::error::extension/ directory missing on '$REF_NAME'. Did you point to a pre-rename commit on main? Release blocked until dev->main merge brings the rename to main."
             exit 1
           fi
 
