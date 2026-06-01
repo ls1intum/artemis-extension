@@ -42,7 +42,7 @@ import * as vscode from 'vscode';
 
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
+import type { InterventionEvent, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -401,7 +401,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         confidence: 'sufficient' | 'insufficient',
         triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained',
         opts?: {
-            blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+            blockedReason?: InterventionEvent['blockedReason'];
             suppressionReason?: 'user-disabled';
             dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
             rawWanted?: boolean;

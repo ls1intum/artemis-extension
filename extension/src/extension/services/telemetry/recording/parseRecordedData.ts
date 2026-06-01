@@ -393,7 +393,7 @@ function parseIntervention(d: Record<string, unknown>, timestamp: number): Inter
         return null;
     }
     if (d.blockedReason !== undefined
-        && !isOneOf(d.blockedReason, ['cooldown', 'warmup', 'session-limit', 'low-confidence'] as const)) {
+        && !isOneOf(d.blockedReason, ['cooldown', 'warmup', 'session-limit', 'low-confidence', 'recent-progress', 'last-dismissed'] as const)) {
         return null;
     }
     if (d.suppressionReason !== undefined && !isOneOf(d.suppressionReason, ['user-disabled'] as const)) {

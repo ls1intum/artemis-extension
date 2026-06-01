@@ -219,7 +219,7 @@ export interface InterventionEvent {
     confidence: 'sufficient' | 'insufficient';
     triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
     /** Populated when action='blocked'. Identifies why the intervention was blocked. */
-    blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+    blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence' | 'recent-progress' | 'last-dismissed';
     /** Populated when action='suppressed'. Identifies the suppression source. */
     suppressionReason?: 'user-disabled';
     /** Populated when action='dismissed'. Identifies how the intervention was dismissed. */

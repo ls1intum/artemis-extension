@@ -97,7 +97,7 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
         }
 
         for (const change of event.contentChanges) {
-            if (isLikelyManualPaste(change)) {
+            if (isLikelyManualPaste(change, this._config.MULTILINE_PASTE_MIN_LINES)) {
                 if (!this._checkCooldown('multiline-paste')) {
                     return;
                 }

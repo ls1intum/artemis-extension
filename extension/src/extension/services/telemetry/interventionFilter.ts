@@ -1,4 +1,4 @@
-import { InterventionState, RecommendedAction, SessionResettable, SessionStartContext } from './types';
+import { InterventionBlockedReason, InterventionState, RecommendedAction, SessionResettable, SessionStartContext } from './types';
 
 /**
  * Pedagogical guards for intervention decisions.
@@ -11,6 +11,8 @@ export class InterventionFilter implements SessionResettable {
     private static readonly MAX_INTERVENTIONS_PER_SESSION = 3;
     /** Grace period after progress (2 minutes) */
     private static readonly PROGRESS_GRACE_PERIOD_MS = 2 * 60 * 1000;
+    /** EQ at/above which a proactive intervention is allowed even past the session limit */
+    private static readonly SEVERE_EQ_PROACTIVE_OVERRIDE = 0.85;
 
     private _exerciseStartTime: number | undefined;
     private _lastProgressTime: number = 0;
@@ -67,33 +69,33 @@ export class InterventionFilter implements SessionResettable {
     public shouldInterveneEQ(
         decision: { level: RecommendedAction; eq: number },
         state: InterventionState,
-    ): boolean {
+    ): { ok: boolean; reason?: InterventionBlockedReason } {
         if (decision.level === 'none') {
-            return false;
+            return { ok: false };
         }
 
         if (!this._hasEnoughExerciseTime()) {
-            return false;
+            return { ok: false, reason: 'warmup' };
         }
 
         if (this._hasRecentProgress()) {
-            return false;
+            return { ok: false, reason: 'recent-progress' };
         }
 
         // Session intervention limit
         if (state.sessionInterventionCount >= InterventionFilter.MAX_INTERVENTIONS_PER_SESSION) {
-            // Allow proactive even after limit for severe EQ (>= 0.85)
-            if (decision.level !== 'proactive' || decision.eq < 0.85) {
-                return false;
+            // Allow proactive even after limit for severe EQ
+            if (decision.level !== 'proactive' || decision.eq < InterventionFilter.SEVERE_EQ_PROACTIVE_OVERRIDE) {
+                return { ok: false, reason: 'session-limit' };
             }
         }
 
         // Dismissed → only proactive allowed
         if (state.lastDismissed && decision.level !== 'proactive') {
-            return false;
+            return { ok: false, reason: 'last-dismissed' };
         }
 
-        return true;
+        return { ok: true };
     }
 
     /**

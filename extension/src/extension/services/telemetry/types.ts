@@ -170,10 +170,6 @@ export interface EQConfig {
     readonly SESSION_INACTIVITY_SPLIT_MS: number;
     /** Dedup window in ms [Engineering choice] */
     readonly DEDUP_WINDOW_MS: number;
-    /** Diagnostic stabilization debounce in ms [ADAPTATION: optional, default off] */
-    readonly DIAGNOSTIC_STABILIZATION_MS: number;
-    /** Whether diagnostic stabilization trigger is enabled [Engineering choice] */
-    readonly DIAGNOSTIC_STABILIZATION_ENABLED: boolean;
 }
 
 /** Default EQ configuration with paper-validated values */
@@ -184,8 +180,6 @@ export const DEFAULT_EQ_CONFIG: EQConfig = {
     MIN_EVENTS_PER_SESSION: 7,
     SESSION_INACTIVITY_SPLIT_MS: 30 * 60 * 1000, // 30 minutes
     DEDUP_WINDOW_MS: 5 * 1000, // 5 seconds
-    DIAGNOSTIC_STABILIZATION_MS: 2_000, // 2 seconds debounce
-    DIAGNOSTIC_STABILIZATION_ENABLED: false, // off by default
 };
 
 /**
@@ -261,10 +255,18 @@ export interface CompileEquivalentEvent {
  *
  * - 'cooldown'        — InterventionService internal cooldown (notification/proactive only)
  * - 'warmup'          — Exercise hasn't reached the 5-minute warmup yet
+ * - 'recent-progress' — Student made progress within the 2-minute grace period
  * - 'session-limit'   — Max interventions per session exceeded
+ * - 'last-dismissed'  — Previous intervention was dismissed (non-proactive blocked)
  * - 'low-confidence'  — EQ above threshold but confidence gate is 'insufficient'
  */
-export type InterventionBlockedReason = 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+export type InterventionBlockedReason =
+    | 'cooldown'
+    | 'warmup'
+    | 'session-limit'
+    | 'low-confidence'
+    | 'recent-progress'
+    | 'last-dismissed';
 
 /**
  * Reason why an intervention was dismissed.
