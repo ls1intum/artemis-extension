@@ -389,10 +389,10 @@ jobs:
           "$RUNNER_TEMP/vsce-cli/node_modules/.bin/vsce" --version
 
       # --skip-duplicate: vsce exits 0 if the version already exists on
-      # Marketplace, making retries idempotent without a separate PRE-check.
-      # A 'vsce show' pre-check was deliberately dropped (network/auth/schema
-      # errors could be misclassified as "version missing" -> publish). We instead
-      # verify existence AFTER publishing, which is fail-closed-safe.
+      # Marketplace, making retries idempotent. We do NOT read back via 'vsce show'
+      # to verify: its gallery query omits versions and lags by minutes after a
+      # publish, which caused false failures. vsce publish's exit code is the
+      # source of truth here.
       - name: Publish to VS Marketplace (idempotent via --skip-duplicate)
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -402,23 +402,7 @@ jobs:
           set -euo pipefail
           vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE" 2>&1 | tee /tmp/vsce_out.txt
           if grep -qiE 'already (exists|published)|skipping' /tmp/vsce_out.txt; then
-            echo "::warning::Marketplace already had $INPUT_VERSION; --skip-duplicate skipped the upload (treated as a retry). Note: Marketplace has no byte-level parity check here (unlike Open VSX), so existing content is not re-verified byte-for-byte."
-          fi
-          # Post-publish existence verification (fail-closed). Marketplace indexing can
-          # lag a few seconds after publish, so retry briefly before failing. A genuine
-          # failure here is safe to re-run: --skip-duplicate skips the upload and this
-          # check passes once the version is indexed.
-          ok=false
-          for i in 1 2 3 4 5; do
-            if vsce show aet-tum.iris-thaumantias --json | jq -e --arg v "$INPUT_VERSION" 'any(.versions[]?; .version == $v)' >/dev/null; then
-              ok=true; break
-            fi
-            echo "Version $INPUT_VERSION not visible on Marketplace yet (attempt $i/5); retrying..."
-            sleep 15
-          done
-          if [[ "$ok" != "true" ]]; then
-            echo "::error::Marketplace does not report version $INPUT_VERSION after publish (checked 5x). If this is indexing lag, use 'Re-run failed jobs'."
-            exit 1
+            echo "::warning::Marketplace already had $INPUT_VERSION; --skip-duplicate skipped the upload (treated as a retry)."
           fi
 
   release:
