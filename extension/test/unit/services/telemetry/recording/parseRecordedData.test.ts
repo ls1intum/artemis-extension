@@ -234,6 +234,17 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
 
+    for (const blockedReason of ['recent-progress', 'last-dismissed'] as const) {
+        test(`intervention — blockedReason='${blockedReason}' round-trips`, () => {
+            const e: RecordedEvent = {
+                type: 'intervention', timestamp: ts, action: 'blocked', level: 'notification',
+                shouldIntervene: false, eq: 0.5, confidence: 'sufficient',
+                triggerType: 'idle', blockedReason, rawWanted: true,
+            };
+            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+        });
+    }
+
     test('viewNavigation', () => {
         const e: RecordedEvent = {
             type: 'viewNavigation', timestamp: ts, from: 'dashboard', to: 'exerciseDetail',

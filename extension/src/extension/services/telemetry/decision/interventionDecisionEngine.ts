@@ -1,7 +1,6 @@
 import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
 import {
     EQConfidence,
-    InterventionBlockedReason,
     InterventionDecision,
     InterventionState,
     RecommendedAction,
@@ -91,15 +90,12 @@ export class InterventionDecisionEngine {
             };
         }
 
-        // 3. Apply guardrails via InterventionFilter
-        const shouldIntervene = this._filter.shouldInterveneEQ(
+        // 3. Apply guardrails via InterventionFilter, which reports the exact
+        //    blocking reason (warmup / recent-progress / session-limit / last-dismissed).
+        const { ok: shouldIntervene, reason } = this._filter.shouldInterveneEQ(
             { level, eq },
             interventionState,
         );
-
-        const blockedReason: InterventionBlockedReason | undefined = shouldIntervene
-            ? undefined
-            : this._computeBlockedReason(level, eq, interventionState);
 
         return {
             rawWanted: true,
@@ -108,36 +104,8 @@ export class InterventionDecisionEngine {
             triggerType,
             eq,
             confidence,
-            blockedReason,
+            blockedReason: shouldIntervene ? undefined : reason,
         };
-    }
-
-    /**
-     * Compute the reason why the InterventionFilter blocked a decision that
-     * had `rawWanted=true`. Returns the first matching reason in priority order.
-     */
-    private _computeBlockedReason(
-        level: RecommendedAction,
-        eq: number,
-        state: InterventionState,
-    ): InterventionBlockedReason {
-        // Warmup check (exercise hasn't started or hasn't elapsed 5 min)
-        // We call shouldInterveneEQ on a minimal level to probe each gate
-        // individually. Since InterventionFilter is a black box here, we
-        // approximate by evaluating the same guardrails in the same order.
-        // Mirror the order in InterventionFilter.shouldInterveneEQ:
-
-        // Check session-limit (most common for notification/proactive)
-        const LIMIT = 3; // MAX_INTERVENTIONS_PER_SESSION
-        if (state.sessionInterventionCount >= LIMIT) {
-            if (level !== 'proactive' || eq < 0.85) {
-                return 'session-limit';
-            }
-        }
-
-        // Warmup: if the filter blocked and session count is fine, assume warmup
-        // (we can't directly inspect InterventionFilter's private start time)
-        return 'warmup';
     }
 
     /**
