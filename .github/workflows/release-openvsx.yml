@@ -143,7 +143,7 @@ jobs:
           head -20 /tmp/release-notes.md
 
       - name: Upload release notes
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-notes
           path: /tmp/release-notes.md
@@ -260,7 +260,7 @@ jobs:
           echo "Built $name (sha256=$sha256)"
 
       - name: Upload Marketplace VSIX
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: vsix-marketplace
           path: extension/${{ steps.vsix.outputs.name }}
@@ -269,7 +269,7 @@ jobs:
           overwrite: true
 
       - name: Upload Open VSX VSIX
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: vsix-openvsx
           path: extension/${{ steps.openvsx.outputs.name }}
@@ -295,7 +295,7 @@ jobs:
     permissions:
       actions: read
     steps:
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: vsix-openvsx
           path: ./
@@ -370,7 +370,7 @@ jobs:
     permissions:
       actions: read
     steps:
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: vsix-marketplace
           path: ./
@@ -428,17 +428,17 @@ jobs:
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
 
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: vsix-marketplace
           path: ./
 
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: vsix-openvsx
           path: ./
 
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-notes
           path: ./
