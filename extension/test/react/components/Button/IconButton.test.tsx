@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { IconButton } from '../../../../src/webview/components/Button/IconButton';
+import { describe, expect, it, vi } from 'vitest';
+
+import { IconButton } from '@webview/components/Button/IconButton';
 
 describe('IconButton', () => {
 	it('renders icon element inside button', () => {

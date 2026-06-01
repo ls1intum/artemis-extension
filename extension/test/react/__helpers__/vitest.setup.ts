@@ -2,10 +2,12 @@
 /// <reference types="@testing-library/jest-dom" />
 
 import '@testing-library/jest-dom/vitest';
+
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
-import { createMockVsCodeApi } from './vscodeApi';
+
 import { resetTestState } from './resetStores';
+import { createMockVsCodeApi } from './vscodeApi';
 
 // Reset all Zustand stores and VS Code API mock before each test
 beforeEach(() => {

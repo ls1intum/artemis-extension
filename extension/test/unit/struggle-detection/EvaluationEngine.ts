@@ -5,11 +5,7 @@
  * with confusion matrix and ML metrics.
  */
 
-import {
-    ScenarioResult,
-    TestSuiteReport,
-    CategoryResult,
-} from './types';
+import { CategoryResult, ScenarioResult, TestSuiteReport } from './types';
 
 /**
  * Aggregates individual scenario results into a test suite report

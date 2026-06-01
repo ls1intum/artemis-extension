@@ -1,31 +1,32 @@
 import * as vscode from 'vscode';
+
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import { ResultDTO, WebSocketMessageHandler } from '@extension/types';
+import { VSCODE_CONFIG } from '@extension/utils/constants';
+
+import { shouldAcceptBuildResult } from './buildResultGuard';
+import { BuildResultTracker } from './buildResultTracker';
+import { DebugDashboard } from './debugDashboard';
+import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
+import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
+import { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
+import { classifyBuildResult, CompileEquivalentEmitter } from './eventPipeline/compileEquivalentEmitter';
+import { InactivityService } from './inactivityService';
+import { AdaptiveCadence } from './intervention/adaptiveCadence';
+import { InterventionFilter } from './interventionFilter';
+import { InterventionService } from './interventionService';
+import { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
+import type { SessionResettable, SessionStartContext } from './types';
 import {
-    StruggleContext,
-    TriggerType,
     EQConfidence,
     EQState,
     RecommendedAction,
+    StruggleContext,
     SuppressedInterventionPayload,
+    TriggerType,
 } from './types';
-import type { SessionResettable, SessionStartContext } from './types';
-import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
-import { InactivityService } from './inactivityService';
-import { ThrashingDetector } from './thrashingDetector';
-import { BuildResultTracker } from './buildResultTracker';
-import { InterventionService } from './interventionService';
-import { InterventionFilter } from './interventionFilter';
-import { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
-import { CompileEquivalentEmitter, classifyBuildResult } from './eventPipeline/compileEquivalentEmitter';
-import { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
-import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
-import { AdaptiveCadence } from './intervention/adaptiveCadence';
-import { DebugDashboard } from './debugDashboard';
-import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
-import { ResultDTO, WebSocketMessageHandler } from '../../types';
-import { VSCODE_CONFIG } from '../../utils/constants';
-import { logger, LogCategory } from '../loggingService';
-import type { ExerciseRegistry } from '../exerciseRegistry';
-import { shouldAcceptBuildResult } from './buildResultGuard';
 
 /**
  * Central orchestration service for EQ-based struggle detection.
@@ -37,11 +38,11 @@ import { shouldAcceptBuildResult } from './buildResultGuard';
  */
 export class TelemetryManager implements vscode.Disposable, WebSocketMessageHandler {
     private readonly _disposables: vscode.Disposable[] = [];
+    private _disposed = false;
 
     // Sub-services (kept from old system)
     private readonly _diagnosticService: DiagnosticPersistenceService;
     private readonly _inactivityService: InactivityService;
-    private readonly _thrashingDetector: ThrashingDetector;
     private readonly _buildTracker: BuildResultTracker;
     private readonly _interventionService: InterventionService;
     private readonly _interventionFilter: InterventionFilter;
@@ -102,7 +103,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         // Initialize kept services
         this._diagnosticService = new DiagnosticPersistenceService();
         this._inactivityService = new InactivityService();
-        this._thrashingDetector = new ThrashingDetector();
         this._buildTracker = new BuildResultTracker();
         this._interventionService = new InterventionService();
         this._interventionFilter = new InterventionFilter();
@@ -121,7 +121,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._debugDashboard = new DebugDashboard({
             eqEngine: this._eqEngine,
             inactivityService: this._inactivityService,
-            thrashingDetector: this._thrashingDetector,
             buildTracker: this._buildTracker,
             adaptiveCadence: this._adaptiveCadence,
             outputChannel: this._outputChannel,
@@ -134,7 +133,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._sessionServices = [
             this._eqEngine, this._compileEmitter, this._triggerEmitter,
             this._inactivityService, this._adaptiveCadence, this._interventionFilter,
-            this._interventionService, this._thrashingDetector, this._buildTracker,
+            this._interventionService, this._buildTracker,
             this._diagnosticService,
         ];
 
@@ -143,7 +142,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._debugDashboard,
             this._diagnosticService,
             this._inactivityService,
-            this._thrashingDetector,
             this._buildTracker,
             this._interventionService,
             this._compileEmitter,
@@ -165,6 +163,14 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     }
 
     public dispose(): void {
+        // Idempotent: VS Code disposes context.subscriptions during deactivate,
+        // and extension.ts also calls this explicitly so session-end telemetry
+        // flushes before teardown. Both paths must be safe to run.
+        if (this._disposed) {
+            return;
+        }
+        this._disposed = true;
+
         if (this._websocketService) {
             this._websocketService.unregisterMessageHandler(this);
         }
@@ -200,15 +206,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // Step 1: EQ snapshot FIRST (synchronous)
-        const event = this._compileEmitter.handleBuildResult(result);
-        if (event) {
-            const accepted = this._eqEngine.addSnapshot(event.snapshot);
-            if (accepted) {
-                const { eq, confidence } = this._eqEngine.getCurrentEQ();
-                this._onDidCalculateEQ.fire({ eq, confidence, source: 'build' });
-            }
-        }
+        // Step 1: EQ snapshot FIRST (synchronous).
+        // handleBuildResult fires onDidEmitCompileEquivalent — the listener
+        // registered in _setupEventHandlers adds the snapshot to the EQ engine.
+        // Single-path-snapshot: both save and build flow through the listener.
+        this._compileEmitter.handleBuildResult(result);
 
         // Step 2: Existing build tracker processing
         this._buildTracker.onNewResult(result);
@@ -320,15 +322,13 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         });
         this._disposables.push(selectionListener);
 
-        // CompileEquivalentEmitter → EQEngine
+        // CompileEquivalentEmitter → EQEngine.
+        // Single source of truth for snapshot intake: handles both save and build events.
         this._compileEmitter.onDidEmitCompileEquivalent(event => {
-            // Only add from save events; build events are handled in onNewResult
-            if (event.source === 'save') {
-                const accepted = this._eqEngine.addSnapshot(event.snapshot);
-                if (accepted) {
-                    const { eq, confidence } = this._eqEngine.getCurrentEQ();
-                    this._onDidCalculateEQ.fire({ eq, confidence, source: 'save' });
-                }
+            const accepted = this._eqEngine.addSnapshot(event.snapshot);
+            if (accepted) {
+                const { eq, confidence } = this._eqEngine.getCurrentEQ();
+                this._onDidCalculateEQ.fire({ eq, confidence, source: event.source });
             }
         });
 
@@ -353,10 +353,21 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
         });
 
-        // Intervention dismissed → increment adaptive cadence for the trigger that caused it
+        // Intervention dismissed → increment adaptive cadence for the trigger that caused it.
+        // Only count explicit user dismissals: 'replaced', 'hidden', 'session-end' are
+        // implicit lifecycle dismissals and must NOT skew the cadence statistics.
         this._interventionService.onDidDismissIntervention(decision => {
-            const triggerType = decision.triggerType ?? 'idle';
-            this._adaptiveCadence.incrementIgnoreCount(triggerType);
+            if (decision.dismissReason !== 'user-action') {
+                return;
+            }
+            if (decision.triggerType === undefined) {
+                logger.warn(
+                    'Dismiss event has no triggerType — skipping cadence increment',
+                    LogCategory.TELEMETRY,
+                );
+                return;
+            }
+            this._adaptiveCadence.incrementIgnoreCount(decision.triggerType);
         });
 
         // Intervention accepted → reset adaptive cadence

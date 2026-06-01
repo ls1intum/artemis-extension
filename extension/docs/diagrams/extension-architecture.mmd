@@ -28,16 +28,14 @@ graph TB
             CourseDetail[CourseDetailView]
             ExerciseDetail[ExerciseDetailView]
             IrisChat[IrisChatView]
-            ExamViews[Exam Views x3]
             UtilityViews[Utility Views x3]
         end
 
-        subgraph ZustandStores["Zustand Stores (9)"]
+        subgraph ZustandStores["Zustand Stores"]
             NavStore[useNavigationStore]
             DashStore[useDashboardStore]
             CourseStores[useCourseListStore<br/>useCourseDetailStore]
             ExerciseStore[useExerciseDetailStore]
-            ExamStores[Exam Stores x3]
             ChatStore[useChatStore]
         end
 

@@ -1,6 +1,7 @@
+import type { ChatContextType, ContextSnapshot, TrackedExercise } from '@extension/types';
+
+import { compareCoursesForDisplay, compareExercisesForDisplay } from './contextSorting';
 import type { StoredState } from './contextStateTypes';
-import type { ChatContextType, ContextSnapshot, TrackedExercise } from '../../../types';
-import { compareExercisesForDisplay, compareCoursesForDisplay } from './contextSorting';
 
 const SESSION_KEY_SEPARATOR = ':';
 
@@ -17,7 +18,9 @@ function isPastDeadline(ex: TrackedExercise, nowMs: number): boolean {
 export function buildContextSnapshot(state: StoredState): ContextSnapshot {
     const active = state.activeContext;
     const activeKey = active ? getContextKey(active.type, active.id) : null;
-    const sessions = activeKey ? [...(state.sessions[activeKey] ?? [])] : [];
+    const sessions = activeKey
+        ? [...(state.sessions[activeKey] ?? [])].sort((a, b) => b.lastActivity - a.lastActivity)
+        : [];
     const activeSession =
         sessions.find(session => session.id === state.activeSessionId) ?? sessions[0] ?? null;
 

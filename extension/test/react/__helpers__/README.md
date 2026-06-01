@@ -11,7 +11,7 @@ Creates a mock VS Code API object for testing webview components.
 **Usage:**
 
 ```typescript
-import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
+import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
 
 const mockApi = createMockVsCodeApi();
 render(<MyComponent vscodeApi={mockApi} />);
@@ -39,7 +39,7 @@ Dispatches a message from the extension to the webview, simulating extension-to-
 **Usage:**
 
 ```typescript
-import { dispatchExtensionMessage } from '../__helpers__/vscodeApi';
+import { dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 
 // Typed format (preferred)
 dispatchExtensionMessage({
@@ -63,7 +63,7 @@ Custom render function that wraps React Testing Library's render with VS Code we
 **Usage:**
 
 ```typescript
-import { renderWithProviders } from '../__helpers__/renderWithProviders';
+import { renderWithProviders } from '@test/react/__helpers__/renderWithProviders';
 
 const { vscodeApi } = renderWithProviders(<MyComponent />, {
   vscodeApi: customMockApi, // optional
@@ -82,7 +82,7 @@ Standard component test pattern with React Testing Library:
 ```typescript
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Button } from '../Button';
+import { Button } from '@webview/components/Button';
 
 it('calls onClick when clicked', async () => {
   const handleClick = vi.fn();
@@ -100,7 +100,7 @@ Store test pattern with beforeEach reset to ensure isolation:
 
 ```typescript
 import { renderHook, act } from '@testing-library/react';
-import { useDashboardStore } from '../useDashboardStore';
+import { useDashboardStore } from '@webview/stores/useDashboardStore';
 
 beforeEach(() => {
   useDashboardStore.setState({

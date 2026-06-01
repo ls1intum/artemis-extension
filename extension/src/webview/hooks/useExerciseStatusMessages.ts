@@ -1,7 +1,9 @@
+import type { VsCodeApi } from '@shared/messageContracts';
+import { ExtensionMsg } from '@shared/messageContracts';
+
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+
 import { useExtensionMessage } from './useExtensionMessage';
-import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
-import { ExtensionMsg } from '../../shared/messageContracts';
-import type { VsCodeApi } from '../../shared/messageContracts';
 
 /**
  * Shared hook that listens for exercise status extension messages

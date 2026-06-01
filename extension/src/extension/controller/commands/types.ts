@@ -1,14 +1,16 @@
 import type * as vscode from 'vscode';
-import type { ArtemisApiService } from '../../api';
-import type { AppStateManager } from '../appStateManager';
-import type { WebViewActionHandler } from '../types';
-import type { AuthManager } from '../../services/auth';
-import type { ArtemisWebsocketService } from '../../services/websocket';
-import type { ExerciseRegistry } from '../../services/exerciseRegistry';
-import type { IProviderRegistry } from '../../services/ui';
-import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
-import type { CourseDataCache } from '../../services/courseDataCache';
-import type { CourseAccessStorageService } from '../../services/courseAccessStorageService';
+
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+
+import type { ArtemisApiService } from '@extension/api';
+import type { AppStateManager } from '@extension/controller/appStateManager';
+import type { WebViewActionHandler } from '@extension/controller/types';
+import type { AuthManager } from '@extension/services/auth';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { IProviderRegistry } from '@extension/services/ui';
+import type { ArtemisWebsocketService } from '@extension/services/websocket';
 
 export type CommandHandler = (message: WebviewToExtensionMessage) => Promise<void>;
 export type CommandMap = Record<string, CommandHandler>;
@@ -21,6 +23,7 @@ export interface CommandContext {
     sendMessage(message: ExtensionToWebviewMessage): void;
     updateAuthContext(isAuthenticated: boolean): Promise<void>;
     getWebsocketService?: () => ArtemisWebsocketService | undefined;
+    recheckRepoStatus?: () => Promise<void>;
     extensionContext: vscode.ExtensionContext;
     exerciseRegistry: ExerciseRegistry;
     providerRegistry: IProviderRegistry;

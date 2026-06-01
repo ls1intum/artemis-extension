@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { ExtensionMsg, isExtensionMessage } from '../../shared/messageContracts';
-import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
+
+import { ExtensionMsg, isExtensionMessage } from '@shared/messageContracts';
+
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 
 /** Fallback flush interval in case RAF never fires (e.g. hidden tab) */
 const FALLBACK_FLUSH_MS = 1000;

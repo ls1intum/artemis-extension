@@ -1,5 +1,5 @@
-import type { ExerciseRef } from '../../../shared/types';
-export type { IrisStageDTO } from '../../../shared/types/apiResponses';
+import type { ExerciseRef } from '@shared/types';
+export type { IrisStageDTO } from '@shared/types/apiResponses';
 
 // Chat message as rendered in the UI
 export interface ChatMessage {
@@ -11,6 +11,13 @@ export interface ChatMessage {
     helpful?: boolean | null;  // Feedback state: true=positive, false=negative, null=none
     status?: 'sending' | 'sent' | 'error';  // For optimistic display
     errorMessage?: string;     // Error text for failed messages
+    /**
+     * Reason the send was rejected by the extension host. Set together
+     * with `status: 'error'`. Used by the UI to decide whether Retry is
+     * meaningful right now (e.g. `iris-disabled` is persistent; `no-ai`
+     * stays non-retryable as long as `.noai` is still detected).
+     */
+    errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
 }
 
 // Chat session summary (from extension)
@@ -53,9 +60,11 @@ export interface ReferencedFilesData {
     totalCount: number;
 }
 
-// Streaming state
+// Transient flag for "Iris is preparing a response" UI.
+// The Artemis Iris WebSocket never streams chunks to this client — it sends
+// only the final MESSAGE frame (see irisWebSocketMessageHandler) — so the
+// only thing this flag drives is the thinking indicator between send and
+// the final AddMessage push that clears it via resetTransientChatUi.
 export interface StreamingState {
     isStreaming: boolean;
-    messageLocalId: string | null;  // Which message is currently streaming
-    visibleChunks: string[];        // Accumulated visible chunks
 }

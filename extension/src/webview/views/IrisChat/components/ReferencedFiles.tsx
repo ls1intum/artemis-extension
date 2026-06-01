@@ -1,6 +1,11 @@
-import { useState } from 'react';
 import clsx from 'clsx';
-import type { ReferencedFilesData } from '../types';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import FileText from 'lucide-react/dist/esm/icons/file-text';
+import XCircle from 'lucide-react/dist/esm/icons/x-circle';
+import { useState } from 'react';
+
+import type { ReferencedFilesData } from '@webview/views/IrisChat/types';
+
 import styles from './ReferencedFiles.module.css';
 
 interface ReferencedFilesProps {
@@ -26,49 +31,17 @@ export function ReferencedFiles({ files, onOpenFile }: ReferencedFilesProps) {
                 aria-expanded={isExpanded}
             >
                 <div className={styles.headerContent}>
-                    <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className={styles.fileIcon}
-                    >
-                        <path
-                            d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                        <polyline
-                            points="13 2 13 9 20 9"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
+                    <FileText size={16} className={styles.fileIcon} />
                     <span className={styles.headerText}>
                         {includedCount}/{files.totalCount} files referenced
                     </span>
                 </div>
-                <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
+                <ChevronDown
+                    size={16}
                     className={clsx(styles.chevron, {
                         [styles.chevronExpanded]: isExpanded,
                     })}
-                >
-                    <polyline
-                        points="6 9 12 15 18 9"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                />
             </button>
 
             {isExpanded && (
@@ -80,24 +53,7 @@ export function ReferencedFiles({ files, onOpenFile }: ReferencedFilesProps) {
                             className={styles.fileItem}
                             onClick={() => onOpenFile(path)}
                         >
-                            <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                className={styles.fileItemIcon}
-                            >
-                                <path
-                                    d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                />
-                                <polyline
-                                    points="13 2 13 9 20 9"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                />
-                            </svg>
+                            <FileText size={14} className={styles.fileItemIcon} />
                             <span className={styles.fileName}>{getFileName(path)}</span>
                             <span className={styles.fileStatus}>Will be sent</span>
                         </button>
@@ -115,39 +71,7 @@ export function ReferencedFiles({ files, onOpenFile }: ReferencedFilesProps) {
                             className={clsx(styles.fileItem, styles.fileItemExcluded)}
                             onClick={() => onOpenFile(file.path)}
                         >
-                            <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                className={styles.fileItemIcon}
-                            >
-                                <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                />
-                                <line
-                                    x1="15"
-                                    y1="9"
-                                    x2="9"
-                                    y2="15"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                />
-                                <line
-                                    x1="9"
-                                    y1="9"
-                                    x2="15"
-                                    y2="15"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                />
-                            </svg>
+                            <XCircle size={14} className={styles.fileItemIcon} />
                             <span className={styles.fileName}>{getFileName(file.path)}</span>
                             <span className={styles.fileReason}>
                                 {file.reason || 'Excluded'}

@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { ChatMessage, StreamingState, IrisStageDTO } from '../../../../../src/webview/views/IrisChat/types';
+import { describe, expect, it, vi } from 'vitest';
+
+import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
 // Mock use-stick-to-bottom (ESM package used via useAutoScroll)
 vi.mock('use-stick-to-bottom', () => ({
@@ -21,7 +22,7 @@ vi.mock('streamdown', () => ({
 
 // Mock CodeBlock to avoid Shiki complexity
 vi.mock(
-	'../../../../../src/webview/views/IrisChat/components/CodeBlock',
+	'@webview/views/IrisChat/components/CodeBlock',
 	() => ({
 		CodeBlock: ({ language, children }: { language?: string; children?: string }) => (
 			<pre data-language={language}><code>{children}</code></pre>
@@ -29,12 +30,10 @@ vi.mock(
 	})
 );
 
-import { ChatMessageList } from '../../../../../src/webview/views/IrisChat/components/ChatMessageList';
+import { ChatMessageList } from '@webview/views/IrisChat/components/ChatMessageList';
 
 const defaultStreaming: StreamingState = {
 	isStreaming: false,
-	messageLocalId: null,
-	visibleChunks: [],
 };
 
 const makeStage = (overrides: Partial<IrisStageDTO> = {}): IrisStageDTO => ({
@@ -145,14 +144,10 @@ describe('ChatMessageList', () => {
 		expect(allText[2]).toBe('Question 2');
 	});
 
-	it('shows thinking indicator when streaming starts but no chunks yet', () => {
+	it('shows thinking indicator when streaming is active', () => {
 		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
-		const streamingState: StreamingState = {
-			isStreaming: true,
-			messageLocalId: 'pending-msg',
-			visibleChunks: [],
-		};
-		const { container } = render(
+		const streamingState: StreamingState = { isStreaming: true };
+		render(
 			<ChatMessageList
 				messages={messages}
 				streaming={streamingState}
@@ -247,37 +242,30 @@ describe('ChatMessageList', () => {
 		expect(screen.getByText('Thinking hard')).toBeInTheDocument();
 	});
 
-	it('hides stage indicator when streaming chunks arrive', () => {
+	it('stage indicator takes priority over legacy thinking dots when both could apply', () => {
 		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
-		const streamingWithChunks: StreamingState = {
-			isStreaming: true,
-			messageLocalId: 'msg-1',
-			visibleChunks: ['Some response'],
-		};
+		const streamingState: StreamingState = { isStreaming: true };
 		render(
 			<ChatMessageList
 				messages={messages}
-				streaming={streamingWithChunks}
+				streaming={streamingState}
 				activeStage={makeStage()}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
 			/>
 		);
-		expect(screen.queryByText('Thinking hard')).not.toBeInTheDocument();
+		// Stage indicator wins — its message is rendered.
+		expect(screen.getByText('Thinking hard')).toBeInTheDocument();
 	});
 
-	it('shows legacy thinking dots when no activeStage but streaming with no chunks', () => {
+	it('shows legacy thinking dots when streaming but no activeStage', () => {
 		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
-		const streamingNoChunks: StreamingState = {
-			isStreaming: true,
-			messageLocalId: 'msg-1',
-			visibleChunks: [],
-		};
-		const { container } = render(
+		const streamingState: StreamingState = { isStreaming: true };
+		render(
 			<ChatMessageList
 				messages={messages}
-				streaming={streamingNoChunks}
+				streaming={streamingState}
 				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}

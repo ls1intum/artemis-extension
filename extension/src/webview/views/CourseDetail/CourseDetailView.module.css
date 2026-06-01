@@ -35,42 +35,6 @@
     margin: 0;
 }
 
-/* Exam List */
-.examList {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.examItem {
-    cursor: pointer;
-}
-
-.examItem:hover {
-    background: var(--vscode-list-hoverBackground);
-}
-
-.examHeader {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: space-between;
-}
-
-.examTitle {
-    font-weight: 600;
-    color: var(--vscode-foreground);
-    flex: 1;
-}
-
-.examInfo {
-    display: flex;
-    gap: 16px;
-    font-size: 12px;
-    color: var(--vscode-foreground);
-    opacity: 0.8;
-    margin-top: 4px;
-}
 
 /* Exercise Search and List */
 .exerciseSearch {

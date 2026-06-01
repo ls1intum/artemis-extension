@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { postCommand, type VsCodeApi, type CourseData, type ArchivedCourse } from '../../shared/messageContracts';
+
+import { type ArchivedCourse, type CourseDetailData, postCommand, type VsCodeApi } from '@shared/messageContracts';
 
 interface CourseListState {
-    courses: CourseData[];
+    courses: CourseDetailData[];
     archivedCourses: ArchivedCourse[];
     archivedLoaded: boolean;
     isLoading: boolean;
@@ -13,7 +14,7 @@ interface CourseListState {
     sortBy: string;
 
     // Actions
-    setCourses: (courses: CourseData[], archived?: ArchivedCourse[]) => void;
+    setCourses: (courses: CourseDetailData[], archived?: ArchivedCourse[]) => void;
     setArchivedCourses: (archived: ArchivedCourse[]) => void;
     setLoading: (loading: boolean) => void;
     setSearchTerm: (term: string) => void;
@@ -25,7 +26,7 @@ interface CourseListState {
     loadArchivedCourses: (vscodeApi: VsCodeApi) => void;
 
     // Derived
-    filteredCourses: () => { active: CourseData[]; archived: ArchivedCourse[] };
+    filteredCourses: () => { active: CourseDetailData[]; archived: ArchivedCourse[] };
 }
 
 /**
@@ -142,7 +143,7 @@ export const useCourseListStore = create<CourseListState>()(
 
             filteredCourses: () => {
                 const state = get();
-                const { courses, archivedCourses, searchTerm, typeFilter, semesterFilter, sortBy } = state;
+                const { courses, archivedCourses, searchTerm, semesterFilter, sortBy } = state;
 
                 // Apply search and filters
                 const lowerSearchTerm = searchTerm.toLowerCase().trim();

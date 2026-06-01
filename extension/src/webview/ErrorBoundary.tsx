@@ -1,6 +1,7 @@
 import React from 'react';
-import type { VsCodeApi } from '../shared/messageContracts';
-import { WebviewMsgType } from '../shared/messageContracts';
+
+import type { VsCodeApi } from '@shared/messageContracts';
+import { WebviewMsgType } from '@shared/messageContracts';
 
 interface ErrorBoundaryProps {
 	children: React.ReactNode;

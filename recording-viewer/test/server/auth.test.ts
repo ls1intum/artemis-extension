@@ -1,49 +1,65 @@
 import { describe, it, expect } from 'vitest';
-import { isValidToken, buildSessionCookie, isSessionCookieValid } from '../../server/auth';
+import {
+    isValidToken,
+    buildSessionCookie,
+    readSessionFromCookies,
+    clearSessionCookie,
+    SESSION_COOKIE_NAME,
+} from '../../server/auth';
+import type { ViewerSession } from '../../server/viewerSession';
 
-describe('auth.isValidToken', () => {
-    it('rejects when no expected token configured', () => {
-        expect(isValidToken('whatever', undefined)).toBe(false);
+const SECRET = 's'.repeat(64);
+const NOW = 1_716_000_000;
+
+describe('isValidToken', () => {
+    it('returns false when expected is undefined', () => {
+        expect(isValidToken('x', undefined)).toBe(false);
     });
-    it('rejects when provided token is empty', () => {
-        expect(isValidToken('', 'secret')).toBe(false);
-    });
-    it('accepts matching token', () => {
-        expect(isValidToken('secret', 'secret')).toBe(true);
-    });
-    it('rejects mismatching token of equal length', () => {
-        expect(isValidToken('secrxt', 'secret')).toBe(false);
-    });
-    it('rejects token of different length', () => {
-        expect(isValidToken('secret-long', 'secret')).toBe(false);
+    it('uses timing-safe equality', () => {
+        expect(isValidToken('a', 'a')).toBe(true);
+        expect(isValidToken('ab', 'a')).toBe(false);
+        expect(isValidToken('b', 'a')).toBe(false);
     });
 });
 
-describe('auth.buildSessionCookie', () => {
-    it('returns Set-Cookie value with HttpOnly, SameSite=Strict, Path=/, Max-Age 7d', () => {
-        const cookie = buildSessionCookie('secret');
-        expect(cookie).toMatch(/^recording_viewer_session=secret/);
+describe('buildSessionCookie', () => {
+    const session: ViewerSession = { v: 1, role: 'rater', raterId: 'r_abc', raterName: 'Alice', iat: NOW, exp: NOW + 3600 };
+    it('signs the payload and produces HttpOnly + SameSite=Strict cookie', () => {
+        const cookie = buildSessionCookie(session, SECRET, { isHttps: false });
+        expect(cookie).toMatch(new RegExp(`^${SESSION_COOKIE_NAME}=`));
         expect(cookie).toMatch(/HttpOnly/);
         expect(cookie).toMatch(/SameSite=Strict/);
         expect(cookie).toMatch(/Path=\//);
         expect(cookie).toMatch(/Max-Age=604800/);
+        expect(cookie).not.toMatch(/Secure/);
     });
-    it('clearing variant uses Max-Age=0', () => {
-        expect(buildSessionCookie('', { clear: true })).toMatch(/Max-Age=0/);
+    it('adds Secure attribute when isHttps=true', () => {
+        const cookie = buildSessionCookie(session, SECRET, { isHttps: true });
+        expect(cookie).toMatch(/Secure/);
     });
 });
 
-describe('auth.isSessionCookieValid', () => {
-    it('returns false when cookie missing', () => {
-        expect(isSessionCookieValid({}, 'secret')).toBe(false);
+describe('readSessionFromCookies', () => {
+    const session: ViewerSession = { v: 1, role: 'researcher', iat: NOW, exp: NOW + 3600 };
+    const validCookie = buildSessionCookie(session, SECRET, { isHttps: false }).split(';')[0].split('=').slice(1).join('=');
+
+    it('returns null when cookie missing', () => {
+        expect(readSessionFromCookies({}, SECRET, NOW + 1)).toBeNull();
     });
-    it('returns true when cookie matches token', () => {
-        expect(isSessionCookieValid({ recording_viewer_session: 'secret' }, 'secret')).toBe(true);
+    it('returns the parsed session when cookie valid', () => {
+        const result = readSessionFromCookies({ [SESSION_COOKIE_NAME]: decodeURIComponent(validCookie) }, SECRET, NOW + 1);
+        expect(result).toEqual(session);
     });
-    it('returns false when cookie does not match', () => {
-        expect(isSessionCookieValid({ recording_viewer_session: 'wrong' }, 'secret')).toBe(false);
+    it('returns null when cookie expired', () => {
+        const result = readSessionFromCookies({ [SESSION_COOKIE_NAME]: decodeURIComponent(validCookie) }, SECRET, session.exp + 1);
+        expect(result).toBeNull();
     });
-    it('returns false when expected token undefined', () => {
-        expect(isSessionCookieValid({ recording_viewer_session: 'anything' }, undefined)).toBe(false);
+});
+
+describe('clearSessionCookie', () => {
+    it('returns a Set-Cookie that wipes the value', () => {
+        const cookie = clearSessionCookie();
+        expect(cookie).toMatch(new RegExp(`^${SESSION_COOKIE_NAME}=`));
+        expect(cookie).toMatch(/Max-Age=0/);
     });
 });

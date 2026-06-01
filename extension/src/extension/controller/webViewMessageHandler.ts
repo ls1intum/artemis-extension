@@ -1,24 +1,32 @@
 import * as vscode from 'vscode';
-import { ArtemisApiService } from '../api';
-import { AuthManager } from '../services/auth';
-import { ArtemisWebsocketService } from '../services/websocket';
-import { ExerciseRegistry } from '../services/exerciseRegistry';
-import { logger, LogLevel, LogCategory } from '../services/loggingService';
-import type { IProviderRegistry } from '../services/ui';
+
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { getCommand } from '@shared/messageContracts';
+
+import { ArtemisApiService } from '@extension/api';
+import { AuthManager } from '@extension/services/auth';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { IProviderRegistry } from '@extension/services/ui';
+import { ArtemisWebsocketService } from '@extension/services/websocket';
+
 import { AppStateManager } from './appStateManager';
-import type { WebViewActionHandler } from './types';
-import type { CommandContext, CommandHandler } from './commands/types';
-import type { CourseDataCache } from '../services/courseDataCache';
-import type { CourseAccessStorageService } from '../services/courseAccessStorageService';
-import { getCommand } from '../../shared/messageContracts';
-import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
 import { AuthCommandModule } from './commands/authCommands';
-import { NavigationCommandModule } from './commands/navigationCommands';
-import { RepositoryCommandModule } from './commands/repositoryCommands';
-import { IrisCommandModule } from './commands/irisCommands';
-import { PlantUmlCommandModule } from './commands/plantUmlCommands';
+import { BuildLogCommands } from './commands/buildLogCommands';
+import { ExerciseLifecycleCommands } from './commands/exerciseLifecycleCommands';
 import { HealthCommandModule } from './commands/healthCommands';
+import { IrisCommandModule } from './commands/irisCommands';
+import { mergeRecordingHandlers } from './commands/mergeCommandHandlers';
+import { NavigationCommandModule } from './commands/navigationCommands';
+import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
+import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
+import { RepositorySubmitCommands } from './commands/repositorySubmitCommands';
+import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
+import type { CommandContext, CommandHandler, CommandMap } from './commands/types';
 import { UtilityCommandModule } from './commands/utilityCommands';
+import type { WebViewActionHandler } from './types';
 
 /**
  * Coordinates processing of messages received from the webview by delegating to command modules.
@@ -29,7 +37,7 @@ export class WebViewMessageHandler {
         logger.debug('Message to send to webview:', LogCategory.VIEW, message);
     };
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
-    private readonly repositoryModule: RepositoryCommandModule;
+    private readonly repositoryStatusModule: RepositoryStatusCommands;
     private _websocketService?: ArtemisWebsocketService;
     private _senderQueue: Promise<void> = Promise.resolve();
 
@@ -44,6 +52,7 @@ export class WebViewMessageHandler {
         websocketService?: ArtemisWebsocketService,
         courseDataCache?: CourseDataCache,
         courseAccessStorage?: CourseAccessStorageService,
+        recordingHandlers: CommandMap = {},
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -61,14 +70,21 @@ export class WebViewMessageHandler {
             courseAccessStorage,
         };
 
+        this.repositoryStatusModule = new RepositoryStatusCommands(context);
+        context.recheckRepoStatus = () => this.repositoryStatusModule.recheckCurrentRepoStatus();
+
         const modules = [
             new AuthCommandModule(context),
             new NavigationCommandModule(context),
-            (this.repositoryModule = new RepositoryCommandModule(context)),
+            this.repositoryStatusModule,
+            new RepositoryCloneCommands(context),
+            new RepositorySubmitCommands(context),
             new IrisCommandModule(context),
-            new PlantUmlCommandModule(context),
             new HealthCommandModule(context),
-            new UtilityCommandModule(context)
+            new UtilityCommandModule(context),
+            new TestResultsTrackingCommandModule(context),
+            new BuildLogCommands(context),
+            new ExerciseLifecycleCommands(context),
         ];
 
         modules.forEach(module => {
@@ -80,6 +96,8 @@ export class WebViewMessageHandler {
                 this.commandHandlers.set(command, handler);
             });
         });
+
+        mergeRecordingHandlers(this.commandHandlers, recordingHandlers);
     }
 
     /**
@@ -123,7 +141,7 @@ export class WebViewMessageHandler {
      * Dispose the handler and its command modules.
      */
     public dispose(): void {
-        this.repositoryModule.dispose();
+        this.repositoryStatusModule.dispose();
     }
 
     /**
@@ -141,22 +159,15 @@ export class WebViewMessageHandler {
     }
 
     /**
-     * Check if an exercise has a recently cloned repository.
-     */
-    public hasRecentlyClonedRepo(participationId: number): boolean {
-        return this.repositoryModule.hasRecentlyClonedRepo(participationId);
-    }
-
-    /**
      * Set the repository context so workspace file-save listeners
      * can automatically detect changes without a manual check.
      */
     public setRepositoryContext(repoUrl: string, exerciseId: number): void {
-        this.repositoryModule.setRepositoryContext(repoUrl, exerciseId);
+        this.repositoryStatusModule.setRepositoryContext(repoUrl, exerciseId);
     }
 
     public clearRepositoryContext(): void {
-        this.repositoryModule.clearRepositoryContext();
+        this.repositoryStatusModule.clearRepositoryContext();
     }
 
     private async updateAuthContext(isAuthenticated: boolean): Promise<void> {

@@ -1,6 +1,6 @@
-import type { SubmissionStatusType } from '../components/exercise/SubmissionStatus';
-import type { ParticipationStatusType } from '../components/exercise/ParticipationActions';
-import type { PendingSubmissionInfo } from '../stores/useExerciseDetailStore';
+import type { ParticipationStatusType } from '@webview/components/exercise/ParticipationActions';
+import type { SubmissionStatusType, TestCase } from '@webview/components/exercise/SubmissionStatus';
+import type { PendingSubmissionInfo } from '@webview/stores/useExerciseDetailStore';
 
 export function determineSubmissionStatus(
     pendingSubmission: PendingSubmissionInfo | null,
@@ -62,6 +62,7 @@ interface TestCaseResult {
     name: string;
     passed: boolean;
     message?: string;
+    id?: number;
 }
 
 interface FeedbackInput {
@@ -69,7 +70,7 @@ interface FeedbackInput {
     text?: string;
     positive?: boolean;
     detailText?: string;
-    testCase?: { testName?: string };
+    testCase?: { id?: number; testName?: string };
 }
 
 /**
@@ -84,5 +85,149 @@ export function transformFeedbacksToTestCases(feedbacks: FeedbackInput[]): TestC
         name: f.testCase?.testName ?? f.text ?? 'Test',
         passed: f.positive ?? false,
         message: f.detailText,
+        id: f.testCase?.id,
     }));
+}
+
+/**
+ * Classification of a task's test outcome, mirroring the buckets the Artemis
+ * web client uses (`ProgrammingExerciseInstructionService.testStatusForTask`)
+ * plus the legacy-success fallback for older results without an explicit
+ * feedback list.
+ *
+ * Used by the per-task feedback modal to render differentiated empty states
+ * instead of the generic "No tests in this task." message.
+ */
+export type TaskTestState =
+    | { kind: 'no-result'; notExecutedIds: number[] }
+    | { kind: 'no-feedbacks'; notExecutedIds: number[] }
+    | { kind: 'legacy-success'; testIds: number[] }
+    | { kind: 'no-tests-in-task' }
+    | { kind: 'success'; passed: TestCase[] }
+    | { kind: 'fail'; failed: TestCase[]; passed: TestCase[]; notExecutedIds: number[] }
+    | { kind: 'not-executed'; passed: TestCase[]; notExecutedIds: number[] };
+
+interface LatestResultLike {
+    successful?: boolean;
+    feedbacks?: FeedbackInput[];
+}
+
+/**
+ * Classify a task's test outcome from the latest result. Pure function.
+ *
+ * Behaviour parity with Artemis (`testStatusForTask`):
+ * - `successful: true` with empty/undefined feedbacks → `legacy-success` (older
+ *   results sometimes ship without an inline feedback list).
+ * - Otherwise partition `testIds` by feedback.positive:
+ *   true → passed, false → failed, undefined-or-missing → not executed.
+ *
+ * The empty-feedbacks branch additionally distinguishes "the enrichment step
+ * never delivered a feedback list" (feedbacks === undefined → `no-result`)
+ * from "feedbacks were delivered but the array is empty" (feedbacks === [] →
+ * `no-feedbacks`). The first surfaces "submit your code", the second surfaces
+ * "the latest build produced no test feedback".
+ *
+ * `no-tests-in-task` is defensive; the click handler in `ProblemStatement.tsx`
+ * already short-circuits empty testId lists before opening the overlay.
+ */
+export function classifyTaskTests(
+    testIds: number[],
+    latestResult: LatestResultLike | undefined,
+): TaskTestState {
+    // A task without testIds has no associated tests; the result is irrelevant.
+    // Hoisted above the other guards so 'no-tests-in-task' is the canonical
+    // state for this defensive case across all input combinations (the click
+    // handler in ProblemStatement.tsx already short-circuits empty testId
+    // lists before reaching here).
+    if (testIds.length === 0) {
+        return { kind: 'no-tests-in-task' };
+    }
+
+    if (!latestResult) {
+        return { kind: 'no-result', notExecutedIds: testIds };
+    }
+
+    const feedbacks = latestResult.feedbacks ?? [];
+
+    if (feedbacks.length === 0) {
+        if (latestResult.successful === true) {
+            return { kind: 'legacy-success', testIds };
+        }
+        return latestResult.feedbacks === undefined
+            ? { kind: 'no-result', notExecutedIds: testIds }
+            : { kind: 'no-feedbacks', notExecutedIds: testIds };
+    }
+
+    const byId = new Map<number, FeedbackInput>();
+    for (const f of feedbacks) {
+        const id = f.testCase?.id;
+        if (id === undefined) { continue; }
+        byId.set(id, f);
+    }
+
+    const passed: TestCase[] = [];
+    const failed: TestCase[] = [];
+    const notExecutedIds: number[] = [];
+    for (const tid of testIds) {
+        const fb = byId.get(tid);
+        if (!fb) { notExecutedIds.push(tid); continue; }
+        const tc: TestCase = {
+            id: tid,
+            name: fb.testCase?.testName ?? fb.text ?? 'Test',
+            passed: fb.positive === true,
+            message: fb.detailText,
+        };
+        if (fb.positive === true) {
+            passed.push(tc);
+        } else if (fb.positive === false) {
+            failed.push(tc);
+        } else {
+            // positive undefined → not executed (Artemis parity)
+            notExecutedIds.push(tid);
+        }
+    }
+
+    if (failed.length > 0) {
+        return { kind: 'fail', failed, passed, notExecutedIds };
+    }
+    if (notExecutedIds.length > 0) {
+        return { kind: 'not-executed', passed, notExecutedIds };
+    }
+    return { kind: 'success', passed };
+}
+
+/**
+ * Counts derived from a {@link TaskTestState}, in the shape the telemetry
+ * payload expects. `passedCount` + `failedCount` preserves the pre-existing
+ * `totalTests` semantics (matched tests for this task); `notExecutedCount`
+ * is additive so historical analytics keep working.
+ */
+export function countsForTelemetry(state: TaskTestState): {
+    passedCount: number;
+    failedCount: number;
+    notExecutedCount: number;
+} {
+    switch (state.kind) {
+        case 'no-result':
+        case 'no-feedbacks':
+            return { passedCount: 0, failedCount: 0, notExecutedCount: state.notExecutedIds.length };
+        case 'legacy-success':
+            return { passedCount: state.testIds.length, failedCount: 0, notExecutedCount: 0 };
+        case 'no-tests-in-task':
+            return { passedCount: 0, failedCount: 0, notExecutedCount: 0 };
+        case 'success':
+            return { passedCount: state.passed.length, failedCount: 0, notExecutedCount: 0 };
+        case 'fail':
+            return {
+                passedCount: state.passed.length,
+                failedCount: state.failed.length,
+                notExecutedCount: state.notExecutedIds.length,
+            };
+        case 'not-executed':
+            return {
+                passedCount: state.passed.length,
+                failedCount: 0,
+                notExecutedCount: state.notExecutedIds.length,
+            };
+    }
 }

@@ -1,11 +1,9 @@
-import { useDashboardStore } from '../../../src/webview/stores/useDashboardStore';
-import { useChatStore } from '../../../src/webview/stores/useChatStore';
-import { useCourseListStore } from '../../../src/webview/stores/useCourseListStore';
-import { useCourseDetailStore } from '../../../src/webview/stores/useCourseDetailStore';
-import { useExerciseDetailStore } from '../../../src/webview/stores/useExerciseDetailStore';
-import { useExamStartStore } from '../../../src/webview/stores/useExamStartStore';
-import { useExamConductionStore } from '../../../src/webview/stores/useExamConductionStore';
-import { useExamExerciseDetailStore } from '../../../src/webview/stores/useExamExerciseDetailStore';
+import { useChatStore } from '@webview/stores/useChatStore';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+import { useDashboardStore } from '@webview/stores/useDashboardStore';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+
 import { createMockVsCodeApi } from './vscodeApi';
 
 // Capture initial state of each store at module import time — before any test runs
@@ -17,13 +15,10 @@ const storeEntries = [
     { store: useCourseListStore, state: useCourseListStore.getState() },
     { store: useCourseDetailStore, state: useCourseDetailStore.getState() },
     { store: useExerciseDetailStore, state: useExerciseDetailStore.getState() },
-    { store: useExamStartStore, state: useExamStartStore.getState() },
-    { store: useExamConductionStore, state: useExamConductionStore.getState() },
-    { store: useExamExerciseDetailStore, state: useExamExerciseDetailStore.getState() },
 ] as const;
 
 /**
- * Resets all 8 Zustand stores to their import-time initial state and
+ * Resets all Zustand stores to their import-time initial state and
  * re-initialises window.acquireVsCodeApi with a fresh mock.
  *
  * Call this in a global beforeEach to prevent store state leaking between tests.

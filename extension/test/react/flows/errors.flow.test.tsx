@@ -4,12 +4,13 @@
  *
  * Separate from happy-path flows per CONTEXT.md decision.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ServiceHealth } from '../../../src/webview/components/ServiceHealth/ServiceHealth';
-import type { ServiceInfo } from '../../../src/webview/components/ServiceHealth/ServiceHealth';
-import { ErrorMessage } from '../../../src/webview/components/ErrorMessage/ErrorMessage';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { ErrorMessage } from '@webview/components/ErrorMessage/ErrorMessage';
+import type { ServiceInfo } from '@webview/components/ServiceHealth/ServiceHealth';
+import { ServiceHealth } from '@webview/components/ServiceHealth/ServiceHealth';
 
 // ============================================================================
 // Error Boundary

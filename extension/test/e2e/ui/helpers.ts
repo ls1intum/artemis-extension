@@ -1,14 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-	ActivityBar,
-	SideBarView,
-	WebviewView,
-	VSBrowser,
-	By,
-	WebDriver,
-	until,
-} from 'vscode-extension-tester';
+import { ActivityBar, By, SideBarView, until, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -38,7 +30,7 @@ export async function openArtemisView(): Promise<SideBarView> {
  * Get a WebviewView page object for the Artemis sidebar webview and
  * switch the driver into its iframe context so you can query DOM elements.
  */
-export async function switchToWebviewFrame(driver: WebDriver): Promise<WebviewView> {
+export async function switchToWebviewFrame(_driver: WebDriver): Promise<WebviewView> {
 	const webview = new WebviewView();
 	await webview.switchToFrame(5000);
 	return webview;
@@ -47,7 +39,7 @@ export async function switchToWebviewFrame(driver: WebDriver): Promise<WebviewVi
 /**
  * Switch back from the webview iframe to the default VS Code context.
  */
-export async function switchBackFromWebview(driver: WebDriver): Promise<void> {
+export async function switchBackFromWebview(_driver: WebDriver): Promise<void> {
 	const webview = new WebviewView();
 	await webview.switchBack();
 }
@@ -69,14 +61,18 @@ export async function waitForElement(
 }
 
 /**
- * Read Artemis credentials from environment variables.
- * Throws if either ARTEMIS_USER or ARTEMIS_PASS is not set.
+ * Read Artemis credentials from environment variables. The canonical names
+ * are `ARTEMIS_USER` and `ARTEMIS_PASSWORD` (matching the non-UI E2E tests
+ * and `run-e2e-tests.sh`). `ARTEMIS_PASS` is accepted as a fallback for
+ * back-compat with the original UI-test convention; see issue #198.
+ *
+ * Throws if either is unset.
  */
 export function getCredentials(): { username: string; password: string } {
 	const username = process.env.ARTEMIS_USER;
-	const password = process.env.ARTEMIS_PASS;
+	const password = process.env.ARTEMIS_PASSWORD ?? process.env.ARTEMIS_PASS;
 	if (!username || !password) {
-		throw new Error('Set ARTEMIS_USER and ARTEMIS_PASS environment variables');
+		throw new Error('Set ARTEMIS_USER and ARTEMIS_PASSWORD environment variables');
 	}
 	return { username, password };
 }
@@ -151,4 +147,19 @@ export async function runAxeInCurrentFrame(
 		  .catch(function(e) { done({ violations: [], error: e.message }); });
 	`);
 	return results as { violations: Array<{ id: string; impact: string; description: string; nodes: unknown[] }> };
+}
+
+/**
+ * Best-effort cleanup for `after()` hooks of credential-gated UI suites.
+ * No-op when `driver` is undefined — covers the case where `before()`
+ * skipped the suite (missing credentials) and never assigned `driver`,
+ * which would otherwise crash the after-hook with
+ * `Cannot read properties of undefined (reading 'sleep')` and mask the
+ * intended skip as a real failure. See #176.
+ */
+export async function safeLogoutAndCleanup(driver: WebDriver | undefined): Promise<void> {
+	if (!driver) { return; }
+	const workbench = new Workbench();
+	await workbench.executeCommand('Logout from Artemis');
+	await driver.sleep(2000);
 }

@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useChatStore } from '../../../src/webview/stores/useChatStore';
-import type { ChatMessage, ChatContext, ReferencedFilesData, IrisStageDTO } from '../../../src/webview/views/IrisChat/types';
-import type { ExtMsg } from '../../../src/shared/messageContracts';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
+import type { ExtMsg } from '@shared/messageContracts';
+
+import { useChatStore } from '@webview/stores/useChatStore';
+import type { ChatMessage, IrisStageDTO, ReferencedFilesData } from '@webview/views/IrisChat/types';
 
 const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 	localId: 'local-1',
@@ -38,11 +40,10 @@ describe('useChatStore', () => {
 		expect(result.current.messages).toEqual([]);
 		expect(result.current.sessions).toEqual([]);
 		expect(result.current.streaming.isStreaming).toBe(false);
-		expect(result.current.streaming.messageLocalId).toBeNull();
-		expect(result.current.streaming.visibleChunks).toEqual([]);
 		expect(result.current.isLoading).toBe(false);
 		expect(result.current.webSocketStatus).toBe('unknown');
 		expect(result.current.disabledMessage).toBeNull();
+		expect(result.current.unavailableMessage).toBeNull();
 		expect(result.current.isNoAiDetected).toBe(false);
 		expect(result.current.referencedFiles).toBeNull();
 		expect(result.current.showDiagnostics).toBe(false);
@@ -95,26 +96,6 @@ describe('useChatStore', () => {
 		expect(result.current.messages[1].role).toBe('assistant');
 	});
 
-	it('setMessages replaces all messages', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'old-1' }));
-		});
-
-		const newMessages = [
-			makeMessage({ localId: 'new-1', content: 'New message 1' }),
-			makeMessage({ localId: 'new-2', content: 'New message 2' }),
-		];
-
-		act(() => {
-			result.current.setMessages(newMessages);
-		});
-
-		expect(result.current.messages).toHaveLength(2);
-		expect(result.current.messages[0].localId).toBe('new-1');
-	});
-
 	it('clearMessages resets messages to empty array', () => {
 		const { result } = renderHook(() => useChatStore());
 
@@ -130,106 +111,14 @@ describe('useChatStore', () => {
 		expect(result.current.messages).toEqual([]);
 	});
 
-	it('setMessageStatus updates status of the matching localId message', () => {
+	it('startStreaming sets isStreaming true', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1', status: 'sending' }));
-		});
-
-		act(() => {
-			result.current.setMessageStatus('msg-1', 'sent');
-		});
-
-		expect(result.current.messages[0].status).toBe('sent');
-	});
-
-	it('setMessageStatus sets error status with error message', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1' }));
-		});
-
-		act(() => {
-			result.current.setMessageStatus('msg-1', 'error', 'Network timeout');
-		});
-
-		expect(result.current.messages[0].status).toBe('error');
-		expect(result.current.messages[0].errorMessage).toBe('Network timeout');
-	});
-
-	it('startStreaming sets isStreaming true and initializes streaming state', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.startStreaming('stream-msg-1');
+			result.current.startStreaming();
 		});
 
 		expect(result.current.streaming.isStreaming).toBe(true);
-		expect(result.current.streaming.messageLocalId).toBe('stream-msg-1');
-		expect(result.current.streaming.visibleChunks).toEqual([]);
-	});
-
-	it('appendStreamChunk adds chunk to visibleChunks', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.startStreaming('stream-msg-1');
-		});
-
-		act(() => {
-			result.current.appendStreamChunk('Hello');
-		});
-
-		expect(result.current.streaming.visibleChunks).toHaveLength(1);
-		expect(result.current.streaming.visibleChunks[0]).toBe('Hello');
-	});
-
-	it('appendStreamChunk accumulates multiple chunks', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.startStreaming('stream-msg-1');
-			result.current.appendStreamChunk('Hello');
-			result.current.appendStreamChunk(' World');
-			result.current.appendStreamChunk('!');
-		});
-
-		expect(result.current.streaming.visibleChunks).toEqual(['Hello', ' World', '!']);
-	});
-
-	it('finishStreaming clears streaming state and updates message content', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'stream-msg-1', content: '' }));
-			result.current.startStreaming('stream-msg-1');
-			result.current.appendStreamChunk('Complete answer');
-		});
-
-		act(() => {
-			result.current.finishStreaming('Complete answer');
-		});
-
-		expect(result.current.streaming.isStreaming).toBe(false);
-		expect(result.current.streaming.messageLocalId).toBeNull();
-		expect(result.current.streaming.visibleChunks).toEqual([]);
-		expect(result.current.messages[0].content).toBe('Complete answer');
-	});
-
-	it('finishStreaming leaves messages unchanged when no active streaming message', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1', content: 'Original' }));
-		});
-
-		act(() => {
-			result.current.finishStreaming('Should not apply');
-		});
-
-		expect(result.current.messages[0].content).toBe('Original');
 	});
 
 	it('setLoading updates isLoading', () => {
@@ -326,6 +215,86 @@ describe('useChatStore', () => {
 			result.current.setDisabledMessage(null);
 		});
 
+		expect(result.current.disabledMessage).toBeNull();
+	});
+
+	it('setUnavailableMessage sets transient unavailability reason', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Iris is temporarily unavailable. Retry to reload.');
+		});
+
+		expect(result.current.unavailableMessage).toBe('Iris is temporarily unavailable. Retry to reload.');
+	});
+
+	it('setUnavailableMessage can be cleared with null', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+
+		act(() => {
+			result.current.setUnavailableMessage(null);
+		});
+
+		expect(result.current.unavailableMessage).toBeNull();
+	});
+
+	it('setUnavailableMessage clears any existing disabledMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setDisabledMessage('Disabled reason');
+		});
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+
+		expect(result.current.unavailableMessage).toBe('Unavailable reason');
+		expect(result.current.disabledMessage).toBeNull();
+	});
+
+	it('setDisabledMessage clears any existing unavailableMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+		act(() => {
+			result.current.setDisabledMessage('Disabled reason');
+		});
+
+		expect(result.current.disabledMessage).toBe('Disabled reason');
+		expect(result.current.unavailableMessage).toBeNull();
+	});
+
+	it('setUnavailableMessage(null) does NOT clear an existing disabledMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setDisabledMessage('Disabled reason');
+		});
+		act(() => {
+			result.current.setUnavailableMessage(null);
+		});
+
+		expect(result.current.disabledMessage).toBe('Disabled reason');
+		expect(result.current.unavailableMessage).toBeNull();
+	});
+
+	it('setDisabledMessage(null) does NOT clear an existing unavailableMessage', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setUnavailableMessage('Unavailable reason');
+		});
+		act(() => {
+			result.current.setDisabledMessage(null);
+		});
+
+		expect(result.current.unavailableMessage).toBe('Unavailable reason');
 		expect(result.current.disabledMessage).toBeNull();
 	});
 
@@ -499,7 +468,7 @@ describe('useChatStore', () => {
 
 		act(() => {
 			result.current.setIrisStages([makeStage()]);
-			result.current.startStreaming('msg-1');
+			result.current.startStreaming();
 		});
 
 		act(() => {
@@ -508,8 +477,6 @@ describe('useChatStore', () => {
 
 		expect(result.current.irisStages).toEqual([]);
 		expect(result.current.streaming.isStreaming).toBe(false);
-		expect(result.current.streaming.messageLocalId).toBeNull();
-		expect(result.current.streaming.visibleChunks).toEqual([]);
 	});
 
 	it('resetTransientChatUi does not clear messages', () => {
@@ -526,6 +493,123 @@ describe('useChatStore', () => {
 
 		expect(result.current.messages).toHaveLength(1);
 		expect(result.current.irisStages).toEqual([]);
+	});
+
+	describe('markMessageFailed', () => {
+		it('marks a pending user message as failed and returns true', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'pending-1',
+					role: 'user',
+					status: 'sending',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('pending-1', 'No context', 'no-context');
+			});
+
+			expect(returnValue).toBe(true);
+			expect(result.current.messages[0].status).toBe('error');
+			expect(result.current.messages[0].errorMessage).toBe('No context');
+			expect(result.current.messages[0].errorReason).toBe('no-context');
+		});
+
+		it('returns false and does not mutate when localId does not match', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'real-1',
+					role: 'user',
+					status: 'sending',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('stale-99', 'No context', 'no-context');
+			});
+
+			expect(returnValue).toBe(false);
+			expect(result.current.messages[0].status).toBe('sending');
+			expect(result.current.messages[0].errorMessage).toBeUndefined();
+		});
+
+		it('returns false and does not mutate when target is not a user role', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'asst-1',
+					role: 'assistant',
+					status: 'sending',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('asst-1', 'No context', 'no-context');
+			});
+
+			expect(returnValue).toBe(false);
+			expect(result.current.messages[0].status).toBe('sending');
+		});
+
+		it('returns false and does not mutate when target is already sent', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'sent-1',
+					role: 'user',
+					status: 'sent',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('sent-1', 'Stale rejection', 'no-context');
+			});
+
+			expect(returnValue).toBe(false);
+			expect(result.current.messages[0].status).toBe('sent');
+		});
+	});
+
+	describe('removeMessage', () => {
+		it('removes the matching message by localId', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'a' }));
+				result.current.addMessage(makeMessage({ localId: 'b' }));
+			});
+
+			act(() => {
+				result.current.removeMessage('a');
+			});
+
+			expect(result.current.messages).toHaveLength(1);
+			expect(result.current.messages[0].localId).toBe('b');
+		});
+
+		it('is a no-op when no matching localId exists', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'a' }));
+			});
+
+			act(() => {
+				result.current.removeMessage('does-not-exist');
+			});
+
+			expect(result.current.messages).toHaveLength(1);
+		});
 	});
 
 	it('clearMessages also clears irisStages', () => {

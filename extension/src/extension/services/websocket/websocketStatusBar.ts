@@ -1,16 +1,26 @@
 import * as vscode from 'vscode';
+
+import type { WebSocketDisplayStatus } from '@shared/messageContracts';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { VSCODE_CONFIG } from '@extension/utils';
+
 import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { VSCODE_CONFIG } from '../../utils';
-import { logger, LogCategory } from '../loggingService';
-import type { WebSocketDisplayStatus } from '../../../shared/messageContracts';
 
 /**
  * StatusBar item showing WebSocket connection status.
  *
  * Visibility rules:
- * - ALWAYS shown when disconnected or reconnecting
- * - Otherwise shown only when `artemis.showWebSocketStatusBar` is true
- * - After reconnection with setting off: 2s flash then hidden
+ * - When logged out: hidden unless `artemis.showWebSocketStatusBar` is true
+ *   (no WebSocket exists, so the default "needs attention on disconnect" rule
+ *   would surface a misleading red error indicator)
+ * - When logged in:
+ *   - ALWAYS shown when disconnected or reconnecting
+ *   - Otherwise shown only when `artemis.showWebSocketStatusBar` is true
+ *   - After reconnection with setting off: 2s flash then hidden
+ *
+ * Auth state is supplied externally via {@link setAuthenticated}; the service
+ * does not own auth lifecycle.
  *
  * Click action: always reconnect (reset + connect). No-op while connecting.
  */
@@ -21,6 +31,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private _stateSubscription?: vscode.Disposable;
     private _currentStatus: WebSocketDisplayStatus = 'disconnected';
     private _showStatusBar = false;
+    private _isAuthenticated = false;
     private _reconnectHideTimeout?: ReturnType<typeof setTimeout>;
 
     public static readonly COMMAND_ID = 'artemis.websocketStatusBarAction';
@@ -85,7 +96,31 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         this._updateStatusBarItem();
     }
 
+    /**
+     * Sync authentication state. When toggled, re-applies visibility so the
+     * status bar can hide on logout (no WebSocket exists) and re-evaluate on
+     * login. Idempotent — no-op when the value matches the current state.
+     */
+    public setAuthenticated(value: boolean): void {
+        if (this._isAuthenticated === value) {
+            return;
+        }
+        this._isAuthenticated = value;
+        this._applyVisibility();
+    }
+
     private _applyVisibility(): void {
+        // Logged out: there is no WebSocket to surface a state for. Honor the
+        // explicit "always show" setting for diagnostics, otherwise hide.
+        if (!this._isAuthenticated) {
+            if (this._showStatusBar) {
+                this._statusBarItem.show();
+            } else {
+                this._statusBarItem.hide();
+            }
+            return;
+        }
+
         const needsAttention =
             this._currentStatus === 'disconnected'
             || this._currentStatus === 'reconnecting';

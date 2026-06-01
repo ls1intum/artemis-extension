@@ -14,12 +14,6 @@ export interface TheiaEnvironment {
      * sent as `Authorization: Bearer` on outgoing requests in Theia mode.
      */
     readonly artemisToken: string | undefined;
-    /** Git clone URI (bridge key `GIT_URI`). */
-    readonly gitUri: string | undefined;
-    /** Git user name (bridge key `GIT_USER`). */
-    readonly gitUser: string | undefined;
-    /** Git user email (bridge key `GIT_MAIL`). */
-    readonly gitMail: string | undefined;
     /**
      * True when both `ARTEMIS_URL` and `ARTEMIS_TOKEN` arrived through the
      * bridge, i.e. the deployment is fully managed. In managed mode,
@@ -44,8 +38,5 @@ export const VSCODE_ENVIRONMENT: TheiaEnvironment = Object.freeze({
     isTheia: false,
     artemisUrl: undefined,
     artemisToken: undefined,
-    gitUri: undefined,
-    gitUser: undefined,
-    gitMail: undefined,
     isManagedEnvironment: false,
 });

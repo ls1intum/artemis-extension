@@ -1,32 +1,58 @@
-import { useState } from 'react';
-import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
-import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import { useExerciseStatusMessages } from '../../hooks/useExerciseStatusMessages';
-import type { ExerciseDetailViewProps } from './types';
-import type { ExerciseDetailsResponse } from '../../../shared/types/apiResponses';
-import { getIcon } from '../../utils/iconMap';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import { useState } from 'react';
+
+import { WebviewCmd } from '@shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+
 import {
+    AskIris,
     BackLink,
-    IconButton,
+    Badge,
     Button,
     Container,
-    Badge,
-    SkeletonList,
-    AskIris,
     ErrorMessage,
-} from '../../components';
+    IconButton,
+    SkeletonList,
+} from '@webview/components';
+import { ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
+import { type ExerciseType, isExerciseType } from '@webview/components/exercise/ParticipationActions';
+import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
+import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import {
-    SubmissionStatus,
-    ParticipationActions,
-} from '../../components/exercise';
-import { ProblemStatement, ScoreInfo } from './components';
-import type { ExerciseType } from '../../components/exercise/ParticipationActions';
-import { ExtensionMsg, postCommand, requestInit } from '../../../shared/messageContracts';
-import { determineSubmissionStatus, determineParticipationStatus, getLatestById, transformFeedbacksToTestCases } from '../../utils/exerciseStatus';
-import { formatDate } from '../../utils/formatDate';
+    classifyTaskTests,
+    countsForTelemetry,
+    determineParticipationStatus,
+    determineSubmissionStatus,
+    getLatestById,
+    transformFeedbacksToTestCases,
+} from '@webview/utils/exerciseStatus';
+import { formatDate } from '@webview/utils/formatDate';
+import { getIcon } from '@webview/utils/iconMap';
+import { makeViewId } from '@webview/utils/viewId';
+
+import { ProblemStatement } from './components';
 import styles from './ExerciseDetailView.module.css';
+import type { ExerciseDetailViewProps } from './types';
+
+interface OpenViewState {
+    viewId: string;
+    openedAt: number;
+    closeIdentity: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName?: string;
+    };
+}
+
+interface OpenTaskViewState extends OpenViewState {
+    taskName: string;
+    testIds: number[];
+}
 
 export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const {
@@ -37,7 +63,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         repoStatus,
         dirtyPagesStatus,
         clonedNotice,
-        pendingSubmission,
+        pendingSubmissionsByParticipationId,
         setExerciseData,
         setError,
         loadExerciseDetail,
@@ -46,20 +72,36 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const [showCommitMessage, setShowCommitMessage] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
-    const [showTestResults, setShowTestResults] = useState(false);
+
+    const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
+    const [openTaskView, setOpenTaskView] = useState<OpenTaskViewState | null>(null);
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
 
+    // Server-side rendered problem statement (progressive enhancement)
+    const [serverRenderedPS, setServerRenderedPS] = useState<{
+        html: string;
+    } | null>(null);
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
             if (!msg.exerciseData) { return; }
 
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
+            // Use cached server render if available on init
+            if (msg.serverRenderedProblemStatement) {
+                setServerRenderedPS(msg.serverRenderedProblemStatement);
+            } else {
+                setServerRenderedPS(null);
+            }
         }
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
+        }
+        // Progressive upgrade: server-rendered problem statement arrived
+        if (msg.type === ExtensionMsg.ProblemStatementRendered) {
+            setServerRenderedPS({ html: msg.html });
         }
     }, [vscodeApi, setExerciseData, setError]);
 
@@ -149,7 +191,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     }
 
     const exercise = exerciseData.exercise;
-    const exerciseType = (exercise.type || 'programming') as ExerciseType;
+    const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
 
     // Extract participation data
@@ -161,6 +203,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const hasParticipation = !!participation;
     const participationId = participation?.id;
     const repositoryUri = participation?.repositoryUri;
+
+    // Pick the pending build entry that belongs to the participation we
+    // actually surface in this view. The map can carry concurrent pending
+    // builds for other participations (graded + practice) without their
+    // status leaking into the selected view (#168).
+    const pendingSubmission = participationId !== undefined
+        ? pendingSubmissionsByParticipationId[participationId] ?? null
+        : null;
 
     // Extract submission and result data
     // In Artemis, "latest" = highest ID (not date-sorted)
@@ -181,6 +231,79 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const totalTests = latestResult?.testCaseCount || testFeedbacks.length;
     const passedTests = latestResult?.passedTestCaseCount ?? testFeedbacks.filter(f => f.positive).length;
     const hasTestInfo = totalTests > 0;
+
+    const handleOverviewClose = (reason: 'button' | 'escape') => {
+        if (!openOverviewView) { return; }
+        postCommand(vscodeApi, WebviewCmd.TestResultsOverviewClosed, {
+            viewId: openOverviewView.closeIdentity.viewId,
+            exerciseId: openOverviewView.closeIdentity.exerciseId,
+            participationId: openOverviewView.closeIdentity.participationId,
+            resultId: openOverviewView.closeIdentity.resultId,
+            durationMs: Date.now() - openOverviewView.openedAt,
+            closeReason: reason,
+        });
+        setOpenOverviewView(null);
+    };
+
+    const handleTaskClose = (reason: 'button' | 'escape') => {
+        if (!openTaskView) { return; }
+        postCommand(vscodeApi, WebviewCmd.TaskFeedbackClosed, {
+            viewId: openTaskView.closeIdentity.viewId,
+            exerciseId: openTaskView.closeIdentity.exerciseId,
+            participationId: openTaskView.closeIdentity.participationId,
+            resultId: openTaskView.closeIdentity.resultId,
+            taskName: openTaskView.taskName,
+            durationMs: Date.now() - openTaskView.openedAt,
+            closeReason: reason,
+        });
+        setOpenTaskView(null);
+    };
+
+    const handleOverviewOpen = () => {
+        if (!exerciseData?.exercise?.id) { return; }
+        const viewId = makeViewId();
+        const openedAt = Date.now();
+        const exerciseId = exerciseData.exercise.id;
+        const resultId = latestResult?.id;
+        const totalTestCount = testCases.length;
+        const passedTestCount = testCases.filter(t => t.passed).length;
+        const failedTests = totalTestCount - passedTestCount;
+        postCommand(vscodeApi, WebviewCmd.TestResultsOverviewOpened, {
+            viewId, exerciseId, participationId, resultId,
+            totalTests: totalTestCount, passedTests: passedTestCount, failedTests,
+        });
+        setOpenOverviewView({
+            viewId,
+            openedAt,
+            closeIdentity: { viewId, exerciseId, participationId, resultId },
+        });
+    };
+
+    const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: number[] }) => {
+        if (!exerciseData?.exercise?.id) { return; }
+        const classification = classifyTaskTests(testIds, latestResult);
+        // Telemetry: keep existing totalTests/passedTests/failedTests semantics
+        // (matched tests for this task). Add notExecutedTests as additive field.
+        const { passedCount, failedCount, notExecutedCount } = countsForTelemetry(classification);
+        const totalTestCount = passedCount + failedCount;
+        const viewId = makeViewId();
+        const openedAt = Date.now();
+        const exerciseId = exerciseData.exercise.id;
+        const resultId = latestResult?.id;
+        postCommand(vscodeApi, WebviewCmd.TaskFeedbackOpened, {
+            viewId, exerciseId, participationId, resultId,
+            taskName, testIds,
+            totalTests: totalTestCount, passedTests: passedCount, failedTests: failedCount,
+            notExecutedTests: notExecutedCount,
+        });
+        setOpenTaskView({
+            viewId,
+            openedAt,
+            taskName,
+            testIds,
+            closeIdentity: { viewId, exerciseId, participationId, resultId, taskName },
+        });
+    };
 
     // result.score is already a percentage (0-100) in Artemis
     const scorePercentage = latestResult?.score ?? 0;
@@ -238,12 +361,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const workspaceStatus = !repoStatus ? 'checking'
         : !repoStatus.isConnected ? 'disconnected'
         : repoStatus.hasChanges ? 'dirty' : 'clean';
-
-    // Problem statement (markdown is already processed to HTML by extension)
-    const problemStatementHtml = exercise.problemStatement || 'No description available';
-
-    // Download links extraction (simplified - in real implementation would parse from markdown)
-    const downloadLinks: Array<{ name: string; url: string }> = [];
 
     return (
         <div className={styles.exerciseDetailView}>
@@ -330,7 +447,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 <ParticipationActions
                     exerciseType={exerciseType}
                     participationStatus={participationStatus}
-                    hasRepository={!!repositoryUri}
                     canSubmit={hasParticipation && isProgramming}
                     workspaceStatus={workspaceStatus}
                     isPracticeMode={repoStatus?.isPracticeRepo ?? false}
@@ -365,9 +481,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             });
                         }
                     }}
-                    onOpenRepository={() => {
-                        postCommand(vscodeApi, 'openRepository', { repositoryUri });
-                    }}
+                    onOpenRepository={repositoryUri
+                        ? () => postCommand(vscodeApi, 'openRepository', { repositoryUri })
+                        : undefined}
                     onOpenClonedRepository={() => {
                         if (clonedNotice) {
                             postCommand(vscodeApi, 'openClonedRepository', { participationId: clonedNotice.participationId });
@@ -413,11 +529,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         hasTestInfo={hasTestInfo}
                         totalTests={totalTests}
                         passedTests={passedTests}
-                        testCases={testCases}
                         estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
                         buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
-                        onToggleTestResults={() => setShowTestResults(prev => !prev)}
-                        showTestResults={showTestResults}
+                        onOpenTestResults={handleOverviewOpen}
                         onViewBuildLog={() => {
                             if (participationId) {
                                 postCommand(vscodeApi, 'viewBuildLog', {
@@ -447,9 +561,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
             {/* Problem Statement */}
             <ProblemStatement
-                markdown={problemStatementHtml}
-                downloadLinks={downloadLinks}
-                vscodeApi={vscodeApi}
+                serverRenderedHtml={serverRenderedPS?.html}
+                onTaskClick={handleTaskOpen}
             />
 
             {/* Developer Tools */}
@@ -459,8 +572,51 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         <Button variant="secondary" onClick={handleOpenRawJSON}>
                             Open Raw JSON
                         </Button>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setServerRenderedPS(null)}
+                        >
+                            Simulate SSR Loading
+                        </Button>
+                        {serverRenderedPS && (
+                            <>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'openInEditor', { data: serverRenderedPS.html, language: 'html' })}
+                                >
+                                    View SSR HTML
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'freshSsrPreview', { darkMode: false })}
+                                >
+                                    Preview Light
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'freshSsrPreview', { darkMode: true })}
+                                >
+                                    Preview Dark
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </Container>
+            )}
+
+            <TestResultsOverlay
+                open={openOverviewView !== null}
+                onClose={handleOverviewClose}
+                state={{ kind: 'all', testCases }}
+            />
+
+            {openTaskView !== null && (
+                <TestResultsOverlay
+                    open
+                    onClose={handleTaskClose}
+                    state={classifyTaskTests(openTaskView.testIds, latestResult)}
+                    taskName={openTaskView.taskName}
+                />
             )}
         </div>
     );

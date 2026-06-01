@@ -1,18 +1,20 @@
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../../../shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
+import { ExtensionMsg } from '@shared/messageContracts';
+
+import type { ResultSummary, SubmissionSummary } from '@extension/types';
 import {
-    type WebSocketMessageHandler as WSHandler,
-    type ResultDTO,
     type ProgrammingSubmission,
     ProgrammingSubmissionState,
+    type ResultDTO,
     type SubmissionProcessingMessage,
-} from '../../types';
-import type { ResultSummary, SubmissionSummary } from '../../types';
+    type WebSocketMessageHandler as WSHandler,
+} from '@extension/types';
 
 export class SubmissionWebSocketHandler {
     constructor(
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         private readonly _onBuildResult?: (result: ResultDTO) => void,
+        private readonly _onResultReceived?: (result: ResultDTO) => void,
     ) {}
 
     public createHandler(): WSHandler {
@@ -50,6 +52,7 @@ export class SubmissionWebSocketHandler {
             data: summary,
         });
         this._onBuildResult?.(result);
+        this._onResultReceived?.(result);
     }
 
     public handleNewSubmission(submission: ProgrammingSubmission): void {

@@ -1,11 +1,12 @@
-import * as assert from 'assert';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import { execSync } from 'child_process';
-import { checkWorkspaceFiles } from '../../../src/extension/services/workspace/workspaceFileChecker';
-import { logger, LogCategory } from '../../../src/extension/services/loggingService';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
 
 suite('Workspace File Checker Test Suite', () => {
     let tempDir: string;

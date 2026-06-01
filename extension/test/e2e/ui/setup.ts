@@ -1,5 +1,5 @@
-import { ExTester, ReleaseQuality } from 'vscode-extension-tester';
 import * as path from 'path';
+import { ExTester, ReleaseQuality } from 'vscode-extension-tester';
 
 const STORAGE_FOLDER = path.resolve(__dirname, '..', '..', 'test-resources');
 

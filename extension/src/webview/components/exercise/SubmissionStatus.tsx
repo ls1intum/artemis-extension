@@ -1,8 +1,9 @@
-import { ReactNode, useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { Badge } from '../Badge';
-import { Button } from '../Button';
-import { TestResultsOverlay } from './TestResultsOverlay';
+import { ReactNode, useEffect, useState } from 'react';
+
+import { Badge } from '@webview/components/Badge';
+import { Button } from '@webview/components/Button';
+
 import styles from './SubmissionStatus.module.css';
 
 export type SubmissionStatusType =
@@ -19,11 +20,7 @@ export interface TestCase {
   passed: boolean;
   message?: string;
   type?: 'structural' | 'behavioral';
-}
-
-interface Feedback {
-  type: 'positive' | 'negative' | 'neutral';
-  text: string;
+  id?: number;
 }
 
 interface SubmissionStatusProps {
@@ -35,15 +32,9 @@ interface SubmissionStatusProps {
   passedTests?: number;
   hasTestInfo?: boolean;
   buildFailed?: boolean;
-  feedbacks?: Feedback[];
-  testCases?: TestCase[];
-  buildLogs?: string;
-  onShowDetails?: () => void;
   onViewBuildLog?: () => void;
   onGoToSource?: () => void;
-  onToggleTestResults?: () => void;
-  showTestResults?: boolean;
-  loadingTestResults?: boolean;
+  onOpenTestResults?: () => void;
   className?: string;
   exerciseType?: 'programming' | 'quiz' | 'modeling' | 'text' | 'file-upload';
   estimatedCompletionDate?: string;
@@ -59,15 +50,9 @@ export function SubmissionStatus({
   passedTests = 0,
   hasTestInfo = false,
   buildFailed = false,
-  feedbacks = [],
-  testCases = [],
-  buildLogs,
-  onShowDetails,
   onViewBuildLog,
   onGoToSource,
-  onToggleTestResults,
-  showTestResults = false,
-  loadingTestResults = false,
+  onOpenTestResults,
   className,
   exerciseType = 'programming',
   estimatedCompletionDate,
@@ -208,21 +193,13 @@ export function SubmissionStatus({
               </>
             )}
             {hasTestInfo && (
-              <Button variant="link" onClick={onToggleTestResults}>
-                {showTestResults ? 'Hide test results' : 'See test results'}
+              <Button variant="link" onClick={onOpenTestResults}>
+                See test results
               </Button>
             )}
           </div>
         )}
 
-        {hasTestInfo && (
-          <TestResultsOverlay
-            open={showTestResults}
-            onClose={() => onToggleTestResults?.()}
-            testCases={testCases}
-            loading={loadingTestResults}
-          />
-        )}
       </div>
     );
   }

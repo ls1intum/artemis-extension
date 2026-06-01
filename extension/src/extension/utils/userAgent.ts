@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { getTheiaEnvironment } from '../theia';
+
+import { getTheiaEnvironment } from '@extension/theia';
 
 let _userAgent: string | undefined;
 

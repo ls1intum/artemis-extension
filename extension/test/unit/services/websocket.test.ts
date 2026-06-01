@@ -1,12 +1,13 @@
+import { Client, IMessage, StompConfig, StompSubscription } from '@stomp/stompjs';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ArtemisWebsocketService } from '../../../src/extension/services/websocket/artemisWebsocketService';
-import { IrisWebSocketSessionClient } from '../../../src/extension/services/iris/transport/irisWebSocketSessionClient';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/extension/services/auth/authManager';
-import { ArtemisApiService } from '../../../src/extension/api';
-import { Client, StompConfig, IMessage, StompSubscription } from '@stomp/stompjs';
-import { ActiveContext } from '../../../src/extension/types';
+
+import { ArtemisApiService } from '@extension/api';
+import { AuthManager } from '@extension/services/auth/authManager';
+import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import { ActiveContext } from '@extension/types';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 // Helper to create a valid ActiveContext for tests
 function createTestContext(type: 'exercise' | 'course', id: number, title: string): ActiveContext {
@@ -118,29 +119,28 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
     public mockClient?: MockStompClient;
     public connectCallCount: number = 0;
 
-    // Expose private fields for testing via getters
-    public get isConnectingState(): boolean {
-        return (this as any)._connectionState === 'connecting';
-    }
-
-    public get isDisconnectingState(): boolean {
-        return (this as any)._connectionState === 'disconnecting';
-    }
-
-    public get connectionGaveUpState(): boolean {
-        return (this as any)._connectionState === 'gave-up';
-    }
+    // Expose private fields for testing via getters. After the
+    // ConnectionLifecycle extraction, state and counters live on
+    // `_lifecycle`; we reach in via `as any` to keep the same public
+    // testing surface.
+    public get isConnectingState(): boolean { return this._lifecycleState() === 'connecting'; }
+    public get isDisconnectingState(): boolean { return this._lifecycleState() === 'disconnecting'; }
+    public get connectionGaveUpState(): boolean { return this._lifecycleState() === 'gave-up'; }
 
     public get reconnectAttemptsCount(): number {
-        return (this as any)._reconnectAttempts;
+        return ((this as any)._lifecycle._reconnectAttempts) as number;
     }
 
     public get wasConnectedOnceState(): boolean {
-        return (this as any)._wasConnectedOnce;
+        return ((this as any)._lifecycle._wasConnectedOnce) as boolean;
     }
 
     public get connectionGeneration(): number {
-        return (this as any)._connectionGeneration;
+        return ((this as any)._lifecycle._generation) as number;
+    }
+
+    private _lifecycleState(): string {
+        return (this as any)._lifecycle._state as string;
     }
 
     // Override client creation to use mock
@@ -164,32 +164,22 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
         connectionGaveUp?: boolean;
         reconnectAttempts?: number;
     }): void {
-        if (state.connectionGaveUp === true) {
-            (this as any)._connectionState = 'gave-up';
-        } else if (state.isDisconnecting === true) {
-            (this as any)._connectionState = 'disconnecting';
-        } else if (state.isConnecting === true) {
-            (this as any)._connectionState = 'connecting';
-        }
+        const lc: any = (this as any)._lifecycle;
+        if (state.connectionGaveUp === true) { lc._state = 'gave-up'; }
+        else if (state.isDisconnecting === true) { lc._state = 'disconnecting'; }
+        else if (state.isConnecting === true) { lc._state = 'connecting'; }
         // When setting flags to false, only change state if it currently matches
         // that flag (don't clobber 'connected' when clearing 'isConnecting')
-        if (state.isConnecting === false && (this as any)._connectionState === 'connecting') {
-            (this as any)._connectionState = 'disconnected';
-        }
-        if (state.isDisconnecting === false && (this as any)._connectionState === 'disconnecting') {
-            (this as any)._connectionState = 'disconnected';
-        }
-        if (state.connectionGaveUp === false && (this as any)._connectionState === 'gave-up') {
-            (this as any)._connectionState = 'disconnected';
-        }
-        if (state.reconnectAttempts !== undefined) {
-            (this as any)._reconnectAttempts = state.reconnectAttempts;
-        }
+        if (state.isConnecting === false && lc._state === 'connecting') { lc._state = 'disconnected'; }
+        if (state.isDisconnecting === false && lc._state === 'disconnecting') { lc._state = 'disconnected'; }
+        if (state.connectionGaveUp === false && lc._state === 'gave-up') { lc._state = 'disconnected'; }
+        if (state.reconnectAttempts !== undefined) { lc._reconnectAttempts = state.reconnectAttempts; }
     }
 
-    // Helper to trigger onDisconnected
+    // Helper to trigger onDisconnected (now routed through the orchestrator's
+    // STOMP callback which delegates to the lifecycle).
     public triggerOnDisconnected(): void {
-        (this as any)._onDisconnected();
+        (this as any)._onStompDisconnected();
     }
 
 }
@@ -536,8 +526,10 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
 
         // Mock API service
         apiService = sinon.createStubInstance(ArtemisApiService);
-        apiService.getCurrentExerciseChat.resolves({ id: 123 });
-        apiService.getCurrentCourseChat.resolves({ id: 456 });
+        apiService.getCurrentChat
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 123 } as any);
+        apiService.getCurrentChat
+            .withArgs('COURSE_CHAT', sinon.match.any).resolves({ id: 456 } as any);
 
         // Connect WebSocket first
         const p = wsService.connect();
@@ -660,9 +652,12 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         apiService = sinon.createStubInstance(ArtemisApiService);
-        apiService.getCurrentExerciseChat.resolves({ id: 123 });
-        apiService.getCurrentCourseChat.resolves({ id: 456 });
-        apiService.createExerciseChatSession.resolves({ id: 789 });
+        apiService.getCurrentChat
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 123 } as any);
+        apiService.getCurrentChat
+            .withArgs('COURSE_CHAT', sinon.match.any).resolves({ id: 456 } as any);
+        apiService.createChatSession
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 789 } as any);
     });
 
     teardown(async () => {
@@ -734,7 +729,7 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         // Check initial subscription exists in the mock client
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Initial subscription');
 
-        // Manually unsubscribe to reset _isSubscribed flag
+        // Manually unsubscribe to clear the active subscription
         sessionManager.unsubscribe();
         
         // Simulate disconnect - this clears the SERVICE's subscriptions map
@@ -831,7 +826,8 @@ suite('WebSocket Integration Tests', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         apiService = sinon.createStubInstance(ArtemisApiService);
-        apiService.getCurrentExerciseChat.resolves({ id: 123 });
+        apiService.getCurrentChat
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 123 } as any);
     });
 
     teardown(async () => {
@@ -1138,6 +1134,82 @@ suite('WebSocket Race Condition Fixes', () => {
         assert.ok(disconnectNotification, 'Should have received disconnect notification');
         assert.strictEqual(disconnectNotification!.wasEverConnected, true,
             'wasEverConnected should be true during disconnect notification');
+    });
+
+    // ========================================================================
+    // Concurrent connect() awaiters are not orphaned when the catch path fires
+    // ========================================================================
+    //
+    // While the first connect() awaits `_client.deactivate()`, a parallel
+    // `connect()` call observes the 'connecting' state at the top of the
+    // method and returns the existing `_connectDeferred.promise`. If the
+    // catch path then throws (deactivate failed, auth headers empty, etc.)
+    // without settling the deferred, every concurrent awaiter hangs forever.
+    // The fix routes the catch through `_settleDeferred(error)`.
+    test('concurrent connect() awaiters reject when catch path fires', async () => {
+        // Hold deactivate open so a second connect() can attach as an awaiter
+        // before the first call's catch block runs.
+        const p1 = wsService.connect();
+        await flushMicrotasks();
+        wsService.mockClient!.simulateConnect();
+        await p1;
+
+        let releaseDeactivate!: () => void;
+        const deactivateGate = new Promise<void>(resolve => { releaseDeactivate = resolve; });
+        wsService.mockClient!.deactivate = async () => {
+            await deactivateGate;
+            throw new Error('deactivate failed');
+        };
+
+        // First reconnect: enters connecting, blocks inside `await deactivate()`.
+        const reconnect1 = wsService.connect();
+        await flushMicrotasks();
+        assert.strictEqual(wsService.isConnectingState, true, 'first reconnect should be in connecting state');
+
+        // Second reconnect arrives during the await: returns the same deferred.
+        const reconnect2 = wsService.connect();
+
+        // Let the catch path fire.
+        releaseDeactivate();
+
+        // Both awaiters must reject with the same root cause — neither hangs.
+        await assert.rejects(reconnect1, /deactivate failed/);
+        await assert.rejects(reconnect2, /deactivate failed/);
+        assert.strictEqual(wsService.isConnectingState, false, 'state machine must exit connecting');
+    });
+
+    // ========================================================================
+    // Catch path with NO concurrent awaiter must not orphan the deferred
+    // ========================================================================
+    //
+    // Companion to the concurrent-awaiter test: when only a single caller
+    // hits the catch path, the deferred is never observed by anyone else.
+    // It still has to settle cleanly without producing an unhandled
+    // promise rejection.
+    test('catch path with single caller does not emit unhandled rejection', async () => {
+        const rejections: unknown[] = [];
+        const onUnhandled = (reason: unknown): void => { rejections.push(reason); };
+        process.on('unhandledRejection', onUnhandled);
+        try {
+            const p1 = wsService.connect();
+            await flushMicrotasks();
+            wsService.mockClient!.simulateConnect();
+            await p1;
+
+            wsService.mockClient!.deactivate = async () => {
+                throw new Error('deactivate failed');
+            };
+
+            await assert.rejects(wsService.connect(), /deactivate failed/);
+
+            // Drain microtasks so any pending unhandled rejection would fire.
+            await flushMicrotasks();
+            await new Promise(resolve => setImmediate(resolve));
+
+            assert.deepStrictEqual(rejections, [], 'no unhandled rejection allowed');
+        } finally {
+            process.off('unhandledRejection', onUnhandled);
+        }
     });
 
     // ========================================================================

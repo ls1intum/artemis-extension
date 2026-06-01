@@ -1,20 +1,42 @@
-import { AuthManager } from '../services/auth/authManager';
-import { CONFIG, resolveServerUrl, getUserAgent } from '../utils';
+import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '@extension/domain/problemStatementRendering';
+import { AuthManager } from '@extension/services/auth/authManager';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type {
+    ArtemisParticipation,
+    ArtemisUser,
+    AuthenticationResult,
+    BuildLogEntry,
+    IrisHealthStatus,
+    ProfileInfo,
+    ProgrammingSubmission,
+} from '@extension/types';
+import type {
+    CourseDashboardCourse,
+    CourseDashboardEntry,
+    CourseDashboardResponse,
+    ExerciseDetailsResponse,
+    IrisChatMessage,
+    IrisChatMode,
+    IrisChatSession,
+    IrisChatSessionSummary,
+    IrisSettingsResponse,
+    ResultSummary,
+} from '@extension/types';
 import {
-    ApiError, PROFILE_IRIS,
-    parseArtemisUser, parseArtemisParticipation,
-    parseIrisHealthStatus, parseProfileInfo, parseProgrammingSubmission, parseBuildLogEntry,
-} from '../types';
-import type {
-    ArtemisUser, ArtemisParticipation, AuthenticationResult,
-    IrisHealthStatus, ProfileInfo, ProgrammingSubmission, BuildLogEntry,
-} from '../types';
-import type {
-    CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
-    ExerciseDetailsResponse, ResultSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
-    ExamSummary, StudentExam,
-} from '../types';
-import { logger, LogCategory } from '../services/loggingService';
+    ApiError,
+    expectArray,
+    expectObject,
+    MalformedResponseError,
+    parseApiObject,
+    parseArtemisParticipation,
+    parseArtemisUser,
+    parseBuildLogEntry,
+    parseIrisHealthStatus,
+    parseProfileInfo,
+    parseProgrammingSubmission,
+    PROFILE_IRIS,
+} from '@extension/types';
+import { CONFIG, getUserAgent, resolveServerUrl } from '@extension/utils';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
@@ -113,19 +135,23 @@ export class ArtemisApiService {
     // Get archived courses (inactive courses from previous semesters)
     async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
         const response = await this.makeRequest('/api/core/courses/for-archive');
-        return response.json() as Promise<CourseDashboardCourse[]>;
+        return expectArray<CourseDashboardCourse>(
+            'archived courses',
+            await response.json(),
+            (item, i) => expectObject(`archived courses[${i}]`, item) as CourseDashboardCourse,
+        );
     }
 
     // Get courses with comprehensive dashboard data (exercises, participations, scores)
     async getCoursesForDashboard(): Promise<CourseDashboardResponse> {
         const response = await this.makeRequest('/api/core/courses/for-dashboard');
-        return response.json() as Promise<CourseDashboardResponse>;
+        return parseApiObject<CourseDashboardResponse>('CourseDashboardResponse', await response.json());
     }
 
     // Get a single course with exercises and participations for dashboard
     async getCourseForDashboard(courseId: number): Promise<CourseDashboardEntry> {
         const response = await this.makeRequest(`/api/core/courses/${courseId}/for-dashboard`);
-        return response.json() as Promise<CourseDashboardEntry>;
+        return parseApiObject<CourseDashboardEntry>('CourseDashboardEntry', await response.json());
     }
 
     // Get exercise details for a specific exercise.
@@ -135,38 +161,50 @@ export class ArtemisApiService {
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/details`
         );
-        return response.json() as Promise<ExerciseDetailsResponse>;
+        return parseApiObject<ExerciseDetailsResponse>('ExerciseDetailsResponse', await response.json());
     }
 
-    // Get latest pending submission for a participation
-    // A pending submission is one that has NO result yet (build in progress)
-    // Returns null if no pending submission exists
+    // Get latest pending submission for a participation.
+    // A pending submission is one that has NO result yet (build in progress).
+    //
+    // Artemis returns 200+null body when no submission is pending and 404 when
+    // the participation does not exist. Both map to `null`. All other error
+    // statuses (401/403/5xx) and malformed JSON propagate so the caller can
+    // decide between retry, log-and-continue, or surface-to-user.
     async getLatestPendingSubmission(participationId: number): Promise<ProgrammingSubmission | null> {
+        let response: Response;
         try {
-            const response = await this.makeRequest(
+            response = await this.makeRequest(
                 `/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`
             );
-
-            // Check if response has content
-            const text = await response.text();
-            if (!text || text.trim() === '') {
-                logger.info(`No pending submission for participation ${participationId}`, LogCategory.API);
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 404) {
                 return null;
             }
+            throw error;
+        }
 
-            // Parse JSON
-            return parseProgrammingSubmission(JSON.parse(text));
-        } catch (error) {
-            // If no pending submission exists, API may return 404 or empty response
-            logger.info(`No pending submission for participation ${participationId}: ${error}`, LogCategory.API);
+        const text = await response.text();
+        if (!text || text.trim() === '' || text.trim() === 'null') {
             return null;
+        }
+
+        try {
+            return parseProgrammingSubmission(JSON.parse(text));
+        } catch (parseError) {
+            const detail = parseError instanceof Error ? parseError.message : String(parseError);
+            throw new MalformedResponseError(
+                `Malformed pending-submission response for participation ${participationId}: ${detail}`,
+                response.status,
+                detail,
+            );
         }
     }
 
     // Get the latest result with feedbacks for a programming exercise participation.
     // Same endpoint the Artemis webapp uses — returns a full Result with feedbacks embedded,
     // no need to know the resultId upfront.
-    // Backend may return 200 with null body (exam results hidden), so this returns null in that case.
+    // Backend may return 200 with a null body when results are hidden, so this returns null in that case.
     async getLatestResultWithFeedbacks(participationId: number): Promise<ResultSummary | null> {
         const response = await this.makeRequest(
             `/api/programming/programming-exercise-participations/${participationId}/latest-result-with-feedbacks?withSubmission=false`
@@ -175,7 +213,21 @@ export class ArtemisApiService {
         if (!text || text.trim() === '' || text.trim() === 'null') {
             return null;
         }
-        return JSON.parse(text) as ResultSummary;
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(text);
+        } catch (parseError) {
+            const detail = parseError instanceof Error ? parseError.message : String(parseError);
+            throw new MalformedResponseError(
+                `Malformed latest-result response for participation ${participationId}: ${detail}`,
+                response.status,
+                detail,
+            );
+        }
+        return parseApiObject<ResultSummary>(
+            `latest-result for participation ${participationId}`,
+            parsed,
+        );
     }
 
     // Get build logs for a participation (optionally for a specific result)
@@ -185,8 +237,7 @@ export class ArtemisApiService {
             endpoint += `?resultId=${resultId}`;
         }
         const response = await this.makeRequest(endpoint);
-        const data: unknown = await response.json();
-        return (data as unknown[]).map(e => parseBuildLogEntry(e));
+        return expectArray('build logs', await response.json(), parseBuildLogEntry);
     }
 
     // Get VCS access token for a specific participation (per-exercise token)
@@ -207,13 +258,18 @@ export class ArtemisApiService {
         return response.text();
     }
 
-    // Get or create VCS access token helper
+    // Get or create VCS access token helper.
+    // Falls back to creation only when the server explicitly signals "no token
+    // exists yet" (404). Other errors (401/403/5xx, network) propagate so the
+    // caller does not retry on top of an already-failed auth state.
     async getOrCreateVcsAccessToken(participationId: number): Promise<string> {
         try {
             return await this.getVcsAccessToken(participationId);
         } catch (err) {
-            // Attempt to create if GET failed (e.g., no token yet)
-            return await this.createVcsAccessToken(participationId);
+            if (err instanceof ApiError && err.status === 404) {
+                return await this.createVcsAccessToken(participationId);
+            }
+            throw err;
         }
     }
 
@@ -377,85 +433,22 @@ export class ArtemisApiService {
             || false;
     }
 
-    // Render PlantUML diagram to SVG
-    async renderPlantUmlToSvg(plantUml: string, useDarkTheme: boolean = false): Promise<string> {
-        const encodedPlantUml = encodeURIComponent(plantUml);
-        const endpoint = `/api/programming/plantuml/svg?plantuml=${encodedPlantUml}&useDarkTheme=${useDarkTheme}`;
-        const response = await this.makeRequest(endpoint);
-        return response.text();
-    }
-
     // ============ IRIS CHAT API ============
 
     // Get Iris settings for a course
     async getIrisCourseChatSettings(courseId: number): Promise<IrisSettingsResponse> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/iris-settings`);
-        return response.json() as Promise<IrisSettingsResponse>;
-    }
-
-    // Get or create current chat session for a course
-    async getCurrentCourseChat(courseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/course-chat/${courseId}/sessions/current`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
-    }
-
-    // Get or create current chat session for an exercise
-    async getCurrentExerciseChat(exerciseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
-    }
-
-    // Get all chat sessions for an exercise (metadata only, lightweight)
-    async getExerciseChatSessions(exerciseId: number): Promise<IrisChatSession[]> {
-        const response = await this.makeRequest(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`);
-        return response.json() as Promise<IrisChatSession[]>;
-    }
-
-    // Get all chat sessions for a course WITH messages (heavy operation)
-    // Uses the chat-history endpoint which returns full session data
-    async getCourseChatSessionsWithMessages(courseId: number): Promise<IrisChatSession[]> {
-        const response = await this.makeRequest(`/api/iris/chat-history/${courseId}/sessions`);
-        return response.json() as Promise<IrisChatSession[]>;
-    }
-
-    // Get all chat sessions for an exercise WITH messages (heavy operation)
-    // This fetches session list first, then fetches messages for each session
-    async getExerciseChatSessionsWithMessages(exerciseId: number): Promise<IrisChatSession[]> {
-        // First get the session list (metadata only)
-        const sessions = await this.getExerciseChatSessions(exerciseId);
-
-        // Then fetch messages for each session
-        const sessionsWithMessages = await Promise.all(
-            sessions.map(async (session) => {
-                try {
-                    const messages = await this.getChatMessages(session.id);
-                    return {
-                        ...session,
-                        messages: messages
-                    };
-                } catch (error) {
-                    logger.warn(`Failed to fetch messages for session ${session.id}: ${error}`, LogCategory.API);
-                    return {
-                        ...session,
-                        messages: []
-                    };
-                }
-            })
-        );
-
-        return sessionsWithMessages;
+        return parseApiObject<IrisSettingsResponse>('IrisSettingsResponse', await response.json());
     }
 
     // Get messages for a chat session
     async getChatMessages(sessionId: number): Promise<IrisChatMessage[]> {
         const response = await this.makeRequest(`/api/iris/sessions/${sessionId}/messages`);
-        return response.json() as Promise<IrisChatMessage[]>;
+        return expectArray<IrisChatMessage>(
+            'IrisChatMessage list',
+            await response.json(),
+            (item, i) => expectObject(`IrisChatMessage[${i}]`, item) as IrisChatMessage,
+        );
     }
 
     // Send a message to Iris
@@ -490,7 +483,7 @@ export class ArtemisApiService {
                     body: JSON.stringify(messagePayload)
                 }
             );
-            return response.json() as Promise<IrisChatMessage>;
+            return parseApiObject<IrisChatMessage>('IrisChatMessage', await response.json());
         } catch (error: unknown) {
             // If sending with uncommittedFiles fails, retry without them
             // This handles the case where the server doesn't support the feature yet
@@ -512,28 +505,10 @@ export class ArtemisApiService {
                         body: JSON.stringify(fallbackPayload)
                     }
                 );
-                return fallbackResponse.json() as Promise<IrisChatMessage>;
+                return parseApiObject<IrisChatMessage>('IrisChatMessage', await fallbackResponse.json());
             }
             throw error;
         }
-    }
-
-    // Create a new chat session for a course
-    async createCourseChatSession(courseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/course-chat/${courseId}/sessions`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
-    }
-
-    // Create a new chat session for an exercise
-    async createExerciseChatSession(exerciseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/programming-exercise-chat/${exerciseId}/sessions`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
     }
 
     // Mark a message as helpful
@@ -547,24 +522,66 @@ export class ArtemisApiService {
         );
     }
 
-    // Get exam sidebar data for a specific course (student-accessible).
-    // Returns lightweight exam metadata (id, title, startDate, workingTime, examMaxPoints).
-    // Note: does NOT include endDate — use course.exams from getCourseForDashboard for full data.
-    async getExamSidebarData(courseId: number): Promise<ExamSummary[]> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/real-exams-sidebar-data`);
-        return response.json() as Promise<ExamSummary[]>;
+    // Unified Iris chat session endpoints (Artemis develop, PR #12504).
+    async getCurrentChat(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
+        const params = new URLSearchParams({ mode, entityId: String(entityId) });
+        const response = await this.makeRequest(
+            `/api/iris/chat/sessions/current?${params.toString()}`,
+            { method: 'POST' },
+        );
+        return parseApiObject<IrisChatSession>('IrisChatSession', await response.json(), [
+            { key: 'id', type: 'number' },
+        ]);
     }
 
-    // Get the student's own exam for a specific exam (to check status)
-    async getOwnStudentExam(courseId: number, examId: number): Promise<StudentExam> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/own-student-exam`);
-        return response.json() as Promise<StudentExam>;
+    async createChatSession(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
+        const params = new URLSearchParams({ mode, entityId: String(entityId) });
+        const response = await this.makeRequest(
+            `/api/iris/chat/sessions?${params.toString()}`,
+            { method: 'POST' },
+        );
+        return parseApiObject<IrisChatSession>('IrisChatSession', await response.json(), [
+            { key: 'id', type: 'number' },
+        ]);
     }
 
-    // Start the exam and get conduction details
-    async startStudentExam(courseId: number, examId: number, studentExamId: number): Promise<StudentExam> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/student-exams/${studentExamId}/conduction`);
-        return response.json() as Promise<StudentExam>;
+    async listChatSessionsForCourse(courseId: number): Promise<IrisChatSessionSummary[]> {
+        const response = await this.makeRequest(`/api/iris/chat/${courseId}/sessions/overview`);
+        return expectArray<IrisChatSessionSummary>(
+            'IrisChatSessionSummary list',
+            await response.json(),
+            (item, i) => parseApiObject<IrisChatSessionSummary>(`IrisChatSessionSummary[${i}]`, item, [
+                { key: 'id', type: 'number' },
+                { key: 'entityId', type: 'number' },
+                { key: 'creationDate', type: 'string' },
+                { key: 'mode', type: 'string' },
+            ]),
+        );
     }
 
+    // ── Problem Statement Rendering ──
+
+    async renderProblemStatement(request: ProblemStatementRenderRequest): Promise<RenderedProblemStatementDTO> {
+        const response = await this.makeRequest(
+            CONFIG.API.ENDPOINTS.RENDER_PROBLEM_STATEMENT,
+            {
+                method: 'POST',
+                body: JSON.stringify(request),
+            }
+        );
+        const body = await response.json() as unknown;
+        if (!isRenderedProblemStatementDTO(body)) {
+            throw new Error('Invalid response from problem-statement render endpoint');
+        }
+        return body;
+    }
+}
+
+// Body of this DTO is injected via dangerouslySetInnerHTML; validate shape before trusting it.
+function isRenderedProblemStatementDTO(value: unknown): value is RenderedProblemStatementDTO {
+    if (typeof value !== 'object' || value === null) { return false; }
+    const v = value as Record<string, unknown>;
+    return typeof v.html === 'string'
+        && typeof v.contentHash === 'string'
+        && typeof v.rendererVersion === 'string';
 }

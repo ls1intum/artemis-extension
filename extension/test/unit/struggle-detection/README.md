@@ -40,7 +40,7 @@ test/struggle-detection/
 ## How It Works
 
 1. **Sinon.js Fake Timers** - We fake `Date.now()` and `setInterval` BEFORE creating services
-2. **Real Services** - DiagnosticPersistenceService, InactivityService, ThrashingDetector, BuildResultTracker, StruggleScoreService are all REAL
+2. **Real Services** - DiagnosticPersistenceService, InactivityService, BuildResultTracker, StruggleScoreService are all REAL
 3. **Event Simulation** - We trigger VS Code events to feed data to services
 4. **Time Control** - `clock.tick(300000)` advances time by 5 minutes instantly
 5. **Score Recording** - We record the score after each event

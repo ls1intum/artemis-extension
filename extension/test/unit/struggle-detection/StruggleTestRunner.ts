@@ -9,20 +9,19 @@
 
 import * as sinon from 'sinon';
 
-import { ErrorQuotientEngine } from '../../../src/extension/services/telemetry/metrics/errorQuotientEngine';
-import { ErrorSnapshot, EQConfidence, RecommendedAction } from '../../../src/extension/services/telemetry/types';
+import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
+import { EQConfidence, ErrorSnapshot, RecommendedAction } from '@extension/services/telemetry/types';
 
 import {
-    StruggleScenario,
+    BuildResultEvent,
+    DiagnosticDefinition,
+    DiagnosticEvent,
+    SaveEvent,
     ScenarioEvent,
+    ScenarioMetrics,
     ScenarioResult,
     ScoreSnapshot,
-    ScenarioMetrics,
-    DiagnosticEvent,
-    DiagnosticDefinition,
-    EditEvent,
-    SaveEvent,
-    BuildResultEvent,
+    StruggleScenario,
 } from './types';
 
 /** LINT_SOURCE_DENYLIST — matches the production code */
@@ -211,7 +210,6 @@ export class StruggleTestRunner {
      */
     private applyBuildEvent(event: BuildResultEvent): void {
         const buildFailed = event.buildFailed ?? !event.success;
-        const hasTestFailure = !event.success && !buildFailed && (event.failedTests?.length ?? 0) > 0;
 
         // Only compiler errors count as "errors" for EQ
         const hasErrors = buildFailed;

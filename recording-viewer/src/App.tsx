@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, SessionStartEvent, ReplayEqSnapshot, VideoSyncConfig } from './types';
+import { useState, useCallback, useRef, useMemo, useEffect, useDeferredValue } from 'react';
+import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, SessionStartEvent, ReplayEqSnapshot, VideoSyncConfig } from './types';
 import { resolveSchemaVersion } from './parseSession';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
@@ -13,14 +13,15 @@ import type { VideoPlayerHandle } from './components/VideoPlayer';
 import { VideoUpload } from './components/VideoUpload';
 import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
-import { FreeAnnotationForm } from './components/FreeAnnotationForm';
 import { LiveControlBar } from './components/LiveControlBar';
 import { ALL_EVENT_TYPES } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
 import { useLiveSessions } from './hooks/useLiveSessions';
+import { useOpenLiveOnSpace } from './hooks/useOpenLiveOnSpace';
 import { useLiveSession } from './hooks/useLiveSession';
-import { useLiveAnnotations } from './hooks/useLiveAnnotations';
+import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
+import { useResearcherLanePolling } from './hooks/useResearcherLanePolling';
 
 const ALL_ENABLED = new Set(ALL_EVENT_TYPES);
 
@@ -33,7 +34,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const [session, setSession] = useState<LoadedSession | null>(null);
     const [loading, setLoading] = useState(false);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
+    const [researcherLanes, setResearcherLanes] = useState<Array<{ raterId: string; raterName: string; annotations: Annotation[] }> | null>(null);
     const activeSessionId = useRef<string | null>(null);
+    const isResearcher = authStatus.role === 'researcher';
 
     // Video state
     const [videoSyncConfig, setVideoSyncConfig] = useState<VideoSyncConfig | null>(null);
@@ -44,8 +47,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
     // Live state
-    const [reactionDelayMs, setReactionDelayMs] = useState(300);
-    const [lastLabelToast, setLastLabelToast] = useState<{ label: string; at: number } | null>(null);
+    const [lastLabelToast, setLastLabelToast] = useState<AnnotationToast | null>(null);
     const [stickyLive, setStickyLive] = useState(false);
 
     // Track most recently ended live session so latch-on cannot flip back to live
@@ -57,53 +59,29 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const liveSessionIds = useLiveSessions(true);
 
     const isLiveSession = stickyLive;
-    const isReadOnly = !authStatus.allowWrite;
+    const isReadOnly = !authStatus.allowWrite || isResearcher;
     const writesDisabled = isLiveSession || isReadOnly;
 
-    const saveAnnotations = useCallback(async (updated: Annotation[]) => {
-        setAnnotations(updated);
-        if (activeSessionId.current) {
-            await apiFetch(`/api/recordings/${activeSessionId.current}/annotations`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updated),
-            }).catch((err) => {
-                console.warn('Failed to persist annotations:', err);
-            });
-        }
-    }, [apiFetch]);
-
-    const handleAddAnnotation = useCallback((timestamp: number, text: string, label?: AnnotationLabel) => {
-        const annotation: Annotation = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            timestamp,
-            text,
-            label,
-            createdAt: Date.now(),
-        };
-        saveAnnotations([...annotations, annotation]);
-    }, [annotations, saveAnnotations]);
-
-    const handleUpdateAnnotation = useCallback((id: string, text: string) => {
-        saveAnnotations(annotations.map(a => a.id === id ? { ...a, text } : a));
-    }, [annotations, saveAnnotations]);
-
-    const handleDeleteAnnotation = useCallback((id: string) => {
-        saveAnnotations(annotations.filter(a => a.id !== id));
-    }, [annotations, saveAnnotations]);
-
-    const loadFromApi = useCallback(async (sessionId: string, isLive: boolean) => {
+    const loadFromApi = useCallback(async (sessionId: string, isLive: boolean, tailLimit?: number) => {
         activeSessionId.current = sessionId; // claim ownership before any await
         setLoading(true);
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setStickyLive(isLive); // immediate latch — bypasses polling cadence
         try {
+            const eventsUrl = isLive
+                ? null
+                : tailLimit !== undefined
+                    ? `/api/recordings/${sessionId}/events?tail=${tailLimit}`
+                    : `/api/recordings/${sessionId}/events`;
+            const annotationsUrl = isResearcher
+                ? `/api/recordings/${sessionId}/annotations/all`
+                : `/api/recordings/${sessionId}/annotations`;
             const fetches: Promise<Response>[] = [
-                isLive ? Promise.resolve(new Response('[]', { status: 200 })) : apiFetch(`/api/recordings/${sessionId}/events`),
+                eventsUrl ? apiFetch(eventsUrl) : Promise.resolve(new Response('[]', { status: 200 })),
                 apiFetch(`/api/recordings/${sessionId}/metadata`),
                 apiFetch(`/api/recordings/${sessionId}/replay-eq`),
-                apiFetch(`/api/recordings/${sessionId}/annotations`),
+                apiFetch(annotationsUrl),
                 apiFetch(`/api/recordings/${sessionId}/video-sync`),
                 apiFetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
             ];
@@ -121,7 +99,16 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             }
             let loadedAnnotations: Annotation[] = [];
             if (annotRes.ok) {
-                loadedAnnotations = await annotRes.json();
+                const json = await annotRes.json();
+                if (isResearcher) {
+                    setResearcherLanes(json as Array<{ raterId: string; raterName: string; annotations: Annotation[] }>);
+                    loadedAnnotations = []; // single-rater list stays empty for researcher
+                } else {
+                    setResearcherLanes(null);
+                    loadedAnnotations = json;
+                }
+            } else if (isResearcher) {
+                setResearcherLanes(null);
             }
 
             let syncConfig: VideoSyncConfig | null = null;
@@ -129,7 +116,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                 syncConfig = await videoSyncRes.json();
             }
 
-            setAnnotations(loadedAnnotations);
+            mutator.reset(loadedAnnotations);
             setVideoSyncConfig(syncConfig);
             setHasSubtitles(subsRes.ok);
             setVideoCacheBust(Date.now());
@@ -145,10 +132,26 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         } finally {
             setLoading(false);
         }
-    }, [apiFetch]);
+    // `mutator` is stable (memoized with [] deps in useAnnotationMutations) so
+    // including it here doesn't churn the callback identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [apiFetch, isResearcher]);
 
     const live = useLiveSession(activeSessionId.current, isLiveSession);
-    const liveAnnot = useLiveAnnotations(activeSessionId.current);
+
+    const showAnnotationError = useCallback((message: string) => {
+        // Surface mutator failures via the existing toast slot. Keeps the UX
+        // single-channel; the live-mode hotkey path is the only caller.
+        console.warn('[annotations]', message);
+        setLastLabelToast({ kind: 'error', text: message, at: Date.now() });
+    }, []);
+    const mutator = useAnnotationMutations({
+        sessionId: activeSessionId.current,
+        raterName: authStatus.raterName,
+        setAnnotations,
+        onToast: setLastLabelToast,
+        onError: showAnnotationError,
+    });
 
     // Latch sticky-live ON the moment we observe the current session in the live set,
     // UNLESS we already saw it end during this view.
@@ -160,6 +163,23 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setStickyLive(true);
         }
     }, [liveSessionIds, endedLiveSessionId]);
+
+    // On the session list, Space opens a live recording (live-only convenience).
+    const openLiveSession = useCallback((id: string) => { void loadFromApi(id, true); }, [loadFromApi]);
+    useOpenLiveOnSpace(!session && !loading, liveSessionIds, openLiveSession);
+
+    // Whenever sticky-live transitions ON, reseed the mutator from the latest
+    // annotations so any archive-mode edits made before the latch don't leave
+    // the controller's `annotationsRef` stale. Reset also clears the redo
+    // stack, which is the right semantic for entering a fresh live session.
+    useEffect(() => {
+        if (isLiveSession) {
+            mutator.reset(annotations);
+        }
+    // We INTENTIONALLY don't depend on `annotations` here — only on the latch
+    // edge. Mid-live edits flow through the controller already.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLiveSession, mutator]);
 
     // Reset sticky-live + ended-id when leaving the session view.
     useEffect(() => {
@@ -181,22 +201,38 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setEndedLiveSessionId(id);
             setStickyLive(false);
             setTimeout(() => {
-                if (activeSessionId.current === id) void loadFromApi(id, false);
+                // Tail-limit the archive reload so a long session can't
+                // crash the tab a second time after live mode capped at 5k.
+                if (activeSessionId.current === id) void loadFromApi(id, false, 5000);
             }, 500);
         }
     }, [live.error, live.events, loadFromApi]);
 
-    useLiveHotkeys(isLiveSession, useCallback(async (label) => {
-        const ann = await liveAnnot.post(label, live.latestEventTimestamp, reactionDelayMs);
-        if (ann) {
-            setLastLabelToast({ label, at: Date.now() });
-            setAnnotations((prev) => [...prev, ann]);
-        }
-    }, [liveAnnot, live.latestEventTimestamp, reactionDelayMs]));
+    // While a researcher watches a LIVE session, poll the all-lanes endpoint
+    // once a second so raters' new marks appear without a manual reload. Only
+    // the lanes refresh; the researcher's video/zoom/scroll stay put.
+    useResearcherLanePolling(isResearcher && isLiveSession, activeSessionId, apiFetch, setResearcherLanes);
+
+    // Hotkeys enabled for any rater with a session loaded. In live mode the
+    // reference timestamp is the latest observed event; in offline mode it is
+    // the current video playback cursor projected onto the absolute event
+    // timeline (or session start as a fallback when no video is playing).
+    useLiveHotkeys(
+        !isResearcher && session !== null,
+        useCallback((label) => {
+            const referenceTs = isLiveSession
+                ? live.latestEventTimestamp
+                : (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000;
+            mutator.addLabel(label, referenceTs);
+        }, [mutator, live.latestEventTimestamp, isLiveSession, session]),
+        mutator.undoLast,
+        mutator.redoLast,
+    );
 
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
-        setAnnotations([]);
+        mutator.reset(loaded.annotations ?? []);
+        setResearcherLanes(null);
         setVideoSyncConfig(null);
         setHasSubtitles(false);
         setIsVideoPlaying(false);
@@ -208,11 +244,12 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setStickyLive(false);
         setEndedLiveSessionId(null);
         setSession(loaded);
-    }, []);
+    }, [mutator]);
 
     const handleBack = useCallback(() => {
         activeSessionId.current = null;
-        setAnnotations([]);
+        mutator.reset([]);
+        setResearcherLanes(null);
         setVideoSyncConfig(null);
         setHasSubtitles(false);
         setIsVideoPlaying(false);
@@ -222,7 +259,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setZoomedXDomain(null);
         setAutoFollowLive(true);
         setSession(null);
-    }, []);
+    }, [mutator]);
 
     // Video callbacks
     const handleVideoSeek = useCallback((timestamp: number) => {
@@ -265,10 +302,30 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setIsVideoPlaying(playing);
     }, []);
 
+    // Defer live event updates so the expensive chart/timeline renders can
+    // be interrupted by newer SSE batches. Under sustained load the charts
+    // may visibly lag the most-recent event by a frame or two, which is
+    // acceptable. live.latestEventTimestamp (used by annotation anchoring)
+    // stays non-deferred so hotkey-driven annotations target the correct
+    // wall-clock position.
+    const liveEventsForDisplay = useDeferredValue(live.events);
     const displayedEvents = useMemo(() => {
         if (!session) return [];
-        return isLiveSession ? live.events : session.events;
-    }, [session, isLiveSession, live.events]);
+        return isLiveSession ? liveEventsForDisplay : session.events;
+    }, [session, isLiveSession, liveEventsForDisplay]);
+
+    // For researcher mode, the regular `annotations` state is empty and
+    // per-rater data lives in `researcherLanes`. We flatten the lanes into a
+    // single array so the existing single-lane consumers (xDomain math,
+    // TrackingTimeline marker overlay, EventStream sidebar) still show the
+    // full set of marks. The dedicated multi-lane rendering lives in
+    // SessionTimeline.
+    const displayAnnotations = useMemo<Annotation[]>(() => {
+        if (researcherLanes) {
+            return researcherLanes.flatMap(lane => lane.annotations);
+        }
+        return annotations;
+    }, [researcherLanes, annotations]);
 
     // Use metadata.startTime if available, otherwise the earliest event timestamp
     const sessionStartTime = useMemo(() => {
@@ -281,10 +338,32 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
         return min;
     }, [session, displayedEvents]);
+
+    // Authoritative session start for the live elapsed timer: metadata.startTime,
+    // else the sessionStart event's timestamp. Deliberately NOT the generic
+    // earliest-event fallback above — on a late join that would understate
+    // elapsed. Latched per session so that once an authoritative start is seen
+    // it survives the live buffer trimming the sessionStart event out of the
+    // sliding window. 0 (hidden) until a source is observed.
+    const liveStartRef = useRef<{ id: string | null; start: number }>({ id: null, start: 0 });
+    const liveElapsedStart = useMemo(() => {
+        const id = session?.fileName ?? null;
+        if (liveStartRef.current.id !== id) {
+            liveStartRef.current = { id, start: 0 };
+        }
+        if (liveStartRef.current.start === 0 && session) {
+            const authoritative = session.metadata?.startTime
+                ?? displayedEvents.find(e => e.type === 'sessionStart')?.timestamp
+                ?? 0;
+            if (authoritative > 0) liveStartRef.current.start = authoritative;
+        }
+        return liveStartRef.current.start;
+    }, [session, displayedEvents]);
     const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
     const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
     const [autoFollowLive, setAutoFollowLive] = useState(true);
+    const [hideEmptyLanes, setHideEmptyLanes] = useState(false);
 
     const handleViewInList = useCallback((timestamp: number) => {
         setScrollToTimestamp(timestamp);
@@ -305,7 +384,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             if (offset < min) min = offset;
             if (offset > max) max = offset;
         }
-        for (const a of annotations) {
+        for (const a of displayAnnotations) {
             const offset = a.timestamp - sessionStartTime;
             if (offset < min) min = offset;
             if (offset > max) max = offset;
@@ -319,7 +398,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
         const padding = Math.max((max - min) * 0.03, 1000);
         return [Math.max(0, min - padding), max + padding];
-    }, [session, displayedEvents, annotations, sessionStartTime]);
+    }, [session, displayedEvents, displayAnnotations, sessionStartTime]);
 
     const sessionEndTime = useMemo(() => {
         if (!session || displayedEvents.length === 0) return sessionStartTime;
@@ -475,10 +554,10 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                     {isLiveSession && (
                         <LiveControlBar
                             connected={live.connected}
-                            eventsReceived={live.events.length}
+                            bufferSize={live.events.length}
+                            totalReceived={live.totalReceived}
                             latestEventTimestamp={live.latestEventTimestamp}
-                            reactionDelayMs={reactionDelayMs}
-                            onReactionDelayChange={setReactionDelayMs}
+                            startTime={liveElapsedStart}
                             lastLabelToast={lastLabelToast}
                         />
                     )}
@@ -500,8 +579,24 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                         </div>
                         {viewMode === 'timeline' && xDomain && (
                             <div className="zoom-controls">
-                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
-                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
+                                <label
+                                    className="lane-toggle"
+                                    title={hideEmptyLanes
+                                        ? 'Showing only lanes with events — switch off to show all lanes'
+                                        : 'Showing all lanes — switch on to hide the empty ones'}
+                                >
+                                    <span className="lane-toggle-text">Hide empty lanes</span>
+                                    <input
+                                        type="checkbox"
+                                        className="lane-toggle-input"
+                                        checked={hideEmptyLanes}
+                                        onChange={e => setHideEmptyLanes(e.target.checked)}
+                                    />
+                                    <span className="lane-toggle-slider" />
+                                </label>
+                                {/* Reset/Follow sit between the toggle and the zoom +/- buttons,
+                                    so the +/- stay pinned to the right edge and don't shift when
+                                    these conditional buttons appear/disappear. */}
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
                                 )}
@@ -514,15 +609,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                         Follow
                                     </button>
                                 )}
+                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
+                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
                             </div>
-                        )}
-                        {!writesDisabled && (
-                            <FreeAnnotationForm
-                                sessionStartTime={sessionStartTime}
-                                onAdd={handleAddAnnotation}
-                                videoTimeRef={videoSyncConfig ? videoTimeRef : undefined}
-                                annotationCount={annotations.length}
-                            />
                         )}
                     </div>
                     {viewMode === 'timeline' && effectiveXDomain && (
@@ -531,7 +620,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 events={displayedEvents}
                                 sessionStartTime={sessionStartTime}
                                 replayEq={session.replayEq}
-                                annotations={annotations}
+                                annotations={displayAnnotations}
+                                researcherLanes={researcherLanes ?? undefined}
                                 xDomain={xDomain}
                                 zoomedRange={zoomedXDomain ?? undefined}
                                 videoTimeRef={videoTimeRef}
@@ -541,11 +631,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 sessionStartTime={sessionStartTime}
                                 xDomain={effectiveXDomain}
                                 fullXDomain={xDomain}
-                                annotations={annotations}
+                                annotations={displayAnnotations}
                                 enabledTypes={ALL_ENABLED}
-                                onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
-                                onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
-                                onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
+                                hideEmptyLanes={hideEmptyLanes}
                                 readOnly={writesDisabled}
                                 onViewInList={handleViewInList}
                                 videoTimeRef={videoTimeRef}
@@ -559,11 +647,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                         <EventStream
                             events={displayedEvents}
                             sessionStartTime={sessionStartTime}
-                            annotations={annotations}
+                            annotations={displayAnnotations}
                             enabledTypes={ALL_ENABLED}
-                            onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
-                            onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
-                            onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
                             readOnly={writesDisabled}
                             scrollToTimestamp={scrollToTimestamp}
                             onScrollComplete={handleScrollComplete}

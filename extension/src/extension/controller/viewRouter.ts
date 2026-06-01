@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+
+import { getReactWebviewHtml } from '@extension/services/ui';
+
 import type { AppState } from './appStateManager';
-import { getReactWebviewHtml } from '../services/ui';
 
 /** Maps AppState values to React view entry-point names. */
 const STATE_TO_VIEW: Record<AppState, string> = {
@@ -9,14 +11,11 @@ const STATE_TO_VIEW: Record<AppState, string> = {
     'course-list': 'courseList',
     'course-detail': 'courseDetail',
     'exercise-detail': 'exerciseDetail',
-    'exam-exercise-detail': 'examExerciseDetail',
     'ai-config': 'aiConfig',
     'service-status': 'serviceStatus',
     'struggle-detection': 'struggleDetection',
     'recommended-extensions': 'recommendedExtensions',
     'git-credentials': 'gitCredentials',
-    'exam-start': 'examStart',
-    'exam-conduction': 'examConduction',
 };
 
 /** Returns the React webview HTML for the given application state. */

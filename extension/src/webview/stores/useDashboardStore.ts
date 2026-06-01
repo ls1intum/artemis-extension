@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { postCommand, type VsCodeApi, type RecentCourseNode } from '../../shared/messageContracts';
 
-export type { RecentCourseNode } from '../../shared/messageContracts';
+import { postCommand, type RecentCourseNode, type VsCodeApi } from '@shared/messageContracts';
+
+export type { RecentCourseNode } from '@shared/messageContracts';
 
 interface DashboardState {
     recentCourses: RecentCourseNode[];

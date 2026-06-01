@@ -1,4 +1,4 @@
-import type { TrackedExercise, TrackedCourse } from '../../../types';
+import type { TrackedCourse, TrackedExercise } from '@extension/types';
 
 /**
  * Display order for exercises in the dropdown. Workspace exercise wins,

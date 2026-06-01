@@ -1,15 +1,16 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ArtemisWebviewProvider } from '../../../src/extension/provider/artemisWebviewProvider';
-import type { BuildErrorCodeLensProvider } from '../../../src/extension/provider/buildErrorCodeLensProvider';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/extension/services/auth';
-import { ArtemisApiService } from '../../../src/extension/api';
-import { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
-import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
-import { TelemetryManager } from '../../../src/extension/services/telemetry';
-import { createProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
+
+import { ArtemisApiService } from '@extension/api';
+import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
+import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
+import { AuthManager } from '@extension/services/auth';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { TelemetryManager } from '@extension/services/telemetry';
+import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
+import { ArtemisWebsocketService } from '@extension/services/websocket';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {
@@ -31,7 +32,7 @@ class MockArtemisWebsocketService extends ArtemisWebsocketService {
     constructor(authManager: AuthManager) {
         super(authManager);
     }
-    registerMessageHandler(handler: any) { }
+    registerMessageHandler(_handler: any) { }
     isConnected() { return true; }
     connect() { return Promise.resolve(); }
 }
@@ -40,7 +41,7 @@ class MockWebview implements vscode.Webview {
     options: vscode.WebviewOptions = {};
     html: string = '';
     onDidReceiveMessage: vscode.Event<any> = new vscode.EventEmitter<any>().event;
-    postMessage(message: any): Thenable<boolean> {
+    postMessage(_message: any): Thenable<boolean> {
         return Promise.resolve(true);
     }
     asWebviewUri(localResource: vscode.Uri): vscode.Uri {
@@ -74,7 +75,7 @@ class MockWebviewView implements vscode.WebviewView {
     title?: string;
     description?: string;
     badge?: vscode.ViewBadge;
-    show(preserveFocus?: boolean): void { }
+    show(_preserveFocus?: boolean): void { }
     onDidChangeVisibility: vscode.Event<void> = new vscode.EventEmitter<void>().event;
     onDidDispose: vscode.Event<void> = new vscode.EventEmitter<void>().event;
     visible: boolean = true;
@@ -99,7 +100,7 @@ class ControllableWebviewView implements vscode.WebviewView {
         this.webview = spyWebview ?? new MockWebview();
     }
 
-    show(preserveFocus?: boolean): void {}
+    show(_preserveFocus?: boolean): void {}
 
     simulateHide(): void {
         this.visible = false;
@@ -117,8 +118,14 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     let mockContext: MockExtensionContext;
     let mockAuthManager: MockAuthManager;
     let mockApiService: MockArtemisApiService;
+    let suiteSandbox: sinon.SinonSandbox;
 
     setup(() => {
+        // Stub command registration so concurrent TelemetryManager
+        // instances in this suite do not collide on the global registry.
+        suiteSandbox = sinon.createSandbox();
+        suiteSandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+
         mockContext = new MockExtensionContext();
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
@@ -128,44 +135,26 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
-        provider = new ArtemisWebviewProvider(
-            vscode.Uri.file('/'),
-            mockContext,
-            mockAuthManager,
-            mockApiService,
-            new ExerciseRegistry(),
-            createProviderRegistry(),
-            mockWebsocket,
-            mockCodeLens,
-            mockTelemetry,
-            mockUpdateAuth,
-        );
+        provider = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            artemisApi: mockApiService,
+            exerciseRegistry: new ExerciseRegistry(),
+            providerRegistry: createProviderRegistry(),
+            websocketService: mockWebsocket,
+            buildErrorCodeLensProvider: mockCodeLens,
+            telemetryManager: mockTelemetry,
+            updateAuthContext: mockUpdateAuth,
+        });
+    });
+
+    teardown(() => {
+        suiteSandbox.restore();
     });
 
     test('should be instantiated', () => {
         assert.ok(provider);
-    });
-
-    test('should register websocket handler and connect when opening exercise', async () => {
-        const ws = new MockArtemisWebsocketService(mockAuthManager);
-        let connectCalls = 0;
-        ws.isConnected = () => false;
-        ws.connect = async () => { connectCalls++; };
-
-        const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const p = new ArtemisWebviewProvider(
-            vscode.Uri.file('/'), mockContext, mockAuthManager, mockApiService,
-            new ExerciseRegistry(), createProviderRegistry(),
-            ws, mockCodeLens, new TelemetryManager(), async () => {},
-        );
-
-        const mockView = new MockWebviewView();
-        p.resolveWebviewView(mockView, {} as any, {} as any);
-        // Seed a parent course: showExerciseDetail requires it by invariant
-        p.showCourseDetail({ course: { id: 1, title: 'Parent' } } as any);
-        await p.openExerciseDetails(1);
-
-        assert.strictEqual(connectCalls, 1, 'connect should be called when not connected');
     });
 
     test('should resolve webview view', async () => {
@@ -177,36 +166,6 @@ suite('ArtemisWebviewProvider Test Suite', () => {
 
         assert.ok(mockView.webview.html);
         assert.ok(mockView.webview.options.enableScripts);
-    });
-
-    test('should open exercise details', async () => {
-        const mockView = new MockWebviewView();
-        const mockResolveContext = {} as vscode.WebviewViewResolveContext;
-        const mockToken = {} as vscode.CancellationToken;
-
-        await provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
-
-        // Seed a parent course: showExerciseDetail requires it by invariant
-        provider.showCourseDetail({ course: { id: 1, title: 'Parent' } } as any);
-        await provider.openExerciseDetails(1);
-
-        assert.ok(mockView.webview.html);
-    });
-
-    test('should open json in editor', async () => {
-        const localSandbox = sinon.createSandbox();
-        try {
-            const openDocSpy = localSandbox.spy(vscode.workspace, 'openTextDocument');
-            const showDocSpy = localSandbox.spy(vscode.window, 'showTextDocument');
-
-            const data = { test: 'data' };
-            await provider.openJsonInEditor(data);
-
-            assert.ok(openDocSpy.calledOnce, 'openTextDocument should be called');
-            assert.ok(showDocSpy.calledOnce, 'showTextDocument should be called');
-        } finally {
-            localSandbox.restore();
-        }
     });
 
     test('should render', async () => {
@@ -228,6 +187,7 @@ suite('Panel hide/show state persistence', () => {
 
     setup(async () => {
         sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
 
         mockContext = new MockExtensionContext();
         mockAuthManager = new MockAuthManager(mockContext);
@@ -241,18 +201,18 @@ suite('Panel hide/show state persistence', () => {
         const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
-        provider = new ArtemisWebviewProvider(
-            vscode.Uri.file('/'),
-            mockContext,
-            mockAuthManager,
-            mockApiService,
-            new ExerciseRegistry(),
-            createProviderRegistry(),
-            mockWebsocket,
-            mockCodeLens,
-            mockTelemetry,
-            mockUpdateAuth,
-        );
+        provider = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            artemisApi: mockApiService,
+            exerciseRegistry: new ExerciseRegistry(),
+            providerRegistry: createProviderRegistry(),
+            websocketService: mockWebsocket,
+            buildErrorCodeLensProvider: mockCodeLens,
+            telemetryManager: mockTelemetry,
+            updateAuthContext: mockUpdateAuth,
+        });
 
         spyWebview = new SpyWebview();
         controllableView = new ControllableWebviewView(spyWebview);

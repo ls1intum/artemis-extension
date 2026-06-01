@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
-import type { RecordedEvent } from '../types';
-import { collectDiagnostics, collectSelectionChange, collectVisibleRangeChange } from '../eventCollectors';
-import { shouldRecordUri } from '../uriFilter';
-import { logger, LogCategory } from '../../../loggingService';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { collectDiagnostics, collectSelectionChange, collectVisibleRangeChange } from '@extension/services/telemetry/recording/eventCollectors';
+import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 
 /**
  * Context supplied to startup contributors. Contributors run synchronously

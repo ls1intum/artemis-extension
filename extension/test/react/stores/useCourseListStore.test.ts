@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useCourseListStore } from '../../../src/webview/stores/useCourseListStore';
-import type { CourseData, ArchivedCourse } from '../../../src/shared/messageContracts';
-import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
-const makeCourseData = (overrides: Partial<CourseData['course']> = {}): CourseData => ({
+import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
+
+import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+
+const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData => ({
 	course: {
 		id: 1,
 		title: 'Test Course',
@@ -66,7 +68,7 @@ describe('useCourseListStore', () => {
 
 	it('setCourses populates courses and stops loading', () => {
 		const { result } = renderHook(() => useCourseListStore());
-		const courses = [makeCourseData({ title: 'Course A' })];
+		const courses = [makeCourseDetailData({ title: 'Course A' })];
 
 		act(() => {
 			result.current.setLoading(true);
@@ -82,7 +84,7 @@ describe('useCourseListStore', () => {
 
 	it('setCourses with archived parameter populates archived courses', () => {
 		const { result } = renderHook(() => useCourseListStore());
-		const courses = [makeCourseData()];
+		const courses = [makeCourseDetailData()];
 		const archived = [makeArchivedCourse()];
 
 		act(() => {
@@ -98,7 +100,7 @@ describe('useCourseListStore', () => {
 		const { result } = renderHook(() => useCourseListStore());
 
 		act(() => {
-			result.current.setCourses([makeCourseData()]);
+			result.current.setCourses([makeCourseDetailData()]);
 		});
 
 		expect(result.current.archivedLoaded).toBe(false);
@@ -187,8 +189,8 @@ describe('useCourseListStore', () => {
 
 		act(() => {
 			result.current.setCourses([
-				makeCourseData({ title: 'Algorithms and Data Structures', id: 1 }),
-				makeCourseData({ title: 'Software Engineering', id: 2 }),
+				makeCourseDetailData({ title: 'Algorithms and Data Structures', id: 1 }),
+				makeCourseDetailData({ title: 'Software Engineering', id: 2 }),
 			]);
 			result.current.setSearchTerm('algorithm');
 		});
@@ -203,8 +205,8 @@ describe('useCourseListStore', () => {
 
 		act(() => {
 			result.current.setCourses([
-				makeCourseData({ id: 1 }),
-				makeCourseData({ id: 2, title: 'Another' }),
+				makeCourseDetailData({ id: 1 }),
+				makeCourseDetailData({ id: 2, title: 'Another' }),
 			]);
 		});
 
@@ -217,8 +219,8 @@ describe('useCourseListStore', () => {
 
 		act(() => {
 			result.current.setCourses([
-				makeCourseData({ title: 'Zebra Course', id: 1 }),
-				makeCourseData({ title: 'Alpha Course', id: 2 }),
+				makeCourseDetailData({ title: 'Zebra Course', id: 1 }),
+				makeCourseDetailData({ title: 'Alpha Course', id: 2 }),
 			]);
 			result.current.setSortBy('title-asc');
 		});
@@ -233,8 +235,8 @@ describe('useCourseListStore', () => {
 
 		act(() => {
 			result.current.setCourses([
-				makeCourseData({ title: 'Old Course', semester: 'WS23/24', id: 1 }),
-				makeCourseData({ title: 'New Course', semester: 'SS25', id: 2 }),
+				makeCourseDetailData({ title: 'Old Course', semester: 'WS23/24', id: 1 }),
+				makeCourseDetailData({ title: 'New Course', semester: 'SS25', id: 2 }),
 			]);
 			result.current.setSortBy('semester-desc');
 		});
@@ -248,8 +250,8 @@ describe('useCourseListStore', () => {
 
 		act(() => {
 			result.current.setCourses([
-				makeCourseData({ title: 'Spring Course', semester: 'ss25', id: 1 }),
-				makeCourseData({ title: 'Winter Course', semester: 'ws24/25', id: 2 }),
+				makeCourseDetailData({ title: 'Spring Course', semester: 'ss25', id: 1 }),
+				makeCourseDetailData({ title: 'Winter Course', semester: 'ws24/25', id: 2 }),
 			]);
 			result.current.setSemesterFilter('ss25');
 		});

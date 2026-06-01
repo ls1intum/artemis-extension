@@ -1,13 +1,15 @@
 // Covers E2EX-01: Login flow interaction test — credentials → Dashboard
-import { VSBrowser, WebDriver, Workbench, By } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	waitForElement,
-	takeScreenshot,
-	getCredentials,
+    getCredentials,
+    openArtemisView,
+    safeLogoutAndCleanup,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 describe('Login Flow UI Tests', function () {
@@ -30,9 +32,7 @@ describe('Login Flow UI Tests', function () {
 
 	after(async function () {
 		this.timeout(15000);
-		const workbench = new Workbench();
-		await workbench.executeCommand('Logout from Artemis');
-		await driver.sleep(2000);
+		await safeLogoutAndCleanup(driver);
 	});
 
 	afterEach(async function () {

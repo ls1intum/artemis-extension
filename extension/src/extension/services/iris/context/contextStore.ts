@@ -1,17 +1,15 @@
 import * as vscode from 'vscode';
-import {
-    ActiveContext,
-    ContextSnapshot,
-    type IrisChatMessage,
-} from '../../../types';
-import { logger } from '../../loggingService';
-import { SessionManager } from './sessionManager';
-import type { StoredState } from './contextStateTypes';
+
+import { logger } from '@extension/services/loggingService';
+import type { TrackedExercise } from '@extension/types';
+import { ActiveContext, ContextSnapshot } from '@extension/types';
+
 import { ContextPersistence } from './contextPersistence';
 import { buildContextSnapshot } from './contextSnapshot';
+import type { StoredState } from './contextStateTypes';
+import { SessionManager } from './sessionManager';
+import type { CourseInput, ExerciseInput } from './trackedItemRepository';
 import { TrackedItemRepository } from './trackedItemRepository';
-import type { ExerciseInput, CourseInput } from './trackedItemRepository';
-import type { TrackedExercise, TrackedCourse } from '../../../types';
 
 interface ContextStoreOptions {
     exerciseArchiveLimit?: number;
@@ -44,7 +42,7 @@ export class ContextStore {
     private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
     public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
 
-    constructor(private readonly context: vscode.ExtensionContext, options?: ContextStoreOptions) {
+    constructor(context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
         this._persistence = new ContextPersistence(context);
         this.state = this._persistence.load();
@@ -80,6 +78,20 @@ export class ContextStore {
 
     public getWorkspaceExercise(): TrackedExercise | undefined {
         return this._repository.getWorkspaceExercise();
+    }
+
+    public getWorkspaceExerciseId(): number | undefined {
+        return this._repository.getWorkspaceExercise()?.id;
+    }
+
+    /**
+     * Clears the `isWorkspace` flag on all tracked exercises. Silent: does NOT fire
+     * `onDidChangeActiveContext`. Callers that need a UI refresh must post a snapshot
+     * themselves — see `ChatWebviewProvider.clearWorkspaceExercise`.
+     */
+    public clearWorkspaceFlag(): void {
+        this._repository.clearAllWorkspaceFlags();
+        this._persistence.save(this.state);
     }
 
     public registerExercise(input: ExerciseInput): ContextSnapshot {
@@ -167,10 +179,9 @@ export class ContextStore {
         messageCount: number,
         createdAt: number,
         artemisSessionId?: number,
-        messages?: IrisChatMessage[],
         title?: string,
     ): ContextSnapshot {
-        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, messages, title);
+        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, title);
         return this.snapshot();
     }
 

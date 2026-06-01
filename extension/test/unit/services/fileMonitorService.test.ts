@@ -1,16 +1,16 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { FileMonitorService } from '../../../src/extension/services/workspace/fileMonitorService';
-import type { FileMonitorUpdate } from '../../../src/extension/services/workspace/fileMonitorService';
-import * as workspaceFileChecker from '../../../src/extension/services/workspace/workspaceFileChecker';
+
+import type { FileMonitorUpdate } from '@extension/services/workspace/fileMonitorService';
+import { FileMonitorService } from '@extension/services/workspace/fileMonitorService';
+import * as workspaceFileChecker from '@extension/services/workspace/workspaceFileChecker';
 
 suite('FileMonitorService', () => {
     let sandbox: sinon.SinonSandbox;
     let clock: sinon.SinonFakeTimers;
     let service: FileMonitorService;
     let checkWorkspaceFilesStub: sinon.SinonStub;
-    let saveCallback: (doc: vscode.TextDocument) => void;
     let changeCallback: (e: vscode.TextDocumentChangeEvent) => void;
     let configGetStub: sinon.SinonStub;
     let mockWorkspaceFolders: vscode.WorkspaceFolder[] | undefined;
@@ -53,8 +53,7 @@ suite('FileMonitorService', () => {
         }];
         sandbox.stub(vscode.workspace, 'workspaceFolders').get(() => mockWorkspaceFolders);
 
-        sandbox.stub(vscode.workspace, 'onDidSaveTextDocument').callsFake((listener: any) => {
-            saveCallback = listener;
+        sandbox.stub(vscode.workspace, 'onDidSaveTextDocument').callsFake(() => {
             return { dispose: () => {} };
         });
 

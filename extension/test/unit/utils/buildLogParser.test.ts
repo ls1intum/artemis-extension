@@ -1,6 +1,7 @@
 import * as assert from 'assert';
-import { BuildLogParser } from '../../../src/extension/utils/buildLogParser';
-import type { BuildLogEntry } from '../../../src/extension/types';
+
+import type { BuildLogEntry } from '@extension/types';
+import { BuildLogParser } from '@extension/utils/buildLogParser';
 
 suite('BuildLogParser Test Suite', () => {
 

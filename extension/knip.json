@@ -5,8 +5,7 @@
     "src/webview/index.tsx",
     "test/**/*.{ts,tsx}",
     ".mocharc.ui.yml",
-    ".vscode-test.mjs",
-    "esbuild.js"
+    ".vscode-test.mjs"
   ],
   "project": [
     "src/**/*.{ts,tsx}",
@@ -14,9 +13,7 @@
   ],
   "ignoreDependencies": [
     "@types/vscode",
-    "@types/dompurify",
     "@types/katex",
-    "@types/marked",
     "@vscode/test-electron",
     "axe-core",
     "mocha-junit-reporter"

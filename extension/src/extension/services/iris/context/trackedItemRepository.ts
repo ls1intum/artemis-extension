@@ -1,6 +1,7 @@
+import type { ContextSource, TrackedCourse, TrackedExercise } from '@extension/types';
+
+import { compareCoursesForDisplay, compareExercisesForDisplay } from './contextSorting';
 import type { StoredState } from './contextStateTypes';
-import type { TrackedExercise, TrackedCourse, ContextSource } from '../../../types';
-import { compareExercisesForDisplay, compareCoursesForDisplay } from './contextSorting';
 
 export interface ExerciseInput {
     id: number;
@@ -83,6 +84,13 @@ export class TrackedItemRepository {
 
     public getWorkspaceExercise(): TrackedExercise | undefined {
         return this._getState().exercises.find(ex => ex.isWorkspace);
+    }
+
+    public clearAllWorkspaceFlags(): void {
+        const state = this._getState();
+        state.exercises = state.exercises.map(ex =>
+            ex.isWorkspace ? { ...ex, isWorkspace: false } : ex,
+        );
     }
 
     public upsertCourse(input: CourseInput): TrackedCourse {

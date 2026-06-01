@@ -1,12 +1,47 @@
 import * as vscode from 'vscode';
+
+import { logger } from '@extension/services/loggingService';
+import type { TrackedCourse, TrackedExercise } from '@extension/types';
+
 import type { StoredState } from './contextStateTypes';
-import type { TrackedExercise, TrackedCourse } from '../../../types';
-import { logger } from '../../loggingService';
 
 const STORE_KEY = 'iris.contextStore';
 const STORE_VERSION = 2;
 
 type LegacyItem = Record<string, unknown> & { id?: unknown; lastViewed?: unknown };
+
+/**
+ * Light-touch runtime guard for a v2 `StoredState` read out of `globalState`
+ * (#183 part C). Validates the top-level shape — version, expected field
+ * presence, basic types — but trusts per-element contents of the
+ * `exercises` / `courses` / `sessions` collections. The migrate path is
+ * the only place per-item validation matters; runtime corruption of an
+ * already-v2 store is exceedingly unlikely (own-process writes only) so
+ * the cost/benefit of strict per-item validation here is not worth it.
+ *
+ * Returns `null` on shape failure so `load()` can fall back to
+ * `defaultState()` rather than crash on a malformed persisted value.
+ */
+export function parseStoredState(data: unknown): StoredState | null {
+    if (data === null || typeof data !== 'object' || Array.isArray(data)) { return null; }
+    const d = data as Record<string, unknown>;
+    if (typeof d.version !== 'number' || !Number.isFinite(d.version)) { return null; }
+    if (d.activeContext !== null && (typeof d.activeContext !== 'object' || Array.isArray(d.activeContext))) {
+        return null;
+    }
+    if (d.activeSessionId !== null && typeof d.activeSessionId !== 'string') { return null; }
+    if (!Array.isArray(d.exercises)) { return null; }
+    if (!Array.isArray(d.courses)) { return null; }
+    if (d.sessions === null || typeof d.sessions !== 'object' || Array.isArray(d.sessions)) { return null; }
+    return {
+        version: d.version,
+        activeContext: d.activeContext as StoredState['activeContext'],
+        activeSessionId: d.activeSessionId as string | null,
+        exercises: d.exercises as TrackedExercise[],
+        courses: d.courses as TrackedCourse[],
+        sessions: d.sessions as StoredState['sessions'],
+    };
+}
 
 export class ContextPersistence {
     constructor(private readonly _context: vscode.ExtensionContext) {}
@@ -20,7 +55,14 @@ export class ContextPersistence {
                 (err: unknown) => logger.error('Failed to persist v2 migration', undefined, err));
             return migrated;
         }
-        const valid = raw as unknown as StoredState;
+        const valid = parseStoredState(raw);
+        if (!valid) {
+            // Persisted store had the correct version but was structurally
+            // malformed (manual edit, corruption). Fall back to a clean
+            // default rather than crash on `undefined.exercises` downstream.
+            logger.error('Malformed iris.contextStore — falling back to default state');
+            return this.defaultState();
+        }
         return { ...valid, sessions: {}, activeSessionId: null };
     }
 

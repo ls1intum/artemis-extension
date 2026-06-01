@@ -1,9 +1,10 @@
+import { Client, IMessage, StompConfig, StompSubscription } from '@stomp/stompjs';
 import * as assert from 'assert';
-import { ArtemisWebsocketService } from '../../../src/extension/services/websocket/artemisWebsocketService';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/extension/services/auth/authManager';
-import type { ResultDTO } from '../../../src/extension/types';
-import { Client, StompConfig, IMessage, StompSubscription } from '@stomp/stompjs';
+
+import { AuthManager } from '@extension/services/auth/authManager';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import type { ResultDTO } from '@extension/types';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 /**
  * Flush the microtask queue so that connect() progresses past its async
@@ -134,7 +135,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         const handler = {
-            onNewResult: (result: ResultDTO) => { }
+            onNewResult: (_result: ResultDTO) => { }
         };
 
         wsService.registerMessageHandler(handler);

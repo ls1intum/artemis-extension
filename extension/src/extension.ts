@@ -1,24 +1,33 @@
 import * as vscode from 'vscode';
-import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './extension/provider';
-import { AuthManager } from './extension/services/auth';
-import { ArtemisApiService } from './extension/api';
-import { ArtemisWebsocketService, WebSocketStatusBarService } from './extension/services/websocket';
-import { TelemetryManager } from './extension/services/telemetry';
-import type { SessionRecorder } from './extension/services/telemetry';
-import { NoAiDetectionService } from './extension/services/workspace';
-import { ConsentService } from './extension/services/auth';
-import { ExerciseRegistry } from './extension/services/exerciseRegistry';
-import { CourseDataCache } from './extension/services/courseDataCache';
-import { createProviderRegistry } from './extension/services/ui';
-import { logger, LogCategory } from './extension/services/loggingService';
-import { VSCODE_CONFIG } from './extension/utils';
-import { registerAllCommands } from './extension/activation/extensionCommands';
-import { wireSessionRecorder } from './extension/activation/sessionRecorderWiring';
-import { initializeTheiaContext, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from './extension/theia';
+import { wireDataCollection } from '@dataCollection';
+
+import { registerAllCommands } from '@extension/activation/extensionCommands';
+import { ArtemisApiService } from '@extension/api';
+import type { DataCollectionHandle } from '@extension/dataCollection/types';
+import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
+import { AuthManager } from '@extension/services/auth';
+import { CourseDataCache } from '@extension/services/courseDataCache';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { TelemetryManager } from '@extension/services/telemetry';
+import { createProviderRegistry } from '@extension/services/ui';
+import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
+import { NoAiDetectionService } from '@extension/services/workspace';
+import {
+    buildChatProviderSink,
+    wireWorkspaceDetection,
+} from '@extension/services/workspace/wireWorkspaceDetection';
+import {
+    authenticateFromEnvironment,
+    detectPlatformCapabilities,
+    initializeTheiaContext,
+} from '@extension/theia';
+import { VSCODE_CONFIG } from '@extension/utils';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;
-let activeSessionRecorder: SessionRecorder | undefined;
+let activeDataCollection: DataCollectionHandle | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
 	logger.initialize();
@@ -66,6 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const updateAuthContext = async (isAuthenticated: boolean) => {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
+		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
 			artemisApiService.resetAuthExpiredGuard();
 			void artemisWebsocketService.connect().catch(error => {
@@ -78,9 +88,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const noAiDetectionService = new NoAiDetectionService();
 	context.subscriptions.push(noAiDetectionService);
-
-	const consentService = new ConsentService();
-	context.subscriptions.push(consentService);
 
 	noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
 		if (isNoAiDetected) {
@@ -103,30 +110,35 @@ export async function activate(context: vscode.ExtensionContext) {
 		const courses = data.courses;
 		if (courses && Array.isArray(courses)) {
 			for (const entry of courses) {
-				const courseExercises = entry.course?.exercises || entry.exercises || [];
-				if (courseExercises.length > 0) {
-					exerciseRegistry.registerFromCourseData({
-						course: entry.course || entry,
-						exercises: courseExercises,
-					});
-				}
+				exerciseRegistry.registerFromCourseData(entry);
 			}
 		}
 	}));
 
-	const artemisWebviewProvider = new ArtemisWebviewProvider(
-		context.extensionUri, context, authManager, artemisApiService,
-		exerciseRegistry, providerRegistry,
-		artemisWebsocketService, buildErrorCodeLensProvider, telemetryManager, updateAuthContext,
+	const artemisWebviewProvider = new ArtemisWebviewProvider({
+		extensionUri: context.extensionUri,
+		extensionContext: context,
+		authManager,
+		artemisApi: artemisApiService,
+		exerciseRegistry,
+		providerRegistry,
+		websocketService: artemisWebsocketService,
+		buildErrorCodeLensProvider,
+		telemetryManager,
+		updateAuthContext,
 		courseDataCache,
-	);
+	});
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
+	const contextStore = new ContextStore(context);
+	context.subscriptions.push(contextStore);
+
 	const chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
 		noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager,
+		contextStore,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
@@ -136,6 +148,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
+	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
+
+	context.subscriptions.push(wireWorkspaceDetection({
+		api: artemisApiService,
+		registry: exerciseRegistry,
+		courseDataCache,
+		sink: buildChatProviderSink(chatWebviewProvider),
+	}));
+
 	context.subscriptions.push(telemetryManager);
 	context.subscriptions.push(artemisWebsocketService);
 	context.subscriptions.push(websocketStatusBarService);
@@ -151,7 +172,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	void vscode.commands.executeCommand('setContext', 'iris:extensionReady', true);
 
 	// ── Phase B: async initialization (UI already responsive) ────────
-	consentService.promptIfPending();
 
 	// 401 handler: environment-aware auth teardown
 	if (theiaEnv.isTheia) {
@@ -185,6 +205,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
+		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
@@ -193,16 +214,21 @@ export async function activate(context: vscode.ExtensionContext) {
 	} catch (error) {
 		logger.error('Error checking initial auth state', LogCategory.AUTH, error);
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
+		websocketStatusBarService.setAuthenticated(false);
 	}
 
-	// Session recorder wiring
-	const { sessionRecorder, disposable: recorderDisposable } = wireSessionRecorder({
-		context, consentService, artemisWebsocketService,
-		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		capabilities, exerciseRegistry,
+	// Data collection (consent + recorder + recording commands). Excluded from the
+	// Open VSX build via the @dataCollection alias swap.
+	activeDataCollection = wireDataCollection({
+		context,
+		artemisWebsocketService,
+		telemetryManager,
+		artemisWebviewProvider,
+		chatWebviewProvider,
+		capabilities,
+		exerciseRegistry,
+		contextStore,
 	});
-	activeSessionRecorder = sessionRecorder;
-	context.subscriptions.push(recorderDisposable);
 
 	// Configuration listener
 	if (theiaEnv.isManagedEnvironment) {
@@ -238,29 +264,26 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}));
 	}
-
-	// Theia auto-clone
-	if (theiaEnv.isTheia && theiaEnv.gitUri) {
-		void autoCloneIfNeeded(theiaEnv).catch(error => {
-			logger.error('Theia auto-clone failed', LogCategory.GENERAL, error);
-		});
-	}
 }
 
 export async function deactivate(): Promise<void> {
-	// Await the recorder dispose so all buffered events reach disk before
-	// the extension host tears us down. VS Code accepts a Promise return
-	// from deactivate and waits for it during graceful shutdown.
-	if (activeSessionRecorder) {
+	if (activeDataCollection) {
 		try {
-			await activeSessionRecorder.dispose();
+			await activeDataCollection.dispose();
 		} catch (err) {
-			logger.error('Failed to dispose SessionRecorder during deactivate', LogCategory.TELEMETRY, err);
+			logger.error('Failed to dispose data collection during deactivate', LogCategory.TELEMETRY, err);
 		}
-		activeSessionRecorder = undefined;
+		activeDataCollection = undefined;
 	}
 	if (activeTelemetryManager) {
-		activeTelemetryManager.endCurrentSession();
+		try {
+			// Explicit dispose so session-end + command/status-bar teardown
+			// run before VS Code disposes context.subscriptions. dispose() is
+			// idempotent, so the subscription teardown is a safe no-op.
+			activeTelemetryManager.dispose();
+		} catch (err) {
+			logger.error('Failed to dispose TelemetryManager during deactivate', LogCategory.TELEMETRY, err);
+		}
 		activeTelemetryManager = undefined;
 	}
 }

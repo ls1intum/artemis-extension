@@ -4,6 +4,7 @@ import path from 'path'
 import os from 'os'
 import { createRecordingsApi } from './server/recordingsApi'
 import type { AppConfig, IncomingRequest, ServerResponse } from './server/types'
+import { validateStartupConfig, resolveSessionSecret } from './server/startupValidation'
 
 const RECORDINGS_DIR = path.join(
     os.homedir(),
@@ -11,10 +12,13 @@ const RECORDINGS_DIR = path.join(
 )
 
 const liveToken = process.env.RECORDING_VIEWER_TOKEN
+const researcherToken = process.env.RECORDING_VIEWER_RESEARCHER_TOKEN
+validateStartupConfig({ liveToken, researcherToken })
+const sessionSecret = resolveSessionSecret(process.env.RECORDING_VIEWER_SESSION_SECRET, console.warn)
 const allowWrite = process.env.RECORDING_VIEWER_ALLOW_WRITE === '1' || !liveToken
 
 function recordingsApiPlugin() {
-    const config: AppConfig = { recordingsDir: RECORDINGS_DIR, liveToken, allowWrite }
+    const config: AppConfig = { recordingsDir: RECORDINGS_DIR, liveToken, researcherToken, sessionSecret, allowWrite }
     const handler = createRecordingsApi(config)
     return {
         name: 'recordings-api',

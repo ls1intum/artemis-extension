@@ -6,14 +6,15 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+
 import {
-    StruggleScenario,
-    ScenarioEvent,
-    ExpectedOutcome,
+    BuildResultEvent,
     DiagnosticEvent,
     EditEvent,
+    ExpectedOutcome,
     SaveEvent,
-    BuildResultEvent,
+    ScenarioEvent,
+    StruggleScenario,
     WaitEvent,
 } from './types';
 

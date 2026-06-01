@@ -1,12 +1,14 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CourseListView } from '../../../src/webview/views/CourseList/CourseListView';
-import { CourseDetailView } from '../../../src/webview/views/CourseDetail/CourseDetailView';
-import { useCourseListStore } from '../../../src/webview/stores/useCourseListStore';
-import { useCourseDetailStore } from '../../../src/webview/stores/useCourseDetailStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
-import type { CourseData } from '../../../src/shared/messageContracts';
+import { describe, expect, it } from 'vitest';
+
+import type { CourseDetailData } from '@shared/messageContracts';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
+import { CourseListView } from '@webview/views/CourseList/CourseListView';
 
 /**
  * Course navigation flow integration tests.
@@ -16,7 +18,7 @@ import type { CourseData } from '../../../src/shared/messageContracts';
  * with mocked store data. Exercises full postMessage round-trip verification.
  */
 
-function makeCourseData(overrides: Partial<CourseData['course']> = {}): CourseData {
+function makeCourseDetailData(overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData {
 	return {
 		course: {
 			id: 1,
@@ -38,8 +40,8 @@ describe('Course Navigation Flow', () => {
 			dispatchExtensionMessage({
 				type: 'courseListInit',
 				courses: [
-					makeCourseData({ id: 1, title: 'Algorithms', semester: 'WS24/25' }),
-					makeCourseData({ id: 2, title: 'Data Structures', semester: 'SS25' }),
+					makeCourseDetailData({ id: 1, title: 'Algorithms', semester: 'WS24/25' }),
+					makeCourseDetailData({ id: 2, title: 'Data Structures', semester: 'SS25' }),
 				],
 			});
 
@@ -57,7 +59,7 @@ describe('Course Navigation Flow', () => {
 			// Load courses via message
 			dispatchExtensionMessage({
 				type: 'courseListInit',
-				courses: [makeCourseData({ id: 10, title: 'Software Engineering', semester: 'SS25' })],
+				courses: [makeCourseDetailData({ id: 10, title: 'Software Engineering', semester: 'SS25' })],
 			});
 
 			await waitFor(() => {
@@ -72,9 +74,7 @@ describe('Course Navigation Flow', () => {
 				expect.objectContaining({
 					type: 'command',
 					command: 'viewCourseDetails',
-					payload: expect.objectContaining({
-						courseData: expect.objectContaining({ id: 10 }),
-					}),
+					payload: { courseId: 10 },
 				})
 			);
 		});
@@ -108,7 +108,6 @@ describe('Course Navigation Flow', () => {
 							{ id: 101, title: 'Binary Search', type: 'programming' },
 							{ id: 102, title: 'Quick Sort', type: 'programming' },
 						],
-						exams: [],
 					},
 				},
 			});
@@ -136,7 +135,6 @@ describe('Course Navigation Flow', () => {
 						exercises: [
 							{ id: 200, title: 'Unique Exercise Title', type: 'programming' },
 						],
-						exams: [],
 					},
 				},
 			});

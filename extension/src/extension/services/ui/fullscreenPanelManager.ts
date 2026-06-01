@@ -1,14 +1,16 @@
 import * as vscode from 'vscode';
-import { ExtensionMsg, WebviewMsgType } from '../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../../../shared/messageContracts';
-import type { CourseData, ArchivedCourse } from '../../../shared/messageContracts/domainTypes';
-import { detectWorkspaceForRepoUris, detectWorkspaceExercise } from '../workspace/workspaceDetectionService';
-import type { ExerciseSource } from '../workspace/workspaceDetectionService';
-import type { ExerciseDetailsResponse } from '../../types';
-import { isWebviewMessage } from '../../../shared/messageContracts/typeGuards';
+
+import type { CourseDetailData, ExtensionToWebviewMessage } from '@shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType } from '@shared/messageContracts';
+import type { ArchivedCourse } from '@shared/messageContracts/domainTypes';
+import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
+
+import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { collectExerciseSources, detectWorkspaceExercise, detectWorkspaceForRepoUris } from '@extension/services/workspace/workspaceDetectionService';
+import type { ExerciseDetailsResponse } from '@extension/types';
+
 import { getReactWebviewHtml } from './webviewHtml';
-import type { WebViewMessageHandler } from '../../controller/webViewMessageHandler';
-import { logger, LogCategory } from '../loggingService';
 
 export class FullscreenPanelManager {
     constructor(
@@ -54,7 +56,7 @@ export class FullscreenPanelManager {
         });
     }
 
-    public openCourseListFullscreen(courses: CourseData[], archivedCourses?: ArchivedCourse[]): void {
+    public openCourseListFullscreen(courses: CourseDetailData[], archivedCourses?: ArchivedCourse[]): void {
         this._openFullscreenPanel({
             viewType: 'artemis.courseListFullscreen',
             title: 'All Courses',
@@ -69,7 +71,7 @@ export class FullscreenPanelManager {
         });
     }
 
-    public openCourseFullscreen(courseData: CourseDetailPayload): void {
+    public openCourseFullscreen(courseData: CourseDetailData): void {
         const courseTitle = courseData?.course?.title || 'Course';
         this._openFullscreenPanel({
             viewType: 'artemis.courseFullscreen',
@@ -78,9 +80,12 @@ export class FullscreenPanelManager {
             onReady: (postSafe) => {
                 const config = vscode.workspace.getConfiguration('artemis');
                 const developerMode = config.get<boolean>('developerMode', false);
-                const exercises = (courseData.course?.exercises ?? []) as ExerciseSource[];
+                const sources = collectExerciseSources([{
+                    course: courseData.course,
+                    exercises: courseData.course.exercises,
+                }]);
 
-                detectWorkspaceExercise(exercises).then((detectedExercise) => {
+                detectWorkspaceExercise(sources).then((detectedExercise) => {
                     postSafe({
                         type: ExtensionMsg.CourseDetailInit,
                         courseData: courseData,

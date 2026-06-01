@@ -8,7 +8,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { RecordedEvent, SessionMetadata } from '../recording/types';
+
+import { parseRecordedEvent, parseSessionMetadata } from '@extension/services/telemetry/recording/parseRecordedData';
+import type { RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
+
 import { replaySession } from './replayEngine';
 
 export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promise<void> {
@@ -29,9 +32,9 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         let metadata: SessionMetadata | null = null;
         if (fs.existsSync(metaPath)) {
             try {
-                metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as SessionMetadata;
+                metadata = parseSessionMetadata(JSON.parse(fs.readFileSync(metaPath, 'utf-8')));
             } catch {
-                // Skip invalid metadata
+                // Skip invalid JSON
             }
         }
         sessions.push({ id: entry.name, metadata });
@@ -80,11 +83,20 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         .filter(l => l.trim().length > 0);
     const events: RecordedEvent[] = [];
     for (const line of lines) {
+        let raw: unknown;
         try {
-            events.push(JSON.parse(line) as RecordedEvent);
+            raw = JSON.parse(line);
         } catch {
-            // Skip malformed JSONL lines
+            continue; // Skip malformed JSON
         }
+        const event = parseRecordedEvent(raw);
+        if (event !== null) {
+            events.push(event);
+        }
+        // Silently skip lines that JSON-parse but don't validate against the
+        // RecordedEvent shape (unknown type, missing required field, etc.).
+        // The replay UI surfaces total replayed-event count, so corrupted
+        // lines manifest as a shorter session in the picker.
     }
 
     // Run replay

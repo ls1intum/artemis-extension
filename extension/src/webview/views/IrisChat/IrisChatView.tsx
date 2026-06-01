@@ -1,16 +1,21 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import type { VsCodeApi } from '../../../shared/messageContracts';
-import type { IrisStageDTO } from './types';
-import { useChatStore } from '../../stores/useChatStore';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import { ChatMessageList } from './components/ChatMessageList';
+import clsx from 'clsx';
+import Info from 'lucide-react/dist/esm/icons/info';
+import Menu from 'lucide-react/dist/esm/icons/menu';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import type { VsCodeApi } from '@shared/messageContracts';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
+import { useClickOutside } from '@webview/hooks/useClickOutside';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useChatStore } from '@webview/stores/useChatStore';
+
 import { ChatInput } from './components/ChatInput';
+import { ChatMessageList } from './components/ChatMessageList';
 import { ContextSelector } from './components/ContextSelector';
 import { ReferencedFiles } from './components/ReferencedFiles';
-import clsx from 'clsx';
 import styles from './IrisChatView.module.css';
+import type { IrisStageDTO } from './types';
 
 interface IrisChatViewProps {
     vscodeApi: VsCodeApi;
@@ -22,12 +27,36 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setIrisState, setShowDiagnostics, addMessage,
         applyLoadedMessages, setMessageLoadError,
         clearMessages, setReferencedFiles, setWebSocketStatus,
-        setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi,
+        setDisabledMessage, setUnavailableMessage, setNoAiDetected,
+        setIrisStages, resetTransientChatUi,
+        markMessageFailed,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const inputSectionRef = useRef<HTMLDivElement>(null);
+
+    // Publish the input section's measured height as a CSS variable so the
+    // ContextSelector dropdown can anchor its bottom edge to the actual layout
+    // (instead of a viewport-relative magic number). Without this the dropdown
+    // either falls short of the input or overshoots it depending on banner /
+    // referenced-file visibility.
+    useEffect(() => {
+        const inputEl = inputSectionRef.current;
+        const rootEl = containerRef.current;
+        if (!inputEl || !rootEl) {
+            return;
+        }
+        const update = () => {
+            rootEl.style.setProperty('--iris-input-height', `${inputEl.offsetHeight}px`);
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(inputEl);
+        return () => ro.disconnect();
+    }, []);
 
     // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
@@ -49,6 +78,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
 
         previousContextId.current = currentId ?? null;
+        return undefined;
     }, [store.context?.id]);
 
     // Message listener - handles messages from extension
@@ -145,6 +175,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 setDisabledMessage(null);
                 break;
 
+            case ExtensionMsg.ShowUnavailableState: {
+                setUnavailableMessage(msg.message);
+                break;
+            }
+
+            case ExtensionMsg.HideUnavailableState:
+                setUnavailableMessage(null);
+                break;
+
             case ExtensionMsg.UpdateNoAiStatus: {
                 setNoAiDetected(msg.isNoAiDetected);
                 break;
@@ -154,11 +193,40 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 setIrisStages(msg.stages);
                 break;
             }
+
+            case ExtensionMsg.SendRejected: {
+                // Ignore stale rejections that arrive after the user already
+                // switched session — the corresponding optimistic message
+                // would not exist in the active session anyway, and clearing
+                // transient UI for an unrelated session is wrong.
+                const currentSessionId = useChatStore.getState().activeSessionId;
+                if (currentSessionId !== msg.localSessionId) {
+                    break;
+                }
+                const matched = markMessageFailed(msg.localId, msg.errorMessage, msg.reason);
+                // Only clear the indicator if we actually found and updated
+                // the message. A non-match means the rejection is stale
+                // (e.g. retry already removed the failed entry, or messages
+                // were re-hydrated from server) and we must not touch the
+                // current request's transient UI.
+                if (matched) {
+                    resetTransientChatUi();
+                }
+                break;
+            }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
+        const localSessionId = store.activeSessionId;
+        if (localSessionId === null) {
+            // No active session — the extension host could not correlate
+            // a SendRejected back to a message anyway. The ChatInput is
+            // already disabled in this state, so this is just a defensive
+            // guard against a programmer error.
+            return;
+        }
 
         // Clear any stale stages/streaming from previous request
         resetTransientChatUi();
@@ -172,11 +240,30 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             status: 'sending',
         });
 
-        // Start streaming state (thinking indicator will show)
-        store.startStreaming('__thinking__');
+        // Start streaming state. The thinking indicator stays on until one
+        // of three terminal signals clears it via resetTransientChatUi:
+        //   - assistant AddMessage arrives (happy path)
+        //   - SendRejected with matching localId (synchronous rejection)
+        //   - websocket disconnect (terminal connection state)
+        store.startStreaming();
 
-        // Send to extension
-        postCommand(vscodeApi, 'sendMessage', { text });
+        // Send to extension. localSessionId lets the host echo it back on
+        // rejection so the webview can ignore stale responses after a
+        // session switch.
+        postCommand(vscodeApi, 'sendMessage', { text, localId, localSessionId });
+    };
+
+    const handleRetry = (localId: string) => {
+        const failed = useChatStore.getState().messages.find((m) => m.localId === localId);
+        if (!failed || failed.role !== 'user' || failed.status !== 'error') {
+            return;
+        }
+        // Remove the failed entry first so handleSendMessage's optimistic
+        // add doesn't briefly produce two copies. Zustand+React batch the
+        // two state updates in the same event tick, so there is no visible
+        // flicker.
+        store.removeMessage(localId);
+        handleSendMessage(failed.content);
     };
 
     const handleFeedback = (messageId: number, feedback: 'positive' | 'negative') => {
@@ -221,10 +308,44 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'reconnectWebSocket');
     };
 
+    const handleRetryChatLoad = () => {
+        postCommand(vscodeApi, 'reloadChatSession');
+    };
+
     // Check if chat is disabled
     const isChatDisabled = store.disabledMessage !== null || store.isNoAiDetected;
 
-    // Determine disabled reason text
+    // Decide whether the Retry button on a failed user message should be
+    // active right now. Retry is meaningful only when the underlying cause
+    // has plausibly cleared since the original send. Computed inline per
+    // render because the message list is short and `messages.map` already
+    // walks it; rebuilding a Map would be wasted work.
+    const isRetryDisabled = (msg: { errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable' }) => {
+        switch (msg.errorReason) {
+            case 'iris-disabled':
+                // Persistent until the user navigates away from the
+                // disabled exercise; the banner already states this.
+                return true;
+            case 'iris-unavailable':
+                // Disabled while the unavailable banner is shown — the
+                // banner's own Retry button is the right affordance to
+                // reload the chat. Once that succeeds (banner clears), the
+                // inline Retry on the failed message becomes active again
+                // so the user can resend their original text.
+                return store.unavailableMessage !== null;
+            case 'no-ai':
+                return store.isNoAiDetected;
+            case 'no-context':
+                return store.context === null;
+            default:
+                return false;
+        }
+    };
+
+    // Disabled banner = strictly off (instructor disabled, .noai). The
+    // unavailable banner (yellow, retry-able) is rendered separately below.
+    // When both states are non-null, the disabled banner wins — it carries
+    // strictly more information.
     let disabledBannerText: string | null = null;
     if (store.disabledMessage) {
         disabledBannerText = store.disabledMessage;
@@ -232,10 +353,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         disabledBannerText = 'AI assistance is disabled. A .noai file was detected in your workspace.';
     }
 
+    const showUnavailableBanner = store.unavailableMessage !== null && store.disabledMessage === null;
+
     // Compute disabled placeholder for input. Order matters: real
-    // unavailability ('no context', '.noai', explicit disabled) wins over
-    // the transient 'loading' state — we only fall through to 'Loading…'
-    // when the chat is otherwise usable but still waiting for hydration.
+    // unavailability ('no context', '.noai', explicit disabled, transient
+    // unavailable) wins over the 'loading' state — we only fall through to
+    // 'Loading…' when the chat is otherwise usable but still waiting for
+    // hydration.
     let disabledPlaceholder: string | undefined;
     if (store.context === null) {
         disabledPlaceholder = 'Select a course or exercise to start chatting';
@@ -243,10 +367,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         disabledPlaceholder = 'AI assistance is disabled (.noai detected)';
     } else if (store.disabledMessage) {
         disabledPlaceholder = 'Iris chat is not available for this exercise';
+    } else if (showUnavailableBanner) {
+        disabledPlaceholder = 'Iris is temporarily unavailable. Retry to reload.';
     }
-
-    // Check if workspace exercise exists
-    const hasWorkspaceExercise = store.exercises.some(ex => ex.isWorkspace);
 
     // Derive active stage: first stage that is not DONE or SKIPPED.
     // NOT_STARTED is intentionally included: it shows dots immediately while
@@ -275,12 +398,21 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         && store.messageLoad !== null
         && store.messageLoad.localSessionId === store.activeSessionId
         && store.messageLoad.status === 'error';
-    const messagesLoading = !messagesHydrated && !messagesErrored;
+    // Availability failures (disabled / temporarily unavailable) are NOT
+    // "history failed to load" — gate the loader on them so the spinner
+    // does not spin forever next to a banner that already states the
+    // problem. Fixes the #219 stuck-loader symptom.
+    const isChatUnavailable = store.unavailableMessage !== null;
+    const messagesLoading =
+        !messagesHydrated
+        && !messagesErrored
+        && !store.disabledMessage
+        && !isChatUnavailable;
 
     const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} ref={containerRef}>
             {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
@@ -302,14 +434,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         onClick={() => setSideMenuOpen(!sideMenuOpen)}
                         aria-label="Menu"
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path
-                                d="M3 12h18M3 6h18M3 18h18"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        <Menu size={18} />
                     </button>
 
                     {sideMenuOpen && (
@@ -381,11 +506,26 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             {/* Disabled banner (Iris not available or .noai detected) */}
             {disabledBannerText && (
                 <div className={styles.disabledBanner}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                        <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
+                    <Info size={16} />
                     <span>{disabledBannerText}</span>
+                </div>
+            )}
+
+            {/* Iris-availability transient banner: chat-reload couldn't reach
+                Iris (network/5xx/timeout). The Retry button triggers
+                ReloadChatSession on the extension side, which is also fired
+                automatically on websocket reconnect — so the user has both
+                a manual and an automatic path back to a working chat. */}
+            {showUnavailableBanner && (
+                <div className={styles.unavailableBanner} role="alert">
+                    <Info size={16} />
+                    <span>{store.unavailableMessage}</span>
+                    <button
+                        className={styles.retryButton}
+                        onClick={handleRetryChatLoad}
+                    >
+                        Retry
+                    </button>
                 </div>
             )}
 
@@ -394,8 +534,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 client torn down without a pending retry). Transient states
                 ('connecting', 'reconnecting') and the pre-init 'unknown'
                 state suppress the banner — the status bar already surfaces
-                that detail. */}
-            {store.webSocketStatus === 'disconnected' && !isChatDisabled && (
+                that detail. Also suppressed when the unavailable banner is
+                shown: its Retry button is the right affordance and surfacing
+                a second Reconnect button would give the user two competing
+                recovery paths for the same underlying problem. */}
+            {store.webSocketStatus === 'disconnected' && !isChatDisabled && !showUnavailableBanner && (
                 <div className={styles.websocketBanner}>
                     <span>WebSocket disconnected</span>
                     <button
@@ -408,12 +551,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             )}
 
             {/* Message list with context-switch animation and hydration loader.
-                Hierarchy: error UI > loader (context-switch animation OR
-                pending hydration) > populated/welcome list. */}
+                Hierarchy: availability banner state (disabled/unavailable
+                already render their own banner above and gate everything
+                else) > error UI > loader (context-switch animation OR
+                pending hydration) > populated/welcome list.
+                When disabled or unavailable is set, the central "Failed to
+                load chat history" UI is suppressed — the banner above is the
+                authoritative error surface. */}
             <div className={clsx(styles.messagesSection, {
                 [styles.contextSwitching]: contextSwitching
             })}>
-                {messagesErrored ? (
+                {(store.disabledMessage || store.unavailableMessage) ? null
+                : messagesErrored ? (
                     <div className={styles.loadingState}>
                         <div className={styles.loadError} role="alert">
                             Failed to load chat history. Try selecting the
@@ -443,12 +592,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         onSendPrompt={handleSendMessage}
                         hasContext={store.context !== null}
                         isChatDisabled={isChatDisabled}
+                        onRetry={handleRetry}
+                        isRetryDisabled={isRetryDisabled}
                     />
                 )}
             </div>
 
             {/* Input section */}
-            <div className={styles.inputSection}>
+            <div className={styles.inputSection} ref={inputSectionRef}>
                 {/* Referenced files */}
                 <ReferencedFiles
                     files={store.referencedFiles}
@@ -461,10 +612,20 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     snapshot arrives. */}
                 <ChatInput
                     onSend={handleSendMessage}
-                    disabled={isChatDisabled || store.context === null || messagesLoading}
+                    disabled={
+                        isChatDisabled
+                        || store.context === null
+                        || isChatUnavailable
+                        || messagesLoading
+                        || store.streaming.isStreaming
+                    }
                     disabledPlaceholder={
                         disabledPlaceholder
-                        ?? (messagesLoading ? 'Loading conversation…' : undefined)
+                        ?? (messagesLoading
+                            ? 'Loading conversation…'
+                            : store.streaming.isStreaming
+                                ? 'Iris is responding…'
+                                : undefined)
                     }
                 />
 

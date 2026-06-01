@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import type { StruggleDetectionViewProps, StruggleData } from './types';
+
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
+import { BackLink, Badge, Container, PageHeader, SkeletonList } from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+
 import styles from './StruggleDetectionView.module.css';
+import type { StruggleData, StruggleDetectionViewProps } from './types';
 
 function getEqLevel(eq: number): { label: string; color: string } {
     if (eq < 0.15) {
@@ -247,7 +250,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
             </Container>
 
             {/* Developer tools */}
-            {data.developerMode && (
+            {__IRIS_RECORDING__ && data.developerMode && (
                 <Container
                     header={
                         <div style={{ fontSize: '15px', fontWeight: 600 }}>

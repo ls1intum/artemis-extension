@@ -1,18 +1,19 @@
 import * as vscode from 'vscode';
+
+import { shouldDedupSnapshot } from '@extension/services/telemetry/metrics/snapshotDedup';
 import {
-    ErrorSnapshot,
-    CompileEquivalentEvent,
     BuildResultClassification,
-    EQConfig,
+    CompileEquivalentEvent,
     DEFAULT_EQ_CONFIG,
+    EQConfig,
+    ErrorSnapshot,
     SessionResettable,
     SessionStartContext,
-} from '../types';
-import { ResultDTO } from '../../../types';
+} from '@extension/services/telemetry/types';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
+import { ResultDTO } from '@extension/types';
 
-import { shouldDedupSnapshot } from '../metrics/snapshotDedup';
 import { LINT_SOURCE_DENYLIST } from './lintDenylist';
-import { shouldRecordUri } from '../recording/uriFilter';
 
 /**
  * Emits CompileEquivalentEvents from save events and build results.
@@ -79,23 +80,21 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
     }
 
     /**
-     * Handle a build result from Artemis WebSocket.
-     * Returns the CompileEquivalentEvent if emitted (for direct use by TelemetryManager).
+     * Handle a build result from Artemis WebSocket. Fires onDidEmitCompileEquivalent
+     * when the snapshot is novel; subscribers are the sole consumers.
      */
-    public handleBuildResult(result: ResultDTO): CompileEquivalentEvent | null {
+    public handleBuildResult(result: ResultDTO): void {
         const snapshot = this.createErrorSnapshotFromBuildResult(result);
         if (!this._shouldAddSnapshot(snapshot)) {
-            return null;
+            return;
         }
 
         this._lastSnapshot = snapshot;
-        const event: CompileEquivalentEvent = {
+        this._onDidEmitCompileEquivalent.fire({
             timestamp: snapshot.timestamp,
             source: 'build',
             snapshot,
-        };
-        this._onDidEmitCompileEquivalent.fire(event);
-        return event;
+        });
     }
 
     /**

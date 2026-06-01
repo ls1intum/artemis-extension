@@ -1,11 +1,8 @@
-export { createDashboardPayload } from './dashboardPayload';
-export { createCourseListPayload } from './courseListPayload';
 export { createCourseDetailPayload } from './courseDetailPayload';
+export { createCourseListPayload } from './courseListPayload';
+export { createDashboardPayload } from './dashboardPayload';
 export { createExerciseDetailPayload } from './exerciseDetailPayload';
-export { createExamStartPayload } from './examStartPayload';
-export { createExamConductionPayload } from './examConductionPayload';
-export { createExamExerciseDetailPayload } from './examExerciseDetailPayload';
-export { createServiceStatusPayload } from './serviceStatusPayload';
 export { createGitCredentialsPayload } from './gitCredentialsPayload';
-export { createRecommendedExtensionsPayload } from './recommendedExtensionsPayload';
 export { createIrisInitPayload } from './irisInitPayload';
+export { createRecommendedExtensionsPayload } from './recommendedExtensionsPayload';
+export { createServiceStatusPayload } from './serviceStatusPayload';

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+
+import { getTheiaEnvironment } from '@extension/theia';
+
 import { CONFIG, VSCODE_CONFIG } from './constants';
-import { getTheiaEnvironment } from '../theia';
 
 /**
  * Resolves the Artemis server URL from the appropriate source.

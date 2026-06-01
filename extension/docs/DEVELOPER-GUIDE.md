@@ -25,7 +25,7 @@ The Artemis extension follows a **dual-context architecture** with clear separat
 
 The extension provides two separate webview panels:
 
-1. **ArtemisWebviewProvider** — Main views for courses, exercises, exams, login, settings
+1. **ArtemisWebviewProvider** — Main views for courses, exercises, login, settings
 2. **ChatWebviewProvider** — Dedicated Iris AI chat interface
 
 Both use the same React architecture but are rendered in separate webview panels for better lifecycle management.
@@ -91,23 +91,17 @@ extension/
 │   │           │   ├── IconButton/
 │   │           │   ├── ListItem/
 │   │           │   └── TextInput/
-│   │           ├── stores/          # Zustand stores (9 stores)
+│   │           ├── stores/          # Zustand stores
 │   │           │   ├── useChatStore.ts
 │   │           │   ├── useCourseDetailStore.ts
 │   │           │   ├── useCourseListStore.ts
 │   │           │   ├── useDashboardStore.ts
-│   │           │   ├── useExamConductionStore.ts
-│   │           │   ├── useExamExerciseDetailStore.ts
-│   │           │   ├── useExamStartStore.ts
 │   │           │   ├── useExerciseDetailStore.ts
 │   │           │   └── useNavigationStore.ts
-│   │           └── views/           # View components (12 views)
+│   │           └── views/           # View components
 │   │               ├── CourseDetail/
 │   │               ├── CourseList/
 │   │               ├── Dashboard/
-│   │               ├── ExamConduction/
-│   │               ├── ExamExerciseDetail/
-│   │               ├── ExamStart/
 │   │               ├── ExerciseDetail/
 │   │               ├── GitCredentials/
 │   │               ├── IrisChat/
@@ -513,7 +507,7 @@ The `isExtensionMessage` function includes an array of valid type strings. Add y
 
 ## Store Architecture
 
-The extension uses **Zustand** for client-side state management in the webview. There are **9 independent stores**, each managing state for specific views or cross-view concerns.
+The extension uses **Zustand** for client-side state management in the webview. Each store manages state for specific views or cross-view concerns.
 
 ### Current Stores
 
@@ -522,11 +516,8 @@ The extension uses **Zustand** for client-side state management in the webview. 
 | `useNavigationStore` | Current view, view history | None | All views (routing) |
 | `useDashboardStore` | Dashboard courses, workspace exercise | None | DashboardView |
 | `useCourseListStore` | Course list, filters, sorting | Filters only | CourseListView |
-| `useCourseDetailStore` | Single course detail, exercises, exams | None | CourseDetailView |
+| `useCourseDetailStore` | Single course detail, exercises | None | CourseDetailView |
 | `useExerciseDetailStore` | Exercise details, submissions, results | None | ExerciseDetailView |
-| `useExamStartStore` | Exam metadata before starting | None | ExamStartView |
-| `useExamConductionStore` | Active exam state, timer, exercises | None | ExamConductionView |
-| `useExamExerciseDetailStore` | Exercise within exam context | None | ExamExerciseDetailView |
 | `useChatStore` | Iris chat messages, context, sessions | `forceContextPicker` flag | IrisChatView |
 
 ### Store Pattern
@@ -879,7 +870,7 @@ The `pretest` script automatically runs `compile-tests`, `compile`, and `lint` b
 
 - **Views:** Suffix with `View` (e.g., `LoginView`, `DashboardView`)
 - **Components:** Descriptive name without suffix (e.g., `Button`, `Dropdown`, `Container`)
-- **Hooks:** Prefix with `use` (e.g., `useExamTimer`, `useChatStore`)
+- **Hooks:** Prefix with `use` (e.g., `useExtensionMessage`, `useChatStore`)
 
 ### CSS Modules
 
@@ -955,17 +946,29 @@ See [VS Code Theme Color Reference](https://code.visualstudio.com/api/references
 
 ### TypeScript Conventions
 
-**No path aliases:**
+**Path aliases:**
 
-The codebase does **not** use TypeScript path aliases (`@/` imports). Use relative imports:
+The codebase uses TypeScript path aliases for all upward-going imports. Sibling imports (`./foo`) stay relative.
+
+| Alias | Maps to | Use for |
+|-------|---------|---------|
+| `@extension/*` | `src/extension/*` | Anything inside the extension host layer |
+| `@webview/*` | `src/webview/*` | Anything inside the React webview layer |
+| `@shared/*` | `src/shared/*` | Types and contracts shared across layers |
+| `@test/*` | `test/*` | Test helpers, mocks, fixtures |
+| `@root/package.json` | `./package.json` | The extension package's `package.json` (only valid `@root/` target) |
 
 ```typescript
 // Good
-import { Button } from '../../components/Button';
+import { Button } from '@webview/components/Button';
+import { logger } from '@extension/services/loggingService';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
-// Bad (not configured)
-import { Button } from '@/components/Button';
+// Bad (ESLint will reject)
+import { Button } from '../../components/Button';
 ```
+
+ESLint enforces this via `no-restricted-imports` (static imports/exports) and `no-restricted-syntax` (dynamic `import()`, `require()`, `vi.mock()`). Layer-boundary patterns continue to forbid `@webview` from `@extension` code and vice versa.
 
 **Strict typing:**
 
@@ -979,7 +982,7 @@ import { Button } from '@/components/Button';
 Use `import type` for type-only imports to avoid bundling:
 
 ```typescript
-import type { VsCodeApi } from '../../../shared/messageContracts';
+import type { VsCodeApi } from '@shared/messageContracts';
 ```
 
 ### Git Conventions

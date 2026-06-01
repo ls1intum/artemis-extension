@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { postCommand, type VsCodeApi } from '../../shared/messageContracts';
+
+import { postCommand, type VsCodeApi } from '@shared/messageContracts';
 import type {
     ExerciseDetailsResponse,
     ParticipationSummary,
+    PendingSubmissionStatus,
     ResultSummary,
     SubmissionSummary,
-} from '../../shared/types/apiResponses';
+} from '@shared/types/apiResponses';
 
 interface RepoStatus {
     isConnected: boolean;
@@ -20,14 +22,9 @@ interface DirtyPagesStatus {
     autoSaveEnabled: boolean;
 }
 
-export interface PendingSubmissionInfo {
-    state: string;
-    participationId: number;
-    buildTimingInfo?: {
-        buildStartDate?: string;
-        estimatedCompletionDate?: string;
-    };
-}
+// Re-export so existing webview callers that already import this name keep
+// working. The canonical source of truth is now @shared/types/apiResponses.
+export type PendingSubmissionInfo = PendingSubmissionStatus;
 
 interface ExerciseDetailState {
     exerciseData: ExerciseDetailsResponse | null;
@@ -35,8 +32,13 @@ interface ExerciseDetailState {
     isLoading: boolean;
     error: string | null;
 
-    // Submission processing
-    pendingSubmission: PendingSubmissionInfo | null;
+    /**
+     * Pending build statuses keyed by `participation.id`. The view picks the
+     * entry that matches the participation it has selected (graded vs.
+     * practice). Replaces a singleton `pendingSubmission` field that was
+     * silently overwritten per participation by the loader — see #168.
+     */
+    pendingSubmissionsByParticipationId: Record<number, PendingSubmissionStatus>;
 
     // Extension→Webview response state
     repoStatus: RepoStatus | null;
@@ -50,11 +52,12 @@ interface ExerciseDetailState {
     loadExerciseDetail: (vscodeApi: VsCodeApi, exerciseId: number) => void;
     updateBuildStatus: (payload: ResultSummary) => void;
     updateSubmission: (payload: SubmissionSummary) => void;
-    updateSubmissionProcessing: (payload: PendingSubmissionInfo) => void;
+    updateSubmissionProcessing: (payload: PendingSubmissionStatus) => void;
     setRepoStatus: (status: RepoStatus) => void;
     setClonedNotice: (exerciseTitle: string, participationId: number) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
     clearClonedNotice: () => void;
+    /** Clear all pending entries (e.g. on result arrival without per-participation context). */
     clearPendingSubmission: () => void;
 }
 
@@ -89,7 +92,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             hideDeveloperTools: false,
             isLoading: true,
             error: null,
-            pendingSubmission: null,
+            pendingSubmissionsByParticipationId: {},
             repoStatus: null,
             clonedNotice: null,
             dirtyPagesStatus: null,
@@ -100,7 +103,12 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     hideDeveloperTools,
                     isLoading: false,
                     error: null,
-                    pendingSubmission: (data.pendingSubmission as PendingSubmissionInfo) ?? null,
+                    // Always reset to the freshly-loaded map (or `{}` if the
+                    // server didn't supply one). Keeping stale entries across
+                    // a reload would let an already-finished build keep
+                    // displaying "in progress" on the next exercise open.
+                    pendingSubmissionsByParticipationId:
+                        data.pendingSubmissionsByParticipationId ?? {},
                     repoStatus: repoStatus ?? null,
                     clonedNotice: null,
                     dirtyPagesStatus: null,
@@ -167,7 +175,22 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     }
                 }
 
-                set({ exerciseData: updatedData, pendingSubmission: null }, false, 'updateBuildStatus');
+                // Clear the pending entry for the participation we actually
+                // mutated. We use `participation.id` (the resolved owner)
+                // rather than `payload.participationId` so a malformed or
+                // mismatched payload never deletes an unrelated key.
+                // Other participations' pending builds are preserved — they
+                // were unaffected by this result.
+                const clearedParticipationId = participation.id;
+                const nextPending = { ...state.pendingSubmissionsByParticipationId };
+                if (clearedParticipationId !== undefined) {
+                    delete nextPending[clearedParticipationId];
+                }
+
+                set({
+                    exerciseData: updatedData,
+                    pendingSubmissionsByParticipationId: nextPending,
+                }, false, 'updateBuildStatus');
             },
 
             updateSubmission: (payload) => {
@@ -217,7 +240,12 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     return;
                 }
 
-                set({ pendingSubmission: payload }, false, 'updateSubmissionProcessing');
+                set({
+                    pendingSubmissionsByParticipationId: {
+                        ...state.pendingSubmissionsByParticipationId,
+                        [payload.participationId]: payload,
+                    },
+                }, false, 'updateSubmissionProcessing');
             },
 
             setRepoStatus: (status) => {
@@ -237,7 +265,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             },
 
             clearPendingSubmission: () => {
-                set({ pendingSubmission: null }, false, 'clearPendingSubmission');
+                set({ pendingSubmissionsByParticipationId: {} }, false, 'clearPendingSubmission');
             },
         }),
         {

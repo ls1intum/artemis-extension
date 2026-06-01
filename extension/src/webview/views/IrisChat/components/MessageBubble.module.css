@@ -35,30 +35,65 @@
     color: var(--vscode-foreground);
 }
 
+/* Failed user messages keep the userBubble styling but get a subtle
+   error outline so the original text remains readable. The detailed
+   error info renders in .errorFooter below the bubble. */
 .bubble.error {
-    background: var(--vscode-inputValidation-errorBackground);
     border: 1px solid var(--vscode-inputValidation-errorBorder);
+    opacity: 0.85;
 }
 
 .content {
     composes: richContent from '../../../styles/richContent.module.css';
 }
 
-.errorContent {
+/* Wrapper so the error footer can sit directly under the bubble while
+   still respecting the message wrapper's row-reverse for user messages. */
+.bubbleColumn {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
+    max-width: 70%;
 }
 
-.errorMessage {
-    margin: 0;
+.messageWrapper.user .bubbleColumn {
+    align-items: flex-end;
+}
+
+.messageWrapper.assistant .bubbleColumn {
+    align-items: flex-start;
+}
+
+/* The bubble inside the column should no longer constrain its own width
+   since the column already handles max-width. */
+.bubbleColumn .bubble {
+    max-width: 100%;
+}
+
+.errorFooter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
     color: var(--vscode-inputValidation-errorForeground);
-    font-size: 14px;
+    padding: 0 4px;
+}
+
+.errorBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: var(--vscode-inputValidation-errorForeground);
+}
+
+.errorText {
+    color: var(--vscode-descriptionForeground);
 }
 
 .retryButton {
-    align-self: flex-start;
-    padding: 4px 12px;
+    padding: 2px 10px;
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
     border: none;
@@ -67,8 +102,13 @@
     cursor: pointer;
 }
 
-.retryButton:hover {
+.retryButton:hover:not(:disabled) {
     background: var(--vscode-button-hoverBackground);
+}
+
+.retryButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .feedbackContainer {

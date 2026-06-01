@@ -1,28 +1,17 @@
-export { ApiError } from './errors';
-export type {
-    ArtemisUser,
-    ArtemisParticipation,
-} from './core';
-export {
-    parseArtemisFeedback,
-    parseArtemisUser,
-    parseArtemisResult,
-    parseArtemisParticipation,
-} from './core';
-export type { ProfileInfo, AuthenticationResult } from './auth';
-export { PROFILE_IRIS, parseProfileInfo } from './auth';
-export type { IrisHealthStatus } from './iris';
-export { parseIrisHealthStatus } from './iris';
+export type { AuthenticationResult, ProfileInfo } from './auth';
+export { parseProfileInfo, PROFILE_IRIS } from './auth';
 export type { BuildLogEntry, ParsedBuildError } from './build';
 export { parseBuildLogEntry } from './build';
+export type { ArtemisParticipation, ArtemisUser } from './core';
+export { parseArtemisFeedback, parseArtemisParticipation, parseArtemisResult, parseArtemisUser } from './core';
+export { ApiError, MalformedResponseError } from './errors';
+export type { IrisHealthStatus } from './iris';
+export { parseIrisHealthStatus } from './iris';
+export { expectArray, expectObject, parseApiObject } from './responseValidation';
+export type { ProgrammingSubmission, ResultDTO, SubmissionProcessingMessage } from './submissions';
 export {
-    ProgrammingSubmissionState,
     parseProgrammingSubmission,
-    parseSubmissionProcessingMessage,
     parseResultDTO,
-} from './submissions';
-export type {
-    ProgrammingSubmission,
-    SubmissionProcessingMessage,
-    ResultDTO,
+    parseSubmissionProcessingMessage,
+    ProgrammingSubmissionState,
 } from './submissions';

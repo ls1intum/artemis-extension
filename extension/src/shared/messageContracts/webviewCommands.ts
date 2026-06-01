@@ -2,8 +2,7 @@
  * Webview -> Extension command contracts.
  */
 
-import type { CourseDashboardCourse, ExerciseDetail } from '../types/apiResponses';
-import type { ChatContextType } from '../types/context';
+import type { ChatContextType } from '@shared/types/context';
 
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
@@ -24,9 +23,7 @@ export const WebviewCmd = {
     ViewCourseDetails: 'viewCourseDetails',
     OpenExercise: 'openExercise',
     OpenExerciseDetails: 'openExerciseDetails',
-    OpenExamExerciseDetails: 'openExamExerciseDetails',
     BackToCourseDetails: 'backToCourseDetails',
-    BackToExam: 'backToExam',
 
     // Course
     ReloadDashboard: 'reloadDashboard',
@@ -52,12 +49,6 @@ export const WebviewCmd = {
     CheckRepositoryStatus: 'checkRepositoryStatus',
     ViewBuildLog: 'viewBuildLog',
     GoToSource: 'goToSource',
-
-    // Exam
-    OpenExam: 'openExam',
-    OpenExamInBrowser: 'openExamInBrowser',
-    RefreshExam: 'refreshExam',
-    ReloadExamConduction: 'reloadExamConduction',
 
     // Utility
     OpenWebsite: 'openWebsite',
@@ -93,14 +84,21 @@ export const WebviewCmd = {
     SwitchToWorkspaceContext: 'switchToWorkspaceContext',
     ResetChatSessions: 'resetChatSessions',
     ReconnectWebSocket: 'reconnectWebSocket',
+    ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
     DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
 
-    // PlantUML inline rendering
-    RenderPlantUmlInline: 'renderPlantUmlInline',
+    // Dev tools
+    FreshSsrPreview: 'freshSsrPreview',
+
+    // Test-results tracking
+    TestResultsOverviewOpened: 'testResultsOverviewOpened',
+    TestResultsOverviewClosed: 'testResultsOverviewClosed',
+    TaskFeedbackOpened: 'taskFeedbackOpened',
+    TaskFeedbackClosed: 'taskFeedbackClosed',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -115,12 +113,10 @@ interface WebviewCmdPayloads {
     // Navigation
     backToDashboard: undefined;
     showAllCourses: undefined;
-    viewCourseDetails: { courseData: CourseDashboardCourse };
+    viewCourseDetails: { courseId: number };
     openExercise: { exerciseId: number; courseId?: number | null };
     openExerciseDetails: { exerciseId: number };
-    openExamExerciseDetails: { exercise: ExerciseDetail; exerciseIndex: number; courseId: number; examId: number };
     backToCourseDetails: undefined;
-    backToExam: undefined;
 
     // Course
     reloadDashboard: undefined;
@@ -147,17 +143,11 @@ interface WebviewCmdPayloads {
     viewBuildLog: { participationId: number; resultId?: number };
     goToSource: { participationId: number; resultId?: number };
 
-    // Exam
-    openExam: { examId: number; courseId: number };
-    openExamInBrowser: { courseId: number; examId: number };
-    refreshExam: { courseId: number; examId: number; studentExamId?: number };
-    reloadExamConduction: undefined;
-
     // Utility
     openWebsite: { path?: string };
     openSettings: { setting: string };
     openBugReport: undefined;
-    openInEditor: { data: Record<string, unknown> };
+    openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
     openExternalLink: { url: string };
     openImagePreview: { uri: string };
@@ -179,21 +169,62 @@ interface WebviewCmdPayloads {
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat
-    sendMessage: { text: string };
+    sendMessage: { text: string; localId: string; localSessionId: string };
     selectChatContext: { context: ChatContextType; itemId: number; itemName: string; itemShortName?: string };
     switchSession: { sessionId: string };
     createNewSession: undefined;
     switchToWorkspaceContext: undefined;
     resetChatSessions: undefined;
     reconnectWebSocket: undefined;
+    reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;
     openHelpPopup: undefined;
 
-    // PlantUML inline rendering
-    renderPlantUmlInline: { plantUml: string; index: number; nonce: number };
+    // Dev tools
+    freshSsrPreview: { darkMode: boolean };
+
+    // Test-results tracking
+    testResultsOverviewOpened: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    };
+    testResultsOverviewClosed: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
+    taskFeedbackOpened: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        testIds: number[];
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+        notExecutedTests?: number;
+    };
+    taskFeedbackClosed: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -202,7 +233,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.ViewCourseDetails,
     WebviewCmd.OpenExercise,
     WebviewCmd.OpenExerciseDetails,
-    WebviewCmd.OpenExamExerciseDetails,
     WebviewCmd.ReloadCourseDetail,
     WebviewCmd.AskIrisAboutCourse,
     WebviewCmd.ReloadExerciseDetail,
@@ -212,9 +242,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.StartExercise,
     WebviewCmd.StartPractice,
     WebviewCmd.AskIrisAboutExercise,
-    WebviewCmd.OpenExam,
-    WebviewCmd.OpenExamInBrowser,
-    WebviewCmd.RefreshExam,
     WebviewCmd.OpenInEditor,
     WebviewCmd.CopyToClipboard,
     WebviewCmd.OpenExternalLink,
@@ -229,10 +256,14 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.MessageFeedback,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
-    WebviewCmd.RenderPlantUmlInline,
+    WebviewCmd.FreshSsrPreview,
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,
     WebviewCmd.OpenClonedRepository,
+    WebviewCmd.TestResultsOverviewOpened,
+    WebviewCmd.TestResultsOverviewClosed,
+    WebviewCmd.TaskFeedbackOpened,
+    WebviewCmd.TaskFeedbackClosed,
 ]);
 
 /** Auto-generated command messages */
@@ -314,3 +345,9 @@ export function getOptionalPayload<T extends WebviewToExtensionMessage & { paylo
     }
     return (message as { payload: unknown }).payload as T extends { payload?: infer P } ? P : never;
 }
+
+/** Named payload type aliases for test-results tracking commands */
+export type TestResultsOverviewOpenedPayload = WebviewCmdPayloads['testResultsOverviewOpened'];
+export type TestResultsOverviewClosedPayload = WebviewCmdPayloads['testResultsOverviewClosed'];
+export type TaskFeedbackOpenedPayload = WebviewCmdPayloads['taskFeedbackOpened'];
+export type TaskFeedbackClosedPayload = WebviewCmdPayloads['taskFeedbackClosed'];

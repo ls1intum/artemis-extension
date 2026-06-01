@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ServiceStatusView } from '../../../../src/webview/views/ServiceStatus/ServiceStatusView';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { describe, expect, it } from 'vitest';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { ServiceStatusView } from '@webview/views/ServiceStatus/ServiceStatusView';
 
 /** Dispatch serviceStatusInit so the view transitions past the loading skeleton. */
 function initView(serverUrl = '') {

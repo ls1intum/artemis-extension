@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/messageContracts';
-import { WebviewMsgType } from '../../shared/messageContracts';
-import { isWebviewMessage } from '../../shared/messageContracts/typeGuards';
-import { logger, LogCategory } from '../services/loggingService';
+
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { WebviewMsgType } from '@shared/messageContracts';
+import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 /**
  * Shared base class for webview providers.
@@ -91,8 +93,6 @@ export abstract class BaseWebviewProvider {
     private static readonly EVENT_TYPES: ReadonlySet<string> = new Set([
         'websocketUpdate',
         'addMessage',
-        'plantUmlRendered',
-        'plantUmlError',
     ]);
 
     /**

@@ -1,6 +1,8 @@
+import type { CourseDetailData } from '@shared/messageContracts';
+
+import type { ExerciseDetailsResponse } from '@extension/types';
+
 import type { UserInfo } from './appStateManager';
-import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
-import type { CourseDetailData } from '../../shared/messageContracts';
 
 /**
  * Interface implemented by classes that can perform actions requested from the webview.
@@ -16,10 +18,10 @@ export interface WebViewActionHandler {
     showGitCredentials(): void;
     openJsonInEditor(data: unknown): Promise<void>;
     openExerciseDetails(exerciseId: number): Promise<void>;
-    openExamExerciseDetails(exercise: ExerciseDetail, exerciseIndex: number, courseId: number, examId: number): Promise<void>;
     openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void>;
     openCourseFullscreen(courseData: CourseDetailData): Promise<void>;
     openCourseListFullscreen(): Promise<void>;
     render(): void;
     sendInitData(): void;
+    backgroundRenderProblemStatement(): void;
 }

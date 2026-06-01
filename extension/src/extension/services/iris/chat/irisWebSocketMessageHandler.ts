@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
-import { ArtemisWebsocketService } from '../../websocket/artemisWebsocketService';
-import { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
-import type { IrisChatMessage, IrisStageDTO } from '../../../types';
-import { logger, LogCategory } from '../../loggingService';
+
+import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '@shared/messageContracts';
+import { ExtensionMsg } from '@shared/messageContracts';
+
+import { isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
+import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import type { IrisChatMessage } from '@extension/types';
+
 import { extractIrisMessageContent } from './messageUtils';
-import { ExtensionMsg } from '../../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '../../../../shared/messageContracts';
 
 type ReconnectResult =
     | { status: 'reconnected' }
@@ -88,10 +92,7 @@ export class IrisWebSocketMessageHandler {
         } else if (data.type === 'STATUS') {
             const rawStages = data['stages'];
             if (Array.isArray(rawStages)) {
-                const visibleStages = (rawStages as unknown[]).filter(
-                    (stage): stage is IrisStageDTO =>
-                        typeof stage === 'object' && stage !== null && (stage as IrisStageDTO).internal !== true
-                );
+                const visibleStages = (rawStages as unknown[]).filter(isVisibleIrisStage);
                 logger.info(`Iris status update: ${visibleStages.length} visible stage(s)`, LogCategory.WEBSOCKET);
                 this._postMessage({
                     type: ExtensionMsg.UpdateIrisStages,

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { Container } from '../../../../src/webview/components/Container/Container';
+import { describe, expect, it } from 'vitest';
+
+import { Container } from '@webview/components/Container/Container';
 
 describe('Container', () => {
 	it('renders children content', () => {

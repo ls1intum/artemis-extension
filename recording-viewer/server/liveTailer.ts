@@ -7,6 +7,23 @@ export type LineListener = (line: string, lineNo: number) => void;
 export interface TailerOptions {
     pollIntervalMs?: number;
     maxChunkBytes?: number;
+    /**
+     * Byte offset and matching line number to start polling from. Allows the
+     * registry to seek the tailer past historical content at construction
+     * time (before any polls run) so lines that arrive between construction
+     * and the first poll are still emitted to subscribers. The values must
+     * be consistent: `initialLineNo` is the number of newlines in the file
+     * up to `initialOffset`. Defaults to 0/0 (read from beginning).
+     */
+    initialOffset?: number;
+    initialLineNo?: number;
+    /**
+     * mtime in nanoseconds at the moment the cursor was seeded. Lets the
+     * tailer distinguish "file has grown since I was constructed" (normal)
+     * from "file has been replaced" (rotation) on the first poll, which
+     * would otherwise reset the seeded cursor to 0/0 unnecessarily.
+     */
+    initialMtimeNs?: bigint;
 }
 
 /**
@@ -36,8 +53,20 @@ export class LiveTailer {
 
     constructor(filePath: string, opts: TailerOptions = {}) {
         this._filePath = filePath;
-        this._pollIntervalMs = opts.pollIntervalMs ?? 1000;
+        this._pollIntervalMs = opts.pollIntervalMs ?? 250;
         this._maxChunkBytes = opts.maxChunkBytes ?? 4 * 1024 * 1024;
+        this._offset = opts.initialOffset ?? 0;
+        this._lineNo = opts.initialLineNo ?? 0;
+        this._lastMtimeNs = opts.initialMtimeNs ?? 0n;
+    }
+
+    /**
+     * Current line number the tailer has advanced past. Used by the SSE
+     * handler to coordinate per-connection catch-up with the shared tailer's
+     * live broadcast position. Read-only — no per-subscriber seek is exposed.
+     */
+    currentLineNo(): number {
+        return this._lineNo;
     }
 
     subscribe(listener: LineListener): () => void {
@@ -85,12 +114,17 @@ export class LiveTailer {
         // rewritten since we last saw it (mtime advanced past our marker).
         const rewritten = mtimeNs > this._lastMtimeNs && size <= this._offset;
         if (size < this._offset || rewritten) {
+            // Truncation/rotation forces a re-read from the start. Pre-seeded
+            // initialOffset/initialLineNo are intentionally discarded here:
+            // the file has been replaced, so the construction-time cursor
+            // no longer corresponds to any real file content.
             this._offset = 0;
             this._lineNo = 0;
             this._partial = '';
             this._decoder = new StringDecoder('utf8');
         }
         this._lastMtimeNs = mtimeNs;
+
         if (size === this._offset) return;
 
         const start = this._offset;

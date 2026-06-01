@@ -12,11 +12,12 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { BoundaryTriggerEmitter } from '../../../src/extension/services/telemetry/eventPipeline/boundaryTriggerEmitter';
-import { isLikelyManualPaste } from '../../../src/extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
-import { InactivityService } from '../../../src/extension/services/telemetry/inactivityService';
-import { AdaptiveCadence } from '../../../src/extension/services/telemetry/intervention/adaptiveCadence';
-import { TriggerType, DEFAULT_TRIGGER_CONFIG } from '../../../src/extension/services/telemetry/types';
+
+import { BoundaryTriggerEmitter } from '@extension/services/telemetry/eventPipeline/boundaryTriggerEmitter';
+import { isLikelyManualPaste } from '@extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
+import { InactivityService } from '@extension/services/telemetry/inactivityService';
+import { AdaptiveCadence } from '@extension/services/telemetry/intervention/adaptiveCadence';
+import { DEFAULT_TRIGGER_CONFIG, TriggerType } from '@extension/services/telemetry/types';
 
 // ============================================================================
 // Test Subclass — exposes protected methods for direct invocation in tests

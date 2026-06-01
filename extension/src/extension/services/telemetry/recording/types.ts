@@ -331,6 +331,137 @@ export interface TextDocumentCloseEvent {
     uri: string;
 }
 
+/**
+ * Two-step-discriminator view events: `type` identifies the view, `action`
+ * picks the opened/closed arm. Each arm is named so it can be imported and
+ * reused in consumer signatures. Schema on the wire is unchanged.
+ */
+export interface TestResultsOverviewViewOpenedEvent {
+    type: 'testResultsOverviewView';
+    action: 'opened';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    totalTests: number;
+    passedTests: number;
+    failedTests: number;
+}
+
+export interface TestResultsOverviewViewClosedEvent {
+    type: 'testResultsOverviewView';
+    action: 'closed';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    durationMs: number;
+    closeReason: 'button' | 'escape';
+}
+
+export type TestResultsOverviewViewEvent =
+    | TestResultsOverviewViewOpenedEvent
+    | TestResultsOverviewViewClosedEvent;
+
+export interface TaskFeedbackViewOpenedEvent {
+    type: 'taskFeedbackView';
+    action: 'opened';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    taskName: string;
+    testIds: number[];
+    totalTests: number;
+    passedTests: number;
+    failedTests: number;
+    notExecutedTests?: number;
+}
+
+export interface TaskFeedbackViewClosedEvent {
+    type: 'taskFeedbackView';
+    action: 'closed';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    taskName: string;
+    durationMs: number;
+    closeReason: 'button' | 'escape';
+}
+
+export type TaskFeedbackViewEvent =
+    | TaskFeedbackViewOpenedEvent
+    | TaskFeedbackViewClosedEvent;
+
+// ── Debugger events ───────────────────────────────────────────────────
+
+export interface DebugSessionEvent {
+    type: 'debugSession';
+    timestamp: number;
+    action: 'started' | 'terminated' | 'activeChanged';
+    // Present for started / terminated, and for activeChanged when a session
+    // became active. Omitted for activeChanged -> no active session.
+    sessionId?: string;
+    sessionName?: string;
+    sessionType?: string;
+    parentSessionId?: string;
+}
+
+export interface BreakpointChangeEvent {
+    type: 'breakpointChange';
+    timestamp: number;
+    action: 'added' | 'removed' | 'changed';
+    breakpoints: {
+        id: string;            // vscode.Breakpoint.id, stable; correlates add/remove/change
+        uri: string;           // absolute file:// URI (SourceBreakpoint only)
+        line: number;          // 0-based, from location.range.start.line; consistent with SerializedRange
+        column: number;        // 0-based, from location.range.start.character (always populated by the collector)
+        enabled: boolean;
+        condition?: string;
+        hitCondition?: string;
+        logMessage?: string;
+    }[];
+}
+
+// ── Submission events ─────────────────────────────────────────────────
+
+export type SubmissionFailureReason =
+    | 'no-workspace' | 'no-changes' | 'git-identity-missing'
+    | 'merge-conflict' | 'push-failed' | 'other';
+
+/**
+ * A student's Submit action. Recorded as a lifecycle (mirrors irisChatSendAttempt):
+ * `started` at the click instant, then `succeeded` after a successful push or
+ * `failed` with a categorised reason. Standalone but correlatable to the later
+ * `buildResult` by `participationId` + timestamp ordering (the server-assigned
+ * submissionId does not exist at submit time).
+ */
+export interface SubmissionEvent {
+    type: 'submission';
+    timestamp: number;
+    status: 'started' | 'succeeded' | 'failed';
+    /** Correlation key with buildResult. Required (submitExercise payload guarantees it). */
+    participationId: number;
+    /** Stamped by the recorder from the active session, consistent with buildResult. */
+    exerciseId?: number;
+    /** Raw intended text on `started`; resolved committed text on `succeeded`; omitted on `failed`. */
+    commitMessage?: string;
+    /** Present only on status === 'failed'. */
+    failureReason?: SubmissionFailureReason;
+}
+
+/**
+ * Data the submit command emits about a submission. The recorder stamps
+ * `timestamp` and `exerciseId`; everything else comes from the command.
+ * Pick keeps the field types a single source of truth with SubmissionEvent.
+ */
+export type SubmissionPayload = Pick<SubmissionEvent, 'status' | 'participationId' | 'commitMessage' | 'failureReason'>;
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -364,7 +495,12 @@ export type RecordedEvent =
     | FileDeleteEvent
     | FileRenameEvent
     | TextDocumentOpenEvent
-    | TextDocumentCloseEvent;
+    | TextDocumentCloseEvent
+    | TestResultsOverviewViewEvent
+    | TaskFeedbackViewEvent
+    | DebugSessionEvent
+    | BreakpointChangeEvent
+    | SubmissionEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 
@@ -373,7 +509,7 @@ export interface SessionMetadata {
     exerciseId: number;
     participantId: string | undefined;
     startTime: number;
-    endTime: number | undefined;
+    endTime: number | null | undefined;
     eventCount: number;
     /** Schema version for forward-compat parsing. Block D introduces version 2. */
     schemaVersion?: number;

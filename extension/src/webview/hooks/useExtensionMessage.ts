@@ -1,5 +1,6 @@
-import { useEffect, type DependencyList } from 'react';
-import { isExtensionMessage, type ExtensionToWebviewMessage } from '../../shared/messageContracts';
+import { type DependencyList, useEffect } from 'react';
+
+import { type ExtensionToWebviewMessage, isExtensionMessage } from '@shared/messageContracts';
 
 export function useExtensionMessage(
     handler: (msg: ExtensionToWebviewMessage) => void,

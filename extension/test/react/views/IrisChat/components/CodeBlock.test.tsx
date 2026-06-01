@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock shiki before importing the component (structure tests only — no token testing)
 vi.mock('shiki/core', () => ({
@@ -47,7 +47,7 @@ vi.mock('shiki/langs/css.mjs', () => ({ default: {} }));
 vi.mock('shiki/langs/markdown.mjs', () => ({ default: {} }));
 vi.mock('shiki/langs/xml.mjs', () => ({ default: {} }));
 
-import { CodeBlock } from '../../../../../src/webview/views/IrisChat/components/CodeBlock';
+import { CodeBlock } from '@webview/views/IrisChat/components/CodeBlock';
 
 describe('CodeBlock', () => {
 	beforeEach(() => {

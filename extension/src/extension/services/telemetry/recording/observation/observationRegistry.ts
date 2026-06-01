@@ -1,35 +1,25 @@
 import * as vscode from 'vscode';
-import type { RecordedEvent } from '../types';
-import type { PlatformCapabilities } from '../../../../theia';
-import type { RecorderLifecycleState } from '../lifecycle/recorderLifecycleState';
-import type { SnapshotManager } from '../snapshots/snapshotManager';
-import {
-    collectTextChange,
-    collectSave,
-    collectFileSwitch,
-    collectDiagnostics,
-    collectWindowFocus,
-    collectSelectionChange,
-    collectVisibleRangeChange,
-} from '../eventCollectors';
-import { shouldRecordUri } from '../uriFilter';
-import { logger, LogCategory } from '../../../loggingService';
 
-interface PendingExecution {
-    output: string;
-    startTime: number;
-    truncated: boolean;
-    readerDone: boolean;
-    endInfo: {
-        exitCode: number | undefined;
-        terminalName: string;
-        command: string;
-        cwd: string | undefined;
-    } | undefined;
-    aborted: boolean;
-    /** Generation token captured when the execution started. */
-    generation: number;
-}
+import { LogCategory, logger } from '@extension/services/loggingService';
+import {
+    collectBreakpointChange,
+    collectDebugSession,
+    collectDiagnostics,
+    collectFileSwitch,
+    collectSave,
+    collectSelectionChange,
+    collectTextChange,
+    collectVisibleRangeChange,
+    collectWindowFocus,
+    filterRecordableSourceBreakpoints,
+} from '@extension/services/telemetry/recording/eventCollectors';
+import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
+import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
+import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
+import type { PlatformCapabilities } from '@extension/theia';
+
+import { TerminalCollector } from './terminalCollector';
 
 interface ObservationRegistryDeps {
     state: RecorderLifecycleState;
@@ -44,8 +34,7 @@ interface ObservationRegistryDeps {
 
 /**
  * Owns every VS Code `onDidChange*` subscription used by the recorder, plus
- * the debounce state for selection/visibleRange events and the pending-
- * execution state for terminal shell-integration output.
+ * the debounce state for selection/visibleRange events.
  *
  * Listener lifetime matches the consent enable/disable cycle, not the
  * session lifecycle: once enabled, subscriptions persist across session
@@ -55,14 +44,28 @@ interface ObservationRegistryDeps {
  * Three explicit teardown paths replace the old single `_disposeEventListeners`:
  *   - `flushDebouncesForEnd(gen)`: on regular sessionEnd, flushes buffered
  *     debounce payloads into the record sink with `allowDuringEnding`.
- *   - `discardDebouncesForConsentDowngrade()`: GDPR path — drops all pending
- *     debounce payloads AND aborts terminal pending executions without any
+ *   - `discardDebouncesForConsentDowngrade()`: GDPR path, drops all pending
+ *     debounce payloads and aborts terminal pending executions without any
  *     record call.
  *   - `disposeSubscriptions()`: final cleanup on consent-disable or dispose.
  *     Clears timers + disposes all vscode.Disposable subscriptions. Idempotent.
  */
 export class ObservationRegistry {
-    static readonly MAX_OUTPUT_CHARS = 10240;
+    /**
+     * Debounce windows for selection and visible-range events. Engineering
+     * choice calibrated by manual testing during recorder development, not a
+     * paper citation.
+     *
+     * Both event types arrive in high-frequency bursts: selection during
+     * typing and rapid cursor movement, visible-range during scroll inertia.
+     * The chosen windows coalesce a burst into one recorded event while
+     * keeping distinct user actions separable in the recording.
+     *
+     * Tighter values would inflate JSONL size without obvious analysis
+     * benefit; looser values would risk merging semantically distinct
+     * selections or scrolls. Revisit if downstream analysis needs higher
+     * temporal resolution.
+     */
     static readonly SELECTION_DEBOUNCE_MS = 200;
     static readonly VISIBLE_RANGE_DEBOUNCE_MS = 300;
 
@@ -74,9 +77,14 @@ export class ObservationRegistry {
     private readonly _visibleRangeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
     private readonly _pendingSelectionPayloads = new Map<string, RecordedEvent>();
     private readonly _pendingVisibleRangePayloads = new Map<string, RecordedEvent>();
-    private readonly _pendingExecutions = new Map<vscode.TerminalShellExecution, PendingExecution>();
+    private readonly _terminalCollector: TerminalCollector;
 
-    constructor(private readonly _deps: ObservationRegistryDeps) {}
+    constructor(private readonly _deps: ObservationRegistryDeps) {
+        this._terminalCollector = new TerminalCollector({
+            state: this._deps.state,
+            record: this._deps.record,
+        });
+    }
 
     setExerciseContext(root: vscode.Uri | undefined): void {
         this._exerciseRootUri = root;
@@ -210,33 +218,18 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(terminalClose);
 
-        // File workspace events (Block K)
-        const fileCreate = vscode.workspace.onDidCreateFiles(event => {
-            if (!recordingPhase()) { return; }
-            const gen = this._deps.state.currentGeneration;
-            for (const uri of event.files) {
-                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._deps.record({
-                    type: 'fileCreate',
-                    timestamp: Date.now(),
-                    uri: uri.toString(),
-                }, {}, gen);
-            }
-        });
+        // File workspace events (Block K). fileCreate/fileDelete and
+        // textDocumentOpen/textDocumentClose share the same phase-gate +
+        // URI-filter + record pattern and route through private helpers
+        // (`_emitMultiFileEvent`, `_emitTextDocumentEvent`). fileRename has its
+        // own shape (two URIs per entry, accept-if-either-side-in-root) and
+        // stays inline.
+        const fileCreate = vscode.workspace.onDidCreateFiles(event =>
+            this._emitMultiFileEvent(event.files, 'fileCreate'));
         this._eventListenerDisposables.push(fileCreate);
 
-        const fileDelete = vscode.workspace.onDidDeleteFiles(event => {
-            if (!recordingPhase()) { return; }
-            const gen = this._deps.state.currentGeneration;
-            for (const uri of event.files) {
-                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._deps.record({
-                    type: 'fileDelete',
-                    timestamp: Date.now(),
-                    uri: uri.toString(),
-                }, {}, gen);
-            }
-        });
+        const fileDelete = vscode.workspace.onDidDeleteFiles(event =>
+            this._emitMultiFileEvent(event.files, 'fileDelete'));
         this._eventListenerDisposables.push(fileDelete);
 
         const fileRename = vscode.workspace.onDidRenameFiles(event => {
@@ -256,60 +249,41 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(fileRename);
 
-        const textDocumentOpen = vscode.workspace.onDidOpenTextDocument(doc => {
-            if (!recordingPhase()) { return; }
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
-            const gen = this._deps.state.currentGeneration;
-            this._deps.record({
-                type: 'textDocumentOpen',
-                timestamp: Date.now(),
-                uri: doc.uri.toString(),
-            }, {}, gen);
-        });
+        const textDocumentOpen = vscode.workspace.onDidOpenTextDocument(doc =>
+            this._emitTextDocumentEvent(doc, 'textDocumentOpen'));
         this._eventListenerDisposables.push(textDocumentOpen);
 
-        const textDocumentClose = vscode.workspace.onDidCloseTextDocument(doc => {
-            if (!recordingPhase()) { return; }
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
-            const gen = this._deps.state.currentGeneration;
-            this._deps.record({
-                type: 'textDocumentClose',
-                timestamp: Date.now(),
-                uri: doc.uri.toString(),
-            }, {}, gen);
-        });
+        const textDocumentClose = vscode.workspace.onDidCloseTextDocument(doc =>
+            this._emitTextDocumentEvent(doc, 'textDocumentClose'));
         this._eventListenerDisposables.push(textDocumentClose);
+
+        // Debug session lifecycle
+        const debugStart = vscode.debug.onDidStartDebugSession(s =>
+            this._recordDebugSession('started', s));
+        this._eventListenerDisposables.push(debugStart);
+
+        const debugTerminate = vscode.debug.onDidTerminateDebugSession(s =>
+            this._recordDebugSession('terminated', s));
+        this._eventListenerDisposables.push(debugTerminate);
+
+        const debugActive = vscode.debug.onDidChangeActiveDebugSession(s =>
+            this._recordDebugSession('activeChanged', s));
+        this._eventListenerDisposables.push(debugActive);
+
+        // Breakpoint changes. onDidChangeBreakpoints carries three arrays; each
+        // is processed independently and empty arrays emit nothing. The VS Code
+        // API does not guarantee one event per user action, so no coalescing is
+        // assumed; breakpoint changes are low-frequency, no debounce is applied.
+        const breakpointChange = vscode.debug.onDidChangeBreakpoints(event => {
+            this._emitBreakpointChange('added', event.added);
+            this._emitBreakpointChange('removed', event.removed);
+            this._emitBreakpointChange('changed', event.changed);
+        });
+        this._eventListenerDisposables.push(breakpointChange);
 
         // Terminal shell execution tracking — only available in VS Code Desktop
         if (this._deps.capabilities?.hasTerminalShellExecution !== false) {
-            const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
-                if (!recordingPhase()) { return; }
-                const entry: PendingExecution = {
-                    output: '', startTime: Date.now(), truncated: false,
-                    readerDone: false, endInfo: undefined, aborted: false,
-                    generation: this._deps.state.currentGeneration,
-                };
-                this._pendingExecutions.set(event.execution, entry);
-                void this._collectExecutionOutput(event.execution, entry);
-            });
-            this._eventListenerDisposables.push(shellExecStart);
-
-            const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
-                if (!recordingPhase()) { return; }
-                const entry = this._pendingExecutions.get(event.execution);
-                if (!entry) { return; }
-                this._pendingExecutions.delete(event.execution);
-                entry.endInfo = {
-                    exitCode: event.exitCode,
-                    terminalName: event.terminal.name,
-                    command: event.execution.commandLine.value,
-                    cwd: event.execution.cwd?.toString(),
-                };
-                if (entry.readerDone) {
-                    this._emitTerminalCommand(entry);
-                }
-            });
-            this._eventListenerDisposables.push(shellExecEnd);
+            this._terminalCollector.register(this._eventListenerDisposables);
         }
     }
 
@@ -341,10 +315,7 @@ export class ObservationRegistry {
         this._pendingVisibleRangePayloads.clear();
 
         // Abort any still-running terminal shell executions.
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
-        }
-        this._pendingExecutions.clear();
+        this._terminalCollector.abortAllPending();
     }
 
     /**
@@ -366,16 +337,23 @@ export class ObservationRegistry {
         this._visibleRangeDebounceTimers.clear();
         this._pendingVisibleRangePayloads.clear();
 
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
-        }
-        this._pendingExecutions.clear();
+        this._terminalCollector.abortAllPending();
     }
 
     /**
      * Final cleanup: clear any leftover timers and dispose all vscode
      * subscriptions. Idempotent. Last-active-editor is reset so a fresh
      * enable starts with a clean slate.
+     *
+     * Pending terminal executions are aborted and cleared here too. In normal
+     * call ordering the caller (LifecycleController) already invokes
+     * `flushDebouncesForEnd` or `discardDebouncesForConsentDowngrade` first,
+     * which empties this map. The explicit clear here is defense-in-depth so
+     * that the invariant "no pending execution can emit after
+     * `disposeSubscriptions`" is enforced by this method alone, not by caller
+     * ordering. Note: `execution.read()` cannot be cancelled, so the async
+     * reader may continue to consume output until VS Code closes its stream;
+     * the `entry.aborted` flag suppresses any subsequent record call.
      */
     disposeSubscriptions(): void {
         for (const timer of this._selectionDebounceTimers.values()) {
@@ -388,6 +366,7 @@ export class ObservationRegistry {
         }
         this._visibleRangeDebounceTimers.clear();
         this._pendingVisibleRangePayloads.clear();
+        this._terminalCollector.abortAllPending();
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();
@@ -395,48 +374,72 @@ export class ObservationRegistry {
         this._lastActiveEditorUri = undefined;
     }
 
-    // ── Terminal output helpers ───────────────────────────────────────
+    // ── Event emit helpers ────────────────────────────────────────────
 
-    private async _collectExecutionOutput(
-        execution: vscode.TerminalShellExecution,
-        entry: PendingExecution,
-    ): Promise<void> {
-        try {
-            for await (const data of execution.read()) {
-                if (entry.aborted) { return; }
-                if (!entry.truncated) {
-                    const remaining = ObservationRegistry.MAX_OUTPUT_CHARS - entry.output.length;
-                    if (data.length <= remaining) {
-                        entry.output += data;
-                    } else {
-                        entry.output += data.substring(0, remaining);
-                        entry.truncated = true;
-                    }
-                }
-            }
-        } catch (err) {
-            logger.error('Failed to read terminal execution output', LogCategory.TELEMETRY, err);
-        }
-        entry.readerDone = true;
-        if (entry.endInfo && !entry.aborted) {
-            this._emitTerminalCommand(entry);
-        }
-    }
-
-    private _emitTerminalCommand(entry: PendingExecution): void {
-        if (!entry.endInfo) { return; }
+    /**
+     * Emit a recorder event for each URI in a file-set workspace event
+     * (`onDidCreateFiles` / `onDidDeleteFiles`). Phase gate + URI filter
+     * applied per-URI. Generation is captured once at handler entry so all
+     * events from the same workspace event carry the same generation token.
+     */
+    private _emitMultiFileEvent(
+        uris: readonly vscode.Uri[],
+        type: 'fileCreate' | 'fileDelete',
+    ): void {
         if (this._deps.state.phase !== 'recording') { return; }
-        const now = Date.now();
-        this._deps.record({
-            type: 'terminalCommand',
-            timestamp: now,
-            command: entry.endInfo.command,
-            exitCode: entry.endInfo.exitCode,
-            output: entry.output,
-            outputTruncated: entry.truncated,
-            cwd: entry.endInfo.cwd,
-            terminalName: entry.endInfo.terminalName,
-            durationMs: now - entry.startTime,
-        }, {}, entry.generation);
+        const gen = this._deps.state.currentGeneration;
+        for (const uri of uris) {
+            if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
+            this._deps.record({
+                type,
+                timestamp: Date.now(),
+                uri: uri.toString(),
+            }, {}, gen);
+        }
     }
+
+    /**
+     * Emit a recorder event for a single text-document workspace event
+     * (`onDidOpenTextDocument` / `onDidCloseTextDocument`).
+     */
+    private _emitTextDocumentEvent(
+        doc: vscode.TextDocument,
+        type: 'textDocumentOpen' | 'textDocumentClose',
+    ): void {
+        if (this._deps.state.phase !== 'recording') { return; }
+        if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
+        this._deps.record({
+            type,
+            timestamp: Date.now(),
+            uri: doc.uri.toString(),
+        }, {}, this._deps.state.currentGeneration);
+    }
+
+    /**
+     * Emit a debugSession event. Session fields are populated for
+     * started / terminated and for activeChanged with a session; they are left
+     * undefined when activeChanged fires with no active session.
+     */
+    private _recordDebugSession(
+        action: 'started' | 'terminated' | 'activeChanged',
+        session: vscode.DebugSession | undefined,
+    ): void {
+        if (this._deps.state.phase !== 'recording') { return; }
+        this._deps.record(collectDebugSession(action, session), {}, this._deps.state.currentGeneration);
+    }
+
+    /**
+     * Emit one breakpointChange event for a non-empty, in-root, source-only
+     * subset of a breakpoint-change array. Empty subsets emit nothing.
+     */
+    private _emitBreakpointChange(
+        action: 'added' | 'removed' | 'changed',
+        breakpoints: readonly vscode.Breakpoint[],
+    ): void {
+        if (this._deps.state.phase !== 'recording') { return; }
+        const source = filterRecordableSourceBreakpoints(breakpoints, this._exerciseRootUri);
+        if (source.length === 0) { return; }
+        this._deps.record(collectBreakpointChange(action, source), {}, this._deps.state.currentGeneration);
+    }
+
 }

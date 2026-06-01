@@ -1,30 +1,20 @@
-import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../utils/recommendedExtensions';
-import type { CourseDashboardResponse, CourseDashboardEntry, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../types';
-import type { ArchivedCourse, CourseDetailData } from '../../shared/messageContracts';
-import type { ArtemisUser } from '../types';
-import type { CourseDataCache } from '../services/courseDataCache';
+import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
+import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type {
+    CourseDashboardEntry,
+    CourseDashboardResponse,
+    ExerciseDetailsResponse,
+} from '@extension/types';
+import type { ArtemisUser } from '@extension/types';
+import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '@extension/utils/recommendedExtensions';
+
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials';
 
 export interface UserInfo {
     username: string;
     serverUrl: string;
     user?: ArtemisUser;
-}
-
-interface ExamData {
-    studentExam: StudentExam;
-    courseId: number;
-    examId: number;
-}
-
-interface ExamExerciseData {
-    exercise: ExerciseDetail;
-    exerciseIndex: number;
-    courseId: number;
-    examId: number;
-    isExamExercise: true;
-    studentExam?: StudentExam;
 }
 
 interface AiExtension {
@@ -47,9 +37,7 @@ interface AiExtension {
 type NavigationPayload =
     | { kind: 'none' }
     | { kind: 'course'; data: CourseDetailData }
-    | { kind: 'exercise'; data: ExerciseDetailsResponse; parentCourse: CourseDetailData }
-    | { kind: 'exam'; data: ExamData }
-    | { kind: 'exam-exercise'; exercise: ExamExerciseData; exam: ExamData };
+    | { kind: 'exercise'; data: ExerciseDetailsResponse; parentCourse: CourseDetailData };
 
 /**
  * Manages the application state for the Artemis webview
@@ -63,6 +51,7 @@ export class AppStateManager {
     private _payload: NavigationPayload = { kind: 'none' };
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
+    private _serverRenderedPS: { html: string } | null = null;
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
@@ -107,18 +96,17 @@ export class AppStateManager {
         return this._payload.kind === 'course' ? this._payload.data : undefined;
     }
 
-    /** Returns exercise/exam-exercise data when the active view shows an exercise. */
-    get currentExerciseData(): ExerciseDetailsResponse | ExamExerciseData | undefined {
-        if (this._payload.kind === 'exercise') { return this._payload.data; }
-        if (this._payload.kind === 'exam-exercise') { return this._payload.exercise; }
-        return undefined;
+    /** Returns exercise data when the active view shows an exercise. */
+    get currentExerciseData(): ExerciseDetailsResponse | undefined {
+        return this._payload.kind === 'exercise' ? this._payload.data : undefined;
     }
 
-    /** Returns exam data when the active view is an exam or exam-exercise. */
-    get currentExamData(): ExamData | undefined {
-        if (this._payload.kind === 'exam') { return this._payload.data; }
-        if (this._payload.kind === 'exam-exercise') { return this._payload.exam; }
-        return undefined;
+    get serverRenderedProblemStatement(): { html: string } | null {
+        return this._serverRenderedPS;
+    }
+
+    set serverRenderedProblemStatement(value: { html: string } | null) {
+        this._serverRenderedPS = value;
     }
 
     get aiExtensions(): AiExtension[] | undefined {
@@ -180,6 +168,7 @@ export class AppStateManager {
             throw new Error('showExerciseDetail requires a course in scope; call showCourseDetail first');
         }
         this._payload = { kind: 'exercise', data: exerciseData, parentCourse };
+        this._serverRenderedPS = null; // Clear stale render from previous exercise
         this._setCurrentState('exercise-detail');
     }
 
@@ -224,47 +213,6 @@ export class AppStateManager {
 
     public showGitCredentials(): void {
         this._setCurrentState('git-credentials');
-    }
-
-    public showExamStart(examData: ExamData): void {
-        this._payload = { kind: 'exam', data: examData };
-        this._setCurrentState('exam-start');
-    }
-
-    public showExamConduction(examData: ExamData): void {
-        this._payload = { kind: 'exam', data: examData };
-        this._setCurrentState('exam-conduction');
-    }
-
-    public showExamExerciseDetail(
-        exercise: ExerciseDetail,
-        exerciseIndex: number,
-        courseId: number,
-        examId: number
-    ): void {
-        // Bundle both exercise and exam data in a single payload variant
-        const examData = this.currentExamData;
-        this._payload = {
-            kind: 'exam-exercise',
-            exercise: {
-                exercise,
-                exerciseIndex,
-                courseId,
-                examId,
-                isExamExercise: true,
-                studentExam: examData?.studentExam,
-            },
-            exam: examData ?? { studentExam: {} as StudentExam, courseId, examId },
-        };
-        this._setCurrentState('exam-exercise-detail');
-    }
-
-    public backToExam(): void {
-        // Extract exam data from the exam-exercise variant before transitioning
-        if (this._payload.kind === 'exam-exercise') {
-            this._payload = { kind: 'exam', data: this._payload.exam };
-        }
-        this._setCurrentState('exam-conduction');
     }
 
 }

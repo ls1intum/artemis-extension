@@ -1,15 +1,11 @@
 import * as vscode from 'vscode';
-import { ArtemisApiService } from '../../../api';
-import { ArtemisWebsocketService } from '../../websocket/artemisWebsocketService';
-import { ActiveContext, type IrisChatMessage } from '../../../types';
-import { logger, LogLevel } from '../../loggingService';
 
-/** WebSocket message structure for Iris chat */
-interface IrisWebSocketMessage {
-    type?: string;
-    message?: IrisChatMessage;
-    [key: string]: unknown;
-}
+import { ArtemisApiService } from '@extension/api';
+import { contextToIrisMode } from '@extension/services/iris/context/contextChatMode';
+import { type IrisWebSocketMessage, isIrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
+import { logger } from '@extension/services/loggingService';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import { ActiveContext } from '@extension/types';
 
 /**
  * Minimum interval between resubscription attempts (milliseconds).
@@ -24,7 +20,6 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
  * 1. Stores unsubscribe function for connection state callback
  * 2. Rate-limits resubscription attempts
  * 3. Does NOT call connect() - only subscribes if already connected
- * 4. Tracks subscription state to prevent duplicate subscriptions
  */
 export class IrisWebSocketSessionClient implements vscode.Disposable {
     /**
@@ -37,7 +32,6 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     private _irisUnsubscribe?: () => void;
     private _connectionStateSubscription?: vscode.Disposable;
     private _lastResubscribeAttempt: number = 0;
-    private _isSubscribed: boolean = false;
 
     private readonly _onDidReceiveMessage = new vscode.EventEmitter<IrisWebSocketMessage>();
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
@@ -79,7 +73,6 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             }
             this._irisUnsubscribe = undefined;
         }
-        this._isSubscribed = false;
     }
 
     /** Unsubscribe AND clear the cached session ID (used on context switch). */
@@ -98,14 +91,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             sessionId = storedSessionId;
         } else {
             logger.session('Fetching current session from Artemis');
-            let session;
-            if (context.type === 'course') {
-                session = await this._artemisApiService.getCurrentCourseChat(context.id);
-            } else if (context.type === 'exercise') {
-                session = await this._artemisApiService.getCurrentExerciseChat(context.id);
-            } else {
-                throw new Error(`Unsupported context type: ${context.type}`);
-            }
+            const mode = contextToIrisMode(context.type);
+            const session = await this._artemisApiService.getCurrentChat(mode, context.id);
             sessionId = session.id;
         }
 
@@ -117,14 +104,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     public async createNewSession(context: ActiveContext): Promise<number> {
         logger.session(`Creating NEW Iris session for ${context.type} ${context.id}`);
 
-        let newSession;
-        if (context.type === 'course') {
-            newSession = await this._artemisApiService.createCourseChatSession(context.id);
-        } else if (context.type === 'exercise') {
-            newSession = await this._artemisApiService.createExerciseChatSession(context.id);
-        } else {
-            throw new Error(`Unsupported context type: ${context.type}`);
-        }
+        const mode = contextToIrisMode(context.type);
+        const newSession = await this._artemisApiService.createChatSession(mode, context.id);
 
         this._currentArtemisSessionId = newSession.id;
         await this._subscribeIfConnected(newSession.id);
@@ -166,11 +147,9 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
                 sessionId,
                 (data: unknown) => this._handleWebSocketMessage(data)
             );
-            this._isSubscribed = true;
             logger.session(`Successfully subscribed to session: ${sessionId}`);
         } catch (error) {
             logger.sessionError('Failed to subscribe:', error);
-            this._isSubscribed = false;
         }
     }
 
@@ -183,7 +162,15 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     }
 
     private _handleWebSocketMessage(data: unknown): void {
-        this._onDidReceiveMessage.fire(data as IrisWebSocketMessage);
+        // Light-touch guard: reject primitives / null / arrays before the
+        // listeners assume the IrisWebSocketMessage object shape. Per-message
+        // narrowing (e.g. type === 'MESSAGE' && has-message) happens
+        // downstream in IrisWebSocketMessageHandler.
+        if (!isIrisWebSocketMessage(data)) {
+            logger.session(`Discarded non-object WebSocket payload: ${typeof data}`);
+            return;
+        }
+        this._onDidReceiveMessage.fire(data);
     }
 
     /**
@@ -200,19 +187,12 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);
 
-            if (isConnected) {
+            if (isConnected && this._currentArtemisSessionId) {
                 // Every (re)connect creates a fresh STOMP session — all prior STOMP
                 // subscriptions are gone at the protocol level regardless of whether
                 // we received a disconnect notification (which is debounced by 5 s).
-                // Mark ourselves as unsubscribed so we always re-attach.
-                this._isSubscribed = false;
-
-                if (this._currentArtemisSessionId) {
-                    logger.session(`(Re)connected, resubscribing to session: ${this._currentArtemisSessionId}`);
-                    void this._subscribeIfConnected(this._currentArtemisSessionId);
-                }
-            } else {
-                this._isSubscribed = false;
+                logger.session(`(Re)connected, resubscribing to session: ${this._currentArtemisSessionId}`);
+                void this._subscribeIfConnected(this._currentArtemisSessionId);
             }
         });
     }

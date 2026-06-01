@@ -3,8 +3,15 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import type { AppConfig, IncomingRequest, ServerResponse } from './types';
 import { sendJson, parseCookies, readJsonBody } from './http';
-import { isValidToken, buildSessionCookie, isSessionCookieValid } from './auth';
+import { isValidToken, buildSessionCookie, clearSessionCookie, readSessionFromCookies } from './auth';
+import { normalizeRaterName, deriveRaterId } from './raterIdentity';
+import type { ViewerSession } from './viewerSession';
 import { LiveTailerRegistry } from './liveTailerRegistry';
+import { readLastNLines, readLinesAfter } from './eventsReader';
+import { materialize, materializeLegacy, listRaterIds, firstStoredRaterName, appendAdd, appendDelete, AnnotationCorruptionError, type StoredAnnotation } from './annotationStore';
+
+const TAIL_LIMIT_MAX = 50_000;
+const SSE_DEFAULT_TAIL = 5_000;
 
 export type ApiHandler = (req: IncomingRequest, res: ServerResponse, next: () => void) => void;
 
@@ -94,14 +101,45 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         if (urlPath === '/api/auth/login' && method === 'POST') {
             void (async () => {
                 try {
-                    const body = await readJsonBody(req, 4096);
-                    const token = (body as { token?: unknown })?.token;
-                    if (typeof token !== 'string' || !isValidToken(token, config.liveToken)) {
-                        sendJson(res, 401, { error: 'Invalid token' });
+                    const body = await readJsonBody(req, 4096) as { token?: unknown; raterName?: unknown };
+                    const token = body.token;
+                    if (typeof token !== 'string') {
+                        sendJson(res, 400, { error: 'Token is required' });
                         return;
                     }
-                    res.setHeader('Set-Cookie', buildSessionCookie(token));
-                    sendJson(res, 200, { ok: true });
+
+                    const now = Math.floor(Date.now() / 1000);
+                    const isHttps = (req.headers?.['x-forwarded-proto'] === 'https') || false;
+
+                    if (isValidToken(token, config.researcherToken)) {
+                        const session: ViewerSession = { v: 1, role: 'researcher', iat: now, exp: now + 7 * 24 * 3600 };
+                        res.setHeader('Set-Cookie', buildSessionCookie(session, config.sessionSecret, { isHttps }));
+                        sendJson(res, 200, { ok: true });
+                        return;
+                    }
+
+                    if (isValidToken(token, config.liveToken)) {
+                        const raterName = body.raterName;
+                        if (typeof raterName !== 'string') {
+                            sendJson(res, 400, { error: 'Rater name is required' });
+                            return;
+                        }
+                        let displayName: string;
+                        try {
+                            displayName = normalizeRaterName(raterName);
+                        } catch (err) {
+                            const msg = err instanceof Error ? err.message : 'Invalid rater name';
+                            sendJson(res, 400, { error: msg });
+                            return;
+                        }
+                        const raterId = deriveRaterId(displayName);
+                        const session: ViewerSession = { v: 1, role: 'rater', raterId, raterName: displayName, iat: now, exp: now + 7 * 24 * 3600 };
+                        res.setHeader('Set-Cookie', buildSessionCookie(session, config.sessionSecret, { isHttps }));
+                        sendJson(res, 200, { ok: true });
+                        return;
+                    }
+
+                    sendJson(res, 401, { error: 'Invalid token' });
                 } catch {
                     sendJson(res, 400, { error: 'Invalid request body' });
                 }
@@ -110,44 +148,76 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         }
 
         if (urlPath === '/api/auth/logout' && method === 'POST') {
-            res.setHeader('Set-Cookie', buildSessionCookie('', { clear: true }));
+            res.setHeader('Set-Cookie', clearSessionCookie());
             sendJson(res, 200, { ok: true });
             return;
         }
 
         if (urlPath === '/api/auth/status' && method === 'GET') {
             const cookies = parseCookies(req);
+            const session = readSessionFromCookies(cookies, config.sessionSecret, Math.floor(Date.now() / 1000));
             sendJson(res, 200, {
-                authenticated: isSessionCookieValid(cookies, config.liveToken),
-                authRequired: Boolean(config.liveToken),
+                authenticated: session !== null,
+                authRequired: Boolean(config.liveToken || config.researcherToken),
                 allowWrite: config.allowWrite,
+                role: session?.role,
+                raterName: session?.role === 'rater' ? session.raterName : undefined,
             });
             return;
         }
 
         // ─── Auth gate for /api/recordings and /api/live ──────────────────
+        let session: ViewerSession | null = null;
         if (urlPath.startsWith('/api/recordings') || urlPath.startsWith('/api/live')) {
-            if (config.liveToken) {
+            const authRequired = Boolean(config.liveToken || config.researcherToken);
+            if (authRequired) {
                 const cookies = parseCookies(req);
-                if (!isSessionCookieValid(cookies, config.liveToken)) {
+                session = readSessionFromCookies(cookies, config.sessionSecret, Math.floor(Date.now() / 1000));
+                if (!session) {
+                    // Per spec §6: clear the cookie on bad-signature/expired/wrong-version
+                    // so the browser re-authenticates cleanly on the next request.
+                    res.setHeader('Set-Cookie', clearSessionCookie());
                     sendJson(res, 401, { error: 'Authentication required' });
                     return;
                 }
+            } else {
+                // No-auth local mode (server bound to 127.0.0.1). Synthesize a
+                // local rater session so annotation endpoints (which enforce
+                // role === 'rater') stay usable for single-user dev workflow.
+                // The annotation store uses raterId 'local' as the file owner.
+                session = {
+                    v: 1,
+                    role: 'rater',
+                    raterId: 'local',
+                    raterName: 'Local',
+                    iat: 0,
+                    exp: Number.MAX_SAFE_INTEGER,
+                };
             }
-            // Mutating-endpoint gate.
-            // Live mode (allowWrite=false) blocks all writes EXCEPT POST /annotations
-            // (the live struggle-tagging endpoint).
-            const isAnnotationPost =
-                method === 'POST' &&
-                /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath);
-            const isMutating =
-                method === 'PUT' ||
-                method === 'DELETE' ||
-                method === 'POST';
-            if (isMutating && !config.allowWrite && !isAnnotationPost) {
-                sendJson(res, 403, {
-                    error: 'Write operation disabled in live mode (set RECORDING_VIEWER_ALLOW_WRITE=1 to enable)',
-                });
+
+            // PUT /annotations is always 405 regardless of live-mode allowWrite.
+            // This branch must run BEFORE the generic live-mode mutation gate, so the
+            // response code is deterministic for clients that probe the endpoint.
+            if (method === 'PUT' && /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath)) {
+                sendJson(res, 405, { error: 'Bulk PUT is not supported; use POST/DELETE on annotations.' });
+                return;
+            }
+
+            // Researcher role: read-only. No POST/DELETE/PUT.
+            if (session?.role === 'researcher' && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
+                sendJson(res, 403, { error: 'Researcher role cannot modify annotations.' });
+                return;
+            }
+
+            // Mutating-endpoint gate for live mode (allowWrite=false). The carved-out
+            // mutations are POST /annotations and DELETE /annotations/:id, which the
+            // rater path needs.
+            const isRaterAnnotationMutation =
+                (method === 'POST' && /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath)) ||
+                (method === 'DELETE' && /^\/api\/recordings\/[^/]+\/annotations\/[^/]+$/.test(urlPath));
+            const isMutating = method === 'POST' || method === 'PUT' || method === 'DELETE';
+            if (isMutating && !config.allowWrite && !isRaterAnnotationMutation) {
+                sendJson(res, 403, { error: 'Write operation disabled in live mode (set RECORDING_VIEWER_ALLOW_WRITE=1 to enable)' });
                 return;
             }
         }
@@ -308,6 +378,19 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
 
         // GET /api/recordings/:sessionId/events/stream — SSE live tail
         // MUST come before the /events route below so it doesn't get shadowed.
+        //
+        // Catch-up sequence on connect:
+        //   1. Subscribe to shared tailer immediately; live emissions are
+        //      buffered (not written to res) until handoff completes.
+        //   2. Read historical lines from disk according to Last-Event-ID
+        //      header (resume), ?tail=N param (override), or default tail.
+        //   3. Send the catch-up batch as SSE frames.
+        //   4. Read the "gap" — any lines that landed in the file between
+        //      catch-up read and tailer's current lineNo — and send those.
+        //   5. Drain the live buffer, deduping by lineNo (a line could have
+        //      been emitted both by the gap read and by the buffered tailer
+        //      callback if it landed during step 4).
+        //   6. Switch the subscriber to direct res.write mode.
         const streamMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/events\/stream$/);
         if (streamMatch && method === 'GET') {
             const sessionIdRaw = streamMatch[1];
@@ -317,6 +400,34 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 return;
             }
             const sessionId = decodeURIComponent(sessionIdRaw);
+            const eventsPath = path.join(sessionDir, 'events.jsonl');
+
+            // Parse catch-up directives from request before any I/O so we can
+            // 400 fast on bad input.
+            const lastEventIdHeader = req.headers?.['last-event-id'];
+            const lastEventIdStr = Array.isArray(lastEventIdHeader)
+                ? lastEventIdHeader[0]
+                : lastEventIdHeader;
+            let lastEventId: number | null = null;
+            if (typeof lastEventIdStr === 'string' && lastEventIdStr.length > 0) {
+                const parsed = Number.parseInt(lastEventIdStr, 10);
+                if (Number.isFinite(parsed) && parsed >= 0) {
+                    lastEventId = parsed;
+                }
+            }
+
+            const queryString = (req.url ?? '').split('?')[1] ?? '';
+            const params = new URLSearchParams(queryString);
+            const tailParamRaw = params.get('tail');
+            let tailLimit: number | null = null;
+            if (tailParamRaw !== null) {
+                const parsed = Number.parseInt(tailParamRaw, 10);
+                if (!Number.isFinite(parsed) || parsed < 0) {
+                    sendJson(res, 400, { error: 'tail must be a non-negative integer' });
+                    return;
+                }
+                tailLimit = Math.min(parsed, TAIL_LIMIT_MAX);
+            }
 
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache, no-store');
@@ -326,11 +437,26 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             res.write?.(': stream open\n\n');
 
             let closed = false;
+            let directMode = false;
+            let sentMaxLineNo = 0;
+            const liveBuffer: Array<{ line: string; lineNo: number }> = [];
             const handle = tailerRegistry.acquire(sessionId);
+
+            // Subscribe BEFORE any async work so no live line is lost during
+            // the catch-up phase. Until directMode flips, emissions are
+            // buffered for later dedupe + drain. Direct-mode writes ALSO
+            // dedupe via sentMaxLineNo so a tailer poll that fires after
+            // catch-up sent the same line (because the seeded cursor was
+            // behind it at gap-read time) doesn't re-emit it.
             const unsubscribe = handle.tailer.subscribe((line, lineNo) => {
                 if (closed) return;
-                // SSE: id field becomes the EventSource.lastEventId on the client.
-                res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                if (directMode) {
+                    if (lineNo <= sentMaxLineNo) return;
+                    res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                    sentMaxLineNo = lineNo;
+                } else {
+                    liveBuffer.push({ line, lineNo });
+                }
             });
 
             const heartbeat = setInterval(() => {
@@ -342,10 +468,10 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             // Seen-then-gone semantics: don't fire session-gone if the file never appeared
             // (race window during initSession where the dir exists but events.jsonl hasn't
             // been written yet). Only fire if the file existed and then disappeared.
-            let seenFile = fs.existsSync(path.join(sessionDir, 'events.jsonl'));
+            let seenFile = fs.existsSync(eventsPath);
             const fileWatcher = setInterval(() => {
                 if (closed) return;
-                const exists = fs.existsSync(path.join(sessionDir, 'events.jsonl'));
+                const exists = fs.existsSync(eventsPath);
                 if (exists) {
                     seenFile = true;
                 } else if (seenFile) {
@@ -366,26 +492,123 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
 
             req.on('close', cleanup);
             req.on('error', cleanup);
+
+            // Async handoff: catch-up → gap → buffer drain → direct mode.
+            void (async () => {
+                try {
+                    if (closed) return;
+
+                    // Catch-up from disk. Skip if the file doesn't exist yet
+                    // (live session that hasn't written its first batch).
+                    if (fs.existsSync(eventsPath)) {
+                        let catchUp: { lines: Array<{ lineNo: number; line: string }>; endLineNo: number };
+                        if (lastEventId !== null) {
+                            // Resume: only lines strictly after the client's last id.
+                            const { lines, endLineNo } = await readLinesAfter(eventsPath, lastEventId);
+                            catchUp = { lines, endLineNo };
+                        } else {
+                            const limit = tailLimit ?? SSE_DEFAULT_TAIL;
+                            const { lines, endLineNo } = await readLastNLines(eventsPath, limit);
+                            catchUp = { lines, endLineNo };
+                        }
+
+                        if (closed) return;
+                        for (const { lineNo, line } of catchUp.lines) {
+                            res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                            if (lineNo > sentMaxLineNo) sentMaxLineNo = lineNo;
+                        }
+
+                        // Gap read: between catch-up's endLineNo and whatever
+                        // the shared tailer has advanced past. Covers lines
+                        // that landed in the file while catch-up was running.
+                        const tailerLineNo = handle.tailer.currentLineNo();
+                        if (tailerLineNo > catchUp.endLineNo) {
+                            const { lines: gap } = await readLinesAfter(
+                                eventsPath,
+                                catchUp.endLineNo,
+                                tailerLineNo,
+                            );
+                            if (closed) return;
+                            for (const { lineNo, line } of gap) {
+                                if (lineNo <= sentMaxLineNo) continue;
+                                res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                                sentMaxLineNo = lineNo;
+                            }
+                        }
+                    }
+
+                    // Drain whatever the subscriber buffered during catch-up,
+                    // skipping duplicates already sent via disk reads.
+                    if (closed) return;
+                    for (const { lineNo, line } of liveBuffer) {
+                        if (lineNo <= sentMaxLineNo) continue;
+                        res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                        sentMaxLineNo = lineNo;
+                    }
+                    liveBuffer.length = 0;
+                    directMode = true;
+                } catch (err) {
+                    if (!closed) {
+                        // Catch-up failed; log via SSE comment and let the
+                        // live broadcast continue from where the tailer is.
+                        // Switching to direct mode means the client at least
+                        // sees new events going forward.
+                        res.write?.(`: catchup error: ${String(err).replace(/\n/g, ' ')}\n\n`);
+                        for (const { lineNo, line } of liveBuffer) {
+                            if (lineNo <= sentMaxLineNo) continue;
+                            res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                            sentMaxLineNo = lineNo;
+                        }
+                        liveBuffer.length = 0;
+                        directMode = true;
+                    }
+                }
+            })();
             return;
         }
 
         // GET /api/recordings/:sessionId/events
+        // Optional ?tail=N query: stream-read the file and return only the
+        // last N events (memory O(N) regardless of file size). Without the
+        // param, returns the full archive — same as before, contract intact.
         const eventsMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/events$/);
         if (eventsMatch) {
             const sessionDir = resolveSessionDir(eventsMatch[1]);
             if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
             const eventsPath = path.join(sessionDir, 'events.jsonl');
-            try {
-                if (!fs.existsSync(eventsPath)) { sendJson(res, 404, { error: 'events.jsonl not found' }); return; }
-                res.setHeader('Content-Type', 'application/json');
-                const lines = fs.readFileSync(eventsPath, 'utf-8')
-                    .split('\n')
-                    .filter(l => l.trim().length > 0);
-                const events = lines.map(l => JSON.parse(l));
-                res.end(JSON.stringify(events));
-            } catch (err) {
-                sendJson(res, 500, { error: String(err) });
+
+            const queryString = (req.url ?? '').split('?')[1] ?? '';
+            const params = new URLSearchParams(queryString);
+            const tailParamRaw = params.get('tail');
+            let tailLimit: number | null = null;
+            if (tailParamRaw !== null) {
+                const parsed = Number.parseInt(tailParamRaw, 10);
+                if (!Number.isFinite(parsed) || parsed < 0) {
+                    sendJson(res, 400, { error: 'tail must be a non-negative integer' });
+                    return;
+                }
+                tailLimit = Math.min(parsed, TAIL_LIMIT_MAX);
             }
+
+            void (async () => {
+                try {
+                    if (!fs.existsSync(eventsPath)) { sendJson(res, 404, { error: 'events.jsonl not found' }); return; }
+                    res.setHeader('Content-Type', 'application/json');
+                    if (tailLimit !== null) {
+                        const { lines } = await readLastNLines(eventsPath, tailLimit);
+                        const events = lines.map(({ line }) => JSON.parse(line));
+                        res.end(JSON.stringify(events));
+                    } else {
+                        const lines = fs.readFileSync(eventsPath, 'utf-8')
+                            .split('\n')
+                            .filter(l => l.trim().length > 0);
+                        const events = lines.map(l => JSON.parse(l));
+                        res.end(JSON.stringify(events));
+                    }
+                } catch (err) {
+                    sendJson(res, 500, { error: String(err) });
+                }
+            })();
             return;
         }
 
@@ -409,127 +632,174 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // GET /api/recordings/:sessionId/annotations
-        const annotGetMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
-        if (annotGetMatch && method === 'GET') {
-            const sessionDir = resolveSessionDir(annotGetMatch[1]);
-            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
-            const annotPath = path.join(sessionDir, 'annotations.json');
-            try {
-                if (!fs.existsSync(annotPath)) {
-                    sendJson(res, 200, []);
+        // GET /api/recordings/:sessionId/annotations/all — researcher: all rater lanes + legacy synthetic.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/all$/);
+            if (m && method === 'GET') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!session || session.role !== 'researcher') {
+                    sendJson(res, 403, { error: 'This endpoint is for the researcher role.' });
                     return;
                 }
-                res.setHeader('Content-Type', 'application/json');
-                const data = fs.readFileSync(annotPath, 'utf-8');
-                res.end(data);
-            } catch (err) {
-                sendJson(res, 500, { error: String(err) });
+                void (async () => {
+                    try {
+                        const raterIds = await listRaterIds(sessionDir);
+                        const lanes: Array<{ raterId: string; raterName: string; annotations: StoredAnnotation[] }> = [];
+                        for (const raterId of raterIds) {
+                            const list = await materialize(sessionDir, raterId);
+                            // Spec §3.8: lane name is the first non-empty stored
+                            // raterName in the file, even if the original record
+                            // was tombstoned. Falls back to raterId only if no
+                            // add record ever carried a name.
+                            const laneName = (await firstStoredRaterName(sessionDir, raterId)) ?? raterId;
+                            lanes.push({ raterId, raterName: laneName, annotations: list });
+                        }
+                        const legacy = await materializeLegacy(sessionDir);
+                        if (legacy.length > 0) {
+                            lanes.push({ raterId: 'legacy', raterName: 'Legacy', annotations: legacy });
+                        }
+                        sendJson(res, 200, lanes);
+                    } catch (err) {
+                        if (err instanceof AnnotationCorruptionError) {
+                            sendJson(res, 500, { error: err.message });
+                        } else {
+                            sendJson(res, 500, { error: String(err) });
+                        }
+                    }
+                })();
+                return;
             }
-            return;
+        }
+
+        // GET /api/recordings/:sessionId/annotations — current rater's marks only.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
+            if (m && method === 'GET') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!session || session.role !== 'rater') {
+                    sendJson(res, 403, { error: 'This endpoint is for the rater role.' });
+                    return;
+                }
+                const raterId = session.raterId;
+                void (async () => {
+                    try {
+                        const list = await materialize(sessionDir, raterId);
+                        sendJson(res, 200, list);
+                    } catch (err) {
+                        if (err instanceof AnnotationCorruptionError) {
+                            sendJson(res, 500, { error: err.message });
+                        } else {
+                            sendJson(res, 500, { error: String(err) });
+                        }
+                    }
+                })();
+                return;
+            }
         }
 
         // POST /api/recordings/:sessionId/annotations — append a single
-        // anchored annotation (live struggle-tagging endpoint).
+        // annotation. The timestamp is the server receive time unless the
+        // client sends an explicit `timestamp` field (used by the redo path
+        // to restore an annotation at its original moment).
+        //
+        // Legacy fields `referenceEventTimestamp` and `reactionDelayMs` are
+        // accepted in the body for backwards compatibility but ignored.
         const VALID_LABELS = new Set([
             'confident', 'light-struggle', 'medium-struggle', 'high-struggle', 'blocked',
-            'idle', 'trial-error', 'reading', 'off-task', 'using-ai',
+            'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results',
         ]);
-        const ESTIMATED_FLUSH_LAG_MS = 2_500;
-        const FUTURE_TIMESTAMP_TOLERANCE_MS = 1_000;
 
-        const annotPostMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
-        if (annotPostMatch && method === 'POST') {
-            const sessionDir = resolveSessionDir(annotPostMatch[1]);
-            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
-            if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return; }
-            const annotPath = path.join(sessionDir, 'annotations.json');
-
-            void (async () => {
-                let parsed: { label?: unknown; text?: unknown; referenceEventTimestamp?: unknown; reactionDelayMs?: unknown };
-                try {
-                    parsed = await readJsonBody(req, 64_000) as typeof parsed;
-                } catch (err) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    sendJson(res, 400, { error: msg });
+        // POST /api/recordings/:sessionId/annotations — append `add` to current rater's file.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
+            if (m && method === 'POST') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return; }
+                if (!session || session.role !== 'rater') {
+                    sendJson(res, 403, { error: 'Only the rater role can add annotations.' });
                     return;
                 }
-
-                if (parsed.label !== undefined && (typeof parsed.label !== 'string' || !VALID_LABELS.has(parsed.label))) {
-                    sendJson(res, 400, { error: 'Invalid label' });
-                    return;
-                }
-                const text = typeof parsed.text === 'string' ? parsed.text : '';
-                const reactionDelay = (typeof parsed.reactionDelayMs === 'number' && Number.isFinite(parsed.reactionDelayMs) && parsed.reactionDelayMs >= 0)
-                    ? Math.min(parsed.reactionDelayMs, 5_000)
-                    : 300;
-                const now = Date.now();
-                let timestamp: number;
-                if (typeof parsed.referenceEventTimestamp === 'number' && Number.isFinite(parsed.referenceEventTimestamp)) {
-                    timestamp = Math.min(parsed.referenceEventTimestamp + reactionDelay, now + FUTURE_TIMESTAMP_TOLERANCE_MS);
-                } else {
-                    timestamp = now - ESTIMATED_FLUSH_LAG_MS;
-                }
-                const annotation = {
-                    id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
-                    timestamp,
-                    text,
-                    label: parsed.label,
-                    createdAt: now,
-                };
-
-                let existing: unknown[] = [];
-                if (fs.existsSync(annotPath)) {
+                const raterId = session.raterId;
+                const raterName = session.raterName;
+                void (async () => {
+                    let parsed: { label?: unknown; text?: unknown; timestamp?: unknown };
                     try {
-                        const raw = fs.readFileSync(annotPath, 'utf-8');
-                        const arr = JSON.parse(raw);
-                        if (!Array.isArray(arr)) {
-                            sendJson(res, 409, { error: 'Existing annotations.json is not an array' });
-                            return;
-                        }
-                        existing = arr;
-                    } catch {
-                        sendJson(res, 409, { error: 'Existing annotations.json is corrupt JSON; refusing to overwrite' });
+                        parsed = await readJsonBody(req, 64_000) as typeof parsed;
+                    } catch (err) {
+                        sendJson(res, 400, { error: err instanceof Error ? err.message : String(err) });
                         return;
                     }
-                }
-                existing.push(annotation);
-
-                try {
-                    const tmp = annotPath + '.tmp';
-                    fs.writeFileSync(tmp, JSON.stringify(existing, null, 2), 'utf-8');
-                    fs.renameSync(tmp, annotPath);
-                    sendJson(res, 200, { ok: true, annotation });
-                } catch (err) {
-                    sendJson(res, 500, { error: String(err) });
-                }
-            })();
-            return;
+                    if (parsed.label !== undefined && (typeof parsed.label !== 'string' || !VALID_LABELS.has(parsed.label))) {
+                        sendJson(res, 400, { error: 'Invalid label' });
+                        return;
+                    }
+                    if (parsed.timestamp !== undefined && (typeof parsed.timestamp !== 'number' || !Number.isFinite(parsed.timestamp) || parsed.timestamp < 0)) {
+                        sendJson(res, 400, { error: 'Invalid timestamp' });
+                        return;
+                    }
+                    const text = typeof parsed.text === 'string' ? parsed.text : '';
+                    const now = Date.now();
+                    const timestamp = typeof parsed.timestamp === 'number' ? parsed.timestamp : now;
+                    const ann: StoredAnnotation = {
+                        id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
+                        raterId,
+                        raterName,
+                        timestamp,
+                        createdAt: now,
+                        label: (parsed.label as string | undefined) ?? '',
+                        text,
+                    };
+                    try {
+                        await appendAdd(sessionDir, ann);
+                        sendJson(res, 200, { ok: true, annotation: ann });
+                    } catch (err) {
+                        sendJson(res, 500, { error: String(err) });
+                    }
+                })();
+                return;
+            }
         }
 
-        // PUT /api/recordings/:sessionId/annotations
-        const annotPutMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
-        if (annotPutMatch && method === 'PUT') {
-            const sessionDir = resolveSessionDir(annotPutMatch[1]);
-            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
-            const annotPath = path.join(sessionDir, 'annotations.json');
-            try {
-                if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return; }
-                let body = '';
-                req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
-                req.on('end', () => {
+        // DELETE /api/recordings/:sessionId/annotations/:id — tombstone in current rater's file.
+        {
+            const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/([^/]+)$/);
+            if (m && method === 'DELETE') {
+                const sessionDir = resolveSessionDir(m[1]);
+                if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+                if (!session || session.role !== 'rater') {
+                    sendJson(res, 403, { error: 'Only the rater role can delete annotations.' });
+                    return;
+                }
+                let annotId: string;
+                try {
+                    annotId = decodeURIComponent(m[2]);
+                } catch {
+                    sendJson(res, 400, { error: 'Invalid annotation ID' });
+                    return;
+                }
+                if (!/^[A-Za-z0-9_-]+$/.test(annotId)) {
+                    sendJson(res, 400, { error: 'Invalid annotation ID' });
+                    return;
+                }
+                const raterId = session.raterId;
+                void (async () => {
                     try {
-                        const annotations = JSON.parse(body);
-                        fs.writeFileSync(annotPath, JSON.stringify(annotations, null, 2));
-                        sendJson(res, 200, { ok: true });
+                        const list = await materialize(sessionDir, raterId);
+                        if (!list.some(a => a.id === annotId)) {
+                            sendJson(res, 404, { error: 'Annotation not found' });
+                            return;
+                        }
+                        await appendDelete(sessionDir, raterId, annotId);
+                        sendJson(res, 200, { ok: true, deletedId: annotId });
                     } catch (err) {
-                        sendJson(res, 400, { error: String(err) });
+                        sendJson(res, 500, { error: String(err) });
                     }
-                });
-            } catch (err) {
-                sendJson(res, 500, { error: String(err) });
+                })();
+                return;
             }
-            return;
         }
 
         // GET /api/recordings/:sessionId/metadata
@@ -633,12 +903,32 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             let headerValidated = false;
             let rejected = false;
             let requestEnded = false;
+            let settled = false;
 
             const cleanup = () => {
                 ws.destroy();
                 try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
                 uploadInProgress.delete(sessionId);
             };
+
+            // Send exactly one response for this upload. Guards every exit path
+            // (reject, success, stream error) against a double-send.
+            const respond = (status: number, payload: unknown) => {
+                if (settled) return;
+                settled = true;
+                sendJson(res, status, payload);
+            };
+
+            // The write stream does async I/O, so an error (its lazy fd open
+            // losing a race with a concurrent directory removal — e.g. a test's
+            // afterEach cleanup — or a disk failure) must be handled. Left
+            // unhandled it crashes the process. Tear down and, if nothing has
+            // responded yet, fail the upload.
+            ws.on('error', () => {
+                rejected = true;
+                cleanup();
+                respond(500, { error: 'Video upload failed' });
+            });
 
             req.on('data', (chunk: Buffer) => {
                 if (rejected) return;
@@ -658,7 +948,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                     if (!valid) {
                         rejected = true;
                         cleanup();
-                        sendJson(res, 400, { error: `Invalid ${ext.toUpperCase()} file (bad magic bytes)` });
+                        respond(400, { error: `Invalid ${ext.toUpperCase()} file (bad magic bytes)` });
                         return;
                     }
                     // Write accumulated header buffer
@@ -700,11 +990,11 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                         }
 
                         uploadInProgress.delete(sessionId);
-                        sendJson(res, 200, { ok: true, videoExtension: ext });
+                        respond(200, { ok: true, videoExtension: ext });
                     } catch (err) {
                         try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
                         uploadInProgress.delete(sessionId);
-                        sendJson(res, 500, { error: String(err) });
+                        respond(500, { error: String(err) });
                     }
                 });
             });
@@ -712,6 +1002,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             req.on('error', () => {
                 if (rejected) return;
                 rejected = true;
+                settled = true; // client gone; suppress any late error response
                 cleanup();
             });
 
@@ -720,6 +1011,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 if (rejected || requestEnded) return;
                 // Request closed before 'end' fired — this is a genuine abort
                 rejected = true;
+                settled = true; // genuine abort; suppress any late error response
                 cleanup();
             });
 

@@ -1,8 +1,7 @@
-import { ContextStore } from '../context/contextStore';
-import { ArtemisApiService } from '../../../api';
-import { ExerciseRegistry } from '../../exerciseRegistry';
-import { logger } from '../../loggingService';
-import { fetchSessionsWithMessages } from '../context/sessionSyncUtils';
+import { ArtemisApiService } from '@extension/api';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { fetchSessionsWithMessages } from '@extension/services/iris/context/sessionSyncUtils';
 
 interface DebugSessionsResult {
     report: string;
@@ -65,6 +64,7 @@ export class ChatDiagnosticsService {
             snapshot.exercises.forEach((exercise, idx) => {
                 report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}${exercise.isWorkspace ? ' ⭐' : ''}\n`;
                 report += `     Short Name: ${exercise.shortName ?? '—'}\n`;
+                report += `     Course ID: ${exercise.courseId ?? '—'}\n`;
                 if (exercise.releaseDate) {
                     report += `     Release: ${exercise.releaseDate}\n`;
                 }
@@ -130,7 +130,7 @@ export class ChatDiagnosticsService {
 
         report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
 
-        const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, activeContext);
+        const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, this._contextStore, activeContext);
 
         report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
         report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;

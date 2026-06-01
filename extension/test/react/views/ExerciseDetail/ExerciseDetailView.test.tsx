@@ -1,19 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExerciseDetailView } from '../../../../src/webview/views/ExerciseDetail/ExerciseDetailView';
-import { useExerciseDetailStore } from '../../../../src/webview/stores/useExerciseDetailStore';
-import type { ExerciseDetailsResponse } from '../../../../src/shared/types/apiResponses';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { describe, expect, it, vi } from 'vitest';
+
+import { ExtensionMsg } from '@shared/messageContracts';
+import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 
 // Mock useWebSocketUpdates — not under test here
-vi.mock('../../../../src/webview/hooks/useWebSocketUpdates', () => ({
+vi.mock('@webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
-}));
-
-// Mock useExamTimer (used transitively via ExamTimer component from useWebSocketUpdates)
-vi.mock('../../../../src/webview/hooks/useExamTimer', () => ({
-	useExamTimer: () => ({ remaining: 0, expired: false }),
 }));
 
 // Helper to build minimal exerciseData
@@ -34,37 +32,45 @@ function makeExerciseData(overrides: Partial<ExerciseDetailsResponse> = {}): Exe
 			studentParticipations: [],
 			...((overrides.exercise as Partial<ExerciseDetailsResponse['exercise']>) ?? {}),
 		},
-		pendingSubmission: null,
+		pendingSubmissionsByParticipationId: {},
 		...overrides,
 	};
 }
 
 function makeExerciseDataWithParticipation(opts: { hasResult?: boolean; hasSubmission?: boolean } = {}): ExerciseDetailsResponse {
+	const submission: Record<string, unknown> = {
+		id: 1,
+		submissionDate: '2025-01-01T00:00:00Z',
+		results: [],
+	};
 	const participation: Record<string, unknown> = {
 		id: 99,
 		repositoryUri: 'https://git.example.com/repo',
-		results: [],
-		submissions: [],
+		submissions: [submission],
 	};
 
-	if (opts.hasSubmission) {
-		participation.submissions = [{ id: 1, submissionDate: '2025-01-01T00:00:00Z' }];
-	}
-
 	if (opts.hasResult) {
-		participation.results = [
-			{ id: 10, score: 7, maxScore: 10, successful: false, completionDate: '2025-01-01T00:00:00Z' },
+		submission.results = [
+			{
+				id: 10,
+				score: 70,
+				successful: false,
+				completionDate: '2025-01-01T00:00:00Z',
+				testCaseCount: 3,
+				passedTestCaseCount: 2,
+				feedbacks: [
+					{ testCase: { id: 1, testName: 'taskA_test1' }, positive: true },
+					{ testCase: { id: 2, testName: 'taskA_test2' }, positive: true },
+					{ testCase: { id: 3, testName: 'taskB_test1' }, positive: false, detailText: 'fail' },
+				],
+			},
 		];
 	}
 
 	return makeExerciseData({
 		exercise: {
-			id: 42,
-			title: 'My Exercise',
-			type: 'programming',
-			maxPoints: 10,
-			bonusPoints: 0,
-			problemStatement: 'Solve the problem.',
+			id: 42, title: 'My Exercise', type: 'programming',
+			maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
 			course: { id: 1, title: 'Test Course', shortName: 'TC' },
 			studentParticipations: [participation],
 		},
@@ -117,11 +123,19 @@ describe('ExerciseDetailView', () => {
 		expect(screen.getByText('My Exercise')).toBeInTheDocument();
 	});
 
-	it('renders problem statement section', () => {
+	it('renders problem statement section once server-rendered HTML arrives', async () => {
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
+
+		dispatchExtensionMessage({
+			type: ExtensionMsg.ProblemStatementRendered,
+			html: '<html><body><p>Solve the problem.</p></body></html>',
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
+		});
 	});
 
 	it('shows "Ask Iris" section', () => {
@@ -221,6 +235,27 @@ describe('ExerciseDetailView', () => {
 		);
 	});
 
+	it('posts openRepository command with the repositoryUri when Open Repository is clicked', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+		await userEvent.click(screen.getByRole('button', { name: /Open Repository/i }));
+
+		expect(mockApi.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'openRepository',
+				payload: expect.objectContaining({ repositoryUri: 'https://git.example.com/repo' }),
+			})
+		);
+	});
+
 	it('shows developer tools by default (hideDeveloperTools = false)', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData(),
@@ -282,5 +317,190 @@ describe('ExerciseDetailView', () => {
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({ type: 'requestInit' })
 		);
+	});
+
+	it('posts testResultsOverviewOpened + Closed pair with matching viewId on open and close', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		const postMessageMock = vi.mocked(mockApi.postMessage);
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+
+		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'testResultsOverviewOpened');
+		expect(openedCall).toBeDefined();
+		const openedPayload = (openedCall![0] as Record<string, unknown>).payload as Record<string, unknown>;
+		const openedViewId = openedPayload.viewId;
+		expect(typeof openedViewId).toBe('string');
+
+		fireEvent.keyDown(document, { key: 'Escape' });
+
+		const closedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'testResultsOverviewClosed');
+		expect(closedCall).toBeDefined();
+		const closedPayload = (closedCall![0] as Record<string, unknown>).payload as Record<string, unknown>;
+		expect(closedPayload.viewId).toBe(openedViewId);
+		expect(closedPayload.closeReason).toBe('escape');
+		expect(closedPayload.durationMs).toBeGreaterThanOrEqual(0);
+	});
+
+	it('posts taskFeedbackOpened with filtered testIds and counts when a [task] span is clicked', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		const postMessageMock = vi.mocked(mockApi.postMessage);
+		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: ExtensionMsg.ProblemStatementRendered,
+			html: '<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="1,2">taskA</span></body></html>',
+		});
+
+		await waitFor(() => {
+			expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
+		});
+		await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
+
+		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'taskFeedbackOpened');
+		expect(openedCall).toBeDefined();
+		const payload = (openedCall![0] as Record<string, unknown>).payload as Record<string, unknown>;
+		expect(payload.taskName).toBe('taskA');
+		expect(payload.testIds).toEqual([1, 2]);
+		expect(payload.totalTests).toBe(2);
+		expect(payload.passedTests).toBe(2);
+		expect(payload.failedTests).toBe(0);
+		expect(typeof payload.viewId).toBe('string');
+	});
+
+	// ── Task overlay state coverage ──────────────────────────────────────
+	//
+	// Each test sets up exerciseData to drive classifyTaskTests through a
+	// distinct branch, then clicks a task span and verifies the rendered
+	// empty-state copy. Catches regressions in the full click→classify→
+	// overlay-render pipeline that unit/component tests can't reach.
+
+	function exerciseWithFeedbacks(feedbacks: unknown[] | undefined, successful = false): ExerciseDetailsResponse {
+		const submission: Record<string, unknown> = {
+			id: 1,
+			submissionDate: '2025-01-01T00:00:00Z',
+			results: [{
+				id: 10,
+				score: successful ? 100 : 50,
+				successful,
+				completionDate: '2025-01-01T00:00:00Z',
+				...(feedbacks !== undefined ? { feedbacks } : {}),
+			}],
+		};
+		return makeExerciseData({
+			exercise: {
+				id: 42, title: 'My Exercise', type: 'programming',
+				maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+				course: { id: 1, title: 'Test Course', shortName: 'TC' },
+				studentParticipations: [{
+					id: 99,
+					repositoryUri: 'https://git.example.com/repo',
+					submissions: [submission],
+				}],
+			},
+		});
+	}
+
+	function exerciseWithoutResult(): ExerciseDetailsResponse {
+		return makeExerciseData({
+			exercise: {
+				id: 42, title: 'My Exercise', type: 'programming',
+				maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+				course: { id: 1, title: 'Test Course', shortName: 'TC' },
+				studentParticipations: [{
+					id: 99,
+					repositoryUri: 'https://git.example.com/repo',
+					submissions: [],
+				}],
+			},
+		});
+	}
+
+	const taskHtml = (testIds: string) =>
+		`<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="${testIds}">taskA</span></body></html>`;
+
+	async function clickTaskAndOpenOverlay(html: string) {
+		const mockApi = createMockVsCodeApi();
+		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
+		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html });
+		await waitFor(() => {
+			expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
+		});
+		await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
+	}
+
+	it('task overlay shows no-result copy when there is no latest result', async () => {
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithoutResult(), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/no build results yet/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows no-feedbacks copy when the latest build returned no feedbacks', async () => {
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithFeedbacks([], false), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/produced no test feedback/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows legacy-success copy when result is successful without inline feedbacks', async () => {
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithFeedbacks(undefined, true), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/All 2 tests passed/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows not-executed count when feedbacks do not cover the task tests', async () => {
+		// Task references tests 50/51, but feedbacks only cover unrelated tests.
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseWithFeedbacks([
+				{ testCase: { id: 1, testName: 'other_test' }, positive: true },
+			], false),
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('50,51'));
+		expect(screen.getByText(/2 tests in this task did not run/i)).toBeInTheDocument();
+	});
+
+	it('task overlay shows the Failed section plus a Not-executed note when partial coverage hits a failure', async () => {
+		// Task references tests 1/2/99: 1 passes, 2 fails, 99 has no feedback (not-executed).
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseWithFeedbacks([
+				{ testCase: { id: 1, testName: 'pass_test' }, positive: true },
+				{ testCase: { id: 2, testName: 'fail_test' }, positive: false, detailText: 'boom' },
+			], false),
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('1,2,99'));
+		expect(screen.getByText('Failed (1)')).toBeInTheDocument();
+		expect(screen.getByText('Passed (1)')).toBeInTheDocument();
+		expect(screen.getByText(/1 test in this task did not run/i)).toBeInTheDocument();
+	});
+
+	it('task overlay re-classifies when exerciseData updates while the modal is open', async () => {
+		// Start with no-result, open the modal, then push a successful result
+		// via setState (mirroring the WS-driven store patch). The open modal
+		// must reflect the new state without reopening.
+		useExerciseDetailStore.setState({ exerciseData: exerciseWithoutResult(), isLoading: false });
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/no build results yet/i)).toBeInTheDocument();
+
+		// Patch in feedbacks that pass both task tests.
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseWithFeedbacks([
+				{ testCase: { id: 1, testName: 'tA' }, positive: true },
+				{ testCase: { id: 2, testName: 'tB' }, positive: true },
+			], false),
+		});
+
+		await waitFor(() => {
+			expect(screen.queryByText(/no build results yet/i)).not.toBeInTheDocument();
+		});
+		expect(screen.getByText('Passed (2)')).toBeInTheDocument();
 	});
 });

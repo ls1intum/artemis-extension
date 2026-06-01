@@ -1,9 +1,9 @@
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { AuthManager } from '../../../../src/extension/services/auth/authManager';
-import { MockExtensionContext } from '../../mocks/vscodeMocks';
-import { CONFIG } from '../../../../src/extension/utils/constants';
+
+import { AuthManager } from '@extension/services/auth/authManager';
+import { CONFIG } from '@extension/utils/constants';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('AuthManager Test Suite', () => {
     let context: MockExtensionContext;
@@ -148,20 +148,6 @@ suite('AuthManager Test Suite', () => {
         await authManager.storeArtemisCredentials('jwt=token', 'https://same.example.com', true);
         const result = await authManager.isServerUrlChanged('https://same.example.com');
         assert.strictEqual(result, false);
-    });
-
-    // --- getStoredTokenValue ---
-
-    test('getStoredTokenValue returns undefined when no credentials', async () => {
-        const result = await authManager.getStoredTokenValue();
-        assert.strictEqual(result, undefined);
-    });
-
-    test('getStoredTokenValue returns memory token', async () => {
-        const jwt = 'jwt=memory-token';
-        await authManager.storeArtemisCredentials(jwt, 'url', false);
-        const result = await authManager.getStoredTokenValue();
-        assert.strictEqual(result, jwt);
     });
 
     // --- getAuthHeaders ---

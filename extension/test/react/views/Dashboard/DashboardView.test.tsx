@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { DashboardView } from '../../../../src/webview/views/Dashboard/DashboardView';
-import { useDashboardStore } from '../../../../src/webview/stores/useDashboardStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
-import type { RecentCourseNode } from '../../../../src/webview/stores/useDashboardStore';
+import { describe, expect, it } from 'vitest';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import type { RecentCourseNode } from '@webview/stores/useDashboardStore';
+import { useDashboardStore } from '@webview/stores/useDashboardStore';
+import { DashboardView } from '@webview/views/Dashboard/DashboardView';
 
 const makeCourseNode = (id: number, title: string, exercises: Array<{ id: number; title: string }> = []): RecentCourseNode => ({
 	courseData: {

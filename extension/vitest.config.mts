@@ -8,13 +8,19 @@ export default defineConfig({
 			// Stub the vscode module for tests that import extension-host code
 			// (e.g. replay engine tests that transitively import types.ts → vscode)
 			vscode: new URL('./test/react/__helpers__/vscode.stub.ts', import.meta.url).pathname,
+			// Path aliases — kept in sync with tsconfig.json "paths".
+			'@extension': new URL('./src/extension', import.meta.url).pathname,
+			'@webview': new URL('./src/webview', import.meta.url).pathname,
+			'@shared': new URL('./src/shared', import.meta.url).pathname,
+			'@test': new URL('./test', import.meta.url).pathname,
+			'@root/package.json': new URL('./package.json', import.meta.url).pathname,
 		},
 	},
 	test: {
 		globals: true,
 		environment: 'happy-dom',
 		setupFiles: ['./test/react/__helpers__/vitest.setup.ts'],
-		include: ['test/react/**/*.test.{ts,tsx}'],
+		include: ['test/react/**/*.test.{ts,tsx}', 'test/logic/**/*.test.{ts,tsx}'],
 		css: true,
 		reporters: ['default', 'junit'],
 		outputFile: {

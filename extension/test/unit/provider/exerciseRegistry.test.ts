@@ -1,5 +1,6 @@
 import * as assert from 'assert';
-import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
+
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 
 suite('ExerciseRegistry Test Suite', () => {
     let registry: ExerciseRegistry;

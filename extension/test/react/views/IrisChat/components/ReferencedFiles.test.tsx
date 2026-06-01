@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReferencedFilesData } from '../../../../../src/webview/views/IrisChat/types';
-import { ReferencedFiles } from '../../../../../src/webview/views/IrisChat/components/ReferencedFiles';
+import { describe, expect, it, vi } from 'vitest';
+
+import { ReferencedFiles } from '@webview/views/IrisChat/components/ReferencedFiles';
+import type { ReferencedFilesData } from '@webview/views/IrisChat/types';
 
 function makeFilesData(overrides: Partial<ReferencedFilesData> = {}): ReferencedFilesData {
 	return {

@@ -12,10 +12,13 @@
  * lost while the registry is still populating).
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
-import { TelemetryManager } from '../../../src/extension/services/telemetry/telemetryManager';
-import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
-import type { ResultDTO } from '../../../src/extension/domain';
+import * as sinon from 'sinon';
+
+import type { ResultDTO } from '@extension/domain';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 
 function makeResult(participationId: number | undefined, opts: { buildFailed?: boolean; successful?: boolean } = {}): ResultDTO {
     return {
@@ -29,8 +32,11 @@ function makeResult(participationId: number | undefined, opts: { buildFailed?: b
 suite('TelemetryManager Cross-Exercise Filter (NEW-2 fix)', () => {
     let registry: ExerciseRegistry;
     let telemetry: TelemetryManager;
+    let sandbox: sinon.SinonSandbox;
 
     setup(() => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         registry = new ExerciseRegistry();
         // Exercise A: exerciseId=1, participationId=5001
         // Exercise B: exerciseId=2, participationId=5002
@@ -41,6 +47,7 @@ suite('TelemetryManager Cross-Exercise Filter (NEW-2 fix)', () => {
 
     teardown(() => {
         telemetry.dispose();
+        sandbox.restore();
     });
 
     // Note: a failing build result causes *two* EQ fires — one with source='build'

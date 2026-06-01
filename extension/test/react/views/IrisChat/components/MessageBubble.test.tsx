@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ChatMessage } from '../../../../../src/webview/views/IrisChat/types';
+import { describe, expect, it, vi } from 'vitest';
+
+import type { ChatMessage } from '@webview/views/IrisChat/types';
 
 // Mock streamdown since it's an ESM package
 vi.mock('streamdown', () => ({
@@ -12,7 +13,7 @@ vi.mock('streamdown', () => ({
 
 // Mock CodeBlock to avoid Shiki complexity in MessageBubble tests
 vi.mock(
-	'../../../../../src/webview/views/IrisChat/components/CodeBlock',
+	'@webview/views/IrisChat/components/CodeBlock',
 	() => ({
 		CodeBlock: ({ language, children }: { language?: string; children?: string }) => (
 			<pre data-testid="code-block" data-language={language}><code>{children}</code></pre>
@@ -20,17 +21,7 @@ vi.mock(
 	})
 );
 
-// Mock StreamingMessage to isolate MessageBubble behavior
-vi.mock(
-	'../../../../../src/webview/views/IrisChat/components/StreamingMessage',
-	() => ({
-		StreamingMessage: ({ chunks }: { chunks: string[] }) => (
-			<div data-testid="streaming-message">{chunks.join('')}</div>
-		),
-	})
-);
-
-import { MessageBubble } from '../../../../../src/webview/views/IrisChat/components/MessageBubble';
+import { MessageBubble } from '@webview/views/IrisChat/components/MessageBubble';
 
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 	return {
@@ -45,110 +36,110 @@ function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 describe('MessageBubble', () => {
 	it('renders assistant message content', () => {
 		const message = makeMessage({ role: 'assistant', content: 'Hello, I can help!' });
-		render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
-		);
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
 		expect(screen.getByText('Hello, I can help!')).toBeInTheDocument();
 	});
 
 	it('renders user message content', () => {
 		const message = makeMessage({ role: 'user', content: 'What is polymorphism?' });
-		render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
-		);
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
 		expect(screen.getByText('What is polymorphism?')).toBeInTheDocument();
 	});
 
 	it('does not render avatar for assistant messages', () => {
 		const message = makeMessage({ role: 'assistant' });
 		const { container } = render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
+			<MessageBubble message={message} onFeedback={vi.fn()} />
 		);
 		expect(container.querySelector('img')).not.toBeInTheDocument();
 	});
 
-	it('renders StreamingMessage when isStreaming is true', () => {
-		const message = makeMessage({ role: 'assistant' });
-		render(
-			<MessageBubble
-				message={message}
-				isStreaming={true}
-				streamingChunks={['Hello', ' world']}
-				onFeedback={vi.fn()}
-			/>
-		);
-		expect(screen.getByTestId('streaming-message')).toBeInTheDocument();
-		expect(screen.getByText('Hello world')).toBeInTheDocument();
-	});
-
-	it('does not render StreamingMessage when not streaming', () => {
-		const message = makeMessage({ role: 'assistant', content: 'Done.' });
-		render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
-		);
-		expect(screen.queryByTestId('streaming-message')).not.toBeInTheDocument();
-	});
-
-	it('renders error state with error message', () => {
+	it('renders failed user message with original content and inline error footer', () => {
 		const message = makeMessage({
-			role: 'assistant',
+			role: 'user',
+			content: 'How do I solve task 2?',
 			status: 'error',
-			errorMessage: 'Network error occurred',
+			errorMessage: 'Please select a course or exercise context first.',
+			errorReason: 'no-context',
+		});
+		render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={vi.fn()} />);
+		// Original message content stays visible (this is the bugfix from #178:
+		// previously the bubble replaced its content with the error block).
+		expect(screen.getByText('How do I solve task 2?')).toBeInTheDocument();
+		expect(screen.getByText('Not sent')).toBeInTheDocument();
+		expect(screen.getByText('Please select a course or exercise context first.')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Retry sending this message' })).toBeInTheDocument();
+	});
+
+	it('renders default error message when no errorMessage provided', () => {
+		const message = makeMessage({ role: 'user', content: 'Hi', status: 'error' });
+		render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={vi.fn()} />);
+		expect(screen.getByText('Failed to send message')).toBeInTheDocument();
+	});
+
+	it('does not render Retry button when onRetry prop is omitted', () => {
+		const message = makeMessage({ role: 'user', content: 'Hi', status: 'error', errorMessage: 'Boom' });
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
+		expect(screen.queryByRole('button', { name: 'Retry sending this message' })).not.toBeInTheDocument();
+	});
+
+	it('invokes onRetry with message localId when Retry is clicked', async () => {
+		const onRetry = vi.fn();
+		const message = makeMessage({
+			localId: 'failed-msg-1',
+			role: 'user',
+			content: 'Retry me',
+			status: 'error',
+			errorMessage: 'Boom',
+		});
+		render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={onRetry} />);
+		await userEvent.click(screen.getByRole('button', { name: 'Retry sending this message' }));
+		expect(onRetry).toHaveBeenCalledWith('failed-msg-1');
+	});
+
+	it('disables Retry button when retryDisabled is true and does not call onRetry on click', async () => {
+		const onRetry = vi.fn();
+		const message = makeMessage({
+			role: 'user',
+			content: 'Stuck',
+			status: 'error',
+			errorMessage: 'No context',
+			errorReason: 'no-context',
 		});
 		render(
 			<MessageBubble
 				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
 				onFeedback={vi.fn()}
+				onRetry={onRetry}
+				retryDisabled={true}
 			/>
 		);
-		expect(screen.getByText('Network error occurred')).toBeInTheDocument();
-		expect(screen.getByText('Retry')).toBeInTheDocument();
+		const retry = screen.getByRole('button', { name: 'Retry sending this message' });
+		expect(retry).toBeDisabled();
+		await userEvent.click(retry);
+		expect(onRetry).not.toHaveBeenCalled();
 	});
 
-	it('renders default error message when no errorMessage provided', () => {
-		const message = makeMessage({ role: 'assistant', status: 'error' });
-		render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
+	it('does not render feedback buttons for failed messages', () => {
+		const message = makeMessage({
+			role: 'assistant',
+			content: 'Something',
+			status: 'error',
+			errorMessage: 'Boom',
+		});
+		const { container } = render(
+			<MessageBubble message={message} onFeedback={vi.fn()} onRetry={vi.fn()} />
 		);
-		expect(screen.getByText('Failed to send message')).toBeInTheDocument();
+		const wrapper = container.firstChild as HTMLElement;
+		// Even on hover, feedback should not appear for an error-state message.
+		void userEvent.hover(wrapper);
+		expect(screen.queryByRole('button', { name: 'Helpful' })).not.toBeInTheDocument();
 	});
 
 	it('shows feedback buttons for assistant messages on hover', async () => {
 		const message = makeMessage({ role: 'assistant', content: 'Here is help.' });
 		const { container } = render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
+			<MessageBubble message={message} onFeedback={vi.fn()} />
 		);
 
 		const wrapper = container.firstChild as HTMLElement;
@@ -162,12 +153,7 @@ describe('MessageBubble', () => {
 		const onFeedback = vi.fn();
 		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
 		const { container } = render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={onFeedback}
-			/>
+			<MessageBubble message={message} onFeedback={onFeedback} />
 		);
 
 		const wrapper = container.firstChild as HTMLElement;
@@ -183,12 +169,7 @@ describe('MessageBubble', () => {
 		const onFeedback = vi.fn();
 		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
 		const { container } = render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={onFeedback}
-			/>
+			<MessageBubble message={message} onFeedback={onFeedback} />
 		);
 
 		const wrapper = container.firstChild as HTMLElement;
@@ -200,16 +181,9 @@ describe('MessageBubble', () => {
 		expect(onFeedback).toHaveBeenCalledWith(1, 'negative');
 	});
 
-	it('renders Streamdown in static mode for non-streaming assistant messages', () => {
+	it('renders Streamdown in static mode for assistant messages', () => {
 		const message = makeMessage({ role: 'assistant', content: 'Some content.' });
-		render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
-		);
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
 		const streamdown = screen.getByTestId('streamdown');
 		expect(streamdown).toHaveAttribute('data-mode', 'static');
 	});

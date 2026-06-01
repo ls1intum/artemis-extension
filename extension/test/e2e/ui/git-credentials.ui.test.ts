@@ -1,14 +1,15 @@
 // Covers E2EV-10: GitCredentials view E2E smoke test
 // (E2EV-10 remapped from BuildFeedback — GitCredentials is the 10th actual standalone view)
 import assert from 'assert';
-import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
+import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	takeScreenshot,
-	getCredentials,
-	performLogin,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
 } from './helpers';
 
 describe('GitCredentials View UI Tests', function () {

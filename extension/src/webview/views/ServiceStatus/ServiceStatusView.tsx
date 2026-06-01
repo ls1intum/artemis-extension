@@ -1,23 +1,14 @@
-import { useState, useEffect } from 'react';
-import type {
-    ServiceStatusViewProps,
-    HealthCheckResult,
-    ServiceStatusPersistedState,
-} from './types';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import {
-    BackLink,
-    Container,
-    PageHeader,
-    TextInput,
-    Button,
-    ServiceHealth,
-    SkeletonList,
-} from '../../components';
-import type { ServiceInfo } from '../../components/ServiceHealth/ServiceHealth';
-import { formatServiceName } from '../../utils/formatServiceName';
+import { useEffect, useState } from 'react';
+
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
+import { BackLink, Container, PageHeader, ServiceHealth, SkeletonList, TextInput } from '@webview/components';
+import type { ServiceInfo } from '@webview/components/ServiceHealth/ServiceHealth';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { formatServiceName } from '@webview/utils/formatServiceName';
+
 import styles from './ServiceStatusView.module.css';
+import type { HealthCheckResult, ServiceStatusPersistedState, ServiceStatusViewProps } from './types';
 
 export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     // Restore persisted state (serverUrl only)

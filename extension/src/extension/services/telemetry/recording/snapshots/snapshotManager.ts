@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
-import type { RecordedEvent, FileSnapshotErrorEvent } from '../types';
-import type { RecordingStorageWriter } from '../storageWriter';
-import { shouldRecordUri } from '../uriFilter';
-import type { RecorderLifecycleState } from '../lifecycle/recorderLifecycleState';
-import { logger, LogCategory } from '../../../loggingService';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
+import type { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
+import type { FileSnapshotErrorEvent, RecordedEvent } from '@extension/services/telemetry/recording/types';
+import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 
 interface SnapshotManagerDeps {
     state: RecorderLifecycleState;

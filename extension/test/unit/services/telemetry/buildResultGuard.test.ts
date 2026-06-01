@@ -11,9 +11,10 @@
  */
 
 import * as assert from 'assert';
-import { shouldAcceptBuildResult } from '../../../../src/extension/services/telemetry/buildResultGuard';
-import { ExerciseRegistry } from '../../../../src/extension/services/exerciseRegistry';
-import type { ResultDTO } from '../../../../src/extension/domain';
+
+import type { ResultDTO } from '@extension/domain';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { shouldAcceptBuildResult } from '@extension/services/telemetry/buildResultGuard';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

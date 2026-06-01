@@ -11,7 +11,8 @@
  */
 
 import * as assert from 'assert';
-import { logger, LogCategory } from '../../src/extension/services/loggingService';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 // =============================================================================
 // CONFIGURATION
@@ -21,7 +22,9 @@ const CONFIG = {
     artemisUrl: process.env.ARTEMIS_URL || 'http://localhost:8080',
     username: process.env.ARTEMIS_USER || 'artemis_admin',
     password: process.env.ARTEMIS_PASSWORD || 'artemis_admin',
-    exerciseId: parseInt(process.env.EXERCISE_ID || '1'),
+    // Canonical name is ARTEMIS_EXERCISE_ID (matches the UI test); accept
+    // the legacy unprefixed EXERCISE_ID as fallback for back-compat. See #198.
+    exerciseId: parseInt(process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '1'),
     timeout: 30000, // 30 seconds for Iris response
 };
 
@@ -133,10 +136,15 @@ class ArtemisTestClient extends ArtemisTestClientBase {
     async getOrCreateSession(exerciseId: number): Promise<number | null> {
         logger.info(`[E2E] Getting/creating Iris session for exercise ${exerciseId}...`, LogCategory.TEST);
 
+        const params = new URLSearchParams({
+            mode: 'PROGRAMMING_EXERCISE_CHAT',
+            entityId: String(exerciseId),
+        });
+
         // Try to get current session
         let response = await fetch(
-            `${this.baseUrl}/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`,
-            { headers: this.getHeaders() }
+            `${this.baseUrl}/api/iris/chat/sessions/current?${params.toString()}`,
+            { method: 'POST', headers: this.getHeaders() },
         );
 
         if (response.ok) {
@@ -147,11 +155,8 @@ class ArtemisTestClient extends ArtemisTestClientBase {
 
         // Create new session
         response = await fetch(
-            `${this.baseUrl}/api/iris/programming-exercise-chat/${exerciseId}/sessions`,
-            {
-                method: 'POST',
-                headers: this.getHeaders(),
-            }
+            `${this.baseUrl}/api/iris/chat/sessions?${params.toString()}`,
+            { method: 'POST', headers: this.getHeaders() },
         );
 
         if (response.ok) {

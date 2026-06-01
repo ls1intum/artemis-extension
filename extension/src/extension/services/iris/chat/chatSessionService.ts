@@ -1,10 +1,50 @@
-import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '../../../types';
-import type { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
+import { ExtensionMsg } from '@shared/messageContracts';
+
+import { MalformedResponseError } from '@extension/domain/errors';
+import { resolveCourseIdFromContext } from '@extension/services/iris/context/courseIdResolver';
+import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
+import { fetchSessionsWithMessages, importSessionsToStore } from '@extension/services/iris/context/sessionSyncUtils';
+import type { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '@extension/types';
+
 import { extractIrisMessageContent } from './messageUtils';
-import { logger, LogCategory } from '../../loggingService';
-import { ExtensionMsg } from '../../../../shared/messageContracts';
-import { fetchSessionsWithMessages, importSessionsToStore } from '../context/sessionSyncUtils';
-import type { IrisServiceDeps } from '../context/sessionSyncUtils';
+
+/**
+ * Three-way availability classification for the Iris chat. The distinction
+ * matters in the UI: `disabled` shows the persistent "instructor disabled
+ * Iris" overlay, while `unavailable` shows a transient "temporarily
+ * unavailable, retry" banner. Conflating the two misleads students into
+ * thinking their course turned Iris off whenever the network blips.
+ */
+export type IrisAvailability =
+    | { kind: 'enabled' }
+    | { kind: 'disabled' }
+    | { kind: 'unavailable'; reason: string };
+
+/**
+ * Tracked availability state with the context the classification belongs to.
+ * Auto-retry-on-reconnect uses this to only fire if the user is still looking
+ * at the same context (e.g. exercise 42) that originally classified as
+ * unavailable — a stale classification for a previous context must not
+ * trigger a reload of the current one.
+ */
+export type LastAvailability =
+    | { kind: 'unknown'; contextKey?: undefined }
+    | { kind: IrisAvailability['kind']; contextKey: string };
+
+const UNAVAILABLE_USER_MESSAGE = 'Iris is temporarily unavailable. Retry to reload.';
+
+function contextKeyOf(context: ActiveContext | null): string | undefined {
+    return context ? `${context.type}:${context.id}` : undefined;
+}
+
+function describeError(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message || error.name;
+    }
+    return String(error);
+}
 
 /**
  * Orchestrates Iris chat session lifecycle (create, load, switch).
@@ -16,6 +56,7 @@ import type { IrisServiceDeps } from '../context/sessionSyncUtils';
  */
 export class IrisChatSessionService {
     private _contextLoadToken = 0;
+    private _lastAvailability: LastAvailability = { kind: 'unknown' };
 
     constructor(
         private readonly deps: IrisServiceDeps,
@@ -38,94 +79,162 @@ export class IrisChatSessionService {
         return !!current && current.type === expected.type && current.id === expected.id;
     }
 
-    public async checkAndLoadIrisSettings(context: ActiveContext): Promise<boolean> {
+    /**
+     * Most recent availability classification, paired with the context it
+     * belongs to. Consumed by the reconnect hook in
+     * {@link ChatWebviewProvider} to decide whether to fire an auto-retry.
+     */
+    public get lastAvailability(): LastAvailability {
+        return this._lastAvailability;
+    }
+
+    /**
+     * Clear the tracked availability state. Called on context changes so a
+     * stale `unavailable` from a previous exercise cannot trigger a reload
+     * of the new one. Does not emit any UI messages — the caller is
+     * responsible for hiding banners for the outgoing context.
+     */
+    public resetAvailability(): void {
+        this._lastAvailability = { kind: 'unknown' };
+    }
+
+    /**
+     * Public wrapper around the centralized availability emission. Used by
+     * paths outside the chat-session loader that still need to surface an
+     * availability state — e.g. {@link ChatMessageService.sendMessage} when
+     * it gets an `unavailable` from `checkAndLoadIrisSettings`. Funneling
+     * through here ensures `lastAvailability` is updated so the websocket
+     * reconnect hook can auto-retry the reload afterwards.
+     */
+    public postAvailability(availability: IrisAvailability, context: ActiveContext | null): void {
+        this._postAvailability(availability, context);
+    }
+
+    public async checkAndLoadIrisSettings(context: ActiveContext): Promise<IrisAvailability> {
         if (!this.deps.artemisApiService) {
             logger.warn('Artemis API service not available', LogCategory.IRIS_CHAT);
-            return false;
+            return { kind: 'unavailable', reason: 'Artemis API service not initialized' };
         }
 
+        logger.info(`Checking Iris settings for ${context.type}: ${context.title}`, LogCategory.IRIS_CHAT);
+
+        // Step 1: Profile probe. A 403 here is NOT a disable signal — that
+        // would mean "user not allowed to read the server profile", which
+        // is an infrastructure / auth issue. Profile-fetch failures
+        // therefore funnel through the same `unavailable` path as any
+        // other infra error.
+        let profileInfo;
         try {
-            logger.info(`Checking Iris settings for ${context.type}: ${context.title}`, LogCategory.IRIS_CHAT);
-
-            // Step 1: Check if Iris is globally enabled (server profile)
-            const profileInfo = await this.deps.artemisApiService.getProfileInfo();
-            if (!this.deps.artemisApiService.isIrisProfileActive(profileInfo)) {
-                logger.info('Iris profile not active on server (global check failed)', LogCategory.IRIS_CHAT);
-                return false;
-            }
-
-            // Step 2: Fetch course-level settings based on context type
-            let settings: IrisSettingsResponse;
-            if (context.type === 'course') {
-                settings = await this.deps.artemisApiService.getIrisCourseChatSettings(context.id);
-            } else if (context.type === 'exercise') {
-                const courseId = await this.resolveCourseIdForExercise(context);
-                if (!courseId) {
-                    logger.warn('Unable to resolve course for exercise context; cannot check Iris settings', LogCategory.IRIS_CHAT);
-                    return false;
-                }
-                settings = await this.deps.artemisApiService.getIrisCourseChatSettings(courseId);
-            } else {
-                logger.warn(`Unsupported context type for Iris: ${context.type}`, LogCategory.IRIS_CHAT);
-                return false;
-            }
-
-            // Check if Iris chat is enabled
-            const chatSettings = settings?.settings;
-
-            if (!chatSettings?.enabled) {
-                logger.info('Iris chat is disabled in settings', LogCategory.IRIS_CHAT);
-                return false;
-            }
-
-            logger.info('Iris chat is enabled, settings loaded:', LogCategory.IRIS_CHAT, {
-                enabled: chatSettings.enabled,
-                rateLimit: settings?.effectiveRateLimit?.requests,
-                rateLimitTimeframeHours: settings?.effectiveRateLimit?.timeframeHours
-            });
-
-            return true;
+            profileInfo = await this.deps.artemisApiService.getProfileInfo();
         } catch (error: unknown) {
-            logger.error('Error checking Iris settings:', LogCategory.IRIS_CHAT, error);
+            logger.error('Profile info fetch failed for Iris check:', LogCategory.IRIS_CHAT, error);
+            return { kind: 'unavailable', reason: `Profile probe failed: ${describeError(error)}` };
+        }
+        if (!this.deps.artemisApiService.isIrisProfileActive(profileInfo)) {
+            logger.info('Iris profile not active on server (global check failed)', LogCategory.IRIS_CHAT);
+            return { kind: 'disabled' };
+        }
 
-            // If it's a 403, Iris is probably disabled - return false to show disabled overlay
-            if ((error instanceof ApiError && error.status === 403) || (error instanceof Error && error.message?.includes('403'))) {
-                logger.info('Iris is not available (403 error)', LogCategory.IRIS_CHAT);
-                return false;
+        // Step 2: Resolve courseId for an exercise context. Failures here
+        // are transient (registry not populated yet, exercise-details
+        // endpoint dropped) — never a disable signal.
+        let courseId: number;
+        if (context.type === 'course') {
+            courseId = context.id;
+        } else if (context.type === 'exercise') {
+            let resolvedCourseId: number | undefined;
+            try {
+                resolvedCourseId = await this.resolveCourseIdForExercise(context);
+            } catch (error: unknown) {
+                logger.error('Course resolution failed for exercise context:', LogCategory.IRIS_CHAT, error);
+                return { kind: 'unavailable', reason: `Could not resolve course: ${describeError(error)}` };
             }
+            if (!resolvedCourseId) {
+                logger.warn('Unable to resolve course for exercise context; cannot check Iris settings', LogCategory.IRIS_CHAT);
+                return { kind: 'unavailable', reason: 'Could not resolve course for this exercise' };
+            }
+            courseId = resolvedCourseId;
+        } else {
+            logger.warn(`Unsupported context type for Iris: ${context.type}`, LogCategory.IRIS_CHAT);
+            return { kind: 'disabled' };
+        }
 
-            // For other errors, log but still return false to show disabled state
-            logger.info(`Could not load Iris settings: ${error instanceof Error ? error.message : String(error)}`, LogCategory.IRIS_CHAT);
-            return false;
+        // Step 3: Iris settings call — this is the ONLY endpoint where a
+        // 403 has a "disabled" semantic (course-level forbidden = Iris
+        // chat off for this user). All other status codes (incl. 401,
+        // 4xx, 5xx) plus network/timeout/malformed map to unavailable
+        // through the shared classifier.
+        let settings: IrisSettingsResponse;
+        try {
+            settings = await this.deps.artemisApiService.getIrisCourseChatSettings(courseId);
+        } catch (error: unknown) {
+            logger.error('Iris settings fetch failed:', LogCategory.IRIS_CHAT, error);
+            return classifyAvailabilityFromError(error);
+        }
+
+        // Distinguish "enabled is explicitly false" from "enabled field is
+        // missing / non-boolean". The latter signals a malformed response,
+        // which is a transport-layer issue, not an intentional disable.
+        const chatSettings = settings?.settings;
+        if (!chatSettings || typeof chatSettings.enabled !== 'boolean') {
+            logger.warn('Iris settings response is missing or malformed', LogCategory.IRIS_CHAT, { settings });
+            return { kind: 'unavailable', reason: 'Malformed Iris settings response' };
+        }
+        if (chatSettings.enabled === false) {
+            logger.info('Iris chat is disabled in settings', LogCategory.IRIS_CHAT);
+            return { kind: 'disabled' };
+        }
+
+        logger.info('Iris chat is enabled, settings loaded:', LogCategory.IRIS_CHAT, {
+            enabled: chatSettings.enabled,
+            rateLimit: settings?.effectiveRateLimit?.requests,
+            rateLimitTimeframeHours: settings?.effectiveRateLimit?.timeframeHours
+        });
+
+        return { kind: 'enabled' };
+    }
+
+    /**
+     * Single emission point for availability state. Every availability
+     * transition flows through here, which keeps the "always clear the
+     * opposite banner" invariant in one place and lets us record
+     * `lastAvailability` alongside the UI signal. Callers that bypass this
+     * helper will silently break banner consistency, so all other availability
+     * emission must be funneled through {@link postAvailability} (the public
+     * wrapper exposed for the send-path) or this private method directly.
+     */
+    private _postAvailability(availability: IrisAvailability, context: ActiveContext | null): void {
+        const key = contextKeyOf(context);
+        this._lastAvailability = key
+            ? { kind: availability.kind, contextKey: key }
+            : { kind: 'unknown' };
+
+        switch (availability.kind) {
+            case 'enabled':
+                this.deps.postMessage({ type: ExtensionMsg.HideDisabledState });
+                this.deps.postMessage({ type: ExtensionMsg.HideUnavailableState });
+                break;
+            case 'disabled': {
+                const label = context?.type === 'course' ? 'course' : 'exercise';
+                this.deps.postMessage({
+                    type: ExtensionMsg.ShowDisabledState,
+                    message: `Iris chat is not enabled for this ${label}. Please contact your instructor.`,
+                });
+                this.deps.postMessage({ type: ExtensionMsg.HideUnavailableState });
+                break;
+            }
+            case 'unavailable':
+                this.deps.postMessage({
+                    type: ExtensionMsg.ShowUnavailableState,
+                    message: UNAVAILABLE_USER_MESSAGE,
+                });
+                this.deps.postMessage({ type: ExtensionMsg.HideDisabledState });
+                break;
         }
     }
 
     private async resolveCourseIdForExercise(context: ActiveContext): Promise<number | undefined> {
-        if (context.courseId) {
-            return context.courseId;
-        }
-
-        const tracked = this.deps.contextStore.getExerciseById(context.id);
-        if (tracked?.courseId) {
-            return tracked.courseId;
-        }
-
-        try {
-            const exerciseDetails = await this.deps.artemisApiService?.getExerciseDetails(context.id);
-            const resolvedCourseId = exerciseDetails?.exercise?.course?.id;
-            if (resolvedCourseId) {
-                this.deps.contextStore.registerExercise({
-                    id: context.id,
-                    title: context.title,
-                    shortName: context.shortName,
-                    courseId: resolvedCourseId,
-                });
-            }
-            return resolvedCourseId;
-        } catch (error) {
-            logger.warn('Failed to resolve course from exercise details:', LogCategory.IRIS_CHAT, error);
-            return undefined;
-        }
+        return resolveCourseIdFromContext(context, this.deps.contextStore, this.deps.artemisApiService);
     }
 
     // ── System-driven: load sessions on context switch ─────────────────
@@ -136,11 +245,16 @@ export class IrisChatSessionService {
         logger.info('Starting loadAllSessionsForContext', LogCategory.SESSION);
         logger.info('Active context:', LogCategory.SESSION, activeContext);
 
-        if (!activeContext || !this.deps.artemisApiService) {
-            logger.info('Cannot load sessions: missing context or API service', LogCategory.SESSION, {
-                hasContext: !!activeContext,
-                hasApiService: !!this.deps.artemisApiService
-            });
+        if (!activeContext) {
+            logger.info('Cannot load sessions: missing context', LogCategory.SESSION);
+            return;
+        }
+        if (!this.deps.artemisApiService) {
+            logger.warn('Cannot load sessions: API service not initialized', LogCategory.SESSION);
+            this._postAvailability(
+                { kind: 'unavailable', reason: 'Artemis API service not initialized' },
+                activeContext,
+            );
             return;
         }
 
@@ -154,31 +268,29 @@ export class IrisChatSessionService {
             logger.info(`Loading all Iris sessions for ${activeContext.type}: ${activeContext.title} (ID: ${activeContext.id})`, LogCategory.SESSION);
 
             // Step 0: Check if Iris is enabled for this context
-            const isEnabled = await this.checkAndLoadIrisSettings(activeContext);
+            const availability = await this.checkAndLoadIrisSettings(activeContext);
 
             if (!this.isCurrentContext(targetContext, loadToken)) {
                 logger.info('Context changed while checking Iris settings, aborting load', LogCategory.IRIS_CHAT);
                 return;
             }
 
-            if (!isEnabled) {
-                logger.info('Iris is disabled, not loading sessions', LogCategory.IRIS_CHAT);
-                // Clear any existing sessions and show disabled overlay
-                this.deps.postMessage({
-                    type: ExtensionMsg.ClearChatMessages
-                });
-                const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
-                this.deps.postMessage({
-                    type: ExtensionMsg.ShowDisabledState,
-                    message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
-                });
+            if (availability.kind !== 'enabled') {
+                logger.info(`Iris is ${availability.kind}, not loading sessions`, LogCategory.IRIS_CHAT);
+                // Clear any stale messages, then announce availability. The
+                // banner is the terminal state for both disabled and
+                // unavailable; the view stops the loader on either flag.
+                // We intentionally do NOT post LoadMessagesError here:
+                // availability failures are not history-load failures, and
+                // emitting it would surface the misleading central error UI
+                // in addition to the banner.
+                this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
+                this._postAvailability(availability, activeContext);
                 return;
             }
 
-            // Hide disabled overlay if it was previously shown
-            this.deps.postMessage({
-                type: ExtensionMsg.HideDisabledState
-            });
+            // Enabled: clear any prior availability banners.
+            this._postAvailability(availability, activeContext);
 
             const count = await this._fetchImportAndActivate(targetContext, loadToken);
             if (count === -1) { return; } // context changed
@@ -205,13 +317,18 @@ export class IrisChatSessionService {
             logger.error('Error loading sessions for context:', LogCategory.SESSION, error);
 
             if (!this.isCurrentContext(targetContext, loadToken)) {
-                logger.info('Context changed during error handling, skipping fallback session creation', LogCategory.IRIS_CHAT);
+                logger.info('Context changed during error handling, skipping availability emit', LogCategory.IRIS_CHAT);
                 return;
             }
 
-            // Fall back to creating a new session
-            this.createNewSession();
-            this.deps.postSnapshot();
+            // Any caught error here means the server-side load failed (or the
+            // settings/session listing call threw). Classify and surface as
+            // unavailable. The previous behavior — falling back to
+            // createNewSession() — silently masked transient server errors as
+            // "no sessions on server", which then made every reload create
+            // additional orphan local sessions. The right recovery is the
+            // Retry button (manual or websocket-reconnect-driven).
+            this._postAvailability(classifyAvailabilityFromError(error), targetContext);
         }
     }
 
@@ -378,12 +495,23 @@ export class IrisChatSessionService {
                 })
                 .catch((err: unknown) => {
                     logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
-                    if (isStillNewSession()) {
-                        this.deps.postMessage({
-                            type: ExtensionMsg.LoadMessagesError,
-                            localSessionId: newLocalSessionId,
-                        });
+                    if (!isStillNewSession()) {
+                        return;
                     }
+                    // Reuse the same availability classifier as
+                    // loadAllSessionsForContext so a network drop during the
+                    // server round-trip surfaces the unavailable banner
+                    // instead of leaving the spinner up indefinitely. The
+                    // LoadMessagesError signal is kept for true "history
+                    // failed to load" cases — but the classifier-driven
+                    // availability state is the primary outcome here, so the
+                    // view's loader stops via the banner.
+                    const availability = classifyAvailabilityFromError(err);
+                    this._postAvailability(availability, activeContext);
+                    this.deps.postMessage({
+                        type: ExtensionMsg.LoadMessagesError,
+                        localSessionId: newLocalSessionId,
+                    });
                 });
         }
     }
@@ -446,7 +574,7 @@ export class IrisChatSessionService {
         targetContext: ActiveContext,
         loadToken: number,
     ): Promise<number> {
-        const sessions = await fetchSessionsWithMessages(this.deps.artemisApiService!, targetContext);
+        const sessions = await fetchSessionsWithMessages(this.deps.artemisApiService!, this.deps.contextStore, targetContext);
 
         logger.info(`Fetched ${sessions.length} session(s) with messages from Artemis`, LogCategory.IRIS_CHAT);
 
@@ -531,4 +659,34 @@ export class IrisChatSessionService {
         this.deps.postSnapshot();
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
     }
+}
+
+/**
+ * Maps a raw error (from `fetch`, `ApiError`, schema validation, etc.) to an
+ * {@link IrisAvailability}. Exported privately to the file so both
+ * `checkAndLoadIrisSettings` and the outer `loadAllSessionsForContext` /
+ * `createNewSession` catch-blocks share one classification policy.
+ *
+ * Rules:
+ *   - `ApiError(403)`   → disabled (course-level forbidden = disabled for this user)
+ *   - any other `ApiError` (401/404/4xx/5xx)         → unavailable
+ *   - `MalformedResponseError` (subclass of ApiError) → unavailable
+ *   - any other Error / network / `TypeError`        → unavailable
+ *
+ * No string-matching on `error.message.includes('403')` — the historical
+ * fallback was inherited code with no good reason to keep it and could
+ * misclassify unrelated errors whose message happened to contain '403'.
+ */
+function classifyAvailabilityFromError(error: unknown): IrisAvailability {
+    if (error instanceof MalformedResponseError) {
+        return { kind: 'unavailable', reason: `Malformed response: ${error.message}` };
+    }
+    if (error instanceof ApiError) {
+        if (error.status === 403) {
+            return { kind: 'disabled' };
+        }
+        return { kind: 'unavailable', reason: `Server returned ${error.status}` };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return { kind: 'unavailable', reason: message || 'Unknown error' };
 }

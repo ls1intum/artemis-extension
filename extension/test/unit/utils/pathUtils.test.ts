@@ -1,5 +1,6 @@
 import * as assert from 'assert';
-import { normalizeRelativePath } from '../../../src/extension/utils/pathUtils';
+
+import { normalizeRelativePath } from '@extension/utils/pathUtils';
 
 suite('Path Utils Test Suite', () => {
     test('normalizeRelativePath should handle empty input', () => {

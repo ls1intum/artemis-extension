@@ -1,13 +1,15 @@
 // Covers E2EV-03: CourseList view smoke test
-import { VSBrowser, WebDriver, Workbench, By } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	takeScreenshot,
-	getCredentials,
-	performLogin,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    safeLogoutAndCleanup,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
 } from './helpers';
 
 describe('CourseList View UI Tests', function () {
@@ -33,9 +35,7 @@ describe('CourseList View UI Tests', function () {
 
 	after(async function () {
 		this.timeout(15000);
-		const workbench = new Workbench();
-		await workbench.executeCommand('Logout from Artemis');
-		await driver.sleep(2000);
+		await safeLogoutAndCleanup(driver);
 	});
 
 	afterEach(async function () {

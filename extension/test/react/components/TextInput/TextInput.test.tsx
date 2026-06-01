@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TextInput } from '../../../../src/webview/components/TextInput/TextInput';
+import { describe, expect, it, vi } from 'vitest';
+
+import { TextInput } from '@webview/components/TextInput/TextInput';
 
 describe('TextInput', () => {
 	it('renders with label associated to input', () => {

@@ -1,12 +1,14 @@
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { WebViewMessageHandler } from '../../../src/extension/controller/webViewMessageHandler';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/extension/services/auth';
-import { ArtemisApiService } from '../../../src/extension/api';
-import { AppStateManager } from '../../../src/extension/controller/appStateManager';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../../src/shared/messageContracts';
+
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+
+import { ArtemisApiService } from '@extension/api';
+import { AppStateManager } from '@extension/controller/appStateManager';
+import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+import { AuthManager } from '@extension/services/auth';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {
@@ -40,11 +42,11 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         showRecommendedExtensions: sinon.SinonStub;
         showGitCredentials: sinon.SinonStub;
         openExerciseDetails: sinon.SinonStub;
-        openExamExerciseDetails: sinon.SinonStub;
         openExerciseFullscreen: sinon.SinonStub;
         openCourseFullscreen: sinon.SinonStub;
         openCourseListFullscreen: sinon.SinonStub;
         sendInitData: sinon.SinonStub;
+        backgroundRenderProblemStatement: sinon.SinonStub;
         navigateBack: sinon.SinonStub;
         navigateToStartPage: sinon.SinonStub;
     };
@@ -79,11 +81,11 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
             openExerciseDetails: sandbox.stub().resolves(),
-            openExamExerciseDetails: sandbox.stub().resolves(),
             openExerciseFullscreen: sandbox.stub().resolves(),
             openCourseFullscreen: sandbox.stub().resolves(),
             openCourseListFullscreen: sandbox.stub().resolves(),
             sendInitData: sandbox.stub(),
+            backgroundRenderProblemStatement: sandbox.stub(),
             navigateBack: sandbox.stub().resolves(),
             navigateToStartPage: sandbox.stub().resolves(),
         };
@@ -293,7 +295,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
     });
 
     suite('real command module integration', () => {
-        test('registered handlers include representative commands from all 7 modules', () => {
+        test('registered handlers include representative commands from all 11 modules', () => {
             const registeredHandlers = (handler as any).commandHandlers as Map<string, unknown>;
 
             // Must have entries
@@ -308,11 +310,52 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             assert.ok(registeredHandlers.has('viewCourseDetails'), 'Should have "viewCourseDetails" handler (NavigationCommandModule)');
 
             // Repository module commands
-            assert.ok(registeredHandlers.has('cloneRepository'), 'Should have "cloneRepository" handler (RepositoryCommandModule)');
-            assert.ok(registeredHandlers.has('submitExercise'), 'Should have "submitExercise" handler (RepositoryCommandModule)');
+            assert.ok(registeredHandlers.has('cloneRepository'), 'Should have "cloneRepository" handler (RepositoryCloneCommands)');
+            assert.ok(registeredHandlers.has('submitExercise'), 'Should have "submitExercise" handler (RepositorySubmitCommands)');
 
             // Iris module commands
             assert.ok(registeredHandlers.has('askIrisAboutExercise'), 'Should have "askIrisAboutExercise" handler (IrisCommandModule)');
+        });
+
+        test('context.recheckRepoStatus is wired to the status module and routes setRepositoryContext through it', async () => {
+            // The handler builds the context, constructs the status module, then assigns
+            // context.recheckRepoStatus = () => statusModule.recheckCurrentRepoStatus().
+            // We verify two things in one test:
+            //   1. context.recheckRepoStatus is non-null (callback wired)
+            //   2. Calling it actually reaches the status module (routes via setRepositoryContext)
+
+            const statusModule = (handler as any).repositoryStatusModule;
+            assert.ok(statusModule, 'WebViewMessageHandler should expose repositoryStatusModule');
+
+            // Status module's handler must be registered in the command map
+            // (catches the failure mode where the module is constructed but omitted from modules[]).
+            const registeredHandlers = (handler as any).commandHandlers as Map<string, unknown>;
+            assert.ok(registeredHandlers.has('checkRepositoryStatus'),
+                'Should have "checkRepositoryStatus" handler (RepositoryStatusCommands)');
+
+            // Grab the shared context that was passed to the status module on construction
+            const sharedContext = (statusModule as any).context;
+            assert.ok(sharedContext, 'Status module should have a stored context');
+            assert.strictEqual(
+                typeof sharedContext.recheckRepoStatus,
+                'function',
+                'context.recheckRepoStatus must be wired',
+            );
+
+            // Replace the status module's recheckCurrentRepoStatus with a spy to assert routing
+            const recheckSpy = sandbox.stub().resolves();
+            (statusModule as any).recheckCurrentRepoStatus = recheckSpy;
+
+            // Invoke the wired callback as the submit shell would
+            await sharedContext.recheckRepoStatus();
+
+            sinon.assert.calledOnce(recheckSpy);
+
+            // Sanity: setRepositoryContext on the handler reaches the same status module
+            const setSpy = sandbox.stub();
+            (statusModule as any).setRepositoryContext = setSpy;
+            handler.setRepositoryContext('https://artemis.example.com/git/x.git', 7);
+            sinon.assert.calledOnceWithExactly(setSpy, 'https://artemis.example.com/git/x.git', 7);
         });
     });
 });

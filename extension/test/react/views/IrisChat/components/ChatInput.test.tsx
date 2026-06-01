@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ChatInput } from '../../../../../src/webview/views/IrisChat/components/ChatInput';
+import { describe, expect, it, vi } from 'vitest';
+
+import { ChatInput } from '@webview/views/IrisChat/components/ChatInput';
 
 describe('ChatInput', () => {
 	it('renders a textarea element', () => {

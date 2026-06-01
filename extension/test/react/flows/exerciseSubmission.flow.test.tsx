@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExerciseDetailView } from '../../../src/webview/views/ExerciseDetail/ExerciseDetailView';
-import { useExerciseDetailStore } from '../../../src/webview/stores/useExerciseDetailStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 
 /**
  * Exercise submission flow integration tests.
@@ -15,13 +16,8 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vs
  */
 
 // Mock useWebSocketUpdates — not under test here
-vi.mock('../../../src/webview/hooks/useWebSocketUpdates', () => ({
+vi.mock('@webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
-}));
-
-// Mock useExamTimer (used transitively)
-vi.mock('../../../src/webview/hooks/useExamTimer', () => ({
-	useExamTimer: () => ({ remaining: 0, expired: false }),
 }));
 
 function makeExerciseData(overrides: Record<string, unknown> = {}) {
@@ -41,7 +37,7 @@ function makeExerciseData(overrides: Record<string, unknown> = {}) {
 			studentParticipations: [],
 			...((overrides.exercise as Record<string, unknown>) ?? {}),
 		},
-		pendingSubmission: null,
+		pendingSubmissionsByParticipationId: {},
 		...overrides,
 	};
 }
@@ -224,7 +220,7 @@ describe('Exercise Submission Flow', () => {
 		// Simulate exercise with pending submission (building)
 		const dataWithPending = {
 			...makeExerciseDataWithParticipation(),
-			pendingSubmission: { submissionId: 500 },
+			pendingSubmissionsByParticipationId: { 99: { participationId: 99 } },
 		};
 
 		dispatchExtensionMessage({
@@ -234,13 +230,81 @@ describe('Exercise Submission Flow', () => {
 		});
 
 		await waitFor(() => {
-			// BuildProgress component should show building state
+			// View stays mounted while the submission is building
 			expect(screen.getByText('Binary Search Tree')).toBeInTheDocument();
 		});
 
-		// The exercise is in building state — verify the store reflects this
+		// The exercise is in building state — verify the store reflects this,
+		// keyed by participation.id (#168 fix).
 		const storeState = useExerciseDetailStore.getState();
-		expect(storeState.pendingSubmission).toBeTruthy();
+		expect(storeState.pendingSubmissionsByParticipationId[99]).toBeTruthy();
+	});
+
+	it('renders the pending-build indicator only for the selected participation (#168)', async () => {
+		// Exercise has both a graded (testRun=false) and a practice (testRun=true)
+		// participation. Only the practice one has a pending build. With the
+		// graded repo selected as workspace, the view must NOT show the building
+		// indicator — its participation has no pending entry. This is the
+		// regression the singleton field used to permit.
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		const dataWithTwoParticipations = makeExerciseData({
+			exercise: {
+				id: 42,
+				title: 'Binary Search Tree',
+				type: 'programming',
+				maxPoints: 100,
+				bonusPoints: 0,
+				problemStatement: '<p>Implement a binary search tree.</p>',
+				course: { id: 1, title: 'Data Structures', shortName: 'DS' },
+				studentParticipations: [
+					{
+						id: 99,
+						testRun: false,
+						repositoryUri: 'https://git.example.com/bst-graded',
+						submissions: [],
+					},
+					{
+						id: 199,
+						testRun: true,
+						repositoryUri: 'https://git.example.com/bst-practice',
+						submissions: [],
+					},
+				],
+			},
+			// Pending only on the practice participation.
+			pendingSubmissionsByParticipationId: {
+				199: { participationId: 199, state: 'BUILDING' },
+			},
+		});
+
+		dispatchExtensionMessage({
+			type: 'exerciseDetailInit',
+			exerciseData: dataWithTwoParticipations,
+			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+			hideDeveloperTools: false,
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Binary Search Tree')).toBeInTheDocument();
+		});
+
+		// The graded participation has no pending build → no "Building" message
+		// should leak from the practice participation's map entry.
+		expect(screen.queryByText(/Building your submission/)).not.toBeInTheDocument();
+
+		// Sanity: switching to practice repo should now surface the indicator.
+		dispatchExtensionMessage({
+			type: 'updateRepoStatus',
+			isConnected: true,
+			hasChanges: false,
+			isPracticeRepo: true,
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText(/Building your submission/)).toBeInTheDocument();
+		});
 	});
 
 	it('completes full submission lifecycle with build progress simulation', async () => {
@@ -281,7 +345,7 @@ describe('Exercise Submission Flow', () => {
 			type: 'exerciseDetailInit',
 			exerciseData: {
 				...makeExerciseDataWithParticipation(),
-				pendingSubmission: { submissionId: 500 },
+				pendingSubmissionsByParticipationId: { 99: { participationId: 99 } },
 			},
 			hideDeveloperTools: false,
 		});

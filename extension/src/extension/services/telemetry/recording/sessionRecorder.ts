@@ -16,7 +16,7 @@
  * `_phase` replaces the legacy `_isRecording` / `_isEnabled` booleans. Phase
  * transitions other than the synchronous `disable()` kick-off happen inside
  * the lifecycle mutex (`_lifecyclePromise`), so only one of `_doStart`,
- * `_doEnd`, or `_doDisable` runs at a time.
+ * `_doFinalize`, or `_doDisable` runs at a time.
  *
  * ## Session Generation Token
  *
@@ -39,19 +39,38 @@
  */
 
 import * as vscode from 'vscode';
-import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
-import type { RecordedEvent, SerializedErrorSnapshot } from './types';
-import type { PlatformCapabilities } from '../../../theia';
-import type { ExerciseRegistry } from '../../exerciseRegistry';
-import { RecordingStorageWriter } from './storageWriter';
+
+import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
+
+import type { RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
+
+/**
+ * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
+ * after stripping the `timestamp` discriminator-adjacent field.
+ */
+type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
+    ? E extends RecordedEvent
+        ? Omit<E, 'timestamp'>
+        : never
+    : never;
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { shouldAcceptBuildResult } from '@extension/services/telemetry/buildResultGuard';
+import type { PlatformCapabilities } from '@extension/theia';
+
 import { collectBuildResult } from './eventCollectors';
-import { shouldAcceptBuildResult } from '../buildResultGuard';
-import { logger, LogCategory } from '../../loggingService';
-import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
-import { LifecycleController } from './lifecycle/lifecycleController';
-import { SnapshotManager } from './snapshots/snapshotManager';
-import { StartupCapture, type StartupContext as StartupContextFromModule, type StartupContributor as StartupContributorFromModule } from './startup/startupCapture';
+import {
+    LifecycleController,
+    RecorderLifecycleState,
+    type RecorderPhase as RecorderPhaseFromState,
+} from './lifecycleController';
 import { ObservationRegistry } from './observation/observationRegistry';
+import { SnapshotManager } from './snapshots/snapshotManager';
+import {
+    StartupCapture,
+    type StartupContributor as StartupContributorFromModule,
+} from './startup/startupCapture';
+import { RecordingStorageWriter } from './storageWriter';
 
 interface RecordingState {
     isEnabled: boolean;
@@ -60,7 +79,6 @@ interface RecordingState {
     eventCount: number;
 }
 
-type StartupContext = StartupContextFromModule;
 type StartupContributor = StartupContributorFromModule;
 
 type RecorderPhase = RecorderPhaseFromState;
@@ -85,15 +103,6 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     private readonly _snapshots: SnapshotManager;
     private readonly _observation: ObservationRegistry;
-
-    // Test-access shims (getters only). Forward to ObservationRegistry —
-    // existing sessionRecorder.test.ts whiteboxes these per-URI maps.
-    private get _pendingSelectionPayloads(): Map<string, RecordedEvent> {
-        return (this._observation as unknown as { _pendingSelectionPayloads: Map<string, RecordedEvent> })._pendingSelectionPayloads;
-    }
-    private get _pendingVisibleRangePayloads(): Map<string, RecordedEvent> {
-        return (this._observation as unknown as { _pendingVisibleRangePayloads: Map<string, RecordedEvent> })._pendingVisibleRangePayloads;
-    }
 
     private readonly _writer: RecordingStorageWriter;
     private readonly _startup: StartupCapture;
@@ -196,7 +205,36 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         );
     }
 
-    // ── Public recording methods for chat events ──────────────────────
+    // ── Public recording methods for chat / view / EQ / lifecycle events ──
+    //
+    // The public `record*` wrappers below are thin shells around `_record`,
+    // which centralises the phase check, the timestamp, the generation capture,
+    // and the empty-opts call to `LifecycleController.recordInternal`. Keep
+    // these methods this shape — anything that needs custom `opts`, a
+    // pre-existing timestamp (e.g. from a collector), or a different
+    // generation snapshot must go through `_lifecycle.recordInternal` directly
+    // and is NOT a candidate for this helper.
+
+    /**
+     * Centralised recording helper for the public `record*` methods.
+     * Captures the phase guard, the synchronous `Date.now()` timestamp, and
+     * the current generation in one place so the wrapper methods stay
+     * declarative payloads.
+     *
+     * `RecordedEventWithoutTimestamp` is a *distributive* omit — the built-in
+     * `Omit<RecordedEvent, 'timestamp'>` collapses the discriminated union and
+     * drops per-variant fields like `action`, `eq`, `panel`, etc.
+     */
+    private _record(event: RecordedEventWithoutTimestamp): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal(
+            { timestamp: Date.now(), ...event } as RecordedEvent,
+            {},
+            this._currentGeneration,
+        );
+    }
 
     recordIrisChatSent(
         text: string,
@@ -204,18 +242,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         sessionId?: string,
         sentAt?: number,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatMessage',
-            timestamp: Date.now(),
             direction: 'sent',
             content: text,
             messageId,
             sessionId,
             sentAt,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordIrisChatReceived(
@@ -224,18 +258,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         sessionId?: string,
         sentAt?: number,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatMessage',
-            timestamp: Date.now(),
             direction: 'received',
             content,
             messageId,
             sessionId,
             sentAt,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
@@ -251,31 +281,101 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         status: 'pending' | 'sent' | 'failed',
         errorMessage?: string,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatSendAttempt',
-            timestamp: Date.now(),
             content,
             status,
             errorMessage,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
      * Record a helpful/unhelpful feedback submission for an Iris message.
      */
     recordIrisChatFeedback(messageId: string, helpful: boolean): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatFeedback',
-            timestamp: Date.now(),
             messageId,
             helpful,
-        }, {}, this._currentGeneration);
+        });
+    }
+
+    /**
+     * Record a test-results-overview view opened event.
+     */
+    recordTestResultsOverviewOpened(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    }): void {
+        this._record({
+            type: 'testResultsOverviewView',
+            action: 'opened',
+            ...payload,
+        });
+    }
+
+    /**
+     * Record a test-results-overview view closed event.
+     */
+    recordTestResultsOverviewClosed(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    }): void {
+        this._record({
+            type: 'testResultsOverviewView',
+            action: 'closed',
+            ...payload,
+        });
+    }
+
+    /**
+     * Record a task-feedback view opened event.
+     */
+    recordTaskFeedbackOpened(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        testIds: number[];
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+        notExecutedTests?: number;
+    }): void {
+        this._record({
+            type: 'taskFeedbackView',
+            action: 'opened',
+            ...payload,
+        });
+    }
+
+    /**
+     * Record a task-feedback view closed event.
+     */
+    recordTaskFeedbackClosed(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    }): void {
+        this._record({
+            type: 'taskFeedbackView',
+            action: 'closed',
+            ...payload,
+        });
     }
 
     recordEqSnapshot(
@@ -284,17 +384,13 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         source: 'save' | 'build' | 'trigger',
         triggerType?: string,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'eqSnapshot',
-            timestamp: Date.now(),
             eq,
             confidence,
             source,
             triggerType,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordIntervention(
@@ -311,12 +407,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             rawWanted?: boolean;
         },
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'intervention',
-            timestamp: Date.now(),
             action,
             level,
             shouldIntervene,
@@ -327,57 +419,56 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             suppressionReason: opts?.suppressionReason,
             dismissReason: opts?.dismissReason,
             rawWanted: opts?.rawWanted,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordViewNavigation(from: string, to: string): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'viewNavigation',
-            timestamp: Date.now(),
             from,
             to,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordPanelVisibility(panel: 'artemis' | 'chat', visible: boolean): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'panelVisibility',
-            timestamp: Date.now(),
             panel,
             visible,
-        }, {}, this._currentGeneration);
+        });
+    }
+
+    /**
+     * Record a submission lifecycle event (started/succeeded/failed). `exerciseId`
+     * is stamped from the active session, consistent with how buildResult is stamped.
+     */
+    recordSubmission(payload: SubmissionPayload): void {
+        this._record({
+            type: 'submission',
+            status: payload.status,
+            participationId: payload.participationId,
+            exerciseId: this._activeExerciseId,
+            commitMessage: payload.commitMessage,
+            failureReason: payload.failureReason,
+        });
     }
 
     recordConfigurationSnapshot(struggleDetectionEnabled: boolean, showInterventions: boolean): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'configurationSnapshot',
-            timestamp: Date.now(),
             struggleDetectionEnabled,
             showInterventions,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordConfigurationChange(changes: {
         struggleDetectionEnabled?: boolean;
         showInterventions?: boolean;
     }): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'configurationChange',
-            timestamp: Date.now(),
             changes,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordEqEngineState(
@@ -386,17 +477,13 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         pairCount: number,
         confidence: 'sufficient' | 'insufficient',
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'eqEngineState',
-            timestamp: Date.now(),
             snapshots,
             currentEQ,
             pairCount,
             confidence,
-        }, {}, this._currentGeneration);
+        });
     }
 
     // ── Disposable ────────────────────────────────────────────────────

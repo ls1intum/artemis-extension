@@ -14,10 +14,10 @@
  *  10. Non-file, non-blacklisted scheme (e.g. untitled:) → false (V1: file: only)
  */
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { shouldRecordUri, shouldRecordUriString } from '../../../../../src/extension/services/telemetry/recording/uriFilter';
+import * as assert from 'assert';
+
+import { shouldRecordUri, shouldRecordUriString } from '@extension/services/telemetry/uriFilter';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

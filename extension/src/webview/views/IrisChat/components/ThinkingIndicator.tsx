@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import type { IrisStageDTO } from '../types';
+import { useEffect, useRef, useState } from 'react';
+
+import type { IrisStageDTO } from '@webview/views/IrisChat/types';
+
 import styles from './ThinkingIndicator.module.css';
 
 const ROTATION_LABELS = [

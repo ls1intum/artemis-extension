@@ -3,12 +3,15 @@
  * Allows users to configure their Git identity (name and email) for commits.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList, StatusMessage } from '../../components';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { useEffect, useRef, useState } from 'react';
+
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
+import { BackLink, Button, Container, PageHeader, SkeletonList, StatusMessage, TextInput } from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+
 import styles from './GitCredentialsView.module.css';
-import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
+import type { GitCredentialsPersistedState, GitCredentialsViewProps } from './types';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Restore persisted state (form values only)

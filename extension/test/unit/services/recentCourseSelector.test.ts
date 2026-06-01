@@ -1,6 +1,7 @@
 import * as assert from 'assert';
-import { selectRecentCourses } from '../../../src/extension/services/ui/recentCourseSelector';
-import type { CourseDashboardEntry, ExerciseDetail } from '../../../src/extension/types';
+
+import { selectRecentCourses } from '@extension/services/ui/recentCourseSelector';
+import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 
 function entry(
     id: number,

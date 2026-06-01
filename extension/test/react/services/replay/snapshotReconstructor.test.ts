@@ -1,11 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+import type { BuildResultEvent, SerializedDiagnostic } from '@extension/services/telemetry/recording/types';
 import {
-    isCompilerDiagnosticSerialized,
-    getErrorFamilySerialized,
-    createSnapshotFromDiagnosticState,
     createSnapshotFromBuildEvent,
-} from '../../../../src/extension/services/telemetry/replay/snapshotReconstructor';
-import type { SerializedDiagnostic, BuildResultEvent } from '../../../../src/extension/services/telemetry/recording/types';
+    createSnapshotFromDiagnosticState,
+    getErrorFamilySerialized,
+    isCompilerDiagnosticSerialized,
+} from '@extension/services/telemetry/replay/snapshotReconstructor';
 
 function makeDiag(overrides: Partial<SerializedDiagnostic> = {}): SerializedDiagnostic {
     return {

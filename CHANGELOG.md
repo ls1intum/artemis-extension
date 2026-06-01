@@ -2,6 +2,49 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [Unreleased]
+
+## [0.4.5] - 2026-06-01
+
+### Added
+
+- **Debugger Recording**: The session recorder now captures debug session lifecycle and in-exercise breakpoint changes, visible in the recording timeline and live viewer.
+- **Submission Recording**: The session recorder now captures explicit submit actions (started, succeeded, or failed with a reason), visible in the recording timeline and live viewer and correlatable with the build result.
+- **Test Results & Task Feedback Tracking**: New test-results overview and per-task feedback modal, with differentiated empty states for tasks without feedback.
+- **Problem Statement Rendering**: Server-side rendered problem statements via the Artemis API, reloaded live on new build results.
+- **Recording Viewer Enhancements**: Distinct per-event colors, configuration/test/task view event rendering, "Iris Moment" and "Reading test results" context markers, and a live elapsed timer.
+
+### Changed
+
+- **Open VSX Build**: The Open VSX distribution (used by EduIDE) now physically excludes the session recorder and the data-collection consent flow; only the local struggle-detection (Error Quotient) logic remains. The VS Marketplace build is unchanged and still gates recording behind extended consent.
+- **Theia / EduIDE**: The extension no longer performs repository auto-clone or git-identity setup; the companion Scorpio extension now handles these in EduIDE. User-initiated cloning from the exercise view is unchanged.
+- **Iris Chat**: Updated to the unified Iris API in Artemis 9.2+ so chat keeps working after the upstream session-endpoint consolidation.
+- **Exercise "More options" Dropdown**: Grouped entries into Workspace, Share, and External sections with icons, and merged the two "Copy Clone URL" entries into a single split-button.
+- **Iris Context Dropdown**: Conversations sort newest-first, the dropdown panel now spans exactly down to the chat input (no input controls peek through), scroll shadows appear when lists overflow, and exercise rows align consistently whether or not a course tag is shown.
+- **Webview Icon Consistency**: Replaced ~25 hand-rolled inline SVG icons across the chat, exam, and shared components with their Lucide equivalents for visual consistency and to prevent future malformed-path bugs.
+- **Live Recording Viewer**: Faster live view (no more lag on long sessions), undo/redo for markers via Cmd/Ctrl+Z, and live sessions appear in the list immediately.
+
+### Fixed
+
+- **Iris Chat Connectivity Resilience**: Network drops and server errors now show a "temporarily unavailable" banner with a Retry button instead of the misleading "instructor disabled Iris" overlay, and the chat reloads automatically when the WebSocket reconnects.
+- **Iris Chat New Conversation**: Fixed "New Conversation" silently jumping back to the workspace exercise instead of starting a new session in the currently selected context.
+- **Iris Chat Feedback Icons**: Fixed the broken thumbs-down icon on assistant messages (previously rendered as a filled blob when selected).
+- **Recorder Gate**: The Record button now reads from the workspace-detected exercise instead of the Iris chat selection. Clicking Record before opening Iris no longer shows the misleading "Select an exercise context" warning.
+- **WebSocket Status Bar**: No longer shows a misleading red "WS Disconnected" indicator while logged out (unless `artemis.showWebSocketStatusBar` is explicitly enabled).
+
+### Removed
+
+- **Exam Mode**: Removed entirely.
+
+### Internal
+
+- **Release Pipeline**: Idempotent GitHub Release, validated single-sourced changelog notes, Marketplace post-publish existence check, and a single release-branch selector.
+- **Architecture**: Decomposed the WebSocket service, webview provider, and session recorder into smaller cohesive units.
+- **TypeScript**: Enabled stricter flags (`noUnused*`, `noImplicitReturns`, `noFallthrough`).
+- **Runtime Validation**: Added schema validation at the API, Iris WebSocket, and replay-parse boundaries.
+- **Imports**: Introduced `@`-path import aliases and consistent import ordering.
+- **Cleanup**: Removed dead code and no-op indirection layers.
+
 ## [0.4.4] - 2026-05-10
 
 ### Changed

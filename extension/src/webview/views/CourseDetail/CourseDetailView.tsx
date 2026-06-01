@@ -1,28 +1,31 @@
 import { useEffect } from 'react';
-import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
-import { ExtensionMsg, postCommand, requestInit } from '../../../shared/messageContracts';
-import type { Exercise, Exam } from '../../../shared/messageContracts';
-import { getIcon } from '../../utils/iconMap';
+
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+import type { ExerciseDetail } from '@shared/types';
+
+import type { DropdownOption } from '@webview/components';
 import {
+    AskIris,
     BackLink,
-    IconButton,
-    TextInput,
-    Dropdown,
+    Badge,
     Button,
     Container,
-    ListItem,
-    Badge,
-    SkeletonList,
-    AskIris,
+    Dropdown,
     EmptyState,
     ErrorMessage,
+    IconButton,
+    ListItem,
     PageHeader,
-} from '../../components';
-import type { DropdownOption } from '../../components';
-import { formatDate, formatDateTime } from '../../utils/formatDate';
+    SkeletonList,
+    TextInput,
+} from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
+import { formatDate } from '@webview/utils/formatDate';
+import { getIcon } from '@webview/utils/iconMap';
+
 import styles from './CourseDetailView.module.css';
+import type { CourseDetailPersistedState, CourseDetailViewProps } from './types';
 
 export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     const {
@@ -39,7 +42,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         setExerciseSortBy,
         loadCourseDetail,
         filteredExercises,
-        sortedExams,
     } = useCourseDetailStore();
 
     // Restore persisted state on mount
@@ -97,10 +99,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
     const handleOpenExercise = (exerciseId: number) => {
         postCommand(vscodeApi, 'openExerciseDetails', { exerciseId });
-    };
-
-    const handleOpenExam = (examId: number, courseId: number) => {
-        postCommand(vscodeApi, 'openExam', { examId, courseId });
     };
 
     const handleAskIris = () => {
@@ -180,18 +178,8 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
     const course = courseData.course;
     const exercises = filteredExercises();
-    const exams = sortedExams();
 
     const showDeveloperTools = !hideDeveloperTools;
-
-    // Calculate exam status for collapsible behavior
-    const hasActiveExam = exams.some((exam) => {
-        const now = new Date().getTime();
-        const start = exam.startDate ? new Date(exam.startDate).getTime() : 0;
-        const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
-        return now >= start && now <= end;
-    });
-
 
     return (
         <div className={styles.courseDetailContainer}>
@@ -224,44 +212,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                 description="Open the Iris chat to discuss this course or get guidance."
                 onClick={handleAskIris}
             />
-
-            {/* TODO: Exams Section - temporarily disabled */}
-            {/* {exams.length > 0 && (
-                <Container
-                    header={
-                        <div className={styles.sectionHeader}>
-                            <h2 className={styles.sectionTitle}>Exams</h2>
-                            <Badge variant="muted">{exams.length.toString()}</Badge>
-                        </div>
-                    }
-                >
-                    <div className={styles.examList}>
-                        {exams.map((exam: Exam) => {
-                            const now = new Date().getTime();
-                            const start = exam.startDate ? new Date(exam.startDate).getTime() : 0;
-                            const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
-                            const isActive = now >= start && now <= end;
-
-                            return (
-                                <ListItem
-                                    key={exam.id}
-                                    className={styles.examItem}
-                                    onClick={() => handleOpenExam(exam.id, course.id)}
-                                    selected={isActive}
-                                >
-                                    <div className={styles.examHeader}>
-                                        <span className={styles.examTitle}>{exam.title || 'Untitled Exam'}</span>
-                                        {isActive && <Badge variant="info">Active</Badge>}
-                                    </div>
-                                    <div className={styles.examInfo}>
-                                        <span>{formatDateTime(exam.startDate)} - {formatDateTime(exam.endDate)}</span>
-                                    </div>
-                                </ListItem>
-                            );
-                        })}
-                    </div>
-                </Container>
-            )} */}
 
             {/* Exercises Section */}
             <Container
@@ -304,12 +254,9 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
                 {exercises.length > 0 && (
                     <div className={styles.exercisesList}>
-                        {exercises.map((exercise: Exercise) => {
+                        {exercises.map((exercise: ExerciseDetail) => {
                             const isWorkspaceExercise = exercise.id === workspaceExerciseId;
-                            interface ExerciseWithPoints {
-                                maxPoints?: number;
-                            }
-                            const points = (exercise as ExerciseWithPoints).maxPoints || 0;
+                            const points = exercise.maxPoints || 0;
 
                             return (
                                 <ListItem

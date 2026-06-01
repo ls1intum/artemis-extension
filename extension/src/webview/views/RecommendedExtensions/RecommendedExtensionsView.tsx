@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import { BackLink, Container, Button, Badge, PageHeader, SkeletonList } from '../../components';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
+import { BackLink, Badge, Button, Container, PageHeader, SkeletonList } from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+
 import styles from './RecommendedExtensionsView.module.css';
-import type { RecommendedExtensionsViewProps, ExtensionCategory, Extension, RecommendedExtensionsPersistedState } from './types';
+import type {
+    Extension,
+    ExtensionCategory,
+    RecommendedExtensionsPersistedState,
+    RecommendedExtensionsViewProps,
+} from './types';
 
 export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsViewProps) {
     const [categories, setCategories] = useState<ExtensionCategory[]>([]);

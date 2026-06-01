@@ -1,23 +1,25 @@
 import { useEffect, useMemo } from 'react';
-import { useCourseListStore } from '../../stores/useCourseListStore';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './types';
-import type { CourseDashboardCourse } from '../../../shared/types/apiResponses';
+
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
+import type { DropdownOption } from '@webview/components';
 import {
     BackLink,
-    IconButton,
-    TextInput,
-    Dropdown,
+    Badge,
     Button,
     Container,
+    Dropdown,
+    IconButton,
     ListItem,
-    Badge,
-    SkeletonList,
     PageHeader,
-} from '../../components';
-import type { DropdownOption } from '../../components';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
+    SkeletonList,
+    TextInput,
+} from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+
 import styles from './CourseListView.module.css';
+import type { CourseDetailData, CourseListPersistedState, CourseListViewProps } from './types';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
     const {
@@ -131,8 +133,8 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         postCommand(vscodeApi, 'toggleCourseListFullscreen');
     };
 
-    const handleViewCourseDetails = (courseData: CourseData) => {
-        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as CourseDashboardCourse });
+    const handleViewCourseDetails = (courseData: CourseDetailData) => {
+        postCommand(vscodeApi, 'viewCourseDetails', { courseId: courseData.course.id });
     };
 
     const handleViewArchivedCourse = (courseId: number) => {

@@ -1,4 +1,4 @@
-import type { CourseDashboardEntry, ExerciseDetail } from '../../types';
+import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 
 /**
  * Select and order courses for the dashboard "Recent Courses" section.

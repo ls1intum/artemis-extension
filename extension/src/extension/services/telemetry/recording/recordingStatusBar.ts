@@ -5,8 +5,10 @@
  */
 
 import * as vscode from 'vscode';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+
 import type { SessionRecorder } from './sessionRecorder';
-import { logger, LogCategory } from '../../loggingService';
 
 export class RecordingStatusBarService implements vscode.Disposable {
     private readonly _statusBarItem: vscode.StatusBarItem;
@@ -78,7 +80,7 @@ export class RecordingStatusBarService implements vscode.Disposable {
 
         const exerciseId = this._getExerciseId();
         if (exerciseId === undefined) {
-            vscode.window.showWarningMessage('Select an exercise context before starting a recording.');
+            vscode.window.showWarningMessage('No Artemis exercise detected for the current workspace.');
             return;
         }
 

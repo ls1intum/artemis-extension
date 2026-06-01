@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { LoginView } from '../../../../src/webview/views/Login/LoginView';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { describe, expect, it, vi } from 'vitest';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { LoginView } from '@webview/views/Login/LoginView';
 
 describe('LoginView', () => {
 	it('renders login form by default', () => {

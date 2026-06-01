@@ -10,19 +10,21 @@ active when consent is **extended**. Writes to
 
 ```
 recording/
-├── sessionRecorder.ts         Facade: public API + module wiring (405 LOC)
+├── sessionRecorder.ts         Facade: public API + module wiring (504 LOC)
 ├── types.ts                   All RecordedEvent interfaces (discriminated union)
 ├── storageWriter.ts           JSONL writer + snapshot I/O + lane mutex
 ├── recordingStatusBar.ts      Status-bar Play/Stop indicator
-├── uriFilter.ts               shouldRecordUri: scheme + exercise-root check
 ├── eventCollectors.ts         Pure fns: vscode.* objects → RecordedEvent
 ├── index.ts                   Barrel (SessionRecorder + RecordingStatusBarService)
 │
-├── lifecycle/
-│   ├── recorderLifecycleState.ts   Pure state: phase FSM + generation counters
-│   │                               + ActiveSessionState. No I/O, no vscode.
-│   └── lifecycleController.ts      _doStart / _doEnd / _doDisable orchestration.
-│                                   Hosts recordInternal + writeLifecycleEvent.
+│   (uriFilter.ts now lives at services/telemetry/uriFilter.ts — moved out of
+│    recording/ so the EQ engine can import it without coupling into recording/)
+│
+├── lifecycleController.ts     RecorderLifecycleState (pure state: phase FSM,
+│                              generation counters, ActiveSessionState) plus
+│                              LifecycleController (_doStart / _doFinalize /
+│                              _doDisable orchestration, recordInternal,
+│                              writeLifecycleEvent). Both classes co-located.
 │
 ├── snapshots/
 │   └── snapshotManager.ts     File snapshots with retry (max 3) + in-flight
@@ -82,7 +84,7 @@ lifecycle points.
 
 ## Key invariants
 
-- **Commit boundary:** `sessionStart` on disk = `state.activeSession.sessionStartWritten` true. Pre-commit aborts call `writer.abort()`. Post-commit aborts go through `_doEnd`.
+- **Commit boundary:** `sessionStart` on disk = `state.activeSession.sessionStartWritten` true. Pre-commit aborts call `writer.abort()`. Post-commit aborts go through `_doFinalize` (with `reason: 'user-end' | 'deactivate' | 'consent-downgrade'`).
 - **Generation token:** every async callback captures `state.currentGeneration` at trigger time and passes it to `recordInternal`. Stale callbacks from a rotated session are dropped.
 - **Phase FSM:** `idle → starting → recording → ending → idle`  (normal) /  `{any} → disabling → disabled` (consent downgrade). Only `LifecycleController.disable()` may force-flip from any phase.
 - **Three teardown paths:** regular end flushes debounces; consent downgrade *discards* them (GDPR); dispose runs through dispose-specific finalize.
@@ -100,8 +102,8 @@ and `eventCount`.
 Not everything recorder-related lives here. The core is self-contained, but:
 
 - `activation/sessionRecorderWiring.ts` — wires the recorder into the extension
-  (instantiates it, registers the four startup contributors for Iris session,
-  panel visibility, consent, and struggle).
+  (instantiates it, registers the three startup contributors for EQ engine
+  state, panel visibility, and struggle-detection configuration).
 - `telemetry/replay/` — consumer side. Reads recordings back for EQ tuning.
   Imports `RecordedEvent` from here, produces nothing.
 - `telemetry/buildResultGuard.ts` — shared `shouldAcceptBuildResult()` used by

@@ -1,8 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useCourseDetailStore } from '../../../src/webview/stores/useCourseDetailStore';
-import type { CourseDetailData, Exercise, Exam } from '../../../src/shared/messageContracts';
-import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
+import type { CourseDetailData } from '@shared/messageContracts';
+import type { ExerciseDetail } from '@shared/types';
+
+import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 
 const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData => ({
 	course: {
@@ -10,21 +13,14 @@ const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {
 		title: 'Test Course',
 		semester: 'SS25',
 		exercises: [],
-		exams: [],
 		...overrides,
 	},
 });
 
-const makeExercise = (overrides: Partial<Exercise> = {}): Exercise => ({
+const makeExercise = (overrides: Partial<ExerciseDetail> = {}): ExerciseDetail => ({
 	id: 1,
 	title: 'Test Exercise',
 	type: 'programming',
-	...overrides,
-});
-
-const makeExam = (overrides: Partial<Exam> = {}): Exam => ({
-	id: 100,
-	title: 'Final Exam',
 	...overrides,
 });
 
@@ -217,33 +213,6 @@ describe('useCourseDetailStore', () => {
 		const sorted = result.current.filteredExercises();
 		expect(sorted[0].title).toBe('Alpha Exercise');
 		expect(sorted[1].title).toBe('Zebra Exercise');
-	});
-
-	it('sortedExams returns empty array when no courseData', () => {
-		const { result } = renderHook(() => useCourseDetailStore());
-
-		const exams = result.current.sortedExams();
-		expect(exams).toEqual([]);
-	});
-
-	it('sortedExams returns exams sorted by status (active first)', () => {
-		const { result } = renderHook(() => useCourseDetailStore());
-		const now = new Date();
-		const past = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2 hours ago
-		const future = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
-
-		const exams = [
-			makeExam({ id: 1, title: 'Finished Exam', startDate: past.toISOString(), endDate: past.toISOString() }),
-			makeExam({ id: 2, title: 'Active Exam', startDate: past.toISOString(), endDate: future.toISOString() }),
-		];
-
-		act(() => {
-			result.current.setCourseData(makeCourseDetailData({ exams }));
-		});
-
-		const sorted = result.current.sortedExams();
-		expect(sorted[0].title).toBe('Active Exam');
-		expect(sorted[1].title).toBe('Finished Exam');
 	});
 
 	// --- error state ---

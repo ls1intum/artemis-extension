@@ -11,12 +11,13 @@
  *   - _snapshotRetries is cleared on session end/start (via _resetSessionState)
  */
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { SessionRecorder } from '../../../../../src/extension/services/telemetry/recording/sessionRecorder';
-import type { RecordedEvent } from '../../../../../src/extension/services/telemetry/recording/types';
-import { RecordingStorageWriter } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
-import type { RecordingFs } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
+import * as assert from 'assert';
+
+import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
+import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 
 // ── Fake FS with per-path failure control ─────────────────────────────────────
 

@@ -99,18 +99,6 @@ describe('subtitle SRT→VTT conversion', () => {
     });
 });
 
-describe('annotation persistence', () => {
-    it('PUT annotations writes the array to disk', async () => {
-        fs.mkdirSync(path.join(tmpDir, 'sess-1'));
-        const body = JSON.stringify([{ id: 'a', timestamp: 1, text: 'note', createdAt: 1 }]);
-        const handle = makeRes();
-        await invoke(api, makeReq('PUT', '/api/recordings/sess-1/annotations', body), handle);
-        expect(handle.captured.status).toBe(200);
-        const stored = JSON.parse(fs.readFileSync(path.join(tmpDir, 'sess-1/annotations.json'), 'utf-8'));
-        expect(stored).toHaveLength(1);
-    });
-});
-
 describe('video serving (Range / HEAD)', () => {
     function writeFakeMp4(p: string, sizeBytes: number) {
         const buf = Buffer.alloc(sizeBytes, 0x00);

@@ -1,15 +1,17 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+
+import type { ExtMsg, WebSocketDisplayStatus } from '@shared/messageContracts';
+
 import type {
+    ChatContext,
     ChatMessage,
     ChatSession,
-    ChatContext,
     ContextItem,
+    IrisStageDTO,
     ReferencedFilesData,
     StreamingState,
-    IrisStageDTO,
-} from '../views/IrisChat/types';
-import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContracts';
+} from '@webview/views/IrisChat/types';
 
 /**
  * Webview-side connection status. Mirrors the extension's
@@ -58,25 +60,41 @@ interface ChatState {
     isLoading: boolean;
     webSocketStatus: ChatWebSocketStatus;
     disabledMessage: string | null;   // Non-null = Iris disabled (reason as string)
+    /**
+     * Non-null = Iris is currently unreachable due to a transient infrastructure
+     * failure (network, 5xx, timeout). Distinct from `disabledMessage`, which
+     * means Iris is intentionally off for this context. Mutually exclusive: a
+     * Set on one always clears the other.
+     */
+    unavailableMessage: string | null;
     isNoAiDetected: boolean;
     referencedFiles: ReferencedFilesData | null;
     showDiagnostics: boolean;
 
     // Actions
     setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
-    setMessages: (messages: ChatMessage[]) => void;
     /** Apply messages and record a successful hydration for the given session. */
     applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
     addMessage: (message: ChatMessage) => void;
+    /**
+     * Mark a still-pending user message as failed. Returns `true` only if
+     * a matching message was found AND it was a pending user send
+     * (role === 'user' && status === 'sending'). Returning false lets the
+     * caller skip the transient-UI reset when a rejection is stale
+     * (e.g. arrived after the user already switched session or retried).
+     */
+    markMessageFailed: (
+        localId: string,
+        errorMessage: string,
+        errorReason: NonNullable<ChatMessage['errorReason']>,
+    ) => boolean;
+    removeMessage: (localId: string) => void;
     clearMessages: () => void;
-    setMessageStatus: (localId: string, status: 'sending' | 'sent' | 'error', errorMessage?: string) => void;
 
     // Streaming actions
-    startStreaming: (localId: string) => void;
-    appendStreamChunk: (chunk: string) => void;
-    finishStreaming: (finalContent: string) => void;
+    startStreaming: () => void;
 
     // Iris stage actions
     setIrisStages: (stages: IrisStageDTO[]) => void;
@@ -86,6 +104,7 @@ interface ChatState {
     setLoading: (loading: boolean) => void;
     setWebSocketStatus: (status: ChatWebSocketStatus) => void;
     setDisabledMessage: (message: string | null) => void;
+    setUnavailableMessage: (message: string | null) => void;
     setNoAiDetected: (detected: boolean) => void;
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
     setShowDiagnostics: (show: boolean) => void;
@@ -93,8 +112,6 @@ interface ChatState {
 
 const IDLE_STREAMING: StreamingState = {
     isStreaming: false,
-    messageLocalId: null,
-    visibleChunks: [],
 };
 
 export const useChatStore = create<ChatState>()(
@@ -114,6 +131,7 @@ export const useChatStore = create<ChatState>()(
             isLoading: false,
             webSocketStatus: 'unknown',
             disabledMessage: null,
+            unavailableMessage: null,
             isNoAiDetected: false,
             referencedFiles: null,
             showDiagnostics: false,
@@ -146,10 +164,6 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'setIrisState');
             },
 
-            setMessages: (messages) => {
-                set({ messages }, false, 'setMessages');
-            },
-
             applyLoadedMessages: (localSessionId, messages) => {
                 set({
                     messages,
@@ -169,6 +183,28 @@ export const useChatStore = create<ChatState>()(
                 }), false, 'addMessage');
             },
 
+            markMessageFailed: (localId, errorMessage, errorReason) => {
+                const current = useChatStore.getState().messages;
+                const target = current.find((m) => m.localId === localId);
+                if (!target || target.role !== 'user' || target.status !== 'sending') {
+                    return false;
+                }
+                set((state) => ({
+                    messages: state.messages.map((m) =>
+                        m.localId === localId
+                            ? { ...m, status: 'error' as const, errorMessage, errorReason }
+                            : m,
+                    ),
+                }), false, 'markMessageFailed');
+                return true;
+            },
+
+            removeMessage: (localId) => {
+                set((state) => ({
+                    messages: state.messages.filter((m) => m.localId !== localId),
+                }), false, 'removeMessage');
+            },
+
             clearMessages: () => {
                 set({
                     messages: [],
@@ -178,46 +214,11 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'clearMessages');
             },
 
-            setMessageStatus: (localId, status, errorMessage) => {
-                set((state) => ({
-                    messages: state.messages.map(msg =>
-                        msg.localId === localId ? { ...msg, status, errorMessage } : msg
-                    ),
-                }), false, 'setMessageStatus');
-            },
-
             // Streaming actions
-            startStreaming: (localId) => {
+            startStreaming: () => {
                 set({
-                    streaming: {
-                        isStreaming: true,
-                        messageLocalId: localId,
-                        visibleChunks: [],
-                    },
+                    streaming: { isStreaming: true },
                 }, false, 'startStreaming');
-            },
-
-            appendStreamChunk: (chunk) => {
-                set((state) => ({
-                    streaming: {
-                        ...state.streaming,
-                        visibleChunks: [...state.streaming.visibleChunks, chunk],
-                    },
-                }), false, 'appendStreamChunk');
-            },
-
-            finishStreaming: (finalContent) => {
-                set((state) => {
-                    const { messageLocalId } = state.streaming;
-                    return {
-                        streaming: IDLE_STREAMING,
-                        messages: messageLocalId
-                            ? state.messages.map(msg =>
-                                msg.localId === messageLocalId ? { ...msg, content: finalContent } : msg
-                            )
-                            : state.messages,
-                    };
-                }, false, 'finishStreaming');
             },
 
             setIrisStages: (stages) => {
@@ -241,7 +242,29 @@ export const useChatStore = create<ChatState>()(
             },
 
             setDisabledMessage: (message) => {
-                set({ disabledMessage: message }, false, 'setDisabledMessage');
+                // Setting a real disabled reason clears any transient
+                // unavailable banner — disabled is a strictly more specific
+                // signal. Clearing (null) leaves unavailable untouched.
+                set(
+                    message === null
+                        ? { disabledMessage: null }
+                        : { disabledMessage: message, unavailableMessage: null },
+                    false,
+                    'setDisabledMessage',
+                );
+            },
+
+            setUnavailableMessage: (message) => {
+                // Symmetric to setDisabledMessage: setting a real unavailable
+                // reason clears any stale disabled banner (defensive — the
+                // extension-side helper normally enforces this already).
+                set(
+                    message === null
+                        ? { unavailableMessage: null }
+                        : { unavailableMessage: message, disabledMessage: null },
+                    false,
+                    'setUnavailableMessage',
+                );
             },
 
             setNoAiDetected: (detected) => {

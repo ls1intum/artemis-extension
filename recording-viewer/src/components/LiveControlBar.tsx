@@ -1,26 +1,51 @@
 import { useEffect, useState } from 'react';
-import { STRUGGLE_LABELS, CONTEXT_LABELS } from '../types';
+import { STRUGGLE_LABELS, CONTEXT_LABELS, ALL_LABELS } from '../types';
+import { CONTEXT_KEYS } from '../hooks/useLiveHotkeys';
+import type { AnnotationToast } from '../hooks/useAnnotationMutations';
+import { formatDuration } from '../utils/format';
+
+const CONTEXT_KEY_BY_VALUE: Record<string, string> = Object.fromEntries(
+    Object.entries(CONTEXT_KEYS).map(([key, value]) => [value, key]),
+);
 
 interface Props {
     connected: boolean;
-    eventsReceived: number;
+    /** Number of events currently in the browser buffer (the sliding window). */
+    bufferSize: number;
+    /** Cumulative number of events received since this session connected.
+     *  When this exceeds bufferSize, the window has been trimming oldest events. */
+    totalReceived: number;
     latestEventTimestamp: number | null;
-    reactionDelayMs: number;
-    onReactionDelayChange: (ms: number) => void;
-    lastLabelToast: { label: string; at: number } | null;
+    /** Authoritative session start (metadata.startTime or the sessionStart event);
+     *  0 when unknown, in which case the elapsed timer is hidden. */
+    startTime: number;
+    lastLabelToast: AnnotationToast | null;
+}
+
+function renderToast(toast: AnnotationToast): string {
+    const labelName = toast.label
+        ? (ALL_LABELS.find(l => l.value === toast.label)?.label ?? toast.label)
+        : null;
+    const body = labelName ?? toast.text ?? 'annotation';
+    switch (toast.kind) {
+        case 'add': return `+ ${body}`;
+        case 'undo': return `↶ ${body}`;
+        case 'redo': return `↷ ${body}`;
+        case 'error': return `⚠ ${body}`;
+    }
 }
 
 export function LiveControlBar({
-    connected, eventsReceived, latestEventTimestamp,
-    reactionDelayMs, onReactionDelayChange, lastLabelToast,
+    connected, bufferSize, totalReceived, latestEventTimestamp, startTime, lastLabelToast,
 }: Props) {
-    // Re-render every second so the "last event N s ago" updates live
+    // Re-render every second so the elapsed timer and "last event N s ago" update live
     const [now, setNow] = useState(() => Date.now());
     useEffect(() => {
         const t = setInterval(() => setNow(Date.now()), 1000);
         return () => clearInterval(t);
     }, []);
 
+    const elapsedMs = startTime > 0 ? Math.max(0, now - startTime) : null;
     const ageMs = latestEventTimestamp ? now - latestEventTimestamp : null;
     const toastVisible = lastLabelToast && now - lastLabelToast.at < 1500;
 
@@ -29,22 +54,17 @@ export function LiveControlBar({
             <div className="live-status">
                 <span className={`live-dot ${connected ? 'on' : 'off'}`} />
                 <strong>{connected ? 'LIVE' : 'Disconnected'}</strong>
-                <span className="live-counter">{eventsReceived} events</span>
+                {elapsedMs !== null && (
+                    <span className="live-elapsed">{formatDuration(elapsedMs)}</span>
+                )}
+                <span className="live-counter">
+                    {bufferSize < totalReceived
+                        ? `${bufferSize.toLocaleString()} of ${totalReceived.toLocaleString()} events`
+                        : `${totalReceived.toLocaleString()} events`}
+                </span>
                 {ageMs !== null && (
                     <span className="live-age">last event {(ageMs / 1000).toFixed(1)}s ago</span>
                 )}
-            </div>
-            <div className="live-reaction">
-                <label>
-                    Reaction delay
-                    <input
-                        type="range"
-                        min={0} max={1000} step={50}
-                        value={reactionDelayMs}
-                        onChange={(e) => onReactionDelayChange(Number(e.target.value))}
-                    />
-                    <span>{reactionDelayMs}ms</span>
-                </label>
             </div>
             <div className="live-legend">
                 <strong>Struggle:</strong>
@@ -52,12 +72,12 @@ export function LiveControlBar({
                     <span key={s.value} style={{ color: s.color }}>{i + 1}={s.label}</span>
                 ))}
                 <strong>Context:</strong>
-                {CONTEXT_LABELS.map((s, i) => (
-                    <span key={s.value} style={{ color: s.color }}>{'qwert'[i]}={s.label}</span>
+                {CONTEXT_LABELS.map(s => (
+                    <span key={s.value} style={{ color: s.color }}>{CONTEXT_KEY_BY_VALUE[s.value] ?? '?'}={s.label}</span>
                 ))}
             </div>
             {toastVisible && (
-                <div className="live-toast">Tagged: {lastLabelToast!.label}</div>
+                <div className={`live-toast live-toast-${lastLabelToast!.kind}`}>{renderToast(lastLabelToast!)}</div>
             )}
         </div>
     );

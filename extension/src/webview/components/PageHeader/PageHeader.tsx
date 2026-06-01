@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
-import { Container } from '../Container';
+
+import { Container } from '@webview/components/Container';
+
 import styles from './PageHeader.module.css';
 
 interface PageHeaderProps {

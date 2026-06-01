@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import type { StoredSession, ContextSnapshot } from '../types';
-import type { ContextStore } from '../services/iris/context/contextStore';
-import { ExtensionMsg } from '../../shared/messageContracts';
-import type { ExtMsg, ExtensionToWebviewMessage } from '../../shared/messageContracts';
+
+import type { ExtensionToWebviewMessage, ExtMsg } from '@shared/messageContracts';
+import { ExtensionMsg } from '@shared/messageContracts';
+
+import type { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { ContextSnapshot, StoredSession } from '@extension/types';
 
 export class ChatViewStatePresenter {
     constructor(

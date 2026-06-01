@@ -11,11 +11,12 @@
  */
 
 import * as assert from 'assert';
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { execSync } from 'child_process';
-import { logger, LogCategory } from '../../src/extension/services/loggingService';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 // =============================================================================
 // CONFIGURATION
@@ -25,7 +26,9 @@ const CONFIG = {
     artemisUrl: process.env.ARTEMIS_URL || 'http://localhost:8080',
     username: process.env.ARTEMIS_USER || 'artemis_admin',
     password: process.env.ARTEMIS_PASSWORD || 'artemis_admin',
-    exerciseId: parseInt(process.env.EXERCISE_ID || '1'),
+    // Canonical name is ARTEMIS_EXERCISE_ID (matches the UI test); accept
+    // the legacy unprefixed EXERCISE_ID as fallback for back-compat. See #198.
+    exerciseId: parseInt(process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '1'),
     pollIntervalMs: 3000,
     buildTimeoutMs: 120_000,
     suiteTimeoutMs: 180_000,
@@ -343,9 +346,7 @@ suite('E2E: Student Submission Flow', function () {
             resultCount += (sub.results ?? []).length;
         }
         // Also count top-level results (some Artemis versions)
-        for (const r of p.results ?? []) {
-            resultCount++;
-        }
+        resultCount += (p.results ?? []).length;
         initialResultCount = resultCount;
 
         logger.info(`[E2E-Sub] Participation ${participation.id}, repo: ${participation.repositoryUri}`, LogCategory.TEST);

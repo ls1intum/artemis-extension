@@ -101,10 +101,10 @@ export class MockTextDocument implements vscode.TextDocument {
             isEmptyOrWhitespace: true
         };
     }
-    offsetAt(position: vscode.Position): number { return 0; }
-    positionAt(offset: number): vscode.Position { return new vscode.Position(0, 0); }
-    getText(range?: vscode.Range): string { return ''; }
-    getWordRangeAtPosition(position: vscode.Position, regex?: RegExp): vscode.Range | undefined { return undefined; }
+    offsetAt(_position: vscode.Position): number { return 0; }
+    positionAt(_offset: number): vscode.Position { return new vscode.Position(0, 0); }
+    getText(_range?: vscode.Range): string { return ''; }
+    getWordRangeAtPosition(_position: vscode.Position, _regex?: RegExp): vscode.Range | undefined { return undefined; }
     validateRange(range: vscode.Range): vscode.Range { return range; }
     validatePosition(position: vscode.Position): vscode.Position { return position; }
 }

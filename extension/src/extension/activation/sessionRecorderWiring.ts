@@ -1,13 +1,22 @@
 import * as vscode from 'vscode';
-import type { ConsentService } from '../services/auth';
-import type { ArtemisWebsocketService } from '../services/websocket';
-import type { TelemetryManager, SessionRecorder } from '../services/telemetry';
-import { RecordingStatusBarService as RecordingStatusBarServiceImpl, SessionRecorder as SessionRecorderImpl } from '../services/telemetry';
-import type { RecordedEvent } from '../services/telemetry/recording/types';
-import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
-import type { PlatformCapabilities } from '../theia';
-import type { ExerciseRegistry } from '../services/exerciseRegistry';
-import { VSCODE_CONFIG } from '../utils/constants';
+
+import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
+import type { ConsentService } from '@extension/services/auth/consentService';
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { TelemetryManager } from '@extension/services/telemetry';
+import type { SessionRecorder } from '@extension/services/telemetry/recording';
+import {
+    RecordingStatusBarService as RecordingStatusBarServiceImpl,
+    SessionRecorder as SessionRecorderImpl,
+} from '@extension/services/telemetry/recording';
+import {
+    collectInitialBreakpointSnapshot,
+} from '@extension/services/telemetry/recording/eventCollectors';
+import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { PlatformCapabilities } from '@extension/theia';
+import { VSCODE_CONFIG } from '@extension/utils/constants';
 
 interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
@@ -18,6 +27,7 @@ interface RecorderWiringDeps {
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
+    contextStore: ContextStore;
 }
 
 interface RecorderWiringResult {
@@ -29,7 +39,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     const {
         context, consentService, artemisWebsocketService,
         telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-        capabilities, exerciseRegistry,
+        capabilities, exerciseRegistry, contextStore,
     } = deps;
 
     const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry);
@@ -122,6 +132,27 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordPanelVisibility('chat', visible);
     }));
 
+    // Test-results view tracking. Provider events flow from the webview commands
+    // via testResultsTrackingCommands -> ArtemisWebviewProvider.fireXxx -> here.
+    disposables.push(artemisWebviewProvider.onDidOpenTestResultsOverview(payload => {
+        sessionRecorder.recordTestResultsOverviewOpened(payload);
+    }));
+    disposables.push(artemisWebviewProvider.onDidCloseTestResultsOverview(payload => {
+        sessionRecorder.recordTestResultsOverviewClosed(payload);
+    }));
+    disposables.push(artemisWebviewProvider.onDidOpenTaskFeedback(payload => {
+        sessionRecorder.recordTaskFeedbackOpened(payload);
+    }));
+    disposables.push(artemisWebviewProvider.onDidCloseTaskFeedback(payload => {
+        sessionRecorder.recordTaskFeedbackClosed(payload);
+    }));
+
+    // Submission tracking. Provider events flow from handleSubmitExercise ->
+    // ArtemisWebviewProvider.fireSubmission -> here.
+    disposables.push(artemisWebviewProvider.onDidSubmission(payload => {
+        sessionRecorder.recordSubmission(payload);
+    }));
+
     // ── Startup contributors ─────────────────────────────────────────
     // These run synchronously inside SessionRecorder._doStart, between the
     // initial-state events and the `startupPhaseComplete` marker. They
@@ -182,6 +213,15 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         }];
     }));
 
+    // Initial breakpoint snapshot — onDidChangeBreakpoints is delta-only, so
+    // breakpoints already set when recording starts would otherwise be invisible
+    // in replay. Breakpoints are workspace-global, independent of debug sessions.
+    disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
+        const root = ctx.exerciseRoot ? vscode.Uri.parse(ctx.exerciseRoot) : undefined;
+        const snapshot = collectInitialBreakpointSnapshot(vscode.debug.breakpoints, root, ctx.timestamp);
+        return snapshot ? [snapshot] : [];
+    }));
+
     // Runtime configuration changes for struggle-detection settings — recorded
     // so mid-session flips can be reconciled with intervention events by timestamp.
     const readStruggleEnabled = (): boolean => {
@@ -219,7 +259,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // Recording status bar button
     const recordingStatusBar = new RecordingStatusBarServiceImpl(
         sessionRecorder,
-        () => chatWebviewProvider.getSelectedExerciseId(),
+        () => contextStore.getWorkspaceExerciseId(),
     );
     disposables.push(recordingStatusBar);
 

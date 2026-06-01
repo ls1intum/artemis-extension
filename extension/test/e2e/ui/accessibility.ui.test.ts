@@ -1,17 +1,18 @@
 // Accessibility tests for all 12 webview views (WCAG 2.1 AA via axe-core)
 // Covers A11Y-01: Zero axe violations required across the entire view surface area.
 // Login view is tested pre-authentication; all other views require credentials.
-import { VSBrowser, WebDriver, Workbench, ActivityBar, By, until } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { ActivityBar, By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	waitForElement,
-	takeScreenshot,
-	getCredentials,
-	runAxeInCurrentFrame,
-	performLogin,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    runAxeInCurrentFrame,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 // ---------------------------------------------------------------------------
@@ -407,209 +408,7 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 		});
 
 		// -----------------------------------------------------------------------
-		// View 9: ExamStart (Dashboard → course → exam) — deep nav, likely skip
-		// -----------------------------------------------------------------------
-		it('ExamStart view should have zero axe violations', async function () {
-			this.timeout(60000);
-
-			await openArtemisView();
-			await switchToWebviewFrame(driver);
-
-			try {
-				await waitForElement(driver, 'h1', 10000);
-			} catch {
-				this.skip();
-				return;
-			}
-
-			try {
-				// Navigate to a course.
-				const courseElement = await driver
-					.findElement(
-						By.xpath(
-							"//button[contains(@class,'course')] | //div[contains(@class,'card')]//button | //button[.//h3] | //button[.//h2]",
-						),
-					)
-					.catch(() => null);
-
-				if (!courseElement) {
-					this.skip();
-					return;
-				}
-
-				await courseElement.click();
-				await driver.sleep(2000);
-
-				// Locate an exam entry in CourseDetail.
-				const examElement = await driver.wait(
-					until.elementLocated(
-						By.xpath("//*[contains(text(),'Exam') or contains(text(),'exam')]"),
-					),
-					8000,
-				);
-				await examElement.click();
-				await driver.sleep(2000);
-
-				// Wait for any container.
-				await driver.wait(
-					() =>
-						driver
-							.findElement(By.xpath('//*[@id or @role or @aria-label]'))
-							.then((el) => el)
-							.catch(() => null),
-					5000,
-				);
-			} catch {
-				// Live exam or courses not present — skip.
-				await takeScreenshot(driver, 'a11y-skip-exam-start');
-				this.skip();
-				return;
-			}
-
-			await assertNoAxeViolations('exam-start', driver);
-		});
-
-		// -----------------------------------------------------------------------
-		// View 10: ExamConduction (requires live exam in progress) — almost always skips
-		// -----------------------------------------------------------------------
-		it('ExamConduction view should have zero axe violations', async function () {
-			this.timeout(60000);
-
-			await openArtemisView();
-			await switchToWebviewFrame(driver);
-
-			try {
-				await waitForElement(driver, 'h1', 10000);
-			} catch {
-				this.skip();
-				return;
-			}
-
-			try {
-				// Navigate course → exam → start button.
-				const courseElement = await driver
-					.findElement(
-						By.xpath(
-							"//button[contains(@class,'course')] | //div[contains(@class,'card')]//button | //button[.//h3] | //button[.//h2]",
-						),
-					)
-					.catch(() => null);
-
-				if (!courseElement) {
-					this.skip();
-					return;
-				}
-
-				await courseElement.click();
-				await driver.sleep(2000);
-
-				const examElement = await driver.wait(
-					until.elementLocated(
-						By.xpath("//*[contains(text(),'Exam') or contains(text(),'exam')]"),
-					),
-					8000,
-				);
-				await examElement.click();
-				await driver.sleep(2000);
-
-				// Look for a "Start Exam" / "Begin" button.
-				const startBtn = await driver.wait(
-					until.elementLocated(
-						By.xpath(
-							"//button[contains(text(),'Start') or contains(text(),'Begin') or contains(text(),'start')]",
-						),
-					),
-					8000,
-				);
-				await startBtn.click();
-				await driver.sleep(3000);
-			} catch {
-				// Live exam unavailable — skip.
-				await takeScreenshot(driver, 'a11y-skip-exam-conduction');
-				this.skip();
-				return;
-			}
-
-			await assertNoAxeViolations('exam-conduction', driver);
-		});
-
-		// -----------------------------------------------------------------------
-		// View 11: ExamExerciseDetail (inside running exam) — almost always skips
-		// -----------------------------------------------------------------------
-		it('ExamExerciseDetail view should have zero axe violations', async function () {
-			this.timeout(60000);
-
-			await openArtemisView();
-			await switchToWebviewFrame(driver);
-
-			try {
-				await waitForElement(driver, 'h1', 10000);
-			} catch {
-				this.skip();
-				return;
-			}
-
-			try {
-				// Navigate course → exam → start → exercise.
-				const courseElement = await driver
-					.findElement(
-						By.xpath(
-							"//button[contains(@class,'course')] | //div[contains(@class,'card')]//button | //button[.//h3] | //button[.//h2]",
-						),
-					)
-					.catch(() => null);
-
-				if (!courseElement) {
-					this.skip();
-					return;
-				}
-
-				await courseElement.click();
-				await driver.sleep(2000);
-
-				const examElement = await driver.wait(
-					until.elementLocated(
-						By.xpath("//*[contains(text(),'Exam') or contains(text(),'exam')]"),
-					),
-					8000,
-				);
-				await examElement.click();
-				await driver.sleep(2000);
-
-				const startBtn = await driver.wait(
-					until.elementLocated(
-						By.xpath(
-							"//button[contains(text(),'Start') or contains(text(),'Begin') or contains(text(),'start')]",
-						),
-					),
-					8000,
-				);
-				await startBtn.click();
-				await driver.sleep(3000);
-
-				// Inside the exam, click the first exercise.
-				const examExerciseElement = await driver.wait(
-					until.elementLocated(
-						By.xpath(
-							"//li[.//button] | //button[contains(@class,'exercise')] | //div[contains(@class,'exercise')]//button",
-						),
-					),
-					8000,
-				);
-				await examExerciseElement.click();
-				await driver.sleep(2000);
-			} catch {
-				// Live exam unavailable — skip.
-				await takeScreenshot(driver, 'a11y-skip-exam-exercise-detail');
-				this.skip();
-				return;
-			}
-
-			await assertNoAxeViolations('exam-exercise-detail', driver);
-		});
-
-		// -----------------------------------------------------------------------
-		// View 12: IrisChat (separate ActivityBar panel)
+		// View 9: IrisChat (separate ActivityBar panel)
 		// -----------------------------------------------------------------------
 		it('IrisChat view should have zero axe violations', async function () {
 			this.timeout(30000);

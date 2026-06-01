@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CourseDetailView } from '../../../../src/webview/views/CourseDetail/CourseDetailView';
-import { useCourseDetailStore } from '../../../../src/webview/stores/useCourseDetailStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
-import type { CourseDetailData } from '../../../../src/shared/messageContracts';
+import { describe, expect, it } from 'vitest';
+
+import type { CourseDetailData } from '@shared/messageContracts';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
+import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
 
 const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData => ({
 	course: {
@@ -13,7 +15,6 @@ const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {
 		semester: 'SS25',
 		description: 'A test course description',
 		exercises: [],
-		exams: [],
 		...overrides,
 	},
 });
@@ -143,68 +144,6 @@ describe('CourseDetailView', () => {
 		await waitFor(() => {
 			expect(screen.getByText('No exercises available')).toBeInTheDocument();
 		});
-	});
-
-	// TODO: Re-enable when exam list rendering is implemented in CourseDetailView
-	it.skip('displays exam list when course has exams', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<CourseDetailView vscodeApi={mockApi} />);
-
-		dispatchExtensionMessage({
-			type: 'courseDetailInit',
-			courseData: makeCourseDetailData({
-				title: 'Course With Exam',
-				id: 1,
-				exams: [
-					{
-						id: 201,
-						title: 'Midterm Exam',
-						startDate: '2025-06-15T09:00:00Z',
-						endDate: '2025-06-15T12:00:00Z',
-					},
-				],
-			}),
-		});
-
-		await waitFor(() => {
-			expect(screen.getByText('Midterm Exam')).toBeInTheDocument();
-		});
-	});
-
-	// TODO: Re-enable when exam list rendering is implemented in CourseDetailView
-	it.skip('clicking exam sends openExam postMessage with examId and courseId', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<CourseDetailView vscodeApi={mockApi} />);
-
-		dispatchExtensionMessage({
-			type: 'courseDetailInit',
-			courseData: makeCourseDetailData({
-				title: 'Course',
-				id: 5,
-				exams: [
-					{
-						id: 300,
-						title: 'Final Exam',
-						startDate: '2025-07-01T10:00:00Z',
-						endDate: '2025-07-01T13:00:00Z',
-					},
-				],
-			}),
-		});
-
-		await waitFor(() => {
-			expect(screen.getByText('Final Exam')).toBeInTheDocument();
-		});
-
-		await userEvent.click(screen.getByText('Final Exam'));
-
-		expect(mockApi.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'command',
-				command: 'openExam',
-				payload: expect.objectContaining({ examId: 300, courseId: 5 }),
-			})
-		);
 	});
 
 	it('renders course semester badge when available', async () => {

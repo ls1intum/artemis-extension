@@ -1,13 +1,14 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ChatMessageService } from '../../../src/extension/services/iris/chat/chatMessageService';
-import { IrisChatSessionService } from '../../../src/extension/services/iris/chat/chatSessionService';
-import { ContextStore } from '../../../src/extension/services/iris/context/contextStore';
-import { ArtemisApiService } from '../../../src/extension/api';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import * as workspaceFileChecker from '../../../src/extension/services/workspace/workspaceFileChecker';
-import type { ActiveContext } from '../../../src/extension/types';
+
+import { ArtemisApiService } from '@extension/api';
+import { ChatMessageService } from '@extension/services/iris/chat/chatMessageService';
+import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
+import { ContextStore } from '@extension/services/iris/context/contextStore';
+import * as workspaceFileChecker from '@extension/services/workspace/workspaceFileChecker';
+import type { ActiveContext } from '@extension/types';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('ChatMessageService', () => {
     let sandbox: sinon.SinonSandbox;
@@ -18,9 +19,6 @@ suite('ChatMessageService', () => {
     let postSnapshotSpy: sinon.SinonSpy;
     let checkWorkspaceFilesStub: sinon.SinonStub;
     let configGetStub: sinon.SinonStub;
-    // Stubs kept to prevent unhandled vscode.window calls during tests
-    let _showWarningMessageStub: sinon.SinonStub;
-    let _showErrorMessageStub: sinon.SinonStub;
     let mockSessionManager: { currentSessionId: number | undefined };
     let service: ChatMessageService;
 
@@ -83,7 +81,7 @@ suite('ChatMessageService', () => {
         mockChatSessionService = sinon.createStubInstance(IrisChatSessionService);
         mockChatSessionService.initializeIrisSessionAndLoadMessages.resolves();
         // Stub Iris settings check to return enabled by default
-        mockChatSessionService.checkAndLoadIrisSettings.resolves(true);
+        mockChatSessionService.checkAndLoadIrisSettings.resolves({ kind: 'enabled' });
         postSnapshotSpy = sinon.spy();
 
         mockSessionManager = { currentSessionId: 42 };
@@ -105,8 +103,9 @@ suite('ChatMessageService', () => {
             index: 0,
         }]);
 
-        _showWarningMessageStub = sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
-        _showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
+        // Stubs kept to prevent unhandled vscode.window calls during tests
+        sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
+        sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
     });
 
     teardown(() => {
@@ -129,13 +128,38 @@ suite('ChatMessageService', () => {
         });
 
         test('should return iris-disabled when Iris is not enabled', async () => {
-            mockChatSessionService.checkAndLoadIrisSettings.resolves(false);
+            mockChatSessionService.checkAndLoadIrisSettings.resolves({ kind: 'disabled' });
             createService();
             const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
             assert.ok(!result.sent);
             if (!result.sent) {
                 assert.strictEqual(result.reason, 'iris-disabled');
                 assert.strictEqual(result.contextLabel, 'exercise');
+                // capturedContext is the contract the provider uses to detect
+                // a stale send-rejection after a mid-flight context switch;
+                // pin it here so the contract cannot regress silently.
+                assert.ok(result.capturedContext, 'capturedContext must be threaded through');
+                assert.strictEqual(result.capturedContext.id, activeContext.id);
+                assert.strictEqual(result.capturedContext.type, activeContext.type);
+            }
+        });
+
+        test('returns iris-unavailable when settings check classifies as unavailable', async () => {
+            mockChatSessionService.checkAndLoadIrisSettings.resolves({
+                kind: 'unavailable',
+                reason: 'Server returned 500',
+            });
+            createService();
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+            assert.ok(!result.sent);
+            if (!result.sent) {
+                assert.strictEqual(result.reason, 'iris-unavailable');
+                assert.strictEqual(result.contextLabel, 'exercise');
+                // Same contract as iris-disabled: the captured context flows
+                // through so the provider can drop stale rejections.
+                assert.ok(result.capturedContext, 'capturedContext must be threaded through');
+                assert.strictEqual(result.capturedContext.id, activeContext.id);
+                assert.strictEqual(result.capturedContext.type, activeContext.type);
             }
         });
 

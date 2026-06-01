@@ -2,10 +2,10 @@
  * Runtime type guards for message discrimination.
  */
 
-import { ExtensionMsg } from './extensionMessages';
 import type { ExtensionToWebviewMessage } from './extensionMessages';
-import { WebviewMsgType, WebviewCmd, COMMANDS_REQUIRING_PAYLOAD } from './webviewCommands';
+import { ExtensionMsg } from './extensionMessages';
 import type { WebviewToExtensionMessage } from './webviewCommands';
+import { COMMANDS_REQUIRING_PAYLOAD, WebviewCmd, WebviewMsgType } from './webviewCommands';
 
 const extensionMsgValues = new Set<string>(Object.values(ExtensionMsg));
 const webviewCmdValues = new Set<string>(Object.values(WebviewCmd));

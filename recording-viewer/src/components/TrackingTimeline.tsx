@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
 import { SWIM_LANE_TYPES } from '../constants';
-import { formatOffset, shortenUri } from '../utils/format';
+import { formatOffset } from '../utils/format';
+import { eventSummary } from '../utils/eventDisplay';
+import { EventBadge } from './EventBadge';
 import { useTimelinePan } from '../hooks/useTimelinePan';
 import {
     AXIS_HEIGHT,
@@ -13,6 +15,7 @@ import {
     groupEventsByType,
     hitTestAnnotation,
     hitTestDot,
+    orderTypesActiveFirst,
     xToTime,
     type AnnotationGroup,
     type Bin,
@@ -26,6 +29,8 @@ interface Props {
     fullXDomain?: [number, number];
     annotations: Annotation[];
     enabledTypes: Set<EventType>;
+    /** When true, only lanes with events are shown (the empty ones are hidden). */
+    hideEmptyLanes?: boolean;
     onAddAnnotation?: (timestamp: number, text: string) => void;
     onUpdateAnnotation?: (id: string, text: string) => void;
     onDeleteAnnotation?: (id: string) => void;
@@ -52,73 +57,6 @@ interface AnnotationPopover {
 
 const MAX_TOOLTIP_EVENTS = 5;
 
-function eventSummary(event: RecordedEvent, sessionStartTime: number): React.ReactNode {
-    const time = formatOffset(event.timestamp - sessionStartTime);
-    switch (event.type) {
-        case 'textChange': {
-            let inserted = 0, deleted = 0;
-            for (const c of event.changes) { inserted += c.text.length; deleted += c.rangeLength; }
-            const op = inserted > 0 && deleted > 0 ? `replaced ${deleted} → ${inserted} chars`
-                : inserted > 0 ? `+${inserted} chars` : `-${deleted} chars`;
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {op}</>;
-        }
-        case 'save':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'diagnostics':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.diagnostics.length} diagnostic(s)</>;
-        case 'fileSwitch':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.fromUri)} → {shortenUri(event.toUri)}</>;
-        case 'buildResult':
-            return <><span className="tt-time">{time}</span> {event.buildFailed ? 'BUILD FAILED' : event.successful ? 'PASSED' : `${event.errorCount} error(s)`}</>;
-        case 'eqSnapshot':
-            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.eq * 100)}% ({event.confidence})</>;
-        case 'eqEngineState':
-            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.currentEQ * 100)}% | {event.snapshots.length} snapshot(s)</>;
-        case 'sessionStart':
-            return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}{event.participantId ? ` | ${event.participantId}` : ''}</>;
-        case 'sessionEnd':
-            return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}</>;
-        case 'irisChatMessage':
-            return <><span className="tt-time">{time}</span> {event.direction === 'sent' ? 'SENT' : 'RECV'}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.messageId ? ` (id:${event.messageId})` : ''}</>;
-        case 'irisChatSendAttempt':
-            return <><span className="tt-time">{time}</span> {event.status.toUpperCase()}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.errorMessage ? ` — ${event.errorMessage}` : ''}</>;
-        case 'irisChatFeedback':
-            return <><span className="tt-time">{time}</span> msg:{event.messageId} | {event.helpful ? 'helpful' : 'not helpful'}</>;
-        case 'windowFocus':
-            return <><span className="tt-time">{time}</span> {event.focused ? 'focused' : 'blurred'}</>;
-        case 'fileSnapshot':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'selectionChange':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.selections[0]?.startLine ?? 0}{event.kind ? ` (${event.kind})` : ''}</>;
-        case 'visibleRangeChange':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}</>;
-        case 'intervention':
-            return <><span className="tt-time">{time}</span> {event.action} | {event.level} | EQ: {Math.round(event.eq * 100)}%{event.triggerType ? ` | ${event.triggerType}` : ''}</>;
-        case 'viewNavigation':
-            return <><span className="tt-time">{time}</span> {event.from} → {event.to}</>;
-        case 'panelVisibility':
-            return <><span className="tt-time">{time}</span> {event.panel} | {event.visible ? 'visible' : 'hidden'}</>;
-        case 'terminalCommand':
-            return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'}</>;
-        case 'terminalOpenClose':
-            return <><span className="tt-time">{time}</span> {event.action} | {event.terminalName}</>;
-        case 'fileSnapshotError':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.reason}</>;
-        case 'fileCreate':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'fileDelete':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'fileRename':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.oldUri)} → {shortenUri(event.newUri)}</>;
-        case 'textDocumentOpen':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        case 'textDocumentClose':
-            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
-        default:
-            return <span className="tt-time">{time}</span>;
-    }
-}
-
 export function TrackingTimeline({
     events,
     sessionStartTime,
@@ -126,6 +64,7 @@ export function TrackingTimeline({
     fullXDomain,
     annotations,
     enabledTypes,
+    hideEmptyLanes = false,
     onAddAnnotation,
     onUpdateAnnotation,
     onDeleteAnnotation,
@@ -155,10 +94,16 @@ export function TrackingTimeline({
     // events.filter pass per lane on every xDomain/zoom/pan update.
     const eventsByType = useMemo(() => groupEventsByType(events), [events]);
 
-    // Visible lanes: only types enabled AND with events
+    // Visible lanes: every enabled type is shown (even with no events), with the
+    // empty ones sorted to the bottom while keeping the curated order otherwise.
+    // When hideEmptyLanes is on, the empty lanes are dropped entirely.
     const visibleLanes = useMemo(() => {
-        return SWIM_LANE_TYPES.filter(t => enabledTypes.has(t) && eventsByType.has(t));
-    }, [eventsByType, enabledTypes]);
+        const enabled = SWIM_LANE_TYPES.filter(t => enabledTypes.has(t));
+        if (hideEmptyLanes) {
+            return enabled.filter(t => eventsByType.has(t));
+        }
+        return orderTypesActiveFirst(enabled, t => eventsByType.has(t));
+    }, [eventsByType, enabledTypes, hideEmptyLanes]);
 
     // Per-lane bins
     const laneBins = useMemo(() => {
@@ -442,8 +387,12 @@ export function TrackingTimeline({
                 {/* Lane labels */}
                 <div className="lane-labels">
                     {visibleLanes.map(type => (
-                        <div key={type} className="lane-label" style={{ height: LANE_HEIGHT }}>
-                            <span className={`event-badge ${type}`}>{type}</span>
+                        <div
+                            key={type}
+                            className={`lane-label${eventsByType.has(type) ? '' : ' empty'}`}
+                            style={{ height: LANE_HEIGHT }}
+                        >
+                            <EventBadge type={type} title={type} />
                         </div>
                     ))}
                     <div className="lane-label axis-label" style={{ height: AXIS_HEIGHT }} />
@@ -487,7 +436,7 @@ export function TrackingTimeline({
                             onMouseLeave={() => setHoveringTooltip(false)}
                         >
                             <div className="tooltip-type">
-                                <span className={`event-badge ${tooltip.laneType}`}>{tooltip.laneType}</span>
+                                <EventBadge type={tooltip.laneType} />
                                 <span className="tooltip-count">&times;{tooltip.bin.count}</span>
                                 {videoTimeAtSessionStartSeconds != null && (
                                     <span className="tooltip-video-time">

@@ -1,4 +1,4 @@
-import type { ExtMsg } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '@shared/messageContracts';
 
 export function createExerciseDetailPayload(
     overrides?: Partial<Omit<ExtMsg<'exerciseDetailInit'>, 'type'>>,

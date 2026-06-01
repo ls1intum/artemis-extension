@@ -4,13 +4,13 @@
 
 import type {
     ExerciseDetailsResponse,
-    StudentExam,
+    IrisStageDTO,
     ResultSummary,
     SubmissionSummary,
-    IrisStageDTO,
-} from '../types/apiResponses';
-import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
-import type { ChatContextType } from '../types/context';
+} from '@shared/types/apiResponses';
+import type { ChatContextType } from '@shared/types/context';
+
+import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
 /**
  * Display-facing projection of the websocket connection state. Both the chat
@@ -31,9 +31,6 @@ export const ExtensionMsg = {
     CourseListInit: 'courseListInit',
     CourseDetailInit: 'courseDetailInit',
     ExerciseDetailInit: 'exerciseDetailInit',
-    ExamStartInit: 'examStartInit',
-    ExamConductionInit: 'examConductionInit',
-    ExamExerciseDetailInit: 'examExerciseDetailInit',
     ServiceStatusInit: 'serviceStatusInit',
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
     AiConfigInit: 'aiConfigInit',
@@ -66,8 +63,11 @@ export const ExtensionMsg = {
     UpdateWebSocketStatus: 'updateWebSocketStatus',
     ShowDisabledState: 'showDisabledState',
     HideDisabledState: 'hideDisabledState',
+    ShowUnavailableState: 'showUnavailableState',
+    HideUnavailableState: 'hideUnavailableState',
     UpdateNoAiStatus: 'updateNoAiStatus',
     UpdateIrisStages: 'updateIrisStages',
+    SendRejected: 'sendRejected',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -77,14 +77,18 @@ export const ExtensionMsg = {
     GitIdentityInfo: 'gitIdentityInfo',
     HealthCheckResults: 'healthCheckResults',
 
-    // PlantUML
-    PlantUmlRendered: 'plantUmlRendered',
-    PlantUmlError: 'plantUmlError',
+    // Server-side problem statement rendering
+    ProblemStatementRendered: 'problemStatementRendered',
 
 } as const;
 
 /** Union of all Extension->Webview message type strings */
 export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
+
+/** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
+interface RenderedProblemStatementPayload {
+    html: string;
+}
 
 /** Payload definitions for each Extension->Webview message */
 interface ExtensionMsgPayloads {
@@ -97,7 +101,7 @@ interface ExtensionMsgPayloads {
         } | null;
     };
     courseListInit: {
-        courses: CourseData[];
+        courses: CourseDetailData[];
         archivedCourses?: ArchivedCourse[];
     };
     courseDetailInit: {
@@ -109,32 +113,7 @@ interface ExtensionMsgPayloads {
         exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
         repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
-    };
-    examStartInit: {
-        studentExam: StudentExam;
-        courseId: number;
-        examId: number;
-    };
-    examConductionInit: {
-        studentExam: StudentExam;
-        courseId: number;
-        examId: number;
-        endTime: number;
-        startTime: number;
-        totalDuration: number;
-        workspaceExerciseId: number | null;
-    };
-    examExerciseDetailInit: {
-        exerciseData: ExerciseDetailsResponse;
-        examContext: {
-            courseId: number;
-            examId: number;
-            studentExam: StudentExam;
-            endTime: number;
-            startTime: number;
-            totalDuration: number;
-        };
-        hideDeveloperTools: boolean;
+        serverRenderedProblemStatement?: RenderedProblemStatementPayload;
     };
     serviceStatusInit: {
         serverUrl?: string;
@@ -244,12 +223,27 @@ interface ExtensionMsgPayloads {
     updateWebSocketStatus: { status: WebSocketDisplayStatus };
     showDisabledState: { message: string };
     hideDisabledState: undefined;
+    showUnavailableState: { message: string };
+    hideUnavailableState: undefined;
     updateNoAiStatus: {
         isNoAiDetected: boolean;
         noAiFilePath?: string;
     };
     updateIrisStages: {
         stages: IrisStageDTO[];
+    };
+    /**
+     * Posted by the extension host when a user-initiated `sendMessage`
+     * command was rejected synchronously (e.g. no chat context, .noai
+     * detected, Iris disabled for this exercise). The webview uses
+     * `localId` + `localSessionId` to find the optimistic user message and
+     * mark it failed so the thinking indicator does not get stuck.
+     */
+    sendRejected: {
+        localId: string;
+        localSessionId: string;
+        reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+        errorMessage: string;
     };
 
     // Exercise/Repo responses
@@ -279,9 +273,8 @@ interface ExtensionMsgPayloads {
         }>;
     };
 
-    // PlantUML
-    plantUmlRendered: { index: number; svg: string; nonce: number };
-    plantUmlError: { index: number; error: string; nonce: number };
+    // Server-side problem statement rendering
+    problemStatementRendered: RenderedProblemStatementPayload;
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

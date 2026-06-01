@@ -1,8 +1,9 @@
 import * as assert from 'assert';
-import { ArtemisApiService } from '../../../src/extension/api/artemisApi';
-import { AuthManager } from '../../../src/extension/services/auth/authManager';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { ApiError } from '../../../src/extension/types';
+
+import { ArtemisApiService } from '@extension/api/artemisApi';
+import { AuthManager } from '@extension/services/auth/authManager';
+import { ApiError, MalformedResponseError } from '@extension/types';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 // Mock fetch
 const originalFetch = global.fetch;
@@ -29,7 +30,7 @@ suite('Artemis API Service Test Suite', () => {
         apiService = new TestableArtemisApiService(authManager);
 
         // Mock fetch
-        mockFetch = async (url: string, options: any) => {
+        mockFetch = async (_url: string, _options: any) => {
             return {
                 ok: true,
                 status: 200,
@@ -304,22 +305,6 @@ suite('Artemis API Service Test Suite', () => {
         assert.strictEqual(status.rateLimitInfo, undefined);
     });
 
-    test('should render PlantUML', async () => {
-        const mockSvg = '<svg>test</svg>';
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/programming/plantuml/svg'));
-            assert.ok(url.includes('plantuml='));
-            return {
-                ok: true,
-                status: 200,
-                text: async () => mockSvg,
-            } as any;
-        };
-
-        const svg = await apiService.renderPlantUmlToSvg('@startuml\n@enduml');
-        assert.strictEqual(svg, mockSvg);
-    });
-
     test('should get Iris chat settings', async () => {
         const courseId = 1;
         global.fetch = async (url: any) => {
@@ -332,21 +317,6 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         await apiService.getIrisCourseChatSettings(courseId);
-    });
-
-    test('should get current course chat session', async () => {
-        const courseId = 1;
-        global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/course-chat/${courseId}/sessions/current`));
-            assert.strictEqual(options.method, 'POST');
-            return {
-                ok: true,
-                status: 200,
-                json: async () => ({ id: 123 }),
-            } as any;
-        };
-
-        await apiService.getCurrentCourseChat(courseId);
     });
 
     test('should get chat messages', async () => {
@@ -409,7 +379,7 @@ suite('Artemis API Service Test Suite', () => {
         uncommittedFiles.set('file1.java', 'content1');
 
         let attempt = 0;
-        global.fetch = async (url: any, options: any) => {
+        global.fetch = async (_url: any, options: any) => {
             attempt++;
             if (attempt === 1) {
                 // First attempt with files fails
@@ -466,68 +436,161 @@ suite('Artemis API Service Test Suite', () => {
         assert.strictEqual(submission, null);
     });
 
-    test('should get exercise chat sessions', async () => {
-        const exerciseId = 1;
-        const mockSessions = [{ id: 1 }];
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`));
-            return {
+    test('getLatestPendingSubmission: empty body maps to null', async () => {
+        const participationId = 7;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '',
+        } as any);
+
+        const submission = await apiService.getLatestPendingSubmission(participationId);
+        assert.strictEqual(submission, null);
+    });
+
+    test('getLatestPendingSubmission: literal "null" body maps to null', async () => {
+        const participationId = 8;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => 'null',
+        } as any);
+
+        const submission = await apiService.getLatestPendingSubmission(participationId);
+        assert.strictEqual(submission, null);
+    });
+
+    test('getLatestPendingSubmission: 500 propagates (no silent null)', async () => {
+        const participationId = 9;
+        global.fetch = async () => ({
+            ok: false,
+            status: 500,
+            text: async () => '',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 500,
+        );
+    });
+
+    test('getLatestPendingSubmission: 401 propagates', async () => {
+        const participationId = 10;
+        global.fetch = async () => ({
+            ok: false,
+            status: 401,
+            statusText: 'Unauthorized',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 401,
+        );
+    });
+
+    test('getLatestPendingSubmission: malformed non-empty JSON throws MalformedResponseError', async () => {
+        const participationId = 11;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{ this is not json',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError
+                && err.message.startsWith('Malformed pending-submission response'),
+        );
+    });
+
+    test('getLatestPendingSubmission: valid JSON without numeric id throws MalformedResponseError', async () => {
+        const participationId = 14;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{}',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError
+                && err.message.includes('non-numeric id'),
+        );
+    });
+
+    test('getLatestPendingSubmission: valid JSON with non-numeric id throws MalformedResponseError', async () => {
+        const participationId = 15;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{"id":"abc"}',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError,
+        );
+    });
+
+    test('getLatestPendingSubmission: array body throws MalformedResponseError', async () => {
+        const participationId = 16;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '[]',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError,
+        );
+    });
+
+    test('getLatestPendingSubmission: id=null/false/empty-string all rejected (no Number() coercion)', async () => {
+        const participationId = 19;
+        for (const bogusId of ['null', 'false', '""']) {
+            global.fetch = async () => ({
                 ok: true,
                 status: 200,
-                json: async () => mockSessions,
-            } as any;
-        };
-
-        const sessions = await apiService.getExerciseChatSessions(exerciseId);
-        assert.deepStrictEqual(sessions, mockSessions);
+                text: async () => `{"id":${bogusId}}`,
+            } as any);
+            await assert.rejects(
+                () => apiService.getLatestPendingSubmission(participationId),
+                (err: unknown) => err instanceof MalformedResponseError,
+                `id=${bogusId} must reject`,
+            );
+        }
     });
 
-    test('should get course chat sessions with messages', async () => {
-        const courseId = 1;
-        const mockSessions = [{ id: 1, messages: [] }];
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/iris/chat-history/${courseId}/sessions`));
-            return {
+    test('getLatestResultWithFeedbacks: malformed JSON throws MalformedResponseError', async () => {
+        const participationId = 17;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{ broken',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestResultWithFeedbacks(participationId),
+            (err: unknown) => err instanceof MalformedResponseError
+                && err.message.startsWith('Malformed latest-result response'),
+        );
+    });
+
+    test('getLatestResultWithFeedbacks: non-object body (array/primitive) throws MalformedResponseError', async () => {
+        const participationId = 19;
+        for (const bogus of ['[]', '42', '"ok"']) {
+            global.fetch = async () => ({
                 ok: true,
                 status: 200,
-                json: async () => mockSessions,
-            } as any;
-        };
-
-        const sessions = await apiService.getCourseChatSessionsWithMessages(courseId);
-        assert.deepStrictEqual(sessions, mockSessions);
-    });
-
-    test('should create course chat session', async () => {
-        const courseId = 1;
-        global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/course-chat/${courseId}/sessions`));
-            assert.strictEqual(options.method, 'POST');
-            return {
-                ok: true,
-                status: 201,
-                json: async () => ({ id: 1 }),
-            } as any;
-        };
-
-        const session = await apiService.createCourseChatSession(courseId);
-        assert.strictEqual(session.id, 1);
-    });
-
-    test('should create exercise chat session', async () => {
-        const exerciseId = 1;
-        global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`));
-            assert.strictEqual(options.method, 'POST');
-            return {
-                ok: true,
-                status: 201,
-                json: async () => ({ id: 1 }),
-            } as any;
-        };
-
-        const session = await apiService.createExerciseChatSession(exerciseId);
-        assert.strictEqual(session.id, 1);
+                text: async () => bogus,
+            } as any);
+            await assert.rejects(
+                () => apiService.getLatestResultWithFeedbacks(participationId),
+                (err: unknown) => err instanceof MalformedResponseError,
+                `body ${bogus} must reject`,
+            );
+        }
     });
 
     test('should mark message helpful', async () => {
@@ -575,58 +638,58 @@ suite('Artemis API Service Test Suite', () => {
         assert.strictEqual(token, createdToken);
     });
 
-    test('should get current exercise chat session', async () => {
-        const exerciseId = 77;
-        global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`));
-            assert.strictEqual(options.method, 'POST');
+    test('getOrCreateVcsAccessToken: 401 propagates without PUT fallback', async () => {
+        const participationId = 12;
+        let attempt = 0;
+        global.fetch = async () => {
+            attempt++;
             return {
-                ok: true,
-                status: 200,
-                json: async () => ({ id: 555 })
+                ok: false,
+                status: 401,
+                statusText: 'Unauthorized',
             } as any;
         };
 
-        const session = await apiService.getCurrentExerciseChat(exerciseId);
-        assert.strictEqual(session.id, 555);
+        await assert.rejects(
+            () => apiService.getOrCreateVcsAccessToken(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 401,
+        );
+        assert.strictEqual(attempt, 1, 'no PUT fallback should be attempted on auth failure');
     });
 
-    test('should fetch exercise chat sessions with messages', async () => {
-        const exerciseId = 77;
-        const sessions = [{ id: 1 }, { id: 2 }];
-        const messages: Record<number, any[]> = {
-            1: [{ id: 'm1' }],
-            2: [{ id: 'm2' }]
+    test('getOrCreateVcsAccessToken: 500 propagates without PUT fallback', async () => {
+        const participationId = 13;
+        let attempt = 0;
+        global.fetch = async () => {
+            attempt++;
+            return {
+                ok: false,
+                status: 500,
+                statusText: 'Server Error',
+                text: async () => '',
+            } as any;
         };
 
-        global.fetch = async (url: any) => {
-            if (url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`)) {
-                return {
-                    ok: true,
-                    status: 200,
-                    json: async () => sessions
-                } as any;
-            }
-            if (url.includes('/api/iris/sessions/1/messages')) {
-                return {
-                    ok: true,
-                    status: 200,
-                    json: async () => messages[1]
-                } as any;
-            }
-            if (url.includes('/api/iris/sessions/2/messages')) {
-                return {
-                    ok: true,
-                    status: 200,
-                    json: async () => messages[2]
-                } as any;
-            }
-            return { ok: true, status: 200, json: async () => [] } as any;
+        await assert.rejects(
+            () => apiService.getOrCreateVcsAccessToken(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 500,
+        );
+        assert.strictEqual(attempt, 1, 'no PUT fallback should be attempted on server error');
+    });
+
+    test('getOrCreateVcsAccessToken: network error propagates without PUT fallback', async () => {
+        const participationId = 18;
+        let attempt = 0;
+        global.fetch = async () => {
+            attempt++;
+            throw new TypeError('fetch failed (network)');
         };
 
-        const result = await apiService.getExerciseChatSessionsWithMessages(exerciseId);
-        assert.deepStrictEqual(result[0].messages, messages[result[0].id]);
-        assert.deepStrictEqual(result[1].messages, messages[result[1].id]);
+        await assert.rejects(
+            () => apiService.getOrCreateVcsAccessToken(participationId),
+            (err: unknown) => err instanceof TypeError,
+        );
+        assert.strictEqual(attempt, 1, 'no PUT fallback should be attempted on network failure');
     });
 
     test('should include auth headers and payload when sending chat message', async () => {
@@ -651,6 +714,96 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         await apiService.sendChatMessage(sessionId, content);
+    });
+
+    test('should get current chat session via unified endpoint', async () => {
+        const entityId = 42;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/iris/chat/sessions/current'));
+            assert.ok(url.includes('mode=COURSE_CHAT'));
+            assert.ok(url.includes(`entityId=${entityId}`));
+            assert.strictEqual(options.method, 'POST');
+            return { ok: true, status: 200, json: async () => ({ id: 123 }) } as any;
+        };
+        const session = await apiService.getCurrentChat('COURSE_CHAT', entityId);
+        assert.strictEqual(session.id, 123);
+    });
+
+    test('should create chat session via unified endpoint', async () => {
+        const entityId = 99;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/iris/chat/sessions'));
+            assert.ok(!url.includes('/sessions/current'));
+            assert.ok(url.includes('mode=PROGRAMMING_EXERCISE_CHAT'));
+            assert.ok(url.includes(`entityId=${entityId}`));
+            assert.strictEqual(options.method, 'POST');
+            return { ok: true, status: 200, json: async () => ({ id: 7 }) } as any;
+        };
+        const session = await apiService.createChatSession('PROGRAMMING_EXERCISE_CHAT', entityId);
+        assert.strictEqual(session.id, 7);
+    });
+
+    test('should list chat sessions for course via overview endpoint', async () => {
+        const courseId = 5;
+        const mockSummaries = [
+            { id: 1, entityId: 5, mode: 'COURSE_CHAT', creationDate: '2026-05-13T00:00:00Z' },
+            { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2026-05-13T01:00:00Z' },
+        ];
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/chat/${courseId}/sessions/overview`));
+            assert.ok(!options?.method || options.method === 'GET');
+            return { ok: true, status: 200, json: async () => mockSummaries } as any;
+        };
+        const summaries = await apiService.listChatSessionsForCourse(courseId);
+        assert.deepStrictEqual(summaries, mockSummaries);
+    });
+
+    test('getCoursesForDashboard: rejects when body is an array (not an object)', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => [{ courses: [] }],
+        } as any);
+        await assert.rejects(
+            () => apiService.getCoursesForDashboard(),
+            (err: unknown) => err instanceof MalformedResponseError && /expected object, got array/.test(err.message),
+        );
+    });
+
+    test('getArchivedCourses: rejects when body is not an array', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [] }),
+        } as any);
+        await assert.rejects(
+            () => apiService.getArchivedCourses(),
+            (err: unknown) => err instanceof MalformedResponseError && /expected array, got object/.test(err.message),
+        );
+    });
+
+    test('getCurrentChat: rejects when session id is missing or non-numeric', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ mode: 'COURSE_CHAT' }),
+        } as any);
+        await assert.rejects(
+            () => apiService.getCurrentChat('COURSE_CHAT', 1),
+            (err: unknown) => err instanceof MalformedResponseError && /missing or non-number field "id"/.test(err.message),
+        );
+    });
+
+    test('listChatSessionsForCourse: rejects element with missing required field', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => [{ id: 1, entityId: 2, creationDate: '2026-01-01', mode: 'COURSE_CHAT' }, { id: 3 }],
+        } as any);
+        await assert.rejects(
+            () => apiService.listChatSessionsForCourse(1),
+            (err: unknown) => err instanceof MalformedResponseError && /IrisChatSessionSummary\[1\]/.test(err.message),
+        );
     });
 
     test('should throw when authentication succeeds without cookie', async () => {

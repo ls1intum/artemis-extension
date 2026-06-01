@@ -13,17 +13,36 @@
  * stream.
  */
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { SessionRecorder } from '../../../../../src/extension/services/telemetry/recording/sessionRecorder';
+import * as assert from 'assert';
+
+import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
 import type {
-    RecordedEvent,
-    InterventionEvent,
-    ConfigurationSnapshotEvent,
     ConfigurationChangeEvent,
-} from '../../../../../src/extension/services/telemetry/recording/types';
-import { RecordingStorageWriter } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
-import type { RecordingFs } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
+    ConfigurationSnapshotEvent,
+    InterventionEvent,
+    RecordedEvent,
+    SubmissionEvent,
+} from '@extension/services/telemetry/recording/types';
+
+/**
+ * Whitebox accessor for the per-URI debounce maps that live on the
+ * ObservationRegistry the SessionRecorder composes. Tests need to seed
+ * these maps to exercise discard/flush paths without waiting for real
+ * debounce timers to fire. Centralized so the unsafe cast lives in one
+ * place — and so the test's coupling to internal field names is honest.
+ */
+function pendingDebounceMaps(recorder: SessionRecorder): {
+    _pendingSelectionPayloads: Map<string, RecordedEvent>;
+    _pendingVisibleRangePayloads: Map<string, RecordedEvent>;
+} {
+    return (recorder as unknown as { _observation: {
+        _pendingSelectionPayloads: Map<string, RecordedEvent>;
+        _pendingVisibleRangePayloads: Map<string, RecordedEvent>;
+    } })._observation;
+}
 
 // ── Fake FS with full pause-control ───────────────────────────────────────
 
@@ -352,6 +371,50 @@ suite('SessionRecorder (Block AB+E)', () => {
             `metadata.eventCount=${metadata.eventCount} but JSONL has ${events.length} events`);
     });
 
+    // ── Test: initial metadata.json is written at session start ──────────
+
+    test('initial metadata.json is written at session start with endTime: null', async () => {
+        recorder.enable();
+        await recorder.startSession(77);
+
+        // The first metadata write should happen during startSession, before
+        // endSession is called. Find it without ending the session.
+        // Allow the lane work to drain so the write actually hits the fake fs.
+        await new Promise(resolve => setTimeout(resolve, 20));
+
+        const firstMetadataWrite = fs.writtenFiles.find(f => f.path.endsWith('metadata.json'));
+        assert.ok(firstMetadataWrite, 'initial metadata.json was not written at session start');
+        const metadata = JSON.parse(firstMetadataWrite.data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(typeof metadata.startTime === 'number' && metadata.startTime > 0);
+        assert.strictEqual(metadata.endTime, null, 'initial endTime should be null while session is live');
+        assert.strictEqual(metadata.eventCount, 0);
+
+        await recorder.endSession();
+    });
+
+    test('final metadata.json overwrites initial with endTime + eventCount', async () => {
+        recorder.enable();
+        await recorder.startSession(77);
+        recorder.recordIrisChatSent('one');
+        recorder.recordIrisChatSent('two');
+        await recorder.endSession();
+
+        // The final metadata write is the latest one.
+        const finalMetadata = [...fs.writtenFiles].reverse().find(f => f.path.endsWith('metadata.json'));
+        assert.ok(finalMetadata, 'final metadata.json was not written');
+        const metadata = JSON.parse(finalMetadata.data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(typeof metadata.endTime === 'number', `endTime should be a number after end, got ${metadata.endTime}`);
+        assert.ok(metadata.eventCount > 0, 'final eventCount should reflect recorded events');
+    });
+
     // ── Test: lifecycle.recordInternal phase gating (via public surface) ──────────
 
     test('record() after session ends but before new session starts is a no-op', async () => {
@@ -553,8 +616,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         await recorder.startSession(5);
 
         // Directly prime _pendingSelectionPayloads (per-URI Map, Block J) via
-        // `as any` to simulate a debounce timer that is pending but has not
-        // yet fired when consent is revoked.
+        // the pendingDebounceMaps() whitebox helper to simulate a debounce
+        // timer that is pending but has not yet fired when consent is revoked.
         const fakeUri = 'file:///fake/Pending.java';
         const pendingPayload: RecordedEvent = {
             type: 'selectionChange',
@@ -563,7 +626,7 @@ suite('SessionRecorder (Block AB+E)', () => {
             selections: [{ startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 5 }],
             kind: undefined,
         };
-        (recorder as any)._pendingSelectionPayloads.set(fakeUri, pendingPayload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(fakeUri, pendingPayload);
 
         // Revoke consent — _doDisable must DISCARD, not flush, the pending payload.
         recorder.disable();
@@ -584,9 +647,9 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.ok(endIdx > consentIdx, 'sessionEnd must come after consentChange');
 
         // The recorder must have cleared all pending payloads.
-        assert.strictEqual((recorder as any)._pendingSelectionPayloads.size, 0,
+        assert.strictEqual(pendingDebounceMaps(recorder)._pendingSelectionPayloads.size, 0,
             '_pendingSelectionPayloads must be empty after disable()');
-        assert.strictEqual((recorder as any)._pendingVisibleRangePayloads.size, 0,
+        assert.strictEqual(pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.size, 0,
             '_pendingVisibleRangePayloads must be empty after disable()');
     });
 
@@ -603,6 +666,40 @@ suite('SessionRecorder (Block AB+E)', () => {
         const panelEvents = events.filter(e => e.type === 'panelVisibility');
         assert.strictEqual(panelEvents.length, 0,
             'panelVisibility before startSession must not be recorded');
+    });
+
+    // ── Test: recordSubmission stamps exerciseId and respects recording phase ──
+
+    test('recordSubmission stamps exerciseId from the active session and records the payload', async () => {
+        recorder.enable();
+        await recorder.startSession(7);
+        recorder.recordSubmission({ status: 'started', participationId: 42, commitMessage: 'wip' });
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const submission = events.find((e): e is SubmissionEvent => e.type === 'submission');
+        assert.ok(submission, 'expected a submission event');
+        assert.strictEqual(submission!.status, 'started');
+        assert.strictEqual(submission!.participationId, 42);
+        assert.strictEqual(submission!.exerciseId, 7);
+        assert.strictEqual(submission!.commitMessage, 'wip');
+    });
+
+    test('recordSubmission is dropped when not recording', async () => {
+        // Recorder is enabled but no session has started, so the phase is not
+        // 'recording' and _record must short-circuit. Mirroring the
+        // recordPanelVisibility no-op test, we prove nothing was written by
+        // inspecting the actual event stream, not just the trivial eventCount.
+        recorder.enable();
+
+        recorder.recordSubmission({ status: 'failed', participationId: 1, failureReason: 'push-failed' });
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const events = collectWrittenEvents(fs);
+        assert.strictEqual(events.filter(e => e.type === 'submission').length, 0,
+            'submission before startSession must not be recorded');
+        assert.strictEqual(recorder.eventCount, 0);
     });
 
     // ── Block J: Per-URI debounce tests ───────────────────────────────────
@@ -630,8 +727,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Simulate two different URIs triggering in quick succession.
-        (recorder as any)._pendingSelectionPayloads.set(uriA, payloadA);
-        (recorder as any)._pendingSelectionPayloads.set(uriB, payloadB);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uriA, payloadA);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uriB, payloadB);
 
         // Flush on session end must emit both.
         await recorder.endSession();
@@ -658,14 +755,13 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Prime the pending map as if the event listener serialized at trigger time.
-        (recorder as any)._pendingSelectionPayloads.set(uri, triggerTimePayload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, triggerTimePayload);
 
         // Simulate a post-trigger state change: the map now holds a DIFFERENT payload
         // for the same URI — but we captured triggerTimePayload already, so the
         // timer closure (which holds a reference to triggerTimePayload) will compare
-        // correctly. To test the flush path here, we call _flushPendingDebouncesForEnd
-        // directly (the timer has not been set in this white-box test, so endSession
-        // is the flush path).
+        // correctly. The debounce timer has not been set in this white-box test,
+        // so endSession() is the flush path we exercise here.
         await recorder.endSession();
 
         const events = collectWrittenEvents(fs);
@@ -692,7 +788,7 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Prime a pending payload that has not yet fired its timer.
-        (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
 
         await recorder.endSession();
 
@@ -717,7 +813,7 @@ suite('SessionRecorder (Block AB+E)', () => {
             kind: undefined,
         };
 
-        (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
 
         // Consent revoked — pending payload must be discarded (Option A).
         recorder.disable();
@@ -744,12 +840,12 @@ suite('SessionRecorder (Block AB+E)', () => {
                 selections: [{ startLine: i, startCharacter: 0, endLine: i, endCharacter: 1 }],
                 kind: undefined,
             };
-            (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+            pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
         }
 
         // After rapid triggers the map must still have exactly one entry for this URI.
         assert.strictEqual(
-            (recorder as any)._pendingSelectionPayloads.size,
+            pendingDebounceMaps(recorder)._pendingSelectionPayloads.size,
             1,
             'per-URI map must hold at most one pending payload per URI (no accumulation)',
         );
@@ -783,8 +879,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Simulate two different URIs triggering visible-range changes in quick succession.
-        (recorder as any)._pendingVisibleRangePayloads.set(uriA, payloadA);
-        (recorder as any)._pendingVisibleRangePayloads.set(uriB, payloadB);
+        pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uriA, payloadA);
+        pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uriB, payloadB);
 
         // Flush on session end must emit both.
         await recorder.endSession();
@@ -809,7 +905,7 @@ suite('SessionRecorder (Block AB+E)', () => {
             visibleRanges: [{ startLine: 10, startCharacter: 0, endLine: 30, endCharacter: 0 }],
         };
 
-        (recorder as any)._pendingVisibleRangePayloads.set(uri, payload);
+        pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uri, payload);
 
         // Consent revoked — pending payload must be discarded (Option A).
         recorder.disable();
@@ -869,5 +965,226 @@ suite('SessionRecorder — intervention suppression and configuration provenance
         assert.ok(change, 'configurationChange missing');
         assert.deepStrictEqual(change!.changes, { showInterventions: false });
         try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+});
+
+// ── Characterization tests: normal-end vs consent-downgrade finalization ──
+
+suite('SessionRecorder finalization path characterization', () => {
+
+    // ── Test A: metadata is equally well-formed for both finalization paths ──
+
+    test('Test A1: normal endSession produces well-formed metadata and sessionEnd as last event', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(10);
+        recorder.recordIrisChatSent('msg-a1');
+        recorder.recordIrisChatSent('msg-a2');
+        recorder.recordIrisChatSent('msg-a3');
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+
+        // Final JSONL line must be sessionEnd.
+        assert.strictEqual(events[events.length - 1].type, 'sessionEnd',
+            'last event must be sessionEnd for normal endSession path');
+
+        // Exactly one metadata write with non-null endTime.
+        const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
+        const finalizedMetaWrites = metadataWrites.filter(w => {
+            const parsed = JSON.parse(w.data) as { endTime: number | null };
+            return parsed.endTime !== null;
+        });
+        assert.strictEqual(finalizedMetaWrites.length, 1,
+            `exactly one metadata.json write with non-null endTime expected for normal endSession, got ${finalizedMetaWrites.length}`);
+        const meta = JSON.parse(finalizedMetaWrites[0].data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(meta.endTime !== null && typeof meta.endTime === 'number',
+            'finalized metadata.endTime must be non-null');
+        assert.ok(meta.endTime >= meta.startTime,
+            'metadata.endTime must be >= metadata.startTime');
+        assert.strictEqual(meta.eventCount, events.length,
+            `metadata.eventCount (${meta.eventCount}) must equal JSONL event count (${events.length})`);
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    test('Test A2: consent-downgrade path produces well-formed metadata and sessionEnd as last event', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(11);
+        recorder.recordIrisChatSent('msg-b1');
+        recorder.recordIrisChatSent('msg-b2');
+        recorder.recordIrisChatSent('msg-b3');
+
+        // Consent revoked via disable() - triggers consent-downgrade finalization.
+        recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 40));
+
+        const events = collectWrittenEvents(fs);
+
+        // Final JSONL line must be sessionEnd.
+        assert.strictEqual(events[events.length - 1].type, 'sessionEnd',
+            'last event must be sessionEnd for consent-downgrade path');
+
+        // Exactly one metadata write with non-null endTime (the final write).
+        const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
+        const finalizedMetaWrites = metadataWrites.filter(w => {
+            const parsed = JSON.parse(w.data) as { endTime: number | null };
+            return parsed.endTime !== null;
+        });
+        assert.strictEqual(finalizedMetaWrites.length, 1,
+            `exactly one metadata.json write with non-null endTime expected for consent-downgrade, got ${finalizedMetaWrites.length}`);
+        const meta = JSON.parse(finalizedMetaWrites[0].data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(meta.endTime !== null && typeof meta.endTime === 'number',
+            'final metadata.endTime must be non-null after consent-downgrade');
+        assert.ok(meta.endTime >= meta.startTime,
+            'metadata.endTime must be >= metadata.startTime on downgrade path');
+        assert.strictEqual(meta.eventCount, events.length,
+            `metadata.eventCount (${meta.eventCount}) must equal JSONL event count (${events.length})`);
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    // ── Test B: flush vs discard for pending debounce payloads ──────────
+
+    test('Test B: endSession flushes pending debounce; disable discards it', async () => {
+        const fakeUri = 'file:///proj/CharTest.java';
+        const pendingPayload: RecordedEvent = {
+            type: 'selectionChange',
+            timestamp: Date.now(),
+            uri: fakeUri,
+            selections: [{ startLine: 7, startCharacter: 0, endLine: 7, endCharacter: 4 }],
+            kind: undefined,
+        };
+
+        // Scenario 1: endSession flushes the pending payload.
+        const s1 = makeRecorder();
+        s1.recorder.enable();
+        await s1.recorder.startSession(20);
+        pendingDebounceMaps(s1.recorder)._pendingSelectionPayloads.set(fakeUri, { ...pendingPayload });
+        await s1.recorder.endSession();
+
+        const s1Events = collectWrittenEvents(s1.fs);
+        const s1Types = s1Events.map(e => e.type);
+        const s1SelIdx = s1Events.findIndex(
+            e => e.type === 'selectionChange' && (e as { uri?: string }).uri === fakeUri,
+        );
+        const s1EndIdx = s1Events.findIndex(e => e.type === 'sessionEnd');
+        assert.ok(s1SelIdx >= 0,
+            `endSession must flush pending selectionChange (not found). types=${s1Types.join(',')}`);
+        assert.ok(s1EndIdx > s1SelIdx,
+            'flushed selectionChange must appear before sessionEnd');
+        try { await s1.recorder.dispose(); } catch { /* ignore */ }
+
+        // Scenario 2: disable discards the pending payload.
+        const s2 = makeRecorder();
+        s2.recorder.enable();
+        await s2.recorder.startSession(21);
+        pendingDebounceMaps(s2.recorder)._pendingSelectionPayloads.set(fakeUri, { ...pendingPayload });
+
+        s2.recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 40));
+
+        const s2Events = collectWrittenEvents(s2.fs);
+        const s2Types = s2Events.map(e => e.type);
+        const s2SelEvents = s2Events.filter(
+            e => e.type === 'selectionChange' && (e as { uri?: string }).uri === fakeUri,
+        );
+        assert.strictEqual(s2SelEvents.length, 0,
+            `disable must discard pending selectionChange (it appeared in the stream). types=${s2Types.join(',')}`);
+
+        // The stream must still contain consentChange then sessionEnd.
+        const s2ConsentIdx = s2Types.lastIndexOf('consentChange');
+        const s2EndIdx = s2Types.lastIndexOf('sessionEnd');
+        assert.ok(s2ConsentIdx >= 0, 'consentChange must appear after disable()');
+        assert.ok(s2EndIdx > s2ConsentIdx, 'sessionEnd must come after consentChange');
+        try { await s2.recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    // ── Test C: recorder can start a new session cleanly after both paths ──
+
+    test('Test C1: two sequential endSession calls produce correct isolated streams', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+
+        await recorder.startSession(30);
+        recorder.recordIrisChatSent('session-30-msg');
+        await recorder.endSession();
+
+        await recorder.startSession(31);
+        recorder.recordIrisChatSent('session-31-msg');
+        await recorder.endSession();
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+
+        const events = collectWrittenEvents(fs);
+        const starts = events.filter(e => e.type === 'sessionStart') as Array<{ exerciseId: number }>;
+        const ends = events.filter(e => e.type === 'sessionEnd');
+        const consents = events.filter(e => e.type === 'consentChange');
+
+        assert.deepStrictEqual(starts.map(s => s.exerciseId), [30, 31],
+            'two sessionStart events with exerciseIds 30 then 31');
+        assert.strictEqual(ends.length, 2, 'two sessionEnd events');
+        assert.strictEqual(consents.length, 0, 'no consentChange events on normal end path');
+
+        // Verify ordering: each sessionStart precedes the next sessionEnd.
+        const start30Idx = events.findIndex(e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 30);
+        const end30Idx = events.findIndex(e => e.type === 'sessionEnd');
+        const start31Idx = events.findIndex(e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 31);
+        const end31Idx = events.map(e => e.type).lastIndexOf('sessionEnd');
+        assert.ok(start30Idx < end30Idx, 'sessionStart(30) must precede first sessionEnd');
+        assert.ok(end30Idx < start31Idx, 'first sessionEnd must precede sessionStart(31)');
+        assert.ok(start31Idx < end31Idx, 'sessionStart(31) must precede second sessionEnd');
+    });
+
+    test('Test C2: disable then re-enable then endSession produces correct isolated streams', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+
+        await recorder.startSession(40);
+        recorder.recordIrisChatSent('session-40-msg');
+        recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 40));
+
+        recorder.enable();
+        await recorder.startSession(41);
+        recorder.recordIrisChatSent('session-41-msg');
+        await recorder.endSession();
+
+        try { await recorder.dispose(); } catch { /* ignore */ }
+
+        const events = collectWrittenEvents(fs);
+        const starts = events.filter(e => e.type === 'sessionStart') as Array<{ exerciseId: number }>;
+        const ends = events.filter(e => e.type === 'sessionEnd');
+        const consents = events.filter(e => e.type === 'consentChange');
+
+        assert.deepStrictEqual(starts.map(s => s.exerciseId), [40, 41],
+            'two sessionStart events with exerciseIds 40 then 41');
+        assert.strictEqual(ends.length, 2, 'two sessionEnd events, one per session');
+        assert.strictEqual(consents.length, 1, 'exactly one consentChange from the disable that ended session 40');
+
+        // The consentChange must appear between the two sessions.
+        const start40Idx = events.findIndex(
+            e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 40,
+        );
+        const end40Idx = events.findIndex(e => e.type === 'sessionEnd');
+        const consentIdx = events.findIndex(e => e.type === 'consentChange');
+        const start41Idx = events.findIndex(
+            e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 41,
+        );
+        const end41Idx = events.map(e => e.type).lastIndexOf('sessionEnd');
+
+        assert.ok(consentIdx > start40Idx, 'consentChange must appear after sessionStart(40)');
+        assert.ok(end40Idx > consentIdx, 'sessionEnd(40) must appear after consentChange');
+        assert.ok(start41Idx > end40Idx, 'sessionStart(41) must appear after sessionEnd(40)');
+        assert.ok(end41Idx > start41Idx, 'sessionEnd(41) must appear after sessionStart(41)');
     });
 });

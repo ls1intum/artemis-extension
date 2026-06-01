@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { describe, expect, it } from 'vitest';
 
 describe('CSP security invariants', () => {
     const webviewHelpersPath = join(__dirname, '../../../src/extension/services/ui/webviewHtml.ts');

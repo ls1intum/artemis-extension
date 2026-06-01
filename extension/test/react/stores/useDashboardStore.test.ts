@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useDashboardStore, RecentCourseNode } from '../../../src/webview/stores/useDashboardStore';
-import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
+import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
+import { RecentCourseNode, useDashboardStore } from '@webview/stores/useDashboardStore';
 
 describe('useDashboardStore', () => {
 	it('initializes with empty state', () => {
@@ -41,7 +42,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 
@@ -67,7 +68,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 
@@ -117,11 +118,11 @@ describe('useDashboardStore', () => {
 
 		const courses: RecentCourseNode[] = [
 			{
-				courseData: { course: { title: 'Course without startDate' } },
+				courseData: { course: { id: 1, title: 'Course without startDate' } },
 				exercises: [],
 			},
 			{
-				courseData: { course: { title: 'Course with startDate', startDate: '2023-05-01' } },
+				courseData: { course: { id: 2, title: 'Course with startDate', startDate: '2023-05-01' } },
 				exercises: [],
 			},
 		];
@@ -155,7 +156,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 
@@ -184,7 +185,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
-			courseData: { course: { title, startDate } },
+			courseData: { course: { id: 1, title, startDate } },
 			exercises: [],
 		});
 

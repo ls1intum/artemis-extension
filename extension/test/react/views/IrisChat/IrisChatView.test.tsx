@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { IrisChatView } from '../../../../src/webview/views/IrisChat/IrisChatView';
-import { useChatStore } from '../../../../src/webview/stores/useChatStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { useChatStore } from '@webview/stores/useChatStore';
+import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
 
 // Mock streamdown — ESM-only package
 vi.mock('streamdown', () => ({
@@ -23,7 +24,7 @@ vi.mock('use-stick-to-bottom', () => ({
 }));
 
 // Mock Shiki/CodeBlock to avoid dynamic imports
-vi.mock('../../../../src/webview/views/IrisChat/components/CodeBlock', () => ({
+vi.mock('@webview/views/IrisChat/components/CodeBlock', () => ({
 	CodeBlock: ({ children }: { language?: string; children?: string }) => (
 		<pre><code>{children}</code></pre>
 	),
@@ -56,11 +57,12 @@ describe('IrisChatView', () => {
 			courses: [],
 			messages: [],
 			messageLoad: null,
-			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+			streaming: { isStreaming: false },
 			irisStages: [],
 			isLoading: false,
 			webSocketStatus: 'connected',
 			disabledMessage: null,
+			unavailableMessage: null,
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
@@ -135,7 +137,14 @@ describe('IrisChatView', () => {
 				expect.objectContaining({
 					type: 'command',
 					command: 'sendMessage',
-					payload: expect.objectContaining({ text: 'Hello Iris' }),
+					payload: expect.objectContaining({
+						text: 'Hello Iris',
+						// #178: payload carries the optimistic message's localId
+						// and the active local session UUID so the host can echo
+						// them back on rejection without races.
+						localId: expect.any(String),
+						localSessionId: 'local-test',
+					}),
 				})
 			);
 		});
@@ -220,6 +229,170 @@ describe('IrisChatView', () => {
 		expect(screen.getByText('WebSocket disconnected')).toBeInTheDocument();
 	});
 
+	describe('Iris unavailable banner', () => {
+		it('renders the unavailable banner with a Retry button when unavailableMessage is set', () => {
+			useChatStore.setState({
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.getByText('Iris is temporarily unavailable. Retry to reload.')).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+		});
+
+		it('posts reloadChatSession when the unavailable Retry button is clicked', async () => {
+			useChatStore.setState({
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+
+			expect(mockApi.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: 'command',
+					command: 'reloadChatSession',
+				})
+			);
+		});
+
+		it('does NOT render the loader when unavailableMessage is set even if an active session is awaiting hydration', () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				activeSessionId: 'local-A',
+				sessions: [{
+					id: 'local-A',
+					artemisSessionId: 42,
+					preview: '',
+					title: '',
+					messageCount: 0,
+					createdAt: 0,
+					lastActivity: 0,
+				}],
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// The previous bug (#219) left the loader spinning forever when
+			// the chat became unavailable. The banner is the terminal state
+			// — no spinner should coexist with it.
+			expect(screen.queryByText(/Loading conversation/i)).not.toBeInTheDocument();
+		});
+
+		it('does NOT render the loader when disabledMessage is set (parallel fix to the spinning-forever bug)', () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				activeSessionId: 'local-A',
+				sessions: [{
+					id: 'local-A',
+					artemisSessionId: 42,
+					preview: '',
+					title: '',
+					messageCount: 0,
+					createdAt: 0,
+					lastActivity: 0,
+				}],
+				disabledMessage: 'Iris chat is not enabled for this exercise. Please contact your instructor.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.queryByText(/Loading conversation/i)).not.toBeInTheDocument();
+		});
+
+		it('suppresses the websocket-disconnected banner when the unavailable banner is active (avoid duplicate Retry affordances)', () => {
+			useChatStore.setState({
+				webSocketStatus: 'disconnected',
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// The unavailable banner already has the Retry action — surfacing
+			// the websocket banner alongside would give the user two
+			// competing recovery affordances for the same underlying problem.
+			expect(screen.queryByText('WebSocket disconnected')).not.toBeInTheDocument();
+		});
+
+		it('lets the disabled banner win when both fields are non-null (defensive — extension never emits both)', () => {
+			useChatStore.setState({
+				disabledMessage: 'Iris chat is not enabled for this exercise.',
+				unavailableMessage: 'Iris is temporarily unavailable.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Disabled is the more specific signal, so it wins. The store
+			// cross-clears in normal flow, so this state shouldn't arise —
+			// but if it ever does, the user must not be told two
+			// contradictory things at once.
+			expect(screen.getByText('Iris chat is not enabled for this exercise.')).toBeInTheDocument();
+			expect(screen.queryByText('Iris is temporarily unavailable.')).not.toBeInTheDocument();
+		});
+
+		it('disables the chat input with an unavailable-specific placeholder', () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				...HYDRATED,
+				unavailableMessage: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const input = screen.getByPlaceholderText(/temporarily unavailable/i);
+			expect(input).toBeDisabled();
+		});
+	});
+
+	describe('ShowUnavailableState / HideUnavailableState message handling', () => {
+		it('sets unavailableMessage on ShowUnavailableState and clears it on HideUnavailableState', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'showUnavailableState',
+				message: 'Iris is temporarily unavailable. Retry to reload.',
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Iris is temporarily unavailable. Retry to reload.')).toBeInTheDocument();
+			});
+
+			dispatchExtensionMessage({ type: 'hideUnavailableState' });
+
+			await waitFor(() => {
+				expect(screen.queryByText('Iris is temporarily unavailable. Retry to reload.')).not.toBeInTheDocument();
+			});
+		});
+	});
+
 	describe('Message hydration loader', () => {
 		// Helper to set up a state where there IS an active session waiting for hydration.
 		const seedActiveSession = (localSessionId: string, artemisSessionId?: number) => {
@@ -251,7 +424,7 @@ describe('IrisChatView', () => {
 		it('shows loader while messageLoad is null for the active session', () => {
 			seedActiveSession('local-A', 42);
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Welcome state should NOT be shown while we wait for hydration.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
@@ -263,7 +436,7 @@ describe('IrisChatView', () => {
 			// New-session path: local UUID exists, but server has not returned an id yet.
 			seedActiveSession('local-new');
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
@@ -284,7 +457,7 @@ describe('IrisChatView', () => {
 		it('ignores stale LoadMessages for a different local session and leaves the store untouched', () => {
 			seedActiveSession('local-current', 99);
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'loadMessages',
@@ -401,7 +574,7 @@ describe('IrisChatView', () => {
 				hasReceivedInitialIrisState: false,
 			});
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
@@ -421,7 +594,7 @@ describe('IrisChatView', () => {
 				hasReceivedInitialIrisState: false,
 			});
 			const mockApi = createMockVsCodeApi();
-			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'updateIrisState',

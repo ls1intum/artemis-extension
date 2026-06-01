@@ -28,14 +28,47 @@ export interface CourseDashboardCourse {
     editorGroupName?: string;
     instructorGroupName?: string;
     exercises?: ExerciseDetail[];
-    exams?: ExamSummary[];
     [key: string]: unknown;
 }
 
 export interface ExerciseDetailsResponse {
     exercise?: ExerciseDetail;
     plagiarismCaseInfo?: unknown;
+    /**
+     * Pending build statuses keyed by `participation.id`. Populated by the
+     * extension's exerciseDataLoader after fetching the base details, and
+     * later mutated in the webview store from WebSocket update events.
+     *
+     * Multiple participations may have concurrent pending builds (e.g.
+     * graded + practice). The webview picks the entry that matches its
+     * currently-selected participation. Previously this was a single
+     * field that was silently overwritten per participation (#168).
+     */
+    pendingSubmissionsByParticipationId?: Record<number, PendingSubmissionStatus>;
     [key: string]: unknown;
+}
+
+/**
+ * Pending-build status DTO shared between the extension host and the
+ * webview store.
+ *
+ * Two producers feed this shape with deliberately asymmetric fidelity:
+ *   - The REST `latest-pending-submission` endpoint only signals
+ *     "a build is in flight for this participation" — the loader
+ *     normalizes its `ProgrammingSubmission` response to bare
+ *     `{ participationId }` (no state, no timing).
+ *   - WebSocket `submissionProcessing` events carry the full status
+ *     (queued vs. building, buildTimingInfo) and overwrite the entry.
+ *
+ * UI code is therefore tolerant of missing `state` and `buildTimingInfo`.
+ */
+export interface PendingSubmissionStatus {
+    participationId: number;
+    state?: string;
+    buildTimingInfo?: {
+        buildStartDate?: string;
+        estimatedCompletionDate?: string;
+    };
 }
 
 export interface ExerciseDetail {
@@ -48,6 +81,7 @@ export interface ExerciseDetail {
     dueDate?: string;
     maxPoints?: number;
     bonusPoints?: number;
+    repositoryUri?: string;
     problemStatement?: string;
     mode?: string;
     includedInScore?: boolean;
@@ -110,11 +144,33 @@ export interface FeedbackSummary {
     [key: string]: unknown;
 }
 
+export type IrisChatMode =
+    | 'PROGRAMMING_EXERCISE_CHAT'
+    | 'TEXT_EXERCISE_CHAT'
+    | 'COURSE_CHAT'
+    | 'LECTURE_CHAT';
+
+/** Detail DTO returned by /api/iris/chat/sessions/current, /sessions, and /{courseId}/session/{sessionId}. */
 export interface IrisChatSession {
     id: number;
+    mode?: IrisChatMode;
+    entityId?: number;
+    userId?: number;
     title?: string;
     creationDate?: string;
     messages?: IrisChatMessage[];
+    [key: string]: unknown;
+}
+
+/** Listing DTO returned by /api/iris/chat/{courseId}/sessions/overview. No messages. */
+export interface IrisChatSessionSummary {
+    id: number;
+    entityId: number;
+    entityName?: string;
+    title?: string;
+    creationDate: string;
+    lastActivityDate?: string;
+    mode: IrisChatMode;
     [key: string]: unknown;
 }
 
@@ -151,26 +207,5 @@ export interface IrisSettingsResponse {
         timeframeHours?: number;
         [key: string]: unknown;
     };
-    [key: string]: unknown;
-}
-
-export interface ExamSummary {
-    id?: number;
-    title?: string;
-    startDate?: string;
-    endDate?: string;
-    [key: string]: unknown;
-}
-
-export interface StudentExam {
-    id?: number;
-    started?: boolean;
-    exam?: ExamSummary & {
-        startText?: string;
-    };
-    exercises?: ExerciseDetail[];
-    workingTime?: number;
-    individualEndDate?: string;
-    startedDate?: string;
     [key: string]: unknown;
 }

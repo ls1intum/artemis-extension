@@ -8,10 +8,11 @@
  * in Desktop-Cookie mode.
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { initializeTheiaContext, getTheiaEnvironment } from '../../../src/extension/theia/theiaEnvironment';
+
+import { getTheiaEnvironment, initializeTheiaContext } from '@extension/theia/theiaEnvironment';
 
 suite('detectTheiaEnvironment / initializeTheiaContext', () => {
     let sandbox: sinon.SinonSandbox;
@@ -91,9 +92,6 @@ suite('detectTheiaEnvironment / initializeTheiaContext', () => {
         sandbox.stub(vscode.commands, 'executeCommand').resolves({
             ARTEMIS_URL: 'https://artemis.test',
             ARTEMIS_TOKEN: 'jwt-xyz',
-            GIT_URI: 'https://git.test/repo',
-            GIT_USER: 'liam',
-            GIT_MAIL: 'l@test',
         });
 
         const env = await initializeTheiaContext();

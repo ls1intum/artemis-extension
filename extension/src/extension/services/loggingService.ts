@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 /**
  * Log levels for the logging service
  */
-export enum LogLevel {
+enum LogLevel {
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
@@ -22,15 +22,13 @@ export enum LogCategory {
     SUBMISSION = 'Submission',
     AUTH = 'Auth',
     API = 'API',
-    PLANTUML = 'PlantUML',
     FILE_MONITOR = 'File Monitor',
     TELEMETRY = 'Telemetry',
     SESSION = 'Session',
     BUILD = 'Build',
     TEST = 'Test',
     CONFIG = 'Config',
-    VIEW = 'View',
-    EXAM = 'Exam'
+    VIEW = 'View'
 }
 
 /**
@@ -298,13 +296,6 @@ class LoggingService {
      */
     public viewError(message: string, ...args: unknown[]): void {
         this.output(LogLevel.ERROR, `👁️ ${message}`, LogCategory.VIEW, ...args);
-    }
-
-    /**
-     * Log a view warning
-     */
-    public viewWarn(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.WARN, `👁️ ${message}`, LogCategory.VIEW, ...args);
     }
 
 }

@@ -1,13 +1,16 @@
 import * as vscode from 'vscode';
-import { ArtemisWebsocketService } from '../../websocket/artemisWebsocketService';
-import { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
+
+import { ExtensionMsg } from '@shared/messageContracts';
+
+import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
+import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import { StruggleContext } from '@extension/services/telemetry';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
+import { ActiveContext } from '@extension/types';
+
 import { IrisChatSessionService } from './chatSessionService';
-import { ActiveContext } from '../../../types';
-import { checkWorkspaceFiles } from '../../workspace/workspaceFileChecker';
-import { StruggleContext } from '../../telemetry';
-import { logger, LogCategory } from '../../loggingService';
-import { ExtensionMsg } from '../../../../shared/messageContracts';
-import type { IrisServiceDeps } from '../context/sessionSyncUtils';
 
 interface SendMessageInput {
     text: string;
@@ -17,7 +20,20 @@ interface SendMessageInput {
 
 type SendMessageResult =
     | { sent: true }
-    | { sent: false; reason: 'no-ai' | 'no-context' | 'iris-disabled'; contextLabel?: string };
+    | {
+        sent: false;
+        reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+        contextLabel?: string;
+        /**
+         * Context that was active when sendMessage started. Needed so the
+         * caller can decide whether to surface a persistent availability
+         * banner: if the user has since switched contexts, posting an
+         * availability for the new context based on the old context's
+         * settings-check result would be wrong (issue surfaced by codex
+         * review of the connectivity-resilience PR).
+         */
+        capturedContext?: ActiveContext;
+    };
 
 export class ChatMessageService {
     constructor(
@@ -39,10 +55,21 @@ export class ChatMessageService {
             return { sent: false, reason: 'no-context' };
         }
 
-        const isEnabled = await this._chatSessionService.checkAndLoadIrisSettings(activeContext);
-        if (!isEnabled) {
+        const availability = await this._chatSessionService.checkAndLoadIrisSettings(activeContext);
+        if (availability.kind !== 'enabled') {
+            // Distinguishing disabled from unavailable lets the webview's
+            // Retry-button affordance stay active for unavailable (a network
+            // blip might have cleared) while remaining disabled for the
+            // intentionally-off case.
             const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
-            return { sent: false, reason: 'iris-disabled', contextLabel };
+            const reason: 'iris-disabled' | 'iris-unavailable' =
+                availability.kind === 'disabled' ? 'iris-disabled' : 'iris-unavailable';
+            // capturedContext is the context the settings check was actually
+            // run against. The provider compares it to the live active
+            // context before posting availability so a slow check that
+            // returns after the user switched does not pollute the new
+            // context's banner state.
+            return { sent: false, reason, contextLabel, capturedContext: activeContext };
         }
 
         await this._sendToIris(input.text, activeContext, input.struggleContext);

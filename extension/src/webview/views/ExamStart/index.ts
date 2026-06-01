@@ -1,1 +1,0 @@
-export { ExamStartView } from './ExamStartView';

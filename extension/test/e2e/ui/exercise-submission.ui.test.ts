@@ -1,13 +1,15 @@
 // Covers E2EX-02: Exercise submission interaction test
-import { VSBrowser, WebDriver, Workbench, By } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	takeScreenshot,
-	getCredentials,
-	performLogin,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    safeLogoutAndCleanup,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
 } from './helpers';
 
 describe('Exercise Submission Flow UI Tests', function () {
@@ -27,7 +29,9 @@ describe('Exercise Submission Flow UI Tests', function () {
 		}
 
 		// Require exercise ID — skip entire suite if not set
-		exerciseId = process.env.ARTEMIS_EXERCISE_ID || '';
+		// Canonical name is ARTEMIS_EXERCISE_ID; accept legacy EXERCISE_ID
+		// as fallback for back-compat with older configs. See #198.
+		exerciseId = process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '';
 		if (!exerciseId) {
 			this.skip(); // Skip if no exercise ID provided
 		}
@@ -41,9 +45,7 @@ describe('Exercise Submission Flow UI Tests', function () {
 
 	after(async function () {
 		this.timeout(15000);
-		const workbench = new Workbench();
-		await workbench.executeCommand('Logout from Artemis');
-		await driver.sleep(2000);
+		await safeLogoutAndCleanup(driver);
 	});
 
 	afterEach(async function () {

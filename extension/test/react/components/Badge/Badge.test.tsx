@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { Badge } from '../../../../src/webview/components/Badge/Badge';
+import { describe, expect, it } from 'vitest';
+
+import { Badge } from '@webview/components/Badge/Badge';
 
 describe('Badge', () => {
 	it('renders children text content', () => {

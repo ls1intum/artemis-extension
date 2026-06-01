@@ -1,9 +1,9 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { BuildErrorCodeLensProvider } from '../../../src/extension/provider/buildErrorCodeLensProvider';
-import type { ParsedBuildError } from '../../../src/extension/types';
+import * as assert from 'assert';
 
-import { MockTextDocument } from '../mocks/vscodeMocks';
+import { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
+import type { ParsedBuildError } from '@extension/types';
+import { MockTextDocument } from '@test/unit/mocks/vscodeMocks';
 
 class TestableBuildErrorCodeLensProvider extends BuildErrorCodeLensProvider {
     // Override to avoid dependency on vscode.workspace

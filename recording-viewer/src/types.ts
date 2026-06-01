@@ -13,7 +13,7 @@ export interface VideoSyncConfig {
 }
 
 export type StruggleLevel = 'confident' | 'light-struggle' | 'medium-struggle' | 'high-struggle' | 'blocked';
-export type ContextMarker = 'idle' | 'trial-error' | 'reading' | 'off-task' | 'using-ai';
+export type ContextMarker = 'idle' | 'trial-error' | 'reading' | 'off-task' | 'using-ai' | 'iris-moment' | 'reading-test-results';
 export type AnnotationLabel = StruggleLevel | ContextMarker;
 
 export const STRUGGLE_LABELS: { value: StruggleLevel; label: string; color: string }[] = [
@@ -30,6 +30,8 @@ export const CONTEXT_LABELS: { value: ContextMarker; label: string; color: strin
     { value: 'reading', label: 'Reading', color: '#60a5fa' },
     { value: 'off-task', label: 'Off-task', color: '#fb7185' },
     { value: 'using-ai', label: 'Using AI', color: '#2dd4bf' },
+    { value: 'iris-moment', label: 'Iris Moment', color: '#818cf8' },
+    { value: 'reading-test-results', label: 'Reading test results', color: '#f59e0b' },
 ];
 
 export const ALL_LABELS = [...STRUGGLE_LABELS, ...CONTEXT_LABELS];
@@ -40,6 +42,10 @@ export interface Annotation {
     text: string;
     label?: AnnotationLabel;
     createdAt: number;
+    /** Opaque rater id from the server. Optional on the wire for backward-compat with legacy annotations.json. */
+    raterId?: string;
+    /** Display name as the rater entered it at login time. Optional for legacy compat. */
+    raterName?: string;
 }
 
 export interface ReplayEqSnapshot {

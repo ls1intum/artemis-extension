@@ -12,17 +12,10 @@
  *
  * Per CONTEXT.md: dedicated tests for type-safe contract verification.
  */
-import { describe, it, expect } from 'vitest';
-import type {
-    ExtensionToWebviewMessage,
-    WebviewToExtensionMessage,
-    ExtMsg,
-    WebCmd,
-} from '../../../src/shared/messageContracts';
-import {
-    isExtensionMessage,
-    isWebviewMessage,
-} from '../../../src/shared/messageContracts';
+import { describe, expect, it } from 'vitest';
+
+import type { ExtensionToWebviewMessage, ExtMsg, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { isExtensionMessage, isWebviewMessage } from '@shared/messageContracts';
 
 // ============================================================================
 // Extension → Webview message types exist and have correct shape
@@ -162,25 +155,6 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.updateType).toBe('newResult');
     });
 
-    it('ExamConductionInitMessage has all required timing fields', () => {
-        const msg = {
-            type: 'examConductionInit' as const,
-            studentExam: { id: 1, exam: { id: 10, course: { id: 100 } } } as ExtMsg<'examConductionInit'>['studentExam'],
-            courseId: 100,
-            examId: 10,
-            endTime: Date.now() + 60 * 60 * 1000,
-            startTime: Date.now(),
-            totalDuration: 60 * 60 * 1000,
-            workspaceExerciseId: null,
-        } satisfies ExtMsg<'examConductionInit'>;
-
-        expect(msg.courseId).toBe(100);
-        expect(msg.examId).toBe(10);
-        expect(typeof msg.endTime).toBe('number');
-        expect(typeof msg.startTime).toBe('number');
-        expect(typeof msg.totalDuration).toBe('number');
-    });
-
     it('UpdateIrisStagesMessage has required stages array', () => {
         const msg = {
             type: 'updateIrisStages' as const,
@@ -244,43 +218,31 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         expect(msg.command).toBe('reloadCourses');
     });
 
-    it('ViewCourseDetailsCommand has courseData payload', () => {
+    it('ViewCourseDetailsCommand has courseId payload', () => {
         const msg = {
             type: 'command' as const,
             command: 'viewCourseDetails' as const,
-            payload: {
-                courseData: {
-                    course: { id: 1, title: 'Test', shortName: 'T' },
-                },
-            },
+            payload: { courseId: 1 },
         } satisfies WebCmd<'viewCourseDetails'>;
 
         expect(msg.command).toBe('viewCourseDetails');
-        expect(msg.payload.courseData.course.id).toBe(1);
+        expect(msg.payload.courseId).toBe(1);
     });
 
-    it('OpenExamCommand has examId and courseId payload', () => {
-        const msg = {
-            type: 'command' as const,
-            command: 'openExam' as const,
-            payload: {
-                examId: 42,
-                courseId: 100,
-            },
-        } satisfies WebCmd<'openExam'>;
-
-        expect(msg.payload.examId).toBe(42);
-        expect(msg.payload.courseId).toBe(100);
-    });
-
-    it('SendMessageCommand has text payload', () => {
+    it('SendMessageCommand has text + correlation IDs payload', () => {
         const msg = {
             type: 'command' as const,
             command: 'sendMessage' as const,
-            payload: { text: 'What is a for loop?' },
+            payload: {
+                text: 'What is a for loop?',
+                localId: 'msg-local-1',
+                localSessionId: 'session-local-1',
+            },
         } satisfies WebCmd<'sendMessage'>;
 
         expect(msg.payload.text).toBe('What is a for loop?');
+        expect(msg.payload.localId).toBe('msg-local-1');
+        expect(msg.payload.localSessionId).toBe('session-local-1');
     });
 
     it('SelectChatContextCommand has context, itemId, and itemName payload', () => {
@@ -550,21 +512,6 @@ describe('Message contracts: runtime shape validation', () => {
         expect(reloadCmd).toMatchObject({ command: 'reloadCourses' });
         expect(courseListResponse).toMatchObject({ type: 'courseListInit' });
         expect(Array.isArray(courseListResponse.courses)).toBe(true);
-    });
-
-    it('postMessage payload shapes satisfy contract for exam flow', () => {
-        // Simulate exam initiation flow
-        const openExamCmd: WebviewToExtensionMessage = {
-            type: 'command',
-            command: 'openExam',
-            payload: { examId: 42, courseId: 100 },
-        };
-
-        expect(openExamCmd).toMatchObject({ command: 'openExam' });
-        if (openExamCmd.type === 'command' && openExamCmd.command === 'openExam') {
-            expect(openExamCmd.payload.examId).toBe(42);
-            expect(openExamCmd.payload.courseId).toBe(100);
-        }
     });
 
     it('dispatchExtensionMessage payloads match contract shapes for websocket status', () => {

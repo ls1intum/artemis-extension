@@ -1,9 +1,27 @@
-import type { ExerciseRef } from '../../shared/types';
+import type { ExerciseRef } from '@shared/types';
+
+import type { CourseDashboardEntry } from '@extension/types';
+
 import { logger } from './loggingService';
+import { getEntryExercises, toExerciseSource } from './workspace';
 
 export interface ExerciseRegistryEntry extends ExerciseRef {
     repositoryUri: string;
     participationId?: number;
+}
+
+type LegacyCourseEntry = CourseDashboardEntry & { id?: number };
+
+function isLikelyCourseEntry(value: unknown): value is LegacyCourseEntry {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const candidate = value as { course?: unknown; id?: unknown; exercises?: unknown };
+    return (
+        (typeof candidate.course === 'object' && candidate.course !== null) ||
+        typeof candidate.id === 'number' ||
+        Array.isArray(candidate.exercises)
+    );
 }
 
 export class ExerciseRegistry {
@@ -64,42 +82,58 @@ export class ExerciseRegistry {
     }
 
     public registerFromCourseData(courseData: unknown): void {
-        const data = courseData as { course?: { id?: number; exercises?: unknown[] }; exercises?: unknown[]; id?: number };
-        const exercises = data?.course?.exercises || data?.exercises || [];
-        const courseId = data?.course?.id ?? data?.id;
+        // Local predicate: accept anything that structurally looks like a
+        // CourseDashboardEntry (has a `course` property OR top-level `id`).
+        // Anything else is dropped silently because all known call sites
+        // pass either a server response or one of the entry shapes we
+        // construct internally.
+        if (!isLikelyCourseEntry(courseData)) {
+            return;
+        }
+        const entry = courseData;
+        // Existing semantics preserved: prefer nested `course.id`, fall back
+        // to a top-level `id` on the legacy `{ id, exercises }` shape some
+        // callers still pass. Both branches use a real `typeof` narrowing,
+        // not a cast.
+        const courseId = typeof entry.course?.id === 'number'
+            ? entry.course.id
+            : (typeof entry.id === 'number' ? entry.id : undefined);
 
-        // Clear existing exercises for this course before registering fresh data
-        // This ensures deleted exercises are properly removed from the registry
-        if (courseId !== undefined && courseId !== null) {
+        if (typeof courseId === 'number') {
             this.clearCourse(courseId);
         }
 
+        const exercises = getEntryExercises(entry);
         let registeredCount = 0;
         const registered: string[] = [];
         const skipped: string[] = [];
 
         for (const exercise of exercises) {
-            const ex = exercise as {
-                id?: number;
-                title?: string;
-                shortName?: string;
-                studentParticipations?: Array<{ id?: number; repositoryUri?: string }>
-            };
-            const participations = ex.studentParticipations || [];
-
-            if (participations.length > 0 && participations[0].repositoryUri && ex.id && ex.title) {
+            const source = toExerciseSource(exercise, courseId);
+            if (!source) {
+                continue;
+            }
+            const firstParticipation = source.studentParticipations?.[0];
+            // The original code preserved the participation id when present,
+            // for upstream wiring; toExerciseSource intentionally drops it,
+            // so we still read it from the raw exercise.
+            const rawFirstParticipation = exercise.studentParticipations?.[0];
+            const participationId = typeof rawFirstParticipation?.id === 'number'
+                ? rawFirstParticipation.id
+                : undefined;
+            if (firstParticipation?.repositoryUri && source.title) {
                 this.registerExercise(
-                    ex.id,
-                    ex.title,
-                    participations[0].repositoryUri,
-                    ex.shortName,
+                    source.id,
+                    source.title,
+                    firstParticipation.repositoryUri,
+                    source.shortName,
                     courseId,
-                    typeof participations[0].id === 'number' ? participations[0].id : undefined,
+                    participationId,
                 );
                 registeredCount++;
-                registered.push(`${ex.id}: ${ex.title}`);
+                registered.push(`${source.id}: ${source.title}`);
             } else {
-                skipped.push(`${ex.id ?? 'unknown'}: ${ex.title ?? 'unknown'} (no repo URI)`);
+                skipped.push(`${source.id}: ${source.title} (no repo URI)`);
             }
         }
 

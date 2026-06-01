@@ -6,23 +6,16 @@
  * behavior against serialized recording data.
  */
 
-import type { EQConfig, ErrorSnapshot } from '../types';
-import { DEFAULT_EQ_CONFIG } from '../types';
-import { ErrorQuotientEngine } from '../metrics/errorQuotientEngine';
+import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
 import type {
+    EqEngineStateEvent,
     RecordedEvent,
     SerializedDiagnostic,
-    DiagnosticsEvent,
-    SaveEvent,
-    BuildResultEvent,
-    EqSnapshotEvent,
-    EqEngineStateEvent,
-    SessionStartEvent,
-} from '../recording/types';
-import {
-    createSnapshotFromDiagnosticState,
-    createSnapshotFromBuildEvent,
-} from './snapshotReconstructor';
+} from '@extension/services/telemetry/recording/types';
+import type { EQConfig, ErrorSnapshot } from '@extension/services/telemetry/types';
+import { DEFAULT_EQ_CONFIG } from '@extension/services/telemetry/types';
+
+import { createSnapshotFromBuildEvent, createSnapshotFromDiagnosticState } from './snapshotReconstructor';
 
 interface ReplayEqSnapshot {
     timestamp: number;
@@ -53,8 +46,7 @@ function applyLookaheadDiagnostics(
             break;
         }
         if (future.type === 'diagnostics') {
-            const diagEvent = future as DiagnosticsEvent;
-            diagnosticState.set(diagEvent.uri, diagEvent.diagnostics);
+            diagnosticState.set(future.uri, future.diagnostics);
         }
     }
 }
@@ -103,20 +95,19 @@ export function replaySession(
 
         // Extract exercise root from session start for diagnostic filtering
         if (event.type === 'sessionStart') {
-            exerciseRoot = (event as SessionStartEvent).exerciseRoot;
+            exerciseRoot = event.exerciseRoot;
             continue;
         }
 
         // Seed engine with pre-existing state from before recording started
         if (event.type === 'eqEngineState') {
-            const stateEvent = event as EqEngineStateEvent;
-            const snapshots = deserializeEngineState(stateEvent);
+            const snapshots = deserializeEngineState(event);
             engine.seedSnapshots(snapshots);
             continue;
         }
 
         // Emit replay point at trigger evaluations so the replay line matches the original
-        if (event.type === 'eqSnapshot' && (event as EqSnapshotEvent).source === 'trigger') {
+        if (event.type === 'eqSnapshot' && event.source === 'trigger') {
             const { eq, confidence } = engine.getCurrentEQ();
             const lastSnapshot = engine.getState().snapshots.at(-1);
             result.push({
@@ -130,17 +121,14 @@ export function replaySession(
         }
 
         if (event.type === 'diagnostics') {
-            const diagEvent = event as DiagnosticsEvent;
-            diagnosticState.set(diagEvent.uri, diagEvent.diagnostics);
+            diagnosticState.set(event.uri, event.diagnostics);
         }
 
         if (event.type === 'save') {
-            const saveEvent = event as SaveEvent;
-
             // Coalescing: skip if another save within 500ms (live clears+resets timer)
             let coalesced = false;
             for (let j = i + 1; j < events.length; j++) {
-                if (events[j].timestamp > saveEvent.timestamp + LOOKAHEAD_WINDOW_MS) {
+                if (events[j].timestamp > event.timestamp + LOOKAHEAD_WINDOW_MS) {
                     break;
                 }
                 if (events[j].type === 'save') {
@@ -152,7 +140,7 @@ export function replaySession(
                 continue;
             }
 
-            const snapshotTimestamp = saveEvent.timestamp + LOOKAHEAD_WINDOW_MS;
+            const snapshotTimestamp = event.timestamp + LOOKAHEAD_WINDOW_MS;
             applyLookaheadDiagnostics(events, i, snapshotTimestamp, diagnosticState);
 
             const snapshot = createSnapshotFromDiagnosticState(
@@ -162,9 +150,8 @@ export function replaySession(
         }
 
         if (event.type === 'buildResult') {
-            const buildEvent = event as BuildResultEvent;
-            const snapshot = createSnapshotFromBuildEvent(buildEvent);
-            pushIfAccepted(snapshot, 'build', buildEvent.timestamp);
+            const snapshot = createSnapshotFromBuildEvent(event);
+            pushIfAccepted(snapshot, 'build', event.timestamp);
         }
     }
 

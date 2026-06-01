@@ -14,14 +14,12 @@
  *  T9. Setting type guard: non-boolean falls back to true.
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { TelemetryManager } from '../../../../src/extension/services/telemetry/telemetryManager';
-import type {
-    InterventionDecision,
-    SuppressedInterventionPayload,
-} from '../../../../src/extension/services/telemetry/types';
+
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import type { InterventionDecision, SuppressedInterventionPayload } from '@extension/services/telemetry/types';
 
 interface ConfigStubValues {
     enabled?: boolean;
@@ -105,6 +103,10 @@ suite('TelemetryManager — intervention UI toggle', () => {
             command: undefined,
         };
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
+        // Stub command registration so InterventionService construction in
+        // multiple tests does not collide on the global command registry.
+        // sandbox.restore() in teardown guarantees cleanup even on throw.
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage');
         showWarnStub = sandbox.stub(vscode.window, 'showWarningMessage');
     });

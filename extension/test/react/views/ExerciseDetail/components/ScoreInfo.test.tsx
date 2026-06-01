@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ScoreInfo } from '../../../../../src/webview/views/ExerciseDetail/components/ScoreInfo';
+import { describe, expect, it } from 'vitest';
+
+import { ScoreInfo } from '@webview/views/ExerciseDetail/components/ScoreInfo';
 
 describe('ScoreInfo', () => {
 	it('renders score and max score', () => {

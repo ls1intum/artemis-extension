@@ -140,6 +140,12 @@ export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
                     </button>
                 )}
             </div>
+            {(liveIds?.size ?? 0) > 0 && (
+                <div className="live-hint">
+                    <span className="live-dot on" />
+                    Live recording in progress — press <kbd>Space</kbd> to open it.
+                </div>
+            )}
             <div className="session-table">
                 <div className="session-table-header">
                     <span>Session</span>
@@ -155,7 +161,7 @@ export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
                 {data.sessions.map(entry => (
                     <div
                         key={entry.id}
-                        className={`session-table-row ${deleting === entry.id ? 'deleting' : ''}`}
+                        className={`session-table-row ${deleting === entry.id ? 'deleting' : ''} ${liveIds?.has(entry.id) ? 'live' : ''}`}
                         onClick={() => renaming !== entry.id && onSelectSession(entry.id)}
                     >
                         {renaming === entry.id ? (
@@ -173,8 +179,8 @@ export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
                             />
                         ) : (
                             <span className="mono session-id-cell" title={entry.id}>
-                                {entry.id.length > 30 ? entry.id.slice(0, 30) + '...' : entry.id}
                                 {liveIds?.has(entry.id) && <LiveSessionBadge />}
+                                {entry.id.length > 30 ? entry.id.slice(0, 30) + '...' : entry.id}
                             </span>
                         )}
                         <span>{entry.metadata?.exerciseId ?? '—'}</span>
