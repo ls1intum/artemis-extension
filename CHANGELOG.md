@@ -4,6 +4,15 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Replay Fidelity**: Live and recording paths share one build-error-family builder, so replayed EQ matches the live curve.
+- **Intervention Block Reasons**: Withheld interventions record the real gate; `recent-progress`/`last-dismissed` no longer logged as `warmup`.
+
+### Internal
+
+- **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
+
 ## [0.4.5] - 2026-06-01
 
 ### Added
