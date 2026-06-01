@@ -34,7 +34,8 @@ type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
  * as `undefined`: a genuine Desktop boot (`no-bridge`) and an EduIDE boot where
  * the bridge was expected but unreachable (`failure`). Conflating them lets a
  * broken EduIDE pod silently boot in Desktop-Cookie mode, which is the wrong
- * failure mode (auth would attempt the wrong scheme; auto-clone would not run).
+ * failure mode (auth would attempt the wrong scheme). Auto-clone is handled
+ * by the companion Scorpio extension.
  */
 type ReadEnvResult<T extends string> =
     | { kind: 'no-bridge' }

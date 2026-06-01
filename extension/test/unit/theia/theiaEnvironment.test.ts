@@ -92,9 +92,6 @@ suite('detectTheiaEnvironment / initializeTheiaContext', () => {
         sandbox.stub(vscode.commands, 'executeCommand').resolves({
             ARTEMIS_URL: 'https://artemis.test',
             ARTEMIS_TOKEN: 'jwt-xyz',
-            GIT_URI: 'https://git.test/repo',
-            GIT_USER: 'liam',
-            GIT_MAIL: 'l@test',
         });
 
         const env = await initializeTheiaContext();

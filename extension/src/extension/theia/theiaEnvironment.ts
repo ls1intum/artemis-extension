@@ -13,9 +13,6 @@ import { type TheiaEnvironment, VSCODE_ENVIRONMENT } from './types';
 const THEIA_ENV_VARS = [
     'ARTEMIS_URL',
     'ARTEMIS_TOKEN',
-    'GIT_URI',
-    'GIT_USER',
-    'GIT_MAIL',
 ] as const;
 
 // ── Module-level singleton ──────────────────────────────────────────
@@ -79,7 +76,7 @@ async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
             LogCategory.GENERAL,
         );
         void vscode.window.showErrorMessage(
-            `Iris: EduIDE bridge unavailable (${reasonText}). Authentication and auto-clone will not work. ` +
+            `Iris: EduIDE bridge unavailable (${reasonText}). Authentication will not work. ` +
                 'Restart your EduIDE pod or contact support.',
         );
         return VSCODE_ENVIRONMENT;
@@ -104,9 +101,6 @@ async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
         isTheia: true,
         artemisUrl: env.ARTEMIS_URL,
         artemisToken: env.ARTEMIS_TOKEN,
-        gitUri: env.GIT_URI,
-        gitUser: env.GIT_USER,
-        gitMail: env.GIT_MAIL,
         isManagedEnvironment: !!(env.ARTEMIS_URL && env.ARTEMIS_TOKEN),
     });
 }
