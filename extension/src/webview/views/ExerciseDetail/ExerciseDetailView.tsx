@@ -27,6 +27,7 @@ import {
     determineParticipationStatus,
     determineSubmissionStatus,
     getLatestById,
+    isTestCaseFeedback,
     transformFeedbacksToTestCases,
 } from '@webview/utils/exerciseStatus';
 import { formatDate } from '@webview/utils/formatDate';
@@ -218,13 +219,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Results live on submission.results (not on participation directly)
     const latestResult = getLatestById(latestSubmission?.results);
 
-    // Build test cases from feedbacks for detailed display
-    // The result details API returns feedbacks with testCase objects containing testName
+    // Build test cases from feedbacks for detailed display. Test-case feedback
+    // is identified by isTestCaseFeedback (Artemis parity); the test name may be
+    // hidden (showTestNamesToStudents=false) and is not required.
     const buildFailed = latestSubmission?.buildFailed ?? false;
     const feedbacks = latestResult?.feedbacks ?? [];
-    const testFeedbacks = feedbacks.filter(f =>
-        f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
-    );
+    const testFeedbacks = feedbacks.filter(isTestCaseFeedback);
     const testCases = transformFeedbacksToTestCases(feedbacks);
 
     // Use Artemis-provided test case counts when available, fall back to feedbacks

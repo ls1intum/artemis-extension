@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyTaskTests, countsForTelemetry } from '@webview/utils/exerciseStatus';
+import { classifyTaskTests, countsForTelemetry, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
 
 describe('classifyTaskTests', () => {
     it('returns no-result when latestResult is undefined', () => {
@@ -113,6 +113,57 @@ describe('classifyTaskTests', () => {
         if (state.kind === 'success') {
             expect(state.passed[0].name).toBe('Fallback name');
         }
+    });
+});
+
+describe('transformFeedbacksToTestCases', () => {
+    // Feedbacks exactly as Artemis delivers them when showTestNamesToStudents=false:
+    // no `text`, no `testCase.testName`, only `detailText` + `testCase.id`.
+    // Mirrors Feedback.isTestCaseFeedback (type==AUTOMATIC && !!testCase).
+    const hiddenNameFeedbacks = [
+        { type: 'AUTOMATIC', positive: false, detailText: 'Method: isValidSelection', testCase: { id: 364902 } },
+        { type: 'AUTOMATIC', positive: false, detailText: 'Method: doOverlap', testCase: { id: 370396 } },
+        { type: 'AUTOMATIC', positive: true, detailText: 'Method: getName', testCase: { id: 370393 } },
+    ];
+
+    it('keeps test feedbacks even when the test name is hidden (showTestNamesToStudents=false)', () => {
+        const result = transformFeedbacksToTestCases(hiddenNameFeedbacks);
+
+        expect(result).toHaveLength(3);
+        expect(result[0]).toMatchObject({
+            id: 364902,
+            name: 'Test', // generic fallback, same as the Artemis web client
+            passed: false,
+            message: 'Method: isValidSelection', // detailText is preserved
+        });
+        expect(result[2].passed).toBe(true);
+    });
+
+    it('still excludes static code analysis and submission policy feedback (no testCase)', () => {
+        const feedbacks = [
+            { type: 'AUTOMATIC', positive: false, text: 'SCAFeedbackIdentifier:checkstyle', detailText: 'sca' },
+            { type: 'AUTOMATIC', positive: false, text: 'SubPolFeedbackIdentifier:limit', detailText: 'policy' },
+            { type: 'AUTOMATIC', positive: false, detailText: 'a real test', testCase: { id: 1 } },
+        ];
+        const result = transformFeedbacksToTestCases(feedbacks);
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe(1);
+    });
+
+    it('keeps the test name when it is visible (showTestNamesToStudents=true)', () => {
+        const result = transformFeedbacksToTestCases([
+            { type: 'AUTOMATIC', positive: true, testCase: { id: 5, testName: 'testDoOverlap()' }, detailText: 'ok' },
+        ]);
+        expect(result).toEqual([{ id: 5, name: 'testDoOverlap()', passed: true, message: 'ok' }]);
+    });
+
+    it('keeps a testCase-bearing feedback even when the testCase has no id (Artemis !!testCase parity)', () => {
+        const result = transformFeedbacksToTestCases([
+            { type: 'AUTOMATIC', positive: false, detailText: 'no id but is a test', testCase: {} },
+        ]);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({ name: 'Test', passed: false, message: 'no id but is a test' });
+        expect(result[0].id).toBeUndefined();
     });
 });
 

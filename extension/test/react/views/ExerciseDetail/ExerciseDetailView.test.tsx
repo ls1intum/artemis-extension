@@ -346,6 +346,47 @@ describe('ExerciseDetailView', () => {
 		expect(closedPayload.durationMs).toBeGreaterThanOrEqual(0);
 	});
 
+	it('overview lists test results when test names are hidden (showTestNamesToStudents=false)', async () => {
+		// Feedbacks as Artemis sends them with hidden test names: no text, no
+		// testCase.testName, only detailText + testCase.id. Regression test for
+		// the "No test results available." bug — the list must be populated.
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseData({
+				exercise: {
+					id: 42, title: 'My Exercise', type: 'programming',
+					maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+					course: { id: 1, title: 'Test Course', shortName: 'TC' },
+					studentParticipations: [{
+						id: 99,
+						repositoryUri: 'https://git.example.com/repo',
+						submissions: [{
+							id: 1,
+							submissionDate: '2025-01-01T00:00:00Z',
+							results: [{
+								id: 10, score: 0, successful: false,
+								completionDate: '2025-01-01T00:00:00Z',
+								testCaseCount: 2, passedTestCaseCount: 0,
+								feedbacks: [
+									{ type: 'AUTOMATIC', positive: false, detailText: 'Method: isValidSelection', testCase: { id: 364902 } },
+									{ type: 'AUTOMATIC', positive: false, detailText: 'Method: doOverlap', testCase: { id: 370396 } },
+								],
+							}],
+						}],
+					}],
+				},
+			}),
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+
+		expect(screen.queryByText('No test results available.')).not.toBeInTheDocument();
+		expect(screen.getByText('Failed (2)')).toBeInTheDocument();
+		expect(screen.getByText('Method: isValidSelection')).toBeInTheDocument();
+	});
+
 	it('posts taskFeedbackOpened with filtered testIds and counts when a [task] span is clicked', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
