@@ -73,15 +73,37 @@ interface FeedbackInput {
     testCase?: { id?: number; testName?: string };
 }
 
+// Prefixes Artemis encodes in `feedback.text` to mark non-test automatic
+// feedback (kept in sync with the server's feedback.model.ts identifiers).
+const SCA_FEEDBACK_IDENTIFIER = 'SCAFeedbackIdentifier:';
+const SUBMISSION_POLICY_FEEDBACK_IDENTIFIER = 'SubPolFeedbackIdentifier:';
+
+/**
+ * Whether a result feedback describes a programming test case.
+ *
+ * Mirrors the Artemis web client's `Feedback.isTestCaseFeedback`
+ * (`type === AUTOMATIC && !!testCase`): a feedback that references a test case
+ * IS a test feedback even when the test name is hidden from students
+ * (`showTestNamesToStudents = false`, where Artemis omits both `text` and
+ * `testCase.testName`). Older results without a `testCase` relation are
+ * identified by their name-bearing `text`, excluding static-code-analysis and
+ * submission-policy feedback (both carry an identifier prefix and no testCase).
+ */
+export function isTestCaseFeedback(f: FeedbackInput): boolean {
+    if (f.type && f.type !== 'AUTOMATIC') { return false; }
+    if (f.testCase) { return true; }
+    return !!f.text
+        && !f.text.startsWith(SCA_FEEDBACK_IDENTIFIER)
+        && !f.text.startsWith(SUBMISSION_POLICY_FEEDBACK_IDENTIFIER);
+}
+
 /**
  * Transforms Artemis result feedbacks into structured test case results.
- * Filters out SCA feedback identifiers and keeps only test-related entries.
+ * Keeps only test-case feedback (see {@link isTestCaseFeedback}); the name
+ * falls back to a generic 'Test' when hidden, matching the Artemis web client.
  */
 export function transformFeedbacksToTestCases(feedbacks: FeedbackInput[]): TestCaseResult[] {
-    const testFeedbacks = feedbacks.filter(f =>
-        f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
-    );
-    return testFeedbacks.map(f => ({
+    return feedbacks.filter(isTestCaseFeedback).map(f => ({
         name: f.testCase?.testName ?? f.text ?? 'Test',
         passed: f.positive ?? false,
         message: f.detailText,
