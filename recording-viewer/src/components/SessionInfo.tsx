@@ -1,4 +1,4 @@
-import type { LoadedSession } from '../types.ts';
+import type { LoadedSession, RecordedEvent } from '../types.ts';
 import { ALL_EVENT_TYPES } from '../constants.ts';
 import { formatDuration, formatTime } from '../utils/format.ts';
 import { orderTypesActiveFirst } from '../utils/timelineLayout.ts';
@@ -6,10 +6,16 @@ import { EventBadge } from './EventBadge.tsx';
 
 interface Props {
     session: LoadedSession;
+    /**
+     * Events to summarise. In live mode these are the streamed events, which
+     * grow over time and differ from the open-time `session.events` snapshot;
+     * passing them explicitly keeps the breakdown, totals and duration live.
+     */
+    events: RecordedEvent[];
 }
 
-export function SessionInfo({ session }: Props) {
-    const { metadata, events } = session;
+export function SessionInfo({ session, events }: Props) {
+    const { metadata } = session;
 
     const eventTypeCounts = new Map<string, number>();
     for (const event of events) {
