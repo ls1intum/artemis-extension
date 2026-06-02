@@ -16,6 +16,13 @@ export const CONFIG = {
             LOGOUT: '/api/core/public/logout',
             RENDER_PROBLEM_STATEMENT: '/api/exercise/problem-statement/render',
         },
+        // Backstop against a server that accepts the connection but never responds.
+        // Generous on purpose so slow networks are not falsely aborted; this only
+        // prevents indefinite hangs on login/chat/API calls.
+        REQUEST_TIMEOUT_MS: 30000,
+        // Server-side logout is best-effort and the logout flow awaits it before
+        // clearing local state, so it gets a much shorter backstop than other calls.
+        LOGOUT_TIMEOUT_MS: 5000,
     },
 } as const;
 
