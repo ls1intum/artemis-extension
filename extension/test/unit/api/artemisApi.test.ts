@@ -1,8 +1,10 @@
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 
 import { ArtemisApiService } from '@extension/api/artemisApi';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { ApiError, MalformedResponseError } from '@extension/types';
+import { CONFIG } from '@extension/utils';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 // Mock fetch
@@ -826,6 +828,59 @@ suite('Artemis API Service Test Suite', () => {
             assert.ok(error instanceof Error);
             assert.ok(error.message.includes('no JWT token received'));
             assert.strictEqual(storeCalled, false, 'credentials should not be stored');
+        }
+    });
+
+    test('should abort a hanging request after the request timeout', async () => {
+        // A server that accepts the connection but never responds: the fetch promise
+        // only settles if its abort signal fires.
+        global.fetch = ((_url: any, options: any) => new Promise((_resolve, reject) => {
+            const signal: AbortSignal | undefined = options?.signal;
+            signal?.addEventListener('abort', () => reject(signal.reason));
+        })) as any;
+
+        const clock = sinon.useFakeTimers();
+        try {
+            const pending = apiService.getCurrentUser();
+            let settled = false;
+            pending.then(() => { settled = true; }, () => { settled = true; });
+
+            await clock.tickAsync(CONFIG.API.REQUEST_TIMEOUT_MS + 1000);
+
+            // settled check fails fast if the timeout is ever removed (rather than hanging CI).
+            assert.ok(settled, 'request should have been aborted after the timeout');
+            await assert.rejects(
+                pending,
+                (err: unknown) => err instanceof DOMException && err.name === 'TimeoutError',
+            );
+        } finally {
+            clock.restore();
+        }
+    });
+
+    test('logoutFromServer aborts on its short timeout and stays best-effort', async () => {
+        // Logout uses a shorter timeout than other calls; verify it aborts well before
+        // the default request timeout and that the best-effort method never rejects.
+        let aborted = false;
+        global.fetch = ((_url: any, options: any) => new Promise((_resolve, reject) => {
+            const signal: AbortSignal | undefined = options?.signal;
+            signal?.addEventListener('abort', () => { aborted = true; reject(signal.reason); });
+        })) as any;
+
+        const clock = sinon.useFakeTimers();
+        try {
+            const done = apiService.logoutFromServer();
+            let resolved = false;
+            let threw = false;
+            done.then(() => { resolved = true; }, () => { threw = true; });
+
+            // Past the logout timeout but below the default request timeout.
+            await clock.tickAsync(CONFIG.API.LOGOUT_TIMEOUT_MS + 500);
+
+            assert.ok(aborted, 'logout request should be aborted by the short logout timeout');
+            assert.ok(resolved && !threw, 'logout must remain best-effort (never reject)');
+        } finally {
+            clock.restore();
         }
     });
 });
