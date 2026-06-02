@@ -13,6 +13,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Internal
 
 - **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
+- **Live Recording Viewer**: The Event Breakdown counts, event total, and session duration now update live alongside the timeline instead of freezing at the values from when the live session was opened.
 
 ## [0.4.5] - 2026-06-01
 
