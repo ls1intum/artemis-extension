@@ -83,6 +83,43 @@ export interface FileCheckResult {
 }
 
 /**
+ * Parse the output of `git status --porcelain=v1 -z`.
+ *
+ * The `-z` format terminates each record with a NUL byte and, unlike the default
+ * porcelain format, does NOT C-quote paths containing spaces or special characters.
+ * Rename/copy entries (status code `R`/`C`) span two NUL-separated fields: the
+ * destination path (carrying the `XY ` prefix) followed by the bare source path.
+ * We keep the destination (the file that exists on disk now) and skip the source.
+ *
+ * @returns changed file paths, relative to the repository root.
+ */
+export function parseGitStatusZ(stdout: string): string[] {
+    const paths: string[] = [];
+    const fields = stdout.split('\0');
+
+    for (let i = 0; i < fields.length; i++) {
+        const field = fields[i];
+        // A status record is "XY PATH": two-char status, separator space, path.
+        // The final field after the trailing NUL is empty; shorter fields are malformed.
+        if (field.length < 4) {
+            continue;
+        }
+        const status = field.slice(0, 2);
+        const filePath = field.slice(3);
+        if (filePath) {
+            paths.push(filePath);
+        }
+        // Rename/copy records are followed by the original path as a separate
+        // field; consume it so it is not mis-parsed as its own status record.
+        if (status.includes('R') || status.includes('C')) {
+            i++;
+        }
+    }
+
+    return paths;
+}
+
+/**
  * Unified workspace file checker
  * Handles all file checking scenarios with configurable options
  */
@@ -201,25 +238,17 @@ export async function checkWorkspaceFiles(
         }
     }
 
-    // 2. Get files from git status
+    // 2. Get files from git status.
+    // The NUL-terminated porcelain format (-z) leaves paths unquoted and lists
+    // rename/copy destinations explicitly, which the old line+slice(3) parser mangled.
     try {
-        const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain'], {
+        const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain=v1', '-z'], {
             cwd: folder.uri.fsPath,
             timeout: 5000
         });
 
-        if (statusOutput.trim().length > 0) {
-            statusOutput
-                .split('\n')
-                .filter(line => line.trim().length > 0)
-                .forEach(line => {
-                    if (line.length > 3) {
-                        const fileName = line.slice(3).trim();
-                        if (fileName) {
-                            allFiles.add(fileName);
-                        }
-                    }
-                });
+        for (const file of parseGitStatusZ(statusOutput)) {
+            allFiles.add(file);
         }
     } catch (error) {
         logger.error('Git status failed', LogCategory.FILE_MONITOR, error);

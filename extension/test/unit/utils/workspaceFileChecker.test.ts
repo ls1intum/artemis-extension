@@ -6,7 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
+import { checkWorkspaceFiles, parseGitStatusZ } from '@extension/services/workspace/workspaceFileChecker';
 
 suite('Workspace File Checker Test Suite', () => {
     let tempDir: string;
@@ -176,6 +176,82 @@ suite('Workspace File Checker Test Suite', () => {
         assert.strictEqual(result.includedCount, 1);
         assert.strictEqual(result.files[0].path, 'Dirty.java');
         assert.strictEqual(result.files[0].status, 'included');
+    });
+
+    test('should record the new path for renames and unquoted paths with spaces', async () => {
+        execSync('git config user.email "test@example.com"', { cwd: tempDir });
+        execSync('git config user.name "Test User"', { cwd: tempDir });
+
+        // Commit a file so it can be renamed
+        fs.writeFileSync(path.join(tempDir, 'Original.java'), 'class Original {}');
+        execSync('git add Original.java', { cwd: tempDir });
+        execSync('git commit -m "initial"', { cwd: tempDir });
+
+        // Staged rename: git status reports "R  Original.java -> Renamed.java"
+        execSync('git mv Original.java Renamed.java', { cwd: tempDir });
+
+        // Untracked file whose path contains a space (porcelain quotes it without -z)
+        fs.writeFileSync(path.join(tempDir, 'New Helper.java'), 'class NewHelper {}');
+
+        const mockFolder: vscode.WorkspaceFolder = {
+            uri: vscode.Uri.file(tempDir),
+            name: 'test',
+            index: 0
+        };
+
+        const result = await checkWorkspaceFiles(mockFolder, { applyFilters: false });
+        const paths = result.files.map(f => f.path);
+
+        // Rename records the NEW path, never the "old -> new" arrow form
+        assert.ok(paths.includes('Renamed.java'), `expected Renamed.java, got ${JSON.stringify(paths)}`);
+        assert.ok(!paths.some(p => p.includes('->')), `arrow path leaked: ${JSON.stringify(paths)}`);
+        // Path with a space is recorded raw, without surrounding quotes
+        assert.ok(paths.includes('New Helper.java'), `expected unquoted spaced path, got ${JSON.stringify(paths)}`);
+        assert.ok(!paths.some(p => p.startsWith('"')), `quoted path leaked: ${JSON.stringify(paths)}`);
+    });
+
+    suite('parseGitStatusZ', () => {
+        test('returns relative paths for modified and untracked entries', () => {
+            const out = ' M src/Foo.java\0?? New.java\0';
+            assert.deepStrictEqual(parseGitStatusZ(out), ['src/Foo.java', 'New.java']);
+        });
+
+        test('keeps the destination of a rename and drops the source', () => {
+            // -z format: "XY <new>\0<old>\0" (new path first, then the original)
+            const out = 'R  new/Path.java\0old/Path.java\0';
+            assert.deepStrictEqual(parseGitStatusZ(out), ['new/Path.java']);
+        });
+
+        test('keeps the destination of a copy and drops the source', () => {
+            const out = 'C  copy.java\0orig.java\0';
+            assert.deepStrictEqual(parseGitStatusZ(out), ['copy.java']);
+        });
+
+        test('keeps paths containing spaces verbatim (no quoting in -z)', () => {
+            const out = ' M with space.txt\0?? new file.txt\0';
+            assert.deepStrictEqual(parseGitStatusZ(out), ['with space.txt', 'new file.txt']);
+        });
+
+        test('stays aligned across consecutive renames', () => {
+            const out = 'R  b.java\0a.java\0R  d.java\0c.java\0';
+            assert.deepStrictEqual(parseGitStatusZ(out), ['b.java', 'd.java']);
+        });
+
+        test('returns an empty array for empty output', () => {
+            assert.deepStrictEqual(parseGitStatusZ(''), []);
+        });
+
+        test('ignores malformed short fields', () => {
+            const out = 'XY\0 M real.java\0';
+            assert.deepStrictEqual(parseGitStatusZ(out), ['real.java']);
+        });
+
+        test('preserves leading and trailing whitespace in file names', () => {
+            // The old line-based parser called .trim(), which corrupted names that
+            // legitimately begin or end with a space. -z carries them verbatim.
+            const out = '?? trailing .java\0??  leading.java\0';
+            assert.deepStrictEqual(parseGitStatusZ(out), ['trailing .java', ' leading.java']);
+        });
     });
 
     test('should include files from unpushed commits', async () => {
