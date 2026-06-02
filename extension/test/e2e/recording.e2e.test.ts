@@ -55,7 +55,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
 
     teardown(async () => {
         if (recorder && !(recorder as unknown as { _disposed: boolean })._disposed) {
-            try { await recorder.dispose(); } catch { /* best-effort */ }
+            try { await recorder.shutdown(); } catch { /* best-effort */ }
         }
         recorder = undefined;
         if (storageDir) {

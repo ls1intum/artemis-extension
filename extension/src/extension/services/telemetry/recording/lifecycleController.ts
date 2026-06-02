@@ -318,7 +318,7 @@ export class LifecycleController {
         return this._enqueueLifecycle('endSession', () => this._doFinalize(reason));
     }
 
-    /** Drains any pending lifecycle op. Used by SessionRecorder.dispose(). */
+    /** Drains any pending lifecycle op. Used by SessionRecorder.shutdown(). */
     async drainPending(): Promise<void> {
         try {
             await this._lifecyclePromise;

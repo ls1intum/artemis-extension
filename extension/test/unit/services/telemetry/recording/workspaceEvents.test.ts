@@ -116,7 +116,7 @@ suite('Block K — workspace file events (white-box)', () => {
     });
 
     teardown(async () => {
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // ── Test 1: fileCreate ───────────────────────────────────────────────

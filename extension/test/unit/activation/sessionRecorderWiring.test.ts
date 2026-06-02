@@ -246,7 +246,7 @@ async function makeWiringHarness(
         },
         dispose: async () => {
             wiring.disposable.dispose();
-            try { await wiring.sessionRecorder.dispose(); } catch { /* ignore */ }
+            try { await wiring.sessionRecorder.shutdown(); } catch { /* ignore */ }
             telemetryManager.dispose();
             try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
             // Stubs are restored centrally via the suite-level sandbox in teardown.

@@ -83,8 +83,8 @@ type StartupContributor = StartupContributorFromModule;
 
 type RecorderPhase = RecorderPhaseFromState;
 
-export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandler {
-    // ── Dispose guard ─────────────────────────────────────────────────
+export class SessionRecorder implements WebSocketMessageHandler {
+    // ── Shutdown guard ────────────────────────────────────────────────
 
     private _disposed = false;
 
@@ -486,21 +486,28 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
     }
 
-    // ── Disposable ────────────────────────────────────────────────────
+    // ── Shutdown ──────────────────────────────────────────────────────
 
-    async dispose(): Promise<void> {
+    /**
+     * Awaitable teardown. Deliberately NOT named `dispose()` and the class does
+     * NOT implement `vscode.Disposable`: the durability guarantee (buffered
+     * events flushed to disk) only holds if this is awaited, so it must never be
+     * registered in `context.subscriptions` where VS Code would fire-and-forget it.
+     * The durable path is `deactivate()` → DataCollectionHandle → here.
+     */
+    async shutdown(): Promise<void> {
         if (this._disposed) { return; }
         this._disposed = true;
         if (this._phase === 'recording' || this._phase === 'starting') {
             try {
                 await this.endSession('deactivate');
             } catch (err: unknown) {
-                logger.error('Failed to end recording session during dispose', LogCategory.TELEMETRY, err);
+                logger.error('Failed to end recording session during shutdown', LogCategory.TELEMETRY, err);
             }
         }
         await this._lifecycle.drainPending();
         this._observation.disposeSubscriptions();
-        await this._writer.dispose();
+        await this._writer.shutdown();
         this._onDidChangeState.dispose();
     }
 

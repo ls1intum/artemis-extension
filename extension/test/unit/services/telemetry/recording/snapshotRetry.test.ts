@@ -149,7 +149,7 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
     });
 
     teardown(async () => {
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // ── Test 1: writeSnapshot returns false on error, true on success ─────

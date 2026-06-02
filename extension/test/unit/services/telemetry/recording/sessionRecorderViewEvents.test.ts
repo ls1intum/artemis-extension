@@ -97,7 +97,7 @@ suite('SessionRecorder — view events', () => {
     });
 
     teardown(async () => {
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     test('recordTestResultsOverviewOpened emits opened event with counts', async () => {

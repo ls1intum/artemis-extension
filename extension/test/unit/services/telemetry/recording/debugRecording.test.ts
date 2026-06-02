@@ -199,7 +199,7 @@ suite('Debugger recording — phase gating (white-box)', () => {
     });
 
     teardown(async () => {
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // T5: events recorded while recording carry their structure into the stream.

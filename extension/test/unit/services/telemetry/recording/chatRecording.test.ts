@@ -100,7 +100,7 @@ suite('SessionRecorder — Block H: Chat Recording', () => {
     });
 
     teardown(async () => {
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // ── H.1: Send-attempt lifecycle ───────────────────────────────────────
