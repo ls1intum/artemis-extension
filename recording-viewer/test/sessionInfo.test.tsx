@@ -14,12 +14,13 @@ describe('SessionInfo event breakdown', () => {
     it('lists every event type, active ones first (curated order) then empty ones', () => {
         // sessionStart is index 0 of ALL_EVENT_TYPES, save is later — so active
         // order should be [sessionStart, save] regardless of count.
-        const session = makeSession([
+        const events = [
             ev('sessionStart', 1),
             ev('save', 2),
             ev('sessionStart', 3),
-        ]);
-        const { container } = render(<SessionInfo session={session} />);
+        ];
+        const session = makeSession(events);
+        const { container } = render(<SessionInfo session={session} events={events} />);
         const rows = container.querySelectorAll('.event-breakdown .event-count-row');
 
         // Every type is shown.
@@ -38,5 +39,30 @@ describe('SessionInfo event breakdown', () => {
         expect(emptyRows.length).toBe(ALL_EVENT_TYPES.length - 2);
         expect(rows[2].classList.contains('empty')).toBe(true);
         expect(rows[2].textContent).toContain('0');
+    });
+
+    it('counts the events prop, not session.events (live mode reflects streamed events)', () => {
+        // In live mode session.events stays at the open-time snapshot (here empty)
+        // while events stream in via the `events` prop. The breakdown, the Events
+        // total and the duration must all reflect the live events, not the snapshot.
+        const session = makeSession([]);
+        const liveEvents = [ev('sessionStart', 1000), ev('save', 2000), ev('sessionStart', 5000)];
+        const { container } = render(<SessionInfo session={session} events={liveEvents} />);
+
+        const rows = container.querySelectorAll('.event-breakdown .event-count-row');
+        expect(rows[0].textContent).toContain('sessionStart');
+        expect(rows[0].textContent).toContain('2');
+        expect(rows[1].textContent).toContain('save');
+        expect(rows[1].textContent).toContain('1');
+
+        // The non-empty rows are exactly the two live types.
+        const activeRows = container.querySelectorAll('.event-breakdown .event-count-row:not(.empty)');
+        expect(activeRows.length).toBe(2);
+
+        // The totals and duration also reflect the live events, not the snapshot.
+        // With no metadata the info-grid values are [Start, End, Duration, Events].
+        const values = container.querySelectorAll('.info-grid .value');
+        expect(values[2].textContent).toBe('4s'); // duration 5000 - 1000 = 4000ms
+        expect(values[3].textContent).toBe('3'); // events total
     });
 });

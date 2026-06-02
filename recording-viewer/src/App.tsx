@@ -561,7 +561,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             lastLabelToast={lastLabelToast}
                         />
                     )}
-                    <SessionInfo session={session} />
+                    <SessionInfo session={session} events={displayedEvents} />
                     <div className="view-toggle-row">
                         <div className="view-toggle">
                             <button
