@@ -181,7 +181,7 @@ suite('SessionRecorder (Block AB+E)', () => {
     });
 
     teardown(async () => {
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // ── Test: Basic start sequence ────────────────────────────────────────
@@ -519,7 +519,7 @@ suite('SessionRecorder (Block AB+E)', () => {
         recorder.recordIrisChatSent('msg-2');
         recorder.recordIrisChatSent('msg-3');
 
-        await recorder.dispose();
+        await recorder.shutdown();
 
         const events = collectWrittenEvents(fs);
         const chatMsgs = events.filter(e => e.type === 'irisChatMessage');
@@ -937,7 +937,7 @@ suite('SessionRecorder — intervention suppression and configuration provenance
         assert.strictEqual(intervention!.rawWanted, true);
         assert.strictEqual(intervention!.level, 'notification');
         assert.strictEqual(intervention!.triggerType, 'execution-error');
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     test('recordConfigurationSnapshot persists both keys', async () => {
@@ -951,7 +951,7 @@ suite('SessionRecorder — intervention suppression and configuration provenance
         assert.ok(snap, 'configurationSnapshot missing');
         assert.strictEqual(snap!.struggleDetectionEnabled, true);
         assert.strictEqual(snap!.showInterventions, false);
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     test('recordConfigurationChange persists only the changed key', async () => {
@@ -964,7 +964,7 @@ suite('SessionRecorder — intervention suppression and configuration provenance
         const change = events.find(e => e.type === 'configurationChange') as ConfigurationChangeEvent | undefined;
         assert.ok(change, 'configurationChange missing');
         assert.deepStrictEqual(change!.changes, { showInterventions: false });
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 });
 
@@ -1009,7 +1009,7 @@ suite('SessionRecorder finalization path characterization', () => {
         assert.strictEqual(meta.eventCount, events.length,
             `metadata.eventCount (${meta.eventCount}) must equal JSONL event count (${events.length})`);
 
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     test('Test A2: consent-downgrade path produces well-formed metadata and sessionEnd as last event', async () => {
@@ -1050,7 +1050,7 @@ suite('SessionRecorder finalization path characterization', () => {
         assert.strictEqual(meta.eventCount, events.length,
             `metadata.eventCount (${meta.eventCount}) must equal JSONL event count (${events.length})`);
 
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // ── Test B: flush vs discard for pending debounce payloads ──────────
@@ -1082,7 +1082,7 @@ suite('SessionRecorder finalization path characterization', () => {
             `endSession must flush pending selectionChange (not found). types=${s1Types.join(',')}`);
         assert.ok(s1EndIdx > s1SelIdx,
             'flushed selectionChange must appear before sessionEnd');
-        try { await s1.recorder.dispose(); } catch { /* ignore */ }
+        try { await s1.recorder.shutdown(); } catch { /* ignore */ }
 
         // Scenario 2: disable discards the pending payload.
         const s2 = makeRecorder();
@@ -1106,7 +1106,7 @@ suite('SessionRecorder finalization path characterization', () => {
         const s2EndIdx = s2Types.lastIndexOf('sessionEnd');
         assert.ok(s2ConsentIdx >= 0, 'consentChange must appear after disable()');
         assert.ok(s2EndIdx > s2ConsentIdx, 'sessionEnd must come after consentChange');
-        try { await s2.recorder.dispose(); } catch { /* ignore */ }
+        try { await s2.recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // ── Test C: recorder can start a new session cleanly after both paths ──
@@ -1123,7 +1123,7 @@ suite('SessionRecorder finalization path characterization', () => {
         recorder.recordIrisChatSent('session-31-msg');
         await recorder.endSession();
 
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
 
         const events = collectWrittenEvents(fs);
         const starts = events.filter(e => e.type === 'sessionStart') as Array<{ exerciseId: number }>;
@@ -1159,7 +1159,7 @@ suite('SessionRecorder finalization path characterization', () => {
         recorder.recordIrisChatSent('session-41-msg');
         await recorder.endSession();
 
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
 
         const events = collectWrittenEvents(fs);
         const starts = events.filter(e => e.type === 'sessionStart') as Array<{ exerciseId: number }>;

@@ -141,7 +141,7 @@ suite('TerminalCollector characterization tests', () => {
     });
 
     teardown(async () => {
-        try { await recorder.dispose(); } catch { /* ignore */ }
+        try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
     // ── Test 1: abortAllPending via disable() ─────────────────────────────

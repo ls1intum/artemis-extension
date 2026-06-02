@@ -142,7 +142,7 @@ suite('RecordingStorageWriter (Block D)', () => {
 
     teardown(async () => {
         // Always stop internal timer. Dispose is idempotent.
-        try { await writer.dispose(); } catch { /* ignore */ }
+        try { await writer.shutdown(); } catch { /* ignore */ }
     });
 
     // ── Test 1: Ordering under 100 parallel appendEvent calls ─────────────────
@@ -242,7 +242,7 @@ suite('RecordingStorageWriter (Block D)', () => {
             // Clear prior appendedChunks so we only check what dispose writes
             fakeFs.appendedChunks = [];
 
-            await writer.dispose();
+            await writer.shutdown();
 
             // Sync fallback should have been called
             assert.strictEqual(fakeFs.syncChunks.length, 1, 'appendFileSync should be called once');
@@ -280,7 +280,7 @@ suite('RecordingStorageWriter (Block D)', () => {
             handle.resolve();
 
             // dispose() should await the drain and then do a final flush
-            await writer.dispose();
+            await writer.shutdown();
 
             // Sync fallback should NOT have been called (lane was busy)
             assert.strictEqual(fakeFs.syncChunks.length, 0, 'appendFileSync should NOT be called when lane is busy');

@@ -6,7 +6,7 @@
  *
  * ## Durability Policy
  *
- * On graceful shutdown (dispose() is awaited), data integrity is guaranteed:
+ * On graceful shutdown (shutdown() is awaited), data integrity is guaranteed:
  * all buffered events are written before the method returns. On extension-host
  * crash, process-kill, or any fatal failure that bypasses `finally` execution,
  * up to `BUFFER_THRESHOLD` (10) events may be lost. Lifecycle events
@@ -14,7 +14,7 @@
  * event and share the same crash-durability boundary.
  *
  * On graceful extension unload, `deactivate()` in `extension.ts` is async
- * and explicitly awaits `SessionRecorder.dispose()`, so all buffered events
+ * and explicitly awaits `SessionRecorder.shutdown()`, so all buffered events
  * reach disk before the extension host tears down the process.
  *
  * ## Serialisation (Write Lane)
@@ -53,7 +53,7 @@ const LANE_DRAIN_TIMEOUT_MS = 5_000;
  * Extracted so tests can inject a mock without fighting Node's non-configurable
  * module property descriptors.
  *
- * Note: `appendFileSync` exists solely for the dispose() sync-fallback path,
+ * Note: `appendFileSync` exists solely for the shutdown() sync-fallback path,
  * which runs when the write lane is idle and we need the lowest-latency
  * shutdown (no microtask scheduling overhead).
  */
@@ -108,7 +108,7 @@ export class RecordingStorageWriter {
 
     /**
      * True when no write is executing and no write is queued.
-     * Safe to use a sync fallback in `dispose()` only when this is true.
+     * Safe to use a sync fallback in `shutdown()` only when this is true.
      */
     private get _laneIdle(): boolean {
         return this._activeWrites === 0 && this._queuedWrites === 0;
@@ -184,10 +184,13 @@ export class RecordingStorageWriter {
         if (this._disabled || !this._snapshotsDir) {
             return false;
         }
+        // Capture before enqueuing: abort()/endSession() may null the field
+        // before this lane work runs (abort() does not drain the lane).
+        const snapshotsDir = this._snapshotsDir;
         let success = false;
         await this._enqueueLaneWork(async () => {
             const sanitized = this._sanitizeFileName(uri);
-            const snapshotPath = path.join(this._snapshotsDir!, `${sanitized}.txt`);
+            const snapshotPath = path.join(snapshotsDir, `${sanitized}.txt`);
             const truncated = content.length > MAX_SNAPSHOT_BYTES
                 ? content.slice(0, MAX_SNAPSHOT_BYTES) + '\n[TRUNCATED at 1MB]'
                 : content;
@@ -202,13 +205,16 @@ export class RecordingStorageWriter {
         if (this._disabled || !this._sessionDir) {
             return;
         }
+        // Capture before enqueuing (see writeSnapshot): the field may be nulled
+        // by abort()/endSession() before this lane work runs.
+        const sessionDir = this._sessionDir;
         const enriched: SessionMetadata = {
             ...metadata,
             schemaVersion: 2,
             recorderVersion: this._recorderVersion,
         };
         return this._enqueueLaneWork(async () => {
-            const metadataPath = path.join(this._sessionDir!, 'metadata.json');
+            const metadataPath = path.join(sessionDir, 'metadata.json');
             await this._fs.writeFile(metadataPath, JSON.stringify(enriched, null, 2), 'utf-8');
             this._consecutiveErrors = 0;
         }, 'Failed to write session metadata');
@@ -240,8 +246,10 @@ export class RecordingStorageWriter {
     }
 
     /**
-     * Awaitable dispose. On graceful shutdown, guarantees all buffered events
-     * are written to disk before returning.
+     * Awaitable shutdown. Guarantees all buffered events are written to disk
+     * before returning. Deliberately NOT named `dispose()`: it must be awaited
+     * for the durability guarantee to hold, so it must never be mistaken for a
+     * synchronous `vscode.Disposable.dispose()`.
      *
      * If the lane is already idle (no active/queued writes), a synchronous
      * fallback writes the remaining buffer directly for minimal latency.
@@ -252,7 +260,7 @@ export class RecordingStorageWriter {
      * completes. If the drain times out, the remaining buffer is lost and a
      * warning is logged.
      */
-    async dispose(): Promise<void> {
+    async shutdown(): Promise<void> {
         if (this._disposed) { return; }
         this._disposed = true;
         this._stopFlushTimer();
@@ -265,7 +273,7 @@ export class RecordingStorageWriter {
                     this._fs.appendFileSync(this._eventsPath, lines, 'utf-8');
                     this._buffer.length = 0;
                 } catch (err) {
-                    logger.warn('Recording writer dispose: sync fallback write failed', LogCategory.TELEMETRY, err);
+                    logger.warn('Recording writer shutdown: sync fallback write failed', LogCategory.TELEMETRY, err);
                 }
             }
         } else {
@@ -285,7 +293,7 @@ export class RecordingStorageWriter {
                 await this._drainLane();
             } else {
                 logger.warn(
-                    'Recording writer dispose: lane drain timed out, accepting buffer loss',
+                    'Recording writer shutdown: lane drain timed out, accepting buffer loss',
                     LogCategory.TELEMETRY,
                 );
             }
