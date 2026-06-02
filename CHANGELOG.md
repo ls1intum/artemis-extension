@@ -8,6 +8,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Replay Fidelity**: Live and recording paths share one build-error-family builder, so replayed EQ matches the live curve.
 - **Intervention Block Reasons**: Withheld interventions record the real gate; `recent-progress`/`last-dismissed` no longer logged as `warmup`.
+- **Test Results With Hidden Names**: The "See test results" overview now lists results for exercises that hide test names from students (`showTestNamesToStudents` disabled), instead of showing "No test results available".
 
 ### Internal
 
