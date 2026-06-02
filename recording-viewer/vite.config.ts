@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import os from 'os'
-import { createRecordingsApi } from './server/recordingsApi'
-import type { AppConfig, IncomingRequest, ServerResponse } from './server/types'
+import { createRecordingsApiPlugin } from './server/recordingsApiPlugin'
+import type { AppConfig } from './server/types'
 import { validateStartupConfig, resolveSessionSecret } from './server/startupValidation'
 
 const RECORDINGS_DIR = path.join(
@@ -17,16 +17,7 @@ validateStartupConfig({ liveToken, researcherToken })
 const sessionSecret = resolveSessionSecret(process.env.RECORDING_VIEWER_SESSION_SECRET, console.warn)
 const allowWrite = process.env.RECORDING_VIEWER_ALLOW_WRITE === '1' || !liveToken
 
-function recordingsApiPlugin() {
-    const config: AppConfig = { recordingsDir: RECORDINGS_DIR, liveToken, researcherToken, sessionSecret, allowWrite }
-    const handler = createRecordingsApi(config)
-    return {
-        name: 'recordings-api',
-        configureServer(server: { middlewares: { use: (fn: (req: IncomingRequest, res: ServerResponse, next: () => void) => void) => void } }) {
-            server.middlewares.use(handler)
-        },
-    }
-}
+const apiConfig: AppConfig = { recordingsDir: RECORDINGS_DIR, liveToken, researcherToken, sessionSecret, allowWrite }
 
 function resolveBindHost(): string {
     const explicit = process.env.RECORDING_VIEWER_BIND;
@@ -44,8 +35,15 @@ function resolveBindHost(): string {
     return hasToken ? '0.0.0.0' : '127.0.0.1';
 }
 
+const bindHost = resolveBindHost()
+
 // https://vite.dev/config/
 export default defineConfig({
-    plugins: [react(), recordingsApiPlugin()],
-    server: { host: resolveBindHost() },
+    plugins: [react(), createRecordingsApiPlugin(apiConfig)],
+    server: { host: bindHost },
+    // Preview serves the production build, which is how a live study should run:
+    // the production React build has no dev-mode `performance.measure` component
+    // instrumentation, so the live-mode out-of-memory tab crash cannot occur.
+    // Mirror the dev host and pin the port so raters reach the same LAN URL.
+    preview: { host: bindHost, port: 5173, strictPort: true },
 })
