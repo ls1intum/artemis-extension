@@ -50,7 +50,7 @@ jobs:
     steps:
       # Checks out the branch picked in "Use workflow from" (github.ref) - the single
       # selector that decides both which workflow runs and which code gets released.
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -206,7 +206,7 @@ jobs:
       openvsx-vsix-name: ${{ steps.openvsx.outputs.name }}
       openvsx-vsix-sha256: ${{ steps.openvsx.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -423,7 +423,7 @@ jobs:
       contents: write
       actions: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
