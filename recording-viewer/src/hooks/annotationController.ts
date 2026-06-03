@@ -10,7 +10,7 @@ export interface AnnotationToast {
 export interface AnnotationMutator {
     /** Enqueue an add. Optimistic insertion happens inside the queue body so the
      *  redo-stack invalidation is atomic with the new entry. */
-    addLabel: (label: AnnotationLabel, referenceTs: number | null) => void;
+    addLabel: (label: AnnotationLabel, referenceTs: number | null, options?: { persistTimestamp?: boolean }) => void;
     /** Enqueue an undo of whatever is the last real annotation at the moment
      *  the queue reaches this operation (not at call time). */
     undoLast: () => void;
@@ -80,16 +80,19 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
         });
     }
 
-    const addLabel: AnnotationMutator['addLabel'] = (label, referenceTs) => {
+    const addLabel: AnnotationMutator['addLabel'] = (label, referenceTs, options) => {
         enqueue(async (capturedGen, sessionId) => {
             // Intent invalidates redo, ATOMIC with the new entry insertion.
             redoStack = [];
 
             const tempId = makeTempId();
-            // referenceTs is used for the LOCAL optimistic display only: it positions
-            // the temp annotation on the timeline at roughly the right moment while
-            // the POST is in-flight. The server always timestamps live annotations
-            // at its own receive time, so we do NOT send referenceTs to it.
+            // The optimistic temp annotation always uses referenceTs for LOCAL display,
+            // positioning it on the timeline at the clicked/playhead moment while the
+            // POST is in-flight. For LIVE adds (no persistTimestamp) we omit `timestamp`
+            // from the POST so the server stamps the annotation at its own receive time.
+            // For OFFLINE/archival adds (persistTimestamp: true) we send referenceTs as
+            // the authoritative timestamp so the marker persists at the clicked/playhead
+            // position instead of snapping to the server's receive time.
             const optimistic: Annotation = {
                 id: tempId,
                 timestamp: referenceTs ?? Date.now(),
@@ -101,13 +104,12 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
             if (capturedGen === gen) emit();
 
             try {
+                const body: { label: AnnotationLabel; text: string; timestamp?: number } = { label, text: '' };
+                if (options?.persistTimestamp && referenceTs != null) body.timestamp = referenceTs;
                 const res = await doFetch(`/api/recordings/${encodeURIComponent(sessionId)}/annotations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        label,
-                        text: '',
-                    }),
+                    body: JSON.stringify(body),
                 });
                 if (capturedGen !== gen) return;
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);

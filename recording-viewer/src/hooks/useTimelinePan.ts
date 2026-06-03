@@ -1,5 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 
+/** A drag of more than this many pixels counts as a real pan and suppresses the trailing click. */
+const DRAG_CLICK_SUPPRESS_PX = 4;
+
 interface UseTimelinePanOptions {
     xDomain: [number, number];
     fullXDomain?: [number, number];
@@ -23,6 +26,7 @@ interface UseTimelinePanOptions {
  */
 export function useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange, leftOffset = 0, suppressPanPredicate }: UseTimelinePanOptions) {
     const isPanningRef = useRef(false);
+    const didPanRef = useRef(false);
     const panStartXRef = useRef(0);
     const panStartDomainRef = useRef<[number, number]>([0, 0]);
 
@@ -35,6 +39,7 @@ export function useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange, l
     }, [onZoomChange, fullXDomain, xDomain, svgWidth, leftOffset]);
 
     const handlePanStart = useCallback((e: React.MouseEvent) => {
+        didPanRef.current = false;
         if (!onZoomChange || !isZoomed || e.button !== 0) return;
         // Don't start pan if clicking on interactive elements
         const target = e.target as Element;
@@ -53,6 +58,7 @@ export function useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange, l
             const { onZoomChange: zoomCb, fullXDomain: full, xDomain: domain, svgWidth: width } = latestRef.current;
             if (!zoomCb || width <= 0) return;
             const dx = e.clientX - panStartXRef.current;
+            if (Math.abs(dx) > DRAG_CLICK_SUPPRESS_PX) didPanRef.current = true;
             const [startMin, startMax] = panStartDomainRef.current;
             const range = startMax - startMin;
             const domainDelta = -(dx / width) * range;
@@ -84,5 +90,5 @@ export function useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange, l
         };
     }, []);
 
-    return { handlePanStart, isZoomed };
+    return { handlePanStart, isZoomed, didPanRef };
 }
