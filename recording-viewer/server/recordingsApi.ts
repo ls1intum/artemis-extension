@@ -708,7 +708,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         // accepted in the body for backwards compatibility but ignored.
         const VALID_LABELS = new Set([
             'confident', 'light-struggle', 'medium-struggle', 'high-struggle', 'blocked',
-            'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results',
+            'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results', 'waiting-for-build-results',
         ]);
 
         // POST /api/recordings/:sessionId/annotations — append `add` to current rater's file.
