@@ -50,6 +50,17 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const [lastLabelToast, setLastLabelToast] = useState<AnnotationToast | null>(null);
     const [stickyLive, setStickyLive] = useState(false);
 
+    // Pending timeline marker position (click-to-place). The ref mirrors the
+    // state synchronously so a label keypress immediately after a click reads
+    // the fresh value (an effect-based mirror would lag a commit and re-introduce
+    // the race).
+    const [pendingTimestamp, setPendingTimestamp] = useState<number | null>(null);
+    const pendingTsRef = useRef<number | null>(null);
+    const setPending = useCallback((ts: number | null) => {
+        pendingTsRef.current = ts;   // synchronous, no render lag
+        setPendingTimestamp(ts);
+    }, []);
+
     // Track most recently ended live session so latch-on cannot flip back to live
     // during the brief window between sessionEnd event arrival and metadata.json
     // being written by the recorder (the live-sessions endpoint may still report
@@ -217,17 +228,30 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     // reference timestamp is the latest observed event; in offline mode it is
     // the current video playback cursor projected onto the absolute event
     // timeline (or session start as a fallback when no video is playing).
+    const onEscape = useCallback(() => {
+        if (pendingTsRef.current != null) { setPending(null); return true; }
+        return false;
+    }, [setPending]);
+
     useLiveHotkeys(
         !isResearcher && session !== null,
+        // pendingTimestamp is intentionally NOT a dep — it is read via the ref so
+        // the window keydown listener does not re-subscribe on pending changes.
         useCallback((label) => {
             const referenceTs = isLiveSession
                 ? live.latestEventTimestamp
-                : (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000;
-            mutator.addLabel(label, referenceTs);
-        }, [mutator, live.latestEventTimestamp, isLiveSession, session]),
+                : (pendingTsRef.current ?? (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000);
+            mutator.addLabel(label, referenceTs, { persistTimestamp: !isLiveSession });
+            if (pendingTsRef.current != null) setPending(null);
+        }, [mutator, live.latestEventTimestamp, isLiveSession, session, setPending]),
         mutator.undoLast,
         mutator.redoLast,
+        onEscape,
     );
+
+    // Force-clear pending on every session boundary / live toggle so it can never
+    // leak across sessions or into live mode.
+    useEffect(() => { setPending(null); }, [session, isLiveSession, setPending]);
 
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
@@ -473,6 +497,12 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/subtitles?v=${videoCacheBust}`
         : null;
 
+    // Click-to-place is only meaningful in a server-backed archival session. A
+    // file-loaded session has activeSessionId.current === null (addLabel is a
+    // silent no-op). Reading the ref during render is safe: every file-vs-server
+    // transition sets it synchronously and then re-renders via setSession.
+    const isServerSession = session !== null && activeSessionId.current !== null;
+
     return (
         <div className="app">
             <header className="app-header">
@@ -640,6 +670,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                                 videoTimeAtSessionStartSeconds={videoSyncConfig?.videoTimeAtSessionStartSeconds}
                                 onZoomChange={handleZoomChange}
+                                pendingTimestamp={pendingTimestamp}
+                                onSetPendingPosition={isServerSession && !writesDisabled ? setPending : undefined}
                             />
                         </div>
                     )}

@@ -12,6 +12,7 @@ export interface LiveHotkeyHandlers {
     onLabel: (label: AnnotationLabel) => void;
     onUndo?: () => void;
     onRedo?: () => void;
+    onEscape?: () => boolean; // returns true if it consumed the Escape (had something to clear)
 }
 
 /** Pure function form of the keydown handler. Exported for unit testing.
@@ -20,6 +21,11 @@ export interface LiveHotkeyHandlers {
 export function handleLiveHotkey(e: KeyboardEvent, handlers: LiveHotkeyHandlers): void {
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+
+    if (e.key === 'Escape') {
+        if (handlers.onEscape?.()) e.preventDefault();
+        return;
+    }
 
     const key = e.key.toLowerCase();
     const ctrl = e.ctrlKey;
@@ -59,11 +65,12 @@ export function useLiveHotkeys(
     onLabel: (label: AnnotationLabel) => void,
     onUndo?: () => void,
     onRedo?: () => void,
+    onEscape?: () => boolean,
 ): void {
     useEffect(() => {
         if (!enabled) return;
-        const handler = (e: KeyboardEvent) => handleLiveHotkey(e, { onLabel, onUndo, onRedo });
+        const handler = (e: KeyboardEvent) => handleLiveHotkey(e, { onLabel, onUndo, onRedo, onEscape });
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [enabled, onLabel, onUndo, onRedo]);
+    }, [enabled, onLabel, onUndo, onRedo, onEscape]);
 }
