@@ -224,10 +224,10 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     // the lanes refresh; the researcher's video/zoom/scroll stay put.
     useResearcherLanePolling(isResearcher && isLiveSession, activeSessionId, apiFetch, setResearcherLanes);
 
-    // Hotkeys enabled for any rater with a session loaded. In live mode the
-    // reference timestamp is the latest observed event; in offline mode it is
-    // the current video playback cursor projected onto the absolute event
-    // timeline (or session start as a fallback when no video is playing).
+    // Hotkeys enabled for any rater with a session loaded. The reference timestamp
+    // is a clicked pending position if one is set (in any mode); otherwise the
+    // latest observed event in live mode, or the video playback cursor projected
+    // onto the absolute event timeline (session start as a fallback) when offline.
     const onEscape = useCallback(() => {
         if (pendingTsRef.current != null) { setPending(null); return true; }
         return false;
@@ -238,11 +238,16 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         // pendingTimestamp is intentionally NOT a dep — it is read via the ref so
         // the window keydown listener does not re-subscribe on pending changes.
         useCallback((label) => {
-            const referenceTs = isLiveSession
-                ? live.latestEventTimestamp
-                : (pendingTsRef.current ?? (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000);
-            mutator.addLabel(label, referenceTs, { persistTimestamp: !isLiveSession });
-            if (pendingTsRef.current != null) setPending(null);
+            // A clicked pending position overrides the default anchor in ANY mode
+            // (live edge or offline playhead) and is always persisted at its exact
+            // timestamp. Without a pending click, live keeps server-receive-time.
+            const pending = pendingTsRef.current;
+            const referenceTs = pending
+                ?? (isLiveSession
+                    ? live.latestEventTimestamp
+                    : (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000);
+            mutator.addLabel(label, referenceTs, { persistTimestamp: pending != null || !isLiveSession });
+            if (pending != null) setPending(null);
         }, [mutator, live.latestEventTimestamp, isLiveSession, session, setPending]),
         mutator.undoLast,
         mutator.redoLast,
@@ -671,7 +676,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 videoTimeAtSessionStartSeconds={videoSyncConfig?.videoTimeAtSessionStartSeconds}
                                 onZoomChange={handleZoomChange}
                                 pendingTimestamp={pendingTimestamp}
-                                onSetPendingPosition={isServerSession && !writesDisabled ? setPending : undefined}
+                                onSetPendingPosition={isServerSession && !isResearcher ? setPending : undefined}
                             />
                         </div>
                     )}

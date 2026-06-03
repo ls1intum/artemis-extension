@@ -578,8 +578,8 @@ export function TrackingTimeline({
                 {isZoomed && 'Drag to pan'}
                 {isZoomed && onSeekVideo && ' \u00b7 '}
                 {onSeekVideo && 'Shift+Click to jump video'}
-                {onSetPendingPosition && !readOnly && (onSeekVideo || isZoomed) && ' \u00b7 '}
-                {onSetPendingPosition && !readOnly && (
+                {onSetPendingPosition && (onSeekVideo || isZoomed) && ' \u00b7 '}
+                {onSetPendingPosition && (
                     pendingTimestamp != null
                         ? `Marked ${formatOffset(pendingTimestamp - sessionStartTime)} \u00b7 press 1-5 / q-u to place \u00b7 Esc to cancel`
                         : 'Click to mark a spot, then press a label key'
