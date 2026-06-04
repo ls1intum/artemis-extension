@@ -15,6 +15,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
 - **Live Recording Viewer**: The Event Breakdown counts, event total, and session duration now update live alongside the timeline instead of freezing at the values from when the live session was opened.
 - **Live Recording Viewer**: Live mode can now be served from the production build (`npm run preview:live:token`), which eliminates a browser-tab out-of-memory crash that could occur during long or high-volume live sessions on the dev server.
+- **Recorder Test Coverage**: Extended the session-recorder end-to-end and wiring tests to exercise every persistable event type (Iris chat, EQ, interventions, navigation and panel visibility, test-results and task-feedback views, submissions, and file/editor/terminal/debug events) through the full record-to-JSONL-to-parser pipeline, plus the wiring's event forwarding and startup contributors.
 
 ## [0.4.5] - 2026-06-01
 
