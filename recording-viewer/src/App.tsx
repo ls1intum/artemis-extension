@@ -20,6 +20,7 @@ import { useLiveSessions } from './hooks/useLiveSessions';
 import { useOpenLiveOnSpace } from './hooks/useOpenLiveOnSpace';
 import { useLiveSession } from './hooks/useLiveSession';
 import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
+import { ToastStack, appendToast, MAX_TOASTS, TOAST_DURATION_MS, type ActiveToast } from './components/ToastStack';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
 import { useResearcherLanePolling } from './hooks/useResearcherLanePolling';
 
@@ -47,7 +48,15 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
     // Live state
-    const [lastLabelToast, setLastLabelToast] = useState<AnnotationToast | null>(null);
+    const [toasts, setToasts] = useState<ActiveToast[]>([]);
+    const nextToastId = useRef(0);
+    const pushToast = useCallback((toast: AnnotationToast) => {
+        const id = nextToastId.current++;
+        setToasts(prev => appendToast(prev, { ...toast, id }, MAX_TOASTS));
+    }, []);
+    const dismissToast = useCallback((id: number) => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+    }, []);
     const [stickyLive, setStickyLive] = useState(false);
 
     // Pending timeline marker position (click-to-place). The ref mirrors the
@@ -78,6 +87,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setLoading(true);
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setToasts([]);
         setStickyLive(isLive); // immediate latch — bypasses polling cadence
         try {
             const eventsUrl = isLive
@@ -151,16 +161,15 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const live = useLiveSession(activeSessionId.current, isLiveSession);
 
     const showAnnotationError = useCallback((message: string) => {
-        // Surface mutator failures via the existing toast slot. Keeps the UX
-        // single-channel; the live-mode hotkey path is the only caller.
+        // Surface mutator failures through the toast stack (same channel as adds).
         console.warn('[annotations]', message);
-        setLastLabelToast({ kind: 'error', text: message, at: Date.now() });
-    }, []);
+        pushToast({ kind: 'error', text: message, at: Date.now() });
+    }, [pushToast]);
     const mutator = useAnnotationMutations({
         sessionId: activeSessionId.current,
         raterName: authStatus.raterName,
         setAnnotations,
-        onToast: setLastLabelToast,
+        onToast: pushToast,
         onError: showAnnotationError,
     });
 
@@ -268,6 +277,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setToasts([]);
         setZoomedXDomain(null);
         setAutoFollowLive(true);
         setStickyLive(false);
@@ -285,6 +295,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setToasts([]);
         setZoomedXDomain(null);
         setAutoFollowLive(true);
         setSession(null);
@@ -593,7 +604,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             totalReceived={live.totalReceived}
                             latestEventTimestamp={live.latestEventTimestamp}
                             startTime={liveElapsedStart}
-                            lastLabelToast={lastLabelToast}
                         />
                     )}
                     <SessionInfo session={session} events={displayedEvents} />
@@ -696,6 +706,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                     )}
                 </div>
             )}
+            <ToastStack toasts={toasts} durationMs={TOAST_DURATION_MS} onDismiss={dismissToast} />
         </div>
     );
 }
