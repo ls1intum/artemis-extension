@@ -1780,3 +1780,28 @@
     font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;
     margin-right: 0.5rem; font-weight: bold; animation: pulse 1.5s infinite;
 }
+
+/* ── Researcher rater comparison view ─────────────────────────────────── */
+.rater-compare { padding: 0.5rem 0; }
+.rater-compare-empty { color: #94a3b8; padding: 1.5rem; text-align: center; }
+.rater-compare-header {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+.rater-compare-legend { display: flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.8rem; color: #cbd5e1; }
+.rater-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+.rater-legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.rater-compare-grid { display: grid; grid-template-columns: 110px 1fr; align-items: start; }
+.rater-compare-labels { display: flex; flex-direction: column; justify-content: space-between; }
+.rater-level-label { font-size: 0.72rem; color: #94a3b8; line-height: 1; }
+.rater-row-label {
+    display: flex; align-items: center; gap: 0.35rem;
+    font-size: 0.78rem; color: #cbd5e1;
+}
+.rater-compare-plot { position: relative; background: rgba(255,255,255,0.02); border: 1px solid #222; }
+.rater-compare-tooltip {
+    position: absolute; z-index: 10; pointer-events: none;
+    background: #1e1e2e; color: #e2e8f0; border: 1px solid #334155;
+    padding: 0.3rem 0.5rem; border-radius: 4px; font-size: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4); white-space: nowrap;
+}

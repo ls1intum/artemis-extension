@@ -21,6 +21,7 @@ import { useOpenLiveOnSpace } from './hooks/useOpenLiveOnSpace';
 import { useLiveSession } from './hooks/useLiveSession';
 import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
 import { ToastStack, appendToast, MAX_TOASTS, TOAST_DURATION_MS, type ActiveToast } from './components/ToastStack';
+import { RaterComparisonView } from './components/RaterComparisonView';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
 import { useResearcherLanePolling } from './hooks/useResearcherLanePolling';
 
@@ -399,7 +400,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
         return liveStartRef.current.start;
     }, [session, displayedEvents]);
-    const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
+    const [viewMode, setViewMode] = useState<'timeline' | 'list' | 'compare'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
     const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
     const [autoFollowLive, setAutoFollowLive] = useState(true);
@@ -621,6 +622,14 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             >
                                 List
                             </button>
+                            {isResearcher && researcherLanes && xDomain && (
+                                <button
+                                    className={`view-toggle-btn ${viewMode === 'compare' ? 'active' : ''}`}
+                                    onClick={() => setViewMode('compare')}
+                                >
+                                    Compare
+                                </button>
+                            )}
                         </div>
                         {viewMode === 'timeline' && xDomain && (
                             <div className="zoom-controls">
@@ -701,6 +710,15 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             onScrollComplete={handleScrollComplete}
                             videoTimeRef={videoTimeRef}
                             isVideoPlaying={isVideoPlaying}
+                            onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
+                        />
+                    )}
+                    {viewMode === 'compare' && researcherLanes && xDomain && (
+                        <RaterComparisonView
+                            researcherLanes={researcherLanes}
+                            xDomain={xDomain}
+                            sessionStartTime={sessionStartTime}
+                            videoTimeRef={videoTimeRef}
                             onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                         />
                     )}
