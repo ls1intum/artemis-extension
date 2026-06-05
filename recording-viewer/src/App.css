@@ -1738,7 +1738,7 @@
     display: flex; gap: 1.5rem; align-items: center;
     padding: 0.5rem 1rem; background: #1e293b; color: #f1f5f9;
     border-bottom: 1px solid #334155; font-size: 0.85rem;
-    flex-wrap: wrap; position: relative;
+    flex-wrap: wrap;
 }
 .live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.5rem; }
 .live-dot.on { background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: pulse 1.5s infinite; }
@@ -1749,14 +1749,32 @@
 .live-elapsed { color: #e2e8f0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .live-legend { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .live-legend span { font-family: monospace; }
-.live-toast {
-    position: absolute; top: 100%; right: 1rem;
-    background: #3b82f6; color: white;
-    padding: 0.4rem 0.8rem; border-radius: 4px; margin-top: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events: none;
+/* ── Annotation toast stack (bottom-right, viewport-fixed) ─────────────── */
+.annotation-toast-stack {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    display: flex; flex-direction: column; gap: 0.5rem;
+    align-items: flex-end; z-index: 2000; pointer-events: none;
 }
-.live-toast-undo, .live-toast-redo { background: #6b7280; }
-.live-toast-error { background: #ef4444; }
+.annotation-toast {
+    background: #3b82f6; color: white;
+    padding: 0.45rem 0.85rem; border-radius: 6px;
+    font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    pointer-events: none;
+    /* animation-duration is set inline per ToastItem from TOAST_DURATION_MS, so the
+       fade length and the JS removal timer share a single source and cannot drift. */
+    animation-name: annotation-toast-life;
+    animation-timing-function: ease-out;
+    animation-fill-mode: forwards;
+}
+.annotation-toast-undo, .annotation-toast-redo { background: #6b7280; }
+.annotation-toast-error { background: #ef4444; }
+
+@keyframes annotation-toast-life {
+    0%   { opacity: 0; transform: translateY(8px); }
+    8%   { opacity: 1; transform: translateY(0); }
+    85%  { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(0); }
+}
 .live-session-badge {
     display: inline-block; background: #ef4444; color: white;
     font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;

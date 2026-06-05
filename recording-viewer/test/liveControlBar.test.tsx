@@ -7,7 +7,6 @@ const baseProps = {
     bufferSize: 10,
     totalReceived: 10,
     latestEventTimestamp: null,
-    lastLabelToast: null,
 } as const;
 
 describe('LiveControlBar elapsed timer', () => {
