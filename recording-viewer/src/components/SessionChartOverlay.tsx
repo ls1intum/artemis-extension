@@ -5,6 +5,7 @@ interface Props {
     zoomedRange?: [number, number];
     videoTimeRef?: React.RefObject<number>;
     sessionStartTime: number;
+    topOffset?: number;
 }
 
 /**
@@ -19,7 +20,7 @@ interface Props {
  */
 const CHART_TOP_OFFSET = 10;
 
-export function SessionChartOverlay({ xDomain, zoomedRange, videoTimeRef, sessionStartTime }: Props) {
+export function SessionChartOverlay({ xDomain, zoomedRange, videoTimeRef, sessionStartTime, topOffset = CHART_TOP_OFFSET }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const playheadRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
@@ -79,7 +80,7 @@ export function SessionChartOverlay({ xDomain, zoomedRange, videoTimeRef, sessio
             className="session-chart-overlay"
             style={{
                 position: 'absolute',
-                top: CHART_TOP_OFFSET,
+                top: topOffset,
                 left: 0,
                 right: 0,
                 bottom: 0,
