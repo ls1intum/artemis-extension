@@ -30,6 +30,31 @@ function capRecordedCommitMessage(message: string | undefined): string | undefin
 }
 
 /**
+ * User-facing message shown when a git step fails because another process holds
+ * the repository's index lock. Replaces the raw `fatal: Unable to create
+ * '.git/index.lock'` git output, which is opaque to students.
+ */
+const GIT_LOCK_USER_MESSAGE =
+    'Another Git operation is currently using this repository, so the submission was stopped. '
+    + 'Wait for it to finish (and close other Git tools such as the Source Control panel or lazygit), then try again. '
+    + 'If this keeps happening, a previous Git process may have left a stale lock file at .git/index.lock that you can delete manually.';
+
+/**
+ * Whether a thrown git error is an index-lock contention failure. Scans both the
+ * error message and any captured `stderr` (execFile rejections carry it) for the
+ * stable, language-independent `index.lock` marker rather than the localized
+ * "Another git process seems to be running" sentence.
+ */
+function isGitLockError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+        return false;
+    }
+    const { message, stderr } = error as { message?: unknown; stderr?: unknown };
+    const haystack = `${typeof message === 'string' ? message : ''}\n${typeof stderr === 'string' ? stderr : ''}`;
+    return haystack.toLowerCase().includes('index.lock');
+}
+
+/**
  * Helper functions injected via the constructor so tests can substitute
  * deterministic doubles. The defaults wire up to the production modules.
  *
@@ -50,6 +75,16 @@ const defaultDeps: RepositorySubmitCommandsDeps = {
 export class RepositorySubmitCommands {
     private readonly deps: RepositorySubmitCommandsDeps;
 
+    /**
+     * Guards against a re-entrant submit (e.g. a double-click on the Submit
+     * button, which is not disabled while a submission runs). A second submit
+     * while one is in flight would race the first on the same repository's git
+     * index and self-inflict an `.git/index.lock` collision. Scoped to this
+     * handler's git pipeline; it is a double-click mitigation, not a repo-wide
+     * mutex (VS Code's built-in Git and other tools can still touch the repo).
+     */
+    private _submitInFlight = false;
+
     constructor(
         private readonly context: CommandContext,
         private readonly gitService: workspaceServices.GitService = new workspaceServices.GitService(),
@@ -67,6 +102,14 @@ export class RepositorySubmitCommands {
     }
 
     private handleSubmitExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
+        // Reject re-entrant submits before emitting any telemetry, so a blocked
+        // duplicate never produces an orphan `started` without a terminal event.
+        if (this._submitInFlight) {
+            vscode.window.showInformationMessage('A submission is already in progress. Please wait for it to finish.');
+            return;
+        }
+        this._submitInFlight = true;
+
         let participationId: number | undefined;
         let failureReason: SubmissionFailureReason = 'other';
         let resolvedCommitMessage: string | undefined;   // function-scoped: assigned inside withProgress, read at the succeeded emit
@@ -104,7 +147,10 @@ export class RepositorySubmitCommands {
 
                 const result = await this.deps.checkWorkspaceFiles(workspaceFolder, {
                     includeContent: false,
-                    applyFilters: false
+                    applyFilters: false,
+                    // Surface a `git status` failure (e.g. index.lock contention)
+                    // instead of letting it collapse into a false "no changes".
+                    throwOnGitError: true
                 });
 
                 if (!result.hasChanges) {
@@ -136,6 +182,12 @@ export class RepositorySubmitCommands {
                         failureReason = 'merge-conflict';
                         throw new Error('Merge conflict detected. Please resolve conflicts manually using git and try again.');
                     }
+                    if (isGitLockError(pullError)) {
+                        // `git push` does not take the index lock, so a swallowed pull lock
+                        // would let us push on an un-rebased branch and report a false
+                        // success. Surface it instead so the outer catch shows the lock message.
+                        throw pullError;
+                    }
                     logger.warn('Pull failed, but continuing with push:', LogCategory.SUBMISSION, pullMessage);
                 }
 
@@ -149,8 +201,8 @@ export class RepositorySubmitCommands {
             });
 
             // succeeded — the only success site. The post-success work below cannot throw into the
-            // outer catch (the websocket reconnect has its own inner try/catch), but succeededEmitted
-            // also hardens the "exactly one terminal per started" invariant against future edits.
+            // outer catch (recheck is fire-and-forget and the websocket reconnect has its own .catch),
+            // but succeededEmitted also hardens the "exactly one terminal per started" invariant.
             if (participationId !== undefined) {
                 fireSubmission({ status: 'succeeded', participationId, commitMessage: capRecordedCommitMessage(resolvedCommitMessage) });
                 succeededEmitted = true;
@@ -165,11 +217,11 @@ export class RepositorySubmitCommands {
             const websocketService = this.context.getWebsocketService?.();
             if (websocketService && !websocketService.isConnected()) {
                 logger.info('🔌 Submission successful - ensuring WebSocket connection for result updates...', LogCategory.WEBSOCKET);
-                try {
-                    await websocketService.connect();
-                } catch (wsError) {
+                // Fire-and-forget: a hanging connect() must not keep _submitInFlight
+                // set after the git work is done and `succeeded` was emitted.
+                void websocketService.connect().catch(wsError => {
                     logger.error('Failed to connect WebSocket after submission:', LogCategory.WEBSOCKET, wsError);
-                }
+                });
             }
         } catch (error: unknown) {
             logger.error('Submit exercise error:', LogCategory.SUBMISSION, error);
@@ -178,6 +230,13 @@ export class RepositorySubmitCommands {
             if (errorMessage === GIT_IDENTITY_NOT_CONFIGURED) {
                 // Sentinel constant (not free-text parsing): identity flow already navigated the user.
                 failureReason = 'git-identity-missing';
+            } else if (isGitLockError(error)) {
+                // A lock can throw at any git step (status, add, commit, pull, push);
+                // replace the raw git output with actionable guidance and record a
+                // uniform 'other' reason (a lock is an environment failure, not e.g.
+                // a genuine push rejection) regardless of which step the lock hit.
+                failureReason = 'other';
+                vscode.window.showErrorMessage(GIT_LOCK_USER_MESSAGE);
             } else {
                 vscode.window.showErrorMessage(errorMessage);
             }
@@ -185,6 +244,8 @@ export class RepositorySubmitCommands {
             if (participationId !== undefined && !succeededEmitted) {
                 fireSubmission({ status: 'failed', participationId, failureReason });
             }
+        } finally {
+            this._submitInFlight = false;
         }
     };
 
