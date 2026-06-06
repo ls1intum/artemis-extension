@@ -65,6 +65,13 @@ interface FileCheckOptions {
     includeDirty?: boolean;
     /** Optional override for dirty files (used for testing or custom collection) */
     dirtyFilesOverride?: string[];
+    /**
+     * Propagate a `git status` failure instead of swallowing it. Off by default
+     * so existing callers (status polling, file watchers) keep their best-effort
+     * behaviour; the submit flow opts in so an unreadable/locked repo surfaces
+     * as an error rather than a misleading "no changes" result.
+     */
+    throwOnGitError?: boolean;
 }
 
 export interface FileInfo {
@@ -145,7 +152,8 @@ export async function checkWorkspaceFiles(
         applyFilters = false,
         checkUnpushed = false,
         includeDirty = false,
-        dirtyFilesOverride
+        dirtyFilesOverride,
+        throwOnGitError = false
     } = options;
 
     const allFiles = new Set<string>();
@@ -252,6 +260,11 @@ export async function checkWorkspaceFiles(
         }
     } catch (error) {
         logger.error('Git status failed', LogCategory.FILE_MONITOR, error);
+        // Submit opts into fail-fast so a locked/unreadable repo is not misread
+        // as "no changes"; all other callers keep the best-effort behaviour.
+        if (throwOnGitError) {
+            throw error;
+        }
     }
 
     // 3. Get unpushed commits (if requested)

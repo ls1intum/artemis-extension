@@ -205,7 +205,7 @@ suite('RepositorySubmitCommands', () => {
         sinon.assert.calledOnce(recheckRepoStatus);
     });
 
-    test('submitExercise awaits websocket.connect when isConnected() is false; logs but does not surface user error if connect throws', async () => {
+    test('submitExercise reconnects websocket fire-and-forget when isConnected() is false; logs but does not surface user error if connect rejects', async () => {
         const isConnected = sandbox.stub().returns(false);
         const connect = sandbox.stub().rejects(new Error('ws boom'));
         const wsService = { isConnected, connect };
@@ -223,9 +223,9 @@ suite('RepositorySubmitCommands', () => {
         sinon.assert.calledOnce(isConnected);
         sinon.assert.calledOnce(connect);
 
-        // The catch block in the outer try should NOT have shown an error message,
-        // because the websocket reconnect logic runs AFTER the success notification and
-        // its failure is logger.error()'d, not surfaced to the user.
+        // The reconnect is fire-and-forget (void connect().catch(...)), runs AFTER the
+        // success notification, and its failure is logger.error()'d, never surfaced as a
+        // user-facing error message.
         const userFacingErrorCalls = showErrorMessage.getCalls().filter(c => {
             const arg = c.args[0] as string;
             return typeof arg === 'string' && (arg.toLowerCase().includes('ws boom') || arg.toLowerCase().includes('websocket'));
@@ -612,5 +612,157 @@ suite('RepositorySubmitCommands', () => {
         } as never);
 
         assert.strictEqual(fireSubmission.callCount, 0);
+    });
+
+    test('re-entrant submit is rejected while one is in flight: no duplicate pipeline, no extra telemetry', async () => {
+        // Hold the first submit inside withProgress by leaving checkWorkspaceFiles pending.
+        let resolveCheck!: (v: { hasChanges: boolean; files: unknown[] }) => void;
+        const checkPromise = new Promise<{ hasChanges: boolean; files: unknown[] }>(res => { resolveCheck = res; });
+        checkWorkspaceFiles = sandbox.stub().returns(checkPromise);
+
+        const { ctx, fireSubmission } = buildContext();
+        const { svc, stubs } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+        const handler = mod.getHandlers()[WebviewCmd.SubmitExercise];
+        const msg = {
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never;
+
+        const p1 = handler(msg);   // suspends on the pending checkWorkspaceFiles, flag set, 'started' emitted
+        await handler(msg);        // second call hits the re-entrancy guard
+
+        sinon.assert.calledWith(showInformationMessage, 'A submission is already in progress. Please wait for it to finish.');
+        sinon.assert.calledOnce(checkWorkspaceFiles);   // the duplicate never entered the pipeline
+        // Only the first submit's 'started' fired; the blocked duplicate emitted no event.
+        assert.strictEqual(fireSubmission.callCount, 1);
+        assert.strictEqual(fireSubmission.getCall(0).args[0].status, 'started');
+
+        resolveCheck({ hasChanges: true, files: [] });
+        await p1;
+
+        // The first submit ran the full pipeline through to its terminal 'succeeded'.
+        sinon.assert.calledOnce(stubs.addAll);
+        assert.strictEqual(fireSubmission.callCount, 2);
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'succeeded');
+    });
+
+    test('a failed submit resets the in-flight flag so the next submit proceeds', async () => {
+        const addAll = sandbox.stub();
+        addAll.onFirstCall().rejects(new Error('disk full'));
+        addAll.onSecondCall().resolves(undefined);
+
+        const { ctx } = buildContext();
+        const { svc, stubs } = makeGitService({ addAll });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+        const handler = mod.getHandlers()[WebviewCmd.SubmitExercise];
+        const msg = {
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never;
+
+        await handler(msg);   // fails at addAll → finally clears the flag
+        await handler(msg);   // must proceed because the flag was reset
+
+        sinon.assert.calledTwice(stubs.addAll);
+        const successCall = showInformationMessage.getCalls().find(c => String(c.args[0]).includes('Successfully submitted "Foo"'));
+        assert.ok(successCall, 'the second submit after a failure should reach success');
+    });
+
+    test('a hanging WebSocket reconnect does not keep the in-flight flag stuck', async () => {
+        const isConnected = sandbox.stub().returns(false);
+        const connect = sandbox.stub().returns(new Promise(() => { /* never resolves */ }));
+        const { ctx } = buildContext({ getWebsocketService: () => ({ isConnected, connect }) });
+        const { svc, stubs } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+        const handler = mod.getHandlers()[WebviewCmd.SubmitExercise];
+        const msg = {
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never;
+
+        await handler(msg);   // succeeds; connect() fired but never resolves (fire-and-forget)
+        await handler(msg);   // must still proceed — proves the flag was not held by the hanging connect
+
+        sinon.assert.called(connect);
+        sinon.assert.calledTwice(stubs.addAll);
+    });
+
+    test('an index.lock failure shows the friendly lock message instead of raw git output', async () => {
+        const lockErr = new Error("Command failed: git add -A\nfatal: Unable to create '/repo/.git/index.lock': File exists. Another git process seems to be running...");
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService({ addAll: sandbox.stub().rejects(lockErr) });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never);
+
+        const friendly = showErrorMessage.getCalls().find(c => String(c.args[0]).includes('Another Git operation is currently using this repository'));
+        assert.ok(friendly, 'expected the friendly index.lock message');
+        const rawLeak = showErrorMessage.getCalls().find(c => String(c.args[0]).includes('fatal: Unable to create'));
+        assert.ok(!rawLeak, 'raw git lock output must not be surfaced to the user');
+
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'other');
+    });
+
+    test('an index.lock failure during the status check maps to the friendly message and never stages', async () => {
+        checkWorkspaceFiles = sandbox.stub().rejects(new Error("fatal: Unable to create '/repo/.git/index.lock': File exists"));
+        const { ctx, fireSubmission } = buildContext();
+        const { svc, stubs } = makeGitService();
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never);
+
+        const friendly = showErrorMessage.getCalls().find(c => String(c.args[0]).includes('Another Git operation is currently using this repository'));
+        assert.ok(friendly, 'expected the friendly index.lock message for a status-phase lock');
+        // The submit must opt the status check into fail-fast so a lock isn't read as "no changes".
+        sinon.assert.calledWithMatch(checkWorkspaceFiles, sinon.match.any, sinon.match.has('throwOnGitError', true));
+        sinon.assert.notCalled(stubs.addAll);
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'other');
+    });
+
+    test('an index.lock failure during pull surfaces the friendly message and does not push or report success', async () => {
+        const lockErr = new Error("fatal: Unable to create '/repo/.git/index.lock': File exists. Another git process seems to be running...");
+        const { ctx, fireSubmission } = buildContext();
+        const { svc, stubs } = makeGitService({ pullWithRebase: sandbox.stub().rejects(lockErr) });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never);
+
+        // A pull lock must NOT fall through to push (push does not take the index lock)
+        // or emit a false 'succeeded'.
+        sinon.assert.notCalled(stubs.push);
+        const friendly = showErrorMessage.getCalls().find(c => String(c.args[0]).includes('Another Git operation is currently using this repository'));
+        assert.ok(friendly, 'expected the friendly index.lock message for a pull-phase lock');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'other');
+    });
+
+    test('an index.lock failure during push maps to the friendly message with a uniform other reason', async () => {
+        const lockErr = new Error("fatal: Unable to create '/repo/.git/index.lock': File exists");
+        const { ctx, fireSubmission } = buildContext();
+        const { svc } = makeGitService({ push: sandbox.stub().rejects(lockErr) });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never);
+
+        const friendly = showErrorMessage.getCalls().find(c => String(c.args[0]).includes('Another Git operation is currently using this repository'));
+        assert.ok(friendly, 'expected the friendly index.lock message for a push-phase lock');
+        // A lock at push is recorded as the uniform 'other', not 'push-failed'.
+        assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
+        assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'other');
     });
 });

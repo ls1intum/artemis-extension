@@ -254,6 +254,36 @@ suite('Workspace File Checker Test Suite', () => {
         });
     });
 
+    test('throwOnGitError propagates a git status failure instead of swallowing it', async () => {
+        // Remove the repo so `git status` exits non-zero ("not a git repository"),
+        // a deterministic stand-in for any git-status failure (e.g. index.lock).
+        fs.rmSync(path.join(tempDir, '.git'), { recursive: true, force: true });
+
+        const mockFolder: vscode.WorkspaceFolder = {
+            uri: vscode.Uri.file(tempDir),
+            name: 'test',
+            index: 0
+        };
+
+        await assert.rejects(
+            checkWorkspaceFiles(mockFolder, { throwOnGitError: true }),
+            'Expected the git status failure to propagate when throwOnGitError is set'
+        );
+    });
+
+    test('git status failure is swallowed by default so existing callers keep best-effort behaviour', async () => {
+        fs.rmSync(path.join(tempDir, '.git'), { recursive: true, force: true });
+
+        const mockFolder: vscode.WorkspaceFolder = {
+            uri: vscode.Uri.file(tempDir),
+            name: 'test',
+            index: 0
+        };
+
+        const result = await checkWorkspaceFiles(mockFolder);
+        assert.strictEqual(result.hasChanges, false);
+    });
+
     test('should include files from unpushed commits', async () => {
         const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-remote-'));
 
