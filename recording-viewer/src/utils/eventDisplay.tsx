@@ -119,6 +119,7 @@ export function eventDetail(event: RecordedEvent): React.ReactNode {
                 <span className="event-detail">
                     {event.action.toUpperCase()} | {event.level} | EQ: <strong>{Math.round(event.eq * 100)}%</strong>
                     {event.triggerType && ` | ${event.triggerType}`}
+                    {event.action === 'blocked' && event.blockedReason && ` | reason: ${event.blockedReason}`}
                 </span>
             );
         case 'eqEngineState':
