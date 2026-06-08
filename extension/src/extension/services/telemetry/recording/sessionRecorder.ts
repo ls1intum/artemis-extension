@@ -40,9 +40,10 @@
 
 import * as vscode from 'vscode';
 
+import type { InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionSuppressionReason, TriggerType } from '@extension/services/telemetry/types';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { InterventionEvent, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
+import type { InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -394,16 +395,16 @@ export class SessionRecorder implements WebSocketMessageHandler {
     }
 
     recordIntervention(
-        action: 'shown' | 'accepted' | 'dismissed' | 'blocked' | 'suppressed',
-        level: 'subtle' | 'notification' | 'proactive',
+        action: InterventionRecordAction,
+        level: InterventionLevel,
         shouldIntervene: boolean,
         eq: number,
         confidence: 'sufficient' | 'insufficient',
-        triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained',
+        triggerType?: TriggerType,
         opts?: {
-            blockedReason?: InterventionEvent['blockedReason'];
-            suppressionReason?: 'user-disabled';
-            dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
+            blockedReason?: InterventionBlockedReason;
+            suppressionReason?: InterventionSuppressionReason;
+            dismissReason?: InterventionDismissReason;
             rawWanted?: boolean;
         },
     ): void {

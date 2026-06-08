@@ -20,7 +20,15 @@
 import * as assert from 'assert';
 
 import { KNOWN_EVENT_TYPES, parseRecordedEvent, parseSessionMetadata } from '@extension/services/telemetry/recording/parseRecordedData';
-import type { RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
+import type { InterventionEvent, RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
+import { INTERVENTION_RECORD_ACTIONS } from '@extension/services/telemetry/recording/types';
+import {
+    INTERVENTION_BLOCKED_REASONS,
+    INTERVENTION_DISMISS_REASONS,
+    INTERVENTION_LEVELS,
+    INTERVENTION_SUPPRESSION_REASONS,
+    TRIGGER_TYPES,
+} from '@extension/services/telemetry/types';
 
 const ts = 1700000000000;
 
@@ -712,5 +720,87 @@ suite('KNOWN_EVENT_TYPES — drift regression for #215', () => {
         for (const t of ['', 'totallyMadeUp', 'toString', '__proto__', 'constructor']) {
             assert.ok(!KNOWN_EVENT_TYPES.has(t), `KNOWN_EVENT_TYPES unexpectedly contains '${t}'`);
         }
+    });
+});
+
+/**
+ * Single-source guard for the intervention enum vocabulary (#257).
+ *
+ * The InterventionEvent field types and the parser's isOneOf checks now derive
+ * from the SAME exported const tuples. This suite asserts the property that
+ * matters for replay fidelity: every declared enum value round-trips through
+ * the parser (none silently dropped), and an unknown value is rejected. The
+ * fixtures are typed as RecordedEvent, so a tuple/type drift also fails to
+ * compile — the runtime checks below are the belt to that suspenders.
+ */
+suite('parseRecordedEvent — intervention enum single-source guard (#257)', () => {
+    function baseIntervention(): InterventionEvent {
+        return {
+            type: 'intervention', timestamp: ts, action: 'shown', level: 'subtle',
+            shouldIntervene: true, eq: 0.3, confidence: 'sufficient',
+        };
+    }
+
+    for (const action of INTERVENTION_RECORD_ACTIONS) {
+        test(`action='${action}' round-trips`, () => {
+            const e: RecordedEvent = { ...baseIntervention(), action };
+            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+        });
+    }
+
+    for (const level of INTERVENTION_LEVELS) {
+        test(`level='${level}' round-trips`, () => {
+            const e: RecordedEvent = { ...baseIntervention(), level };
+            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+        });
+    }
+
+    for (const triggerType of TRIGGER_TYPES) {
+        test(`triggerType='${triggerType}' round-trips`, () => {
+            const e: RecordedEvent = { ...baseIntervention(), triggerType };
+            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+        });
+    }
+
+    for (const blockedReason of INTERVENTION_BLOCKED_REASONS) {
+        test(`blockedReason='${blockedReason}' round-trips`, () => {
+            const e: RecordedEvent = { ...baseIntervention(), action: 'blocked', shouldIntervene: false, blockedReason };
+            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+        });
+    }
+
+    for (const dismissReason of INTERVENTION_DISMISS_REASONS) {
+        test(`dismissReason='${dismissReason}' round-trips`, () => {
+            const e: RecordedEvent = { ...baseIntervention(), action: 'dismissed', dismissReason };
+            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+        });
+    }
+
+    for (const suppressionReason of INTERVENTION_SUPPRESSION_REASONS) {
+        test(`suppressionReason='${suppressionReason}' round-trips`, () => {
+            const e: RecordedEvent = { ...baseIntervention(), action: 'suppressed', suppressionReason };
+            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+        });
+    }
+
+    // One rejection per field family: an unknown value must reject the whole
+    // event (returns null), proving the guard is actually wired to the parser.
+    test('rejects unknown action', () => {
+        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'exploded' }), null);
+    });
+    test('rejects unknown level', () => {
+        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), level: 'whisper' }), null);
+    });
+    test('rejects unknown triggerType', () => {
+        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), triggerType: 'telepathy' }), null);
+    });
+    test('rejects unknown blockedReason', () => {
+        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'blocked', shouldIntervene: false, blockedReason: 'vibes' }), null);
+    });
+    test('rejects unknown dismissReason', () => {
+        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'dismissed', dismissReason: 'ragequit' }), null);
+    });
+    test('rejects unknown suppressionReason', () => {
+        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'suppressed', suppressionReason: 'gremlins' }), null);
     });
 });
