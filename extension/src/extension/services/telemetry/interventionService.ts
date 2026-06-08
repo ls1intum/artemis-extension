@@ -149,56 +149,32 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         this._onDidShowIntervention.fire(decision);
     }
 
-    // ── Notification-level intervention ────────────────────────────────
+    // ── Notification / proactive interventions ──────────────────────────
 
     /**
-     * Show notification-level intervention with EQ context.
+     * Show a notification-level intervention with EQ context.
      */
     public async showNotificationEQ(decision: InterventionDecision): Promise<void> {
-        if (!this._canIntervene()) {
-            // Cooldown blocked a wanted intervention — fire blocked event with cooldown reason.
-            this.recordBlockedDecision({
-                ...decision,
-                blockedReason: 'cooldown',
-                shouldIntervene: false,
-            });
-            return;
-        }
-
-        this._recordIntervention();
-        this._onDidShowIntervention.fire(decision);
-
-        const eqPercent = Math.round(decision.eq * 100);
-        this._statusBarItem.text = '$(lightbulb) Stuck? Let me help!';
-        this._statusBarItem.tooltip = `EQ: ${eqPercent}% — Click to get help from Iris`;
-        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-        this._statusBarItem.show();
-
-        const message = this._buildNotificationMessageEQ(decision);
-        const result = await vscode.window.showInformationMessage(
-            message,
-            'Open Iris Chat',
-            'Not now'
-        );
-
-        if (result === 'Open Iris Chat') {
-            this._state.lastAccepted = true;
-            this._state.lastDismissed = false;
-            this._onDidAcceptIntervention.fire(decision);
-            await vscode.commands.executeCommand('iris.chatView.focus');
-        } else {
-            this._state.lastDismissed = true;
-            this._state.lastAccepted = false;
-            this._emitDismiss(decision, 'user-action');
-        }
+        await this._showModalIntervention(decision, 'notification');
     }
 
-    // ── Proactive help ────────────────────────────────────────────────
-
     /**
-     * Show proactive help with EQ context.
+     * Show a proactive-level intervention with EQ context.
      */
     public async showProactiveHelpEQ(decision: InterventionDecision): Promise<void> {
+        await this._showModalIntervention(decision, 'proactive');
+    }
+
+    /**
+     * Shared modal-intervention flow for the notification and proactive levels.
+     * The two levels differ only in their status-bar styling, message copy, and
+     * dialog kind/labels (selected via `kind`); the cooldown gate, show/record
+     * bookkeeping, and accept/dismiss handling are identical and live here.
+     */
+    private async _showModalIntervention(
+        decision: InterventionDecision,
+        kind: 'notification' | 'proactive',
+    ): Promise<void> {
         if (!this._canIntervene()) {
             // Cooldown blocked a wanted intervention — fire blocked event with cooldown reason.
             this.recordBlockedDecision({
@@ -213,20 +189,42 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         this._onDidShowIntervention.fire(decision);
 
         const eqPercent = Math.round(decision.eq * 100);
-        this._statusBarItem.text = '$(warning) Help available!';
-        this._statusBarItem.tooltip = `EQ: ${eqPercent}% — Iris detected you might be struggling`;
-        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        const variant = kind === 'notification'
+            ? {
+                text: '$(lightbulb) Stuck? Let me help!',
+                tooltip: `EQ: ${eqPercent}% — Click to get help from Iris`,
+                backgroundColorId: 'statusBarItem.warningBackground',
+                message: this._buildNotificationMessageEQ(decision),
+                acceptLabel: 'Open Iris Chat',
+                prompt: (message: string, acceptLabel: string): Thenable<string | undefined> =>
+                    vscode.window.showInformationMessage(message, acceptLabel, 'Not now'),
+            }
+            : {
+                text: '$(warning) Help available!',
+                tooltip: `EQ: ${eqPercent}% — Iris detected you might be struggling`,
+                backgroundColorId: 'statusBarItem.errorBackground',
+                message: this._buildProactiveMessageEQ(decision),
+                acceptLabel: 'Get Help Now',
+                prompt: (message: string, acceptLabel: string): Thenable<string | undefined> =>
+                    vscode.window.showWarningMessage(message, { modal: false }, acceptLabel, 'Later'),
+            };
+
+        this._statusBarItem.text = variant.text;
+        this._statusBarItem.tooltip = variant.tooltip;
+        this._statusBarItem.backgroundColor = new vscode.ThemeColor(variant.backgroundColorId);
         this._statusBarItem.show();
 
-        const message = this._buildProactiveMessageEQ(decision);
-        const result = await vscode.window.showWarningMessage(
-            message,
-            { modal: false },
-            'Get Help Now',
-            'Later'
-        );
+        const result = await variant.prompt(variant.message, variant.acceptLabel);
+        await this._handleModalResult(decision, result === variant.acceptLabel);
+    }
 
-        if (result === 'Get Help Now') {
+    /**
+     * Handle the user's response to a notification/proactive modal. On accept,
+     * record acceptance, fire the accept event, and open Iris Chat; otherwise
+     * record the dismissal and emit a 'user-action' dismiss.
+     */
+    private async _handleModalResult(decision: InterventionDecision, accepted: boolean): Promise<void> {
+        if (accepted) {
             this._state.lastAccepted = true;
             this._state.lastDismissed = false;
             this._onDidAcceptIntervention.fire(decision);
