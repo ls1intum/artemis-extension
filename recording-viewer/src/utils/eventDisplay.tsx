@@ -1,9 +1,39 @@
 import type { RecordedEvent } from '../types';
 import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from './format';
 
-// Single source of truth for rendering a recorded event. Both the event-stream
-// detail row and the tracking-timeline tooltip key off event.type here, so a new
-// event type (or a field/shape change) is handled in exactly one place.
+// Single source of truth for rendering a recorded event.
+
+/** "45% | statement 20–80% visible" — page scroll percent + visible slice of the statement. */
+function describeStatementScroll(e: {
+    scrollTop: number; scrollHeight: number; viewportHeight: number;
+    statementTop: number; statementHeight: number;
+}): string {
+    const maxScroll = e.scrollHeight - e.viewportHeight;
+    const pagePercent = maxScroll > 0 ? Math.round((e.scrollTop / maxScroll) * 100) : 0;
+    if (e.statementHeight <= 0) {
+        return `${pagePercent}% | statement not visible`;
+    }
+    const visStart = Math.max(0, (e.scrollTop - e.statementTop) / e.statementHeight);
+    const visEnd = Math.min(1, (e.scrollTop + e.viewportHeight - e.statementTop) / e.statementHeight);
+    if (visEnd <= visStart) {
+        return `${pagePercent}% | statement not visible`;
+    }
+    return `${pagePercent}% | statement ${Math.round(visStart * 100)}–${Math.round(visEnd * 100)}% visible`;
+}
+
+const SELECTION_PREVIEW_CHARS = 60;
+
+/** '"implement the…" (25 chars)' — preview + uncapped length. */
+function describeStatementSelection(e: { selectedText: string; selectionLength: number }): string {
+    const preview = e.selectedText.length > SELECTION_PREVIEW_CHARS
+        ? `${e.selectedText.slice(0, SELECTION_PREVIEW_CHARS)}…`
+        : e.selectedText;
+    return `"${preview}" (${e.selectionLength} chars)`;
+}
+
+// Both the event-stream detail row and the tracking-timeline tooltip key off
+// event.type here, so a new event type (or a field/shape change) is handled in
+// exactly one place.
 
 // Full, multi-field description shown in the event stream's expandable detail row.
 export function eventDetail(event: RecordedEvent): React.ReactNode {
@@ -141,6 +171,10 @@ export function eventDetail(event: RecordedEvent): React.ReactNode {
                     {event.panel} | {event.visible ? 'visible' : 'hidden'}
                 </span>
             );
+        case 'problemStatementScroll':
+            return <span className="event-detail">{describeStatementScroll(event)}</span>;
+        case 'problemStatementSelection':
+            return <span className="event-detail">{describeStatementSelection(event)}</span>;
         case 'testResultsOverviewView':
             if (event.action === 'opened') {
                 return (
@@ -295,6 +329,10 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
             return <><span className="tt-time">{time}</span> {event.from} → {event.to}</>;
         case 'panelVisibility':
             return <><span className="tt-time">{time}</span> {event.panel} | {event.visible ? 'visible' : 'hidden'}</>;
+        case 'problemStatementScroll':
+            return <><span className="tt-time">{time}</span> {describeStatementScroll(event)}</>;
+        case 'problemStatementSelection':
+            return <><span className="tt-time">{time}</span> {describeStatementSelection(event)}</>;
         case 'testResultsOverviewView':
             return event.action === 'opened'
                 ? <><span className="tt-time">{time}</span> Test results overview opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)</>

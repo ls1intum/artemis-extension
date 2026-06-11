@@ -92,4 +92,52 @@ describe('eventDisplay drift harmonization (#243)', () => {
         expect(detailText(e)).toContain('fix off-by-one');
         expect(summaryText(e)).toContain('fix off-by-one');
     });
+
+    it('problemStatementScroll: both views show page percent and statement visibility', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementScroll', timestamp: 1000,
+            scrollTop: 1100, scrollHeight: 3000, viewportHeight: 800,
+            statementTop: 900, statementHeight: 1600,
+        };
+        // page: 1100 / (3000-800) = 50%; visible: (1100-900)/1600=12.5%→13 to (1100+800-900)/1600=62.5%→63
+        for (const text of [detailText(e), summaryText(e)]) {
+            expect(text).toContain('50%');
+            expect(text).toContain('statement 13–63% visible');
+        }
+    });
+
+    it('problemStatementScroll: both views say "not visible" when the statement is off-screen', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementScroll', timestamp: 1000,
+            scrollTop: 0, scrollHeight: 3000, viewportHeight: 800,
+            statementTop: 900, statementHeight: 1600,
+        };
+        for (const text of [detailText(e), summaryText(e)]) {
+            expect(text).toContain('statement not visible');
+        }
+    });
+
+    it('problemStatementSelection: both views show the text preview and length', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementSelection', timestamp: 1000,
+            selectedText: 'implement the constructor', selectionLength: 25, truncated: false,
+            selectionTop: 1200, selectionLeft: 40, selectionWidth: 320, selectionHeight: 18,
+        };
+        for (const text of [detailText(e), summaryText(e)]) {
+            expect(text).toContain('implement the constructor');
+            expect(text).toContain('25 chars');
+        }
+    });
+
+    it('problemStatementSelection: long selections are previewed with an ellipsis', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementSelection', timestamp: 1000,
+            selectedText: 'z'.repeat(500), selectionLength: 800, truncated: true,
+            selectionTop: 0, selectionLeft: 0, selectionWidth: 10, selectionHeight: 10,
+        };
+        for (const text of [detailText(e), summaryText(e)]) {
+            expect(text).toContain('…');
+            expect(text).toContain('800 chars');
+        }
+    });
 });
