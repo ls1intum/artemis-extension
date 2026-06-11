@@ -590,6 +590,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <ProblemStatement
                 serverRenderedHtml={serverRenderedPS?.html}
                 onTaskClick={handleTaskOpen}
+                vscodeApi={vscodeApi}
             />
 
             {/* Developer Tools */}
