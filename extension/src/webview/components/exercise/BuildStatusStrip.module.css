@@ -114,6 +114,26 @@
   background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
+/* Result flash */
+.flashSpacer {
+  flex: 1;
+}
+
+.flashIconSuccess {
+  color: var(--vscode-testing-iconPassed, #73c991);
+  flex-shrink: 0;
+}
+
+.flashIconPartial {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  flex-shrink: 0;
+}
+
+.flashIconFailed {
+  color: var(--vscode-errorForeground, #f48771);
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .strip {
     animation: none;
