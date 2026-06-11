@@ -267,6 +267,69 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
 
+    test('problemStatementScroll', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementScroll', timestamp: ts,
+            scrollTop: 120, scrollHeight: 3000, viewportHeight: 800,
+            statementTop: 950, statementHeight: 1600,
+        };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
+
+    test('problemStatementScroll — rejects missing field', () => {
+        const raw = {
+            type: 'problemStatementScroll', timestamp: ts,
+            scrollTop: 120, scrollHeight: 3000, viewportHeight: 800,
+            statementTop: 950,
+        };
+        assert.strictEqual(parseRecordedEvent(raw), null);
+    });
+
+    test('problemStatementScroll — rejects non-numeric field', () => {
+        const raw = {
+            type: 'problemStatementScroll', timestamp: ts,
+            scrollTop: '120', scrollHeight: 3000, viewportHeight: 800,
+            statementTop: 950, statementHeight: 1600,
+        };
+        assert.strictEqual(parseRecordedEvent(raw), null);
+    });
+
+    test('problemStatementSelection', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementSelection', timestamp: ts,
+            selectedText: 'implement the constructor', selectionLength: 25, truncated: false,
+            selectionTop: 1200, selectionLeft: 40, selectionWidth: 320, selectionHeight: 18,
+        };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
+
+    test('problemStatementSelection — truncated long selection round-trips', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementSelection', timestamp: ts,
+            selectedText: 'x'.repeat(500), selectionLength: 12000, truncated: true,
+            selectionTop: 1200, selectionLeft: 0, selectionWidth: 600, selectionHeight: 4000,
+        };
+        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
+    });
+
+    test('problemStatementSelection — rejects missing geometry', () => {
+        const raw = {
+            type: 'problemStatementSelection', timestamp: ts,
+            selectedText: 'abc', selectionLength: 3, truncated: false,
+            selectionTop: 1200, selectionLeft: 0, selectionWidth: 600,
+        };
+        assert.strictEqual(parseRecordedEvent(raw), null);
+    });
+
+    test('problemStatementSelection — rejects non-boolean truncated', () => {
+        const raw = {
+            type: 'problemStatementSelection', timestamp: ts,
+            selectedText: 'abc', selectionLength: 3, truncated: 'no',
+            selectionTop: 1200, selectionLeft: 0, selectionWidth: 600, selectionHeight: 18,
+        };
+        assert.strictEqual(parseRecordedEvent(raw), null);
+    });
+
     test('selectionChange — with kind', () => {
         const e: RecordedEvent = {
             type: 'selectionChange', timestamp: ts, uri: 'file:///a.ts',
