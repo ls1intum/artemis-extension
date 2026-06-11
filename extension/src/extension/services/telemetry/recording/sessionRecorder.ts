@@ -40,9 +40,10 @@
 
 import * as vscode from 'vscode';
 
+import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } from '@shared/messageContracts/webviewCommands';
+
 import type { InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionSuppressionReason, TriggerType } from '@extension/services/telemetry/types';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
-import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } from '@shared/messageContracts/webviewCommands';
 
 import type { InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
 
