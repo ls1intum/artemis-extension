@@ -19,6 +19,8 @@ import * as path from 'path';
 import * as sinon from 'sinon';
 
 import type {
+    ProblemStatementScrollPayload,
+    ProblemStatementSelectionPayload,
     TaskFeedbackClosedPayload,
     TaskFeedbackOpenedPayload,
     TestResultsOverviewClosedPayload,
@@ -99,6 +101,8 @@ function stubWebviewProvider(): ArtemisWebviewProvider {
     const onDidOpenTask = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
     const onDidCloseTask = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
     const onDidSubmission = new vscode.EventEmitter<SubmissionPayload>();
+    const onDidPsScroll = new vscode.EventEmitter<ProblemStatementScrollPayload>();
+    const onDidPsSelection = new vscode.EventEmitter<ProblemStatementSelectionPayload>();
     return {
         getCurrentVisibility: () => false,
         onDidChangeViewNavigation: onDidChangeViewNavigation.event,
@@ -115,6 +119,10 @@ function stubWebviewProvider(): ArtemisWebviewProvider {
         fireSubmission: (p: SubmissionPayload) => onDidSubmission.fire(p),
         fireViewNavigation: (p: { from: string; to: string }) => onDidChangeViewNavigation.fire(p),
         fireArtemisPanelVisibility: (visible: boolean) => onDidChangePanelVisibility.fire(visible),
+        onDidProblemStatementScroll: onDidPsScroll.event,
+        onDidProblemStatementSelection: onDidPsSelection.event,
+        fireProblemStatementScroll: (p: ProblemStatementScrollPayload) => onDidPsScroll.fire(p),
+        fireProblemStatementSelection: (p: ProblemStatementSelectionPayload) => onDidPsSelection.fire(p),
     } as unknown as ArtemisWebviewProvider;
 }
 
@@ -621,6 +629,35 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             const stub = sandbox.stub(harness.recorder, 'recordPanelVisibility');
             (harness.chatProvider as unknown as { fireChatPanelVisibility: (v: boolean) => void }).fireChatPanelVisibility(false);
             sinon.assert.calledOnceWithExactly(stub, 'chat', false);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidProblemStatementScroll to recordProblemStatementScroll', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordProblemStatementScroll');
+            const payload: ProblemStatementScrollPayload = { scrollTop: 10, scrollHeight: 2000, viewportHeight: 700, statementTop: 800, statementHeight: 900 };
+            (harness.artemisWebviewProvider as unknown as { fireProblemStatementScroll: (p: ProblemStatementScrollPayload) => void })
+                .fireProblemStatementScroll(payload);
+            sinon.assert.calledOnceWithExactly(stub, payload);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidProblemStatementSelection to recordProblemStatementSelection', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordProblemStatementSelection');
+            const payload: ProblemStatementSelectionPayload = {
+                selectedText: 'abc', selectionLength: 3, truncated: false,
+                selectionTop: 1, selectionLeft: 2, selectionWidth: 3, selectionHeight: 4,
+            };
+            (harness.artemisWebviewProvider as unknown as { fireProblemStatementSelection: (p: ProblemStatementSelectionPayload) => void })
+                .fireProblemStatementSelection(payload);
+            sinon.assert.calledOnceWithExactly(stub, payload);
         } finally {
             await harness.dispose();
         }

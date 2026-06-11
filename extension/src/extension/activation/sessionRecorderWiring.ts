@@ -147,6 +147,15 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordTaskFeedbackClosed(payload);
     }));
 
+    // Problem-statement reading events flow from the webview via
+    // ProblemStatementTrackingCommandModule -> ArtemisWebviewProvider.fireXxx -> here.
+    disposables.push(artemisWebviewProvider.onDidProblemStatementScroll(payload => {
+        sessionRecorder.recordProblemStatementScroll(payload);
+    }));
+    disposables.push(artemisWebviewProvider.onDidProblemStatementSelection(payload => {
+        sessionRecorder.recordProblemStatementSelection(payload);
+    }));
+
     // Submission tracking. Provider events flow from handleSubmitExercise ->
     // ArtemisWebviewProvider.fireSubmission -> here.
     disposables.push(artemisWebviewProvider.onDidSubmission(payload => {

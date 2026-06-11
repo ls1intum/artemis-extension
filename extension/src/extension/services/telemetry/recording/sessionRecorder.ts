@@ -42,6 +42,7 @@ import * as vscode from 'vscode';
 
 import type { InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionSuppressionReason, TriggerType } from '@extension/services/telemetry/types';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
+import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } from '@shared/messageContracts/webviewCommands';
 
 import type { InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
 
@@ -436,6 +437,28 @@ export class SessionRecorder implements WebSocketMessageHandler {
             type: 'panelVisibility',
             panel,
             visible,
+        });
+    }
+
+    /**
+     * Record a problem-statement scroll event (how far the student has scrolled
+     * through the exercise description).
+     */
+    recordProblemStatementScroll(payload: ProblemStatementScrollPayload): void {
+        this._record({
+            type: 'problemStatementScroll',
+            ...payload,
+        });
+    }
+
+    /**
+     * Record a problem-statement text-selection event (text the student
+     * highlighted inside the exercise description).
+     */
+    recordProblemStatementSelection(payload: ProblemStatementSelectionPayload): void {
+        this._record({
+            type: 'problemStatementSelection',
+            ...payload,
         });
     }
 
