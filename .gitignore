@@ -65,3 +65,4 @@ extension/build/
 
 # Superpowers planning artifacts (kept locally as design notes, not tracked)
 docs/superpowers/
+.superpowers/
