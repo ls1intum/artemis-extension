@@ -48,6 +48,8 @@ import type {
     IrisChatMessageEvent,
     IrisChatSendAttemptEvent,
     PanelVisibilityEvent,
+    ProblemStatementScrollEvent,
+    ProblemStatementSelectionEvent,
     RecordedEvent,
     SaveEvent,
     SelectionChangeEvent,
@@ -429,6 +431,32 @@ function parsePanelVisibility(d: Record<string, unknown>, timestamp: number): Pa
     return { type: 'panelVisibility', timestamp, panel: d.panel, visible: d.visible };
 }
 
+function parseProblemStatementScroll(d: Record<string, unknown>, timestamp: number): ProblemStatementScrollEvent | null {
+    if (!isFiniteNumber(d.scrollTop) || !isFiniteNumber(d.scrollHeight) || !isFiniteNumber(d.viewportHeight)
+        || !isFiniteNumber(d.statementTop) || !isFiniteNumber(d.statementHeight)) {
+        return null;
+    }
+    return {
+        type: 'problemStatementScroll', timestamp,
+        scrollTop: d.scrollTop, scrollHeight: d.scrollHeight, viewportHeight: d.viewportHeight,
+        statementTop: d.statementTop, statementHeight: d.statementHeight,
+    };
+}
+
+function parseProblemStatementSelection(d: Record<string, unknown>, timestamp: number): ProblemStatementSelectionEvent | null {
+    if (!isString(d.selectedText) || !isFiniteNumber(d.selectionLength) || !isBoolean(d.truncated)) { return null; }
+    if (!isFiniteNumber(d.selectionTop) || !isFiniteNumber(d.selectionLeft)
+        || !isFiniteNumber(d.selectionWidth) || !isFiniteNumber(d.selectionHeight)) {
+        return null;
+    }
+    return {
+        type: 'problemStatementSelection', timestamp,
+        selectedText: d.selectedText, selectionLength: d.selectionLength, truncated: d.truncated,
+        selectionTop: d.selectionTop, selectionLeft: d.selectionLeft,
+        selectionWidth: d.selectionWidth, selectionHeight: d.selectionHeight,
+    };
+}
+
 function parseSelectionChange(d: Record<string, unknown>, timestamp: number): SelectionChangeEvent | null {
     if (!isString(d.uri) || !Array.isArray(d.selections)) { return null; }
     const selections: SerializedRange[] = [];
@@ -704,6 +732,8 @@ const EVENT_PARSERS = {
     intervention: parseIntervention,
     viewNavigation: parseViewNavigation,
     panelVisibility: parsePanelVisibility,
+    problemStatementScroll: parseProblemStatementScroll,
+    problemStatementSelection: parseProblemStatementSelection,
     selectionChange: parseSelectionChange,
     visibleRangeChange: parseVisibleRangeChange,
     terminalCommand: parseTerminalCommand,

@@ -6,6 +6,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Added
 
+- **Reading Telemetry**: The session recorder now captures problem-statement reading behavior (scrolling and text selections, with extended consent only).
 - **Sticky Build Status**: Build progress and ETA stay visible in a slim strip at the top of the exercise view while you scroll; the result flashes briefly when the build finishes out of view.
 
 ### Fixed

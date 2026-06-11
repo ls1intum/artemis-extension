@@ -1,6 +1,8 @@
 import type * as vscode from 'vscode';
 
 import type {
+    ProblemStatementScrollPayload,
+    ProblemStatementSelectionPayload,
     TaskFeedbackClosedPayload,
     TaskFeedbackOpenedPayload,
     TestResultsOverviewClosedPayload,
@@ -20,10 +22,14 @@ export interface IArtemisWebviewProvider {
     fireTaskFeedbackOpened(payload: TaskFeedbackOpenedPayload): void;
     fireTaskFeedbackClosed(payload: TaskFeedbackClosedPayload): void;
     fireSubmission(payload: SubmissionPayload): void;
+    fireProblemStatementScroll(payload: ProblemStatementScrollPayload): void;
+    fireProblemStatementSelection(payload: ProblemStatementSelectionPayload): void;
 
     readonly onDidOpenTestResultsOverview: vscode.Event<TestResultsOverviewOpenedPayload>;
     readonly onDidCloseTestResultsOverview: vscode.Event<TestResultsOverviewClosedPayload>;
     readonly onDidOpenTaskFeedback: vscode.Event<TaskFeedbackOpenedPayload>;
     readonly onDidCloseTaskFeedback: vscode.Event<TaskFeedbackClosedPayload>;
     readonly onDidSubmission: vscode.Event<SubmissionPayload>;
+    readonly onDidProblemStatementScroll: vscode.Event<ProblemStatementScrollPayload>;
+    readonly onDidProblemStatementSelection: vscode.Event<ProblemStatementSelectionPayload>;
 }

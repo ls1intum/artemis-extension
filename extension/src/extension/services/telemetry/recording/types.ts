@@ -267,6 +267,33 @@ export interface PanelVisibilityEvent {
     visible: boolean;
 }
 
+export interface ProblemStatementScrollEvent {
+    type: 'problemStatementScroll';
+    timestamp: number;
+    /** Page scroll position — the ExerciseDetail webview scrolls as a whole page. */
+    scrollTop: number;
+    scrollHeight: number;
+    viewportHeight: number;
+    /** Geometry of the statement container, document-relative, integer CSS px. */
+    statementTop: number;
+    statementHeight: number;
+}
+
+export interface ProblemStatementSelectionEvent {
+    type: 'problemStatementSelection';
+    timestamp: number;
+    /** Selected text, capped at 500 chars (see `truncated`). */
+    selectedText: string;
+    /** Uncapped selection length. */
+    selectionLength: number;
+    truncated: boolean;
+    /** Bounding box of the selection, document-relative, integer CSS px. */
+    selectionTop: number;
+    selectionLeft: number;
+    selectionWidth: number;
+    selectionHeight: number;
+}
+
 export interface SelectionChangeEvent {
     type: 'selectionChange';
     timestamp: number;
@@ -503,6 +530,8 @@ export type RecordedEvent =
     | InterventionEvent
     | ViewNavigationEvent
     | PanelVisibilityEvent
+    | ProblemStatementScrollEvent
+    | ProblemStatementSelectionEvent
     | SelectionChangeEvent
     | VisibleRangeChangeEvent
     | TerminalCommandEvent

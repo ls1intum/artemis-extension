@@ -413,6 +413,19 @@ describe('Message contracts: type guards', () => {
         const msg = { type: 42 };
         expect(isWebviewMessage(msg)).toBe(false);
     });
+
+    it('isWebviewMessage accepts problemStatementScroll command with payload', () => {
+        const msg = {
+            type: 'command', command: 'problemStatementScroll',
+            payload: { scrollTop: 0, scrollHeight: 2000, viewportHeight: 800, statementTop: 900, statementHeight: 1000 },
+        };
+        expect(isWebviewMessage(msg)).toBe(true);
+    });
+
+    it('isWebviewMessage rejects problemStatementSelection command without payload', () => {
+        const msg = { type: 'command', command: 'problemStatementSelection' };
+        expect(isWebviewMessage(msg)).toBe(false);
+    });
 });
 
 // ============================================================================

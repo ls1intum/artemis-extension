@@ -20,6 +20,7 @@ import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { mergeRecordingHandlers } from './commands/mergeCommandHandlers';
 import { NavigationCommandModule } from './commands/navigationCommands';
+import { ProblemStatementTrackingCommandModule } from './commands/problemStatementTrackingCommands';
 import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
 import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
 import { RepositorySubmitCommands } from './commands/repositorySubmitCommands';
@@ -83,6 +84,7 @@ export class WebViewMessageHandler {
             new HealthCommandModule(context),
             new UtilityCommandModule(context),
             new TestResultsTrackingCommandModule(context),
+            new ProblemStatementTrackingCommandModule(context),
             new BuildLogCommands(context),
             new ExerciseLifecycleCommands(context),
         ];

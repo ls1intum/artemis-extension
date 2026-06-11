@@ -13,6 +13,7 @@ export interface ExerciseDetailViewProps {
 export interface ProblemStatementProps {
     serverRenderedHtml?: string;
     onTaskClick?: (task: { taskName: string; testIds: number[] }) => void;
+    vscodeApi: VsCodeApi;
 }
 
 /**

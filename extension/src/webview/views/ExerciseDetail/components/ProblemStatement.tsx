@@ -1,8 +1,9 @@
 import katex from 'katex';
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, useEffect, useMemo, useState } from 'react';
 
 import { Container } from '@webview/components/Container';
 import { Skeleton } from '@webview/components/Skeleton/Skeleton';
+import { useProblemStatementTracking } from '@webview/hooks/useProblemStatementTracking';
 import type { ProblemStatementProps } from '@webview/views/ExerciseDetail/types';
 
 import styles from './ProblemStatement.module.css';
@@ -65,8 +66,9 @@ function renderKatexFormulas(container: HTMLElement): void {
 export function ProblemStatement({
     serverRenderedHtml,
     onTaskClick,
+    vscodeApi,
 }: ProblemStatementProps) {
-    const contentRef = useRef<HTMLDivElement>(null);
+    const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null);
     const [timedOut, setTimedOut] = useState(false);
 
     const bodyHtml = useMemo(
@@ -76,9 +78,11 @@ export function ProblemStatement({
 
     // After HTML injection, render KaTeX formulas client-side from server placeholders
     useEffect(() => {
-        if (!bodyHtml || !contentRef.current) { return; }
-        renderKatexFormulas(contentRef.current);
-    }, [bodyHtml]);
+        if (!bodyHtml || !contentEl) { return; }
+        renderKatexFormulas(contentEl);
+    }, [bodyHtml, contentEl]);
+
+    useProblemStatementTracking(contentEl, bodyHtml, vscodeApi);
 
     // Timeout: if SSR hasn't arrived after 10s, show error
     useEffect(() => {
@@ -108,7 +112,7 @@ export function ProblemStatement({
         <Container header={<h3>Exercise Description</h3>}>
             {bodyHtml ? (
                 <div
-                    ref={contentRef}
+                    ref={setContentEl}
                     className={styles.problemStatement}
                     dangerouslySetInnerHTML={{ __html: bodyHtml }}
                     onClick={handleClick}
