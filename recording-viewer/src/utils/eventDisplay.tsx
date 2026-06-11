@@ -9,7 +9,7 @@ function describeStatementScroll(e: {
     statementTop: number; statementHeight: number;
 }): string {
     const maxScroll = e.scrollHeight - e.viewportHeight;
-    const pagePercent = maxScroll > 0 ? Math.round((e.scrollTop / maxScroll) * 100) : 0;
+    const pagePercent = maxScroll > 0 ? Math.min(100, Math.max(0, Math.round((e.scrollTop / maxScroll) * 100))) : 0;
     if (e.statementHeight <= 0) {
         return `${pagePercent}% | statement not visible`;
     }

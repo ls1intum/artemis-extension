@@ -117,6 +117,19 @@ describe('eventDisplay drift harmonization (#243)', () => {
         }
     });
 
+    it('problemStatementScroll: page percent is clamped on rubber-band overscroll', () => {
+        const e: RecordedEvent = {
+            type: 'problemStatementScroll', timestamp: 1000,
+            scrollTop: 2500, scrollHeight: 3000, viewportHeight: 800,
+            statementTop: 900, statementHeight: 1600,
+        };
+        // 2500 / 2200 would be 114% unclamped
+        for (const text of [detailText(e), summaryText(e)]) {
+            expect(text).toContain('100%');
+            expect(text).not.toContain('114%');
+        }
+    });
+
     it('problemStatementSelection: both views show the text preview and length', () => {
         const e: RecordedEvent = {
             type: 'problemStatementSelection', timestamp: 1000,
