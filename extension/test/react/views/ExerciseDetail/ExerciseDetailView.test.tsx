@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ExtensionMsg } from '@shared/messageContracts';
 import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
@@ -543,5 +543,86 @@ describe('ExerciseDetailView', () => {
 			expect(screen.queryByText(/no build results yet/i)).not.toBeInTheDocument();
 		});
 		expect(screen.getByText('Passed (2)')).toBeInTheDocument();
+	});
+
+	describe('sticky build status strip', () => {
+		let observerCallback: IntersectionObserverCallback;
+
+		beforeEach(() => {
+			vi.stubGlobal(
+				'IntersectionObserver',
+				vi.fn(function (callback: IntersectionObserverCallback) {
+					observerCallback = callback;
+					return { observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() };
+				}),
+			);
+		});
+
+		afterEach(() => {
+			vi.unstubAllGlobals();
+		});
+
+		it('shows the strip when a build runs and the card leaves the viewport', () => {
+			// pendingSubmissionsByParticipationId is a TOP-LEVEL store field
+			// (not read from exerciseData) — seed it as a sibling, matching
+			// participation id 99 from the helper. Now-relative timing dates
+			// so the ETA pass-through (view → strip) is exercised end-to-end.
+			useExerciseDetailStore.setState({
+				exerciseData: makeExerciseDataWithParticipation(),
+				pendingSubmissionsByParticipationId: {
+					99: {
+						participationId: 99,
+						state: 'BUILDING',
+						buildTimingInfo: {
+							buildStartDate: new Date(Date.now() - 1_000).toISOString(),
+							estimatedCompletionDate: new Date(Date.now() + 60_000).toISOString(),
+						},
+					},
+				},
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			// Card visible → no strip
+			expect(screen.queryByText('Building…')).not.toBeInTheDocument();
+
+			// Card scrolls out of view
+			act(() => {
+				observerCallback(
+					[{ isIntersecting: false } as IntersectionObserverEntry],
+					{} as IntersectionObserver,
+				);
+			});
+			expect(screen.getByText('Building…')).toBeInTheDocument();
+			// The card shows its own ETA message, so scope to the strip.
+			const strip = screen.getByText('Building…').parentElement as HTMLElement;
+			expect(within(strip).getByText(/ETA:/)).toBeInTheDocument();
+
+			// Card scrolls back into view → strip disappears
+			act(() => {
+				observerCallback(
+					[{ isIntersecting: true } as IntersectionObserverEntry],
+					{} as IntersectionObserver,
+				);
+			});
+			expect(screen.queryByText('Building…')).not.toBeInTheDocument();
+		});
+
+		it('does not render the strip without a pending build', () => {
+			useExerciseDetailStore.setState({
+				exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				observerCallback(
+					[{ isIntersecting: false } as IntersectionObserverEntry],
+					{} as IntersectionObserver,
+				);
+			});
+			expect(screen.queryByText('Building…')).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Scroll to build status' })).not.toBeInTheDocument();
+		});
 	});
 });

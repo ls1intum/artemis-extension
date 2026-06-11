@@ -14,11 +14,12 @@ import {
     IconButton,
     SkeletonList,
 } from '@webview/components';
-import { ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
+import { BuildStatusStrip, ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
 import { type ExerciseType, isExerciseType } from '@webview/components/exercise/ParticipationActions';
 import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
 import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useInViewport } from '@webview/hooks/useInViewport';
 import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import {
@@ -76,6 +77,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
     const [openTaskView, setOpenTaskView] = useState<OpenTaskViewState | null>(null);
+
+    // Sticky build-status strip (#280): track whether the SubmissionStatus
+    // card is visible; the strip only shows while it is scrolled out of view.
+    // Callback-ref state (not useRef): the card mounts only after the loading
+    // early-returns below resolve, so the observer must attach when the
+    // element appears, not on first render.
+    const [submissionStatusEl, setSubmissionStatusEl] = useState<HTMLDivElement | null>(null);
+    const submissionStatusInView = useInViewport(submissionStatusEl);
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
@@ -519,39 +528,57 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
                 {/* Submission Status */}
                 {hasParticipation && (
-                    <SubmissionStatus
-                        status={submissionStatus}
-                        score={scorePercentage * maxPoints / 100}
-                        maxScore={maxPoints}
-                        scorePercentage={scorePercentage}
-                        exerciseType={exerciseType}
-                        buildFailed={buildFailed}
-                        hasTestInfo={hasTestInfo}
-                        totalTests={totalTests}
-                        passedTests={passedTests}
-                        estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
-                        buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
-                        onOpenTestResults={handleOverviewOpen}
-                        onViewBuildLog={() => {
-                            if (participationId) {
-                                postCommand(vscodeApi, 'viewBuildLog', {
-                                    participationId,
-                                    resultId: latestResult?.id,
-                                });
-                            }
-                        }}
-                        onGoToSource={() => {
-                            if (participationId) {
-                                postCommand(vscodeApi, 'goToSource', {
-                                    participationId,
-                                    resultId: latestResult?.id,
-                                });
-                            }
-                        }}
-                    />
+                    <div ref={setSubmissionStatusEl}>
+                        <SubmissionStatus
+                            status={submissionStatus}
+                            score={scorePercentage * maxPoints / 100}
+                            maxScore={maxPoints}
+                            scorePercentage={scorePercentage}
+                            exerciseType={exerciseType}
+                            buildFailed={buildFailed}
+                            hasTestInfo={hasTestInfo}
+                            totalTests={totalTests}
+                            passedTests={passedTests}
+                            estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
+                            buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
+                            onOpenTestResults={handleOverviewOpen}
+                            onViewBuildLog={() => {
+                                if (participationId) {
+                                    postCommand(vscodeApi, 'viewBuildLog', {
+                                        participationId,
+                                        resultId: latestResult?.id,
+                                    });
+                                }
+                            }}
+                            onGoToSource={() => {
+                                if (participationId) {
+                                    postCommand(vscodeApi, 'goToSource', {
+                                        participationId,
+                                        resultId: latestResult?.id,
+                                    });
+                                }
+                            }}
+                        />
+                    </div>
                 )}
 
             </Container>
+
+            {/* Sticky build status strip (#280) — fixed to the top of the
+                webview while a build runs and the card is out of view */}
+            {hasParticipation && isProgramming && (
+                <BuildStatusStrip
+                    status={submissionStatus}
+                    cardInView={submissionStatusInView}
+                    estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
+                    buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
+                    buildFailed={buildFailed}
+                    hasTestInfo={hasTestInfo}
+                    totalTests={totalTests}
+                    passedTests={passedTests}
+                    onScrollToCard={() => submissionStatusEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                />
+            )}
 
             {/* Ask Iris Section */}
             <AskIris
