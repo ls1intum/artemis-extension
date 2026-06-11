@@ -20,10 +20,12 @@ function scrollPayloadsEqual(a: ProblemStatementScrollPayload, b: ProblemStateme
         && a.statementHeight === b.statementHeight;
 }
 
-// Dedupe key per spec: text + the four geometry integers (selectionLength is
-// derived from the text and intentionally NOT part of the comparison).
+// Dedupe key: text + length + the four geometry integers. selectionLength is
+// redundant for uncapped texts but discriminates selections that share the
+// same capped 500-char prefix; `truncated` stays derived (selectionLength).
 function selectionPayloadsEqual(a: ProblemStatementSelectionPayload, b: ProblemStatementSelectionPayload): boolean {
     return a.selectedText === b.selectedText
+        && a.selectionLength === b.selectionLength
         && a.selectionTop === b.selectionTop
         && a.selectionLeft === b.selectionLeft
         && a.selectionWidth === b.selectionWidth
@@ -138,14 +140,17 @@ export function useProblemStatementTracking(
             }
             const selection = window.getSelection();
             if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+                lastSelectionRef.current = null;
                 return;
             }
             const { anchorNode, focusNode } = selection;
             if (!anchorNode || !focusNode || !element.contains(anchorNode) || !element.contains(focusNode)) {
+                lastSelectionRef.current = null;
                 return;
             }
             const text = selection.toString();
             if (text.length === 0) {
+                lastSelectionRef.current = null;
                 return;
             }
             const rect = selection.getRangeAt(0).getBoundingClientRect();

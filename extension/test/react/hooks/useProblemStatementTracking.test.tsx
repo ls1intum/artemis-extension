@@ -335,4 +335,47 @@ describe('useProblemStatementTracking', () => {
         });
         expect(postedPayloads(postMessage, 'problemStatementSelection')).toHaveLength(1);
     });
+
+    it('re-emits the same selection after the selection was cleared in between', () => {
+        const { api, postMessage } = makeVsCodeApi();
+        const el = makeStatementEl();
+        renderHook(() => useProblemStatementTracking(el, '<p>x</p>', api));
+        stubSelection(el, 'reread this paragraph');
+        act(() => {
+            document.dispatchEvent(new Event('selectionchange'));
+            vi.advanceTimersByTime(200);
+        });
+        // clear: collapsed selection resolves through the debounce
+        vi.stubGlobal('getSelection', () => ({ isCollapsed: true, rangeCount: 1 }));
+        act(() => {
+            document.dispatchEvent(new Event('selectionchange'));
+            vi.advanceTimersByTime(200);
+        });
+        // re-select the exact same phrase
+        stubSelection(el, 'reread this paragraph');
+        act(() => {
+            document.dispatchEvent(new Event('selectionchange'));
+            vi.advanceTimersByTime(200);
+        });
+        expect(postedPayloads(postMessage, 'problemStatementSelection')).toHaveLength(2);
+    });
+
+    it('distinguishes capped selections that differ only in uncapped length', () => {
+        const { api, postMessage } = makeVsCodeApi();
+        const el = makeStatementEl();
+        renderHook(() => useProblemStatementTracking(el, '<p>x</p>', api));
+        stubSelection(el, 'y'.repeat(600));
+        act(() => {
+            document.dispatchEvent(new Event('selectionchange'));
+            vi.advanceTimersByTime(200);
+        });
+        stubSelection(el, 'y'.repeat(700)); // same capped text + geometry, longer selection
+        act(() => {
+            document.dispatchEvent(new Event('selectionchange'));
+            vi.advanceTimersByTime(200);
+        });
+        const payloads = postedPayloads(postMessage, 'problemStatementSelection') as { selectionLength: number }[];
+        expect(payloads).toHaveLength(2);
+        expect(payloads[1].selectionLength).toBe(700);
+    });
 });
