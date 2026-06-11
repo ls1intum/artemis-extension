@@ -23,6 +23,7 @@ import { NavigationCommandModule } from './commands/navigationCommands';
 import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
 import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
 import { RepositorySubmitCommands } from './commands/repositorySubmitCommands';
+import { ProblemStatementTrackingCommandModule } from './commands/problemStatementTrackingCommands';
 import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
 import type { CommandContext, CommandHandler, CommandMap } from './commands/types';
 import { UtilityCommandModule } from './commands/utilityCommands';
@@ -83,6 +84,7 @@ export class WebViewMessageHandler {
             new HealthCommandModule(context),
             new UtilityCommandModule(context),
             new TestResultsTrackingCommandModule(context),
+            new ProblemStatementTrackingCommandModule(context),
             new BuildLogCommands(context),
             new ExerciseLifecycleCommands(context),
         ];

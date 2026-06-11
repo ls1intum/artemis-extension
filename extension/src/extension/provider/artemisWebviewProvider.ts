@@ -3,6 +3,8 @@ import { createRecordingWebviewHandlers } from '@dataCollection';
 
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
 import type {
+    ProblemStatementScrollPayload,
+    ProblemStatementSelectionPayload,
     TaskFeedbackClosedPayload,
     TaskFeedbackOpenedPayload,
     TestResultsOverviewClosedPayload,
@@ -96,12 +98,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _onDidOpenTaskFeedback = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
     private readonly _onDidCloseTaskFeedback = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
     private readonly _onDidSubmission = new vscode.EventEmitter<SubmissionPayload>();
+    private readonly _onDidProblemStatementScroll = new vscode.EventEmitter<ProblemStatementScrollPayload>();
+    private readonly _onDidProblemStatementSelection = new vscode.EventEmitter<ProblemStatementSelectionPayload>();
 
     public readonly onDidOpenTestResultsOverview = this._onDidOpenTestResultsOverview.event;
     public readonly onDidCloseTestResultsOverview = this._onDidCloseTestResultsOverview.event;
     public readonly onDidOpenTaskFeedback = this._onDidOpenTaskFeedback.event;
     public readonly onDidCloseTaskFeedback = this._onDidCloseTaskFeedback.event;
     public readonly onDidSubmission = this._onDidSubmission.event;
+    public readonly onDidProblemStatementScroll = this._onDidProblemStatementScroll.event;
+    public readonly onDidProblemStatementSelection = this._onDidProblemStatementSelection.event;
 
     // ── Constructor ────────────────────────────────────────────────────
     constructor(deps: ArtemisWebviewProviderDeps) {
@@ -250,6 +256,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._onDidOpenTaskFeedback,
             this._onDidCloseTaskFeedback,
             this._onDidSubmission,
+            this._onDidProblemStatementScroll,
+            this._onDidProblemStatementSelection,
         );
     }
 
@@ -400,6 +408,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public fireSubmission(payload: SubmissionPayload): void {
         this._onDidSubmission.fire(payload);
+    }
+
+    public fireProblemStatementScroll(payload: ProblemStatementScrollPayload): void {
+        this._onDidProblemStatementScroll.fire(payload);
+    }
+
+    public fireProblemStatementSelection(payload: ProblemStatementSelectionPayload): void {
+        this._onDidProblemStatementSelection.fire(payload);
     }
 
     // ── Public API: navigation delegation ──────────────────────────────
