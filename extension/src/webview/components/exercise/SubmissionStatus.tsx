@@ -1,8 +1,9 @@
 import clsx from 'clsx';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode } from 'react';
 
 import { Badge } from '@webview/components/Badge';
 import { Button } from '@webview/components/Button';
+import { useBuildProgress } from '@webview/hooks/useBuildProgress';
 
 import styles from './SubmissionStatus.module.css';
 
@@ -59,40 +60,11 @@ export function SubmissionStatus({
   buildStartDate,
 }: SubmissionStatusProps) {
   // ETA countdown for building state
-  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
-  const [progressPercent, setProgressPercent] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (status !== 'building' || !estimatedCompletionDate || !buildStartDate) {
-      setEtaSeconds(null);
-      setProgressPercent(null);
-      return;
-    }
-
-    const eta = new Date(estimatedCompletionDate).getTime();
-    const start = new Date(buildStartDate).getTime();
-    const totalTime = eta - start;
-
-    if (totalTime <= 0) {
-      setEtaSeconds(null);
-      setProgressPercent(null);
-      return;
-    }
-
-    const update = () => {
-      const now = Date.now();
-      const elapsed = now - start;
-      const remaining = Math.max(0, Math.floor((eta - now) / 1000));
-      const percent = Math.min(100, Math.max(5, (elapsed / totalTime) * 100));
-
-      setEtaSeconds(remaining > 0 ? remaining : null);
-      setProgressPercent(remaining > 0 ? percent : null);
-    };
-
-    update();
-    const interval = setInterval(update, 500);
-    return () => clearInterval(interval);
-  }, [status, estimatedCompletionDate, buildStartDate]);
+  const { etaSeconds, progressPercent } = useBuildProgress(
+    status === 'building',
+    buildStartDate,
+    estimatedCompletionDate,
+  );
 
   // Empty state for programming exercises with no submissions
   if (status === 'no-submission' && exerciseType === 'programming') {
