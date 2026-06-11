@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export interface BuildProgress {
+interface BuildProgress {
     /** Whole seconds until the estimated completion, or null when unknown/elapsed. */
     etaSeconds: number | null;
     /** Progress percentage clamped to 5–100, or null when unknown/elapsed. */
