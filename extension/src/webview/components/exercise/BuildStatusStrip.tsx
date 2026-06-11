@@ -41,7 +41,11 @@ interface FlashContent {
   text: string;
 }
 
-/** Mirrors the badge semantics of the SubmissionStatus card. */
+/**
+ * Text mirrors the SubmissionStatus card's badge. The icon/color variant
+ * follows the score-derived status (per spec), which can differ from the
+ * card's pass-ratio badge color when tests are weighted.
+ */
 function flashContent(
   flash: FlashStatus,
   buildFailed: boolean,

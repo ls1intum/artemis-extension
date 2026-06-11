@@ -608,6 +608,44 @@ describe('ExerciseDetailView', () => {
 			expect(screen.queryByText('Building…')).not.toBeInTheDocument();
 		});
 
+		it('flashes the result when the build finishes while the card is out of view', () => {
+			useExerciseDetailStore.setState({
+				exerciseData: makeExerciseDataWithParticipation(),
+				pendingSubmissionsByParticipationId: {
+					99: { participationId: 99, state: 'BUILDING' },
+				},
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				observerCallback(
+					[{ isIntersecting: false } as IntersectionObserverEntry],
+					{} as IntersectionObserver,
+				);
+			});
+			expect(screen.getByText('Building…')).toBeInTheDocument();
+
+			// Build finishes: the store deletes the pending entry and appends
+			// the result in a single set(), so the view re-renders exactly
+			// once with building → partial.
+			act(() => {
+				useExerciseDetailStore.getState().updateBuildStatus({
+					id: 10,
+					participationId: 99,
+					score: 66.7,
+					successful: false,
+					testCaseCount: 3,
+					passedTestCaseCount: 2,
+					feedbacks: [],
+				});
+			});
+			expect(screen.queryByText('Building…')).not.toBeInTheDocument();
+			// The card badge renders the same text, so scope to the strip's
+			// live region.
+			expect(screen.getByRole('status')).toHaveTextContent('2/3 tests passed');
+		});
+
 		it('does not render the strip without a pending build', () => {
 			useExerciseDetailStore.setState({
 				exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),

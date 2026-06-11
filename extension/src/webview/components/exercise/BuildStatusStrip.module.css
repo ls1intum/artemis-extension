@@ -145,5 +145,10 @@
 
   .progressBarIndeterminate {
     animation: none;
+    /* Static fallback: without the sweep the bar's base width is 0%,
+       which would leave an empty track. */
+    left: 0;
+    width: 100%;
+    opacity: 0.4;
   }
 }
