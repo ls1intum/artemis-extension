@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
 
+import { isLikelyManualPaste } from '@extension/services/sensing/collectors/paste';
 import { InactivityService } from '@extension/services/telemetry/inactivityService';
 import { AdaptiveCadence } from '@extension/services/telemetry/intervention/adaptiveCadence';
 import { DEFAULT_TRIGGER_CONFIG, SessionResettable, SessionStartContext, TriggerConfig, TriggerType } from '@extension/services/telemetry/types';
-
-import { isLikelyManualPaste } from './compileEquivalentEmitter';
 
 /**
  * Emits boundary trigger events based on Pu et al. 2025 [P11, Section 4].
