@@ -14,15 +14,15 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 
-import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
-import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
+import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
+import type { RecordingFs } from '@extension/services/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/recording/storageWriter';
 import type {
     IrisChatFeedbackEvent,
     IrisChatMessageEvent,
     IrisChatSendAttemptEvent,
     RecordedEvent,
-} from '@extension/services/telemetry/recording/types';
+} from '@extension/services/recording/types';
 
 // ── Minimal fake FS ───────────────────────────────────────────────────────────
 

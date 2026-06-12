@@ -17,11 +17,11 @@ import {
     collectDebugSession,
     collectInitialBreakpointSnapshot,
     filterRecordableSourceBreakpoints,
-} from '@extension/services/telemetry/recording/eventCollectors';
-import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
-import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+} from '@extension/services/recording/eventCollectors';
+import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
+import type { RecordingFs } from '@extension/services/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/recording/storageWriter';
+import type { RecordedEvent } from '@extension/services/recording/types';
 
 const ROOT_URI = vscode.Uri.file('/workspace/exercise1');
 const ROOT = ROOT_URI.toString();

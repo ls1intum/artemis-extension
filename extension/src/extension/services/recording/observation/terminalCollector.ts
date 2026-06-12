@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { RecorderLifecycleState } from '@extension/services/recording/lifecycleController';
+import type { RecordedEvent } from '@extension/services/recording/types';
 import type { SensorHub } from '@extension/services/sensing';
-import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 
 interface PendingExecution {
     output: string;

@@ -1,11 +1,11 @@
-// Fail-closed proof that the Open VSX bundle excludes recorder/consent/replay.
+// Fail-closed proof that the Open VSX bundle excludes the recorder (which
+// contains replay/ as a subtree) and consent.
 // Reads the variant metafiles and asserts no forbidden input path is present.
 const fs = require('fs');
 const path = require('path');
 
 const FORBIDDEN = [
-    'src/extension/services/telemetry/recording/',
-    'src/extension/services/telemetry/replay/',
+    'src/extension/services/recording/',
     'src/extension/services/auth/consentService.ts',
     'src/extension/activation/sessionRecorderWiring.ts',
 ];

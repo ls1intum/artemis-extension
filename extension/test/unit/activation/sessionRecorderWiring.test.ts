@@ -31,7 +31,7 @@ import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
-import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type {
     BreakpointChangeEvent,
     ConfigurationChangeEvent,
@@ -41,7 +41,7 @@ import type {
     PanelVisibilityEvent,
     RecordedEvent,
     SubmissionPayload,
-} from '@extension/services/telemetry/recording/types';
+} from '@extension/services/recording/types';
 import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type { InterventionDecision } from '@extension/services/telemetry/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';

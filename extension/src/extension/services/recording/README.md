@@ -26,6 +26,11 @@ recording/
 │                              _doDisable orchestration, recordInternal,
 │                              writeLifecycleEvent). Both classes co-located.
 │
+├── replay/
+│   ├── replayCommand.ts       VS Code command: replay a recording offline
+│   ├── replayEngine.ts        Feeds recorded events through the EQ engine
+│   └── snapshotReconstructor.ts  Rebuilds file states from snapshots+deltas
+│
 ├── snapshots/
 │   └── snapshotManager.ts     File snapshots with retry (max 3) + in-flight
 │                              dedup. fileSnapshotError via lifecycle bypass.
@@ -102,9 +107,10 @@ and `eventCount`.
 Not everything recorder-related lives here. The core is self-contained, but:
 
 - `activation/sessionRecorderWiring.ts` — wires the recorder into the extension
-  (instantiates it, registers the three startup contributors for EQ engine
-  state, panel visibility, and struggle-detection configuration).
-- `telemetry/replay/` — consumer side. Reads recordings back for EQ tuning.
+  (instantiates it, registers the four startup contributors: EQ engine
+  state, panel visibility, struggle-detection configuration, and the initial
+  breakpoint snapshot).
+- `replay/` — consumer side. Reads recordings back for EQ tuning.
   Imports `RecordedEvent` from here, produces nothing.
 - `telemetry/buildResultGuard.ts` — shared `shouldAcceptBuildResult()` used by
   both `TelemetryManager` and the recorder's `onNewResult` path.

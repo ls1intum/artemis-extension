@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 
+import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
+import type { RecordingFs } from '@extension/services/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/recording/storageWriter';
+import type { RecordedEvent } from '@extension/services/recording/types';
 import type { SelectionSignal } from '@extension/services/sensing/types';
-import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
-import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 class MemFs implements RecordingFs {

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_EQ_CONFIG } from '@extension/services/eq/types';
+import { replaySession } from '@extension/services/recording/replay/replayEngine';
 import type {
     BuildResultEvent,
     DiagnosticsEvent,
     RecordedEvent,
     SaveEvent,
-} from '@extension/services/telemetry/recording/types';
-import { replaySession } from '@extension/services/telemetry/replay/replayEngine';
+} from '@extension/services/recording/types';
 
 function diagEvent(timestamp: number, uri: string, diagnostics: DiagnosticsEvent['diagnostics']): DiagnosticsEvent {
     return { type: 'diagnostics', timestamp, uri, diagnostics };

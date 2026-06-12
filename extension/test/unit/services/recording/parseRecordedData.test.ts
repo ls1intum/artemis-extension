@@ -19,9 +19,9 @@
 
 import * as assert from 'assert';
 
-import { KNOWN_EVENT_TYPES, parseRecordedEvent, parseSessionMetadata } from '@extension/services/telemetry/recording/parseRecordedData';
-import type { InterventionEvent, RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
-import { INTERVENTION_RECORD_ACTIONS } from '@extension/services/telemetry/recording/types';
+import { KNOWN_EVENT_TYPES, parseRecordedEvent, parseSessionMetadata } from '@extension/services/recording/parseRecordedData';
+import type { InterventionEvent, RecordedEvent, SessionMetadata } from '@extension/services/recording/types';
+import { INTERVENTION_RECORD_ACTIONS } from '@extension/services/recording/types';
 import {
     INTERVENTION_BLOCKED_REASONS,
     INTERVENTION_DISMISS_REASONS,

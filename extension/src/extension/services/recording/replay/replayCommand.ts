@@ -9,8 +9,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { parseRecordedEvent, parseSessionMetadata } from '@extension/services/telemetry/recording/parseRecordedData';
-import type { RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
+import { parseRecordedEvent, parseSessionMetadata } from '@extension/services/recording/parseRecordedData';
+import type { RecordedEvent, SessionMetadata } from '@extension/services/recording/types';
 
 import { replaySession } from './replayEngine';
 

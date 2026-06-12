@@ -13,7 +13,7 @@ import type {
     EqEngineStateEvent,
     RecordedEvent,
     SerializedDiagnostic,
-} from '@extension/services/telemetry/recording/types';
+} from '@extension/services/recording/types';
 
 import { createSnapshotFromBuildEvent, createSnapshotFromDiagnosticState } from './snapshotReconstructor';
 

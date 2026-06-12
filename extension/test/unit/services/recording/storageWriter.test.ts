@@ -17,9 +17,9 @@
 import * as assert from 'assert';
 import * as path from 'path';
 
-import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+import type { RecordingFs } from '@extension/services/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/recording/storageWriter';
+import type { RecordedEvent } from '@extension/services/recording/types';
 
 // ── Fake FS ───────────────────────────────────────────────────────────────────
 

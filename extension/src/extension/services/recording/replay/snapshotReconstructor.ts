@@ -7,8 +7,8 @@
 
 import { LINT_SOURCE_DENYLIST } from '@extension/services/eq/lintDenylist';
 import type { ErrorSnapshot } from '@extension/services/eq/types';
+import type { BuildResultEvent, SerializedDiagnostic } from '@extension/services/recording/types';
 import { shouldRecordUriString } from '@extension/services/sensing/uriFilter';
-import type { BuildResultEvent, SerializedDiagnostic } from '@extension/services/telemetry/recording/types';
 
 /**
  * Check if a serialized diagnostic is a compiler diagnostic (not lint).

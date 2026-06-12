@@ -30,11 +30,11 @@ vi.mock('vscode', () => {
 
 import { CompileEquivalentEmitter } from '@extension/services/eq/compileEquivalentEmitter';
 import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
-import { collectBuildResult } from '@extension/services/telemetry/recording/eventCollectors';
-import { parseRecordedEvent } from '@extension/services/telemetry/recording/parseRecordedData';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
-import { replaySession } from '@extension/services/telemetry/replay/replayEngine';
+import { collectBuildResult } from '@extension/services/recording/eventCollectors';
+import { parseRecordedEvent } from '@extension/services/recording/parseRecordedData';
+import { replaySession } from '@extension/services/recording/replay/replayEngine';
+import { RecordingStorageWriter } from '@extension/services/recording/storageWriter';
+import type { RecordedEvent } from '@extension/services/recording/types';
 import type { ResultDTO } from '@extension/types';
 
 function failedBuild(texts: string[]): ResultDTO {

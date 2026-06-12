@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
-import { RecordingStatusBarService } from '@extension/services/telemetry/recording/recordingStatusBar';
-import type { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import { RecordingStatusBarService } from '@extension/services/recording/recordingStatusBar';
+import type { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 
 function makeRecorderStub(): SessionRecorder {
     const emitter = new vscode.EventEmitter<{ isEnabled: boolean; isRecording: boolean }>();

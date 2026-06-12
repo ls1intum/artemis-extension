@@ -4,17 +4,17 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
-import type { SensorHub } from '@extension/services/sensing';
-import type { TelemetryManager } from '@extension/services/telemetry';
-import type { SessionRecorder } from '@extension/services/telemetry/recording';
+import type { SessionRecorder } from '@extension/services/recording';
 import {
     RecordingStatusBarService as RecordingStatusBarServiceImpl,
     SessionRecorder as SessionRecorderImpl,
-} from '@extension/services/telemetry/recording';
+} from '@extension/services/recording';
 import {
     collectInitialBreakpointSnapshot,
-} from '@extension/services/telemetry/recording/eventCollectors';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+} from '@extension/services/recording/eventCollectors';
+import type { RecordedEvent } from '@extension/services/recording/types';
+import type { SensorHub } from '@extension/services/sensing';
+import type { TelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { PlatformCapabilities } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils/constants';
