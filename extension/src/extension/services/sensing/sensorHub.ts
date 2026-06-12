@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 
+import { LogCategory, logger } from '@extension/services/loggingService';
 import type { PlatformCapabilities } from '@extension/theia';
 
 import { nextSensorSeq } from './sequence';
@@ -74,8 +75,13 @@ export interface SensorHub extends vscode.Disposable {
  * (PR1 decision log #1a). Fan-out is synchronous in attach order.
  */
 class LazyRelay<TRaw, TSignal> implements vscode.Disposable {
-    private readonly _listeners = new Set<(signal: TSignal) => void>();
+    // One entry per subscription (NOT per unique function): the same listener
+    // registered twice must hold two independent subscriptions, exactly like
+    // vscode.EventEmitter. A Set of raw functions would silently collapse
+    // duplicates and corrupt the refcount.
+    private readonly _subscriptions = new Set<{ call: (signal: TSignal) => void }>();
     private _source: vscode.Disposable | undefined;
+    private _disposed = false;
 
     constructor(
         private readonly _subscribe: (handler: (raw: TRaw) => void) => vscode.Disposable,
@@ -83,15 +89,24 @@ class LazyRelay<TRaw, TSignal> implements vscode.Disposable {
     ) {}
 
     readonly event: vscode.Event<TSignal> = (listener, thisArgs?, disposables?) => {
+        if (this._disposed) {
+            // Post-dispose attach must not resurrect the VS Code subscription:
+            // dispose() drains the hub's tracking, so a resurrected source
+            // could never be cleaned up again.
+            const inert = new vscode.Disposable(() => { /* relay disposed */ });
+            disposables?.push(inert);
+            return inert;
+        }
         const bound: (signal: TSignal) => void =
             thisArgs !== undefined ? listener.bind(thisArgs) : listener;
-        this._listeners.add(bound);
-        if (this._listeners.size === 1) {
+        const entry = { call: bound };
+        this._subscriptions.add(entry);
+        if (this._subscriptions.size === 1) {
             this._source = this._subscribe(raw => this._fan(this._map(raw)));
         }
         const subscription = new vscode.Disposable(() => {
-            this._listeners.delete(bound);
-            if (this._listeners.size === 0) {
+            this._subscriptions.delete(entry);
+            if (this._subscriptions.size === 0) {
                 this._source?.dispose();
                 this._source = undefined;
             }
@@ -101,14 +116,24 @@ class LazyRelay<TRaw, TSignal> implements vscode.Disposable {
     };
 
     private _fan(signal: TSignal): void {
-        // Copy: a listener may attach/detach during fan-out.
-        for (const listener of [...this._listeners]) {
-            listener(signal);
+        // Copy: a subscription may attach/detach during fan-out. Chosen
+        // semantics: a subscription disposed mid-fan-out still receives the
+        // in-flight signal. Errors are isolated per listener so one throwing
+        // consumer cannot suppress delivery to the others (matching the
+        // pre-hub world, where each consumer held its own VS Code
+        // subscription and VS Code isolated listener errors).
+        for (const entry of [...this._subscriptions]) {
+            try {
+                entry.call(signal);
+            } catch (err) {
+                logger.error('Sensor channel listener threw', LogCategory.TELEMETRY, err);
+            }
         }
     }
 
     dispose(): void {
-        this._listeners.clear();
+        this._disposed = true;
+        this._subscriptions.clear();
         this._source?.dispose();
         this._source = undefined;
     }
@@ -210,7 +235,7 @@ export class VsCodeSensorHub implements SensorHub {
     constructor(capabilities?: PlatformCapabilities) {
         // Shell-execution API is Desktop-only; the capability flag guards the
         // subscription so Theia builds never touch the missing API.
-        const hasShellExecution = capabilities?.hasTerminalShellExecution !== false;
+        const hasShellExecution = capabilities?.hasTerminalShellExecution ?? true;
         this.onDidStartTerminalShellExecution = this._relay(
             hasShellExecution ? h => vscode.window.onDidStartTerminalShellExecution(h) : () => NOOP_SUBSCRIPTION,
             (event: vscode.TerminalShellExecutionStartEvent): ShellExecutionStartSignal => ({ ts: Date.now(), event }),

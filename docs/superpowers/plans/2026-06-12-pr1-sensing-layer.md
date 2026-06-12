@@ -105,10 +105,12 @@ import { VsCodeSensorHub } from '@extension/services/sensing/sensorHub';
 suite('VsCodeSensorHub', () => {
     test('relays text changes with an arrival timestamp', async () => {
         const hub = new VsCodeSensorHub();
+        // Open FIRST: VS Code fires onDidChangeTextDocument for the initial
+        // content fill, so subscribing before open would see 2 events.
+        const doc = await vscode.workspace.openTextDocument({ content: 'abc', language: 'plaintext' });
         const received: TextChangeSignal[] = [];
         const sub = hub.onDidChangeTextDocument(signal => received.push(signal));
 
-        const doc = await vscode.workspace.openTextDocument({ content: 'abc', language: 'plaintext' });
         const edit = new vscode.WorkspaceEdit();
         edit.insert(doc.uri, new vscode.Position(0, 0), 'x');
         const before = Date.now();

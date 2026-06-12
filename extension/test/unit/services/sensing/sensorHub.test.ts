@@ -64,6 +64,64 @@ suite('VsCodeSensorHub', () => {
         }
     });
 
+    test('fan-out isolates listener errors and supports duplicate listeners', () => {
+        const original = vscode.window.onDidOpenTerminal;
+        let handler: ((t: vscode.Terminal) => void) | undefined;
+        let active = 0;
+        (vscode.window as { onDidOpenTerminal: typeof vscode.window.onDidOpenTerminal }).onDidOpenTerminal =
+            ((listener: (t: vscode.Terminal) => void) => {
+                active++;
+                handler = listener;
+                return new vscode.Disposable(() => { active--; handler = undefined; });
+            }) as typeof vscode.window.onDidOpenTerminal;
+        try {
+            const hub = new VsCodeSensorHub();
+            let calls = 0;
+            const counting = (): void => { calls++; };
+            const throwing = (): void => { throw new Error('consumer bug'); };
+
+            const s1 = hub.onDidOpenTerminal(throwing);
+            const s2 = hub.onDidOpenTerminal(counting);
+            const s3 = hub.onDidOpenTerminal(counting); // same fn twice = two subscriptions
+            handler?.({} as vscode.Terminal);
+            assert.strictEqual(calls, 2, 'error in one listener must not suppress others; duplicates deliver twice');
+
+            s2.dispose();
+            handler?.({} as vscode.Terminal);
+            assert.strictEqual(calls, 3, 'remaining duplicate subscription still delivers');
+            assert.strictEqual(active, 1, 'source stays while subscriptions remain');
+
+            s1.dispose();
+            s3.dispose();
+            assert.strictEqual(active, 0, 'last subscription detaches the source');
+            hub.dispose();
+        } finally {
+            (vscode.window as { onDidOpenTerminal: typeof vscode.window.onDidOpenTerminal }).onDidOpenTerminal = original;
+        }
+    });
+
+    test('hub.dispose() detaches sources and post-dispose attach stays inert', () => {
+        const original = vscode.window.onDidOpenTerminal;
+        let active = 0;
+        (vscode.window as { onDidOpenTerminal: typeof vscode.window.onDidOpenTerminal }).onDidOpenTerminal =
+            ((_listener: (t: vscode.Terminal) => void) => {
+                active++;
+                return new vscode.Disposable(() => { active--; });
+            }) as typeof vscode.window.onDidOpenTerminal;
+        try {
+            const hub = new VsCodeSensorHub();
+            hub.onDidOpenTerminal(() => { /* consumer */ });
+            assert.strictEqual(active, 1);
+            hub.dispose();
+            assert.strictEqual(active, 0, 'dispose() must detach the underlying source');
+            const sub = hub.onDidOpenTerminal(() => { /* late consumer */ });
+            assert.strictEqual(active, 0, 'post-dispose attach must not resurrect the source');
+            sub.dispose();
+        } finally {
+            (vscode.window as { onDidOpenTerminal: typeof vscode.window.onDidOpenTerminal }).onDidOpenTerminal = original;
+        }
+    });
+
     test('state reads delegate to the live VS Code namespace', () => {
         const hub = new VsCodeSensorHub();
         assert.deepStrictEqual(hub.readAllDiagnostics(), vscode.languages.getDiagnostics());
