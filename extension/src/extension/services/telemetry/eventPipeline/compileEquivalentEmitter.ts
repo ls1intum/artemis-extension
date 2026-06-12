@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { type DiagnosticsSettledSignal, nextSensorSeq } from '@extension/services/sensing';
+import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 import { buildErrorFamiliesFromFeedbacks } from '@extension/services/telemetry/metrics/buildErrorFamily';
 import { shouldDedupSnapshot } from '@extension/services/telemetry/metrics/snapshotDedup';
 import {
@@ -13,7 +14,6 @@ import {
     SessionResettable,
     SessionStartContext,
 } from '@extension/services/telemetry/types';
-import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 import { ResultDTO } from '@extension/types';
 
 import { LINT_SOURCE_DENYLIST } from './lintDenylist';

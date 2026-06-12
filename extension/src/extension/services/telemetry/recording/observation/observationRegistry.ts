@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { SensorHub } from '@extension/services/sensing';
+import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 import {
     collectBreakpointChange,
     collectDebugSession,
@@ -17,7 +18,6 @@ import {
 import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
 import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
-import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 
 import { TerminalCollector } from './terminalCollector';
 

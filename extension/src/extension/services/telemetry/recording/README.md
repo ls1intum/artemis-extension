@@ -17,7 +17,7 @@ recording/
 ├── eventCollectors.ts         Pure fns: vscode.* objects → RecordedEvent
 ├── index.ts                   Barrel (SessionRecorder + RecordingStatusBarService)
 │
-│   (uriFilter.ts now lives at services/telemetry/uriFilter.ts — moved out of
+│   (uriFilter.ts now lives at services/sensing/uriFilter.ts — moved out of
 │    recording/ so the EQ engine can import it without coupling into recording/)
 │
 ├── lifecycleController.ts     RecorderLifecycleState (pure state: phase FSM,

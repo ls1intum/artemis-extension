@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 
+import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 import { buildErrorFamiliesFromFeedbacks } from '@extension/services/telemetry/metrics/buildErrorFamily';
-import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 import type { ResultDTO } from '@extension/types';
 
 import type {
