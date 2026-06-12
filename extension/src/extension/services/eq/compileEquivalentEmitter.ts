@@ -2,20 +2,21 @@ import * as vscode from 'vscode';
 
 import { type DiagnosticsSettledSignal, nextSensorSeq } from '@extension/services/sensing';
 import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
-import { buildErrorFamiliesFromFeedbacks } from '@extension/services/telemetry/metrics/buildErrorFamily';
-import { shouldDedupSnapshot } from '@extension/services/telemetry/metrics/snapshotDedup';
+// Interim (PR 2a): the session-lifecycle contracts stay in telemetry/types
+// until PR 2c dissolves services/telemetry and relocates them.
+import { SessionResettable, SessionStartContext } from '@extension/services/telemetry/types';
+import { ResultDTO } from '@extension/types';
+
+import { buildErrorFamiliesFromFeedbacks } from './buildErrorFamily';
+import { LINT_SOURCE_DENYLIST } from './lintDenylist';
+import { shouldDedupSnapshot } from './snapshotDedup';
 import {
     BuildResultClassification,
     CompileEquivalentEvent,
     DEFAULT_EQ_CONFIG,
     EQConfig,
     ErrorSnapshot,
-    SessionResettable,
-    SessionStartContext,
-} from '@extension/services/telemetry/types';
-import { ResultDTO } from '@extension/types';
-
-import { LINT_SOURCE_DENYLIST } from './lintDenylist';
+} from './types';
 
 /**
  * Emits CompileEquivalentEvents from settled diagnostics dumps and build results.

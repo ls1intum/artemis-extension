@@ -1,14 +1,9 @@
-import {
-    DEFAULT_EQ_CONFIG,
-    EQConfidence,
-    EQConfig,
-    EQState,
-    ErrorSnapshot,
-    SessionResettable,
-    SessionStartContext,
-} from '@extension/services/telemetry/types';
+// Interim (PR 2a): the session-lifecycle contracts stay in telemetry/types
+// until PR 2c dissolves services/telemetry and relocates them.
+import { SessionResettable, SessionStartContext } from '@extension/services/telemetry/types';
 
 import { shouldDedupSnapshot } from './snapshotDedup';
+import { DEFAULT_EQ_CONFIG, EQConfidence, EQConfig, EQState, ErrorSnapshot } from './types';
 
 /**
  * Error Quotient (EQ) Engine — pure calculation based on Jadud 2006 [P3].

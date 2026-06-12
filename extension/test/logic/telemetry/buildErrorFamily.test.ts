@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     BUILD_ERROR_FAMILY_MAX_CHARS,
     buildErrorFamiliesFromFeedbacks,
-} from '@extension/services/telemetry/metrics/buildErrorFamily';
+} from '@extension/services/eq/buildErrorFamily';
 
 describe('buildErrorFamiliesFromFeedbacks', () => {
     it('maps each failed feedback with text to a build:<text> family', () => {

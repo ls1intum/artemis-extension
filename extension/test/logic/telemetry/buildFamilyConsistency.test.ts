@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildErrorFamiliesFromFeedbacks } from '@extension/services/telemetry/metrics/buildErrorFamily';
+import { buildErrorFamiliesFromFeedbacks } from '@extension/services/eq/buildErrorFamily';
 import { collectBuildResult } from '@extension/services/telemetry/recording/eventCollectors';
 import { createSnapshotFromBuildEvent } from '@extension/services/telemetry/replay/snapshotReconstructor';
 import type { ResultDTO } from '@extension/types';

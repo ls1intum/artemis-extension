@@ -11,7 +11,7 @@
 import * as assert from 'assert';
 
 import type { ResultDTO } from '@extension/domain/submissions';
-import { classifyBuildResult } from '@extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
+import { classifyBuildResult } from '@extension/services/eq/compileEquivalentEmitter';
 
 function makeResult(overrides: Partial<ResultDTO> = {}): ResultDTO {
     return {

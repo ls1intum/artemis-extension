@@ -28,8 +28,8 @@ vi.mock('vscode', () => {
     return { EventEmitter, Uri, DiagnosticSeverity };
 });
 
-import { CompileEquivalentEmitter } from '@extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
-import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
+import { CompileEquivalentEmitter } from '@extension/services/eq/compileEquivalentEmitter';
+import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
 import { collectBuildResult } from '@extension/services/telemetry/recording/eventCollectors';
 import { parseRecordedEvent } from '@extension/services/telemetry/recording/parseRecordedData';
 import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';

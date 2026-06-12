@@ -1,4 +1,4 @@
-import type { ErrorSnapshot } from '@extension/services/telemetry/types';
+import type { ErrorSnapshot } from './types';
 
 /**
  * Check if a new snapshot should be deduped against the previous one.

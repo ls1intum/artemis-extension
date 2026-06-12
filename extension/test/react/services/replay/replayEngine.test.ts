@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_EQ_CONFIG } from '@extension/services/eq/types';
 import type {
     BuildResultEvent,
     DiagnosticsEvent,
@@ -7,7 +8,6 @@ import type {
     SaveEvent,
 } from '@extension/services/telemetry/recording/types';
 import { replaySession } from '@extension/services/telemetry/replay/replayEngine';
-import { DEFAULT_EQ_CONFIG } from '@extension/services/telemetry/types';
 
 function diagEvent(timestamp: number, uri: string, diagnostics: DiagnosticsEvent['diagnostics']): DiagnosticsEvent {
     return { type: 'diagnostics', timestamp, uri, diagnostics };
