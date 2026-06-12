@@ -1,9 +1,11 @@
 // extension/test/unit/services/sensing/sensorHub.test.ts
 import * as vscode from 'vscode';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 
+import { DiagnosticsSettleCollector } from '@extension/services/sensing/collectors/diagnosticsSettle';
 import { VsCodeSensorHub } from '@extension/services/sensing/sensorHub';
-import type { TextChangeSignal } from '@extension/services/sensing/types';
+import type { DiagnosticsSettledSignal, TextChangeSignal } from '@extension/services/sensing/types';
 
 suite('VsCodeSensorHub', () => {
     test('relays text changes with an arrival timestamp', async () => {
@@ -131,5 +133,42 @@ suite('VsCodeSensorHub', () => {
         assert.strictEqual(hub.readTerminals().length, vscode.window.terminals.length);
         assert.strictEqual(hub.readBreakpoints().length, vscode.debug.breakpoints.length);
         hub.dispose();
+    });
+
+    test('settle channel: one underlying save listener for N consumers, torn down with the last', () => {
+        const original = vscode.workspace.onDidSaveTextDocument;
+        let saveListeners = 0;
+        let fireSave: ((doc: vscode.TextDocument) => void) | undefined;
+        (vscode.workspace as { onDidSaveTextDocument: typeof vscode.workspace.onDidSaveTextDocument }).onDidSaveTextDocument =
+            ((listener: (doc: vscode.TextDocument) => void) => {
+                saveListeners++;
+                fireSave = listener;
+                return new vscode.Disposable(() => { saveListeners--; fireSave = undefined; });
+            }) as typeof vscode.workspace.onDidSaveTextDocument;
+        const clock = sinon.useFakeTimers();
+        try {
+            const hub = new VsCodeSensorHub();
+            const received: DiagnosticsSettledSignal[] = [];
+            const s1 = hub.onDiagnosticsSettled(signal => received.push(signal));
+            const s2 = hub.onDiagnosticsSettled(signal => received.push(signal));
+            assert.strictEqual(saveListeners, 1, 'N settle consumers share one save listener');
+
+            fireSave?.({ uri: vscode.Uri.file('/w/A.java') } as vscode.TextDocument);
+            clock.tick(DiagnosticsSettleCollector.DIAGNOSTICS_SETTLE_MS + 1);
+            assert.strictEqual(received.length, 2, 'both consumers receive the settled dump');
+
+            s1.dispose();
+            assert.strictEqual(saveListeners, 1, 'collector stays while a consumer remains');
+
+            fireSave?.({ uri: vscode.Uri.file('/w/B.java') } as vscode.TextDocument);
+            s2.dispose();
+            assert.strictEqual(saveListeners, 0, 'last consumer tears down collector and save listener');
+            clock.tick(DiagnosticsSettleCollector.DIAGNOSTICS_SETTLE_MS + 1);
+            assert.strictEqual(received.length, 2, 'pending settle cancelled on teardown, no late emission');
+            hub.dispose();
+        } finally {
+            clock.restore();
+            (vscode.workspace as { onDidSaveTextDocument: typeof vscode.workspace.onDidSaveTextDocument }).onDidSaveTextDocument = original;
+        }
     });
 });

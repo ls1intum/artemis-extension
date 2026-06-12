@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { PlatformCapabilities } from '@extension/theia';
 
+import { DiagnosticsSettleCollector } from './collectors/diagnosticsSettle';
 import { nextSensorSeq } from './sequence';
 import type {
     ActiveEditorSignal,
@@ -30,6 +31,8 @@ import type {
  * these typed channels instead of subscribing to `vscode.*` itself, and uses
  * the read* methods instead of global state reads. Policy (phase gates,
  * URI filters, debouncing, consent) lives in the consumers, NOT here.
+ * Exception: derived channels like onDiagnosticsSettled bundle the URI filter
+ * and settle debounce that define the channel itself.
  *
  * Production creates exactly ONE hub (extension.ts) and injects it
  * everywhere. The default-constructed hubs in TelemetryManager/SessionRecorder
@@ -244,9 +247,16 @@ export class VsCodeSensorHub implements SensorHub {
             hasShellExecution ? h => vscode.window.onDidEndTerminalShellExecution(h) : () => NOOP_SUBSCRIPTION,
             (event: vscode.TerminalShellExecutionEndEvent): ShellExecutionEndSignal => ({ ts: Date.now(), event }),
         );
-        // Task 3 replaces this inert stub with the DiagnosticsSettleCollector wiring.
+        // Derived channel: the settle collector (and through it the underlying
+        // save listener) exists only while someone consumes settled diagnostics.
         this.onDiagnosticsSettled = this._relay(
-            () => NOOP_SUBSCRIPTION,
+            handler => {
+                const collector = new DiagnosticsSettleCollector(
+                    this.onDidSaveTextDocument,
+                    () => this.readAllDiagnostics(),
+                );
+                return vscode.Disposable.from(collector.onDidSettle(handler), collector);
+            },
             (signal: DiagnosticsSettledSignal) => signal,
         );
     }
