@@ -142,8 +142,13 @@ class LazyRelay<TRaw, TSignal> implements vscode.Disposable {
     }
 }
 
-/** Inert subscription for APIs the current platform does not provide. */
-const NOOP_SUBSCRIPTION = new vscode.Disposable(() => { /* platform lacks this API */ });
+/**
+ * Inert subscription for APIs the current platform does not provide.
+ * Deliberately an object literal, not `new vscode.Disposable(...)`: this is
+ * module-level code, and constructing a VS Code class at import time breaks
+ * consumers loaded under partial `vscode` mocks (the vitest logic tests).
+ */
+const NOOP_SUBSCRIPTION: vscode.Disposable = { dispose: () => { /* platform lacks this API */ } };
 
 export class VsCodeSensorHub implements SensorHub {
     private readonly _disposables: vscode.Disposable[] = [];
