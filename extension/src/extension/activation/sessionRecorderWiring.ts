@@ -4,6 +4,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { SensorHub } from '@extension/services/sensing';
 import type { TelemetryManager } from '@extension/services/telemetry';
 import type { SessionRecorder } from '@extension/services/telemetry/recording';
 import {
@@ -28,6 +29,7 @@ interface RecorderWiringDeps {
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
     contextStore: ContextStore;
+    sensorHub: SensorHub;
 }
 
 interface RecorderWiringResult {
@@ -39,10 +41,10 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     const {
         context, consentService, artemisWebsocketService,
         telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-        capabilities, exerciseRegistry, contextStore,
+        capabilities, exerciseRegistry, contextStore, sensorHub,
     } = deps;
 
-    const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry);
+    const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry, undefined, sensorHub);
 
     if (consentService.isExtendedCollectionEnabled) {
         sessionRecorder.enable();
@@ -227,7 +229,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // in replay. Breakpoints are workspace-global, independent of debug sessions.
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
         const root = ctx.exerciseRoot ? vscode.Uri.parse(ctx.exerciseRoot) : undefined;
-        const snapshot = collectInitialBreakpointSnapshot(vscode.debug.breakpoints, root, ctx.timestamp);
+        const snapshot = collectInitialBreakpointSnapshot(sensorHub.readBreakpoints(), root, ctx.timestamp);
         return snapshot ? [snapshot] : [];
     }));
 

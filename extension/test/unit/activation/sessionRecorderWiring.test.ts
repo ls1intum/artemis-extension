@@ -45,6 +45,7 @@ import type {
 import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type { InterventionDecision } from '@extension/services/telemetry/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 interface MutableConfigState {
     enabled: boolean;
@@ -182,6 +183,7 @@ async function readAllRecordedEvents(tmpDir: string): Promise<RecordedEvent[]> {
 interface WiringHarness {
     telemetryManager: TelemetryManager;
     recorder: SessionRecorder;
+    sensorHub: TestSensorHub;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatProvider: ChatProviderStub;
     tmpDir: string;
@@ -236,6 +238,7 @@ async function makeWiringHarness(
     const ctx = { globalStorageUri: vscode.Uri.file(tmpDir), subscriptions: [] } as unknown as vscode.ExtensionContext;
     const artemisProvider = stubWebviewProvider();
     const chatProvider = stubChatProvider();
+    const sensorHub = new TestSensorHub();
     const wiring = wireSessionRecorder({
         context: ctx,
         consentService: stubConsent(true),
@@ -246,11 +249,13 @@ async function makeWiringHarness(
         capabilities: undefined,
         exerciseRegistry: undefined,
         contextStore,
+        sensorHub,
     });
 
     return {
         telemetryManager,
         recorder: wiring.sessionRecorder,
+        sensorHub,
         artemisWebviewProvider: artemisProvider,
         chatProvider,
         tmpDir,
@@ -266,6 +271,7 @@ async function makeWiringHarness(
             wiring.disposable.dispose();
             try { await wiring.sessionRecorder.shutdown(); } catch { /* ignore */ }
             telemetryManager.dispose();
+            sensorHub.dispose();
             try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
             // Stubs are restored centrally via the suite-level sandbox in teardown.
         },
@@ -356,10 +362,10 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
         const inRootBp = new vscode.SourceBreakpoint(new vscode.Location(inRootUri, new vscode.Position(4, 0)));
         const outOfRootBp = new vscode.SourceBreakpoint(new vscode.Location(outOfRootUri, new vscode.Position(0, 0)));
         try {
-            // Pre-existing breakpoints BEFORE the session (idle phase ⇒ the live
-            // listener does not record the add; only the startup contributor does).
-            vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
-            vscode.debug.addBreakpoints([inRootBp, outOfRootBp]);
+            // Pre-existing breakpoints BEFORE the session: seeding the hub stub
+            // does not fire onDidChangeBreakpoints, so the live listener does not
+            // record the add; only the startup contributor sees them.
+            harness.sensorHub.stub.breakpoints = [inRootBp, outOfRootBp];
 
             await harness.recorder.startSession(42, undefined, exerciseRoot.toString());
             await harness.recorder.endSession();
@@ -373,7 +379,6 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             assert.strictEqual(snap!.breakpoints[0].line, 4, 'snapshot line 0-based 4');
             assert.strictEqual(snap!.breakpoints[0].id, inRootBp.id, 'snapshot bp id matches the SourceBreakpoint');
         } finally {
-            vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
             await harness.dispose();
         }
     });

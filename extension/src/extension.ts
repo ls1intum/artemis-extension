@@ -10,6 +10,7 @@ import { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { VsCodeSensorHub } from '@extension/services/sensing';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
@@ -63,7 +64,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const exerciseRegistry = new ExerciseRegistry();
-	const telemetryManager = new TelemetryManager(exerciseRegistry);
+	const sensorHub = new VsCodeSensorHub(capabilities);
+	context.subscriptions.push(sensorHub);
+	const telemetryManager = new TelemetryManager(exerciseRegistry, sensorHub);
 	activeTelemetryManager = telemetryManager;
 	telemetryManager.setWebsocketService(artemisWebsocketService);
 
@@ -228,6 +231,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		capabilities,
 		exerciseRegistry,
 		contextStore,
+		sensorHub,
 	});
 
 	// Configuration listener
