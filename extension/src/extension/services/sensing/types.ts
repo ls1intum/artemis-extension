@@ -9,7 +9,7 @@
  */
 import type * as vscode from 'vscode';
 
-export interface Stamped {
+interface Stamped {
     readonly ts: number;
 }
 
