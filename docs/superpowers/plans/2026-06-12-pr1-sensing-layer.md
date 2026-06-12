@@ -520,6 +520,8 @@ git add src/extension/services/sensing test/unit/services/sensing
 git commit -m "refactor(sensing): add SensorHub, the single VS Code event/state reader"
 ```
 
+**Task 2 implementation record (commit `920b2909` is the source of truth):** implemented as specified, plus review hardening of LazyRelay: one Set entry PER SUBSCRIPTION (`{ call }` wrapper objects) so duplicate listener functions keep independent refcounts; per-listener try/catch in `_fan` with `logger.error(..., LogCategory.TELEMETRY, ...)` so a throwing consumer cannot suppress delivery to others; `_disposed` guard makes post-dispose attaches inert (no source resurrection); capability gate reads `?? true`; first test subscribes after `openTextDocument` (initial content fill fires the event). Test file has 6 tests (the 4 planned + fan-out isolation/duplicates + dispose-detaches/post-dispose-inert).
+
 ### Task 3: DiagnosticsSettleCollector (save-triggered settle snapshot)
 
 **Files:**
