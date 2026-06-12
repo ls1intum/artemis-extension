@@ -4,6 +4,10 @@
 
 - **All PRs branch off `dev`** and merge back into `dev`.
 - **Only `dev` gets merged into `main`** — never push or merge feature branches directly into main.
+- **Temporary exception (struggle engine v2):** this work happens on the integration branch
+  `feat/struggle-engine-v2`. Its PRs branch off and merge back into that branch, NOT into
+  `dev`. The final merge of `feat/struggle-engine-v2` into `dev` is a separate manual
+  decision later.
 
 ## Dependency Management
 
