@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 
+import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
+
 import { SessionResettable, SessionStartContext, TrackedDiagnostic } from './types';
 
 /**
@@ -9,6 +11,8 @@ import { SessionResettable, SessionStartContext, TrackedDiagnostic } from './typ
  */
 export class DiagnosticPersistenceService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
+    private readonly _hub: SensorHub;
+    private readonly _ownsHub: boolean;
     protected readonly _trackedDiagnostics: Map<string, TrackedDiagnostic> = new Map();
     private _cleanupTimer: NodeJS.Timeout | undefined;
 
@@ -20,7 +24,9 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
     protected readonly _onDidUpdateDiagnostics = new vscode.EventEmitter<TrackedDiagnostic[]>();
     public readonly onDidUpdateDiagnostics = this._onDidUpdateDiagnostics.event;
 
-    constructor() {
+    constructor(sensorHub?: SensorHub) {
+        this._hub = sensorHub ?? new VsCodeSensorHub();
+        this._ownsHub = sensorHub === undefined;
         this._startTracking();
         this._startCleanupTimer();
     }
@@ -38,6 +44,10 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
 
         this._onDidUpdateDiagnostics.dispose();
         this._trackedDiagnostics.clear();
+
+        if (this._ownsHub) {
+            this._hub.dispose();
+        }
     }
 
     /**
@@ -52,8 +62,8 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
      * Start listening to diagnostic changes
      */
     private _startTracking(): void {
-        const diagnosticListener = vscode.languages.onDidChangeDiagnostics(event => {
-            this._handleDiagnosticChange(event);
+        const diagnosticListener = this._hub.onDidChangeDiagnostics(({ uris }) => {
+            this._handleDiagnosticChange(uris);
         });
         this._disposables.push(diagnosticListener);
 
@@ -74,7 +84,7 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
      * Process all diagnostics in the workspace
      */
     private _processAllWorkspaceDiagnostics(): void {
-        const allDiagnostics = vscode.languages.getDiagnostics();
+        const allDiagnostics = this._hub.readAllDiagnostics();
         for (const [uri, diagnostics] of allDiagnostics) {
             this._updateDiagnosticsForUri(uri, diagnostics);
         }
@@ -83,14 +93,14 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
     /**
      * Handle diagnostic change events
      */
-    private _handleDiagnosticChange(event: vscode.DiagnosticChangeEvent): void {
-        for (const uri of event.uris) {
-            const diagnostics = vscode.languages.getDiagnostics(uri);
+    private _handleDiagnosticChange(uris: readonly vscode.Uri[]): void {
+        for (const uri of uris) {
+            const diagnostics = this._hub.readDiagnostics(uri);
             this._updateDiagnosticsForUri(uri, diagnostics);
         }
 
         // Mark diagnostics that no longer exist as resolved
-        this._markMissingDiagnosticsResolved(event.uris);
+        this._markMissingDiagnosticsResolved(uris);
 
         this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
     }
@@ -158,7 +168,7 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
             if (changedUriStrings.has(tracked.uri) && !tracked.resolved) {
                 // Check if this diagnostic still exists
                 const uri = vscode.Uri.parse(tracked.uri);
-                const currentDiagnostics = vscode.languages.getDiagnostics(uri);
+                const currentDiagnostics = this._hub.readDiagnostics(uri);
                 const stillExists = currentDiagnostics.some(d =>
                     this._generateDiagnosticId(uri, d) === id
                 );

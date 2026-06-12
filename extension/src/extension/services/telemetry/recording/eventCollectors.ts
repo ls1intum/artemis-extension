@@ -84,8 +84,7 @@ export function collectFileSwitch(
     };
 }
 
-export function collectDiagnostics(uri: vscode.Uri): DiagnosticsEvent {
-    const diagnostics = vscode.languages.getDiagnostics(uri);
+export function collectDiagnostics(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): DiagnosticsEvent {
     return {
         type: 'diagnostics',
         timestamp: Date.now(),

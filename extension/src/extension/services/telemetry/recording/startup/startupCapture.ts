@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SensorHub } from '@extension/services/sensing';
 import { collectDiagnostics, collectSelectionChange, collectVisibleRangeChange } from '@extension/services/telemetry/recording/eventCollectors';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
@@ -29,6 +30,7 @@ interface StartupCaptureDeps {
         opts: { allowDuringStartup?: boolean; allowDuringEnding?: boolean },
         generation: number,
     ) => void;
+    hub: SensorHub;
 }
 
 /**
@@ -83,13 +85,13 @@ export class StartupCapture {
     }
 
     private _emitInitialDiagnostics(generation: number, exerciseRootUri: vscode.Uri | undefined): void {
-        const allDiagnostics = vscode.languages.getDiagnostics();
+        const allDiagnostics = this._deps.hub.readAllDiagnostics();
         for (const [uri, diagnostics] of allDiagnostics) {
             if (!shouldRecordUri(uri, exerciseRootUri) || diagnostics.length === 0) {
                 continue;
             }
             this._deps.record(
-                collectDiagnostics(uri),
+                collectDiagnostics(uri, this._deps.hub.readDiagnostics(uri)),
                 { allowDuringStartup: true },
                 generation,
             );
@@ -122,7 +124,7 @@ export class StartupCapture {
                 {
                     type: 'windowFocus',
                     timestamp: Date.now(),
-                    focused: vscode.window.state.focused,
+                    focused: this._deps.hub.readWindowFocused(),
                 },
                 { allowDuringStartup: true },
                 generation,
@@ -132,7 +134,7 @@ export class StartupCapture {
         }
 
         // 2. Selection + visible range for every visible file editor.
-        for (const editor of vscode.window.visibleTextEditors) {
+        for (const editor of this._deps.hub.readVisibleTextEditors()) {
             if (!shouldRecordUri(editor.document.uri, exerciseRootUri)) {
                 continue;
             }
@@ -153,7 +155,7 @@ export class StartupCapture {
         }
 
         // 3. fileSwitch for the active editor (if any).
-        const activeUri = vscode.window.activeTextEditor?.document.uri;
+        const activeUri = this._deps.hub.readActiveTextEditor()?.document.uri;
         if (activeUri && shouldRecordUri(activeUri, exerciseRootUri)) {
             this._deps.record(
                 { type: 'fileSwitch', timestamp: Date.now(), fromUri: undefined, toUri: activeUri.toString() },
@@ -164,7 +166,7 @@ export class StartupCapture {
         }
 
         // 4. terminalOpenClose('opened') for every already-open terminal.
-        for (const terminal of vscode.window.terminals) {
+        for (const terminal of this._deps.hub.readTerminals()) {
             this._deps.record(
                 {
                     type: 'terminalOpenClose',

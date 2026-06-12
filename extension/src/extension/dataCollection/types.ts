@@ -3,6 +3,7 @@ import type * as vscode from 'vscode';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { SensorHub } from '@extension/services/sensing';
 import type { TelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { PlatformCapabilities } from '@extension/theia';
@@ -17,6 +18,7 @@ export interface DataCollectionDeps {
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
     contextStore: ContextStore;
+    sensorHub: SensorHub;
 }
 
 /**

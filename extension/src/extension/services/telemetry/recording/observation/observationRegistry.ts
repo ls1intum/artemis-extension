@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SensorHub } from '@extension/services/sensing';
 import {
     collectBreakpointChange,
     collectDebugSession,
@@ -17,7 +18,6 @@ import type { RecorderLifecycleState } from '@extension/services/telemetry/recor
 import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
-import type { PlatformCapabilities } from '@extension/theia';
 
 import { TerminalCollector } from './terminalCollector';
 
@@ -29,12 +29,13 @@ interface ObservationRegistryDeps {
         opts: { allowDuringStartup?: boolean; allowDuringEnding?: boolean },
         generation: number,
     ) => void;
-    capabilities?: PlatformCapabilities;
+    hub: SensorHub;
 }
 
 /**
- * Owns every VS Code `onDidChange*` subscription used by the recorder, plus
- * the debounce state for selection/visibleRange events.
+ * Owns the recorder's handler attachment to the SensorHub (the hub owns the
+ * actual VS Code subscriptions), plus the debounce state for
+ * selection/visibleRange events.
  *
  * Listener lifetime matches the consent enable/disable cycle, not the
  * session lifecycle: once enabled, subscriptions persist across session
@@ -97,10 +98,11 @@ export class ObservationRegistry {
     // ── Subscription registration (enable-scoped) ─────────────────────
 
     enable(): void {
+        const hub = this._deps.hub;
         const recordingPhase = (): boolean => this._deps.state.phase === 'recording';
 
         // Text changes
-        const textChange = vscode.workspace.onDidChangeTextDocument(event => {
+        const textChange = hub.onDidChangeTextDocument(({ event }) => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(event.document.uri, this._exerciseRootUri)) { return; }
             if (event.contentChanges.length === 0) { return; }
@@ -109,7 +111,7 @@ export class ObservationRegistry {
         this._eventListenerDisposables.push(textChange);
 
         // File save
-        const save = vscode.workspace.onDidSaveTextDocument(doc => {
+        const save = hub.onDidSaveTextDocument(({ document: doc }) => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
             this._deps.record(collectSave(doc), {}, this._deps.state.currentGeneration);
@@ -117,7 +119,7 @@ export class ObservationRegistry {
         this._eventListenerDisposables.push(save);
 
         // Active editor switch + snapshot on first open
-        const editorSwitch = vscode.window.onDidChangeActiveTextEditor(editor => {
+        const editorSwitch = hub.onDidChangeActiveTextEditor(({ editor }) => {
             if (!recordingPhase()) { return; }
             const prev = this._lastActiveEditorUri;
             const toUri = editor?.document.uri.toString();
@@ -135,17 +137,17 @@ export class ObservationRegistry {
         this._eventListenerDisposables.push(editorSwitch);
 
         // Diagnostics changes
-        const diagnosticsChange = vscode.languages.onDidChangeDiagnostics(event => {
+        const diagnosticsChange = hub.onDidChangeDiagnostics(({ uris }) => {
             if (!recordingPhase()) { return; }
-            for (const uri of event.uris) {
+            for (const uri of uris) {
                 if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._deps.record(collectDiagnostics(uri), {}, this._deps.state.currentGeneration);
+                this._deps.record(collectDiagnostics(uri, hub.readDiagnostics(uri)), {}, this._deps.state.currentGeneration);
             }
         });
         this._eventListenerDisposables.push(diagnosticsChange);
 
         // Window focus
-        const windowFocus = vscode.window.onDidChangeWindowState(state => {
+        const windowFocus = hub.onDidChangeWindowState(({ state }) => {
             if (!recordingPhase()) { return; }
             this._deps.record(collectWindowFocus(state), {}, this._deps.state.currentGeneration);
         });
@@ -154,7 +156,7 @@ export class ObservationRegistry {
         // Selection changes (debounced 200ms, per-URI — Block J).
         // Payload serialized at trigger time; generation captured at trigger
         // time and passed to the delayed record call.
-        const selectionChange = vscode.window.onDidChangeTextEditorSelection(event => {
+        const selectionChange = hub.onDidChangeTextEditorSelection(({ event }) => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
             const uri = event.textEditor.document.uri.toString();
@@ -175,7 +177,7 @@ export class ObservationRegistry {
         this._eventListenerDisposables.push(selectionChange);
 
         // Visible range changes (debounced 300ms, per-URI — Block J).
-        const visibleRangeChange = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
+        const visibleRangeChange = hub.onDidChangeTextEditorVisibleRanges(({ event }) => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
             const uri = event.textEditor.document.uri.toString();
@@ -196,7 +198,7 @@ export class ObservationRegistry {
         this._eventListenerDisposables.push(visibleRangeChange);
 
         // Terminal open/close
-        const terminalOpen = vscode.window.onDidOpenTerminal(terminal => {
+        const terminalOpen = hub.onDidOpenTerminal(({ terminal }) => {
             if (!recordingPhase()) { return; }
             this._deps.record({
                 type: 'terminalOpenClose',
@@ -207,7 +209,7 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(terminalOpen);
 
-        const terminalClose = vscode.window.onDidCloseTerminal(terminal => {
+        const terminalClose = hub.onDidCloseTerminal(({ terminal }) => {
             if (!recordingPhase()) { return; }
             this._deps.record({
                 type: 'terminalOpenClose',
@@ -224,18 +226,18 @@ export class ObservationRegistry {
         // (`_emitMultiFileEvent`, `_emitTextDocumentEvent`). fileRename has its
         // own shape (two URIs per entry, accept-if-either-side-in-root) and
         // stays inline.
-        const fileCreate = vscode.workspace.onDidCreateFiles(event =>
-            this._emitMultiFileEvent(event.files, 'fileCreate'));
+        const fileCreate = hub.onDidCreateFiles(({ files }) =>
+            this._emitMultiFileEvent(files, 'fileCreate'));
         this._eventListenerDisposables.push(fileCreate);
 
-        const fileDelete = vscode.workspace.onDidDeleteFiles(event =>
-            this._emitMultiFileEvent(event.files, 'fileDelete'));
+        const fileDelete = hub.onDidDeleteFiles(({ files }) =>
+            this._emitMultiFileEvent(files, 'fileDelete'));
         this._eventListenerDisposables.push(fileDelete);
 
-        const fileRename = vscode.workspace.onDidRenameFiles(event => {
+        const fileRename = hub.onDidRenameFiles(({ files }) => {
             if (!recordingPhase()) { return; }
             const gen = this._deps.state.currentGeneration;
-            for (const { oldUri, newUri } of event.files) {
+            for (const { oldUri, newUri } of files) {
                 if (!shouldRecordUri(oldUri, this._exerciseRootUri) && !shouldRecordUri(newUri, this._exerciseRootUri)) {
                     continue;
                 }
@@ -249,42 +251,42 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(fileRename);
 
-        const textDocumentOpen = vscode.workspace.onDidOpenTextDocument(doc =>
+        const textDocumentOpen = hub.onDidOpenTextDocument(({ document: doc }) =>
             this._emitTextDocumentEvent(doc, 'textDocumentOpen'));
         this._eventListenerDisposables.push(textDocumentOpen);
 
-        const textDocumentClose = vscode.workspace.onDidCloseTextDocument(doc =>
+        const textDocumentClose = hub.onDidCloseTextDocument(({ document: doc }) =>
             this._emitTextDocumentEvent(doc, 'textDocumentClose'));
         this._eventListenerDisposables.push(textDocumentClose);
 
         // Debug session lifecycle
-        const debugStart = vscode.debug.onDidStartDebugSession(s =>
-            this._recordDebugSession('started', s));
+        const debugStart = hub.onDidStartDebugSession(({ session }) =>
+            this._recordDebugSession('started', session));
         this._eventListenerDisposables.push(debugStart);
 
-        const debugTerminate = vscode.debug.onDidTerminateDebugSession(s =>
-            this._recordDebugSession('terminated', s));
+        const debugTerminate = hub.onDidTerminateDebugSession(({ session }) =>
+            this._recordDebugSession('terminated', session));
         this._eventListenerDisposables.push(debugTerminate);
 
-        const debugActive = vscode.debug.onDidChangeActiveDebugSession(s =>
-            this._recordDebugSession('activeChanged', s));
+        const debugActive = hub.onDidChangeActiveDebugSession(({ session }) =>
+            this._recordDebugSession('activeChanged', session));
         this._eventListenerDisposables.push(debugActive);
 
         // Breakpoint changes. onDidChangeBreakpoints carries three arrays; each
         // is processed independently and empty arrays emit nothing. The VS Code
         // API does not guarantee one event per user action, so no coalescing is
         // assumed; breakpoint changes are low-frequency, no debounce is applied.
-        const breakpointChange = vscode.debug.onDidChangeBreakpoints(event => {
+        const breakpointChange = hub.onDidChangeBreakpoints(({ event }) => {
             this._emitBreakpointChange('added', event.added);
             this._emitBreakpointChange('removed', event.removed);
             this._emitBreakpointChange('changed', event.changed);
         });
         this._eventListenerDisposables.push(breakpointChange);
 
-        // Terminal shell execution tracking — only available in VS Code Desktop
-        if (this._deps.capabilities?.hasTerminalShellExecution !== false) {
-            this._terminalCollector.register(this._eventListenerDisposables);
-        }
+        // Terminal shell execution tracking. The hub's channels never fire on
+        // platforms without the shellIntegration API, so no capability gate
+        // is needed here.
+        this._terminalCollector.register(hub, this._eventListenerDisposables);
     }
 
     // ── Teardown paths ────────────────────────────────────────────────
@@ -341,8 +343,9 @@ export class ObservationRegistry {
     }
 
     /**
-     * Final cleanup: clear any leftover timers and dispose all vscode
-     * subscriptions. Idempotent. Last-active-editor is reset so a fresh
+     * Final cleanup: clear any leftover timers and detach all hub-channel
+     * subscriptions (the underlying VS Code source unsubscribes only when the
+     * last hub consumer detaches). Idempotent. Last-active-editor is reset so a fresh
      * enable starts with a clean slate.
      *
      * Pending terminal executions are aborted and cleared here too. In normal

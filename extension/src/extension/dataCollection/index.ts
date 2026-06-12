@@ -45,6 +45,7 @@ export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHand
         capabilities: deps.capabilities,
         exerciseRegistry: deps.exerciseRegistry,
         contextStore: deps.contextStore,
+        sensorHub: deps.sensorHub,
     });
 
     // Prompt after wiring so a consent change immediately reaches the recorder.

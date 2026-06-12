@@ -105,10 +105,12 @@ import { VsCodeSensorHub } from '@extension/services/sensing/sensorHub';
 suite('VsCodeSensorHub', () => {
     test('relays text changes with an arrival timestamp', async () => {
         const hub = new VsCodeSensorHub();
+        // Open FIRST: VS Code fires onDidChangeTextDocument for the initial
+        // content fill, so subscribing before open would see 2 events.
+        const doc = await vscode.workspace.openTextDocument({ content: 'abc', language: 'plaintext' });
         const received: TextChangeSignal[] = [];
         const sub = hub.onDidChangeTextDocument(signal => received.push(signal));
 
-        const doc = await vscode.workspace.openTextDocument({ content: 'abc', language: 'plaintext' });
         const edit = new vscode.WorkspaceEdit();
         edit.insert(doc.uri, new vscode.Position(0, 0), 'x');
         const before = Date.now();
@@ -517,6 +519,8 @@ npm run lint && npm run check-types
 git add src/extension/services/sensing test/unit/services/sensing
 git commit -m "refactor(sensing): add SensorHub, the single VS Code event/state reader"
 ```
+
+**Task 2 implementation record (commit `920b2909` is the source of truth):** implemented as specified, plus review hardening of LazyRelay: one Set entry PER SUBSCRIPTION (`{ call }` wrapper objects) so duplicate listener functions keep independent refcounts; per-listener try/catch in `_fan` with `logger.error(..., LogCategory.TELEMETRY, ...)` so a throwing consumer cannot suppress delivery to others; `_disposed` guard makes post-dispose attaches inert (no source resurrection); capability gate reads `?? true`; first test subscribes after `openTextDocument` (initial content fill fires the event). Test file has 6 tests (the 4 planned + fan-out isolation/duplicates + dispose-detaches/post-dispose-inert).
 
 ### Task 3: DiagnosticsSettleCollector (save-triggered settle snapshot)
 

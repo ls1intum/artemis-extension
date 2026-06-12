@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SensorHub } from '@extension/services/sensing';
 import type { ObservationRegistry } from '@extension/services/telemetry/recording/observation/observationRegistry';
 import type { SnapshotManager } from '@extension/services/telemetry/recording/snapshots/snapshotManager';
 import type { StartupCapture, StartupContext } from '@extension/services/telemetry/recording/startup/startupCapture';
@@ -231,6 +232,7 @@ interface LifecycleControllerDeps {
     snapshots: SnapshotManager;
     observation: ObservationRegistry;
     startup: StartupCapture;
+    hub: SensorHub;
     /**
      * Synchronous hook fired after state transitions that should notify
      * SessionRecorder's onDidChangeState subscribers. Facade implementation
@@ -409,7 +411,7 @@ export class LifecycleController {
         });
         const exerciseRootUri = exerciseRoot ? vscode.Uri.parse(exerciseRoot) : undefined;
         this._deps.observation.setExerciseContext(exerciseRootUri);
-        this._deps.observation.seedActiveEditor(vscode.window.activeTextEditor?.document.uri.toString());
+        this._deps.observation.seedActiveEditor(this._deps.hub.readActiveTextEditor()?.document.uri.toString());
 
         await this._deps.writer.initSession(sessionId);
 
