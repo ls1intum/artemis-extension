@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 
+import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
+
 import { InactivityPattern, SessionResettable, SessionStartContext } from './types';
 
 /**
@@ -8,6 +10,8 @@ import { InactivityPattern, SessionResettable, SessionStartContext } from './typ
  */
 export class InactivityService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
+    private readonly _hub: SensorHub;
+    private readonly _ownsHub: boolean;
     private _lastEditTimestamp: number = Date.now();
     /**
      * Weak activity timestamp for cursor movements.
@@ -42,8 +46,10 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
     private readonly _onDidResumeActivity = new vscode.EventEmitter<void>();
     public readonly onDidResumeActivity = this._onDidResumeActivity.event;
 
-    constructor() {
-        this._startTracking();
+    constructor(sensorHub?: SensorHub) {
+        this._hub = sensorHub ?? new VsCodeSensorHub();
+        this._ownsHub = sensorHub === undefined;
+        this._startTracking(this._hub);
         this._startPatternCheck();
     }
 
@@ -59,13 +65,17 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         }
 
         this._onDidResumeActivity.dispose();
+
+        if (this._ownsHub) {
+            this._hub.dispose();
+        }
     }
 
     /**
      * Start listening to document changes
      */
-    private _startTracking(): void {
-        const changeListener = vscode.workspace.onDidChangeTextDocument(event => {
+    private _startTracking(hub: SensorHub): void {
+        const changeListener = hub.onDidChangeTextDocument(({ event }) => {
             // Ignore non-file schemes and empty changes
             if (event.document.uri.scheme !== 'file' || event.contentChanges.length === 0) {
                 return;
@@ -75,7 +85,7 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         this._disposables.push(changeListener);
 
         // Also track when user saves
-        const saveListener = vscode.workspace.onDidSaveTextDocument(document => {
+        const saveListener = hub.onDidSaveTextDocument(({ document }) => {
             if (document.uri.scheme === 'file') {
                 this._recordActivity();
             }
@@ -86,7 +96,7 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         // Cursor movement prevents 'active' -> 'thinking' transition
         // but does NOT reset deeper inactivity states ('thinking' -> 'confusion' or 'confusion' -> 'giving-up')
         // Research shows cursor movement without editing often indicates confusion/reading
-        const selectionListener = vscode.window.onDidChangeTextEditorSelection(event => {
+        const selectionListener = hub.onDidChangeTextEditorSelection(({ event }) => {
             if (event.textEditor.document.uri.scheme === 'file') {
                 this._recordWeakActivity();
             }

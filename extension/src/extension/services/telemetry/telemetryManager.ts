@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 import { VSCODE_CONFIG } from '@extension/utils/constants';
@@ -39,6 +40,8 @@ import {
 export class TelemetryManager implements vscode.Disposable, WebSocketMessageHandler {
     private readonly _disposables: vscode.Disposable[] = [];
     private _disposed = false;
+    private readonly _sensorHub: SensorHub;
+    private readonly _ownsHub: boolean;
 
     // Sub-services (kept from old system)
     private readonly _diagnosticService: DiagnosticPersistenceService;
@@ -95,14 +98,19 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     private readonly _onDidSuppressIntervention = new vscode.EventEmitter<SuppressedInterventionPayload>();
     public readonly onDidSuppressIntervention = this._onDidSuppressIntervention.event;
 
-    constructor(exerciseRegistry?: ExerciseRegistry) {
+    constructor(exerciseRegistry?: ExerciseRegistry, sensorHub?: SensorHub) {
+        // Production injects the shared hub from extension.ts; the owned
+        // default exists for tests and is desktop-only (no capability gating).
+        this._sensorHub = sensorHub ?? new VsCodeSensorHub();
+        this._ownsHub = sensorHub === undefined;
+
         this._exerciseRegistry = exerciseRegistry;
         this._outputChannel = vscode.window.createOutputChannel('Artemis Telemetry');
         this._disposables.push(this._outputChannel);
 
         // Initialize kept services
-        this._diagnosticService = new DiagnosticPersistenceService();
-        this._inactivityService = new InactivityService();
+        this._diagnosticService = new DiagnosticPersistenceService(this._sensorHub);
+        this._inactivityService = new InactivityService(this._sensorHub);
         this._buildTracker = new BuildResultTracker();
         this._interventionService = new InterventionService();
         this._interventionFilter = new InterventionFilter();
@@ -182,6 +190,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         while (this._disposables.length > 0) {
             this._disposables.pop()?.dispose();
+        }
+
+        if (this._ownsHub) {
+            this._sensorHub.dispose();
         }
 
         this._onDidCalculateEQ.dispose();
@@ -298,16 +310,19 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     // ==================== Event Handlers ====================
 
     private _setupEventHandlers(): void {
-        // Save event → CompileEquivalentEmitter
-        const saveListener = vscode.workspace.onDidSaveTextDocument(doc => {
+        // Settled diagnostics (save + 500ms LS settle) → CompileEquivalentEmitter.
+        // Note: the isEnabled gate moved from save-time to settle-time (PR1
+        // decision log #5) — only observable when the setting flips inside
+        // the 500 ms settle window.
+        const settleListener = this._sensorHub.onDiagnosticsSettled(signal => {
             if (this._isEnabled) {
-                this._compileEmitter.handleSaveEvent(doc);
+                this._compileEmitter.handleDiagnosticsSettled(signal);
             }
         });
-        this._disposables.push(saveListener);
+        this._disposables.push(settleListener);
 
         // Text change → BoundaryTriggerEmitter (paste detection)
-        const changeListener = vscode.workspace.onDidChangeTextDocument(event => {
+        const changeListener = this._sensorHub.onDidChangeTextDocument(({ event }) => {
             if (this._isEnabled) {
                 this._triggerEmitter.handleTextDocumentChange(event);
             }
@@ -315,7 +330,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._disposables.push(changeListener);
 
         // Selection change → BoundaryTriggerEmitter (selection-maintained)
-        const selectionListener = vscode.window.onDidChangeTextEditorSelection(event => {
+        const selectionListener = this._sensorHub.onDidChangeTextEditorSelection(({ event }) => {
             if (this._isEnabled) {
                 this._triggerEmitter.handleSelectionChange(event);
             }
@@ -378,7 +393,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         // Window focus resume — log when window regains focus with active exercise.
         // InactivityService will naturally pick up activity from subsequent user actions
         // (text changes, saves, selections). No explicit recordActivity needed.
-        const windowStateListener = vscode.window.onDidChangeWindowState(state => {
+        const windowStateListener = this._sensorHub.onDidChangeWindowState(({ state }) => {
             if (state.focused && this._activeExerciseId !== undefined) {
                 this._log('Window regained focus with active exercise session');
             }

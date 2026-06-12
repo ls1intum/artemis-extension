@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 
+import { type DiagnosticsSettledSignal, nextSensorSeq } from '@extension/services/sensing';
 import { buildErrorFamiliesFromFeedbacks } from '@extension/services/telemetry/metrics/buildErrorFamily';
 import { shouldDedupSnapshot } from '@extension/services/telemetry/metrics/snapshotDedup';
 import {
@@ -18,20 +19,17 @@ import { ResultDTO } from '@extension/types';
 import { LINT_SOURCE_DENYLIST } from './lintDenylist';
 
 /**
- * Emits CompileEquivalentEvents from save events and build results.
+ * Emits CompileEquivalentEvents from settled diagnostics dumps and build results.
  *
  * [ADAPTATION] Paper: "Compilation Event" = student clicks Compile in BlueJ.
- * VS Code: save event (with 500ms LS delay) or Artemis build result.
+ * VS Code: save event (500ms LS settle, handled by the sensing layer) or
+ * Artemis build result.
  */
 export class CompileEquivalentEmitter implements vscode.Disposable, SessionResettable {
-    /** Delay after save for Language Server to update diagnostics [Engineering choice] */
-    private static readonly LS_SETTLE_DELAY_MS = 500;
-
-    private readonly _disposables: vscode.Disposable[] = [];
     private readonly _config: EQConfig;
     private _exerciseRoot: vscode.Uri | undefined;
     private _lastSnapshot: ErrorSnapshot | undefined;
-    private _saveTimeout: NodeJS.Timeout | undefined;
+    private _sessionStartSeq = 0;
 
     private readonly _onDidEmitCompileEquivalent = new vscode.EventEmitter<CompileEquivalentEvent>();
     public readonly onDidEmitCompileEquivalent = this._onDidEmitCompileEquivalent.event;
@@ -41,44 +39,30 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
     }
 
     public dispose(): void {
-        if (this._saveTimeout) {
-            clearTimeout(this._saveTimeout);
-            this._saveTimeout = undefined;
-        }
-        while (this._disposables.length > 0) {
-            this._disposables.pop()?.dispose();
-        }
         this._onDidEmitCompileEquivalent.dispose();
     }
 
     /**
-     * Handle a save event — delays 500ms for LS to update diagnostics,
-     * then creates an ErrorSnapshot from current diagnostics.
+     * Handle a settled diagnostics dump from the sensing layer (save-triggered,
+     * 500 ms LS settle; see sensing/collectors/diagnosticsSettle.ts). Fires
+     * onDidEmitCompileEquivalent when the snapshot is novel.
      */
-    public handleSaveEvent(doc: vscode.TextDocument): void {
-        // Only handle recordable documents (file: scheme, not git/output/etc.)
-        if (!shouldRecordUri(doc.uri)) {
+    public handleDiagnosticsSettled(signal: DiagnosticsSettledSignal): void {
+        if (signal.savedSeq < this._sessionStartSeq) {
+            // The triggering save belongs to the previous session; v1 cleared
+            // its pending save timer at this boundary (decision log #1b).
             return;
         }
-
-        // Clear any pending save timeout (coalesce rapid saves)
-        if (this._saveTimeout) {
-            clearTimeout(this._saveTimeout);
+        const snapshot = this.createErrorSnapshotFromDiagnostics(signal.entries, signal.ts);
+        if (!this._shouldAddSnapshot(snapshot)) {
+            return;
         }
-
-        // 500ms delay for Language Server to process [Engineering choice]
-        this._saveTimeout = setTimeout(() => {
-            this._saveTimeout = undefined;
-            const snapshot = this.createErrorSnapshotFromDiagnostics();
-            if (this._shouldAddSnapshot(snapshot)) {
-                this._lastSnapshot = snapshot;
-                this._onDidEmitCompileEquivalent.fire({
-                    timestamp: snapshot.timestamp,
-                    source: 'save',
-                    snapshot,
-                });
-            }
-        }, CompileEquivalentEmitter.LS_SETTLE_DELAY_MS);
+        this._lastSnapshot = snapshot;
+        this._onDidEmitCompileEquivalent.fire({
+            timestamp: snapshot.timestamp,
+            source: 'save',
+            snapshot,
+        });
     }
 
     /**
@@ -112,6 +96,7 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
     public onSessionStart(context: SessionStartContext): void {
         this.reset();
         this.setExerciseRoot(context.exerciseRoot);
+        this._sessionStartSeq = nextSensorSeq();
     }
 
     /**
@@ -119,42 +104,32 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
      */
     public reset(): void {
         this._lastSnapshot = undefined;
-        if (this._saveTimeout) {
-            clearTimeout(this._saveTimeout);
-            this._saveTimeout = undefined;
-        }
     }
 
     /**
-     * Create an ErrorSnapshot from current VS Code diagnostics.
+     * Create an ErrorSnapshot from a settled diagnostics dump (sensor event).
      * Filters to exercise files, severity=Error, and excludes lint sources.
      */
-    public createErrorSnapshotFromDiagnostics(): ErrorSnapshot {
-        const allDiagnostics = vscode.languages.getDiagnostics();
+    private createErrorSnapshotFromDiagnostics(
+        entries: ReadonlyArray<[vscode.Uri, vscode.Diagnostic[]]>,
+        timestamp: number,
+    ): ErrorSnapshot {
         const errorFamilies = new Set<string>();
         let errorCount = 0;
 
-        for (const [uri, diagnostics] of allDiagnostics) {
-            // Exercise scoping: only include URIs that pass the central filter.
+        for (const [uri, diagnostics] of entries) {
             if (!shouldRecordUri(uri, this._exerciseRoot)) {
                 continue;
             }
-
             for (const d of diagnostics) {
                 if (isCompilerDiagnostic(d)) {
-                    const family = getErrorFamily(d);
-                    errorFamilies.add(family);
+                    errorFamilies.add(getErrorFamily(d));
                     errorCount++;
                 }
             }
         }
 
-        return {
-            timestamp: Date.now(),
-            hasErrors: errorCount > 0,
-            errorFamilies,
-            errorCount,
-        };
+        return { timestamp, hasErrors: errorCount > 0, errorFamilies, errorCount };
     }
 
     /**

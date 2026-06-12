@@ -26,7 +26,7 @@ interface ReplayEqSnapshot {
     errorFamilies: string[];
 }
 
-/** Stabilization window — mirrors CompileEquivalentEmitter's 500ms setTimeout */
+/** Stabilization window - mirrors DiagnosticsSettleCollector.DIAGNOSTICS_SETTLE_MS (sensing layer). */
 const LOOKAHEAD_WINDOW_MS = 500;
 
 /**
