@@ -1,7 +1,7 @@
 /**
  * Main orchestrator for session recording.
  *
- * Runs parallel to TelemetryManager with its own VS Code listeners.
+ * Runs parallel to TelemetryManager, consuming the shared SensorHub (or an owned default hub when none is injected) instead of holding its own VS Code listeners.
  * Only active when consent is Extended. Writes JSONL event streams
  * to {globalStorageUri}/recordings/{sessionId}/.
  *
@@ -58,6 +58,7 @@ type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
     : never;
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
 import { shouldAcceptBuildResult } from '@extension/services/telemetry/buildResultGuard';
 import type { PlatformCapabilities } from '@extension/theia';
 
@@ -113,8 +114,10 @@ export class SessionRecorder implements WebSocketMessageHandler {
     private readonly _onDidChangeState = new vscode.EventEmitter<RecordingState>();
     public readonly onDidChangeState = this._onDidChangeState.event;
 
-    private readonly _capabilities?: PlatformCapabilities;
     private readonly _exerciseRegistry?: ExerciseRegistry;
+
+    private readonly _sensorHub: SensorHub;
+    private readonly _ownsHub: boolean;
 
     private readonly _lifecycle: LifecycleController;
 
@@ -124,9 +127,12 @@ export class SessionRecorder implements WebSocketMessageHandler {
         exerciseRegistry?: ExerciseRegistry,
         /** Injection point for tests. Production uses the default writer. */
         writer?: RecordingStorageWriter,
+        /** Shared hub injected by production wiring; default exists for standalone construction in tests. */
+        sensorHub?: SensorHub,
     ) {
+        this._sensorHub = sensorHub ?? new VsCodeSensorHub(capabilities);
+        this._ownsHub = sensorHub === undefined;
         this._writer = writer ?? new RecordingStorageWriter(globalStorageUri.fsPath);
-        this._capabilities = capabilities;
         this._exerciseRegistry = exerciseRegistry;
         this._snapshots = new SnapshotManager({
             state: this._state,
@@ -136,12 +142,13 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
         this._startup = new StartupCapture({
             record: (event, opts, gen) => this._lifecycle.recordInternal(event, opts, gen),
+            hub: this._sensorHub,
         });
         this._observation = new ObservationRegistry({
             state: this._state,
             snapshots: this._snapshots,
             record: (event, opts, gen) => this._lifecycle.recordInternal(event, opts, gen),
-            capabilities: this._capabilities,
+            hub: this._sensorHub,
         });
         this._lifecycle = new LifecycleController({
             state: this._state,
@@ -149,6 +156,7 @@ export class SessionRecorder implements WebSocketMessageHandler {
             snapshots: this._snapshots,
             observation: this._observation,
             startup: this._startup,
+            hub: this._sensorHub,
             onStateChange: () => this._fireStateChange(),
         });
     }
@@ -519,6 +527,7 @@ export class SessionRecorder implements WebSocketMessageHandler {
      * events flushed to disk) only holds if this is awaited, so it must never be
      * registered in `context.subscriptions` where VS Code would fire-and-forget it.
      * The durable path is `deactivate()` → DataCollectionHandle → here.
+     * After shutdown disposes an owned hub, channel attaches become inert; a recorder must not be re-enabled past shutdown().
      */
     async shutdown(): Promise<void> {
         if (this._disposed) { return; }
@@ -534,6 +543,9 @@ export class SessionRecorder implements WebSocketMessageHandler {
         this._observation.disposeSubscriptions();
         await this._writer.shutdown();
         this._onDidChangeState.dispose();
+        if (this._ownsHub) {
+            this._sensorHub.dispose();
+        }
     }
 
     // ── Private: State notification ─────────────────────────────────────

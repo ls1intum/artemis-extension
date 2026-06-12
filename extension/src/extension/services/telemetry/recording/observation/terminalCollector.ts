@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SensorHub } from '@extension/services/sensing';
 import type { RecorderLifecycleState } from '@extension/services/telemetry/recording/lifecycleController';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 
@@ -37,13 +38,13 @@ export class TerminalCollector {
     constructor(private readonly _deps: TerminalCollectorDeps) {}
 
     /**
-     * Register shellExecStart/End listeners. The caller pushes the returned
-     * disposables into its own tracking array.
+     * Attach shellExecStart/End handlers to the hub channels; the subscriptions
+     * are pushed into the caller's tracking array.
      */
-    register(disposables: vscode.Disposable[]): void {
+    register(hub: SensorHub, disposables: vscode.Disposable[]): void {
         const recordingPhase = (): boolean => this._deps.state.phase === 'recording';
 
-        const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
+        const shellExecStart = hub.onDidStartTerminalShellExecution(({ event }) => {
             if (!recordingPhase()) { return; }
             const entry: PendingExecution = {
                 output: '', startTime: Date.now(), truncated: false,
@@ -55,7 +56,7 @@ export class TerminalCollector {
         });
         disposables.push(shellExecStart);
 
-        const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
+        const shellExecEnd = hub.onDidEndTerminalShellExecution(({ event }) => {
             if (!recordingPhase()) { return; }
             const entry = this._pendingExecutions.get(event.execution);
             if (!entry) { return; }
