@@ -24,8 +24,8 @@ import {
     summarizeCausal,
 } from './index';
 import {
+    assertEveryChangeHasSnapshot,
     assertFeedbackViewMatched,
-    assertSnapshotBeforeChange,
     assertSpecConstants,
 } from './invariants';
 
@@ -79,7 +79,7 @@ describe('golden replay (local, study dataset)', () => {
 
             // Invariants the harness depends on (fail loud, not silently wrong).
             assertFeedbackViewMatched(events);
-            assertSnapshotBeforeChange(events);
+            assertEveryChangeHasSnapshot(events);
 
             const resolveSnapshotText = (snapshotPath: string): string => {
                 let text = fs.readFileSync(path.join(folder, snapshotPath), 'utf8');
@@ -121,7 +121,9 @@ describe('golden replay (local, study dataset)', () => {
                 `fA8≠ ${summary.fA8DisagreeTicks} fN2≠ ${summary.fN2DisagreeTicks} ` +
                 `N1≠ ${summary.pasteBoundaryDisagreeTicks} ` +
                 `maxΔS ${summary.maxAbsSDelta.toFixed(4)} maxΔV ${summary.maxAbsVDelta.toFixed(4)} ` +
-                `alerts ts=${summary.alertCountReplay}/ref=${summary.alertCountGolden} (Δ ${summary.alertCountDelta})`,
+                `alerts ts=${summary.alertCountReplay}/ref=${summary.alertCountGolden} (Δ ${summary.alertCountDelta}) ` +
+                `alert-only ts/ref ${summary.alertTimesOnlyInReplay}/${summary.alertTimesOnlyInGolden} ` +
+                `fieldΔ ${summary.alertSharedTimeFieldMismatches}`,
             );
         }
     });

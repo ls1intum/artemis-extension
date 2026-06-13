@@ -56,23 +56,27 @@ export function assertFeedbackViewMatched(events: readonly RecordedEvent[]): voi
 }
 
 /**
- * Asserts that every textChange event in the stream is preceded by either a
- * fileSnapshot or a textDocumentOpen for the same URI. A textChange with no
- * prior baseline means the replaying engine cannot reconstruct starting state.
+ * Asserts that every URI with a textChange also has a fileSnapshot somewhere in
+ * the stream. A fileSnapshot is REQUIRED (a textDocumentOpen carries no text, so
+ * the replay would reconstruct against an empty document and silently mis-derive
+ * causal A8). Membership — not stream order — is the contract: the recorder
+ * writes a snapshot's event only after async I/O, so it can legitimately land
+ * after an early edit, and the replay hub pre-seeds FileTextState from ALL
+ * fileSnapshots up front regardless of position.
  */
-export function assertSnapshotBeforeChange(events: readonly RecordedEvent[]): void {
-    const baselinedUris = new Set<string>();
+export function assertEveryChangeHasSnapshot(events: readonly RecordedEvent[]): void {
+    const snapshotUris = new Set<string>();
     for (const event of events) {
-        if (event.type === 'fileSnapshot' || event.type === 'textDocumentOpen') {
-            baselinedUris.add(event.uri);
-        } else if (event.type === 'textChange') {
-            if (!baselinedUris.has(event.uri)) {
-                throw new Error(
-                    `invariant: textChange for URI "${event.uri}" ` +
-                    'at timestamp ' + event.timestamp + ' has no prior fileSnapshot or ' +
-                    'textDocumentOpen for that URI. The event stream is missing baseline state.'
-                );
-            }
+        if (event.type === 'fileSnapshot') {
+            snapshotUris.add(event.uri);
+        }
+    }
+    for (const event of events) {
+        if (event.type === 'textChange' && !snapshotUris.has(event.uri)) {
+            throw new Error(
+                `invariant: textChange for URI "${event.uri}" at timestamp ${event.timestamp} ` +
+                'has no fileSnapshot in the stream; the replay cannot reconstruct its baseline text.'
+            );
         }
     }
 }

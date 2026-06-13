@@ -24,7 +24,7 @@ import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, EngineClock, TickRecord } from '@extension/services/struggle/types';
 
 import type { GoldenInject } from './goldenTypes';
-import { assertFeedbackViewMatched, assertSnapshotBeforeChange } from './invariants';
+import { assertEveryChangeHasSnapshot, assertFeedbackViewMatched } from './invariants';
 import { ReplaySensorHub } from './replaySensorHub';
 import { scriptedA8, scriptedN2 } from './scriptedTrackers';
 
@@ -62,7 +62,7 @@ function ticksFor(durationS: number): number[] {
 export function replaySession(events: RecordedEvent[], opts: ReplayOpts): ReplayResult {
     // Fail loud on a corrupt stream before driving the engine.
     assertFeedbackViewMatched(events);
-    assertSnapshotBeforeChange(events);
+    assertEveryChangeHasSnapshot(events);
 
     const hub = new ReplaySensorHub(events, {
         resolveSnapshotText: opts.resolveSnapshotText,

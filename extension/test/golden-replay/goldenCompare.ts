@@ -31,6 +31,12 @@ export interface CausalReport {
     readonly alertCountReplay: number;
     readonly alertCountGolden: number;
     readonly alertCountDelta: number;
+    /** Alert tick-times present in the replay but not the reference. */
+    readonly alertTimesOnlyInReplay: number;
+    /** Alert tick-times present in the reference but not the replay. */
+    readonly alertTimesOnlyInGolden: number;
+    /** Alerts at a shared tick-time that differ in primary boundary or path. */
+    readonly alertSharedTimeFieldMismatches: number;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -356,6 +362,22 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
     const alertCountReplay = replay.alerts.length;
     const alertCountGolden = golden.alerts.length;
 
+    // Alerts fire at most once per integer tick-time, so compare by tick-time:
+    // does the same alert fire at the same time, with the same primary + path?
+    const replayByT = new Map(replay.alerts.map(a => [a.t, a]));
+    const goldenByT = new Map(golden.alerts.map(a => [a.t, a]));
+    let alertTimesOnlyInReplay = 0;
+    let alertTimesOnlyInGolden = 0;
+    let alertSharedTimeFieldMismatches = 0;
+    for (const [t, ra] of replayByT) {
+        const ga = goldenByT.get(t);
+        if (ga === undefined) { alertTimesOnlyInReplay++; }
+        else if (ra.primary !== ga.primary || ra.path !== ga.path) { alertSharedTimeFieldMismatches++; }
+    }
+    for (const t of goldenByT.keys()) {
+        if (!replayByT.has(t)) { alertTimesOnlyInGolden++; }
+    }
+
     return {
         ticksCompared,
         tickCountDelta,
@@ -367,5 +389,8 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
         alertCountReplay,
         alertCountGolden,
         alertCountDelta: alertCountReplay - alertCountGolden,
+        alertTimesOnlyInReplay,
+        alertTimesOnlyInGolden,
+        alertSharedTimeFieldMismatches,
     };
 }

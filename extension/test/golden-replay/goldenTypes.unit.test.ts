@@ -4,7 +4,7 @@ import type { RecordedEvent } from '@extension/services/recording/types';
 import { SPEC } from '@extension/services/struggle/constants';
 
 import { parseGoldenSession } from './goldenTypes';
-import { assertFeedbackViewMatched, assertSnapshotBeforeChange, assertSpecConstants } from './invariants';
+import { assertEveryChangeHasSnapshot, assertFeedbackViewMatched, assertSpecConstants } from './invariants';
 
 // ── Minimal valid fixture ─────────────────────────────────────────────────────
 
@@ -175,41 +175,51 @@ describe('assertFeedbackViewMatched', () => {
     });
 });
 
-// ── assertSnapshotBeforeChange ────────────────────────────────────────────────
+// ── assertEveryChangeHasSnapshot ──────────────────────────────────────────────
 
-describe('assertSnapshotBeforeChange', () => {
+describe('assertEveryChangeHasSnapshot', () => {
     it('passes for an empty event stream', () => {
-        expect(() => assertSnapshotBeforeChange([])).not.toThrow();
+        expect(() => assertEveryChangeHasSnapshot([])).not.toThrow();
     });
 
-    it('passes when textChange is preceded by a fileSnapshot for the same URI', () => {
+    it('passes when a changed URI has a fileSnapshot for the same URI', () => {
         const events: RecordedEvent[] = [
             { type: 'fileSnapshot', timestamp: 500, uri: 'file:///a.java', snapshotPath: '/tmp/snap' },
             { type: 'textChange', timestamp: 1000, uri: 'file:///a.java', changes: [] },
         ];
-        expect(() => assertSnapshotBeforeChange(events)).not.toThrow();
+        expect(() => assertEveryChangeHasSnapshot(events)).not.toThrow();
     });
 
-    it('passes when textChange is preceded by a textDocumentOpen for the same URI', () => {
+    it('passes by membership when the fileSnapshot lands AFTER the textChange (async I/O)', () => {
+        const events: RecordedEvent[] = [
+            { type: 'textChange', timestamp: 1000, uri: 'file:///a.java', changes: [] },
+            { type: 'fileSnapshot', timestamp: 1100, uri: 'file:///a.java', snapshotPath: '/tmp/snap' },
+        ];
+        expect(() => assertEveryChangeHasSnapshot(events)).not.toThrow();
+    });
+
+    it('throws when a changed URI has only a textDocumentOpen and no fileSnapshot', () => {
+        // A textDocumentOpen carries no text, so the replay would reconstruct
+        // against an empty document — a fileSnapshot is required.
         const events: RecordedEvent[] = [
             { type: 'textDocumentOpen', timestamp: 500, uri: 'file:///a.java' },
             { type: 'textChange', timestamp: 1000, uri: 'file:///a.java', changes: [] },
         ];
-        expect(() => assertSnapshotBeforeChange(events)).not.toThrow();
+        expect(() => assertEveryChangeHasSnapshot(events)).toThrow(/file:\/\/\/a\.java/);
     });
 
-    it('throws on a textChange whose URI never had a prior snapshot or open', () => {
+    it('throws on a changed URI with no fileSnapshot anywhere', () => {
         const events: RecordedEvent[] = [
             { type: 'textChange', timestamp: 1000, uri: 'file:///a.java', changes: [] },
         ];
-        expect(() => assertSnapshotBeforeChange(events)).toThrow(/file:\/\/\/a\.java/);
+        expect(() => assertEveryChangeHasSnapshot(events)).toThrow(/file:\/\/\/a\.java/);
     });
 
-    it('throws when snapshot is for a different URI', () => {
+    it('throws when the only snapshot is for a different URI', () => {
         const events: RecordedEvent[] = [
             { type: 'fileSnapshot', timestamp: 500, uri: 'file:///b.java', snapshotPath: '/tmp/snap' },
             { type: 'textChange', timestamp: 1000, uri: 'file:///a.java', changes: [] },
         ];
-        expect(() => assertSnapshotBeforeChange(events)).toThrow(/file:\/\/\/a\.java/);
+        expect(() => assertEveryChangeHasSnapshot(events)).toThrow(/file:\/\/\/a\.java/);
     });
 });

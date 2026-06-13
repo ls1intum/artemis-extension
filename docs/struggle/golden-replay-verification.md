@@ -58,9 +58,12 @@ The harness asserts up front (failing loud rather than producing silently-wrong 
 
    Without `IRIS_STUDY_DATA`/`GOLDEN_DIR` set, the dataset suite skips (the harness unit tests still run), so the target is safe on any machine.
 
-## Outcome
+## Pass criteria (what the harness checks)
 
-Exact mode passes for every replayed session: the port reproduces the reference engine's per-tick severity, dynamics, boundaries, and alerts with no divergence (6-decimal numeric tolerance; exact boundary/alert match). Causal mode shows the expected, bounded divergence attributable to the three declared deviations, with the live engine's intervention behavior matching the reference; the per-session figures are recorded locally for the thesis evaluation and are not committed here.
+- **exact mode passes** when every replayed session matches the reference with no divergence: per-tick `S`/`V`/`S_base`/features within a 6-decimal tolerance, and boundaries plus alerts (times, pre-gate/gated types, primary, path, warmup/grace flags) exactly equal.
+- **causal mode is informational**: it records, per session, the divergence attributable to the three declared deviations — per-tick `S`/`V` deltas, `f_a8`/`f_n2`/N1-boundary disagreement tick counts, and alert-time/primary/path parity.
+
+All per-session figures are written to the local run output (console + the local goldens directory) for the thesis evaluation and are intentionally not committed to this repository. Run the command above to produce them.
 
 ## Code map
 

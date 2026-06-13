@@ -246,4 +246,26 @@ describe('summarizeCausal', () => {
         const report = summarizeCausal(replay, golden);
         expect(report.pasteBoundaryDisagreeTicks).toBe(1);
     });
+
+    it('reports alert-time parity by tick-time', () => {
+        const golden = makeGolden({
+            ticks: [makeTick({ t: 10 })],
+            alerts: [
+                makeAlert({ t: 10, primary: 'STATE', path: 'armed' }),
+                makeAlert({ t: 130, primary: 'STATE', path: 'e6' }),
+            ],
+        });
+        const replay = {
+            durationS: 600,
+            ticks: [makeReplayTick(makeTick({ t: 10 }))],
+            alerts: [
+                makeReplayAlert(makeAlert({ t: 10, primary: 'FM', path: 'armed' })), // shared t, primary differs
+                makeReplayAlert(makeAlert({ t: 250, primary: 'STATE', path: 'armed' })), // only in replay
+            ],
+        };
+        const report = summarizeCausal(replay, golden);
+        expect(report.alertTimesOnlyInReplay).toBe(1); // t=250
+        expect(report.alertTimesOnlyInGolden).toBe(1); // t=130
+        expect(report.alertSharedTimeFieldMismatches).toBe(1); // t=10 FM vs STATE
+    });
 });
