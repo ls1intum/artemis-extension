@@ -234,9 +234,10 @@ describe('ReplaySensorHub — channel mapping + state reads', () => {
         expect(() => hub.readTerminals()).toThrow(/not supported in replay/);
     });
 
-    it('classifies a snapshot before startupPhaseComplete as startup even though relS>0', () => {
-        // The real recorder writes startup snapshots with Date.now() > sessionStartMs;
-        // the startupPhaseComplete marker — not a t<=0 test — is the cut-point.
+    it('returns every snapshot URI from readTextDocuments() (relS and marker irrelevant)', () => {
+        // The real recorder writes snapshots lazily on first open/switch, with
+        // Date.now() > sessionStartMs and AFTER startupPhaseComplete. Every
+        // snapshotted URI is treated as an already-open doc; the marker is not used.
         const hub = new ReplaySensorHub(buildEvents(), {
             resolveSnapshotText, pasteMode: 'derive', sessionStartMs: SESSION_START_MS,
         });
@@ -245,7 +246,7 @@ describe('ReplaySensorHub — channel mapping + state reads', () => {
         expect(docs[0].getText()).toBe('hello');
     });
 
-    it('treats a post-startup snapshot as a pre-seeded baseline, not a startup doc', () => {
+    it('returns a post-marker snapshot from readTextDocuments() and pre-seeds its baseline', () => {
         const OTHER = 'file:///Users/x/exercise/src/Bar.java';
         const events = buildEvents();
         // A file opened mid-session: its (single) snapshot lands after the marker.
@@ -262,9 +263,9 @@ describe('ReplaySensorHub — channel mapping + state reads', () => {
             resolveSnapshotText: resolve, pasteMode: 'inject', injectedPasteEventTimes: [],
             sessionStartMs: SESSION_START_MS,
         });
-        // Bar is NOT a startup doc (snapshot is post-marker)…
-        expect(hub.readTextDocuments().map(d => d.uri.toString())).toEqual([URI]);
-        // …yet its baseline was pre-seeded, so the post-startup textChange applies
+        // Both snapshotted URIs are returned (insertion order); the marker is ignored.
+        expect(hub.readTextDocuments().map(d => d.uri.toString())).toEqual([URI, OTHER]);
+        // Bar's baseline was pre-seeded, so the post-marker textChange applies
         // against 'bar' (no unseeded-apply throw) and reconstructs correctly.
         const seen: { uri: string; text: string }[] = [];
         hub.onDidChangeTextDocument(s => seen.push({ uri: s.event.document.uri.toString(), text: s.event.document.getText() }));
@@ -282,11 +283,11 @@ describe('ReplaySensorHub — channel mapping + state reads', () => {
         })).toThrow(/duplicate fileSnapshot/);
     });
 
-    it('fails loud when inject pastes have no startup URI to anchor', () => {
+    it('fails loud when inject pastes have no snapshot URI to anchor', () => {
         const events: RecordedEvent[] = [
             { type: 'sessionStart', timestamp: SESSION_START_MS, exerciseId: 1, participantId: 'P1' },
             { type: 'startupPhaseComplete', timestamp: SESSION_START_MS + 50 },
-            // no startup fileSnapshot
+            // no fileSnapshot at all
         ];
         expect(() => new ReplaySensorHub(events, {
             resolveSnapshotText, pasteMode: 'inject', injectedPasteEventTimes: [2],

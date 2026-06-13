@@ -116,9 +116,9 @@ export class ReplaySensorHub implements SensorHub {
     // ── replay state ────────────────────────────────────────────────────
     private readonly _opts: ReplaySensorHubOptions;
     private readonly _fileText = new FileTextState();
-    /** URIs whose fileSnapshot precedes startupPhaseComplete; readTextDocuments()
-     *  returns exactly these (the docs the engine treats as already-open). */
-    private readonly _startupUris: string[] = [];
+    /** Every URI with a recorded fileSnapshot (insertion order). readTextDocuments()
+     *  returns these as already-open docs, and injected pastes anchor to one. */
+    private readonly _snapshotUris: string[] = [];
     /** Current diagnostics, by URI string, as of the last pumped diagnostics event. */
     private readonly _diagByUri = new Map<string, vscode.Diagnostic[]>();
     private readonly _queue: QueuedSignal[];
@@ -133,12 +133,12 @@ export class ReplaySensorHub implements SensorHub {
         if (
             opts.pasteMode === 'inject'
             && (opts.injectedPasteEventTimes?.length ?? 0) > 0
-            && this._startupUris.length === 0
+            && this._snapshotUris.length === 0
         ) {
             // Injected pastes must attach to a real in-root URI or the engine's
             // shouldRecordUri filter silently drops every N1. Fail loud rather
             // than fabricate an out-of-root URI.
-            throw new Error('ReplaySensorHub: injected pastes require at least one startup file snapshot to anchor the URI');
+            throw new Error('ReplaySensorHub: injected pastes require at least one recorded fileSnapshot to anchor the URI');
         }
         this._queue = this._buildQueue(events);
     }
@@ -150,8 +150,7 @@ export class ReplaySensorHub implements SensorHub {
     }
 
     /**
-     * Seed FileTextState from EVERY recorded fileSnapshot up front, and record
-     * which URIs are "startup" (snapshotted before startupPhaseComplete).
+     * Seed FileTextState from EVERY recorded fileSnapshot up front.
      *
      * fileSnapshot is not a runtime mutation in the recorder: each URI is
      * snapshotted at most once per session (snapshotManager gates on
@@ -164,33 +163,19 @@ export class ReplaySensorHub implements SensorHub {
      * (b) makes a mid-stream rollback impossible. Snapshots are never re-applied
      * from the pump queue.
      *
-     * The recorder writes sessionStart, THEN the startup fileSnapshots (with
-     * Date.now() > sessionStartTs, i.e. relS > 0), THEN one startupPhaseComplete
-     * marker — its documented "seed state vs runtime events" cut-point. Snapshots
-     * before that marker are the already-open docs the engine seeds in start().
-     * Fallback when no marker exists (truncated recording): treat snapshots
-     * before the first textChange as startup.
+     * The recorder snapshots files LAZILY on first open/switch — observed AFTER
+     * the startupPhaseComplete marker, not before it — so a "snapshots before the
+     * marker" notion is empty in practice. We therefore treat every snapshotted
+     * URI as an already-open doc for readTextDocuments(): the engine's shadow only
+     * feeds A8, and A8 reads `before` at the first textChange, where the seeded
+     * baseline is the snapshot content either way. Any snapshot URI is also a
+     * valid in-root anchor for an injected N1 paste.
      */
     private _seedSnapshots(events: RecordedEvent[]): void {
-        // Cut-point: the index of the first startupPhaseComplete marker; snapshots
-        // before it are startup. Authoritative when the marker exists. Fallback
-        // for marker-less (truncated) recordings: the first textChange index, or
-        // the end of the stream if neither marker nor textChange exists.
-        const markerIdx = events.findIndex(e => e.type === 'startupPhaseComplete');
-        const firstChangeIdx = events.findIndex(e => e.type === 'textChange');
-        let startupCutIdx: number;
-        if (markerIdx >= 0) {
-            startupCutIdx = markerIdx;
-        } else if (firstChangeIdx >= 0) {
-            startupCutIdx = firstChangeIdx;
-        } else {
-            startupCutIdx = events.length;
-        }
-
         const seeded = new Set<string>();
-        events.forEach((ev, idx) => {
+        for (const ev of events) {
             if (ev.type !== 'fileSnapshot') {
-                return;
+                continue;
             }
             if (seeded.has(ev.uri)) {
                 // Enforce the one-snapshot-per-URI recorder contract: a second
@@ -199,10 +184,8 @@ export class ReplaySensorHub implements SensorHub {
             }
             this._fileText.seedSnapshot(ev.uri, this._opts.resolveSnapshotText(ev.snapshotPath));
             seeded.add(ev.uri);
-            if (idx < startupCutIdx) {
-                this._startupUris.push(ev.uri);
-            }
-        });
+            this._snapshotUris.push(ev.uri);
+        }
     }
 
     // ── queue construction ──────────────────────────────────────────────
@@ -262,9 +245,9 @@ export class ReplaySensorHub implements SensorHub {
         }
 
         if (this._opts.pasteMode === 'inject') {
-            // The constructor guarantees a startup URI exists whenever there are
-            // injected paste times, so _startupUris[0] is always defined here.
-            const uriKey = this._startupUris[0];
+            // The constructor guarantees a snapshot URI exists whenever there are
+            // injected paste times, so _snapshotUris[0] is always defined here.
+            const uriKey = this._snapshotUris[0];
             for (const t of this._opts.injectedPasteEventTimes ?? []) {
                 const tsMs = this._opts.sessionStartMs + t * 1000;
                 // chars/lines are unused by the engine — it reads only ts + uri for
@@ -394,7 +377,7 @@ export class ReplaySensorHub implements SensorHub {
     // ── state reads ─────────────────────────────────────────────────────
 
     readTextDocuments(): readonly vscode.TextDocument[] {
-        return this._startupUris.map(uri =>
+        return this._snapshotUris.map(uri =>
             makeDocument(makeUri(uri), () => this._fileText.getText(uri) ?? ''),
         );
     }

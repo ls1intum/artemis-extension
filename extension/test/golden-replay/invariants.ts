@@ -14,10 +14,16 @@ export function assertSpecConstants(g: GoldenSession): void {
             'Golden was generated with different constants and is incomparable.'
         );
     }
-    if (g.graceS !== SPEC.GRACE_S) {
+    // grace_s comes from the F3 derivation as a full-precision double
+    // (32.940000000000055); the TS SPEC froze the human value 32.94. The ~5e-14
+    // gap never flips grace gating at the 10s tick / event-time granularities,
+    // so tolerate float noise here rather than reject every golden. A real
+    // constant mismatch (different derived value) is orders of magnitude larger.
+    const GRACE_TOL = 1e-9;
+    if (Math.abs(g.graceS - SPEC.GRACE_S) > GRACE_TOL) {
         throw new Error(
-            `invariant: golden graceS ${g.graceS} !== SPEC.GRACE_S ${SPEC.GRACE_S}. ` +
-            'Golden was generated with different constants and is incomparable.'
+            `invariant: golden graceS ${g.graceS} differs from SPEC.GRACE_S ${SPEC.GRACE_S} ` +
+            `by more than ${GRACE_TOL}. Golden was generated with different constants and is incomparable.`
         );
     }
 }
