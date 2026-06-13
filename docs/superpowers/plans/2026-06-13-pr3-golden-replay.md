@@ -146,9 +146,11 @@ git commit -m "feat(struggle): injectable A8/N2 trackers for replay verification
 
 ---
 
-## Task 2: Golden schema + parser + invariants
+## Task 2: Dedicated Vitest target + golden schema + parser + invariants
 
-**Files:** Create `extension/test/golden-replay/goldenTypes.ts`, `invariants.ts`; Test `goldenTypes.unit.test.ts`.
+**Files:** Create `extension/vitest.golden-replay.config.mts`, `extension/test/golden-replay/goldenTypes.ts`, `invariants.ts`; Test `goldenTypes.unit.test.ts`; Modify `extension/package.json`.
+
+> The default Vitest `include` is `test/react/**` + `test/logic/**` only — it does NOT collect `test/golden-replay/**`. So create the dedicated target up front (not in Task 7) so every golden-replay task (2-6) can run its unit tests. Config: copy the alias/stub/`setupFiles` block from `vitest.config.mts`, set `include: ['test/golden-replay/**/*.test.{ts,tsx}']`. Add npm script `"test:golden-replay": "vitest run --config vitest.golden-replay.config.mts"`. The default `vitest.config.mts` stays unchanged (never collects golden-replay; the dataset suite is fully isolated in this target). `check-types` (whole test tree) and `knip` still cover the golden-replay code in CI.
 
 - [ ] **Step 1: Write failing test** — `parseGoldenSession` accepts a minimal well-formed golden, rejects a malformed one; `assertSpecConstants(golden)` throws when `golden.theta !== SPEC.THETA_FULL` or `golden.graceS !== SPEC.GRACE_S`.
 - [ ] **Step 2: Run → FAIL.**
@@ -236,11 +238,11 @@ Deterministic injected clock (no real timers). `ticksFor(durationS)` mirrors Pyt
 
 ---
 
-## Task 7: Vitest target + Python generator + the verification run
+## Task 7: Dataset suite + Python generator + the verification run
 
-**Files:** Create `vitest.golden-replay.config.mts`, `goldenReplay.test.ts`; Modify `package.json`, `vitest.config.mts`, `.gitignore`; Create (local, NOT committed) `IrisStudyData/analysis/scripts/26_export_ts_goldens.py`.
+**Files:** Create `goldenReplay.test.ts`; Modify `.gitignore`; Create (local, NOT committed) `IrisStudyData/analysis/scripts/26_export_ts_goldens.py`. (The dedicated Vitest target `vitest.golden-replay.config.mts` + `test:golden-replay` script already exist from Task 2.)
 
-- [ ] **Step 1: Dedicated Vitest target.** `vitest.golden-replay.config.mts` includes only `test/golden-replay/**`, same `vscode` alias as the default config. Add `"test:golden-replay"` script. Exclude `test/golden-replay/**` from the default `vitest.config.mts` include so the normal `test:react` run never collects it.
+- [ ] **Step 1: (config already exists from Task 2)** — the dataset suite below is collected by the existing `test:golden-replay` target; the default `test:react` never collects `test/golden-replay/**`.
 - [ ] **Step 2: The local suite `goldenReplay.test.ts`** — `describe.skipIf(!process.env.IRIS_STUDY_DATA)`. Resolve sessions dir + goldens dir from env (`IRIS_STUDY_DATA`, `GOLDEN_DIR`). Per pid: read `events.jsonl` + metadata (durationS), parse golden, `assertSpecConstants`; run exact (assert `compareExact.ok`, surfacing the first divergence) + causal (collect `summarizeCausal`, log a table). When the env is unset, the whole suite is skipped — proving CI-safety.
 - [ ] **Step 3: Python generator (local).** Implement `26_export_ts_goldens.py`: for each pid P1..P10 (golden replay is fidelity, not eval — all 10 usable, no labels touched), load the four artifacts filtered to pid, `pipe = ev2.run_pipeline(...)`, `theta = params['v2_theta_full']`, `grace_s = params['grace_s']`, `res = ev2.full_alerts(pipe, theta, grace_s)`. Emit `GoldenSession` JSON: per-tick from `pipe['feat']` (round floats to 6 decimals), boundaries from `pipe['boundaries']['flags']` (BOUNDARY priority order), alerts from `res['audit']`, `inject` = per-tick `f_a8`/`f_n2` arrays + paste **event times** (`inputs['paste_t']`). Write to a local `$OUT` dir. NEVER edit the frozen lib.
 - [ ] **Step 4: Run the generator locally; sanity-check** tick counts per pid against the `24_engine_v2.py` console output / `RESULTS_v2_freeze.md`.
