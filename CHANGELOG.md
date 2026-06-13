@@ -18,6 +18,11 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Internal
 
+- **Engine v2 golden-replay verification**: a local (non-CI) harness replays recorded
+  sessions through the Engine v2 TS port and checks it tick-for-tick against the frozen
+  Python reference (exact engine-math fidelity; causal-mode divergence from the three
+  declared live deviations is characterized locally). Study data and per-session results
+  stay local; only the harness and methodology are in the repo.
 - **Struggle Engine v2 live (switchover)**: the v1 EQ decision path (boundary triggers,
   adaptive cadence, intervention filter/decision engine, inactivity/build-result/diagnostic
   trackers, debug dashboard, TelemetryManager) is removed; Engine v2 now drives a single-level

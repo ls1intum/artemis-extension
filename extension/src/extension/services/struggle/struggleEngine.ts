@@ -46,6 +46,21 @@ const DEFAULT_CLOCK: EngineClock = {
 
 interface QueuedEvent { tsS: number; apply: () => void }
 
+/** The A8-tracker subset the engine drives. Lets golden-replay (PR 3) inject a
+ *  scripted A8 signal in exact mode instead of deriving it online. Widen this
+ *  if the engine ever calls another A8Tracker method. */
+export type A8TrackerLike = Pick<A8Tracker, 'recordChange' | 'activeAt'>;
+/** The N2-tracker subset the engine drives (see A8TrackerLike). */
+export type N2TrackerLike = Pick<N2Tracker, 'ingestSelection' | 'ingestSnapshot' | 'activeAt'>;
+
+interface StruggleEngineOptions {
+    /** Replay feeds already-debounced recorded streams (Decision 5). */
+    preDebouncedIntake?: boolean;
+    /** Factories for scripted A8/N2 trackers (golden-replay exact mode, PR 3).
+     *  Omitted factories fall back to the real online trackers. */
+    trackers?: { a8?: () => A8TrackerLike; n2?: () => N2TrackerLike };
+}
+
 export class StruggleEngine implements vscode.Disposable {
     private readonly _hub: SensorHub;
     private readonly _clock: EngineClock;
@@ -66,8 +81,8 @@ export class StruggleEngine implements vscode.Disposable {
     private _features = new FeatureWindowTracker();
     private _feedback = new FeedbackViewTracker();
     private _shadow = new DocumentShadowTracker();
-    private _a8 = new A8Tracker();
-    private _n2 = new N2Tracker();
+    private _a8: A8TrackerLike = new A8Tracker();
+    private _n2: N2TrackerLike = new N2Tracker();
     private _buildDelta = new BuildDeltaTracker();
     private _fastDecay = new FastDecayTracker();
     private _v = new VTracker();
@@ -77,14 +92,16 @@ export class StruggleEngine implements vscode.Disposable {
     private _scrollDebounce: TrailingDebouncer<number> | undefined;
     /** Replay feeds already-debounced recorded streams (Decision 5). */
     private readonly _preDebounced: boolean;
+    private readonly _opts: StruggleEngineOptions | undefined;
 
     constructor(
         hub: SensorHub,
         clock: EngineClock = DEFAULT_CLOCK,
-        options?: { preDebouncedIntake?: boolean },
+        options?: StruggleEngineOptions,
     ) {
         this._hub = hub;
         this._clock = clock;
+        this._opts = options;
         this._preDebounced = options?.preDebouncedIntake ?? false;
     }
 
@@ -356,8 +373,8 @@ export class StruggleEngine implements vscode.Disposable {
         this._features = new FeatureWindowTracker();
         this._feedback = new FeedbackViewTracker();
         this._shadow = new DocumentShadowTracker();
-        this._a8 = new A8Tracker();
-        this._n2 = new N2Tracker();
+        this._a8 = this._opts?.trackers?.a8?.() ?? new A8Tracker();
+        this._n2 = this._opts?.trackers?.n2?.() ?? new N2Tracker();
         this._buildDelta = new BuildDeltaTracker();
         this._fastDecay = new FastDecayTracker();
         this._v = new VTracker();
