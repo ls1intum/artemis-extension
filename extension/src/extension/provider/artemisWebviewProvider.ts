@@ -24,7 +24,7 @@ import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { SubmissionPayload } from '@extension/services/recording/types';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { IProviderRegistry } from '@extension/services/ui';
 import {
     BuildDiagnosticsService,
@@ -82,7 +82,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
-    private readonly _telemetryManager: TelemetryManager;
+    private readonly _struggleCoordinator: StruggleCoordinator;
     private readonly _renderService: ProblemStatementRenderService;
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;
@@ -119,7 +119,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._exerciseRegistry = deps.exerciseRegistry;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
-        this._telemetryManager = deps.telemetryManager;
+        this._struggleCoordinator = deps.struggleCoordinator;
         this._authContextUpdater = deps.updateAuthContext;
         this._courseDataCache = deps.courseDataCache;
         const buildErrorCodeLensProvider = deps.buildErrorCodeLensProvider;
@@ -148,7 +148,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._exerciseOpeningService = new ExerciseOpeningService(
             this._exerciseRegistry,
             this._providerRegistry,
-            this._telemetryManager,
+            this._struggleCoordinator,
             this._courseAccessStorage,
         );
 
@@ -211,7 +211,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // 10. Init data service — depends on the message handler being ready.
         this._viewInitDataService = new ViewInitDataService(
             this._appStateManager,
-            this._telemetryManager,
+            this._struggleCoordinator,
             this._messageHandler,
             (msg) => this._postMessageSafe(msg),
             this._courseAccessStorage,

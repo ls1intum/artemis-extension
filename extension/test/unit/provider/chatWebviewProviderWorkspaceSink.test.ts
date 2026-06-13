@@ -29,7 +29,6 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         noAi as never,
         registry as never,
         courseDataCache as never,
-        undefined,
         contextStore,
     );
     return { provider, sandbox, mockContext };

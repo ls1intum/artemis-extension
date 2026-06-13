@@ -143,10 +143,10 @@ interface ExtensionMsgPayloads {
     };
     struggleDetectionInit: {
         isStruggling: boolean;
-        eq: number;
-        eqConfidence: 'insufficient' | 'sufficient';
-        triggerType?: string;
-        recommendedAction: 'none' | 'subtle' | 'notification' | 'proactive';
+        v: number;
+        s: number;
+        primaryBoundary: 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | null;
+        lastAlertT: number | null;
         isEnabled: boolean;
         developerMode: boolean;
     };

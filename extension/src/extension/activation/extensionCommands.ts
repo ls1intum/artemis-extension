@@ -3,8 +3,9 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { AuthManager } from '@extension/services/auth';
+import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
@@ -525,9 +526,9 @@ function registerClearTrustedDomainsCommand(context: vscode.ExtensionContext): v
     });
 }
 
-function registerStruggleScoreCommand(telemetryManager: TelemetryManager): vscode.Disposable {
+function registerStruggleScoreCommand(struggleCoordinator: StruggleCoordinator): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
-        await telemetryManager.showStruggleScoreDialog();
+        await showStruggleScoreDialog(struggleCoordinator.getSnapshot());
     });
 }
 
@@ -682,7 +683,7 @@ interface CommandDeps {
     authManager: AuthManager;
     artemisApiService: ArtemisApiService;
     artemisWebsocketService: ArtemisWebsocketService;
-    telemetryManager: TelemetryManager;
+    struggleCoordinator: StruggleCoordinator;
     providerRegistry: IProviderRegistry;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
@@ -700,7 +701,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerGoToSourceErrorCommand(),
         registerSetServerUrlCommand(),
         registerClearTrustedDomainsCommand(deps.context),
-        registerStruggleScoreCommand(deps.telemetryManager),
+        registerStruggleScoreCommand(deps.struggleCoordinator),
         registerShowJwtTokenCommand(deps.authManager),
         registerShowTheiaEnvironmentCommand(),
     );

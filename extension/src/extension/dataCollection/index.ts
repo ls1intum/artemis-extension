@@ -39,7 +39,7 @@ export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHand
         context,
         consentService,
         artemisWebsocketService: deps.artemisWebsocketService,
-        telemetryManager: deps.telemetryManager,
+        struggleCoordinator: deps.struggleCoordinator,
         artemisWebviewProvider: deps.artemisWebviewProvider,
         chatWebviewProvider: deps.chatWebviewProvider,
         capabilities: deps.capabilities,
