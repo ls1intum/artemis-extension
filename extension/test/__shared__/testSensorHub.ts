@@ -8,11 +8,13 @@ import * as vscode from 'vscode';
 
 import type { SensorHub } from '@extension/services/sensing/sensorHub';
 import type {
-    ActiveEditorSignal, BreakpointsSignal, DebugSessionSignal, DiagnosticsChangeSignal,
-    DiagnosticsSettledSignal, FileRenameSignal, FileSetSignal, SaveSignal, SelectionSignal,
-    ShellExecutionEndSignal, ShellExecutionStartSignal, TerminalSignal, TextChangeSignal,
-    TextDocumentSignal, VisibleRangesSignal, WindowStateSignal,
+    ActiveEditorSignal, BreakpointsSignal, BuildResultSignal, DebugSessionSignal,
+    DiagnosticsChangeSignal, DiagnosticsSettledSignal, FileRenameSignal, FileSetSignal,
+    PasteSignal, SaveSignal, SelectionSignal, ShellExecutionEndSignal, ShellExecutionStartSignal,
+    TaskFeedbackViewSignal, TerminalSignal, TextChangeSignal, TextDocumentSignal,
+    VisibleRangesSignal, WindowStateSignal,
 } from '@extension/services/sensing/types';
+import type { ResultDTO } from '@extension/types';
 
 export class TestSensorHub implements SensorHub {
     readonly emit = {
@@ -37,6 +39,9 @@ export class TestSensorHub implements SensorHub {
         breakpoints: new vscode.EventEmitter<BreakpointsSignal>(),
         shellStart: new vscode.EventEmitter<ShellExecutionStartSignal>(),
         shellEnd: new vscode.EventEmitter<ShellExecutionEndSignal>(),
+        buildResult: new vscode.EventEmitter<BuildResultSignal>(),
+        taskFeedbackView: new vscode.EventEmitter<TaskFeedbackViewSignal>(),
+        pasteDetected: new vscode.EventEmitter<PasteSignal>(),
     };
 
     readonly stub = {
@@ -47,6 +52,7 @@ export class TestSensorHub implements SensorHub {
         activeTextEditor: undefined as vscode.TextEditor | undefined,
         terminals: [] as vscode.Terminal[],
         breakpoints: [] as vscode.Breakpoint[],
+        textDocuments: [] as vscode.TextDocument[],
     };
 
     readonly onDidChangeTextDocument = this.emit.textChange.event;
@@ -70,6 +76,18 @@ export class TestSensorHub implements SensorHub {
     readonly onDidChangeBreakpoints = this.emit.breakpoints.event;
     readonly onDidStartTerminalShellExecution = this.emit.shellStart.event;
     readonly onDidEndTerminalShellExecution = this.emit.shellEnd.event;
+    readonly onBuildResult = this.emit.buildResult.event;
+    readonly onTaskFeedbackView = this.emit.taskFeedbackView.event;
+    readonly onPasteDetected = this.emit.pasteDetected.event;
+
+    emitBuildResult(result: ResultDTO): void {
+        this.emit.buildResult.fire({ ts: Date.now(), result });
+    }
+    emitTaskFeedbackView(action: 'opened' | 'closed', viewId: string): void {
+        this.emit.taskFeedbackView.fire({ ts: Date.now(), action, viewId });
+    }
+
+    readTextDocuments(): readonly vscode.TextDocument[] { return this.stub.textDocuments; }
 
     readAllDiagnostics(): ReadonlyArray<[vscode.Uri, vscode.Diagnostic[]]> { return this.stub.allDiagnostics; }
     readDiagnostics(uri: vscode.Uri): readonly vscode.Diagnostic[] {
