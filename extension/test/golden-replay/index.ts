@@ -2,6 +2,8 @@
  * Public surface of the golden-replay harness, consumed by the dataset suite and
  * the tick/alert comparator (later tasks).
  */
+export type { CausalReport, ExactReport } from './goldenCompare';
+export { compareExact, summarizeCausal } from './goldenCompare';
 export type {
     GoldenAlert, GoldenInject, GoldenSession, GoldenTick,
 } from './goldenTypes';
