@@ -9,8 +9,9 @@
 
 import * as sinon from 'sinon';
 
-import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
-import { EQConfidence, ErrorSnapshot, RecommendedAction } from '@extension/services/telemetry/types';
+import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
+import { EQConfidence, ErrorSnapshot } from '@extension/services/eq/types';
+import { RecommendedAction } from '@extension/services/telemetry/types';
 
 import {
     BuildResultEvent,

@@ -5,7 +5,8 @@
  * from save/build events and verify the resulting EQ value.
  */
 
-import { EQConfidence, RecommendedAction } from '@extension/services/telemetry/types';
+import { EQConfidence } from '@extension/services/eq/types';
+import { RecommendedAction } from '@extension/services/telemetry/types';
 
 // ============================================================================
 // Scenario Definition Types

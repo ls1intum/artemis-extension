@@ -9,7 +9,7 @@ import type {
     TestResultsOverviewOpenedPayload,
 } from '@shared/messageContracts/webviewCommands';
 
-import type { SubmissionPayload } from '@extension/services/telemetry/recording/types';
+import type { SubmissionPayload } from '@extension/services/recording/types';
 
 /**
  * Minimal contract for the Artemis webview provider, exposing only what the

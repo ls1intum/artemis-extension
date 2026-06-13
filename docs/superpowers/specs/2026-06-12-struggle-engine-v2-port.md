@@ -153,13 +153,20 @@ follows the wrong rule meanwhile.
    optionality keeps using the EXISTING compile-time seam (`dataCollection/noop.ts`
    substitution): `sensing/` and `struggle/` never import recording-side code;
    `verify-clean-bundle.js` stays green.
-2. **PR 2 `feat(struggle)`:** Engine v2 complete (structure above). Unit tests: port of
-   the 26 Python state-machine tests plus new tick/feature tests. The scenario harness
-   is REPLACED, not converted: new v2 runner with tick scheduler and sensor event
-   simulation (text windows, scroll/N4, feedback view, terminal, paste, cursor/error
-   distance N2, A8 history, build delta); old EQ harness tests move into the eq/ test
-   package or are retired. v1 decision path removed; `intervention/` switched to
-   AlertSink; recording schema v3 including parser/replay/viewer support.
+2. **PR 2 (split into three PRs, decided 2026-06-13):**
+   - **PR 2a `refactor(structure)`:** Mechanical dissolution of `services/telemetry/`:
+     recorder + replay → `services/recording/`, passive EQ pipeline + lint denylist →
+     `services/eq/`, uriFilter + paste heuristic → `services/sensing/`. Zero behavior
+     change; proof = all existing suites green unchanged.
+   - **PR 2b `feat(struggle)`:** Engine v2 additive: sensorHub internal sources
+     (buildResult behind buildResultGuard, taskFeedbackView) and paste channel,
+     `services/struggle/` complete (structure above), port of the 26 Python
+     state-machine tests plus new tick/feature tests, new v2 scenario runner.
+     The v1 decision path keeps running unchanged; the engine is not yet wired
+     to any UI.
+   - **PR 2c `feat(struggle)`:** Switchover: v1 decision path removed,
+     `intervention/` switched to AlertSink, recording schema v3 including
+     parser/replay/viewer support, coordinator rework, old EQ harness retired.
 3. **PR 3 `test(replay-goldens)`:** Offline replay of the 10 study sessions through the
    TS engine; comparison against the Python reference (goldens are small JSON fixtures:
    tick times and scores only, no code content). Alert times and boundary/gate decisions:

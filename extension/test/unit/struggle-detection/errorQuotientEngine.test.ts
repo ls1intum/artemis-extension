@@ -10,10 +10,11 @@
 
 import * as assert from 'assert';
 
+import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
+import { ErrorSnapshot } from '@extension/services/eq/types';
 import { InterventionDecisionEngine } from '@extension/services/telemetry/decision/interventionDecisionEngine';
 import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
-import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
-import { ErrorSnapshot, InterventionState } from '@extension/services/telemetry/types';
+import { InterventionState } from '@extension/services/telemetry/types';
 
 function makeSnapshot(
     timestamp: number,

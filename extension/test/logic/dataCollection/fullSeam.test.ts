@@ -21,7 +21,7 @@ vi.mock('@extension/services/auth/consentService', () => ({
 vi.mock('@extension/activation/sessionRecorderWiring', () => ({
     wireSessionRecorder: () => ({ sessionRecorder: { shutdown: h.recorderShutdown }, disposable: h.recorderDisposable }),
 }));
-vi.mock('@extension/services/telemetry/replay', () => ({ executeReplayCommand: h.executeReplayCommand }));
+vi.mock('@extension/services/recording/replay', () => ({ executeReplayCommand: h.executeReplayCommand }));
 vi.mock('@extension/services/loggingService', () => ({ logger: { error: vi.fn() }, LogCategory: { TELEMETRY: 'telemetry' } }));
 
 import { createRecordingWebviewHandlers, wireDataCollection } from '@extension/dataCollection/index';

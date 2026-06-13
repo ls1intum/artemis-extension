@@ -19,6 +19,9 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Internal
 
 - **Sensing Layer**: A single `SensorHub` (`services/sensing/`) now owns all VS Code event subscriptions and state reads for telemetry; the session recorder, the EQ pipeline, and the inactivity/diagnostics services consume typed hub channels. No behavior change; recordings stay schema-v2 identical.
+- **Services restructuring**: recorder and replay moved to `services/recording/`, the
+  passive EQ pipeline to `services/eq/`, URI filter and paste heuristic into the
+  sensing layer. Pure relocation, no behavior change.
 - **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
 - **Live Recording Viewer**: The Event Breakdown counts, event total, and session duration now update live alongside the timeline instead of freezing at the values from when the live session was opened.
 - **Live Recording Viewer**: Live mode can now be served from the production build (`npm run preview:live:token`), which eliminates a browser-tab out-of-memory crash that could occur during long or high-volume live sessions on the dev server.

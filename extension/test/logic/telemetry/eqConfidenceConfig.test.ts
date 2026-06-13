@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
-import { DEFAULT_EQ_CONFIG, type ErrorSnapshot } from '@extension/services/telemetry/types';
+import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
+import { DEFAULT_EQ_CONFIG, type ErrorSnapshot } from '@extension/services/eq/types';
 
 function snap(timestamp: number): ErrorSnapshot {
     return { timestamp, hasErrors: true, errorFamilies: new Set(['ts:2304']), errorCount: 1 };

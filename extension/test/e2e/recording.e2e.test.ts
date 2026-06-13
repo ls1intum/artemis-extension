@@ -19,8 +19,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { parseRecordedEvent } from '@extension/services/telemetry/recording/parseRecordedData';
-import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import { parseRecordedEvent } from '@extension/services/recording/parseRecordedData';
+import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type {
     BreakpointChangeEvent,
     ConsentChangeEvent,
@@ -42,7 +42,7 @@ import type {
     TextDocumentOpenEvent,
     VisibleRangeChangeEvent,
     WindowFocusEvent,
-} from '@extension/services/telemetry/recording/types';
+} from '@extension/services/recording/types';
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 

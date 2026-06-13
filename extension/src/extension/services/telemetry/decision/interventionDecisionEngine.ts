@@ -1,6 +1,6 @@
+import { EQConfidence } from '@extension/services/eq/types';
 import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
 import {
-    EQConfidence,
     InterventionDecision,
     InterventionState,
     RecommendedAction,

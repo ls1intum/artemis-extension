@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 
 import type { DiagnosticsSettledSignal, SaveSignal } from '@extension/services/sensing/types';
-import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
+import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 
 /**
  * Save-triggered diagnostics settle snapshot.

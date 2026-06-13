@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 
+import { classifyBuildResult, CompileEquivalentEmitter } from '@extension/services/eq/compileEquivalentEmitter';
+import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
+import { EQConfidence, EQState } from '@extension/services/eq/types';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
@@ -13,16 +16,12 @@ import { DebugDashboard } from './debugDashboard';
 import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
 import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
 import { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
-import { classifyBuildResult, CompileEquivalentEmitter } from './eventPipeline/compileEquivalentEmitter';
 import { InactivityService } from './inactivityService';
 import { AdaptiveCadence } from './intervention/adaptiveCadence';
 import { InterventionFilter } from './interventionFilter';
 import { InterventionService } from './interventionService';
-import { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
 import type { SessionResettable, SessionStartContext } from './types';
 import {
-    EQConfidence,
-    EQState,
     RecommendedAction,
     StruggleContext,
     SuppressedInterventionPayload,
