@@ -40,7 +40,7 @@ Because `V(t)` carries decay memory, a deviation that shifts `S` at one tick con
 The harness asserts up front (failing loud rather than producing silently-wrong output):
 - the golden's `theta`/`graceS` match the TS `SPEC` constants (within float tolerance for `graceS`, whose derivation carries IEEE noise below any gating granularity);
 - every `taskFeedbackView` close has a matching prior open (mirrors the reference);
-- every `textChange` URI has a prior `fileSnapshot`/`textDocumentOpen` baseline.
+- every `textChange` URI has a `fileSnapshot` somewhere in the stream — a `textDocumentOpen` carries no text, so a snapshot is required (membership, not stream order, since the recorder can write a snapshot's event after an early edit).
 
 ## Reproduce locally
 
