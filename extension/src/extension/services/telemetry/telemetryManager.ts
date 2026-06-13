@@ -6,11 +6,11 @@ import { EQConfidence, EQState } from '@extension/services/eq/types';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
+import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 import { VSCODE_CONFIG } from '@extension/utils/constants';
 
-import { shouldAcceptBuildResult } from './buildResultGuard';
 import { BuildResultTracker } from './buildResultTracker';
 import { DebugDashboard } from './debugDashboard';
 import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';

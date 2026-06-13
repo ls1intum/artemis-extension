@@ -59,7 +59,7 @@ type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
-import { shouldAcceptBuildResult } from '@extension/services/telemetry/buildResultGuard';
+import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
 import type { PlatformCapabilities } from '@extension/theia';
 
 import { collectBuildResult } from './eventCollectors';

@@ -5,25 +5,8 @@ import type * as vscode from 'vscode';
 
 import type { EQConfidence } from '@extension/services/eq/types';
 
-// ── Session lifecycle ───────────────────────────────────────────────
-
-/**
- * Context passed to telemetry sub-services when a new exercise session starts.
- */
-export interface SessionStartContext {
-    exerciseId: number;
-    exerciseRoot?: vscode.Uri;
-}
-
-/**
- * Implemented by telemetry sub-services that need per-exercise lifecycle management.
- * TelemetryManager iterates all registered SessionResettable services on exercise
- * switch instead of calling individual reset methods, ensuring no service is missed.
- */
-export interface SessionResettable {
-    onSessionStart(context: SessionStartContext): void;
-    onSessionEnd?(): void;
-}
+// ── Session lifecycle (interim re-export — declarations moved to sessionLifecycle.ts in PR 2c) ──
+export type { SessionResettable, SessionStartContext } from '@extension/services/sessionLifecycle';
 
 // ── Diagnostics ─────────────────────────────────────────────────────
 
