@@ -1,0 +1,72 @@
+import type { RecordedEvent } from '@extension/services/recording/types';
+import { SPEC } from '@extension/services/struggle/constants';
+
+import type { GoldenSession } from './goldenTypes';
+
+/**
+ * Asserts that the golden was generated with the frozen engine constants.
+ * A golden built with different theta or graceS is incomparable to the TS engine.
+ */
+export function assertSpecConstants(g: GoldenSession): void {
+    if (g.theta !== SPEC.THETA_FULL) {
+        throw new Error(
+            `invariant: golden theta ${g.theta} !== SPEC.THETA_FULL ${SPEC.THETA_FULL}. ` +
+            'Golden was generated with different constants and is incomparable.'
+        );
+    }
+    if (g.graceS !== SPEC.GRACE_S) {
+        throw new Error(
+            `invariant: golden graceS ${g.graceS} !== SPEC.GRACE_S ${SPEC.GRACE_S}. ` +
+            'Golden was generated with different constants and is incomparable.'
+        );
+    }
+}
+
+/**
+ * Scans taskFeedbackView events and throws if a 'closed' event is encountered
+ * for a viewId with no prior 'opened' (or that was already closed).
+ * Mirrors engine_v2.py behaviour which raises on close-without-open.
+ */
+export function assertFeedbackViewMatched(events: readonly RecordedEvent[]): void {
+    const openViewIds = new Set<string>();
+    for (const event of events) {
+        if (event.type !== 'taskFeedbackView') {
+            continue;
+        }
+        if (event.action === 'opened') {
+            openViewIds.add(event.viewId);
+        } else {
+            // action === 'closed'
+            if (!openViewIds.has(event.viewId)) {
+                throw new Error(
+                    `invariant: taskFeedbackView 'closed' for viewId "${event.viewId}" ` +
+                    'at timestamp ' + event.timestamp + ' has no prior opened event. ' +
+                    'Close-without-open indicates a corrupt or truncated event stream.'
+                );
+            }
+            openViewIds.delete(event.viewId);
+        }
+    }
+}
+
+/**
+ * Asserts that every textChange event in the stream is preceded by either a
+ * fileSnapshot or a textDocumentOpen for the same URI. A textChange with no
+ * prior baseline means the replaying engine cannot reconstruct starting state.
+ */
+export function assertSnapshotBeforeChange(events: readonly RecordedEvent[]): void {
+    const baselinedUris = new Set<string>();
+    for (const event of events) {
+        if (event.type === 'fileSnapshot' || event.type === 'textDocumentOpen') {
+            baselinedUris.add(event.uri);
+        } else if (event.type === 'textChange') {
+            if (!baselinedUris.has(event.uri)) {
+                throw new Error(
+                    `invariant: textChange for URI "${event.uri}" ` +
+                    'at timestamp ' + event.timestamp + ' has no prior fileSnapshot or ' +
+                    'textDocumentOpen for that URI. The event stream is missing baseline state.'
+                );
+            }
+        }
+    }
+}
