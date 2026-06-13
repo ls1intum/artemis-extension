@@ -2,21 +2,26 @@ import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { PlatformCapabilities } from '@extension/theia';
+import type { ResultDTO } from '@extension/types';
 
 import { DiagnosticsSettleCollector } from './collectors/diagnosticsSettle';
+import { detectPastes } from './collectors/paste';
 import { nextSensorSeq } from './sequence';
 import type {
     ActiveEditorSignal,
     BreakpointsSignal,
+    BuildResultSignal,
     DebugSessionSignal,
     DiagnosticsChangeSignal,
     DiagnosticsSettledSignal,
     FileRenameSignal,
     FileSetSignal,
+    PasteSignal,
     SaveSignal,
     SelectionSignal,
     ShellExecutionEndSignal,
     ShellExecutionStartSignal,
+    TaskFeedbackViewSignal,
     TerminalSignal,
     TextChangeSignal,
     TextDocumentSignal,
@@ -63,8 +68,21 @@ export interface SensorHub extends vscode.Disposable {
     readonly onDidStartTerminalShellExecution: vscode.Event<ShellExecutionStartSignal>;
     readonly onDidEndTerminalShellExecution: vscode.Event<ShellExecutionEndSignal>;
 
+    // ── Internal (non-VS-Code) sources ─────────────────────────────────
+    /** Build results pushed by the websocket-owning service; the producer is
+     *  responsible for filtering via buildResultGuard (policy stays outside the hub). */
+    readonly onBuildResult: vscode.Event<BuildResultSignal>;
+    /** Task-feedback view lifecycle pushed by the UI layer. */
+    readonly onTaskFeedbackView: vscode.Event<TaskFeedbackViewSignal>;
+    /** Derived: qualifying paste-like changes (see collectors/paste.ts). */
+    readonly onPasteDetected: vscode.Event<PasteSignal>;
+
+    emitBuildResult(result: ResultDTO): void;
+    emitTaskFeedbackView(action: 'opened' | 'closed', viewId: string): void;
+
     readAllDiagnostics(): ReadonlyArray<[vscode.Uri, vscode.Diagnostic[]]>;
     readDiagnostics(uri: vscode.Uri): readonly vscode.Diagnostic[];
+    readTextDocuments(): readonly vscode.TextDocument[];
     readWindowFocused(): boolean;
     readVisibleTextEditors(): readonly vscode.TextEditor[];
     readActiveTextEditor(): vscode.TextEditor | undefined;
@@ -235,12 +253,32 @@ export class VsCodeSensorHub implements SensorHub {
         h => vscode.debug.onDidChangeBreakpoints(h),
         (event: vscode.BreakpointsChangeEvent): BreakpointsSignal => ({ ts: Date.now(), event }),
     );
+    // Internal sources: plain emitters — there is no VS Code subscription to
+    // defer, so the LazyRelay machinery does not apply. ts is stamped at emit.
+    // NOTE: unlike LazyRelay channels, vscode.EventEmitter does NOT isolate
+    // listener errors — a throwing consumer propagates back into the emit*
+    // caller. The PR-2c producers (websocket handler, UI layer) must wrap
+    // their emit calls or this block must grow LazyRelay-style isolation.
+    private readonly _buildResultEmitter = new vscode.EventEmitter<BuildResultSignal>();
+    readonly onBuildResult = this._buildResultEmitter.event;
+    private readonly _taskFeedbackViewEmitter = new vscode.EventEmitter<TaskFeedbackViewSignal>();
+    readonly onTaskFeedbackView = this._taskFeedbackViewEmitter.event;
+
+    emitBuildResult(result: ResultDTO): void {
+        this._buildResultEmitter.fire({ ts: Date.now(), result });
+    }
+    emitTaskFeedbackView(action: 'opened' | 'closed', viewId: string): void {
+        this._taskFeedbackViewEmitter.fire({ ts: Date.now(), action, viewId });
+    }
+
     // Capability-dependent and derived channels are assigned in the constructor.
     readonly onDidStartTerminalShellExecution: vscode.Event<ShellExecutionStartSignal>;
     readonly onDidEndTerminalShellExecution: vscode.Event<ShellExecutionEndSignal>;
     readonly onDiagnosticsSettled: vscode.Event<DiagnosticsSettledSignal>;
+    readonly onPasteDetected: vscode.Event<PasteSignal>;
 
     constructor(capabilities?: PlatformCapabilities) {
+        this._disposables.push(this._buildResultEmitter, this._taskFeedbackViewEmitter);
         // Shell-execution API is Desktop-only; the capability flag guards the
         // subscription so Theia builds never touch the missing API.
         const hasShellExecution = capabilities?.hasTerminalShellExecution ?? true;
@@ -264,6 +302,16 @@ export class VsCodeSensorHub implements SensorHub {
             },
             (signal: DiagnosticsSettledSignal) => signal,
         );
+        // Derived channel: per-change paste detection over textChange; the
+        // underlying textChange subscription exists only while consumed.
+        this.onPasteDetected = this._relay(
+            handler => this.onDidChangeTextDocument(signal => {
+                for (const paste of detectPastes(signal)) {
+                    handler(paste);
+                }
+            }),
+            (signal: PasteSignal) => signal,
+        );
     }
 
     readAllDiagnostics(): ReadonlyArray<[vscode.Uri, vscode.Diagnostic[]]> {
@@ -272,6 +320,7 @@ export class VsCodeSensorHub implements SensorHub {
     readDiagnostics(uri: vscode.Uri): readonly vscode.Diagnostic[] {
         return vscode.languages.getDiagnostics(uri);
     }
+    readTextDocuments(): readonly vscode.TextDocument[] { return vscode.workspace.textDocuments; }
     readWindowFocused(): boolean { return vscode.window.state.focused; }
     readVisibleTextEditors(): readonly vscode.TextEditor[] { return vscode.window.visibleTextEditors; }
     readActiveTextEditor(): vscode.TextEditor | undefined { return vscode.window.activeTextEditor; }
