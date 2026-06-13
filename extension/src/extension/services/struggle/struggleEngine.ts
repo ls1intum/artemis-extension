@@ -1,0 +1,367 @@
+// extension/src/extension/services/struggle/struggleEngine.ts
+/**
+ * Engine-v2 orchestrator (spec §0-§5): consumes ONLY the sensorHub, computes
+ * S/V/boundaries/gates/alerting on a strict 10-s grid (first tick at +10 s,
+ * never at 0). One code path for live and replay (spec §5):
+ *
+ *   - every subscription pushes a timestamped thunk into one queue;
+ *   - advanceTo(now) processes each due grid tick: apply all thunks with
+ *     ts <= tick (stable-ordered by ts), THEN compute the tick;
+ *   - the live interval timer only calls advanceTo(clock.now()) — timer
+ *     jitter and missed timers are harmless (catch-up loop, nominal times).
+ *
+ * Sensor policy at intake mirrors the recorder (the frozen parameters were
+ * derived on recorded streams): shouldRecordUri(uri, exerciseRoot) filtering;
+ * selection/visibleRange trailing debounce (Decision 5).
+ */
+import * as vscode from 'vscode';
+
+import type { ResultDTO } from '@extension/domain/submissions';
+import type { SensorHub } from '@extension/services/sensing';
+import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
+import { AlertStateMachine } from '@extension/services/struggle/alerting/alertStateMachine';
+import { BoundaryTracker } from '@extension/services/struggle/boundaries/boundaryTracker';
+import {
+    SELECTION_DEBOUNCE_MS, SPEC, VISIBLE_RANGE_DEBOUNCE_MS,
+} from '@extension/services/struggle/constants';
+import { FastDecayTracker, VTracker } from '@extension/services/struggle/dynamics/decay';
+import { TrailingDebouncer } from '@extension/services/struggle/intake/trailingDebouncer';
+import { BuildDeltaTracker } from '@extension/services/struggle/signals/buildDelta';
+import { DocumentShadowTracker } from '@extension/services/struggle/signals/documentShadow';
+import { N2Tracker, normalizeDiagnosticCode } from '@extension/services/struggle/signals/errorDistance';
+import { FeatureWindowTracker } from '@extension/services/struggle/signals/featureWindow';
+import { FeedbackViewTracker } from '@extension/services/struggle/signals/feedbackViewState';
+import { methodAtLine, parseMethods } from '@extension/services/struggle/signals/javaMethods';
+import { A8Tracker } from '@extension/services/struggle/signals/regionPersistence';
+import { severityFrom } from '@extension/services/struggle/signals/severity';
+import type {
+    AlertRecord, EngineClock, EngineSessionContext, TickRecord,
+} from '@extension/services/struggle/types';
+
+const DEFAULT_CLOCK: EngineClock = {
+    now: () => Date.now(),
+    setInterval: (cb, ms) => setInterval(cb, ms),
+    clearInterval: handle => clearInterval(handle as Parameters<typeof clearInterval>[0]),
+};
+
+interface QueuedEvent { tsS: number; apply: () => void }
+
+export class StruggleEngine implements vscode.Disposable {
+    private readonly _hub: SensorHub;
+    private readonly _clock: EngineClock;
+
+    private readonly _onDidTick = new vscode.EventEmitter<TickRecord>();
+    readonly onDidTick = this._onDidTick.event;
+    private readonly _onDidAlert = new vscode.EventEmitter<AlertRecord>();
+    readonly onDidAlert = this._onDidAlert.event;
+
+    // Session state (rebuilt on every start()).
+    private _session: EngineSessionContext | undefined;
+    private _subscriptions: vscode.Disposable[] = [];
+    private _timer: unknown;
+    private _queue: QueuedEvent[] = [];
+    private _nextTickS = SPEC.TICK_S;
+    private _lastFmBadS: number | null = null;
+
+    private _features = new FeatureWindowTracker();
+    private _feedback = new FeedbackViewTracker();
+    private _shadow = new DocumentShadowTracker();
+    private _a8 = new A8Tracker();
+    private _n2 = new N2Tracker();
+    private _buildDelta = new BuildDeltaTracker();
+    private _fastDecay = new FastDecayTracker();
+    private _v = new VTracker();
+    private _boundaries = new BoundaryTracker();
+    private _machine = new AlertStateMachine();
+    private _selectionDebounce: TrailingDebouncer<{ tsS: number; uriKey: string; endLine: number }> | undefined;
+    private _scrollDebounce: TrailingDebouncer<number> | undefined;
+    /** Replay feeds already-debounced recorded streams (Decision 5). */
+    private readonly _preDebounced: boolean;
+
+    constructor(
+        hub: SensorHub,
+        clock: EngineClock = DEFAULT_CLOCK,
+        options?: { preDebouncedIntake?: boolean },
+    ) {
+        this._hub = hub;
+        this._clock = clock;
+        this._preDebounced = options?.preDebouncedIntake ?? false;
+    }
+
+    start(session: EngineSessionContext): void {
+        // Teardown only (no final drain): the CALLER ends the previous session
+        // explicitly via stop() when drain semantics are wanted (PR 2c session
+        // fan-out does stop() then start()). This keeps start() safe for
+        // tests/replay that control time themselves.
+        this._teardown();
+        this._session = session;
+        this._resetState();
+        this._attach();
+        // Seed document shadows from the already-open documents (A8 before-text).
+        for (const doc of this._hub.readTextDocuments()) {
+            if (this._passesUriFilter(doc.uri)) {
+                this._shadow.seed(doc.uri.toString(), doc.getText());
+            }
+        }
+        this._timer = this._clock.setInterval(() => this.advanceTo(this._clock.now()), SPEC.TICK_S * 1000);
+    }
+
+    /** Normal session end: final drain, then teardown. A grid tick that is
+     *  already DUE at stop time must not lose events to timer jitter (flush
+     *  the debouncers, run every due tick); events after the last due tick
+     *  lapse (Python rule, Decision 1). */
+    stop(): void {
+        if (this._session !== undefined) {
+            this._selectionDebounce?.flush();
+            this._scrollDebounce?.flush();
+            this.advanceTo(this._clock.now());
+        }
+        this._teardown();
+    }
+
+    /** Abort path: teardown WITHOUT the final drain (used by dispose; also
+     *  what tests with a real default clock rely on — a drain against real
+     *  Date.now() would catch up across the whole fake-session span). */
+    private _teardown(): void {
+        if (this._timer !== undefined) {
+            this._clock.clearInterval(this._timer);
+            this._timer = undefined;
+        }
+        for (const sub of this._subscriptions.splice(0)) {
+            sub.dispose();
+        }
+        this._selectionDebounce?.dispose();
+        this._scrollDebounce?.dispose();
+        this._session = undefined;
+    }
+
+    dispose(): void {
+        this._teardown();
+        this._onDidTick.dispose();
+        this._onDidAlert.dispose();
+    }
+
+    /** Process every due grid tick <= now. Public: replay and tests drive this directly. */
+    advanceTo(nowMs: number): void {
+        if (this._session === undefined) {
+            return;
+        }
+        const nowS = (nowMs - this._session.sessionStartMs) / 1000;
+        while (this._nextTickS <= nowS) {
+            this._runTick(this._nextTickS);
+            this._nextTickS += SPEC.TICK_S;
+        }
+    }
+
+    // ── intake ─────────────────────────────────────────────────────────
+
+    private _relS(tsMs: number): number {
+        return (tsMs - (this._session?.sessionStartMs ?? 0)) / 1000;
+    }
+
+    private _passesUriFilter(uri: vscode.Uri): boolean {
+        return shouldRecordUri(uri, this._session?.exerciseRoot);
+    }
+
+    private _enqueue(tsS: number, apply: () => void): void {
+        if (tsS < 0) {
+            return;                       // pre-session signal: ignore
+        }
+        this._queue.push({ tsS, apply });
+    }
+
+    private _attach(): void {
+        const subs = this._subscriptions;
+        this._selectionDebounce = new TrailingDebouncer(SELECTION_DEBOUNCE_MS, p => {
+            this._enqueue(p.tsS, () => this._n2.ingestSelection(p.tsS, p.uriKey, p.endLine));
+        });
+        this._scrollDebounce = new TrailingDebouncer<number>(VISIBLE_RANGE_DEBOUNCE_MS, tsS => {
+            this._enqueue(tsS, () => this._features.ingestScroll(tsS));
+        });
+
+        subs.push(this._hub.onDidChangeTextDocument(signal => {
+            const uri = signal.event.document.uri;
+            if (!this._passesUriFilter(uri)) {
+                return;
+            }
+            const tsS = this._relS(signal.ts);
+            const uriKey = uri.toString();
+            const changes = signal.event.contentChanges.map(c => ({
+                oneChar: c.rangeLength === 0 && c.text.length === 1,
+                startLine: c.range.start.line,
+            }));
+            const before = this._shadow.beforeText(uriKey);
+            const afterText = signal.event.document.getText();
+            this._shadow.sync(uriKey, afterText);
+            this._enqueue(tsS, () => {
+                this._features.ingestTextChange(tsS, changes.filter(c => c.oneChar).length);
+                if (before !== undefined) {
+                    const methods = parseMethods(before);     // once per event
+                    for (const c of changes) {
+                        this._a8.recordChange(tsS, uriKey, methodAtLine(methods, c.startLine)?.name ?? null);
+                    }
+                }
+            });
+        }));
+
+        subs.push(this._hub.onDidOpenTextDocument(({ document }) => {
+            if (this._passesUriFilter(document.uri)) {
+                this._shadow.seed(document.uri.toString(), document.getText());
+            }
+        }));
+
+        subs.push(this._hub.onDidChangeTextEditorSelection(signal => {
+            const uri = signal.event.textEditor.document.uri;
+            if (!this._passesUriFilter(uri) || signal.event.selections.length === 0) {
+                return;
+            }
+            const payload = {
+                tsS: this._relS(signal.ts),
+                uriKey: uri.toString(),
+                endLine: signal.event.selections[0].end.line,
+            };
+            if (this._preDebounced) {
+                this._enqueue(payload.tsS, () => this._n2.ingestSelection(payload.tsS, payload.uriKey, payload.endLine));
+            } else {
+                this._selectionDebounce!.push(payload.uriKey, payload);
+            }
+        }));
+
+        subs.push(this._hub.onDidChangeTextEditorVisibleRanges(signal => {
+            const uri = signal.event.textEditor.document.uri;
+            if (!this._passesUriFilter(uri)) {
+                return;
+            }
+            const tsS = this._relS(signal.ts);
+            if (this._preDebounced) {
+                this._enqueue(tsS, () => this._features.ingestScroll(tsS));
+            } else {
+                this._scrollDebounce!.push(uri.toString(), tsS);
+            }
+        }));
+
+        subs.push(this._hub.onDidChangeDiagnostics(signal => {
+            const tsS = this._relS(signal.ts);
+            for (const uri of signal.uris) {
+                if (!this._passesUriFilter(uri)) {
+                    continue;
+                }
+                const errors = this._hub.readDiagnostics(uri)
+                    .filter(d => d.severity === vscode.DiagnosticSeverity.Error)
+                    .map(d => ({
+                        line: d.range.start.line,
+                        code: normalizeDiagnosticCode(d.code),
+                        message: d.message,
+                    }));
+                const uriKey = uri.toString();
+                this._enqueue(tsS, () => this._n2.ingestSnapshot(tsS, uriKey, errors));
+            }
+        }));
+
+        subs.push(this._hub.onDidEndTerminalShellExecution(signal => {
+            const tsS = this._relS(signal.ts);
+            this._enqueue(tsS, () => this._boundaries.ingest('E4', tsS));
+        }));
+
+        subs.push(this._hub.onPasteDetected(signal => {
+            if (!this._passesUriFilter(signal.uri)) {
+                return;
+            }
+            const tsS = this._relS(signal.ts);
+            this._enqueue(tsS, () => this._boundaries.ingest('N1', tsS));
+        }));
+
+        subs.push(this._hub.onBuildResult(signal => {
+            const tsS = this._relS(signal.ts);
+            const result: ResultDTO = signal.result;
+            this._enqueue(tsS, () => {
+                const c = this._buildDelta.ingest(tsS, result);
+                if (c.improved) {
+                    this._fastDecay.ingestImproved(tsS);
+                } else {
+                    this._fastDecay.ingestNonImproved(tsS);
+                }
+                if (c.isFM) {
+                    this._boundaries.ingest('FM', tsS);
+                    this._lastFmBadS = tsS;
+                }
+                if (c.isFMPlus) {
+                    this._boundaries.ingest('FM_PLUS', tsS);
+                }
+            });
+        }));
+
+        subs.push(this._hub.onTaskFeedbackView(signal => {
+            const tsS = this._relS(signal.ts);
+            this._enqueue(tsS, () => this._feedback.ingest(tsS, signal.action, signal.viewId));
+        }));
+    }
+
+    // ── tick ───────────────────────────────────────────────────────────
+
+    private _drainUpTo(tS: number): void {
+        // Stable order by ts: debounced emissions enqueue out of arrival order.
+        this._queue.sort((a, b) => a.tsS - b.tsS);
+        let consumed = 0;
+        while (consumed < this._queue.length && this._queue[consumed].tsS <= tS) {
+            this._queue[consumed].apply();
+            consumed++;
+        }
+        this._queue.splice(0, consumed);
+    }
+
+    private _runTick(tS: number): void {
+        this._drainUpTo(tS);
+
+        const wf = this._features.computeAt(tS);
+        const w0 = tS - wf.effectiveWindowS;
+        const fFb: 0 | 1 = this._feedback.openOverlapping(w0, tS) ? 1 : 0;
+        const fA8: 0 | 1 = this._a8.activeAt(tS) ? 1 : 0;
+        const fN2: 0 | 1 = this._n2.activeAt(tS) ? 1 : 0;
+        const { sBase, s } = severityFrom(wf, { fFb, fA8, fN2 });
+        const fast = this._fastDecay.activeAt(tS);
+        const v = this._v.update(tS, s, fast);
+        const boundaries = this._boundaries.flagsAt(tS, wf.tsState, wf.n4State);
+        const graceActive = this._lastFmBadS !== null
+            && this._lastFmBadS <= tS
+            && tS - this._lastFmBadS <= SPEC.GRACE_S;
+
+        const machineAlert = this._machine.tick({
+            t: tS, v, boundaries, typingRate: wf.typingRate, graceActive,
+        });
+
+        const tsMs = (this._session?.sessionStartMs ?? 0) + tS * 1000;
+        const alert: AlertRecord | null = machineAlert === null ? null : { ...machineAlert, ts: tsMs };
+        const record: TickRecord = {
+            t: tS,
+            ts: tsMs,
+            features: { t: tS, ...wf, fFb, fA8, fN2 },
+            sBase,
+            s,
+            v,
+            fastDecay: fast,
+            boundariesPreGate: boundaries,
+            alert,
+        };
+        this._onDidTick.fire(record);
+        if (alert !== null) {
+            this._onDidAlert.fire(alert);
+        }
+    }
+
+    private _resetState(): void {
+        this._queue = [];
+        this._nextTickS = SPEC.TICK_S;
+        this._lastFmBadS = null;
+        this._features = new FeatureWindowTracker();
+        this._feedback = new FeedbackViewTracker();
+        this._shadow = new DocumentShadowTracker();
+        this._a8 = new A8Tracker();
+        this._n2 = new N2Tracker();
+        this._buildDelta = new BuildDeltaTracker();
+        this._fastDecay = new FastDecayTracker();
+        this._v = new VTracker();
+        this._boundaries = new BoundaryTracker();
+        this._machine = new AlertStateMachine();
+    }
+}
