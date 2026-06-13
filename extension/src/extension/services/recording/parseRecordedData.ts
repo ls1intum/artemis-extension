@@ -19,14 +19,6 @@
  * shares one list instead of maintaining its own (see #215).
  */
 
-import {
-    INTERVENTION_BLOCKED_REASONS,
-    INTERVENTION_DISMISS_REASONS,
-    INTERVENTION_LEVELS,
-    INTERVENTION_SUPPRESSION_REASONS,
-    TRIGGER_TYPES,
-} from '@extension/services/telemetry/types';
-
 import type {
     AlertEvent,
     BreakpointChangeEvent,
@@ -79,7 +71,14 @@ import type {
     VisibleRangeChangeEvent,
     WindowFocusEvent,
 } from './types';
-import { INTERVENTION_RECORD_ACTIONS } from './types';
+import {
+    INTERVENTION_BLOCKED_REASONS,
+    INTERVENTION_DISMISS_REASONS,
+    INTERVENTION_LEVELS,
+    INTERVENTION_RECORD_ACTIONS,
+    INTERVENTION_SUPPRESSION_REASONS,
+    TRIGGER_TYPES,
+} from './types';
 
 // ── Primitive guards ──────────────────────────────────────────────────
 

@@ -123,7 +123,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     let suiteSandbox: sinon.SinonSandbox;
 
     setup(() => {
-        // Stub command registration so concurrent TelemetryManager
+        // Stub command registration so concurrent InterventionService
         // instances in this suite do not collide on the global registry.
         suiteSandbox = sinon.createSandbox();
         suiteSandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));

@@ -21,14 +21,14 @@ import * as assert from 'assert';
 
 import { KNOWN_EVENT_TYPES, parseRecordedEvent, parseSessionMetadata } from '@extension/services/recording/parseRecordedData';
 import type { InterventionEvent, RecordedEvent, SessionMetadata } from '@extension/services/recording/types';
-import { INTERVENTION_RECORD_ACTIONS } from '@extension/services/recording/types';
 import {
     INTERVENTION_BLOCKED_REASONS,
     INTERVENTION_DISMISS_REASONS,
     INTERVENTION_LEVELS,
+    INTERVENTION_RECORD_ACTIONS,
     INTERVENTION_SUPPRESSION_REASONS,
     TRIGGER_TYPES,
-} from '@extension/services/telemetry/types';
+} from '@extension/services/recording/types';
 
 const ts = 1700000000000;
 

@@ -1,8 +1,8 @@
 /**
  * Shared guard for filtering incoming WebSocket build results.
  *
- * Both TelemetryManager and SessionRecorder receive every WebSocket result for
- * the authenticated user — not just results for the currently active exercise.
+ * Both the StruggleCoordinator and SessionRecorder receive every WebSocket result
+ * for the authenticated user — not just results for the currently active exercise.
  * This helper centralises the filtering logic so neither component duplicates it.
  *
  * Policy:

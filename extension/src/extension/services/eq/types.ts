@@ -2,9 +2,9 @@
 /**
  * Types of the passive EQ pipeline (Jadud 2006 pair scoring).
  *
- * Extracted verbatim from services/telemetry/types.ts in PR 2a. In Engine v2
- * (PR 2c) the EQ pipeline becomes a passive logger with no decision role;
- * until that switchover the v1 decision path still consumes these types.
+ * Extracted from the former v1 telemetry layer in PR 2a. Under Engine v2
+ * (PR 2c) the EQ pipeline is a passive logger with no decision role; these types
+ * describe the snapshots it records for study continuity.
  */
 
 /**
