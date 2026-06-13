@@ -22,6 +22,11 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Services restructuring**: recorder and replay moved to `services/recording/`, the
   passive EQ pipeline to `services/eq/`, URI filter and paste heuristic into the
   sensing layer. Pure relocation, no behavior change.
+- **Struggle Engine v2 (additive)**: data-derived detection engine in `services/struggle/`
+  (10 s tick contract, severity/decay/boundaries/gates/alert state machine, ports of the
+  26 reference state-machine tests), sensor hub internal sources for build results and
+  task-feedback views, derived paste channel. Not yet wired to UI or recorder (switchover
+  follows in PR 2c); the v1 decision path is unchanged.
 - **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
 - **Live Recording Viewer**: The Event Breakdown counts, event total, and session duration now update live alongside the timeline instead of freezing at the values from when the live session was opened.
 - **Live Recording Viewer**: Live mode can now be served from the production build (`npm run preview:live:token`), which eliminates a browser-tab out-of-memory crash that could occur during long or high-volume live sessions on the dev server.
