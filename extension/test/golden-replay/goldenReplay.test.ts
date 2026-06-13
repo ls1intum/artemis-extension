@@ -49,9 +49,15 @@ function readEvents(eventsPath: string): RecordedEvent[] {
         .map(l => JSON.parse(l) as RecordedEvent);
 }
 
-describe.skipIf(!DATA_ROOT || !GOLDEN_DIR)('golden replay (local, study dataset)', () => {
-    const sessionsDir = path.join(DATA_ROOT as string, 'VSCode Recorded Data');
-    const goldenFiles = fs.readdirSync(GOLDEN_DIR as string)
+describe('golden replay (local, study dataset)', () => {
+    // Skip cleanly with no filesystem I/O when the dataset/goldens are absent
+    // (describe.skipIf still evaluates the body, so the readdir must be guarded).
+    if (!DATA_ROOT || !GOLDEN_DIR) {
+        it.skip('skipped: set IRIS_STUDY_DATA and GOLDEN_DIR to run the dataset verification', () => { /* no dataset available */ });
+        return;
+    }
+    const sessionsDir = path.join(DATA_ROOT, 'VSCode Recorded Data');
+    const goldenFiles = fs.readdirSync(GOLDEN_DIR)
         .filter(f => f.endsWith('.json'))
         .sort();
     const causalSummaries: { pid: string; summary: CausalReport }[] = [];
@@ -61,7 +67,7 @@ describe.skipIf(!DATA_ROOT || !GOLDEN_DIR)('golden replay (local, study dataset)
 
         it(`${pid}: exact-mode tick-for-tick match against the Python reference`, () => {
             const golden = parseGoldenSession(
-                JSON.parse(fs.readFileSync(path.join(GOLDEN_DIR as string, file), 'utf8')),
+                JSON.parse(fs.readFileSync(path.join(GOLDEN_DIR, file), 'utf8')),
             );
             assertSpecConstants(golden);
 
