@@ -18,7 +18,7 @@ suite('InterventionService (AlertSink, single-level)', () => {
 
     setup(() => {
         // Self-contained: the status-bar command id (iris.intervention.acceptSubtle)
-        // is also registered by the v1 InterventionService during activation. Stub
+        // is registered once by the InterventionService during activation. Stub
         // registerCommand so test-scoped instances never collide on the global
         // registry, and so this suite has no dependency on any other suite.
         sandbox = sinon.createSandbox();

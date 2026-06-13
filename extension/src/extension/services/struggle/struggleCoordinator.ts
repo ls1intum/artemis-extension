@@ -154,8 +154,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._activeExerciseId = undefined;
     }
 
-    endCurrentSession(): void { this.endExerciseSession(); }
-
     // ── Debug snapshot ─────────────────────────────────────────────────
     getSnapshot(): StruggleSnapshot {
         const tick = this._lastTick;
