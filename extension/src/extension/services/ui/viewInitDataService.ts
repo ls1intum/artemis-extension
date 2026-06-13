@@ -7,7 +7,7 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import { GitService } from '@extension/services/workspace/gitService';
 import {
     collectExerciseSources,
@@ -25,7 +25,7 @@ export class ViewInitDataService {
 
     constructor(
         private readonly _appStateManager: AppStateManager,
-        private readonly _telemetryManager: TelemetryManager | undefined,
+        private readonly _struggleCoordinator: StruggleCoordinator | undefined,
         private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         private readonly _courseAccessStorage?: CourseAccessStorageService,
@@ -233,16 +233,16 @@ export class ViewInitDataService {
     }
 
     public sendStruggleDetectionInit(): void {
-        const telemetry = this._telemetryManager;
-        const ctx = telemetry?.getStruggleContext();
+        const coordinator = this._struggleCoordinator;
+        const snapshot = coordinator?.getSnapshot();
         this._postMessage({
             type: ExtensionMsg.StruggleDetectionInit,
-            isStruggling: ctx?.isStruggling ?? false,
-            eq: ctx?.eq ?? 0,
-            eqConfidence: ctx?.eqConfidence ?? 'insufficient',
-            triggerType: ctx?.triggerType,
-            recommendedAction: ctx?.recommendedAction ?? 'none',
-            isEnabled: telemetry?.isEnabled() ?? false,
+            isStruggling: snapshot?.isStruggling ?? false,
+            v: snapshot?.v ?? 0,
+            s: snapshot?.s ?? 0,
+            primaryBoundary: snapshot?.primaryBoundary ?? null,
+            lastAlertT: snapshot?.lastAlert?.t ?? null,
+            isEnabled: coordinator?.isEnabled() ?? false,
             developerMode: this._isDeveloperMode(),
         });
     }

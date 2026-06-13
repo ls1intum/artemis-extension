@@ -2,9 +2,7 @@ import * as vscode from 'vscode';
 
 import { type DiagnosticsSettledSignal, nextSensorSeq } from '@extension/services/sensing';
 import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
-// Interim (PR 2a): the session-lifecycle contracts stay in telemetry/types
-// until PR 2c dissolves services/telemetry and relocates them.
-import { SessionResettable, SessionStartContext } from '@extension/services/telemetry/types';
+import { SessionResettable, SessionStartContext } from '@extension/services/sessionLifecycle';
 import { ResultDTO } from '@extension/types';
 
 import { buildErrorFamiliesFromFeedbacks } from './buildErrorFamily';

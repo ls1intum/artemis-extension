@@ -21,14 +21,14 @@ import * as assert from 'assert';
 
 import { KNOWN_EVENT_TYPES, parseRecordedEvent, parseSessionMetadata } from '@extension/services/recording/parseRecordedData';
 import type { InterventionEvent, RecordedEvent, SessionMetadata } from '@extension/services/recording/types';
-import { INTERVENTION_RECORD_ACTIONS } from '@extension/services/recording/types';
 import {
     INTERVENTION_BLOCKED_REASONS,
     INTERVENTION_DISMISS_REASONS,
     INTERVENTION_LEVELS,
+    INTERVENTION_RECORD_ACTIONS,
     INTERVENTION_SUPPRESSION_REASONS,
     TRIGGER_TYPES,
-} from '@extension/services/telemetry/types';
+} from '@extension/services/recording/types';
 
 const ts = 1700000000000;
 
@@ -141,7 +141,7 @@ suite('parseRecordedEvent — per-variant happy path', () => {
     test('sessionStart', () => {
         const e: RecordedEvent = {
             type: 'sessionStart', timestamp: ts, exerciseId: 7,
-            participantId: 'abc', exerciseRoot: '/workspace/ex', schemaVersion: 2,
+            participantId: 'abc', exerciseRoot: '/workspace/ex', schemaVersion: 3,
         };
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
@@ -597,7 +597,7 @@ suite('parseSessionMetadata', () => {
         const m: SessionMetadata = {
             sessionId: 'abc', exerciseId: 7, participantId: 'student-1',
             startTime: ts, endTime: ts + 1000, eventCount: 42,
-            schemaVersion: 2, recorderVersion: '0.4.4',
+            schemaVersion: 3, recorderVersion: '0.4.4',
         };
         assert.deepStrictEqual(parseSessionMetadata(clone(m)), clone(m));
     });

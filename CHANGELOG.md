@@ -18,6 +18,12 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Internal
 
+- **Struggle Engine v2 live (switchover)**: the v1 EQ decision path (boundary triggers,
+  adaptive cadence, intervention filter/decision engine, inactivity/build-result/diagnostic
+  trackers, debug dashboard, TelemetryManager) is removed; Engine v2 now drives a single-level
+  status-bar intervention via an AlertSink. Recording schema v3 adds per-tick `struggleScore`
+  and `alert` events; the debug view shows V/S/boundary state. EQ survives as a passive logger
+  only. `services/telemetry/` is deleted.
 - **Sensing Layer**: A single `SensorHub` (`services/sensing/`) now owns all VS Code event subscriptions and state reads for telemetry; the session recorder, the EQ pipeline, and the inactivity/diagnostics services consume typed hub channels. No behavior change; recordings stay schema-v2 identical.
 - **Services restructuring**: recorder and replay moved to `services/recording/`, the
   passive EQ pipeline to `services/eq/`, URI filter and paste heuristic into the

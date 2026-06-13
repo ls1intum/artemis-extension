@@ -2,11 +2,12 @@ import { defineConfig } from '@vscode/test-cli';
 
 export default defineConfig([
 	{
-		// Unit tests (default)
+		// Unit tests (default). Includes the passive-EQ logger tests
+		// (out/test/unit/services/eq/**) and the Engine v2 struggle tests
+		// (out/test/unit/services/struggle/**); the former v1 'struggle' label
+		// was retired with the v1 decision path in PR 2c.
 		label: 'unit',
 		files: 'out/test/unit/**/*.test.js',
-		// Exclude struggle-detection tests (run via test:struggle script)
-		exclude: ['out/test/unit/struggle-detection/**'],
 		coverage: {
 			exclude: ['**/test/**', '**/out/test/**'],
 		},
@@ -16,11 +17,6 @@ export default defineConfig([
 				mochaFile: './reports/mocha-results.xml',
 			},
 		},
-	},
-	{
-		// Struggle detection tests
-		label: 'struggle',
-		files: 'out/test/unit/struggle-detection/**/*.test.js',
 	},
 	{
 		// E2E tests (requires running Artemis + Iris)

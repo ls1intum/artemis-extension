@@ -1,12 +1,13 @@
 /**
  * Integration tests for sessionRecorderWiring.
  *
- * Constructs a real TelemetryManager + (wireSessionRecorder-built) SessionRecorder
- * pointing at a temp directory; drives suppression and config-change events,
- * and asserts they reach the on-disk JSONL stream.
+ * Constructs a stub StruggleCoordinator + (wireSessionRecorder-built)
+ * SessionRecorder pointing at a temp directory; drives the coordinator's
+ * recorder-feed events (onDidCalculateEQ / onDidTick / onDidAlert) and the
+ * startup contributors, and asserts they reach the on-disk JSONL stream.
  *
  * Whitebox brittleness:
- *  - Fires TelemetryManager._onDidSuppressIntervention directly via cast.
+ *  - Drives the coordinator's recorder-feed EventEmitters via a stub.
  *  - Stubs vscode.workspace.onDidChangeConfiguration to capture the listener.
  *  - Stubs vscode.workspace.getConfiguration with mutable backing values.
  */
@@ -30,20 +31,23 @@ import type {
 import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth/consentService';
+import type { EQConfidence, EQState } from '@extension/services/eq/types';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type {
+    AlertEvent,
     BreakpointChangeEvent,
     ConfigurationChangeEvent,
     ConfigurationSnapshotEvent,
     EqEngineStateEvent,
-    InterventionEvent,
+    EqSnapshotEvent,
     PanelVisibilityEvent,
     RecordedEvent,
+    StruggleScoreEvent,
     SubmissionPayload,
 } from '@extension/services/recording/types';
-import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
-import type { InterventionDecision } from '@extension/services/telemetry/types';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
+import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
@@ -51,6 +55,36 @@ interface MutableConfigState {
     enabled: boolean;
     showInterventions: unknown;   // unknown so tests can simulate non-boolean
     developerMode: boolean;
+}
+
+/**
+ * Stub StruggleCoordinator exposing exactly the surface the recorder wiring
+ * subscribes: the three recorder-feed events plus getEqEngineState(). The
+ * fire helpers let tests drive each event directly without constructing the
+ * real engine; mirrors the provider stubs in this file.
+ */
+type CoordinatorStub = StruggleCoordinator & {
+    fireCalculateEQ: (p: { eq: number; confidence: EQConfidence; source: 'save' | 'build' }) => void;
+    fireTick: (tick: TickRecord) => void;
+    fireAlert: (alert: AlertRecord) => void;
+};
+
+function stubCoordinator(): CoordinatorStub {
+    const onDidCalculateEQ = new vscode.EventEmitter<{ eq: number; confidence: EQConfidence; source: 'save' | 'build' }>();
+    const onDidTick = new vscode.EventEmitter<TickRecord>();
+    const onDidAlert = new vscode.EventEmitter<AlertRecord>();
+    const coordinator = {
+        onDidCalculateEQ: onDidCalculateEQ.event,
+        onDidTick: onDidTick.event,
+        onDidAlert: onDidAlert.event,
+        getEqEngineState: (): EQState => ({
+            snapshots: [], currentEQ: 0, pairCount: 0, confidence: 'insufficient',
+        }),
+        fireCalculateEQ: (p: { eq: number; confidence: EQConfidence; source: 'save' | 'build' }) => onDidCalculateEQ.fire(p),
+        fireTick: (tick: TickRecord) => onDidTick.fire(tick),
+        fireAlert: (alert: AlertRecord) => onDidAlert.fire(alert),
+    };
+    return coordinator as unknown as CoordinatorStub;
 }
 
 function installConfigStub(sandbox: sinon.SinonSandbox, state: MutableConfigState): sinon.SinonStub {
@@ -155,6 +189,54 @@ function stubChatProvider(): ChatProviderStub {
     return chat as unknown as ChatProviderStub;
 }
 
+/** Build a minimal TickRecord whose feature fields the recorder copies. */
+function makeTick(overrides: Partial<TickRecord> = {}): TickRecord {
+    return {
+        t: 10,
+        ts: 1_700_000_010_000,
+        features: {
+            t: 10,
+            effectiveWindowS: 10,
+            nOneCharInserts: 0,
+            scrollEvents: 0,
+            typingRate: 12,
+            n4Ratio: 1.5,
+            longestGapS: 8,
+            fTyping: 0.4,
+            fGap: 0.2,
+            fN4: 0.15,
+            fFb: 0,
+            fA8: 0,
+            fN2: 0,
+            tsState: false,
+            n4State: false,
+        },
+        sBase: 0.3,
+        s: 0.35,
+        v: 0.42,
+        fastDecay: false,
+        boundariesPreGate: [],
+        alert: null,
+        ...overrides,
+    };
+}
+
+/** Build a minimal AlertRecord. */
+function makeAlert(overrides: Partial<AlertRecord> = {}): AlertRecord {
+    return {
+        t: 30,
+        ts: 1_700_000_030_000,
+        v: 0.7,
+        typesPreGate: ['FM'],
+        types: ['FM'],
+        primary: 'FM',
+        path: 'armed',
+        inWarmup: false,
+        inGrace: false,
+        ...overrides,
+    };
+}
+
 /** Read every events.jsonl file produced under tmpDir/recordings/<sessionId>/ and return the parsed events. */
 async function readAllRecordedEvents(tmpDir: string): Promise<RecordedEvent[]> {
     const recordingsRoot = path.join(tmpDir, 'recordings');
@@ -181,7 +263,7 @@ async function readAllRecordedEvents(tmpDir: string): Promise<RecordedEvent[]> {
 }
 
 interface WiringHarness {
-    telemetryManager: TelemetryManager;
+    coordinator: CoordinatorStub;
     recorder: SessionRecorder;
     sensorHub: TestSensorHub;
     artemisWebviewProvider: ArtemisWebviewProvider;
@@ -234,7 +316,7 @@ async function makeWiringHarness(
         alignment: vscode.StatusBarAlignment.Right, priority: 99,
     } as unknown as vscode.StatusBarItem);
 
-    const telemetryManager = new TelemetryManager();
+    const coordinator = stubCoordinator();
     const ctx = { globalStorageUri: vscode.Uri.file(tmpDir), subscriptions: [] } as unknown as vscode.ExtensionContext;
     const artemisProvider = stubWebviewProvider();
     const chatProvider = stubChatProvider();
@@ -243,7 +325,7 @@ async function makeWiringHarness(
         context: ctx,
         consentService: stubConsent(true),
         artemisWebsocketService: stubWebsocket(sandbox),
-        telemetryManager,
+        struggleCoordinator: coordinator,
         artemisWebviewProvider: artemisProvider,
         chatWebviewProvider: chatProvider,
         capabilities: undefined,
@@ -253,7 +335,7 @@ async function makeWiringHarness(
     });
 
     return {
-        telemetryManager,
+        coordinator,
         recorder: wiring.sessionRecorder,
         sensorHub,
         artemisWebviewProvider: artemisProvider,
@@ -270,7 +352,6 @@ async function makeWiringHarness(
         dispose: async () => {
             wiring.disposable.dispose();
             try { await wiring.sessionRecorder.shutdown(); } catch { /* ignore */ }
-            telemetryManager.dispose();
             sensorHub.dispose();
             try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
             // Stubs are restored centrally via the suite-level sandbox in teardown.
@@ -278,29 +359,7 @@ async function makeWiringHarness(
     };
 }
 
-/**
- * Whitebox accessor for the InterventionService emitters that TelemetryManager exposes
- * via delegating getters (onDidShow/Accept/Dismiss/BlockIntervention). Tests fire these
- * to exercise the wiring's intervention-forwarding subscriptions. Mirrors the existing
- * suppression test's `_onDidSuppressIntervention` cast (which lives on TelemetryManager).
- */
-function interventionEmitters(tm: TelemetryManager): {
-    _onDidShowIntervention: vscode.EventEmitter<InterventionDecision>;
-    _onDidAcceptIntervention: vscode.EventEmitter<InterventionDecision>;
-    _onDidDismissIntervention: vscode.EventEmitter<InterventionDecision & { dismissReason: string }>;
-    _onDidBlockIntervention: vscode.EventEmitter<{ decision: InterventionDecision }>;
-} {
-    return (tm as unknown as {
-        _interventionService: {
-            _onDidShowIntervention: vscode.EventEmitter<InterventionDecision>;
-            _onDidAcceptIntervention: vscode.EventEmitter<InterventionDecision>;
-            _onDidDismissIntervention: vscode.EventEmitter<InterventionDecision & { dismissReason: string }>;
-            _onDidBlockIntervention: vscode.EventEmitter<{ decision: InterventionDecision }>;
-        };
-    })._interventionService;
-}
-
-suite('sessionRecorderWiring — suppression and configuration provenance', () => {
+suite('sessionRecorderWiring — recorder feed and configuration provenance', () => {
     let sandbox: sinon.SinonSandbox;
 
     setup(() => {
@@ -311,34 +370,7 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
         sandbox.restore();
     });
 
-    test('suppression event is recorded as action=suppressed', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
-        try {
-            await harness.recorder.startSession(42);
-            const decision: InterventionDecision = {
-                rawWanted: true,
-                shouldIntervene: true,
-                level: 'notification',
-                triggerType: 'execution-error',
-                eq: 0.55,
-                confidence: 'sufficient',
-            };
-            (harness.telemetryManager as unknown as { _onDidSuppressIntervention: vscode.EventEmitter<{ decision: InterventionDecision; reason: 'user-disabled' }> })
-                ._onDidSuppressIntervention.fire({ decision, reason: 'user-disabled' });
-            await harness.recorder.endSession();
-
-            const events = await readAllRecordedEvents(harness.tmpDir);
-            const intervention = events.find(e => e.type === 'intervention') as InterventionEvent | undefined;
-            assert.ok(intervention, 'intervention event missing');
-            assert.strictEqual(intervention!.action, 'suppressed');
-            assert.strictEqual(intervention!.suppressionReason, 'user-disabled');
-            assert.strictEqual(intervention!.shouldIntervene, true);
-        } finally {
-            await harness.dispose();
-        }
-    });
-
-    test('configurationSnapshot is emitted at startup', async () => {
+    test('configurationSnapshot is emitted at startup with engineVersion v2', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: false, developerMode: false });
         try {
             await harness.recorder.startSession(42);
@@ -349,6 +381,7 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             assert.ok(snap, 'configurationSnapshot missing — startup contributor not registered?');
             assert.strictEqual(snap!.struggleDetectionEnabled, true);
             assert.strictEqual(snap!.showInterventions, false);
+            assert.strictEqual(snap!.engineVersion, 'v2');
         } finally {
             await harness.dispose();
         }
@@ -540,64 +573,101 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
         }
     });
 
-    // ── Forwarding: EQ + interventions ─────────────────────────────────────
+    // ── Forwarding: Engine v2 recorder feed (EQ snapshot, tick, alert) ──────
 
-    test('forwards onDidCalculateEQ to recordEqSnapshot', async () => {
+    test('forwards onDidCalculateEQ to recordEqSnapshot (3-arg, no triggerType)', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordEqSnapshot');
-            (harness.telemetryManager as unknown as {
-                _onDidCalculateEQ: vscode.EventEmitter<{ eq: number; confidence: 'sufficient' | 'insufficient'; source: 'save' | 'build' | 'trigger'; triggerType?: string }>;
-            })._onDidCalculateEQ.fire({ eq: 0.4, confidence: 'sufficient', source: 'save', triggerType: 'idle' });
-            sinon.assert.calledOnceWithExactly(stub, 0.4, 'sufficient', 'save', 'idle');
+            harness.coordinator.fireCalculateEQ({ eq: 0.4, confidence: 'sufficient', source: 'save' });
+            sinon.assert.calledOnceWithExactly(stub, 0.4, 'sufficient', 'save');
         } finally {
             await harness.dispose();
         }
     });
 
-    test('forwards onDidShowIntervention to recordIntervention(shown)', async () => {
+    test('onDidCalculateEQ is recorded as an eqSnapshot event on disk', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
-            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
-            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: true, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient' };
-            interventionEmitters(harness.telemetryManager)._onDidShowIntervention.fire(decision);
-            sinon.assert.calledOnceWithExactly(stub, 'shown', 'notification', true, 0.55, 'sufficient', 'execution-error');
+            await harness.recorder.startSession(42);
+            harness.coordinator.fireCalculateEQ({ eq: 0.55, confidence: 'sufficient', source: 'build' });
+            await harness.recorder.endSession();
+
+            const events = await readAllRecordedEvents(harness.tmpDir);
+            const snap = events.find(e => e.type === 'eqSnapshot') as EqSnapshotEvent | undefined;
+            assert.ok(snap, 'eqSnapshot event missing');
+            assert.strictEqual(snap!.eq, 0.55);
+            assert.strictEqual(snap!.confidence, 'sufficient');
+            assert.strictEqual(snap!.source, 'build');
         } finally {
             await harness.dispose();
         }
     });
 
-    test('forwards onDidAcceptIntervention to recordIntervention(accepted)', async () => {
+    test('forwards onDidTick to recordStruggleScore with the feature row', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
-            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
-            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: true, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient' };
-            interventionEmitters(harness.telemetryManager)._onDidAcceptIntervention.fire(decision);
-            sinon.assert.calledOnceWithExactly(stub, 'accepted', 'notification', true, 0.55, 'sufficient', 'execution-error');
+            const stub = sandbox.stub(harness.recorder, 'recordStruggleScore');
+            harness.coordinator.fireTick(makeTick());
+            sinon.assert.calledOnce(stub);
+            sinon.assert.calledWithExactly(stub, {
+                t: 10, s: 0.35, v: 0.42,
+                fTyping: 0.4, fGap: 0.2, fN4: 0.15, fFb: 0, fA8: 0, fN2: 0,
+                typingRate: 12, longestGapS: 8, n4Ratio: 1.5,
+            });
         } finally {
             await harness.dispose();
         }
     });
 
-    test('forwards onDidDismissIntervention to recordIntervention(dismissed) with dismissReason', async () => {
+    test('onDidTick is recorded as a struggleScore event on disk', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
-            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
-            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: true, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient' };
-            interventionEmitters(harness.telemetryManager)._onDidDismissIntervention.fire({ ...decision, dismissReason: 'user-action' });
-            sinon.assert.calledOnceWithExactly(stub, 'dismissed', 'notification', true, 0.55, 'sufficient', 'execution-error', { dismissReason: 'user-action' });
+            await harness.recorder.startSession(42);
+            harness.coordinator.fireTick(makeTick({ t: 20, s: 0.5, v: 0.6 }));
+            await harness.recorder.endSession();
+
+            const events = await readAllRecordedEvents(harness.tmpDir);
+            const score = events.find(e => e.type === 'struggleScore') as StruggleScoreEvent | undefined;
+            assert.ok(score, 'struggleScore event missing');
+            assert.strictEqual(score!.t, 20);
+            assert.strictEqual(score!.s, 0.5);
+            assert.strictEqual(score!.v, 0.6);
+            assert.strictEqual(score!.typingRate, 12);
         } finally {
             await harness.dispose();
         }
     });
 
-    test('forwards onDidBlockIntervention to recordIntervention(blocked) with blockedReason + rawWanted', async () => {
+    test('forwards onDidAlert to recordAlert with theta=THETA_FULL', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
-            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
-            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: false, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient', blockedReason: 'cooldown' };
-            interventionEmitters(harness.telemetryManager)._onDidBlockIntervention.fire({ decision });
-            sinon.assert.calledOnceWithExactly(stub, 'blocked', 'notification', false, 0.55, 'sufficient', 'execution-error', { blockedReason: 'cooldown', rawWanted: true });
+            const stub = sandbox.stub(harness.recorder, 'recordAlert');
+            harness.coordinator.fireAlert(makeAlert());
+            sinon.assert.calledOnceWithExactly(stub, {
+                t: 30, v: 0.7, types: ['FM'], primary: 'FM',
+                path: 'armed', inWarmup: false, inGrace: false, theta: 0.6,
+            });
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('onDidAlert is recorded as an alert event on disk', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            await harness.recorder.startSession(42);
+            harness.coordinator.fireAlert(makeAlert({ t: 45, primary: 'E4', types: ['E4', 'N1'], path: 'e6' }));
+            await harness.recorder.endSession();
+
+            const events = await readAllRecordedEvents(harness.tmpDir);
+            const alert = events.find(e => e.type === 'alert') as AlertEvent | undefined;
+            assert.ok(alert, 'alert event missing');
+            assert.strictEqual(alert!.t, 45);
+            assert.strictEqual(alert!.primary, 'E4');
+            assert.deepStrictEqual(alert!.types, ['E4', 'N1']);
+            assert.strictEqual(alert!.path, 'e6');
+            assert.strictEqual(alert!.theta, 0.6);
         } finally {
             await harness.dispose();
         }
@@ -670,14 +740,14 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
 
     // ── Startup contributors: eqEngineState + panelVisibility seeds ─────────
 
-    test('startup seeds eqEngineState from telemetryManager.getEqEngineState()', async () => {
+    test('startup seeds eqEngineState from struggleCoordinator.getEqEngineState()', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
             const eqState = {
                 snapshots: [{ timestamp: 111, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }],
                 currentEQ: 0.4, pairCount: 5, confidence: 'sufficient' as const,
             };
-            sandbox.stub(harness.telemetryManager, 'getEqEngineState').returns(eqState as unknown as ReturnType<TelemetryManager['getEqEngineState']>);
+            sandbox.stub(harness.coordinator, 'getEqEngineState').returns(eqState as unknown as EQState);
             await harness.recorder.startSession(42);
             await harness.recorder.endSession();
 

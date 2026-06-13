@@ -210,7 +210,7 @@ export class RecordingStorageWriter {
         const sessionDir = this._sessionDir;
         const enriched: SessionMetadata = {
             ...metadata,
-            schemaVersion: 2,
+            schemaVersion: 3,
             recorderVersion: this._recorderVersion,
         };
         return this._enqueueLaneWork(async () => {

@@ -1,7 +1,7 @@
 /**
  * Main orchestrator for session recording.
  *
- * Runs parallel to TelemetryManager, consuming the shared SensorHub (or an owned default hub when none is injected) instead of holding its own VS Code listeners.
+ * Runs parallel to the StruggleCoordinator, consuming the shared SensorHub (or an owned default hub when none is injected) instead of holding its own VS Code listeners.
  * Only active when consent is Extended. Writes JSONL event streams
  * to {globalStorageUri}/recordings/{sessionId}/.
  *
@@ -42,10 +42,9 @@ import * as vscode from 'vscode';
 
 import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } from '@shared/messageContracts/webviewCommands';
 
-import type { InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionSuppressionReason, TriggerType } from '@extension/services/telemetry/types';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
+import type { AlertEvent, InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionRecordAction, InterventionSuppressionReason, RecordedEvent, SerializedErrorSnapshot, StruggleScoreEvent, SubmissionPayload, TriggerType } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -59,7 +58,7 @@ type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { type SensorHub, VsCodeSensorHub } from '@extension/services/sensing';
-import { shouldAcceptBuildResult } from '@extension/services/telemetry/buildResultGuard';
+import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
 import type { PlatformCapabilities } from '@extension/theia';
 
 import { collectBuildResult } from './eventCollectors';
@@ -402,6 +401,14 @@ export class SessionRecorder implements WebSocketMessageHandler {
             source,
             triggerType,
         });
+    }
+
+    recordStruggleScore(sample: Omit<StruggleScoreEvent, 'type' | 'timestamp'>): void {
+        this._record({ type: 'struggleScore', ...sample });
+    }
+
+    recordAlert(alert: Omit<AlertEvent, 'type' | 'timestamp'>): void {
+        this._record({ type: 'alert', ...alert });
     }
 
     recordIntervention(

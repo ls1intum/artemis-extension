@@ -5,7 +5,6 @@ import { ExtensionMsg } from '@shared/messageContracts';
 import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { StruggleContext } from '@extension/services/telemetry';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
 import { ActiveContext } from '@extension/types';
@@ -15,7 +14,6 @@ import { IrisChatSessionService } from './chatSessionService';
 interface SendMessageInput {
     text: string;
     isNoAiEnabled: boolean;
-    struggleContext?: StruggleContext;
 }
 
 type SendMessageResult =
@@ -72,11 +70,11 @@ export class ChatMessageService {
             return { sent: false, reason, contextLabel, capturedContext: activeContext };
         }
 
-        await this._sendToIris(input.text, activeContext, input.struggleContext);
+        await this._sendToIris(input.text, activeContext);
         return { sent: true };
     }
 
-    private async _sendToIris(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
+    private async _sendToIris(messageText: string, activeContext: ActiveContext): Promise<void> {
         logger.websocket(`📤 handleChatMessage called with: ${JSON.stringify({ text: messageText?.substring(0, 50) })}`);
 
         if (!messageText) {
@@ -85,15 +83,6 @@ export class ChatMessageService {
         }
 
         logger.websocket(`✅ Active context: ${JSON.stringify({ type: activeContext.type, id: activeContext.id, title: activeContext.title })}`);
-
-        if (struggleContext) {
-            logger.websocket(`Struggle context: ${JSON.stringify({
-                isStruggling: struggleContext.isStruggling,
-                eq: struggleContext.eq,
-                eqConfidence: struggleContext.eqConfidence,
-                recommendedAction: struggleContext.recommendedAction
-            })}`);
-        }
 
         if (!this.deps.artemisApiService) {
             throw new Error('Artemis API service not available');

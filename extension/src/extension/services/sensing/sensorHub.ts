@@ -40,7 +40,7 @@ import type {
  * and settle debounce that define the channel itself.
  *
  * Production creates exactly ONE hub (extension.ts) and injects it
- * everywhere. The default-constructed hubs in TelemetryManager/SessionRecorder
+ * everywhere. The default-constructed hubs in StruggleCoordinator/SessionRecorder
  * exist only so tests can construct those classes standalone.
  */
 export interface SensorHub extends vscode.Disposable {

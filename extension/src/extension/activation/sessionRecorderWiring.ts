@@ -14,7 +14,8 @@ import {
 } from '@extension/services/recording/eventCollectors';
 import type { RecordedEvent } from '@extension/services/recording/types';
 import type { SensorHub } from '@extension/services/sensing';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import { SPEC } from '@extension/services/struggle/constants';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { PlatformCapabilities } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils/constants';
@@ -23,7 +24,7 @@ interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
     consentService: ConsentService;
     artemisWebsocketService: ArtemisWebsocketService;
-    telemetryManager: TelemetryManager;
+    struggleCoordinator: StruggleCoordinator;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
@@ -40,7 +41,7 @@ interface RecorderWiringResult {
 export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringResult {
     const {
         context, consentService, artemisWebsocketService,
-        telemetryManager, artemisWebviewProvider, chatWebviewProvider,
+        struggleCoordinator, artemisWebviewProvider, chatWebviewProvider,
         capabilities, exerciseRegistry, contextStore, sensorHub,
     } = deps;
 
@@ -85,42 +86,26 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordIrisChatFeedback(messageId, helpful);
     }));
 
-    // Telemetry EQ events
-    disposables.push(telemetryManager.onDidCalculateEQ(({ eq, confidence, source, triggerType }) => {
-        sessionRecorder.recordEqSnapshot(eq, confidence, source, triggerType);
+    // Engine v2 recorder feed: passive EQ snapshots + per-tick struggle score +
+    // emitted alerts. The coordinator delegates onDidTick/onDidAlert from the
+    // engine and exposes onDidCalculateEQ from the passive EQ logger; recording
+    // is bundle-excluded so the coordinator never imports the recorder (Decision 1).
+    disposables.push(struggleCoordinator.onDidCalculateEQ(({ eq, confidence, source }) => {
+        sessionRecorder.recordEqSnapshot(eq, confidence, source);
     }));
-    disposables.push(telemetryManager.onDidShowIntervention(decision => {
-        sessionRecorder.recordIntervention(
-            'shown', decision.level as 'subtle' | 'notification' | 'proactive',
-            decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
-        );
+    disposables.push(struggleCoordinator.onDidTick(tick => {
+        sessionRecorder.recordStruggleScore({
+            t: tick.t, s: tick.s, v: tick.v,
+            fTyping: tick.features.fTyping, fGap: tick.features.fGap, fN4: tick.features.fN4,
+            fFb: tick.features.fFb, fA8: tick.features.fA8, fN2: tick.features.fN2,
+            typingRate: tick.features.typingRate, longestGapS: tick.features.longestGapS, n4Ratio: tick.features.n4Ratio,
+        });
     }));
-    disposables.push(telemetryManager.onDidAcceptIntervention(decision => {
-        sessionRecorder.recordIntervention(
-            'accepted', decision.level as 'subtle' | 'notification' | 'proactive',
-            decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
-        );
-    }));
-    disposables.push(telemetryManager.onDidDismissIntervention(payload => {
-        sessionRecorder.recordIntervention(
-            'dismissed', payload.level as 'subtle' | 'notification' | 'proactive',
-            payload.shouldIntervene, payload.eq, payload.confidence, payload.triggerType,
-            { dismissReason: payload.dismissReason },
-        );
-    }));
-    disposables.push(telemetryManager.onDidBlockIntervention(({ decision }) => {
-        sessionRecorder.recordIntervention(
-            'blocked', decision.level as 'subtle' | 'notification' | 'proactive',
-            false, decision.eq, decision.confidence, decision.triggerType,
-            { blockedReason: decision.blockedReason, rawWanted: true },
-        );
-    }));
-    disposables.push(telemetryManager.onDidSuppressIntervention(({ decision, reason }) => {
-        sessionRecorder.recordIntervention(
-            'suppressed', decision.level as 'subtle' | 'notification' | 'proactive',
-            decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
-            { suppressionReason: reason, rawWanted: decision.rawWanted },
-        );
+    disposables.push(struggleCoordinator.onDidAlert(alert => {
+        sessionRecorder.recordAlert({
+            t: alert.t, v: alert.v, types: [...alert.types], primary: alert.primary,
+            path: alert.path, inWarmup: alert.inWarmup, inGrace: alert.inGrace, theta: SPEC.THETA_FULL,
+        });
     }));
 
     // Provider navigation/visibility events
@@ -172,7 +157,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
 
     // EQ engine state seeding
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
-        const eqState = telemetryManager.getEqEngineState();
+        const eqState = struggleCoordinator.getEqEngineState();
         if (eqState.snapshots.length === 0) {
             return [];
         }
@@ -221,6 +206,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
             timestamp: ctx.timestamp,
             struggleDetectionEnabled: enabled,
             showInterventions,
+            engineVersion: 'v2',
         }];
     }));
 

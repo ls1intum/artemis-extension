@@ -4,7 +4,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { SensorHub } from '@extension/services/sensing';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { PlatformCapabilities } from '@extension/theia';
 
@@ -12,7 +12,7 @@ import type { PlatformCapabilities } from '@extension/theia';
 export interface DataCollectionDeps {
     context: vscode.ExtensionContext;
     artemisWebsocketService: ArtemisWebsocketService;
-    telemetryManager: TelemetryManager;
+    struggleCoordinator: StruggleCoordinator;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;

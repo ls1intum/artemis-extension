@@ -8,27 +8,9 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import styles from './StruggleDetectionView.module.css';
 import type { StruggleData, StruggleDetectionViewProps } from './types';
 
-function getEqLevel(eq: number): { label: string; color: string } {
-    if (eq < 0.15) {
-        return { label: 'Normal development', color: '#4caf50' };
-    }
-    if (eq < 0.35) {
-        return { label: 'Occasional difficulty', color: '#ffc107' };
-    }
-    if (eq < 0.60) {
-        return { label: 'Systematic struggle', color: '#ff9800' };
-    }
-    return { label: 'Severe struggle', color: '#f44336' };
-}
-
-function getActionVariant(action: string): 'default' | 'success' | 'warning' | 'error' | 'muted' {
-    switch (action) {
-        case 'none': return 'success';
-        case 'subtle': return 'default';
-        case 'notification': return 'warning';
-        case 'proactive': return 'error';
-        default: return 'muted';
-    }
+/** V-meter colour: red at/above θ_full (0.6), amber approaching, green below. */
+function getVColor(v: number): string {
+    return v >= 0.6 ? '#f44336' : v >= 0.5 ? '#ff9800' : '#4caf50';
 }
 
 export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps) {
@@ -86,8 +68,8 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
         );
     }
 
-    const eqLevel = getEqLevel(data.eq);
-    const eqPercent = Math.min(Math.max(data.eq * 100, 0), 100);
+    const vColor = getVColor(data.v);
+    const vPercent = Math.min(Math.max(data.v * 100, 0), 100);
 
     return (
         <div className={styles.struggleDetectionView}>
@@ -100,60 +82,48 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 subtitle="Monitors your development patterns to detect when you might need help."
             />
 
-            {/* EQ Score */}
+            {/* Severity (V) */}
             <Container
                 header={
                     <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                        Error Quotient (EQ)
+                        Severity (V)
                     </div>
                 }
                 variant="default"
                 padding="default"
             >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {data.eqConfidence === 'insufficient' && (
-                        <div style={{
-                            padding: '10px 14px',
-                            borderRadius: '6px',
-                            background: 'var(--vscode-inputValidation-warningBackground, rgba(255, 193, 7, 0.1))',
-                            border: '1px solid var(--vscode-inputValidation-warningBorder, #ffc107)',
-                            fontSize: '13px',
-                            color: 'var(--vscode-foreground)'
-                        }}>
-                            Not enough data yet. Continue working to build an accurate EQ estimate.
-                        </div>
-                    )}
-
                     {/* Score display */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         <div style={{
                             fontSize: '36px',
                             fontWeight: 700,
-                            color: eqLevel.color,
+                            color: vColor,
                             minWidth: '80px'
                         }}>
-                            {data.eq.toFixed(2)}
+                            {data.v.toFixed(2)}
                         </div>
                         <div style={{ flex: 1 }}>
                             <div style={{
                                 fontSize: '14px',
                                 fontWeight: 600,
-                                color: eqLevel.color,
+                                color: vColor,
                                 marginBottom: '4px'
                             }}>
-                                {eqLevel.label}
+                                {data.v >= 0.6 ? 'At or above alert threshold' : 'Below alert threshold'}
                             </div>
                             <div style={{
                                 fontSize: '12px',
                                 color: 'var(--vscode-descriptionForeground)'
                             }}>
-                                Scale: 0.0 (no errors) &mdash; 1.0 (severe struggle)
+                                Decayed severity, 0.0 (calm) &mdash; 1.0 (severe). Alert at &theta; = 0.60.
                             </div>
                         </div>
                     </div>
 
-                    {/* Progress bar */}
+                    {/* Progress bar with θ marker at 60% */}
                     <div style={{
+                        position: 'relative',
                         height: '8px',
                         borderRadius: '4px',
                         background: 'var(--vscode-progressBar-background, #333)',
@@ -161,14 +131,22 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                     }}>
                         <div style={{
                             height: '100%',
-                            width: `${eqPercent}%`,
+                            width: `${vPercent}%`,
                             borderRadius: '4px',
-                            background: eqLevel.color,
+                            background: vColor,
                             transition: 'width 0.3s ease'
+                        }} />
+                        <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: '60%',
+                            width: '2px',
+                            height: '100%',
+                            background: 'var(--vscode-foreground)'
                         }} />
                     </div>
 
-                    {/* Threshold markers */}
+                    {/* Scale markers */}
                     <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
@@ -177,9 +155,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         padding: '0 2px'
                     }}>
                         <span>0.0</span>
-                        <span>0.15</span>
-                        <span>0.35</span>
-                        <span>0.60</span>
+                        <span>&theta; 0.60</span>
                         <span>1.0</span>
                     </div>
                 </div>
@@ -214,10 +190,10 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         alignItems: 'center'
                     }}>
                         <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Confidence
+                            Instantaneous score (S)
                         </span>
-                        <Badge variant={data.eqConfidence === 'sufficient' ? 'default' : 'muted'}>
-                            {data.eqConfidence}
+                        <Badge variant="muted">
+                            {data.s.toFixed(2)}
                         </Badge>
                     </div>
                     <div style={{
@@ -226,26 +202,24 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         alignItems: 'center'
                     }}>
                         <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Recommended action
+                            Boundary at last tick
                         </span>
-                        <Badge variant={getActionVariant(data.recommendedAction)}>
-                            {data.recommendedAction}
+                        <Badge variant={data.primaryBoundary ? 'default' : 'muted'}>
+                            {data.primaryBoundary ?? '—'}
                         </Badge>
                     </div>
-                    {data.triggerType && (
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}>
-                            <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                                Last trigger
-                            </span>
-                            <Badge variant="muted">
-                                {data.triggerType}
-                            </Badge>
-                        </div>
-                    )}
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
+                            Last alert
+                        </span>
+                        <Badge variant="muted">
+                            {data.lastAlertT !== null ? `at ${data.lastAlertT}s` : '—'}
+                        </Badge>
+                    </div>
                 </div>
             </Container>
 

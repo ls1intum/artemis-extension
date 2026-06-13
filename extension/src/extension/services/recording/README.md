@@ -112,8 +112,8 @@ Not everything recorder-related lives here. The core is self-contained, but:
   breakpoint snapshot).
 - `replay/` — consumer side. Reads recordings back for EQ tuning.
   Imports `RecordedEvent` from here, produces nothing.
-- `telemetry/buildResultGuard.ts` — shared `shouldAcceptBuildResult()` used by
-  both `TelemetryManager` and the recorder's `onNewResult` path.
+- `sensing/buildResultGuard.ts` — shared `shouldAcceptBuildResult()` used by
+  both the struggle coordinator and the recorder's `onNewResult` path.
 
 ## Tooling
 

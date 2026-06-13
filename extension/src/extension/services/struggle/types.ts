@@ -61,3 +61,13 @@ export interface EngineSessionContext {
     readonly sessionStartMs: number;
     readonly exerciseRoot?: import('vscode').Uri;
 }
+
+/** Live engine state for the debug UI (replaces the v1 EQ StruggleContext). */
+export interface StruggleSnapshot {
+    isStruggling: boolean;
+    v: number;
+    s: number;
+    primaryBoundary: BoundaryType | null;
+    lastAlert: { t: number; types: readonly BoundaryType[]; path: 'armed' | 'e6' } | null;
+    sessionSeconds: number;
+}

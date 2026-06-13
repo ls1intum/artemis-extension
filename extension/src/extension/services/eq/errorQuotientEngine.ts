@@ -1,6 +1,4 @@
-// Interim (PR 2a): the session-lifecycle contracts stay in telemetry/types
-// until PR 2c dissolves services/telemetry and relocates them.
-import { SessionResettable, SessionStartContext } from '@extension/services/telemetry/types';
+import { SessionResettable, SessionStartContext } from '@extension/services/sessionLifecycle';
 
 import { shouldDedupSnapshot } from './snapshotDedup';
 import { DEFAULT_EQ_CONFIG, EQConfidence, EQConfig, EQState, ErrorSnapshot } from './types';
