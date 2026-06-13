@@ -1,0 +1,198 @@
+// extension/src/extension/services/struggle/struggleCoordinator.ts
+import * as vscode from 'vscode';
+
+import { CompileEquivalentEmitter } from '@extension/services/eq/compileEquivalentEmitter';
+import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
+import type { EQConfidence, EQState } from '@extension/services/eq/types';
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { SensorHub } from '@extension/services/sensing';
+import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
+import type { SessionResettable } from '@extension/services/sessionLifecycle';
+import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
+import { SPEC } from '@extension/services/struggle/constants';
+import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
+import type { AlertRecord, EngineClock, StruggleSnapshot, TickRecord } from '@extension/services/struggle/types';
+import type { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
+
+// Real clock used in production when none is injected; mirror the engine's DEFAULT_CLOCK.
+const DEFAULT_CLOCK: EngineClock = {
+    now: () => Date.now(),
+    setInterval: (cb, ms) => setInterval(cb, ms),
+    clearInterval: handle => clearInterval(handle as Parameters<typeof clearInterval>[0]),
+};
+
+export interface StruggleCoordinatorDeps {
+    hub: SensorHub;
+    alertSink: AlertSink;
+    exerciseRegistry?: ExerciseRegistry;
+    clock?: EngineClock;
+}
+
+/**
+ * Owns Engine v2 (the live decision path) plus the passive EQ logger
+ * (telemetry only, no decision role — spec R3). Replaces the v1 TelemetryManager.
+ *
+ * Responsibilities:
+ *  - WebSocket build-result producer: guard → hub.emitBuildResult (engine) AND
+ *    feed the EQ logger (eqSnapshot continuity).
+ *  - Engine alert → AlertSink (single-level delivery).
+ *  - Expose onDidAlert / onDidTick / onDidCalculateEQ for the recorder
+ *    (subscribed by activation/sessionRecorderWiring; clean-bundle inversion,
+ *    Decision 1).
+ *  - getSnapshot() for the v2 debug UI.
+ *  - Exercise session lifecycle.
+ */
+export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageHandler {
+    private readonly _hub: SensorHub;
+    private readonly _alertSink: AlertSink;
+    private readonly _exerciseRegistry: ExerciseRegistry | undefined;
+    private readonly _engine: StruggleEngine;
+    private readonly _clock: EngineClock;
+    private readonly _eqEngine = new ErrorQuotientEngine();
+    private readonly _compileEmitter = new CompileEquivalentEmitter();
+    private readonly _disposables: vscode.Disposable[] = [];
+    private _activeExerciseId: number | undefined;
+    private _sessionStartMs = 0;
+    private _lastTick: TickRecord | undefined;
+    private _lastAlert: AlertRecord | undefined;
+    private _isEnabled = true;
+    private _showInterventions = true;
+
+    private readonly _onDidCalculateEQ = new vscode.EventEmitter<{ eq: number; confidence: EQConfidence; source: 'save' | 'build' }>();
+    readonly onDidCalculateEQ = this._onDidCalculateEQ.event;
+
+    constructor(deps: StruggleCoordinatorDeps) {
+        this._hub = deps.hub;
+        this._alertSink = deps.alertSink;
+        this._exerciseRegistry = deps.exerciseRegistry;
+        this._clock = deps.clock ?? DEFAULT_CLOCK;
+        this._engine = new StruggleEngine(this._hub, this._clock);
+
+        // Engine alert → sink (UI gated) + snapshot bookkeeping.
+        // The alert is ALWAYS recorded via the engine's onDidAlert (the recorder
+        // wiring subscribes the engine directly); only UI delivery is gated.
+        // Delivery requires BOTH struggle detection enabled AND interventions
+        // shown: disabling detection (enabled=false) must suppress interventions,
+        // not just stop EQ intake.
+        this._disposables.push(this._engine.onDidAlert(alert => {
+            this._lastAlert = alert;
+            if (this._isEnabled && this._showInterventions) {
+                this._alertSink.deliver(alert);
+            }
+        }));
+        this._disposables.push(this._engine.onDidTick(tick => { this._lastTick = tick; }));
+
+        // Passive EQ logger (no decision role): settle + build → snapshot → eqSnapshot.
+        this._disposables.push(this._hub.onDiagnosticsSettled(signal => {
+            if (this._isEnabled) { this._compileEmitter.handleDiagnosticsSettled(signal); }
+        }));
+        this._disposables.push(this._compileEmitter.onDidEmitCompileEquivalent(event => {
+            if (this._eqEngine.addSnapshot(event.snapshot)) {
+                const { eq, confidence } = this._eqEngine.getCurrentEQ();
+                this._onDidCalculateEQ.fire({ eq, confidence, source: event.source });
+            }
+        }));
+
+        this._loadConfiguration();
+        this._disposables.push(vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('artemis.struggleDetection')) { this._loadConfiguration(); }
+        }));
+    }
+
+    // ── WebSocket handler (build-result producer) ──────────────────────
+    onNewResult(result: ResultDTO): void {
+        if (!this._isEnabled) { return; }
+        if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) { return; }
+        this._hub.emitBuildResult(result);          // engine (FM/FM+/improved + fast decay)
+        this._compileEmitter.handleBuildResult(result);   // passive EQ
+    }
+
+    private _websocketService: ArtemisWebsocketService | undefined;
+
+    setWebsocketService(ws: ArtemisWebsocketService): void {
+        this._websocketService = ws;
+        ws.registerMessageHandler(this);     // coordinator implements WebSocketMessageHandler (onNewResult)
+    }
+
+    // ── Recorder feed (subscribed by sessionRecorderWiring) ────────────
+    get onDidAlert() { return this._engine.onDidAlert; }
+    get onDidTick() { return this._engine.onDidTick; }
+
+    // ── Session lifecycle ──────────────────────────────────────────────
+    startExerciseSession(exerciseId: number, exerciseRoot?: vscode.Uri): void {
+        if (this._activeExerciseId === exerciseId) { return; }
+        if (this._activeExerciseId !== undefined) { this.endExerciseSession(); }
+        this._activeExerciseId = exerciseId;
+        this._sessionStartMs = this._clock.now();
+        const ctx = { exerciseId, exerciseRoot };
+        this._eqEngine.onSessionStart(ctx);
+        this._compileEmitter.onSessionStart(ctx);
+        this._alertSink.reset?.();                 // clear any stale intervention from the prior session
+        this._engine.start({ sessionStartMs: this._sessionStartMs, exerciseRoot });
+        this._lastTick = undefined;
+        this._lastAlert = undefined;
+    }
+
+    /** ms epoch of the active session start (test/replay helper). */
+    get sessionStartMs(): number { return this._sessionStartMs; }
+
+    /** Drive the engine's grid ticks deterministically (tests/replay; production
+     *  uses the engine's own interval timer). */
+    advanceTo(nowMs: number): void { this._engine.advanceTo(nowMs); }
+
+    /** Passive EQ logger state for the recorder's eqEngineState startup contributor. */
+    getEqEngineState(): EQState { return this._eqEngine.getState(); }
+
+    endExerciseSession(): void {
+        if (this._activeExerciseId === undefined) { return; }
+        this._engine.stop();
+        // Both implement SessionResettable; onSessionEnd is optional on the
+        // contract, so call only when the concrete logger defines it.
+        (this._eqEngine as SessionResettable).onSessionEnd?.();
+        (this._compileEmitter as SessionResettable).onSessionEnd?.();
+        this._activeExerciseId = undefined;
+    }
+
+    endCurrentSession(): void { this.endExerciseSession(); }
+
+    // ── Debug snapshot ─────────────────────────────────────────────────
+    getSnapshot(): StruggleSnapshot {
+        const tick = this._lastTick;
+        return {
+            isStruggling: tick ? tick.v >= SPEC.THETA_FULL : false,
+            v: tick?.v ?? 0,
+            s: tick?.s ?? 0,
+            primaryBoundary: tick && tick.boundariesPreGate.length > 0 ? tick.boundariesPreGate[0] : null,
+            lastAlert: this._lastAlert
+                ? { t: this._lastAlert.t, types: this._lastAlert.types, path: this._lastAlert.path }
+                : null,
+            sessionSeconds: tick?.t ?? 0,
+        };
+    }
+
+    isEnabled(): boolean { return this._isEnabled; }
+
+    private _loadConfiguration(): void {
+        const cfg = vscode.workspace.getConfiguration('artemis.struggleDetection');
+        const prevDeliver = this._isEnabled && this._showInterventions;
+        this._isEnabled = cfg.get<boolean>('enabled', true);
+        this._showInterventions = cfg.get<boolean>('showInterventions', true);
+        // On any transition that turns delivery off (detection disabled OR
+        // interventions hidden), clear a visible hint immediately. The engine
+        // keeps computing/recording — only UI delivery is suppressed.
+        if (prevDeliver && !(this._isEnabled && this._showInterventions)) {
+            this._alertSink.reset?.();
+        }
+    }
+
+    dispose(): void {
+        this._websocketService?.unregisterMessageHandler(this);   // parity with v1 TelemetryManager.dispose
+        this.endExerciseSession();
+        while (this._disposables.length > 0) { this._disposables.pop()?.dispose(); }
+        this._engine.dispose();
+        this._eqEngine.dispose?.();
+        this._compileEmitter.dispose();
+        this._onDidCalculateEQ.dispose();
+    }
+}
