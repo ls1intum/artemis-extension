@@ -488,7 +488,7 @@ suite('RecordingStorageWriter (Block D)', () => {
     // ── Test 10: writeMetadata adds schemaVersion and recorderVersion ─────────
 
     suite('writeMetadata enrichment', () => {
-        test('writes schemaVersion: 2 and recorderVersion: "2.0" into metadata', async () => {
+        test('writes schemaVersion: 3 and recorderVersion: "2.0" into metadata', async () => {
             await writer.writeMetadata({
                 sessionId: SESSION_ID,
                 exerciseId: 42,
@@ -504,7 +504,7 @@ suite('RecordingStorageWriter (Block D)', () => {
             );
             assert.ok(metadataWrite, 'No metadata.json write found');
             const written = JSON.parse(metadataWrite.data) as Record<string, unknown>;
-            assert.strictEqual(written['schemaVersion'], 2);
+            assert.strictEqual(written['schemaVersion'], 3);
             assert.strictEqual(written['recorderVersion'], '2.0');
         });
     });

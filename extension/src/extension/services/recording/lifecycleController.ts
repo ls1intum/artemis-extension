@@ -437,7 +437,7 @@ export class LifecycleController {
             exerciseId,
             participantId,
             exerciseRoot,
-            schemaVersion: 2,
+            schemaVersion: 3,
         });
 
         // Initial metadata write - lets live viewers fetch sessionStartTime

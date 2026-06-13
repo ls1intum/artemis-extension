@@ -142,6 +142,8 @@ export interface ConfigurationSnapshotEvent {
     timestamp: number;
     struggleDetectionEnabled: boolean;
     showInterventions: boolean;
+    /** Decision engine version live at session start (Engine v2 from PR 2c). */
+    engineVersion?: 'v2';
 }
 
 /**
@@ -506,6 +508,43 @@ export interface SubmissionEvent {
  */
 export type SubmissionPayload = Pick<SubmissionEvent, 'status' | 'participationId' | 'commitMessage' | 'failureReason'>;
 
+// ── Block L: Engine v2 score + alert events (schemaVersion 3) ────────
+/** Boundary types as recorded (mirror of services/struggle BoundaryType). */
+export type RecordedBoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE';
+
+/** Engine v2 per-tick score sample (every 10 s). */
+export interface StruggleScoreEvent {
+    type: 'struggleScore';
+    timestamp: number;
+    /** Session-relative tick time (s). */
+    t: number;
+    s: number;
+    v: number;
+    fTyping: number;
+    fGap: number;
+    fN4: number;
+    fFb: number;
+    fA8: number;
+    fN2: number;
+    typingRate: number;
+    longestGapS: number;
+    n4Ratio: number;
+}
+
+/** Engine v2 emitted alert. */
+export interface AlertEvent {
+    type: 'alert';
+    timestamp: number;
+    t: number;
+    v: number;
+    types: RecordedBoundaryType[];
+    primary: RecordedBoundaryType;
+    path: 'armed' | 'e6';
+    inWarmup: boolean;
+    inGrace: boolean;
+    theta: number;
+}
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -546,7 +585,9 @@ export type RecordedEvent =
     | TaskFeedbackViewEvent
     | DebugSessionEvent
     | BreakpointChangeEvent
-    | SubmissionEvent;
+    | SubmissionEvent
+    | StruggleScoreEvent
+    | AlertEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 

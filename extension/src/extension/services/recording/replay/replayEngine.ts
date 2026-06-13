@@ -106,6 +106,14 @@ export function replaySession(
             continue;
         }
 
+        // Engine v2 telemetry (schemaVersion 3): struggleScore samples and alert
+        // emissions are NOT EQ inputs — they are produced by the parallel v2 state
+        // machine. EQ replay reconstructs only the EQ curve, so these are
+        // intentionally skipped (no behaviour change to EQ replay).
+        if (event.type === 'struggleScore' || event.type === 'alert') {
+            continue;
+        }
+
         // Emit replay point at trigger evaluations so the replay line matches the original
         if (event.type === 'eqSnapshot' && event.source === 'trigger') {
             const { eq, confidence } = engine.getCurrentEQ();

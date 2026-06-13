@@ -141,7 +141,7 @@ suite('parseRecordedEvent — per-variant happy path', () => {
     test('sessionStart', () => {
         const e: RecordedEvent = {
             type: 'sessionStart', timestamp: ts, exerciseId: 7,
-            participantId: 'abc', exerciseRoot: '/workspace/ex', schemaVersion: 2,
+            participantId: 'abc', exerciseRoot: '/workspace/ex', schemaVersion: 3,
         };
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
@@ -597,7 +597,7 @@ suite('parseSessionMetadata', () => {
         const m: SessionMetadata = {
             sessionId: 'abc', exerciseId: 7, participantId: 'student-1',
             startTime: ts, endTime: ts + 1000, eventCount: 42,
-            schemaVersion: 2, recorderVersion: '0.4.4',
+            schemaVersion: 3, recorderVersion: '0.4.4',
         };
         assert.deepStrictEqual(parseSessionMetadata(clone(m)), clone(m));
     });

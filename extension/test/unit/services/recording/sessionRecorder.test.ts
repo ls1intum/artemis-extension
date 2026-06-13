@@ -202,9 +202,9 @@ suite('SessionRecorder (Block AB+E)', () => {
         const endIdx = events.findIndex(e => e.type === 'sessionEnd');
         assert.ok(endIdx > startupIdx, 'sessionEnd must come after startupPhaseComplete');
 
-        // sessionStart carries schemaVersion: 2
+        // sessionStart carries schemaVersion: 3
         const start = events[0] as { schemaVersion?: number };
-        assert.strictEqual(start.schemaVersion, 2);
+        assert.strictEqual(start.schemaVersion, 3);
     });
 
     // ── Test: sessionEnd is strictly the last event ───────────────────────

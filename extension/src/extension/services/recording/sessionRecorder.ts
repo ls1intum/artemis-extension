@@ -45,7 +45,7 @@ import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } 
 import type { InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionSuppressionReason, TriggerType } from '@extension/services/telemetry/types';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
+import type { AlertEvent, InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, StruggleScoreEvent, SubmissionPayload } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -402,6 +402,14 @@ export class SessionRecorder implements WebSocketMessageHandler {
             source,
             triggerType,
         });
+    }
+
+    recordStruggleScore(sample: Omit<StruggleScoreEvent, 'type' | 'timestamp'>): void {
+        this._record({ type: 'struggleScore', ...sample });
+    }
+
+    recordAlert(alert: Omit<AlertEvent, 'type' | 'timestamp'>): void {
+        this._record({ type: 'alert', ...alert });
     }
 
     recordIntervention(

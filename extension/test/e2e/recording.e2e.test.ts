@@ -197,7 +197,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(sessionStart.exerciseId, 1, 'sessionStart.exerciseId');
         assert.strictEqual(sessionStart.participantId, 'e2e-test', 'sessionStart.participantId');
         assert.strictEqual(sessionStart.exerciseRoot, workspaceUri.toString(), 'sessionStart.exerciseRoot');
-        assert.strictEqual(sessionStart.schemaVersion, 2, 'sessionStart.schemaVersion');
+        assert.strictEqual(sessionStart.schemaVersion, 3, 'sessionStart.schemaVersion');
         assert.strictEqual(sessionEnd.exerciseId, 1, 'sessionEnd.exerciseId');
         assert.ok(sessionStart.timestamp >= sessionStartWallclock - 1000, 'sessionStart.timestamp plausible');
         assert.ok(sessionEnd.timestamp <= sessionEndWallclock + 1000, 'sessionEnd.timestamp plausible');
@@ -326,7 +326,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             startTime: number;
             endTime: number | undefined;
         };
-        assert.strictEqual(metadata.schemaVersion, 2, 'metadata.schemaVersion');
+        assert.strictEqual(metadata.schemaVersion, 3, 'metadata.schemaVersion');
         assert.strictEqual(metadata.exerciseId, 1, 'metadata.exerciseId');
         assert.strictEqual(metadata.participantId, 'e2e-test', 'metadata.participantId');
         assert.strictEqual(metadata.sessionId, sessionDirs[0], 'metadata.sessionId matches dir name');

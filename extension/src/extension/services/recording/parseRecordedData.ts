@@ -28,6 +28,7 @@ import {
 } from '@extension/services/telemetry/types';
 
 import type {
+    AlertEvent,
     BreakpointChangeEvent,
     BuildResultEvent,
     ConfigurationChangeEvent,
@@ -50,6 +51,7 @@ import type {
     PanelVisibilityEvent,
     ProblemStatementScrollEvent,
     ProblemStatementSelectionEvent,
+    RecordedBoundaryType,
     RecordedEvent,
     SaveEvent,
     SelectionChangeEvent,
@@ -60,6 +62,7 @@ import type {
     SessionMetadata,
     SessionStartEvent,
     StartupPhaseCompleteEvent,
+    StruggleScoreEvent,
     SubmissionEvent,
     TaskFeedbackViewClosedEvent,
     TaskFeedbackViewEvent,
@@ -302,12 +305,14 @@ function parseStartupPhaseComplete(_d: Record<string, unknown>, timestamp: numbe
 
 function parseConfigurationSnapshot(d: Record<string, unknown>, timestamp: number): ConfigurationSnapshotEvent | null {
     if (!isBoolean(d.struggleDetectionEnabled) || !isBoolean(d.showInterventions)) { return null; }
-    return {
-        type: 'configurationSnapshot',
+    if (d.engineVersion !== undefined && !isOneOf(d.engineVersion, ['v2'] as const)) { return null; }
+    return stripUndefined({
+        type: 'configurationSnapshot' as const,
         timestamp,
         struggleDetectionEnabled: d.struggleDetectionEnabled,
         showInterventions: d.showInterventions,
-    };
+        engineVersion: d.engineVersion as 'v2' | undefined,
+    });
 }
 
 function parseConfigurationChange(d: Record<string, unknown>, timestamp: number): ConfigurationChangeEvent | null {
@@ -695,6 +700,36 @@ function parseSubmission(d: Record<string, unknown>, timestamp: number): Submiss
     });
 }
 
+function parseStruggleScore(d: Record<string, unknown>, timestamp: number): StruggleScoreEvent | null {
+    const nums = ['t', 's', 'v', 'fTyping', 'fGap', 'fN4', 'fFb', 'fA8', 'fN2', 'typingRate', 'longestGapS', 'n4Ratio'] as const;
+    for (const k of nums) { if (!isFiniteNumber(d[k])) { return null; } }
+    return {
+        type: 'struggleScore', timestamp,
+        t: d.t as number, s: d.s as number, v: d.v as number,
+        fTyping: d.fTyping as number, fGap: d.fGap as number, fN4: d.fN4 as number,
+        fFb: d.fFb as number, fA8: d.fA8 as number, fN2: d.fN2 as number,
+        typingRate: d.typingRate as number, longestGapS: d.longestGapS as number, n4Ratio: d.n4Ratio as number,
+    };
+}
+
+const RECORDED_BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+
+function parseAlert(d: Record<string, unknown>, timestamp: number): AlertEvent | null {
+    if (!isFiniteNumber(d.t) || !isFiniteNumber(d.v) || !isFiniteNumber(d.theta)) { return null; }
+    if (!Array.isArray(d.types) || !d.types.every(x => isOneOf(x, RECORDED_BOUNDARY_TYPES))) { return null; }
+    if (!isOneOf(d.primary, RECORDED_BOUNDARY_TYPES)) { return null; }
+    if (!isOneOf(d.path, ['armed', 'e6'] as const)) { return null; }
+    if (!isBoolean(d.inWarmup) || !isBoolean(d.inGrace)) { return null; }
+    return {
+        type: 'alert', timestamp,
+        t: d.t as number, v: d.v as number,
+        types: d.types as RecordedBoundaryType[],
+        primary: d.primary as RecordedBoundaryType,
+        path: d.path as 'armed' | 'e6',
+        inWarmup: d.inWarmup as boolean, inGrace: d.inGrace as boolean, theta: d.theta as number,
+    };
+}
+
 // ── Public dispatcher ─────────────────────────────────────────────────
 
 type EventParser = (d: Record<string, unknown>, timestamp: number) => RecordedEvent | null;
@@ -749,6 +784,8 @@ const EVENT_PARSERS = {
     debugSession: parseDebugSession,
     breakpointChange: parseBreakpointChange,
     submission: parseSubmission,
+    struggleScore: parseStruggleScore,
+    alert: parseAlert,
 } satisfies Record<RecordedEvent['type'], EventParser>;
 
 // Runtime mirror of the recordable event-type set, derived from the dispatch
