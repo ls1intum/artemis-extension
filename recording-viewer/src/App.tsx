@@ -468,14 +468,57 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
     }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
 
+    // Archive mode: keep the video playhead in view while zoomed. The playhead
+    // lives in videoTimeRef (updated per frame by the player without re-rendering),
+    // so poll it on an rAF loop instead of reacting to state. Reposition only when
+    // it drifts out of a comfortable band, so setState (and canvas redraws) stay
+    // infrequent (~once per page). Manual pan/zoom flips autoFollow off, tearing
+    // this loop down. setZoomedXDomain here does not echo back through onZoomChange
+    // (useTimelinePan emits that only on user drag), so follow stays on.
+    useEffect(() => {
+        if (!autoFollowLive || isLiveSession || !zoomedXDomain || !xDomain || !videoSyncConfig) return;
+        const [min, max] = zoomedXDomain;
+        const range = max - min;
+        const margin = range * 0.15;
+        let rafId: number;
+        const tick = () => {
+            const playhead = videoTimeRef.current;
+            if (playhead > 0 && (playhead < min + margin || playhead > max - margin)) {
+                let newMin = playhead - margin;
+                let newMax = newMin + range;
+                if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + range; }
+                if (newMax > xDomain[1]) { newMax = xDomain[1]; newMin = newMax - range; }
+                // Skip no-op repositions (e.g. clamped at a timeline edge) so we
+                // don't setState every frame when the window can't move further.
+                if (Math.abs(newMin - min) >= 1 || Math.abs(newMax - max) >= 1) {
+                    setZoomedXDomain([newMin, newMax]);
+                    return; // effect re-runs with the new window; a fresh loop continues
+                }
+            }
+            rafId = requestAnimationFrame(tick);
+        };
+        rafId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(rafId);
+    }, [autoFollowLive, isLiveSession, zoomedXDomain, xDomain, videoSyncConfig]);
+
     const handleToggleAutoFollow = useCallback(() => {
         const next = !autoFollowLive;
         setAutoFollowLive(next);
         if (next && zoomedXDomain && xDomain) {
             const range = zoomedXDomain[1] - zoomedXDomain[0];
-            setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+            if (isLiveSession) {
+                setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+            } else {
+                // Center the window on the current playhead when enabling follow.
+                const playhead = videoTimeRef.current > 0 ? videoTimeRef.current : zoomedXDomain[0];
+                let newMin = playhead - range / 2;
+                let newMax = newMin + range;
+                if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + range; }
+                if (newMax > xDomain[1]) { newMax = xDomain[1]; newMin = newMax - range; }
+                setZoomedXDomain([newMin, newMax]);
+            }
         }
-    }, [autoFollowLive, xDomain, zoomedXDomain]);
+    }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
 
     const handleZoomChange = useCallback((domain: [number, number] | null) => {
         setZoomedXDomain(domain);
@@ -666,11 +709,11 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
                                 )}
-                                {isLiveSession && zoomedXDomain && (
+                                {zoomedXDomain && (isLiveSession || videoSyncConfig) && (
                                     <button
                                         className={`zoom-btn follow ${autoFollowLive ? 'active' : ''}`}
                                         onClick={handleToggleAutoFollow}
-                                        title={autoFollowLive ? 'Auto-follow latest events (on)' : 'Auto-follow latest events (off)'}
+                                        title={`Auto-follow ${isLiveSession ? 'latest events' : 'playhead'} (${autoFollowLive ? 'on' : 'off'})`}
                                     >
                                         Follow
                                     </button>
