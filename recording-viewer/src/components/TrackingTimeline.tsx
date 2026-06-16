@@ -582,7 +582,9 @@ export function TrackingTimeline({
                 {onSetPendingPosition && (
                     pendingTimestamp != null
                         ? `Marked ${formatOffset(pendingTimestamp - sessionStartTime)} \u00b7 press 1-5 / q-u to place \u00b7 Esc to cancel`
-                        : 'Click to mark a spot, then press a label key'
+                        : onSeekVideo
+                            ? 'Press 1-5 / q-u to place at the playhead \u00b7 click to mark a precise spot'
+                            : 'Click to mark a spot, then press a label key'
                 )}
             </p>
         </div>

@@ -249,17 +249,23 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         // pendingTimestamp is intentionally NOT a dep — it is read via the ref so
         // the window keydown listener does not re-subscribe on pending changes.
         useCallback((label) => {
-            // A clicked pending position overrides the default anchor in ANY mode
-            // (live edge or offline playhead) and is always persisted at its exact
-            // timestamp. Without a pending click, live keeps server-receive-time.
+            // Resolve where the marker lands:
+            //  - a clicked pending position always wins (precise placement, any mode)
+            //  - live: the latest observed event (the red live edge)
+            //  - archive: the video playhead (the red line). videoTimeRef already
+            //    holds an ABSOLUTE session timestamp (set by VideoPlayer via
+            //    videoTimeToSession), so use it directly. It stays 0 until the video
+            //    reports a real position; when there is no synced video / no playhead,
+            //    there is nothing to anchor to, so the keypress is a no-op.
             const pending = pendingTsRef.current;
             const referenceTs = pending
                 ?? (isLiveSession
                     ? live.latestEventTimestamp
-                    : (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000);
+                    : (videoTimeRef.current > 0 ? videoTimeRef.current : null));
+            if (referenceTs == null) return;
             mutator.addLabel(label, referenceTs, { persistTimestamp: pending != null || !isLiveSession });
             if (pending != null) setPending(null);
-        }, [mutator, live.latestEventTimestamp, isLiveSession, session, setPending]),
+        }, [mutator, live.latestEventTimestamp, isLiveSession, setPending]),
         mutator.undoLast,
         mutator.redoLast,
         onEscape,
