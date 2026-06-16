@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
-import { STRUGGLE_LABELS, CONTEXT_LABELS } from '../types';
-import { CONTEXT_KEYS } from '../hooks/useLiveHotkeys';
 import { formatDuration } from '../utils/format';
-
-const CONTEXT_KEY_BY_VALUE: Record<string, string> = Object.fromEntries(
-    Object.entries(CONTEXT_KEYS).map(([key, value]) => [value, key]),
-);
+import { HotkeyLegend } from './HotkeyLegend';
 
 interface Props {
     connected: boolean;
@@ -50,16 +45,7 @@ export function LiveControlBar({
                     <span className="live-age">last event {(ageMs / 1000).toFixed(1)}s ago</span>
                 )}
             </div>
-            <div className="live-legend">
-                <strong>Struggle:</strong>
-                {STRUGGLE_LABELS.map((s, i) => (
-                    <span key={s.value} style={{ color: s.color }}>{i + 1}={s.label}</span>
-                ))}
-                <strong>Context:</strong>
-                {CONTEXT_LABELS.map(s => (
-                    <span key={s.value} style={{ color: s.color }}>{CONTEXT_KEY_BY_VALUE[s.value] ?? '?'}={s.label}</span>
-                ))}
-            </div>
+            <HotkeyLegend />
         </div>
     );
 }
