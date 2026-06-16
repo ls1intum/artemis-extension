@@ -14,6 +14,7 @@ import { VideoUpload } from './components/VideoUpload';
 import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
 import { LiveControlBar } from './components/LiveControlBar';
+import { HotkeyLegend } from './components/HotkeyLegend';
 import { ALL_EVENT_TYPES } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
 import { useLiveSessions } from './hooks/useLiveSessions';
@@ -606,6 +607,11 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             latestEventTimestamp={live.latestEventTimestamp}
                             startTime={liveElapsedStart}
                         />
+                    )}
+                    {activeSessionId.current && !writesDisabled && (
+                        <div className="hotkey-legend-bar">
+                            <HotkeyLegend />
+                        </div>
                     )}
                     <SessionInfo session={session} events={displayedEvents} />
                     <div className="view-toggle-row">
