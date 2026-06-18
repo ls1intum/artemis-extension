@@ -245,7 +245,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const buildFailed = latestSubmission?.buildFailed ?? false;
     const feedbacks = latestResult?.feedbacks ?? [];
     const testFeedbacks = feedbacks.filter(isTestCaseFeedback);
-    const testCases = transformFeedbacksToTestCases(feedbacks);
     const displayTestCases = transformFeedbacksToTestCases(displayResult?.feedbacks ?? []);
 
     // Use Artemis-provided test case counts when available, fall back to feedbacks
