@@ -61,7 +61,7 @@ const STRUGGLE_LABELS = new Set([
     'confident', 'light-struggle', 'medium-struggle', 'high-struggle', 'blocked',
 ]);
 const CONTEXT_LABELS = new Set([
-    'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results',
+    'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results', 'waiting-for-build-results',
 ]);
 
 export interface MatrixOptions {

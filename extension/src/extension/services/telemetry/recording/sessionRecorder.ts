@@ -40,9 +40,12 @@
 
 import * as vscode from 'vscode';
 
+import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } from '@shared/messageContracts/webviewCommands';
+
+import type { InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionSuppressionReason, TriggerType } from '@extension/services/telemetry/types';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
+import type { InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -83,8 +86,8 @@ type StartupContributor = StartupContributorFromModule;
 
 type RecorderPhase = RecorderPhaseFromState;
 
-export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandler {
-    // ── Dispose guard ─────────────────────────────────────────────────
+export class SessionRecorder implements WebSocketMessageHandler {
+    // ── Shutdown guard ────────────────────────────────────────────────
 
     private _disposed = false;
 
@@ -394,16 +397,16 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     }
 
     recordIntervention(
-        action: 'shown' | 'accepted' | 'dismissed' | 'blocked' | 'suppressed',
-        level: 'subtle' | 'notification' | 'proactive',
+        action: InterventionRecordAction,
+        level: InterventionLevel,
         shouldIntervene: boolean,
         eq: number,
         confidence: 'sufficient' | 'insufficient',
-        triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained',
+        triggerType?: TriggerType,
         opts?: {
-            blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
-            suppressionReason?: 'user-disabled';
-            dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
+            blockedReason?: InterventionBlockedReason;
+            suppressionReason?: InterventionSuppressionReason;
+            dismissReason?: InterventionDismissReason;
             rawWanted?: boolean;
         },
     ): void {
@@ -435,6 +438,28 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             type: 'panelVisibility',
             panel,
             visible,
+        });
+    }
+
+    /**
+     * Record a problem-statement scroll event (how far the student has scrolled
+     * through the exercise description).
+     */
+    recordProblemStatementScroll(payload: ProblemStatementScrollPayload): void {
+        this._record({
+            type: 'problemStatementScroll',
+            ...payload,
+        });
+    }
+
+    /**
+     * Record a problem-statement text-selection event (text the student
+     * highlighted inside the exercise description).
+     */
+    recordProblemStatementSelection(payload: ProblemStatementSelectionPayload): void {
+        this._record({
+            type: 'problemStatementSelection',
+            ...payload,
         });
     }
 
@@ -486,21 +511,28 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
     }
 
-    // ── Disposable ────────────────────────────────────────────────────
+    // ── Shutdown ──────────────────────────────────────────────────────
 
-    async dispose(): Promise<void> {
+    /**
+     * Awaitable teardown. Deliberately NOT named `dispose()` and the class does
+     * NOT implement `vscode.Disposable`: the durability guarantee (buffered
+     * events flushed to disk) only holds if this is awaited, so it must never be
+     * registered in `context.subscriptions` where VS Code would fire-and-forget it.
+     * The durable path is `deactivate()` → DataCollectionHandle → here.
+     */
+    async shutdown(): Promise<void> {
         if (this._disposed) { return; }
         this._disposed = true;
         if (this._phase === 'recording' || this._phase === 'starting') {
             try {
                 await this.endSession('deactivate');
             } catch (err: unknown) {
-                logger.error('Failed to end recording session during dispose', LogCategory.TELEMETRY, err);
+                logger.error('Failed to end recording session during shutdown', LogCategory.TELEMETRY, err);
             }
         }
         await this._lifecycle.drainPending();
         this._observation.disposeSubscriptions();
-        await this._writer.dispose();
+        await this._writer.shutdown();
         this._onDidChangeState.dispose();
     }
 

@@ -4,6 +4,29 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-06-18
+
+### Added
+
+- **Reading Telemetry**: The session recorder now captures problem-statement reading behavior (scrolling and text selections, with extended consent only).
+- **Sticky Build Status**: Build progress and ETA stay visible in a slim strip at the top of the exercise view while you scroll; the result flashes briefly when the build finishes out of view.
+
+### Fixed
+
+- **Replay Fidelity**: Live and recording paths share one build-error-family builder, so replayed EQ matches the live curve.
+- **Intervention Block Reasons**: Withheld interventions record the real gate; `recent-progress`/`last-dismissed` no longer logged as `warmup`.
+- **Test Results With Hidden Names**: The "See test results" overview now lists results for exercises that hide test names from students (`showTestNamesToStudents` disabled), instead of showing "No test results available".
+- **Submission Git Locks**: Submitting is now guarded against a double-click, and a busy or stale Git index lock surfaces an actionable message instead of raw git output or a misleading "No local changes detected".
+- **Build Error CodeLens Position**: Build-error CodeLenses now shift with your edits instead of staying stuck at the originally reported line.
+- **Feedback During Builds**: Build feedback now stays visible while a new build runs, with a banner, and updates automatically when results arrive.
+
+### Internal
+
+- **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
+- **Live Recording Viewer**: The Event Breakdown counts, event total, and session duration now update live alongside the timeline instead of freezing at the values from when the live session was opened.
+- **Live Recording Viewer**: Live mode can now be served from the production build (`npm run preview:live:token`), which eliminates a browser-tab out-of-memory crash that could occur during long or high-volume live sessions on the dev server.
+- **Recorder Test Coverage**: Extended the session-recorder end-to-end and wiring tests to exercise every persistable event type (Iris chat, EQ, interventions, navigation and panel visibility, test-results and task-feedback views, submissions, and file/editor/terminal/debug events) through the full record-to-JSONL-to-parser pipeline, plus the wiring's event forwarding and startup contributors.
+
 ## [0.4.5] - 2026-06-01
 
 ### Added

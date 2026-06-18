@@ -626,3 +626,168 @@ suite('InterventionService.hideHint() — full status-bar reset', () => {
     });
 });
 
+suite('Block C — InterventionService: notification/proactive accept + dismiss paths', () => {
+    let service: InterventionService;
+    let sandbox: sinon.SinonSandbox;
+    let executeCommand: sinon.SinonStub;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+        // Stub executeCommand so the accept path's `iris.chatView.focus` invocation
+        // is observable and does not hit the real command registry.
+        executeCommand = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+        service = new InterventionService();
+    });
+
+    teardown(() => {
+        service.dispose();
+        sandbox.restore();
+    });
+
+    test('showNotificationEQ → accept (Open Iris Chat) → fires onDidAcceptIntervention and opens Iris Chat', async () => {
+        sandbox.stub(require('vscode').window, 'showInformationMessage').resolves('Open Iris Chat');
+        const decision = makeDecision({ level: 'notification', eq: 0.4, triggerType: 'execution-error' });
+        const accepted: InterventionDecision[] = [];
+        const dismissed: unknown[] = [];
+        const subA = service.onDidAcceptIntervention(d => accepted.push(d));
+        const subD = service.onDidDismissIntervention(() => dismissed.push(null));
+
+        await service.showNotificationEQ(decision);
+
+        subA.dispose();
+        subD.dispose();
+
+        assert.strictEqual(accepted.length, 1, 'exactly one accept event should fire');
+        assert.strictEqual(accepted[0].eq, decision.eq, 'accept event carries the original eq');
+        assert.strictEqual(dismissed.length, 0, 'no dismiss event on accept');
+        assert.ok(executeCommand.calledWith('iris.chatView.focus'), 'should open Iris Chat');
+        assert.strictEqual(service.getState().lastAccepted, true, 'lastAccepted set');
+        assert.strictEqual(service.getState().lastDismissed, false, 'lastDismissed cleared');
+    });
+
+    test('showNotificationEQ → dismiss (Not now) → fires onDidDismissIntervention with reason user-action', async () => {
+        sandbox.stub(require('vscode').window, 'showInformationMessage').resolves(undefined);
+        const decision = makeDecision({ level: 'notification', eq: 0.4 });
+        const accepted: unknown[] = [];
+        const dismissed: Array<{ eq: number; dismissReason: string }> = [];
+        const subA = service.onDidAcceptIntervention(() => accepted.push(null));
+        const subD = service.onDidDismissIntervention(p => dismissed.push({ eq: p.eq, dismissReason: p.dismissReason }));
+
+        await service.showNotificationEQ(decision);
+
+        subA.dispose();
+        subD.dispose();
+
+        assert.strictEqual(accepted.length, 0, 'no accept event on dismiss');
+        assert.strictEqual(dismissed.length, 1, 'exactly one dismiss event should fire');
+        assert.strictEqual(dismissed[0].dismissReason, 'user-action', 'dismissReason should be user-action');
+        assert.strictEqual(dismissed[0].eq, decision.eq, 'dismiss event carries the original eq');
+        assert.strictEqual(service.getState().lastDismissed, true, 'lastDismissed set');
+        assert.strictEqual(service.getState().lastAccepted, false, 'lastAccepted cleared');
+        assert.ok(executeCommand.neverCalledWith('iris.chatView.focus'), 'should not open Iris Chat on dismiss');
+    });
+
+    test('showProactiveHelpEQ → accept (Get Help Now) → fires onDidAcceptIntervention and opens Iris Chat', async () => {
+        sandbox.stub(require('vscode').window, 'showWarningMessage').resolves('Get Help Now');
+        const decision = makeDecision({ level: 'proactive', eq: 0.7, triggerType: 'idle' });
+        const accepted: InterventionDecision[] = [];
+        const subA = service.onDidAcceptIntervention(d => accepted.push(d));
+
+        await service.showProactiveHelpEQ(decision);
+
+        subA.dispose();
+
+        assert.strictEqual(accepted.length, 1, 'exactly one accept event should fire');
+        assert.strictEqual(accepted[0].eq, decision.eq, 'accept event carries the original eq');
+        assert.ok(executeCommand.calledWith('iris.chatView.focus'), 'should open Iris Chat');
+        assert.strictEqual(service.getState().lastAccepted, true, 'lastAccepted set');
+    });
+
+    test('showProactiveHelpEQ → dismiss (Later) → fires onDidDismissIntervention with reason user-action', async () => {
+        sandbox.stub(require('vscode').window, 'showWarningMessage').resolves(undefined);
+        const decision = makeDecision({ level: 'proactive', eq: 0.7 });
+        const dismissed: Array<{ dismissReason: string }> = [];
+        const subD = service.onDidDismissIntervention(p => dismissed.push({ dismissReason: p.dismissReason }));
+
+        await service.showProactiveHelpEQ(decision);
+
+        subD.dispose();
+
+        assert.strictEqual(dismissed.length, 1, 'exactly one dismiss event should fire');
+        assert.strictEqual(dismissed[0].dismissReason, 'user-action', 'dismissReason should be user-action');
+        assert.strictEqual(service.getState().lastDismissed, true, 'lastDismissed set');
+    });
+});
+
+suite('Block C — InterventionService: per-kind modal UI variant', () => {
+    let service: InterventionService;
+    let statusBarItem: vscode.StatusBarItem;
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        statusBarItem = {
+            text: '',
+            tooltip: undefined,
+            backgroundColor: undefined,
+            command: undefined,
+            show: sandbox.stub(),
+            hide: sandbox.stub(),
+            dispose: sandbox.stub(),
+            alignment: vscode.StatusBarAlignment.Right,
+            priority: 100,
+            color: undefined,
+            name: undefined,
+            id: 'mock',
+            accessibilityInformation: undefined,
+        } as unknown as vscode.StatusBarItem;
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem);
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+        sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+        service = new InterventionService();
+    });
+
+    teardown(() => {
+        service.dispose();
+        sandbox.restore();
+    });
+
+    // Locks the notification branch of the shared _showModalIntervention variant:
+    // status-bar styling, message-builder selection, dialog kind, and button labels.
+    test('showNotificationEQ uses the notification status-bar variant + showInformationMessage(Open Iris Chat, Not now)', async () => {
+        const info = sandbox.stub(require('vscode').window, 'showInformationMessage').resolves(undefined);
+        const decision = makeDecision({ level: 'notification', eq: 0.4 }); // below 0.45 → "stuck" copy
+
+        await service.showNotificationEQ(decision);
+
+        assert.strictEqual(statusBarItem.text, '$(lightbulb) Stuck? Let me help!');
+        assert.strictEqual(statusBarItem.tooltip, 'EQ: 40% — Click to get help from Iris');
+        const bg = statusBarItem.backgroundColor as unknown as { id: string } | undefined;
+        assert.strictEqual(bg?.id, 'statusBarItem.warningBackground');
+        assert.strictEqual(info.callCount, 1, 'showInformationMessage called once');
+        const [message, ...buttons] = info.firstCall.args;
+        assert.strictEqual(message, 'It looks like you might be stuck. Would you like help from Iris?');
+        assert.deepStrictEqual(buttons, ['Open Iris Chat', 'Not now']);
+    });
+
+    // Locks the proactive branch: error background, "severe struggle" copy (eq >= 0.80),
+    // and showWarningMessage with { modal: false } + Get Help Now / Later.
+    test('showProactiveHelpEQ uses the proactive status-bar variant + showWarningMessage({modal:false}, Get Help Now, Later)', async () => {
+        const warn = sandbox.stub(require('vscode').window, 'showWarningMessage').resolves(undefined);
+        const decision = makeDecision({ level: 'proactive', eq: 0.85 }); // at/above 0.80 → "repeated errors" copy
+
+        await service.showProactiveHelpEQ(decision);
+
+        assert.strictEqual(statusBarItem.text, '$(warning) Help available!');
+        assert.strictEqual(statusBarItem.tooltip, 'EQ: 85% — Iris detected you might be struggling');
+        const bg = statusBarItem.backgroundColor as unknown as { id: string } | undefined;
+        assert.strictEqual(bg?.id, 'statusBarItem.errorBackground');
+        assert.strictEqual(warn.callCount, 1, 'showWarningMessage called once');
+        const [message, options, ...buttons] = warn.firstCall.args;
+        assert.strictEqual(message, "You've been encountering the same errors repeatedly. Let Iris help you work through this!");
+        assert.deepStrictEqual(options, { modal: false });
+        assert.deepStrictEqual(buttons, ['Get Help Now', 'Later']);
+    });
+});
+

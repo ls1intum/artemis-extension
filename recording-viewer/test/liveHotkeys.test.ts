@@ -139,6 +139,7 @@ describe('handleLiveHotkey — label hotkeys still work', () => {
         ['t', 'using-ai'],
         ['i', 'iris-moment'],
         ['u', 'reading-test-results'],
+        ['b', 'waiting-for-build-results'],
     ] as Array<[string, AnnotationLabel]>)('"%s" → onLabel("%s")', (key, expected) => {
         const h = makeHandlers();
         handleLiveHotkey(makeEvent({ key }), h);
@@ -163,5 +164,52 @@ describe('handleLiveHotkey — label hotkeys still work', () => {
         const h = makeHandlers();
         handleLiveHotkey(makeEvent({ key: 'p' }), h);
         expect(h.onLabel).not.toHaveBeenCalled();
+    });
+});
+
+describe('handleLiveHotkey — Escape (click-to-place pending clear)', () => {
+    it('Escape with onEscape returning true consumes the event (preventDefault) and does NOT fire onLabel', () => {
+        const onEscape = vi.fn<[], boolean>(() => true);
+        const h = { ...makeHandlers(), onEscape };
+        const e = makeEvent({ key: 'Escape' });
+        handleLiveHotkey(e, h);
+        expect(onEscape).toHaveBeenCalledTimes(1);
+        expect(e.preventDefault).toHaveBeenCalled();
+        expect(h.onLabel).not.toHaveBeenCalled();
+        expect(h.onUndo).not.toHaveBeenCalled();
+        expect(h.onRedo).not.toHaveBeenCalled();
+    });
+
+    it('Escape with onEscape returning false is a no-op and does NOT call preventDefault', () => {
+        const onEscape = vi.fn<[], boolean>(() => false);
+        const h = { ...makeHandlers(), onEscape };
+        const e = makeEvent({ key: 'Escape' });
+        handleLiveHotkey(e, h);
+        expect(onEscape).toHaveBeenCalledTimes(1);
+        expect(e.preventDefault).not.toHaveBeenCalled();
+        expect(h.onLabel).not.toHaveBeenCalled();
+    });
+
+    it('Escape with no onEscape handler is a no-op (no crash, no preventDefault)', () => {
+        const e = makeEvent({ key: 'Escape' });
+        handleLiveHotkey(e, { onLabel: vi.fn() });
+        expect(e.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('a normal label key ("3") still fires onLabel even when onEscape is provided', () => {
+        const onEscape = vi.fn<[], boolean>(() => true);
+        const h = { ...makeHandlers(), onEscape };
+        handleLiveHotkey(makeEvent({ key: '3' }), h);
+        expect(h.onLabel).toHaveBeenCalledWith('medium-struggle');
+        expect(onEscape).not.toHaveBeenCalled();
+    });
+
+    it('Escape is suppressed inside an input target (guard runs before the Escape branch)', () => {
+        const onEscape = vi.fn<[], boolean>(() => true);
+        const h = { ...makeHandlers(), onEscape };
+        const e = makeEvent({ key: 'Escape', target: { tagName: 'INPUT' } });
+        handleLiveHotkey(e, h);
+        expect(onEscape).not.toHaveBeenCalled();
+        expect(e.preventDefault).not.toHaveBeenCalled();
     });
 });

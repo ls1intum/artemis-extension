@@ -5,6 +5,14 @@
  * Serialized as one JSON object per line in JSONL files.
  */
 
+import type {
+    InterventionBlockedReason,
+    InterventionDismissReason,
+    InterventionLevel,
+    InterventionSuppressionReason,
+    TriggerType,
+} from '@extension/services/telemetry/types';
+
 // ── Serialization helpers ─────────────────────────────────────────────
 
 export interface SerializedRange {
@@ -213,22 +221,31 @@ export interface EqEngineStateEvent {
     confidence: 'sufficient' | 'insufficient';
 }
 
+/**
+ * Recorded intervention action. Recording-specific (the live decision side has
+ * no 'action' concept), so the single source lives here rather than in the
+ * telemetry types. Trigger/blocked/dismiss/suppression vocabularies are shared
+ * with the live domain and imported from `../types`.
+ */
+export const INTERVENTION_RECORD_ACTIONS = ['shown', 'accepted', 'dismissed', 'blocked', 'suppressed'] as const;
+export type InterventionRecordAction = typeof INTERVENTION_RECORD_ACTIONS[number];
+
 export interface InterventionEvent {
     type: 'intervention';
     timestamp: number;
-    action: 'shown' | 'accepted' | 'dismissed' | 'blocked' | 'suppressed';
-    level: 'subtle' | 'notification' | 'proactive';
+    action: InterventionRecordAction;
+    level: InterventionLevel;
     /** True for shown/accepted/dismissed/suppressed; false for blocked. */
     shouldIntervene: boolean;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
-    triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
+    triggerType?: TriggerType;
     /** Populated when action='blocked'. Identifies why the intervention was blocked. */
-    blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+    blockedReason?: InterventionBlockedReason;
     /** Populated when action='suppressed'. Identifies the suppression source. */
-    suppressionReason?: 'user-disabled';
+    suppressionReason?: InterventionSuppressionReason;
     /** Populated when action='dismissed'. Identifies how the intervention was dismissed. */
-    dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
+    dismissReason?: InterventionDismissReason;
     /**
      * Whether the EQ was above the severity threshold, regardless of confidence/guardrails.
      * Populated when action='blocked' to explain the signal that was suppressed.
@@ -248,6 +265,33 @@ export interface PanelVisibilityEvent {
     timestamp: number;
     panel: 'artemis' | 'chat';
     visible: boolean;
+}
+
+export interface ProblemStatementScrollEvent {
+    type: 'problemStatementScroll';
+    timestamp: number;
+    /** Page scroll position — the ExerciseDetail webview scrolls as a whole page. */
+    scrollTop: number;
+    scrollHeight: number;
+    viewportHeight: number;
+    /** Geometry of the statement container, document-relative, integer CSS px. */
+    statementTop: number;
+    statementHeight: number;
+}
+
+export interface ProblemStatementSelectionEvent {
+    type: 'problemStatementSelection';
+    timestamp: number;
+    /** Selected text, capped at 500 chars (see `truncated`). */
+    selectedText: string;
+    /** Uncapped selection length. */
+    selectionLength: number;
+    truncated: boolean;
+    /** Bounding box of the selection, document-relative, integer CSS px. */
+    selectionTop: number;
+    selectionLeft: number;
+    selectionWidth: number;
+    selectionHeight: number;
 }
 
 export interface SelectionChangeEvent {
@@ -486,6 +530,8 @@ export type RecordedEvent =
     | InterventionEvent
     | ViewNavigationEvent
     | PanelVisibilityEvent
+    | ProblemStatementScrollEvent
+    | ProblemStatementSelectionEvent
     | SelectionChangeEvent
     | VisibleRangeChangeEvent
     | TerminalCommandEvent

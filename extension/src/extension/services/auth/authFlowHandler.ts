@@ -7,6 +7,7 @@ import { ArtemisApiService } from '@extension/api';
 import type { UserInfo } from '@extension/controller/appStateManager';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { getTheiaEnvironment } from '@extension/theia';
+import { ApiError } from '@extension/types';
 import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 
 import { AuthManager } from './authManager';
@@ -54,21 +55,34 @@ export class AuthFlowHandler {
 
     public async checkExistingAuthentication(): Promise<void> {
         try {
-            const hasAuth = await this._authManager.hasAuthToken();
-            if (hasAuth) {
-                this._postMessage({ type: ExtensionMsg.ShowLoading, message: 'Checking stored credentials...' });
-                this._postMessage({ type: ExtensionMsg.UpdateLoading, message: 'Loading user information...' });
+            let hasAuth = false;
+            try {
+                hasAuth = await this._authManager.hasAuthToken();
+            } catch (error) {
+                // Reading the stored token failed — clearing it would be pointless
+                // and destructive, so just fall back to the login UI.
+                logger.error('Error reading stored authentication state', LogCategory.AUTH, error);
+                this._callbacks.hideLoadingAndSendServerUrl();
+                return;
+            }
 
-                try {
-                    const user = await this._artemisApi.getCurrentUser();
-                    const serverUrl = this._getServerUrl();
-                    logger.info(`Auto-authenticated user: ${user.login}`, LogCategory.AUTH);
-                    await this._callbacks.onAuthenticated({
-                        username: user.login || 'User',
-                        serverUrl: serverUrl,
-                        user: user
-                    });
-                } catch (userError) {
+            if (!hasAuth) {
+                this._callbacks.hideLoadingAndSendServerUrl();
+                return;
+            }
+
+            this._postMessage({ type: ExtensionMsg.ShowLoading, message: 'Checking stored credentials...' });
+            this._postMessage({ type: ExtensionMsg.UpdateLoading, message: 'Loading user information...' });
+
+            let user;
+            try {
+                user = await this._artemisApi.getCurrentUser();
+            } catch (userError) {
+                // Only a 401 means the stored token is actually invalid. A timeout,
+                // network error, or 5xx is a transient reachability problem — keep
+                // the credentials so a blip (e.g. slow network at startup) does not
+                // log the user out.
+                if (userError instanceof ApiError && userError.status === 401) {
                     logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
                     await this._authManager.clear();
 
@@ -76,21 +90,29 @@ export class AuthFlowHandler {
                     if (updater) {
                         await updater(false);
                     }
-
-                    this._callbacks.hideLoadingAndSendServerUrl();
+                } else {
+                    logger.warn('Could not verify stored credentials (server unreachable?); keeping them', LogCategory.AUTH, userError);
                 }
-            } else {
                 this._callbacks.hideLoadingAndSendServerUrl();
+                return;
             }
+
+            // Credentials are valid. A failure in post-auth wiring must NOT be
+            // mistaken for invalid credentials, so it is handled by the
+            // non-clearing outer catch below and never clears a valid token.
+            const serverUrl = this._getServerUrl();
+            logger.info(`Auto-authenticated user: ${user.login}`, LogCategory.AUTH);
+            await this._callbacks.onAuthenticated({
+                username: user.login || 'User',
+                serverUrl: serverUrl,
+                user: user
+            });
         } catch (error) {
-            logger.error('Error checking existing authentication', LogCategory.AUTH, error);
-            await this._authManager.clear();
-
-            const updater = this._getAuthContextUpdater();
-            if (updater) {
-                await updater(false);
-            }
-
+            // Safety net: never strand the startup loading UI. Crucially this does
+            // NOT clear credentials — a transient or post-auth failure must not log
+            // the user out (the only credential-clearing path is the inline 401
+            // branch above, which runs before reaching here).
+            logger.error('Startup authentication did not complete (credentials kept)', LogCategory.AUTH, error);
             this._callbacks.hideLoadingAndSendServerUrl();
         }
     }

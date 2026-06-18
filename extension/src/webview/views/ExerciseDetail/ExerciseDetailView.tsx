@@ -14,11 +14,12 @@ import {
     IconButton,
     SkeletonList,
 } from '@webview/components';
-import { ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
+import { BuildStatusStrip, ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
 import { type ExerciseType, isExerciseType } from '@webview/components/exercise/ParticipationActions';
 import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
 import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useInViewport } from '@webview/hooks/useInViewport';
 import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import {
@@ -27,6 +28,8 @@ import {
     determineParticipationStatus,
     determineSubmissionStatus,
     getLatestById,
+    getLatestResultAcrossSubmissions,
+    isTestCaseFeedback,
     transformFeedbacksToTestCases,
 } from '@webview/utils/exerciseStatus';
 import { formatDate } from '@webview/utils/formatDate';
@@ -75,6 +78,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
     const [openTaskView, setOpenTaskView] = useState<OpenTaskViewState | null>(null);
+
+    // Sticky build-status strip (#280): track whether the SubmissionStatus
+    // card is visible; the strip only shows while it is scrolled out of view.
+    // Callback-ref state (not useRef): the card mounts only after the loading
+    // early-returns below resolve, so the observer must attach when the
+    // element appears, not on first render.
+    const [submissionStatusEl, setSubmissionStatusEl] = useState<HTMLDivElement | null>(null);
+    const submissionStatusInView = useInViewport(submissionStatusEl);
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
@@ -218,14 +229,23 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Results live on submission.results (not on participation directly)
     const latestResult = getLatestById(latestSubmission?.results);
 
-    // Build test cases from feedbacks for detailed display
-    // The result details API returns feedbacks with testCase objects containing testName
+    // Feedback modals show the previous result while a build is running, so a
+    // fresh resultless submission does not blank the feedback. The fallback to
+    // an earlier submission is gated on an ACTIVE pending build: without one, a
+    // resultless newest submission (e.g. a completed build-failed submission)
+    // must keep the existing `latestResult` behaviour and NOT resurface stale
+    // feedback from an older submission. Card/status/score stay on latestResult.
+    const displayResult = pendingSubmission !== null
+        ? getLatestResultAcrossSubmissions(participation?.submissions)
+        : latestResult;
+
+    // Build test cases from feedbacks for detailed display. Test-case feedback
+    // is identified by isTestCaseFeedback (Artemis parity); the test name may be
+    // hidden (showTestNamesToStudents=false) and is not required.
     const buildFailed = latestSubmission?.buildFailed ?? false;
     const feedbacks = latestResult?.feedbacks ?? [];
-    const testFeedbacks = feedbacks.filter(f =>
-        f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
-    );
-    const testCases = transformFeedbacksToTestCases(feedbacks);
+    const testFeedbacks = feedbacks.filter(isTestCaseFeedback);
+    const displayTestCases = transformFeedbacksToTestCases(displayResult?.feedbacks ?? []);
 
     // Use Artemis-provided test case counts when available, fall back to feedbacks
     const totalTests = latestResult?.testCaseCount || testFeedbacks.length;
@@ -264,9 +284,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         const viewId = makeViewId();
         const openedAt = Date.now();
         const exerciseId = exerciseData.exercise.id;
-        const resultId = latestResult?.id;
-        const totalTestCount = testCases.length;
-        const passedTestCount = testCases.filter(t => t.passed).length;
+        const resultId = displayResult?.id;
+        const totalTestCount = displayTestCases.length;
+        const passedTestCount = displayTestCases.filter(t => t.passed).length;
         const failedTests = totalTestCount - passedTestCount;
         postCommand(vscodeApi, WebviewCmd.TestResultsOverviewOpened, {
             viewId, exerciseId, participationId, resultId,
@@ -281,7 +301,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: number[] }) => {
         if (!exerciseData?.exercise?.id) { return; }
-        const classification = classifyTaskTests(testIds, latestResult);
+        const classification = classifyTaskTests(testIds, displayResult);
         // Telemetry: keep existing totalTests/passedTests/failedTests semantics
         // (matched tests for this task). Add notExecutedTests as additive field.
         const { passedCount, failedCount, notExecutedCount } = countsForTelemetry(classification);
@@ -289,7 +309,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         const viewId = makeViewId();
         const openedAt = Date.now();
         const exerciseId = exerciseData.exercise.id;
-        const resultId = latestResult?.id;
+        const resultId = displayResult?.id;
         postCommand(vscodeApi, WebviewCmd.TaskFeedbackOpened, {
             viewId, exerciseId, participationId, resultId,
             taskName, testIds,
@@ -307,6 +327,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     // result.score is already a percentage (0-100) in Artemis
     const scorePercentage = latestResult?.score ?? 0;
+
+    // Banner only when we are actually substituting a previous result for the
+    // running build. No previous result -> no banner (first-build stays as-is).
+    const buildRunning = pendingSubmission !== null && displayResult !== undefined;
 
     // Determine submission status
     const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, latestSubmission);
@@ -519,39 +543,57 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
                 {/* Submission Status */}
                 {hasParticipation && (
-                    <SubmissionStatus
-                        status={submissionStatus}
-                        score={scorePercentage * maxPoints / 100}
-                        maxScore={maxPoints}
-                        scorePercentage={scorePercentage}
-                        exerciseType={exerciseType}
-                        buildFailed={buildFailed}
-                        hasTestInfo={hasTestInfo}
-                        totalTests={totalTests}
-                        passedTests={passedTests}
-                        estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
-                        buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
-                        onOpenTestResults={handleOverviewOpen}
-                        onViewBuildLog={() => {
-                            if (participationId) {
-                                postCommand(vscodeApi, 'viewBuildLog', {
-                                    participationId,
-                                    resultId: latestResult?.id,
-                                });
-                            }
-                        }}
-                        onGoToSource={() => {
-                            if (participationId) {
-                                postCommand(vscodeApi, 'goToSource', {
-                                    participationId,
-                                    resultId: latestResult?.id,
-                                });
-                            }
-                        }}
-                    />
+                    <div ref={setSubmissionStatusEl}>
+                        <SubmissionStatus
+                            status={submissionStatus}
+                            score={scorePercentage * maxPoints / 100}
+                            maxScore={maxPoints}
+                            scorePercentage={scorePercentage}
+                            exerciseType={exerciseType}
+                            buildFailed={buildFailed}
+                            hasTestInfo={hasTestInfo}
+                            totalTests={totalTests}
+                            passedTests={passedTests}
+                            estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
+                            buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
+                            onOpenTestResults={handleOverviewOpen}
+                            onViewBuildLog={() => {
+                                if (participationId) {
+                                    postCommand(vscodeApi, 'viewBuildLog', {
+                                        participationId,
+                                        resultId: latestResult?.id,
+                                    });
+                                }
+                            }}
+                            onGoToSource={() => {
+                                if (participationId) {
+                                    postCommand(vscodeApi, 'goToSource', {
+                                        participationId,
+                                        resultId: latestResult?.id,
+                                    });
+                                }
+                            }}
+                        />
+                    </div>
                 )}
 
             </Container>
+
+            {/* Sticky build status strip (#280) — fixed to the top of the
+                webview while a build runs and the card is out of view */}
+            {hasParticipation && isProgramming && (
+                <BuildStatusStrip
+                    status={submissionStatus}
+                    cardInView={submissionStatusInView}
+                    estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
+                    buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
+                    buildFailed={buildFailed}
+                    hasTestInfo={hasTestInfo}
+                    totalTests={totalTests}
+                    passedTests={passedTests}
+                    onScrollToCard={() => submissionStatusEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                />
+            )}
 
             {/* Ask Iris Section */}
             <AskIris
@@ -563,6 +605,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <ProblemStatement
                 serverRenderedHtml={serverRenderedPS?.html}
                 onTaskClick={handleTaskOpen}
+                vscodeApi={vscodeApi}
             />
 
             {/* Developer Tools */}
@@ -607,14 +650,16 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <TestResultsOverlay
                 open={openOverviewView !== null}
                 onClose={handleOverviewClose}
-                state={{ kind: 'all', testCases }}
+                buildRunning={buildRunning}
+                state={{ kind: 'all', testCases: displayTestCases }}
             />
 
             {openTaskView !== null && (
                 <TestResultsOverlay
                     open
                     onClose={handleTaskClose}
-                    state={classifyTaskTests(openTaskView.testIds, latestResult)}
+                    buildRunning={buildRunning}
+                    state={classifyTaskTests(openTaskView.testIds, displayResult)}
                     taskName={openTaskView.taskName}
                 />
             )}

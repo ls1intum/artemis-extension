@@ -14,12 +14,15 @@ import { VideoUpload } from './components/VideoUpload';
 import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
 import { LiveControlBar } from './components/LiveControlBar';
+import { HotkeyLegend } from './components/HotkeyLegend';
 import { ALL_EVENT_TYPES } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
 import { useLiveSessions } from './hooks/useLiveSessions';
 import { useOpenLiveOnSpace } from './hooks/useOpenLiveOnSpace';
 import { useLiveSession } from './hooks/useLiveSession';
 import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
+import { ToastStack, appendToast, MAX_TOASTS, TOAST_DURATION_MS, type ActiveToast } from './components/ToastStack';
+import { RaterComparisonView } from './components/RaterComparisonView';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
 import { useResearcherLanePolling } from './hooks/useResearcherLanePolling';
 
@@ -47,8 +50,27 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
     // Live state
-    const [lastLabelToast, setLastLabelToast] = useState<AnnotationToast | null>(null);
+    const [toasts, setToasts] = useState<ActiveToast[]>([]);
+    const nextToastId = useRef(0);
+    const pushToast = useCallback((toast: AnnotationToast) => {
+        const id = nextToastId.current++;
+        setToasts(prev => appendToast(prev, { ...toast, id }, MAX_TOASTS));
+    }, []);
+    const dismissToast = useCallback((id: number) => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+    }, []);
     const [stickyLive, setStickyLive] = useState(false);
+
+    // Pending timeline marker position (click-to-place). The ref mirrors the
+    // state synchronously so a label keypress immediately after a click reads
+    // the fresh value (an effect-based mirror would lag a commit and re-introduce
+    // the race).
+    const [pendingTimestamp, setPendingTimestamp] = useState<number | null>(null);
+    const pendingTsRef = useRef<number | null>(null);
+    const setPending = useCallback((ts: number | null) => {
+        pendingTsRef.current = ts;   // synchronous, no render lag
+        setPendingTimestamp(ts);
+    }, []);
 
     // Track most recently ended live session so latch-on cannot flip back to live
     // during the brief window between sessionEnd event arrival and metadata.json
@@ -67,6 +89,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setLoading(true);
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setToasts([]);
         setStickyLive(isLive); // immediate latch — bypasses polling cadence
         try {
             const eventsUrl = isLive
@@ -140,16 +163,15 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const live = useLiveSession(activeSessionId.current, isLiveSession);
 
     const showAnnotationError = useCallback((message: string) => {
-        // Surface mutator failures via the existing toast slot. Keeps the UX
-        // single-channel; the live-mode hotkey path is the only caller.
+        // Surface mutator failures through the toast stack (same channel as adds).
         console.warn('[annotations]', message);
-        setLastLabelToast({ kind: 'error', text: message, at: Date.now() });
-    }, []);
+        pushToast({ kind: 'error', text: message, at: Date.now() });
+    }, [pushToast]);
     const mutator = useAnnotationMutations({
         sessionId: activeSessionId.current,
         raterName: authStatus.raterName,
         setAnnotations,
-        onToast: setLastLabelToast,
+        onToast: pushToast,
         onError: showAnnotationError,
     });
 
@@ -213,21 +235,45 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     // the lanes refresh; the researcher's video/zoom/scroll stay put.
     useResearcherLanePolling(isResearcher && isLiveSession, activeSessionId, apiFetch, setResearcherLanes);
 
-    // Hotkeys enabled for any rater with a session loaded. In live mode the
-    // reference timestamp is the latest observed event; in offline mode it is
-    // the current video playback cursor projected onto the absolute event
-    // timeline (or session start as a fallback when no video is playing).
+    // Hotkeys enabled for any rater with a session loaded. The reference timestamp
+    // is a clicked pending position if one is set (in any mode); otherwise the
+    // latest observed event in live mode, or the video playback cursor projected
+    // onto the absolute event timeline (session start as a fallback) when offline.
+    const onEscape = useCallback(() => {
+        if (pendingTsRef.current != null) { setPending(null); return true; }
+        return false;
+    }, [setPending]);
+
     useLiveHotkeys(
         !isResearcher && session !== null,
+        // pendingTimestamp is intentionally NOT a dep — it is read via the ref so
+        // the window keydown listener does not re-subscribe on pending changes.
         useCallback((label) => {
-            const referenceTs = isLiveSession
-                ? live.latestEventTimestamp
-                : (session?.metadata?.startTime ?? 0) + videoTimeRef.current * 1000;
-            mutator.addLabel(label, referenceTs);
-        }, [mutator, live.latestEventTimestamp, isLiveSession, session]),
+            // Resolve where the marker lands:
+            //  - a clicked pending position always wins (precise placement, any mode)
+            //  - live: the latest observed event (the red live edge)
+            //  - archive: the video playhead (the red line). videoTimeRef already
+            //    holds an ABSOLUTE session timestamp (set by VideoPlayer via
+            //    videoTimeToSession), so use it directly. It stays 0 until the video
+            //    reports a real position; when there is no synced video / no playhead,
+            //    there is nothing to anchor to, so the keypress is a no-op.
+            const pending = pendingTsRef.current;
+            const referenceTs = pending
+                ?? (isLiveSession
+                    ? live.latestEventTimestamp
+                    : (videoTimeRef.current > 0 ? videoTimeRef.current : null));
+            if (referenceTs == null) return;
+            mutator.addLabel(label, referenceTs, { persistTimestamp: pending != null || !isLiveSession });
+            if (pending != null) setPending(null);
+        }, [mutator, live.latestEventTimestamp, isLiveSession, setPending]),
         mutator.undoLast,
         mutator.redoLast,
+        onEscape,
     );
+
+    // Force-clear pending on every session boundary / live toggle so it can never
+    // leak across sessions or into live mode.
+    useEffect(() => { setPending(null); }, [session, isLiveSession, setPending]);
 
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
@@ -239,6 +285,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setToasts([]);
         setZoomedXDomain(null);
         setAutoFollowLive(true);
         setStickyLive(false);
@@ -256,6 +303,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setToasts([]);
         setZoomedXDomain(null);
         setAutoFollowLive(true);
         setSession(null);
@@ -359,7 +407,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
         return liveStartRef.current.start;
     }, [session, displayedEvents]);
-    const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
+    const [viewMode, setViewMode] = useState<'timeline' | 'list' | 'compare'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
     const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
     const [autoFollowLive, setAutoFollowLive] = useState(true);
@@ -420,14 +468,57 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
     }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
 
+    // Archive mode: keep the video playhead in view while zoomed. The playhead
+    // lives in videoTimeRef (updated per frame by the player without re-rendering),
+    // so poll it on an rAF loop instead of reacting to state. Reposition only when
+    // it drifts out of a comfortable band, so setState (and canvas redraws) stay
+    // infrequent (~once per page). Manual pan/zoom flips autoFollow off, tearing
+    // this loop down. setZoomedXDomain here does not echo back through onZoomChange
+    // (useTimelinePan emits that only on user drag), so follow stays on.
+    useEffect(() => {
+        if (!autoFollowLive || isLiveSession || !zoomedXDomain || !xDomain || !videoSyncConfig) return;
+        const [min, max] = zoomedXDomain;
+        const range = max - min;
+        const margin = range * 0.15;
+        let rafId: number;
+        const tick = () => {
+            const playhead = videoTimeRef.current;
+            if (playhead > 0 && (playhead < min + margin || playhead > max - margin)) {
+                let newMin = playhead - margin;
+                let newMax = newMin + range;
+                if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + range; }
+                if (newMax > xDomain[1]) { newMax = xDomain[1]; newMin = newMax - range; }
+                // Skip no-op repositions (e.g. clamped at a timeline edge) so we
+                // don't setState every frame when the window can't move further.
+                if (Math.abs(newMin - min) >= 1 || Math.abs(newMax - max) >= 1) {
+                    setZoomedXDomain([newMin, newMax]);
+                    return; // effect re-runs with the new window; a fresh loop continues
+                }
+            }
+            rafId = requestAnimationFrame(tick);
+        };
+        rafId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(rafId);
+    }, [autoFollowLive, isLiveSession, zoomedXDomain, xDomain, videoSyncConfig]);
+
     const handleToggleAutoFollow = useCallback(() => {
         const next = !autoFollowLive;
         setAutoFollowLive(next);
         if (next && zoomedXDomain && xDomain) {
             const range = zoomedXDomain[1] - zoomedXDomain[0];
-            setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+            if (isLiveSession) {
+                setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+            } else {
+                // Center the window on the current playhead when enabling follow.
+                const playhead = videoTimeRef.current > 0 ? videoTimeRef.current : zoomedXDomain[0];
+                let newMin = playhead - range / 2;
+                let newMax = newMin + range;
+                if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + range; }
+                if (newMax > xDomain[1]) { newMax = xDomain[1]; newMin = newMax - range; }
+                setZoomedXDomain([newMin, newMax]);
+            }
         }
-    }, [autoFollowLive, xDomain, zoomedXDomain]);
+    }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
 
     const handleZoomChange = useCallback((domain: [number, number] | null) => {
         setZoomedXDomain(domain);
@@ -472,6 +563,12 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const subtitlesUrl = activeSessionId.current && hasSubtitles
         ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/subtitles?v=${videoCacheBust}`
         : null;
+
+    // Click-to-place is only meaningful in a server-backed archival session. A
+    // file-loaded session has activeSessionId.current === null (addLabel is a
+    // silent no-op). Reading the ref during render is safe: every file-vs-server
+    // transition sets it synchronously and then re-renders via setSession.
+    const isServerSession = session !== null && activeSessionId.current !== null;
 
     return (
         <div className="app">
@@ -558,10 +655,14 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             totalReceived={live.totalReceived}
                             latestEventTimestamp={live.latestEventTimestamp}
                             startTime={liveElapsedStart}
-                            lastLabelToast={lastLabelToast}
                         />
                     )}
-                    <SessionInfo session={session} />
+                    {activeSessionId.current && !writesDisabled && (
+                        <div className="hotkey-legend-bar">
+                            <HotkeyLegend />
+                        </div>
+                    )}
+                    <SessionInfo session={session} events={displayedEvents} />
                     <div className="view-toggle-row">
                         <div className="view-toggle">
                             <button
@@ -576,6 +677,14 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             >
                                 List
                             </button>
+                            {isResearcher && researcherLanes && xDomain && (
+                                <button
+                                    className={`view-toggle-btn ${viewMode === 'compare' ? 'active' : ''}`}
+                                    onClick={() => setViewMode('compare')}
+                                >
+                                    Compare
+                                </button>
+                            )}
                         </div>
                         {viewMode === 'timeline' && xDomain && (
                             <div className="zoom-controls">
@@ -600,11 +709,11 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
                                 )}
-                                {isLiveSession && zoomedXDomain && (
+                                {zoomedXDomain && (isLiveSession || videoSyncConfig) && (
                                     <button
                                         className={`zoom-btn follow ${autoFollowLive ? 'active' : ''}`}
                                         onClick={handleToggleAutoFollow}
-                                        title={autoFollowLive ? 'Auto-follow latest events (on)' : 'Auto-follow latest events (off)'}
+                                        title={`Auto-follow ${isLiveSession ? 'latest events' : 'playhead'} (${autoFollowLive ? 'on' : 'off'})`}
                                     >
                                         Follow
                                     </button>
@@ -640,6 +749,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                                 videoTimeAtSessionStartSeconds={videoSyncConfig?.videoTimeAtSessionStartSeconds}
                                 onZoomChange={handleZoomChange}
+                                pendingTimestamp={pendingTimestamp}
+                                onSetPendingPosition={isServerSession && !isResearcher ? setPending : undefined}
                             />
                         </div>
                     )}
@@ -657,8 +768,18 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                         />
                     )}
+                    {viewMode === 'compare' && researcherLanes && xDomain && (
+                        <RaterComparisonView
+                            researcherLanes={researcherLanes}
+                            xDomain={xDomain}
+                            sessionStartTime={sessionStartTime}
+                            videoTimeRef={videoTimeRef}
+                            onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
+                        />
+                    )}
                 </div>
             )}
+            <ToastStack toasts={toasts} durationMs={TOAST_DURATION_MS} onDismiss={dismissToast} />
         </div>
     );
 }

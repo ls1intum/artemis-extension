@@ -124,6 +124,53 @@ describe('addLabel', () => {
     });
 });
 
+describe('addLabel persistTimestamp (offline click-to-place regression guard)', () => {
+    it('persistTimestamp: true sends timestamp === referenceTs in the POST body', async () => {
+        h.ctrl.addLabel('medium-struggle', 1_234_567, { persistTimestamp: true });
+        await Promise.resolve(); await Promise.resolve();
+        expect(h.pending).toHaveLength(1);
+        expect(h.pending[0].init?.method).toBe('POST');
+        const body = JSON.parse(h.pending[0].init?.body as string);
+        expect(body.timestamp).toBe(1_234_567);
+        expect(body.label).toBe('medium-struggle');
+        // Resolve so the queue drains cleanly.
+        h.pending[0].resolve(jsonResponse({ annotation: annot('real-ts', { timestamp: 1_234_567 }) }));
+        await h.ctrl.drain();
+        expect(h.onError).not.toHaveBeenCalled();
+    });
+
+    it('default add (no options) omits timestamp from the POST body', async () => {
+        h.ctrl.addLabel('confident', 1_234_567);
+        await Promise.resolve(); await Promise.resolve();
+        expect(h.pending).toHaveLength(1);
+        const body = JSON.parse(h.pending[0].init?.body as string);
+        expect(body).not.toHaveProperty('timestamp');
+        expect(body.label).toBe('confident');
+        h.pending[0].resolve(jsonResponse({ annotation: annot('real-live') }));
+        await h.ctrl.drain();
+    });
+
+    it('persistTimestamp: false omits timestamp from the POST body', async () => {
+        h.ctrl.addLabel('blocked', 1_234_567, { persistTimestamp: false });
+        await Promise.resolve(); await Promise.resolve();
+        expect(h.pending).toHaveLength(1);
+        const body = JSON.parse(h.pending[0].init?.body as string);
+        expect(body).not.toHaveProperty('timestamp');
+        h.pending[0].resolve(jsonResponse({ annotation: annot('real-live-2') }));
+        await h.ctrl.drain();
+    });
+
+    it('persistTimestamp: true but referenceTs null still omits timestamp (guarded by referenceTs != null)', async () => {
+        h.ctrl.addLabel('idle', null, { persistTimestamp: true });
+        await Promise.resolve(); await Promise.resolve();
+        expect(h.pending).toHaveLength(1);
+        const body = JSON.parse(h.pending[0].init?.body as string);
+        expect(body).not.toHaveProperty('timestamp');
+        h.pending[0].resolve(jsonResponse({ annotation: annot('real-null') }));
+        await h.ctrl.drain();
+    });
+});
+
 describe('temp-id race (codex r2 critical)', () => {
     it('undoLast queued during in-flight addLabel uses the REAL id', async () => {
         h.ctrl.addLabel('confident', 1_000);

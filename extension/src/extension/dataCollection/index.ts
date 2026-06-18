@@ -56,9 +56,9 @@ export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHand
             if (disposed) { return; }
             disposed = true;
             try {
-                await (sessionRecorder as SessionRecorder).dispose();
+                await (sessionRecorder as SessionRecorder).shutdown();
             } catch (err) {
-                logger.error('Failed to dispose SessionRecorder', LogCategory.TELEMETRY, err);
+                logger.error('Failed to shut down SessionRecorder', LogCategory.TELEMETRY, err);
             }
             recorderDisposable.dispose();
             paletteCommands.dispose();

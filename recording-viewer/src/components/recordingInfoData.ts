@@ -48,6 +48,8 @@ export const RECORDING_INFO_CATEGORIES: RecordingInfoCategory[] = [
             { badge: 'panelVisibility', label: 'PanelVisibility', desc: 'Artemis sidebar or Iris Chat panel shown/hidden' },
             { badge: 'testResultsOverviewView', label: 'TestResultsOverviewView', desc: 'Test results overview popup (all tests for an exercise) opened/closed with pass/fail counts and duration' },
             { badge: 'taskFeedbackView', label: 'TaskFeedbackView', desc: 'Task feedback popup (tests for a single task from the problem statement) opened/closed with task name, pass/fail counts and duration' },
+            { badge: 'problemStatementScroll', label: 'ProblemStatementScroll', desc: 'Exercise-detail page scrolled — page scroll position plus problem-statement geometry (debounced, baseline re-emits on layout changes)' },
+            { badge: 'problemStatementSelection', label: 'ProblemStatementSelection', desc: 'Text selected inside the problem statement — selected text (capped at 500 chars) plus bounding box' },
             { badge: 'fileSnapshot', label: 'FileSnapshot', desc: 'Initial file content at session start (max 1 MB per file)' },
             { badge: 'fileSnapshotError', label: 'FileSnapshotError', desc: 'Snapshot permanently failed after 3 retries — snapshot is missing for this URI' },
         ],

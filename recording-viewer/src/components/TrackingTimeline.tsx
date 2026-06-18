@@ -16,6 +16,7 @@ import {
     hitTestAnnotation,
     hitTestDot,
     orderTypesActiveFirst,
+    timeToX,
     xToTime,
     type AnnotationGroup,
     type Bin,
@@ -31,7 +32,8 @@ interface Props {
     enabledTypes: Set<EventType>;
     /** When true, only lanes with events are shown (the empty ones are hidden). */
     hideEmptyLanes?: boolean;
-    onAddAnnotation?: (timestamp: number, text: string) => void;
+    pendingTimestamp?: number | null;
+    onSetPendingPosition?: (timestamp: number) => void;
     onUpdateAnnotation?: (id: string, text: string) => void;
     onDeleteAnnotation?: (id: string) => void;
     readOnly?: boolean;
@@ -65,7 +67,8 @@ export function TrackingTimeline({
     annotations,
     enabledTypes,
     hideEmptyLanes = false,
-    onAddAnnotation,
+    pendingTimestamp,
+    onSetPendingPosition,
     onUpdateAnnotation,
     onDeleteAnnotation,
     readOnly,
@@ -87,8 +90,6 @@ export function TrackingTimeline({
     const [hoveredDotKey, setHoveredDotKey] = useState<string | null>(null);
     const [editingAnnotId, setEditingAnnotId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
-    const [annotateTimestamp, setAnnotateTimestamp] = useState<number | null>(null);
-    const [annotateText, setAnnotateText] = useState('');
 
     // Pre-group events by type once per event-list change. Avoids a full
     // events.filter pass per lane on every xDomain/zoom/pan update.
@@ -136,7 +137,7 @@ export function TrackingTimeline({
         return false;
     }, [visibleLanes, laneBins, annotationGroups]);
 
-    const { handlePanStart, isZoomed } = useTimelinePan({
+    const { handlePanStart, isZoomed, didPanRef } = useTimelinePan({
         xDomain,
         fullXDomain,
         svgWidth: timelineWidth,
@@ -347,22 +348,22 @@ export function TrackingTimeline({
         };
     }, []);
 
-    // Canvas click: dot-first, annotation-next, shift+click additionally seeks
+    // Canvas click: annotation popover, else set a pending position; shift+click additionally seeks
     const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        // A click that concludes a drag-pan must be fully swallowed: no pending set, no popover, no seek.
+        if (didPanRef.current) { didPanRef.current = false; return; }
         const rect = canvasContainerRef.current?.getBoundingClientRect();
         if (!rect) return;
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        const dotHit = hitTestDot(x, y, visibleLanes, laneBins);
-        const annotHit = !dotHit ? hitTestAnnotation(x, y, visibleLanes, annotationGroups) : null;
+        const annotHit = hitTestAnnotation(x, y, visibleLanes, annotationGroups);
 
-        if (dotHit) {
-            if (!readOnly && onAddAnnotation) {
-                setAnnotateTimestamp(dotHit.bin.firstTimestamp);
-            }
-        } else if (annotHit) {
+        if (annotHit) {
             setAnnotPopover({ x, y, annotations: annotHit.group.annotations });
+        } else if (!e.shiftKey && onSetPendingPosition) {
+            const ts = xToTime(x, sessionStartTime, xDomain, timelineWidth);
+            if (ts != null) onSetPendingPosition(ts);
         }
 
         // Shift+click additionally seeks the video to the click position,
@@ -371,7 +372,7 @@ export function TrackingTimeline({
             const ts = xToTime(x, sessionStartTime, xDomain, timelineWidth);
             if (ts != null) onSeekVideo(ts);
         }
-    }, [visibleLanes, laneBins, annotationGroups, readOnly, onAddAnnotation, onSeekVideo, sessionStartTime, xDomain, timelineWidth]);
+    }, [didPanRef, visibleLanes, annotationGroups, onSetPendingPosition, onSeekVideo, sessionStartTime, xDomain, timelineWidth]);
 
     if (visibleLanes.length === 0) {
         return (
@@ -423,6 +424,28 @@ export function TrackingTimeline({
                             style={{ height: visibleLanes.length * LANE_HEIGHT, display: 'none' }}
                         />
                     )}
+
+                    {/* Pending placement ghost line */}
+                    {(() => {
+                        const px = pendingTimestamp != null
+                            ? timeToX(pendingTimestamp, sessionStartTime, xDomain, timelineWidth)
+                            : null;
+                        if (px == null || px < 0 || px > timelineWidth) return null;
+                        return (
+                            <>
+                                <div
+                                    className="pending-line"
+                                    style={{ transform: `translateX(${px}px)`, height: visibleLanes.length * LANE_HEIGHT }}
+                                />
+                                <div
+                                    className="pending-line-label"
+                                    style={{ transform: `translateX(${px}px)` }}
+                                >
+                                    {formatOffset(pendingTimestamp! - sessionStartTime)}
+                                </div>
+                            </>
+                        );
+                    })()}
 
                     {/* Tooltip */}
                     {tooltip && (
@@ -555,51 +578,15 @@ export function TrackingTimeline({
                 {isZoomed && 'Drag to pan'}
                 {isZoomed && onSeekVideo && ' \u00b7 '}
                 {onSeekVideo && 'Shift+Click to jump video'}
+                {onSetPendingPosition && (onSeekVideo || isZoomed) && ' \u00b7 '}
+                {onSetPendingPosition && (
+                    pendingTimestamp != null
+                        ? `Marked ${formatOffset(pendingTimestamp - sessionStartTime)} \u00b7 press 1-5 / q-u to place \u00b7 Esc to cancel`
+                        : onSeekVideo
+                            ? 'Press 1-5 / q-u to place at the playhead \u00b7 click to mark a precise spot'
+                            : 'Click to mark a spot, then press a label key'
+                )}
             </p>
-
-            {/* Annotate from dot click */}
-            {annotateTimestamp !== null && !readOnly && onAddAnnotation && (
-                <div className="tracking-annotate-form">
-                    <span className="mono" style={{ flexShrink: 0, color: 'var(--text-muted)', fontSize: 11 }}>
-                        {formatOffset(annotateTimestamp - sessionStartTime)}
-                    </span>
-                    <input
-                        autoFocus
-                        className="annotation-input"
-                        placeholder="Annotation text..."
-                        value={annotateText}
-                        onChange={e => setAnnotateText(e.target.value)}
-                        onKeyDown={e => {
-                            if (e.key === 'Enter' && annotateText.trim()) {
-                                onAddAnnotation?.(annotateTimestamp, annotateText.trim());
-                                setAnnotateTimestamp(null);
-                                setAnnotateText('');
-                            }
-                            if (e.key === 'Escape') {
-                                setAnnotateTimestamp(null);
-                                setAnnotateText('');
-                            }
-                        }}
-                    />
-                    <button
-                        className="annotation-save-btn"
-                        disabled={!annotateText.trim()}
-                        onClick={() => {
-                            onAddAnnotation(annotateTimestamp, annotateText.trim());
-                            setAnnotateTimestamp(null);
-                            setAnnotateText('');
-                        }}
-                    >
-                        Add
-                    </button>
-                    <button
-                        className="annotation-cancel-btn"
-                        onClick={() => { setAnnotateTimestamp(null); setAnnotateText(''); }}
-                    >
-                        Cancel
-                    </button>
-                </div>
-            )}
         </div>
     );
 }

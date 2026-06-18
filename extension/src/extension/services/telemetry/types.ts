@@ -1,4 +1,7 @@
-import * as vscode from 'vscode';
+// Type-only: this module is value-imported by the replay parser, which also
+// runs in a plain Node process (scripts/validate-recording.ts). Keeping vscode
+// type-only guarantees no runtime 'vscode' resolution leaks into that path.
+import type * as vscode from 'vscode';
 
 // ── Session lifecycle ───────────────────────────────────────────────
 
@@ -59,9 +62,16 @@ export interface TrackedDiagnostic {
 export type InactivityPattern = 'active' | 'thinking' | 'confusion' | 'giving-up';
 
 /**
- * Recommended intervention action
+ * Active intervention levels (excludes 'none'). Single source for the level
+ * vocabulary shared by the decision engine and the recording schema.
  */
-export type RecommendedAction = 'none' | 'subtle' | 'notification' | 'proactive';
+export const INTERVENTION_LEVELS = ['subtle', 'notification', 'proactive'] as const;
+export type InterventionLevel = typeof INTERVENTION_LEVELS[number];
+
+/**
+ * Recommended intervention action: an active level or 'none'.
+ */
+export type RecommendedAction = 'none' | InterventionLevel;
 
 /**
  * Struggle context for Iris chat integration.
@@ -170,10 +180,6 @@ export interface EQConfig {
     readonly SESSION_INACTIVITY_SPLIT_MS: number;
     /** Dedup window in ms [Engineering choice] */
     readonly DEDUP_WINDOW_MS: number;
-    /** Diagnostic stabilization debounce in ms [ADAPTATION: optional, default off] */
-    readonly DIAGNOSTIC_STABILIZATION_MS: number;
-    /** Whether diagnostic stabilization trigger is enabled [Engineering choice] */
-    readonly DIAGNOSTIC_STABILIZATION_ENABLED: boolean;
 }
 
 /** Default EQ configuration with paper-validated values */
@@ -184,14 +190,13 @@ export const DEFAULT_EQ_CONFIG: EQConfig = {
     MIN_EVENTS_PER_SESSION: 7,
     SESSION_INACTIVITY_SPLIT_MS: 30 * 60 * 1000, // 30 minutes
     DEDUP_WINDOW_MS: 5 * 1000, // 5 seconds
-    DIAGNOSTIC_STABILIZATION_MS: 2_000, // 2 seconds debounce
-    DIAGNOSTIC_STABILIZATION_ENABLED: false, // off by default
 };
 
 /**
  * Trigger types from Pu et al. 2025 [P11, Section 4, Figure 4]
  */
-export type TriggerType = 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
+export const TRIGGER_TYPES = ['execution-error', 'multiline-paste', 'idle', 'selection-maintained'] as const;
+export type TriggerType = typeof TRIGGER_TYPES[number];
 
 /**
  * Trigger configuration — paper-validated thresholds [P11, Section 4]
@@ -261,10 +266,20 @@ export interface CompileEquivalentEvent {
  *
  * - 'cooldown'        — InterventionService internal cooldown (notification/proactive only)
  * - 'warmup'          — Exercise hasn't reached the 5-minute warmup yet
+ * - 'recent-progress' — Student made progress within the 2-minute grace period
  * - 'session-limit'   — Max interventions per session exceeded
+ * - 'last-dismissed'  — Previous intervention was dismissed (non-proactive blocked)
  * - 'low-confidence'  — EQ above threshold but confidence gate is 'insufficient'
  */
-export type InterventionBlockedReason = 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+export const INTERVENTION_BLOCKED_REASONS = [
+    'cooldown',
+    'warmup',
+    'session-limit',
+    'low-confidence',
+    'recent-progress',
+    'last-dismissed',
+] as const;
+export type InterventionBlockedReason = typeof INTERVENTION_BLOCKED_REASONS[number];
 
 /**
  * Reason why an intervention was dismissed.
@@ -274,7 +289,8 @@ export type InterventionBlockedReason = 'cooldown' | 'warmup' | 'session-limit' 
  * - 'replaced'     — A newer intervention replaced the current one
  * - 'session-end'  — Session ended while intervention was pending
  */
-export type InterventionDismissReason = 'user-action' | 'hidden' | 'replaced' | 'session-end';
+export const INTERVENTION_DISMISS_REASONS = ['user-action', 'hidden', 'replaced', 'session-end'] as const;
+export type InterventionDismissReason = typeof INTERVENTION_DISMISS_REASONS[number];
 
 /**
  * Reason a wanted intervention was suppressed without being delivered to the user.
@@ -286,7 +302,8 @@ export type InterventionDismissReason = 'user-action' | 'hidden' | 'replaced' | 
  * and are rate-limited. Suppression comes from explicit user/config choice and
  * is NOT rate-limited so the per-opportunity signal stays intact.
  */
-export type InterventionSuppressionReason = 'user-disabled';
+export const INTERVENTION_SUPPRESSION_REASONS = ['user-disabled'] as const;
+export type InterventionSuppressionReason = typeof INTERVENTION_SUPPRESSION_REASONS[number];
 
 /**
  * Payload of `TelemetryManager.onDidSuppressIntervention`.

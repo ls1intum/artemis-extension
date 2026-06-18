@@ -154,10 +154,11 @@ export class ErrorQuotientEngine implements SessionResettable {
 
     /**
      * Determine confidence from pair count.
-     * ✅ Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
+     * ✅ Paper minimum: >=7 events = >=6 pairs [P3, Section 4].
+     * Derived from the configured MIN_EVENTS_PER_SESSION (events = pairs + 1).
      */
     private _calculateConfidence(pairCount: number): EQConfidence {
-        return pairCount >= 6 ? 'sufficient' : 'insufficient';
+        return pairCount >= this._config.MIN_EVENTS_PER_SESSION - 1 ? 'sufficient' : 'insufficient';
     }
 
     public dispose(): void {

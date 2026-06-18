@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SubmissionStatus } from '@webview/components/exercise/SubmissionStatus';
 
@@ -121,5 +121,30 @@ describe('SubmissionStatus', () => {
 			/>
 		);
 		expect(screen.getByText(/8\/10/)).toBeInTheDocument();
+	});
+
+	describe('building ETA countdown', () => {
+		const start = '2026-01-01T10:00:00.000Z';
+		const eta = '2026-01-01T10:01:00.000Z';
+
+		beforeEach(() => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date(start));
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('shows the ETA countdown when building with timing info', () => {
+			render(
+				<SubmissionStatus
+					status="building"
+					buildStartDate={start}
+					estimatedCompletionDate={eta}
+				/>,
+			);
+			expect(screen.getByText('Building your submission... (ETA: 60s)')).toBeInTheDocument();
+		});
 	});
 });

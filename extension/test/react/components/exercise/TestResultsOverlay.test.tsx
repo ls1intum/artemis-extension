@@ -187,4 +187,37 @@ describe('TestResultsOverlay', () => {
         await userEvent.click(screen.getByText('testA'));
         expect(onClose).not.toHaveBeenCalled();
     });
+
+    // ── Rebuild banner ───────────────────────────────────────────────────
+    const BANNER_RE = /a new build is running/i;
+
+    it('shows the rebuild banner when buildRunning is true (task mode)', () => {
+        render(
+            <TestResultsOverlay
+                open
+                onClose={() => undefined}
+                taskName="doOverlap"
+                buildRunning
+                state={{ kind: 'fail', failed: [{ id: 1, name: 'tA', passed: false }], passed: [], notExecutedIds: [] }}
+            />,
+        );
+        expect(screen.getByText(BANNER_RE)).toBeInTheDocument();
+    });
+
+    it('shows the rebuild banner when buildRunning is true (overview mode)', () => {
+        render(
+            <TestResultsOverlay
+                open
+                onClose={() => undefined}
+                buildRunning
+                state={{ kind: 'all', testCases }}
+            />,
+        );
+        expect(screen.getByText(BANNER_RE)).toBeInTheDocument();
+    });
+
+    it('does not show the rebuild banner when buildRunning is absent/false', () => {
+        render(<TestResultsOverlay open onClose={() => undefined} state={{ kind: 'all', testCases }} />);
+        expect(screen.queryByText(BANNER_RE)).not.toBeInTheDocument();
+    });
 });

@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 
+import { buildErrorFamiliesFromFeedbacks } from '@extension/services/telemetry/metrics/buildErrorFamily';
 import { shouldDedupSnapshot } from '@extension/services/telemetry/metrics/snapshotDedup';
 import {
     BuildResultClassification,
     CompileEquivalentEvent,
     DEFAULT_EQ_CONFIG,
+    DEFAULT_TRIGGER_CONFIG,
     EQConfig,
     ErrorSnapshot,
     SessionResettable,
@@ -164,16 +166,9 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         const classification = classifyBuildResult(result);
 
         if (classification === 'compiler-error') {
-            // Build failed → treat as having errors
-            const errorFamilies = new Set<string>();
-            // Use feedbacks to extract error families if available
-            if (result.feedbacks) {
-                for (const feedback of result.feedbacks) {
-                    if (feedback.positive === false && feedback.text) {
-                        errorFamilies.add(`build:${feedback.text.substring(0, 50)}`);
-                    }
-                }
-            }
+            // Build failed → treat as having errors. Families come from the shared
+            // builder so the live EQ matches the recorded/replayed families.
+            const errorFamilies = new Set<string>(buildErrorFamiliesFromFeedbacks(result.feedbacks));
             // At minimum, mark as having a build error
             if (errorFamilies.size === 0) {
                 errorFamilies.add('build:compiler-error');
@@ -272,9 +267,12 @@ function getErrorFamily(d: vscode.Diagnostic): string {
  *
  * From MVP Edge Case 3 (lines 739-758).
  */
-export function isLikelyManualPaste(change: vscode.TextDocumentContentChangeEvent): boolean {
+export function isLikelyManualPaste(
+    change: vscode.TextDocumentContentChangeEvent,
+    minLines: number = DEFAULT_TRIGGER_CONFIG.MULTILINE_PASTE_MIN_LINES,
+): boolean {
     const insertedLines = change.text.split('\n').length;
-    if (insertedLines < 2) {
+    if (insertedLines < minLines) {
         return false;
     }
 

@@ -99,6 +99,10 @@ export const WebviewCmd = {
     TestResultsOverviewClosed: 'testResultsOverviewClosed',
     TaskFeedbackOpened: 'taskFeedbackOpened',
     TaskFeedbackClosed: 'taskFeedbackClosed',
+
+    // Problem-statement tracking
+    ProblemStatementScroll: 'problemStatementScroll',
+    ProblemStatementSelection: 'problemStatementSelection',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -225,6 +229,24 @@ interface WebviewCmdPayloads {
         durationMs: number;
         closeReason: 'button' | 'escape';
     };
+
+    // Problem-statement tracking
+    problemStatementScroll: {
+        scrollTop: number;
+        scrollHeight: number;
+        viewportHeight: number;
+        statementTop: number;
+        statementHeight: number;
+    };
+    problemStatementSelection: {
+        selectedText: string;
+        selectionLength: number;
+        truncated: boolean;
+        selectionTop: number;
+        selectionLeft: number;
+        selectionWidth: number;
+        selectionHeight: number;
+    };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -264,6 +286,8 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.TestResultsOverviewClosed,
     WebviewCmd.TaskFeedbackOpened,
     WebviewCmd.TaskFeedbackClosed,
+    WebviewCmd.ProblemStatementScroll,
+    WebviewCmd.ProblemStatementSelection,
 ]);
 
 /** Auto-generated command messages */
@@ -351,3 +375,7 @@ export type TestResultsOverviewOpenedPayload = WebviewCmdPayloads['testResultsOv
 export type TestResultsOverviewClosedPayload = WebviewCmdPayloads['testResultsOverviewClosed'];
 export type TaskFeedbackOpenedPayload = WebviewCmdPayloads['taskFeedbackOpened'];
 export type TaskFeedbackClosedPayload = WebviewCmdPayloads['taskFeedbackClosed'];
+
+/** Named payload type aliases for problem-statement tracking commands */
+export type ProblemStatementScrollPayload = WebviewCmdPayloads['problemStatementScroll'];
+export type ProblemStatementSelectionPayload = WebviewCmdPayloads['problemStatementSelection'];

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 
+import { buildErrorFamiliesFromFeedbacks } from '@extension/services/telemetry/metrics/buildErrorFamily';
 import { shouldRecordUri } from '@extension/services/telemetry/uriFilter';
 import type { ResultDTO } from '@extension/types';
 
@@ -96,7 +97,6 @@ export function collectDiagnostics(uri: vscode.Uri): DiagnosticsEvent {
 export function collectBuildResult(result: ResultDTO, activeExerciseId?: number): BuildResultEvent {
     const failedTests: string[] = [];
     const failedTestDetails: { testName: string; detail: string }[] = [];
-    const buildErrorFamilies: string[] = [];
     if (result.feedbacks) {
         for (const fb of result.feedbacks) {
             // Unified predicate: explicit false only (undefined = not yet graded, positive = passing).
@@ -105,13 +105,11 @@ export function collectBuildResult(result: ResultDTO, activeExerciseId?: number)
                 failedTests.push(fb.detailText ?? '');
                 // Structured details: carry both test name and failure message.
                 failedTestDetails.push({ testName: fb.text ?? 'unknown', detail: fb.detailText ?? '' });
-                if (fb.text) {
-                    // 200 chars to differentiate similar errors; previously 50 caused family-merging.
-                    buildErrorFamilies.push(`build:${fb.text.substring(0, 200)}`);
-                }
             }
         }
     }
+    // Shared builder: same families (and truncation) as the live EQ path, so replay matches live.
+    const buildErrorFamilies = buildErrorFamiliesFromFeedbacks(result.feedbacks);
     return {
         type: 'buildResult',
         timestamp: Date.now(),

@@ -2,7 +2,14 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { VsCodeApi } from '@shared/messageContracts';
+
 import { ProblemStatement } from '@webview/views/ExerciseDetail/components/ProblemStatement';
+
+function stubApi() {
+	const postMessage = vi.fn();
+	return { api: { postMessage, getState: () => undefined, setState: () => undefined } as unknown as VsCodeApi, postMessage };
+}
 
 describe('ProblemStatement', () => {
 	beforeEach(() => {
@@ -14,12 +21,12 @@ describe('ProblemStatement', () => {
 	});
 
 	it('renders the problem statement container', () => {
-		render(<ProblemStatement serverRenderedHtml="<p>Simple problem</p>" />);
+		render(<ProblemStatement serverRenderedHtml="<p>Simple problem</p>" vscodeApi={stubApi().api} />);
 		expect(screen.getByText('Exercise Description')).toBeInTheDocument();
 	});
 
 	it('shows skeleton loading state when serverRenderedHtml is not provided', () => {
-		const { container } = render(<ProblemStatement />);
+		const { container } = render(<ProblemStatement vscodeApi={stubApi().api} />);
 		expect(screen.getByText('Exercise Description')).toBeInTheDocument();
 		const skeletons = container.querySelectorAll('[aria-busy="true"]');
 		expect(skeletons.length).toBeGreaterThan(0);
@@ -27,7 +34,7 @@ describe('ProblemStatement', () => {
 
 	it('shows error message after SSR timeout', () => {
 		vi.useFakeTimers();
-		render(<ProblemStatement />);
+		render(<ProblemStatement vscodeApi={stubApi().api} />);
 		expect(screen.queryByText(/Failed to load/)).not.toBeInTheDocument();
 		act(() => { vi.advanceTimersByTime(10_000); });
 		expect(screen.getByText(/Failed to load the exercise description/)).toBeInTheDocument();
@@ -35,40 +42,41 @@ describe('ProblemStatement', () => {
 
 	it('clears timeout when serverRenderedHtml arrives', () => {
 		vi.useFakeTimers();
-		const { rerender } = render(<ProblemStatement />);
+		const { api } = stubApi();
+		const { rerender } = render(<ProblemStatement vscodeApi={api} />);
 		act(() => { vi.advanceTimersByTime(5_000); });
-		rerender(<ProblemStatement serverRenderedHtml="<p>Loaded</p>" />);
+		rerender(<ProblemStatement serverRenderedHtml="<p>Loaded</p>" vscodeApi={api} />);
 		act(() => { vi.advanceTimersByTime(10_000); });
 		expect(screen.getByText('Loaded')).toBeInTheDocument();
 		expect(screen.queryByText(/Failed to load/)).not.toBeInTheDocument();
 	});
 
 	it('renders server-rendered HTML content', () => {
-		render(<ProblemStatement serverRenderedHtml="<p>Implement a sorting algorithm</p>" />);
+		render(<ProblemStatement serverRenderedHtml="<p>Implement a sorting algorithm</p>" vscodeApi={stubApi().api} />);
 		expect(screen.getByText('Implement a sorting algorithm')).toBeInTheDocument();
 	});
 
 	it('renders HTML heading elements', () => {
-		render(<ProblemStatement serverRenderedHtml="<h2>Task Description</h2><p>Some text</p>" />);
+		render(<ProblemStatement serverRenderedHtml="<h2>Task Description</h2><p>Some text</p>" vscodeApi={stubApi().api} />);
 		expect(screen.getByText('Task Description')).toBeInTheDocument();
 	});
 
 	it('renders code block elements in HTML content', () => {
 		const html = '<pre><code>public class Solution { }</code></pre>';
-		render(<ProblemStatement serverRenderedHtml={html} />);
+		render(<ProblemStatement serverRenderedHtml={html} vscodeApi={stubApi().api} />);
 		expect(screen.getByText('public class Solution { }')).toBeInTheDocument();
 	});
 
 	it('renders link elements with their href attribute', () => {
 		const html = '<a href="https://example.com">Example Link</a>';
-		render(<ProblemStatement serverRenderedHtml={html} />);
+		render(<ProblemStatement serverRenderedHtml={html} vscodeApi={stubApi().api} />);
 		const link = screen.getByRole('link', { name: 'Example Link' });
 		expect(link).toHaveAttribute('href', 'https://example.com');
 	});
 
 	it('renders image elements in HTML content', () => {
 		const html = '<img src="https://example.com/image.png" alt="diagram" />';
-		render(<ProblemStatement serverRenderedHtml={html} />);
+		render(<ProblemStatement serverRenderedHtml={html} vscodeApi={stubApi().api} />);
 		const img = screen.getByAltText('diagram');
 		expect(img).toBeInTheDocument();
 		expect(img).toHaveAttribute('src', 'https://example.com/image.png');
@@ -81,10 +89,32 @@ describe('ProblemStatement', () => {
 				<link rel="stylesheet" href="https://cdn/katex.min.css">
 				<p>Body content</p>
 			</body>`;
-		const { container } = render(<ProblemStatement serverRenderedHtml={html} />);
+		const { container } = render(<ProblemStatement serverRenderedHtml={html} vscodeApi={stubApi().api} />);
 		expect(screen.getByText('Body content')).toBeInTheDocument();
 		expect(container.querySelectorAll('script')).toHaveLength(0);
 		expect(container.querySelectorAll('link[href*="katex"]')).toHaveLength(0);
+	});
+
+	it('posts a baseline problemStatementScroll after the statement renders', () => {
+		vi.useFakeTimers();
+		const { api, postMessage } = stubApi();
+		render(<ProblemStatement serverRenderedHtml="<p>Track me</p>" vscodeApi={api} />);
+		act(() => { vi.advanceTimersByTime(300); });
+		const scrollMsgs = postMessage.mock.calls
+			.map(([msg]) => msg as { command?: string })
+			.filter(msg => msg.command === 'problemStatementScroll');
+		expect(scrollMsgs).toHaveLength(1);
+	});
+
+	it('posts no tracking messages while the skeleton is shown', () => {
+		vi.useFakeTimers();
+		const { api, postMessage } = stubApi();
+		render(<ProblemStatement vscodeApi={api} />);
+		act(() => { vi.advanceTimersByTime(1000); });
+		const tracking = postMessage.mock.calls
+			.map(([msg]) => msg as { command?: string })
+			.filter(msg => msg.command === 'problemStatementScroll' || msg.command === 'problemStatementSelection');
+		expect(tracking).toHaveLength(0);
 	});
 });
 
@@ -98,7 +128,7 @@ describe('ProblemStatement — task click handler', () => {
     it('fires onTaskClick with parsed name and ids when a .artemis-task[data-test-ids] is clicked', async () => {
         const onTaskClick = vi.fn();
         const { container } = render(
-            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} />
+            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} vscodeApi={stubApi().api} />
         );
         const target = container.querySelector<HTMLElement>('.artemis-task[data-test-ids]');
         expect(target).not.toBeNull();
@@ -113,7 +143,7 @@ describe('ProblemStatement — task click handler', () => {
     it('does NOT fire onTaskClick when clicking a .artemis-task without data-test-ids', async () => {
         const onTaskClick = vi.fn();
         const { container } = render(
-            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} />
+            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} vscodeApi={stubApi().api} />
         );
         const targets = container.querySelectorAll<HTMLElement>('.artemis-task');
         const noIdsTarget = Array.from(targets).find(el => !el.hasAttribute('data-test-ids'));
@@ -125,7 +155,7 @@ describe('ProblemStatement — task click handler', () => {
     it('does NOT fire onTaskClick when clicking outside any task span', async () => {
         const onTaskClick = vi.fn();
         const { container } = render(
-            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} />
+            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} vscodeApi={stubApi().api} />
         );
         const prose = container.querySelector<HTMLElement>('p');
         await userEvent.click(prose!);
@@ -135,7 +165,7 @@ describe('ProblemStatement — task click handler', () => {
     it('parses test-id list tolerating whitespace and trailing comma', async () => {
         const html = '<html><body><span class="artemis-task" data-task-name="t" data-test-ids=" 1 , 2 , 3 , ">t</span></body></html>';
         const onTaskClick = vi.fn();
-        const { container } = render(<ProblemStatement serverRenderedHtml={html} onTaskClick={onTaskClick} />);
+        const { container } = render(<ProblemStatement serverRenderedHtml={html} onTaskClick={onTaskClick} vscodeApi={stubApi().api} />);
         await userEvent.click(container.querySelector<HTMLElement>('.artemis-task[data-test-ids]')!);
         expect(onTaskClick).toHaveBeenCalledWith({ taskName: 't', testIds: [1, 2, 3] });
     });

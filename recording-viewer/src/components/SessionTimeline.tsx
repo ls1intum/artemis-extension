@@ -11,6 +11,7 @@ import {
     Dot,
 } from 'recharts';
 import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
+import { STRUGGLE_LABELS } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
 import { raterLaneColor } from '../utils/raterColor.ts';
 import { EventBadge } from './EventBadge.tsx';
@@ -400,6 +401,10 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                                         const off = a.timestamp - sessionStartTime;
                                         const leftPct = xSpan > 0 ? ((off - xDomain[0]) / xSpan) * 100 : 0;
                                         if (leftPct < 0 || leftPct > 100) return null;
+                                        // Struggle marks are filled by severity (confident green -> blocked red);
+                                        // context markers / unlabelled notes keep the rater color. The lane badge
+                                        // (rater color) still identifies whose row this is.
+                                        const dotColor = STRUGGLE_LABELS.find(l => l.value === a.label)?.color ?? color;
                                         return (
                                             <div
                                                 key={a.id}
@@ -412,7 +417,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                                                     width: 10,
                                                     height: 10,
                                                     borderRadius: '50%',
-                                                    background: color,
+                                                    background: dotColor,
                                                     border: '1.5px solid #1e1e2e',
                                                     boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
                                                 }}

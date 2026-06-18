@@ -19,6 +19,8 @@ import * as path from 'path';
 import * as sinon from 'sinon';
 
 import type {
+    ProblemStatementScrollPayload,
+    ProblemStatementSelectionPayload,
     TaskFeedbackClosedPayload,
     TaskFeedbackOpenedPayload,
     TestResultsOverviewClosedPayload,
@@ -34,7 +36,9 @@ import type {
     BreakpointChangeEvent,
     ConfigurationChangeEvent,
     ConfigurationSnapshotEvent,
+    EqEngineStateEvent,
     InterventionEvent,
+    PanelVisibilityEvent,
     RecordedEvent,
     SubmissionPayload,
 } from '@extension/services/telemetry/recording/types';
@@ -97,6 +101,8 @@ function stubWebviewProvider(): ArtemisWebviewProvider {
     const onDidOpenTask = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
     const onDidCloseTask = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
     const onDidSubmission = new vscode.EventEmitter<SubmissionPayload>();
+    const onDidPsScroll = new vscode.EventEmitter<ProblemStatementScrollPayload>();
+    const onDidPsSelection = new vscode.EventEmitter<ProblemStatementSelectionPayload>();
     return {
         getCurrentVisibility: () => false,
         onDidChangeViewNavigation: onDidChangeViewNavigation.event,
@@ -111,6 +117,12 @@ function stubWebviewProvider(): ArtemisWebviewProvider {
         fireTaskFeedbackClosed: (p: TaskFeedbackClosedPayload) => onDidCloseTask.fire(p),
         onDidSubmission: onDidSubmission.event,
         fireSubmission: (p: SubmissionPayload) => onDidSubmission.fire(p),
+        fireViewNavigation: (p: { from: string; to: string }) => onDidChangeViewNavigation.fire(p),
+        fireArtemisPanelVisibility: (visible: boolean) => onDidChangePanelVisibility.fire(visible),
+        onDidProblemStatementScroll: onDidPsScroll.event,
+        onDidProblemStatementSelection: onDidPsSelection.event,
+        fireProblemStatementScroll: (p: ProblemStatementScrollPayload) => onDidPsScroll.fire(p),
+        fireProblemStatementSelection: (p: ProblemStatementSelectionPayload) => onDidPsSelection.fire(p),
     } as unknown as ArtemisWebviewProvider;
 }
 
@@ -132,6 +144,12 @@ function stubChatProvider(): ChatProviderStub {
         onDidChangePanelVisibility: onDidChangePanelVisibility.event,
         websocketMessageHandler: { onDidReceiveIrisChatMessage: onDidReceiveIrisChatMessage.event },
         _selectedExerciseIdSpy,
+        // Test-only fire helpers for the wiring's chat subscriptions.
+        fireSendIris: (text: string) => onDidSendIrisChatMessage.fire(text),
+        fireReceiveIris: (msg: { content: string; messageId?: string; sessionId?: string; sentAt?: number }) => onDidReceiveIrisChatMessage.fire(msg),
+        fireAttemptIris: (p: { content: string; status: 'pending' | 'sent' | 'failed'; errorMessage?: string }) => onDidAttemptIrisChatSend.fire(p),
+        fireFeedbackIris: (p: { messageId: string; helpful: boolean }) => onDidProvideIrisChatFeedback.fire(p),
+        fireChatPanelVisibility: (visible: boolean) => onDidChangePanelVisibility.fire(visible),
     };
     return chat as unknown as ChatProviderStub;
 }
@@ -246,12 +264,34 @@ async function makeWiringHarness(
         },
         dispose: async () => {
             wiring.disposable.dispose();
-            try { await wiring.sessionRecorder.dispose(); } catch { /* ignore */ }
+            try { await wiring.sessionRecorder.shutdown(); } catch { /* ignore */ }
             telemetryManager.dispose();
             try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
             // Stubs are restored centrally via the suite-level sandbox in teardown.
         },
     };
+}
+
+/**
+ * Whitebox accessor for the InterventionService emitters that TelemetryManager exposes
+ * via delegating getters (onDidShow/Accept/Dismiss/BlockIntervention). Tests fire these
+ * to exercise the wiring's intervention-forwarding subscriptions. Mirrors the existing
+ * suppression test's `_onDidSuppressIntervention` cast (which lives on TelemetryManager).
+ */
+function interventionEmitters(tm: TelemetryManager): {
+    _onDidShowIntervention: vscode.EventEmitter<InterventionDecision>;
+    _onDidAcceptIntervention: vscode.EventEmitter<InterventionDecision>;
+    _onDidDismissIntervention: vscode.EventEmitter<InterventionDecision & { dismissReason: string }>;
+    _onDidBlockIntervention: vscode.EventEmitter<{ decision: InterventionDecision }>;
+} {
+    return (tm as unknown as {
+        _interventionService: {
+            _onDidShowIntervention: vscode.EventEmitter<InterventionDecision>;
+            _onDidAcceptIntervention: vscode.EventEmitter<InterventionDecision>;
+            _onDidDismissIntervention: vscode.EventEmitter<InterventionDecision & { dismissReason: string }>;
+            _onDidBlockIntervention: vscode.EventEmitter<{ decision: InterventionDecision }>;
+        };
+    })._interventionService;
 }
 
 suite('sessionRecorderWiring — suppression and configuration provenance', () => {
@@ -441,6 +481,235 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             await harness.clickRecord();
             assert.strictEqual(workspaceGetter.callCount, 1, 'workspace getter should be called once per click');
             assert.ok(!harness.chatProvider._selectedExerciseIdSpy.called, 'chat getter must NOT be called by the wiring');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    // ── Forwarding: Iris chat ──────────────────────────────────────────────
+
+    test('forwards onDidSendIrisChatMessage to recordIrisChatSent', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIrisChatSent');
+            (harness.chatProvider as unknown as { fireSendIris: (t: string) => void }).fireSendIris('hello iris');
+            sinon.assert.calledOnceWithExactly(stub, 'hello iris');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidReceiveIrisChatMessage to recordIrisChatReceived', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIrisChatReceived');
+            (harness.chatProvider as unknown as { fireReceiveIris: (m: { content: string; messageId?: string; sessionId?: string; sentAt?: number }) => void })
+                .fireReceiveIris({ content: 'hi student', messageId: 'm1', sessionId: 's1', sentAt: 1700000000 });
+            sinon.assert.calledOnceWithExactly(stub, 'hi student', 'm1', 's1', 1700000000);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidAttemptIrisChatSend to recordIrisChatSendAttempt', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIrisChatSendAttempt');
+            (harness.chatProvider as unknown as { fireAttemptIris: (p: { content: string; status: 'pending' | 'sent' | 'failed'; errorMessage?: string }) => void })
+                .fireAttemptIris({ content: 'draft', status: 'failed', errorMessage: 'network down' });
+            sinon.assert.calledOnceWithExactly(stub, 'draft', 'failed', 'network down');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidProvideIrisChatFeedback to recordIrisChatFeedback', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIrisChatFeedback');
+            (harness.chatProvider as unknown as { fireFeedbackIris: (p: { messageId: string; helpful: boolean }) => void })
+                .fireFeedbackIris({ messageId: 'm1', helpful: true });
+            sinon.assert.calledOnceWithExactly(stub, 'm1', true);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    // ── Forwarding: EQ + interventions ─────────────────────────────────────
+
+    test('forwards onDidCalculateEQ to recordEqSnapshot', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordEqSnapshot');
+            (harness.telemetryManager as unknown as {
+                _onDidCalculateEQ: vscode.EventEmitter<{ eq: number; confidence: 'sufficient' | 'insufficient'; source: 'save' | 'build' | 'trigger'; triggerType?: string }>;
+            })._onDidCalculateEQ.fire({ eq: 0.4, confidence: 'sufficient', source: 'save', triggerType: 'idle' });
+            sinon.assert.calledOnceWithExactly(stub, 0.4, 'sufficient', 'save', 'idle');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidShowIntervention to recordIntervention(shown)', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
+            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: true, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient' };
+            interventionEmitters(harness.telemetryManager)._onDidShowIntervention.fire(decision);
+            sinon.assert.calledOnceWithExactly(stub, 'shown', 'notification', true, 0.55, 'sufficient', 'execution-error');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidAcceptIntervention to recordIntervention(accepted)', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
+            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: true, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient' };
+            interventionEmitters(harness.telemetryManager)._onDidAcceptIntervention.fire(decision);
+            sinon.assert.calledOnceWithExactly(stub, 'accepted', 'notification', true, 0.55, 'sufficient', 'execution-error');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidDismissIntervention to recordIntervention(dismissed) with dismissReason', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
+            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: true, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient' };
+            interventionEmitters(harness.telemetryManager)._onDidDismissIntervention.fire({ ...decision, dismissReason: 'user-action' });
+            sinon.assert.calledOnceWithExactly(stub, 'dismissed', 'notification', true, 0.55, 'sufficient', 'execution-error', { dismissReason: 'user-action' });
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidBlockIntervention to recordIntervention(blocked) with blockedReason + rawWanted', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordIntervention');
+            const decision: InterventionDecision = { rawWanted: true, shouldIntervene: false, level: 'notification', triggerType: 'execution-error', eq: 0.55, confidence: 'sufficient', blockedReason: 'cooldown' };
+            interventionEmitters(harness.telemetryManager)._onDidBlockIntervention.fire({ decision });
+            sinon.assert.calledOnceWithExactly(stub, 'blocked', 'notification', false, 0.55, 'sufficient', 'execution-error', { blockedReason: 'cooldown', rawWanted: true });
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    // ── Forwarding: navigation + panel visibility ──────────────────────────
+
+    test('forwards onDidChangeViewNavigation to recordViewNavigation', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordViewNavigation');
+            (harness.artemisWebviewProvider as unknown as { fireViewNavigation: (p: { from: string; to: string }) => void })
+                .fireViewNavigation({ from: 'problem-statement', to: 'code-editor' });
+            sinon.assert.calledOnceWithExactly(stub, 'problem-statement', 'code-editor');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards artemis onDidChangePanelVisibility to recordPanelVisibility(artemis)', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordPanelVisibility');
+            (harness.artemisWebviewProvider as unknown as { fireArtemisPanelVisibility: (v: boolean) => void }).fireArtemisPanelVisibility(true);
+            sinon.assert.calledOnceWithExactly(stub, 'artemis', true);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards chat onDidChangePanelVisibility to recordPanelVisibility(chat)', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordPanelVisibility');
+            (harness.chatProvider as unknown as { fireChatPanelVisibility: (v: boolean) => void }).fireChatPanelVisibility(false);
+            sinon.assert.calledOnceWithExactly(stub, 'chat', false);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidProblemStatementScroll to recordProblemStatementScroll', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordProblemStatementScroll');
+            const payload: ProblemStatementScrollPayload = { scrollTop: 10, scrollHeight: 2000, viewportHeight: 700, statementTop: 800, statementHeight: 900 };
+            (harness.artemisWebviewProvider as unknown as { fireProblemStatementScroll: (p: ProblemStatementScrollPayload) => void })
+                .fireProblemStatementScroll(payload);
+            sinon.assert.calledOnceWithExactly(stub, payload);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidProblemStatementSelection to recordProblemStatementSelection', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const stub = sandbox.stub(harness.recorder, 'recordProblemStatementSelection');
+            const payload: ProblemStatementSelectionPayload = {
+                selectedText: 'abc', selectionLength: 3, truncated: false,
+                selectionTop: 1, selectionLeft: 2, selectionWidth: 3, selectionHeight: 4,
+            };
+            (harness.artemisWebviewProvider as unknown as { fireProblemStatementSelection: (p: ProblemStatementSelectionPayload) => void })
+                .fireProblemStatementSelection(payload);
+            sinon.assert.calledOnceWithExactly(stub, payload);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    // ── Startup contributors: eqEngineState + panelVisibility seeds ─────────
+
+    test('startup seeds eqEngineState from telemetryManager.getEqEngineState()', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const eqState = {
+                snapshots: [{ timestamp: 111, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }],
+                currentEQ: 0.4, pairCount: 5, confidence: 'sufficient' as const,
+            };
+            sandbox.stub(harness.telemetryManager, 'getEqEngineState').returns(eqState as unknown as ReturnType<TelemetryManager['getEqEngineState']>);
+            await harness.recorder.startSession(42);
+            await harness.recorder.endSession();
+
+            const events = await readAllRecordedEvents(harness.tmpDir);
+            const seed = events.find(e => e.type === 'eqEngineState') as EqEngineStateEvent | undefined;
+            assert.ok(seed, 'eqEngineState startup seed missing — contributor not registered?');
+            assert.deepStrictEqual(seed!.snapshots, [{ timestamp: 111, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }]);
+            assert.strictEqual(seed!.currentEQ, 0.4);
+            assert.strictEqual(seed!.pairCount, 5);
+            assert.strictEqual(seed!.confidence, 'sufficient');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('startup seeds panelVisibility for both artemis and chat from getCurrentVisibility()', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            // Reassign each provider's getter so the seed value is genuinely READ, not
+            // hardcoded. Artemis returns a non-default `true`; chat keeps `false` but via a
+            // spy, so a wiring that hardcoded chat=false (instead of calling the getter)
+            // would fail the `chatVisSpy.called` assertion.
+            (harness.artemisWebviewProvider as unknown as { getCurrentVisibility: () => boolean }).getCurrentVisibility = () => true;
+            const chatVisSpy = sinon.spy(() => false);
+            (harness.chatProvider as unknown as { getCurrentVisibility: () => boolean }).getCurrentVisibility = chatVisSpy;
+            await harness.recorder.startSession(42);
+            await harness.recorder.endSession();
+
+            const events = await readAllRecordedEvents(harness.tmpDir);
+            const panels = events.filter(e => e.type === 'panelVisibility') as PanelVisibilityEvent[];
+            const artemis = panels.find(p => p.panel === 'artemis');
+            const chat = panels.find(p => p.panel === 'chat');
+            assert.ok(artemis, 'artemis panelVisibility startup seed missing');
+            assert.ok(chat, 'chat panelVisibility startup seed missing');
+            assert.strictEqual(artemis!.visible, true, 'artemis visibility read from getCurrentVisibility()');
+            assert.strictEqual(chat!.visible, false, 'chat visibility read from getCurrentVisibility()');
+            assert.ok(chatVisSpy.called, 'chat getCurrentVisibility was invoked (value not hardcoded)');
         } finally {
             await harness.dispose();
         }

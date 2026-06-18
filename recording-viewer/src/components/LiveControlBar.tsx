@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react';
-import { STRUGGLE_LABELS, CONTEXT_LABELS, ALL_LABELS } from '../types';
-import { CONTEXT_KEYS } from '../hooks/useLiveHotkeys';
-import type { AnnotationToast } from '../hooks/useAnnotationMutations';
 import { formatDuration } from '../utils/format';
-
-const CONTEXT_KEY_BY_VALUE: Record<string, string> = Object.fromEntries(
-    Object.entries(CONTEXT_KEYS).map(([key, value]) => [value, key]),
-);
+import { HotkeyLegend } from './HotkeyLegend';
 
 interface Props {
     connected: boolean;
@@ -19,24 +13,10 @@ interface Props {
     /** Authoritative session start (metadata.startTime or the sessionStart event);
      *  0 when unknown, in which case the elapsed timer is hidden. */
     startTime: number;
-    lastLabelToast: AnnotationToast | null;
-}
-
-function renderToast(toast: AnnotationToast): string {
-    const labelName = toast.label
-        ? (ALL_LABELS.find(l => l.value === toast.label)?.label ?? toast.label)
-        : null;
-    const body = labelName ?? toast.text ?? 'annotation';
-    switch (toast.kind) {
-        case 'add': return `+ ${body}`;
-        case 'undo': return `↶ ${body}`;
-        case 'redo': return `↷ ${body}`;
-        case 'error': return `⚠ ${body}`;
-    }
 }
 
 export function LiveControlBar({
-    connected, bufferSize, totalReceived, latestEventTimestamp, startTime, lastLabelToast,
+    connected, bufferSize, totalReceived, latestEventTimestamp, startTime,
 }: Props) {
     // Re-render every second so the elapsed timer and "last event N s ago" update live
     const [now, setNow] = useState(() => Date.now());
@@ -47,7 +27,6 @@ export function LiveControlBar({
 
     const elapsedMs = startTime > 0 ? Math.max(0, now - startTime) : null;
     const ageMs = latestEventTimestamp ? now - latestEventTimestamp : null;
-    const toastVisible = lastLabelToast && now - lastLabelToast.at < 1500;
 
     return (
         <div className="live-control-bar">
@@ -66,19 +45,7 @@ export function LiveControlBar({
                     <span className="live-age">last event {(ageMs / 1000).toFixed(1)}s ago</span>
                 )}
             </div>
-            <div className="live-legend">
-                <strong>Struggle:</strong>
-                {STRUGGLE_LABELS.map((s, i) => (
-                    <span key={s.value} style={{ color: s.color }}>{i + 1}={s.label}</span>
-                ))}
-                <strong>Context:</strong>
-                {CONTEXT_LABELS.map(s => (
-                    <span key={s.value} style={{ color: s.color }}>{CONTEXT_KEY_BY_VALUE[s.value] ?? '?'}={s.label}</span>
-                ))}
-            </div>
-            {toastVisible && (
-                <div className={`live-toast live-toast-${lastLabelToast!.kind}`}>{renderToast(lastLabelToast!)}</div>
-            )}
+            <HotkeyLegend />
         </div>
     );
 }

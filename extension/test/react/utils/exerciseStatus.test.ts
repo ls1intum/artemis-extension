@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyTaskTests, countsForTelemetry } from '@webview/utils/exerciseStatus';
+import { classifyTaskTests, countsForTelemetry, getLatestResultAcrossSubmissions, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
 
 describe('classifyTaskTests', () => {
     it('returns no-result when latestResult is undefined', () => {
@@ -116,6 +116,57 @@ describe('classifyTaskTests', () => {
     });
 });
 
+describe('transformFeedbacksToTestCases', () => {
+    // Feedbacks exactly as Artemis delivers them when showTestNamesToStudents=false:
+    // no `text`, no `testCase.testName`, only `detailText` + `testCase.id`.
+    // Mirrors Feedback.isTestCaseFeedback (type==AUTOMATIC && !!testCase).
+    const hiddenNameFeedbacks = [
+        { type: 'AUTOMATIC', positive: false, detailText: 'Method: isValidSelection', testCase: { id: 364902 } },
+        { type: 'AUTOMATIC', positive: false, detailText: 'Method: doOverlap', testCase: { id: 370396 } },
+        { type: 'AUTOMATIC', positive: true, detailText: 'Method: getName', testCase: { id: 370393 } },
+    ];
+
+    it('keeps test feedbacks even when the test name is hidden (showTestNamesToStudents=false)', () => {
+        const result = transformFeedbacksToTestCases(hiddenNameFeedbacks);
+
+        expect(result).toHaveLength(3);
+        expect(result[0]).toMatchObject({
+            id: 364902,
+            name: 'Test', // generic fallback, same as the Artemis web client
+            passed: false,
+            message: 'Method: isValidSelection', // detailText is preserved
+        });
+        expect(result[2].passed).toBe(true);
+    });
+
+    it('still excludes static code analysis and submission policy feedback (no testCase)', () => {
+        const feedbacks = [
+            { type: 'AUTOMATIC', positive: false, text: 'SCAFeedbackIdentifier:checkstyle', detailText: 'sca' },
+            { type: 'AUTOMATIC', positive: false, text: 'SubPolFeedbackIdentifier:limit', detailText: 'policy' },
+            { type: 'AUTOMATIC', positive: false, detailText: 'a real test', testCase: { id: 1 } },
+        ];
+        const result = transformFeedbacksToTestCases(feedbacks);
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe(1);
+    });
+
+    it('keeps the test name when it is visible (showTestNamesToStudents=true)', () => {
+        const result = transformFeedbacksToTestCases([
+            { type: 'AUTOMATIC', positive: true, testCase: { id: 5, testName: 'testDoOverlap()' }, detailText: 'ok' },
+        ]);
+        expect(result).toEqual([{ id: 5, name: 'testDoOverlap()', passed: true, message: 'ok' }]);
+    });
+
+    it('keeps a testCase-bearing feedback even when the testCase has no id (Artemis !!testCase parity)', () => {
+        const result = transformFeedbacksToTestCases([
+            { type: 'AUTOMATIC', positive: false, detailText: 'no id but is a test', testCase: {} },
+        ]);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({ name: 'Test', passed: false, message: 'no id but is a test' });
+        expect(result[0].id).toBeUndefined();
+    });
+});
+
 describe('countsForTelemetry', () => {
     it('maps no-result / no-feedbacks to {0, 0, notExecutedIds.length}', () => {
         expect(countsForTelemetry({ kind: 'no-result', notExecutedIds: [1, 2] }))
@@ -156,5 +207,42 @@ describe('countsForTelemetry', () => {
             passed: [{ id: 1, name: 'a', passed: true }],
             notExecutedIds: [2, 3],
         })).toEqual({ passedCount: 1, failedCount: 0, notExecutedCount: 2 });
+    });
+});
+
+describe('getLatestResultAcrossSubmissions', () => {
+    it('returns undefined for no submissions', () => {
+        expect(getLatestResultAcrossSubmissions(undefined)).toBeUndefined();
+        expect(getLatestResultAcrossSubmissions([])).toBeUndefined();
+    });
+
+    it('returns undefined when no submission has a result', () => {
+        expect(getLatestResultAcrossSubmissions([{ id: 1, results: [] }, { id: 2 }])).toBeUndefined();
+    });
+
+    it('returns the latest result (highest id) within a submission', () => {
+        const r = getLatestResultAcrossSubmissions([{ id: 1, results: [{ id: 10 }, { id: 11 }] }]);
+        expect(r?.id).toBe(11);
+    });
+
+    it('is submission-first: the newest submission with a result wins, even if an older submission has a higher result id', () => {
+        // Older submission (id 1) was re-evaluated → its result id (99) is higher
+        // than the newest submission's result (30). Submission-first must still
+        // return the newest submission's result, NOT the globally-highest id.
+        const r = getLatestResultAcrossSubmissions([
+            { id: 1, results: [{ id: 99 }] },
+            { id: 2, results: [{ id: 30 }] },
+        ]);
+        expect(r?.id).toBe(30);
+    });
+
+    it('keeps the previous result when the newest submission has no result yet', () => {
+        // Submission id 2 is newer but resultless (build running); id 1 holds the
+        // previous result. The helper must surface that previous result.
+        const r = getLatestResultAcrossSubmissions([
+            { id: 1, results: [{ id: 10 }] },
+            { id: 2, results: [] },
+        ]);
+        expect(r?.id).toBe(10);
     });
 });

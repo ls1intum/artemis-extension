@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 // Spies referenced inside vi.mock factories MUST be hoisted (vitest requirement).
 const h = vi.hoisted(() => ({
     registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
-    recorderDispose: vi.fn().mockResolvedValue(undefined),
+    recorderShutdown: vi.fn().mockResolvedValue(undefined),
     recorderDisposable: { dispose: vi.fn() },
     promptIfPending: vi.fn().mockResolvedValue(undefined),
     consentDispose: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('@extension/services/auth/consentService', () => ({
     ConsentService: class { promptIfPending = h.promptIfPending; dispose = h.consentDispose; },
 }));
 vi.mock('@extension/activation/sessionRecorderWiring', () => ({
-    wireSessionRecorder: () => ({ sessionRecorder: { dispose: h.recorderDispose }, disposable: h.recorderDisposable }),
+    wireSessionRecorder: () => ({ sessionRecorder: { shutdown: h.recorderShutdown }, disposable: h.recorderDisposable }),
 }));
 vi.mock('@extension/services/telemetry/replay', () => ({ executeReplayCommand: h.executeReplayCommand }));
 vi.mock('@extension/services/loggingService', () => ({ logger: { error: vi.fn() }, LogCategory: { TELEMETRY: 'telemetry' } }));
@@ -44,10 +44,10 @@ describe('full data-collection seam', () => {
     });
 
     it('dispose awaits the recorder flush and is idempotent', async () => {
-        h.recorderDispose.mockClear();
+        h.recorderShutdown.mockClear();
         const handle = wireDataCollection(deps);
         await handle.dispose();
         await handle.dispose();
-        expect(h.recorderDispose).toHaveBeenCalledOnce();
+        expect(h.recorderShutdown).toHaveBeenCalledOnce();
     });
 });

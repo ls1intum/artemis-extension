@@ -19,6 +19,14 @@
  * shares one list instead of maintaining its own (see #215).
  */
 
+import {
+    INTERVENTION_BLOCKED_REASONS,
+    INTERVENTION_DISMISS_REASONS,
+    INTERVENTION_LEVELS,
+    INTERVENTION_SUPPRESSION_REASONS,
+    TRIGGER_TYPES,
+} from '@extension/services/telemetry/types';
+
 import type {
     BreakpointChangeEvent,
     BuildResultEvent,
@@ -40,6 +48,8 @@ import type {
     IrisChatMessageEvent,
     IrisChatSendAttemptEvent,
     PanelVisibilityEvent,
+    ProblemStatementScrollEvent,
+    ProblemStatementSelectionEvent,
     RecordedEvent,
     SaveEvent,
     SelectionChangeEvent,
@@ -66,6 +76,7 @@ import type {
     VisibleRangeChangeEvent,
     WindowFocusEvent,
 } from './types';
+import { INTERVENTION_RECORD_ACTIONS } from './types';
 
 // ── Primitive guards ──────────────────────────────────────────────────
 
@@ -383,26 +394,15 @@ function parseEqEngineState(d: Record<string, unknown>, timestamp: number): EqEn
 }
 
 function parseIntervention(d: Record<string, unknown>, timestamp: number): InterventionEvent | null {
-    if (!isOneOf(d.action, ['shown', 'accepted', 'dismissed', 'blocked', 'suppressed'] as const)) { return null; }
-    if (!isOneOf(d.level, ['subtle', 'notification', 'proactive'] as const)) { return null; }
+    if (!isOneOf(d.action, INTERVENTION_RECORD_ACTIONS)) { return null; }
+    if (!isOneOf(d.level, INTERVENTION_LEVELS)) { return null; }
     if (!isBoolean(d.shouldIntervene)) { return null; }
     if (!isFiniteNumber(d.eq)) { return null; }
     if (!isOneOf(d.confidence, ['sufficient', 'insufficient'] as const)) { return null; }
-    if (d.triggerType !== undefined
-        && !isOneOf(d.triggerType, ['execution-error', 'multiline-paste', 'idle', 'selection-maintained'] as const)) {
-        return null;
-    }
-    if (d.blockedReason !== undefined
-        && !isOneOf(d.blockedReason, ['cooldown', 'warmup', 'session-limit', 'low-confidence'] as const)) {
-        return null;
-    }
-    if (d.suppressionReason !== undefined && !isOneOf(d.suppressionReason, ['user-disabled'] as const)) {
-        return null;
-    }
-    if (d.dismissReason !== undefined
-        && !isOneOf(d.dismissReason, ['user-action', 'hidden', 'replaced', 'session-end'] as const)) {
-        return null;
-    }
+    if (d.triggerType !== undefined && !isOneOf(d.triggerType, TRIGGER_TYPES)) { return null; }
+    if (d.blockedReason !== undefined && !isOneOf(d.blockedReason, INTERVENTION_BLOCKED_REASONS)) { return null; }
+    if (d.suppressionReason !== undefined && !isOneOf(d.suppressionReason, INTERVENTION_SUPPRESSION_REASONS)) { return null; }
+    if (d.dismissReason !== undefined && !isOneOf(d.dismissReason, INTERVENTION_DISMISS_REASONS)) { return null; }
     if (!isOptBoolean(d.rawWanted)) { return null; }
     return stripUndefined({
         type: 'intervention' as const,
@@ -429,6 +429,32 @@ function parsePanelVisibility(d: Record<string, unknown>, timestamp: number): Pa
     if (!isOneOf(d.panel, ['artemis', 'chat'] as const)) { return null; }
     if (!isBoolean(d.visible)) { return null; }
     return { type: 'panelVisibility', timestamp, panel: d.panel, visible: d.visible };
+}
+
+function parseProblemStatementScroll(d: Record<string, unknown>, timestamp: number): ProblemStatementScrollEvent | null {
+    if (!isFiniteNumber(d.scrollTop) || !isFiniteNumber(d.scrollHeight) || !isFiniteNumber(d.viewportHeight)
+        || !isFiniteNumber(d.statementTop) || !isFiniteNumber(d.statementHeight)) {
+        return null;
+    }
+    return {
+        type: 'problemStatementScroll', timestamp,
+        scrollTop: d.scrollTop, scrollHeight: d.scrollHeight, viewportHeight: d.viewportHeight,
+        statementTop: d.statementTop, statementHeight: d.statementHeight,
+    };
+}
+
+function parseProblemStatementSelection(d: Record<string, unknown>, timestamp: number): ProblemStatementSelectionEvent | null {
+    if (!isString(d.selectedText) || !isFiniteNumber(d.selectionLength) || !isBoolean(d.truncated)) { return null; }
+    if (!isFiniteNumber(d.selectionTop) || !isFiniteNumber(d.selectionLeft)
+        || !isFiniteNumber(d.selectionWidth) || !isFiniteNumber(d.selectionHeight)) {
+        return null;
+    }
+    return {
+        type: 'problemStatementSelection', timestamp,
+        selectedText: d.selectedText, selectionLength: d.selectionLength, truncated: d.truncated,
+        selectionTop: d.selectionTop, selectionLeft: d.selectionLeft,
+        selectionWidth: d.selectionWidth, selectionHeight: d.selectionHeight,
+    };
 }
 
 function parseSelectionChange(d: Record<string, unknown>, timestamp: number): SelectionChangeEvent | null {
@@ -706,6 +732,8 @@ const EVENT_PARSERS = {
     intervention: parseIntervention,
     viewNavigation: parseViewNavigation,
     panelVisibility: parsePanelVisibility,
+    problemStatementScroll: parseProblemStatementScroll,
+    problemStatementSelection: parseProblemStatementSelection,
     selectionChange: parseSelectionChange,
     visibleRangeChange: parseVisibleRangeChange,
     terminalCommand: parseTerminalCommand,
