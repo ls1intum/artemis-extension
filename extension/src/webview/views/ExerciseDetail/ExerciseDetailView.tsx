@@ -229,11 +229,15 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Results live on submission.results (not on participation directly)
     const latestResult = getLatestById(latestSubmission?.results);
 
-    // Feedback modals show the latest result across ALL submissions, so a fresh
-    // resultless submission created on submit does not blank the previous
-    // feedback. Card/status/score deliberately stay on `latestResult` (the main
-    // page is unchanged while building). See plan 2026-06-18.
-    const displayResult = getLatestResultAcrossSubmissions(participation?.submissions);
+    // Feedback modals show the previous result while a build is running, so a
+    // fresh resultless submission does not blank the feedback. The fallback to
+    // an earlier submission is gated on an ACTIVE pending build: without one, a
+    // resultless newest submission (e.g. a completed build-failed submission)
+    // must keep the existing `latestResult` behaviour and NOT resurface stale
+    // feedback from an older submission. Card/status/score stay on latestResult.
+    const displayResult = pendingSubmission !== null
+        ? getLatestResultAcrossSubmissions(participation?.submissions)
+        : latestResult;
 
     // Build test cases from feedbacks for detailed display. Test-case feedback
     // is identified by isTestCaseFeedback (Artemis parity); the test name may be

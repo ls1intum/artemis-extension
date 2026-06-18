@@ -647,6 +647,44 @@ describe('ExerciseDetailView', () => {
 		expect(payload.failedTests).toBe(1);
 	});
 
+	it('task overlay shows no-result (not stale feedback) when the newest submission failed to build with no pending rebuild', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseData({
+				exercise: {
+					id: 42, title: 'My Exercise', type: 'programming',
+					maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+					course: { id: 1, title: 'Test Course', shortName: 'TC' },
+					studentParticipations: [{
+						id: 99,
+						repositoryUri: 'https://git.example.com/repo',
+						submissions: [
+							{
+								id: 1, submissionDate: '2025-01-01T00:00:00Z',
+								results: [{
+									id: 10, score: 50, successful: false,
+									completionDate: '2025-01-01T00:00:00Z',
+									feedbacks: [
+										{ testCase: { id: 1, testName: 'tA' }, positive: true },
+										{ testCase: { id: 2, testName: 'tB' }, positive: false, detailText: 'old fail' },
+									],
+								}],
+							},
+							{ id: 2, submissionDate: '2025-01-02T00:00:00Z', buildFailed: true, results: [] },
+						],
+					}],
+				},
+			}),
+			// No pendingSubmissionsByParticipationId entry -> no active build.
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+
+		expect(screen.getByText(/no build results yet/i)).toBeInTheDocument();
+		expect(screen.queryByText(/a new build is running/i)).not.toBeInTheDocument();
+		// Must NOT resurface the previous submission's feedback.
+		expect(screen.queryByText('Failed (1)')).not.toBeInTheDocument();
+	});
+
 	describe('sticky build status strip', () => {
 		let observerCallback: IntersectionObserverCallback;
 
