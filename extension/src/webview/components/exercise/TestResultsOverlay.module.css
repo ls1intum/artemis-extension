@@ -241,3 +241,13 @@
   text-align: center;
   padding: 24px 12px;
 }
+
+/* Rebuild banner: a new build is running, modal shows the previous result */
+.rebuildBanner {
+  padding: 10px 20px;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  background: rgba(100, 149, 237, 0.10);
+  border-bottom: 1px solid var(--vscode-panel-border, #e0e0e0);
+  flex-shrink: 0;
+}

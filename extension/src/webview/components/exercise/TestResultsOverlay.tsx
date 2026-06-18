@@ -19,6 +19,7 @@ interface TestResultsOverlayTaskProps {
     state: TaskTestState;
     taskName: string;
     loading?: boolean;
+    buildRunning?: boolean;
 }
 
 /** Global overview: unfiltered list of all test cases for the latest result. */
@@ -27,12 +28,13 @@ interface TestResultsOverlayOverviewProps {
     onClose: (reason: TestResultsOverlayCloseReason) => void;
     state: { kind: 'all'; testCases: TestCase[] };
     loading?: boolean;
+    buildRunning?: boolean;
 }
 
 type TestResultsOverlayProps = TestResultsOverlayTaskProps | TestResultsOverlayOverviewProps;
 
 export function TestResultsOverlay(props: TestResultsOverlayProps) {
-    const { open, onClose, loading = false } = props;
+    const { open, onClose, loading = false, buildRunning = false } = props;
 
     useEffect(() => {
         if (!open) { return; }
@@ -64,6 +66,12 @@ export function TestResultsOverlay(props: TestResultsOverlayProps) {
                     <div className={styles.title}>{title}</div>
                     <IconButton.Close onClick={() => onClose('button')} />
                 </div>
+
+                {buildRunning && (
+                    <div className={styles.rebuildBanner} role="status">
+                        A new build is running. Showing feedback from your previous submission. This will update automatically.
+                    </div>
+                )}
 
                 {loading ? (
                     <div className={styles.testList}>
