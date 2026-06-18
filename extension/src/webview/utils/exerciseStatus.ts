@@ -61,7 +61,7 @@ export function getLatestById<T extends { id?: number }>(
 /**
  * The result to DISPLAY for a participation: the latest result of the newest
  * submission that actually has one (submission-first, matching how the rest of
- * the codebase resolves "latest" — `ExerciseDetailView` lines 227-229,
+ * the codebase resolves "latest" (see `ExerciseDetailView` lines 227-229,
  * `participationHelpers.ts`).
  *
  * Differs from `getLatestById(latestSubmission?.results)` only during a build:
@@ -69,7 +69,7 @@ export function getLatestById<T extends { id?: number }>(
  * submission returns nothing and the previous result vanishes from the UI.
  * Walking submissions newest-first keeps the previous result visible until the
  * new one lands on the newest submission. When the newest submission has a
- * result, this returns exactly that result — identical to `latestResult`.
+ * result, this returns exactly that result, identical to `latestResult`.
  *
  * NOT a global "highest result id" scan: a re-evaluated older submission can
  * own a result with a higher id than the newest submission's, which must NOT
