@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-06-18
+
 ### Added
 
 - **Reading Telemetry**: The session recorder now captures problem-statement reading behavior (scrolling and text selections, with extended consent only).
