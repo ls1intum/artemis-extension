@@ -3,6 +3,12 @@ import * as vscode from 'vscode';
 import type { ParsedBuildError } from '@extension/types';
 import { normalizeRelativePath } from '@extension/utils';
 
+interface TrackedBuildError {
+    readonly error: ParsedBuildError;
+    /** Live 1-based line, kept in sync with document edits. */
+    line: number;
+}
+
 /**
  * CodeLens provider for displaying build errors above the affected line
  * Shows errors in the style of "X references" or "Run Test"
@@ -11,7 +17,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
     private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
 
-    private buildErrors: Map<string, ParsedBuildError[]> = new Map();
+    private buildErrors: Map<string, TrackedBuildError[]> = new Map();
 
     /**
      * Set build errors for a specific file
@@ -23,7 +29,10 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
         if (!normalizedPath) {
             return;
         }
-        this.buildErrors.set(normalizedPath, errors);
+        this.buildErrors.set(
+            normalizedPath,
+            errors.map((error) => ({ error, line: error.line }))
+        );
         this._onDidChangeCodeLenses.fire();
     }
 
@@ -82,14 +91,14 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
         }
 
         // Create a CodeLens for each error
-        for (const error of errors) {
-            const line = Math.max(0, error.line - 1); // Convert to 0-based
+        for (const tracked of errors) {
+            const line = Math.max(0, tracked.line - 1); // Convert to 0-based
             const range = new vscode.Range(line, 0, line, 0);
 
             const codeLens = new vscode.CodeLens(range, {
-                title: `❌ Artemis Build Error: ${error.message}`,
+                title: `❌ Artemis Build Error: ${tracked.error.message}`,
                 command: 'artemis.goToSourceError',
-                arguments: [error.filePath, error.line, error.column, error.message]
+                arguments: [tracked.error.filePath, tracked.line, tracked.error.column, tracked.error.message]
             });
 
             codeLenses.push(codeLens);
