@@ -1749,6 +1749,12 @@
 .live-elapsed { color: #e2e8f0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .live-legend { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .live-legend span { font-family: monospace; }
+/* Standalone hotkey legend shown in archive (normal) mode, where there is no
+   live control bar to host it. Mirrors the live bar's styling. */
+.hotkey-legend-bar {
+    padding: 0.5rem 1rem; background: #1e293b; color: #f1f5f9;
+    border-bottom: 1px solid #334155; font-size: 0.85rem;
+}
 /* ── Annotation toast stack (bottom-right, viewport-fixed) ─────────────── */
 .annotation-toast-stack {
     position: fixed; bottom: 1.5rem; right: 1.5rem;

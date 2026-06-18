@@ -15,6 +15,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Intervention Block Reasons**: Withheld interventions record the real gate; `recent-progress`/`last-dismissed` no longer logged as `warmup`.
 - **Test Results With Hidden Names**: The "See test results" overview now lists results for exercises that hide test names from students (`showTestNamesToStudents` disabled), instead of showing "No test results available".
 - **Submission Git Locks**: Submitting is now guarded against a double-click, and a busy or stale Git index lock surfaces an actionable message instead of raw git output or a misleading "No local changes detected".
+- **Build Error CodeLens Position**: Build-error CodeLenses now shift with your edits instead of staying stuck at the originally reported line.
 
 ### Internal
 
