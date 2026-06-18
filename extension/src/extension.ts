@@ -70,6 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
 	context.subscriptions.push(
+		buildErrorCodeLensProvider,
 		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, buildErrorCodeLensProvider)
 	);
 
