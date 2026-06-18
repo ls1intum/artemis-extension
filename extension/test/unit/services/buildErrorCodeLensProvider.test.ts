@@ -22,6 +22,10 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
         provider = new TestableBuildErrorCodeLensProvider();
     });
 
+    teardown(() => {
+        provider.dispose();
+    });
+
     test('should set and retrieve errors for file', () => {
         const errors: ParsedBuildError[] = [
             { filePath: 'src/Main.java', line: 10, message: 'Syntax error' }
@@ -85,5 +89,80 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
         provider.setErrors('', [{ filePath: '', line: 1, message: 'Error' }]);
         provider.clearFileErrors('');
         // Should not throw
+    });
+
+    function change(
+        startLine: number,
+        startChar: number,
+        endLine: number,
+        endChar: number,
+        text: string
+    ): vscode.TextDocumentContentChangeEvent {
+        const range = new vscode.Range(startLine, startChar, endLine, endChar);
+        return { range, rangeOffset: 0, rangeLength: 0, text };
+    }
+
+    function lineOf(p: TestableBuildErrorCodeLensProvider, fileName: string): number {
+        const doc = new MockTextDocument(vscode.Uri.file(`/workspace/${fileName}`), fileName);
+        const lenses = p.provideCodeLenses(doc, {} as vscode.CancellationToken) as vscode.CodeLens[];
+        return lenses[0].range.start.line; // 0-based
+    }
+
+    test('inserting a line above the error shifts the lens down', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        provider.handleDocumentChange(doc, [change(1, 0, 1, 0, '\n')]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 10); // was 9, now 10
+    });
+
+    test('inserting a line below the error does not move the lens', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        provider.handleDocumentChange(doc, [change(20, 0, 20, 0, '\n')]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 9); // unchanged
+    });
+
+    test('deleting a line above the error shifts the lens up', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        provider.handleDocumentChange(doc, [change(1, 0, 2, 0, '')]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 8); // was 9, now 8
+    });
+
+    test('a deletion spanning the error line clamps to the edit start', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        // Half-open (7,0)..(11,0) removes 0-based lines 7,8,9,10; error at 9 is inside -> clamp to 7.
+        provider.handleDocumentChange(doc, [change(7, 0, 11, 0, '')]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 7);
+    });
+
+    test('replacing the line directly above with extra lines shifts down (exclusive end)', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        // Replace 0-based line 8 (half-open (8,0)..(9,0)) with two lines; end==anchor, exclusive -> above -> +1.
+        provider.handleDocumentChange(doc, [change(8, 0, 9, 0, 'x\ny\n')]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 10); // was 9, now 10
+    });
+
+    test('multi-change edit composes order-independently (spanning delete + top insert)', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        // (8,0)..(11,0) deletes lines 8,9,10 -> error at 9 inside -> clamp 8; (0,0) insert "\n" -> above -> +1 => 9.
+        provider.handleDocumentChange(doc, [
+            change(8, 0, 11, 0, ''),
+            change(0, 0, 0, 0, '\n')
+        ]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 9);
+    });
+
+    test('multi-change result is identical when the array order is reversed', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        provider.handleDocumentChange(doc, [
+            change(0, 0, 0, 0, '\n'),
+            change(8, 0, 11, 0, '')
+        ]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 9); // same as non-reversed
     });
 });
