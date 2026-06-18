@@ -28,6 +28,7 @@ import {
     determineParticipationStatus,
     determineSubmissionStatus,
     getLatestById,
+    getLatestResultAcrossSubmissions,
     isTestCaseFeedback,
     transformFeedbacksToTestCases,
 } from '@webview/utils/exerciseStatus';
@@ -228,6 +229,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Results live on submission.results (not on participation directly)
     const latestResult = getLatestById(latestSubmission?.results);
 
+    // Feedback modals show the latest result across ALL submissions, so a fresh
+    // resultless submission created on submit does not blank the previous
+    // feedback. Card/status/score deliberately stay on `latestResult` (the main
+    // page is unchanged while building). See plan 2026-06-18.
+    const displayResult = getLatestResultAcrossSubmissions(participation?.submissions);
+
     // Build test cases from feedbacks for detailed display. Test-case feedback
     // is identified by isTestCaseFeedback (Artemis parity); the test name may be
     // hidden (showTestNamesToStudents=false) and is not required.
@@ -235,6 +242,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const feedbacks = latestResult?.feedbacks ?? [];
     const testFeedbacks = feedbacks.filter(isTestCaseFeedback);
     const testCases = transformFeedbacksToTestCases(feedbacks);
+    const displayTestCases = transformFeedbacksToTestCases(displayResult?.feedbacks ?? []);
 
     // Use Artemis-provided test case counts when available, fall back to feedbacks
     const totalTests = latestResult?.testCaseCount || testFeedbacks.length;
@@ -273,9 +281,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         const viewId = makeViewId();
         const openedAt = Date.now();
         const exerciseId = exerciseData.exercise.id;
-        const resultId = latestResult?.id;
-        const totalTestCount = testCases.length;
-        const passedTestCount = testCases.filter(t => t.passed).length;
+        const resultId = displayResult?.id;
+        const totalTestCount = displayTestCases.length;
+        const passedTestCount = displayTestCases.filter(t => t.passed).length;
         const failedTests = totalTestCount - passedTestCount;
         postCommand(vscodeApi, WebviewCmd.TestResultsOverviewOpened, {
             viewId, exerciseId, participationId, resultId,
@@ -290,7 +298,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: number[] }) => {
         if (!exerciseData?.exercise?.id) { return; }
-        const classification = classifyTaskTests(testIds, latestResult);
+        const classification = classifyTaskTests(testIds, displayResult);
         // Telemetry: keep existing totalTests/passedTests/failedTests semantics
         // (matched tests for this task). Add notExecutedTests as additive field.
         const { passedCount, failedCount, notExecutedCount } = countsForTelemetry(classification);
@@ -298,7 +306,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         const viewId = makeViewId();
         const openedAt = Date.now();
         const exerciseId = exerciseData.exercise.id;
-        const resultId = latestResult?.id;
+        const resultId = displayResult?.id;
         postCommand(vscodeApi, WebviewCmd.TaskFeedbackOpened, {
             viewId, exerciseId, participationId, resultId,
             taskName, testIds,
@@ -316,6 +324,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     // result.score is already a percentage (0-100) in Artemis
     const scorePercentage = latestResult?.score ?? 0;
+
+    // Banner only when we are actually substituting a previous result for the
+    // running build. No previous result -> no banner (first-build stays as-is).
+    const buildRunning = pendingSubmission !== null && displayResult !== undefined;
 
     // Determine submission status
     const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, latestSubmission);
@@ -635,14 +647,16 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <TestResultsOverlay
                 open={openOverviewView !== null}
                 onClose={handleOverviewClose}
-                state={{ kind: 'all', testCases }}
+                buildRunning={buildRunning}
+                state={{ kind: 'all', testCases: displayTestCases }}
             />
 
             {openTaskView !== null && (
                 <TestResultsOverlay
                     open
                     onClose={handleTaskClose}
-                    state={classifyTaskTests(openTaskView.testIds, latestResult)}
+                    buildRunning={buildRunning}
+                    state={classifyTaskTests(openTaskView.testIds, displayResult)}
                     taskName={openTaskView.taskName}
                 />
             )}
