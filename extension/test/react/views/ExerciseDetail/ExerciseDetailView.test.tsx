@@ -545,6 +545,146 @@ describe('ExerciseDetailView', () => {
 		expect(screen.getByText('Passed (2)')).toBeInTheDocument();
 	});
 
+	// Participation with a PREVIOUS result (submission 1) and a newer RESULTLESS
+	// submission (submission 2), the exact state right after a submit while the
+	// new build is running. pendingSubmissionsByParticipationId is seeded as a
+	// sibling store field (it is NOT read from exerciseData).
+	function exerciseBuildingOverPreviousResult(): ExerciseDetailsResponse {
+		return makeExerciseData({
+			exercise: {
+				id: 42, title: 'My Exercise', type: 'programming',
+				maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+				course: { id: 1, title: 'Test Course', shortName: 'TC' },
+				studentParticipations: [{
+					id: 99,
+					repositoryUri: 'https://git.example.com/repo',
+					submissions: [
+						{
+							id: 1,
+							submissionDate: '2025-01-01T00:00:00Z',
+							results: [{
+								id: 10, score: 50, successful: false,
+								completionDate: '2025-01-01T00:00:00Z',
+								feedbacks: [
+									{ testCase: { id: 1, testName: 'tA' }, positive: true },
+									{ testCase: { id: 2, testName: 'tB' }, positive: false, detailText: 'old fail' },
+								],
+							}],
+						},
+						{ id: 2, submissionDate: '2025-01-02T00:00:00Z', results: [] },
+					],
+				}],
+			},
+		});
+	}
+
+	it('task overlay shows the previous result plus the rebuild banner while a build is running', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseBuildingOverPreviousResult(),
+			pendingSubmissionsByParticipationId: { 99: { participationId: 99, state: 'BUILDING' } },
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+
+		// Previous result is shown (NOT the no-result empty state)...
+		expect(screen.queryByText(/no build results yet/i)).not.toBeInTheDocument();
+		expect(screen.getByText('Failed (1)')).toBeInTheDocument();
+		expect(screen.getByText('Passed (1)')).toBeInTheDocument();
+		// ...with the rebuild banner.
+		expect(screen.getByText(/a new build is running/i)).toBeInTheDocument();
+	});
+
+	it('task overlay drops the banner and shows the new result when the build finishes', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseBuildingOverPreviousResult(),
+			pendingSubmissionsByParticipationId: { 99: { participationId: 99, state: 'BUILDING' } },
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+		expect(screen.getByText(/a new build is running/i)).toBeInTheDocument();
+
+		// Build finishes: result attaches to the newest submission (id 2), pending
+		// cleared (single store mutation, mirrors the WS path).
+		act(() => {
+			useExerciseDetailStore.getState().updateBuildStatus({
+				id: 11,
+				participationId: 99,
+				score: 100,
+				successful: true,
+				feedbacks: [
+					{ testCase: { id: 1, testName: 'tA' }, positive: true },
+					{ testCase: { id: 2, testName: 'tB' }, positive: true },
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(screen.queryByText(/a new build is running/i)).not.toBeInTheDocument();
+		});
+		expect(screen.getByText('Passed (2)')).toBeInTheDocument();
+		expect(screen.queryByText(/^Failed/)).not.toBeInTheDocument();
+	});
+
+	it('taskFeedbackOpened reports the previous result id and counts while a build is running', async () => {
+		// Telemetry must reflect what the modal actually shows (the previous
+		// result), not undefined, when opened during a build.
+		useExerciseDetailStore.setState({
+			exerciseData: exerciseBuildingOverPreviousResult(),
+			pendingSubmissionsByParticipationId: { 99: { participationId: 99, state: 'BUILDING' } },
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		const postMessageMock = vi.mocked(mockApi.postMessage);
+		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
+		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html: taskHtml('1,2') });
+		await waitFor(() => expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull());
+		await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
+
+		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'taskFeedbackOpened');
+		const payload = (openedCall![0] as Record<string, unknown>).payload as Record<string, unknown>;
+		expect(payload.resultId).toBe(10); // previous result, NOT undefined
+		expect(payload.passedTests).toBe(1);
+		expect(payload.failedTests).toBe(1);
+	});
+
+	it('task overlay shows no-result (not stale feedback) when the newest submission failed to build with no pending rebuild', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseData({
+				exercise: {
+					id: 42, title: 'My Exercise', type: 'programming',
+					maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+					course: { id: 1, title: 'Test Course', shortName: 'TC' },
+					studentParticipations: [{
+						id: 99,
+						repositoryUri: 'https://git.example.com/repo',
+						submissions: [
+							{
+								id: 1, submissionDate: '2025-01-01T00:00:00Z',
+								results: [{
+									id: 10, score: 50, successful: false,
+									completionDate: '2025-01-01T00:00:00Z',
+									feedbacks: [
+										{ testCase: { id: 1, testName: 'tA' }, positive: true },
+										{ testCase: { id: 2, testName: 'tB' }, positive: false, detailText: 'old fail' },
+									],
+								}],
+							},
+							{ id: 2, submissionDate: '2025-01-02T00:00:00Z', buildFailed: true, results: [] },
+						],
+					}],
+				},
+			}),
+			// No pendingSubmissionsByParticipationId entry -> no active build.
+			isLoading: false,
+		});
+		await clickTaskAndOpenOverlay(taskHtml('1,2'));
+
+		expect(screen.getByText(/no build results yet/i)).toBeInTheDocument();
+		expect(screen.queryByText(/a new build is running/i)).not.toBeInTheDocument();
+		// Must NOT resurface the previous submission's feedback.
+		expect(screen.queryByText('Failed (1)')).not.toBeInTheDocument();
+	});
+
 	describe('sticky build status strip', () => {
 		let observerCallback: IntersectionObserverCallback;
 

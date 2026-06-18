@@ -16,6 +16,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Test Results With Hidden Names**: The "See test results" overview now lists results for exercises that hide test names from students (`showTestNamesToStudents` disabled), instead of showing "No test results available".
 - **Submission Git Locks**: Submitting is now guarded against a double-click, and a busy or stale Git index lock surfaces an actionable message instead of raw git output or a misleading "No local changes detected".
 - **Build Error CodeLens Position**: Build-error CodeLenses now shift with your edits instead of staying stuck at the originally reported line.
+- **Feedback During Builds**: Build feedback now stays visible while a new build runs, with a banner, and updates automatically when results arrive.
 
 ### Internal
 

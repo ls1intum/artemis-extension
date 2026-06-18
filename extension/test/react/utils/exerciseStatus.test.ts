@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyTaskTests, countsForTelemetry, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
+import { classifyTaskTests, countsForTelemetry, getLatestResultAcrossSubmissions, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
 
 describe('classifyTaskTests', () => {
     it('returns no-result when latestResult is undefined', () => {
@@ -207,5 +207,42 @@ describe('countsForTelemetry', () => {
             passed: [{ id: 1, name: 'a', passed: true }],
             notExecutedIds: [2, 3],
         })).toEqual({ passedCount: 1, failedCount: 0, notExecutedCount: 2 });
+    });
+});
+
+describe('getLatestResultAcrossSubmissions', () => {
+    it('returns undefined for no submissions', () => {
+        expect(getLatestResultAcrossSubmissions(undefined)).toBeUndefined();
+        expect(getLatestResultAcrossSubmissions([])).toBeUndefined();
+    });
+
+    it('returns undefined when no submission has a result', () => {
+        expect(getLatestResultAcrossSubmissions([{ id: 1, results: [] }, { id: 2 }])).toBeUndefined();
+    });
+
+    it('returns the latest result (highest id) within a submission', () => {
+        const r = getLatestResultAcrossSubmissions([{ id: 1, results: [{ id: 10 }, { id: 11 }] }]);
+        expect(r?.id).toBe(11);
+    });
+
+    it('is submission-first: the newest submission with a result wins, even if an older submission has a higher result id', () => {
+        // Older submission (id 1) was re-evaluated → its result id (99) is higher
+        // than the newest submission's result (30). Submission-first must still
+        // return the newest submission's result, NOT the globally-highest id.
+        const r = getLatestResultAcrossSubmissions([
+            { id: 1, results: [{ id: 99 }] },
+            { id: 2, results: [{ id: 30 }] },
+        ]);
+        expect(r?.id).toBe(30);
+    });
+
+    it('keeps the previous result when the newest submission has no result yet', () => {
+        // Submission id 2 is newer but resultless (build running); id 1 holds the
+        // previous result. The helper must surface that previous result.
+        const r = getLatestResultAcrossSubmissions([
+            { id: 1, results: [{ id: 10 }] },
+            { id: 2, results: [] },
+        ]);
+        expect(r?.id).toBe(10);
     });
 });
