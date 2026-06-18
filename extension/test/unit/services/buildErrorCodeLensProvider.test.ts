@@ -11,8 +11,6 @@ class TestableBuildErrorCodeLensProvider extends BuildErrorCodeLensProvider {
     protected getRelativePath(document: vscode.TextDocument): string | null {
         return document.fileName;
     }
-
-    // Expose for testing if needed, but we override the caller
 }
 
 suite('BuildErrorCodeLensProvider Test Suite', () => {
@@ -164,5 +162,22 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
             change(8, 0, 11, 0, '')
         ]);
         assert.strictEqual(lineOf(provider, 'src/Main.java'), 9); // same as non-reversed
+    });
+
+    test('an edit on the error line after column 0 does not move the lens (line-level scope)', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        // Splitting the error's own line at column 5 leaves the column-0 anchor on line 9.
+        provider.handleDocumentChange(doc, [change(9, 5, 9, 5, '\n')]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 9); // unchanged
+    });
+
+    test('a shift past the end of the document clamps to the last line', () => {
+        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'E' }]);
+        const doc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        doc.lineCount = 12; // maxLine = 11
+        // Insert 5 lines at the top: error at 0-based 9 would go to 14, clamped to 11.
+        provider.handleDocumentChange(doc, [change(0, 0, 0, 0, '\n\n\n\n\n')]);
+        assert.strictEqual(lineOf(provider, 'src/Main.java'), 11); // clamped to last line
     });
 });
