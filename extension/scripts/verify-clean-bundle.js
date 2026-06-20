@@ -45,7 +45,7 @@ function main() {
         console.error('FAIL: forbidden inputs in clean bundle:\n' + hits.join('\n'));
         process.exit(1);
     }
-    console.log('OK: clean bundle contains no recorder/consent/replay or struggle-engine inputs');
+    console.log('OK: clean bundle contains no recorder/consent/replay, struggle-engine, or struggle-view inputs');
 }
 
 module.exports = { forbiddenInputs, FORBIDDEN };
