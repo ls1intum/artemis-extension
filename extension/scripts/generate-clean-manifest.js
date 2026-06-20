@@ -15,7 +15,12 @@ const OPENVSX_SETTING_DEFAULTS = {
     'artemis.showSetDefaultClonePathPrompt': false,
 };
 
-const RECORDING_COMMANDS = new Set(['artemis.replaySession', 'artemis.openRecordingsFolder']);
+// Commands whose backing feature is excluded from the clean build.
+const DROPPED_COMMANDS = new Set([
+    'artemis.replaySession',
+    'artemis.openRecordingsFolder',
+    'artemis.showStruggleScore',
+]);
 
 function cleanManifest(m) {
     const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
@@ -29,7 +34,7 @@ function cleanManifest(m) {
     }
 
     if (Array.isArray(m.contributes && m.contributes.commands)) {
-        m.contributes.commands = m.contributes.commands.filter(c => !RECORDING_COMMANDS.has(c.command));
+        m.contributes.commands = m.contributes.commands.filter(c => !DROPPED_COMMANDS.has(c.command));
     }
 
     if (m.scripts) { delete m.scripts['vscode:prepublish']; }

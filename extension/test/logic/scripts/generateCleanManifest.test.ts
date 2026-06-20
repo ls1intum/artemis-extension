@@ -36,6 +36,7 @@ function baseManifest(): Manifest {
                 { command: 'artemis.login' },
                 { command: 'artemis.replaySession' },
                 { command: 'artemis.openRecordingsFolder' },
+                { command: 'artemis.showStruggleScore' },
             ],
         },
         scripts: { 'vscode:prepublish': 'npm run package', package: 'noop' },
@@ -57,7 +58,7 @@ describe('generate-clean-manifest: cleanManifest', () => {
         expect(props['artemis.serverUrl'].default).toBe('https://artemis.tum.de');
     });
 
-    it('removes the consent setting and recording commands', () => {
+    it('removes the consent setting and dropped commands (recording + struggle score)', () => {
         const m = cleanManifest(baseManifest());
         expect(m.contributes.configuration.properties['artemis.dataCollectionConsent']).toBeUndefined();
         expect(m.contributes.commands.map(c => c.command)).toEqual(['artemis.login']);
