@@ -1,5 +1,10 @@
 # Project: Artemis VS Code Extension
 
+## Naming
+
+- **The name of this project/extension is "Artemis Extension".** Use this name in docs, conversation, and any reference to the project (not "Iris Thaumantias").
+- This is the human-facing project name only. The published marketplace identifiers are unchanged and must stay as-is: package `name` = `iris-thaumantias` (part of the immutable marketplace ID `aet-tum.iris-thaumantias`, ~940 installs) and `displayName` = "Artemis - TUM".
+
 ## Branching
 
 - **All PRs branch off `dev`** and merge back into `dev`.
