@@ -292,9 +292,11 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     <Button variant="ghost" fullWidth onClick={handleOpenWebsite} icon={<ExternalLink size={16} />}>
                         Open Artemis in browser
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowStruggleDetection} icon={<HeartPulse size={16} />}>
-                        Struggle Detection
-                    </Button>
+                    {__IRIS_TELEMETRY__ && (
+                        <Button variant="ghost" fullWidth onClick={handleShowStruggleDetection} icon={<HeartPulse size={16} />}>
+                            Struggle Detection
+                        </Button>
+                    )}
                     <Button variant="ghost" fullWidth onClick={handleShowServiceStatus} icon={<Activity size={16} />}>
                         Service Status
                     </Button>
