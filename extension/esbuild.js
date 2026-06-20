@@ -10,10 +10,14 @@ const variantArg = process.argv.find(a => a.startsWith('--variant='));
 const variant = variantArg ? variantArg.split('=')[1] : (process.env.IRIS_BUILD_VARIANT || 'full');
 const isOpenVsx = variant === 'openvsx';
 const recordingEnabled = isOpenVsx ? 'false' : 'true';
-const dataCollectionAlias = {
+const telemetryEnabled = isOpenVsx ? 'false' : 'true';
+const seamAliases = {
     '@dataCollection': path.join(__dirname, isOpenVsx
         ? 'src/extension/dataCollection/noop.ts'
         : 'src/extension/dataCollection/index.ts'),
+    '@telemetry': path.join(__dirname, isOpenVsx
+        ? 'src/extension/telemetry/noop.ts'
+        : 'src/extension/telemetry/index.ts'),
 };
 console.log(`[build] variant: ${variant}`);
 
@@ -61,7 +65,7 @@ async function main() {
 		platform: 'node',
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
-		alias: dataCollectionAlias,
+		alias: seamAliases,
 		logLevel: 'silent',
 		metafile: true,
 		plugins: [
@@ -94,6 +98,7 @@ async function main() {
 		define: {
 			'process.env.NODE_ENV': production ? '"production"' : '"development"',
 			'__IRIS_RECORDING__': recordingEnabled,
+			'__IRIS_TELEMETRY__': telemetryEnabled,
 		},
 		logLevel: 'silent',
 		plugins: [

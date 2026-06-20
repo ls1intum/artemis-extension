@@ -18,7 +18,8 @@
 			"@shared/*": ["./src/shared/*"],
 			"@test/*": ["./test/*"],
 			"@root/package.json": ["./package.json"],
-			"@dataCollection": ["./src/extension/dataCollection/index.ts"]
+			"@dataCollection": ["./src/extension/dataCollection/index.ts"],
+			"@telemetry": ["./src/extension/telemetry/index.ts"]
 		},
 		"plugins": [
 			{ "name": "typescript-plugin-css-modules" }
