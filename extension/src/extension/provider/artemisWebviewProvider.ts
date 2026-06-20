@@ -23,7 +23,7 @@ import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { SubmissionPayload } from '@extension/services/telemetry/recording/types';
 import type { IProviderRegistry } from '@extension/services/ui';
 import {
@@ -82,7 +82,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
-    private readonly _telemetryManager: TelemetryManager;
+    private readonly _telemetryManager: ITelemetryManager;
     private readonly _renderService: ProblemStatementRenderService;
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;

@@ -7,7 +7,7 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import { GitService } from '@extension/services/workspace/gitService';
 import {
     collectExerciseSources,
@@ -25,7 +25,7 @@ export class ViewInitDataService {
 
     constructor(
         private readonly _appStateManager: AppStateManager,
-        private readonly _telemetryManager: TelemetryManager | undefined,
+        private readonly _telemetryManager: ITelemetryManager | undefined,
         private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         private readonly _courseAccessStorage?: CourseAccessStorageService,

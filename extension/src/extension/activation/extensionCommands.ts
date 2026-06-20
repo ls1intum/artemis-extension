@@ -4,7 +4,7 @@ import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
@@ -525,7 +525,7 @@ function registerClearTrustedDomainsCommand(context: vscode.ExtensionContext): v
     });
 }
 
-function registerStruggleScoreCommand(telemetryManager: TelemetryManager): vscode.Disposable {
+function registerStruggleScoreCommand(telemetryManager: ITelemetryManager): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
         await telemetryManager.showStruggleScoreDialog();
     });
@@ -682,7 +682,7 @@ interface CommandDeps {
     authManager: AuthManager;
     artemisApiService: ArtemisApiService;
     artemisWebsocketService: ArtemisWebsocketService;
-    telemetryManager: TelemetryManager;
+    telemetryManager: ITelemetryManager;
     providerRegistry: IProviderRegistry;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;

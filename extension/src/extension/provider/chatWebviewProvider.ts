@@ -19,7 +19,7 @@ import {
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { type StruggleContext, TelemetryManager } from '@extension/services/telemetry';
+import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
@@ -120,7 +120,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _courseDataCache: CourseDataCache | undefined,
-        private readonly _telemetryManager: TelemetryManager | undefined,
+        private readonly _telemetryManager: ITelemetryManager | undefined,
         contextStore: ContextStore,
     ) {
         super(LogCategory.IRIS_CHAT);
