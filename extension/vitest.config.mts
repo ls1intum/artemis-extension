@@ -22,6 +22,7 @@ export default defineConfig({
 			'@shared': new URL('./src/shared', import.meta.url).pathname,
 			'@test': new URL('./test', import.meta.url).pathname,
 			'@root/package.json': new URL('./package.json', import.meta.url).pathname,
+			'@struggleView': new URL('./src/webview/views/StruggleDetection/index.ts', import.meta.url).pathname,
 		},
 	},
 	test: {

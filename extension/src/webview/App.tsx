@@ -1,8 +1,9 @@
-import type { ComponentType } from 'react';
-import { lazy, Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
 import { WebviewMsgType } from '@shared/messageContracts';
+
+import { StruggleDetectionView } from '@struggleView';
 
 import styles from './App.module.css';
 import { AiConfigView } from './views/AiConfig';
@@ -15,12 +16,6 @@ import { IrisChatView } from './views/IrisChat';
 import { LoginView } from './views/Login';
 import { RecommendedExtensionsView } from './views/RecommendedExtensions';
 import { ServiceStatusView } from './views/ServiceStatus';
-import type { StruggleDetectionViewProps } from './views/StruggleDetection/types';
-
-// Gated by build-time constant: tree-shaken from the Open VSX bundle when __IRIS_TELEMETRY__ is false.
-const StruggleDetectionView: ComponentType<StruggleDetectionViewProps> | null = __IRIS_TELEMETRY__
-	? lazy(() => import('./views/StruggleDetection/index.js').then(m => ({ default: m.StruggleDetectionView })))
-	: null;
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -61,8 +56,8 @@ export function App({ vscodeApi }: AppProps) {
 			case 'aiConfig':
 				return <AiConfigView vscodeApi={vscodeApi} />;
 			case 'struggleDetection':
-				return StruggleDetectionView
-					? <Suspense fallback={null}><StruggleDetectionView vscodeApi={vscodeApi} /></Suspense>
+				return __IRIS_TELEMETRY__
+					? <StruggleDetectionView vscodeApi={vscodeApi} />
 					: <div>Unknown view: {viewName}</div>;
 			default:
 				return <div>Unknown view: {viewName}</div>;

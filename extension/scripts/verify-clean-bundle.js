@@ -8,6 +8,10 @@ const FORBIDDEN = [
     'src/extension/services/telemetry/replay/',
     'src/extension/services/auth/consentService.ts',
     'src/extension/activation/sessionRecorderWiring.ts',
+    // Struggle-detection webview view — excluded from the clean webview build via @struggleView alias.
+    // stub.tsx, types.ts, and index.ts are NOT forbidden (stub is the alias target in openvsx).
+    'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',
+    'src/webview/views/StruggleDetection/StruggleDetectionView.module.css',
     // Struggle-detection engine — excluded from the clean build via @telemetry/noop.
     'src/extension/services/telemetry/telemetryManager.ts',
     'src/extension/services/telemetry/metrics/',

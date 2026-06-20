@@ -19,7 +19,8 @@
 			"@test/*": ["./test/*"],
 			"@root/package.json": ["./package.json"],
 			"@dataCollection": ["./src/extension/dataCollection/index.ts"],
-			"@telemetry": ["./src/extension/telemetry/index.ts"]
+			"@telemetry": ["./src/extension/telemetry/index.ts"],
+			"@struggleView": ["./src/webview/views/StruggleDetection/index.ts"]
 		},
 		"plugins": [
 			{ "name": "typescript-plugin-css-modules" }

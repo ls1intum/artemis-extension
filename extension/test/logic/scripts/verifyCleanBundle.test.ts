@@ -44,4 +44,14 @@ describe('verify-clean-bundle', () => {
         ]);
         expect(forbiddenInputs(f)).toHaveLength(3);
     });
+
+    it('flags the struggle-detection webview view files', () => {
+        const f = metaWith([
+            'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',
+            'src/webview/views/StruggleDetection/StruggleDetectionView.module.css',
+            'src/webview/views/StruggleDetection/stub.tsx', // allowed
+            'src/webview/views/StruggleDetection/types.ts', // allowed
+        ]);
+        expect(forbiddenInputs(f)).toHaveLength(2);
+    });
 });

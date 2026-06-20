@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { createRecordingWebviewHandlers } from '@dataCollection';
 
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
 import type {
@@ -39,6 +38,7 @@ import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
 import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
 import { CONFIG, resolveServerUrl } from '@extension/utils';
+import { createRecordingWebviewHandlers } from '@dataCollection';
 
 import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';

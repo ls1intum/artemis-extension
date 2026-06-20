@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { wireDataCollection } from '@dataCollection';
-import { createTelemetryManager } from '@telemetry';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import { ArtemisApiService } from '@extension/api';
@@ -25,6 +23,8 @@ import {
     initializeTheiaContext,
 } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils';
+import { wireDataCollection } from '@dataCollection';
+import { createTelemetryManager } from '@telemetry';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: ITelemetryManager | undefined;

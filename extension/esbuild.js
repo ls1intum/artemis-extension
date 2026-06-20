@@ -19,6 +19,11 @@ const seamAliases = {
         ? 'src/extension/telemetry/noop.ts'
         : 'src/extension/telemetry/index.ts'),
 };
+const webviewAliases = {
+    '@struggleView': path.join(__dirname, isOpenVsx
+        ? 'src/webview/views/StruggleDetection/stub.tsx'
+        : 'src/webview/views/StruggleDetection/index.ts'),
+};
 console.log(`[build] variant: ${variant}`);
 
 const formatSize = (bytes) => {
@@ -87,6 +92,7 @@ async function main() {
 		platform: 'browser',
 		outfile: 'dist/webview-react.js',
 		metafile: true,
+		alias: webviewAliases,
 		loader: {
 			'.tsx': 'tsx',
 			'.ts': 'ts',
