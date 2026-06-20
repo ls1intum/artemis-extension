@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Local Dev Server Preset**: The "Local Development" server option now targets `localhost:8080` (the Artemis server) instead of `localhost:9000`.
+
 ## [0.4.6] - 2026-06-18
 
 ### Added

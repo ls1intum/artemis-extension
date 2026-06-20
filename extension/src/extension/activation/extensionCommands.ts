@@ -429,7 +429,7 @@ const KNOWN_SERVERS: ReadonlyArray<{ label: string; url: string }> = [
     { label: 'Test Server 5 (artemis-test5.artemis.cit.tum.de)',    url: 'https://artemis-test5.artemis.cit.tum.de' },
     { label: 'Test Server 6 (artemis-test6.artemis.cit.tum.de)',    url: 'https://artemis-test6.artemis.cit.tum.de' },
     { label: 'Test Server 9 (artemis-test9.artemis.cit.tum.de)',    url: 'https://artemis-test9.artemis.cit.tum.de' },
-    { label: 'Local Development (localhost:9000)',                   url: 'http://localhost:9000' },
+    { label: 'Local Development (localhost:8080)',                   url: 'http://localhost:8080' },
 ];
 
 function registerSetServerUrlCommand(): vscode.Disposable {
