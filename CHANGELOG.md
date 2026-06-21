@@ -12,6 +12,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Local Dev Server Preset**: The "Local Development" server option now targets `localhost:8080` (the Artemis server) instead of `localhost:9000`.
 
+### Internal
+
+- **Open VSX Bundle Verifier**: `verify-clean-bundle.js` now denies the entire telemetry subtree by default (fail-closed) instead of a hand-picked denylist, so any new telemetry/recorder file is kept out of the clean build automatically.
+
 ## [0.4.6] - 2026-06-18
 
 ### Added
