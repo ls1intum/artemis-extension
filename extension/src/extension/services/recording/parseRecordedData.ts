@@ -28,15 +28,12 @@ import type {
     ConsentChangeEvent,
     DebugSessionEvent,
     DiagnosticsEvent,
-    EqEngineStateEvent,
-    EqSnapshotEvent,
     FileCreateEvent,
     FileDeleteEvent,
     FileRenameEvent,
     FileSnapshotErrorEvent,
     FileSnapshotEvent,
     FileSwitchEvent,
-    InterventionEvent,
     IrisChatFeedbackEvent,
     IrisChatMessageEvent,
     IrisChatSendAttemptEvent,
@@ -48,7 +45,6 @@ import type {
     SaveEvent,
     SelectionChangeEvent,
     SerializedDiagnostic,
-    SerializedErrorSnapshot,
     SerializedRange,
     SessionEndEvent,
     SessionMetadata,
@@ -70,14 +66,6 @@ import type {
     ViewNavigationEvent,
     VisibleRangeChangeEvent,
     WindowFocusEvent,
-} from './types';
-import {
-    INTERVENTION_BLOCKED_REASONS,
-    INTERVENTION_DISMISS_REASONS,
-    INTERVENTION_LEVELS,
-    INTERVENTION_RECORD_ACTIONS,
-    INTERVENTION_SUPPRESSION_REASONS,
-    TRIGGER_TYPES,
 } from './types';
 
 // ── Primitive guards ──────────────────────────────────────────────────
@@ -166,20 +154,6 @@ function parseSerializedDiagnostic(data: unknown): SerializedDiagnostic | null {
     return stripUndefined({ code, message: data.message, severity: data.severity, range, source });
 }
 
-function parseSerializedErrorSnapshot(data: unknown): SerializedErrorSnapshot | null {
-    if (!isObject(data)) { return null; }
-    if (!isFiniteNumber(data.timestamp)) { return null; }
-    if (!isBoolean(data.hasErrors)) { return null; }
-    if (!Array.isArray(data.errorFamilies) || !data.errorFamilies.every(isString)) { return null; }
-    if (!isFiniteNumber(data.errorCount)) { return null; }
-    return {
-        timestamp: data.timestamp,
-        hasErrors: data.hasErrors,
-        errorFamilies: data.errorFamilies as string[],
-        errorCount: data.errorCount,
-    };
-}
-
 // ── Per-variant parsers ───────────────────────────────────────────────
 //
 // Each takes a pre-validated `Record<string, unknown>` (the dispatcher has
@@ -229,10 +203,6 @@ function parseBuildResult(d: Record<string, unknown>, timestamp: number): BuildR
     if (!isFiniteNumber(d.errorCount)) { return null; }
     if (!Array.isArray(d.failedTests) || !d.failedTests.every(isString)) { return null; }
     if (!isBoolean(d.buildFailed)) { return null; }
-    if (d.buildErrorFamilies !== undefined
-        && !(Array.isArray(d.buildErrorFamilies) && d.buildErrorFamilies.every(isString))) {
-        return null;
-    }
     if (!isOptFiniteNumber(d.exerciseId)
         || !isOptFiniteNumber(d.participationId)
         || !isOptFiniteNumber(d.submissionId)) {
@@ -255,7 +225,6 @@ function parseBuildResult(d: Record<string, unknown>, timestamp: number): BuildR
         errorCount: d.errorCount,
         failedTests: d.failedTests as string[],
         buildFailed: d.buildFailed,
-        buildErrorFamilies: d.buildErrorFamilies as string[] | undefined,
         exerciseId: d.exerciseId as number | undefined,
         participationId: d.participationId as number | undefined,
         submissionId: d.submissionId as number | undefined,
@@ -360,68 +329,6 @@ function parseIrisChatSendAttempt(d: Record<string, unknown>, timestamp: number)
 function parseIrisChatFeedback(d: Record<string, unknown>, timestamp: number): IrisChatFeedbackEvent | null {
     if (!isString(d.messageId) || !isBoolean(d.helpful)) { return null; }
     return { type: 'irisChatFeedback', timestamp, messageId: d.messageId, helpful: d.helpful };
-}
-
-function parseEqSnapshot(d: Record<string, unknown>, timestamp: number): EqSnapshotEvent | null {
-    if (!isFiniteNumber(d.eq)) { return null; }
-    if (!isOneOf(d.confidence, ['sufficient', 'insufficient'] as const)) { return null; }
-    if (!isOneOf(d.source, ['save', 'build', 'trigger'] as const)) { return null; }
-    if (!isOptString(d.triggerType)) { return null; }
-    return stripUndefined({
-        type: 'eqSnapshot' as const,
-        timestamp,
-        eq: d.eq,
-        confidence: d.confidence,
-        source: d.source,
-        triggerType: d.triggerType as string | undefined,
-    });
-}
-
-function parseEqEngineState(d: Record<string, unknown>, timestamp: number): EqEngineStateEvent | null {
-    if (!Array.isArray(d.snapshots)) { return null; }
-    const snapshots: SerializedErrorSnapshot[] = [];
-    for (const raw of d.snapshots) {
-        const parsed = parseSerializedErrorSnapshot(raw);
-        if (!parsed) { return null; }
-        snapshots.push(parsed);
-    }
-    if (!isFiniteNumber(d.currentEQ) || !isFiniteNumber(d.pairCount)) { return null; }
-    if (!isOneOf(d.confidence, ['sufficient', 'insufficient'] as const)) { return null; }
-    return {
-        type: 'eqEngineState',
-        timestamp,
-        snapshots,
-        currentEQ: d.currentEQ,
-        pairCount: d.pairCount,
-        confidence: d.confidence,
-    };
-}
-
-function parseIntervention(d: Record<string, unknown>, timestamp: number): InterventionEvent | null {
-    if (!isOneOf(d.action, INTERVENTION_RECORD_ACTIONS)) { return null; }
-    if (!isOneOf(d.level, INTERVENTION_LEVELS)) { return null; }
-    if (!isBoolean(d.shouldIntervene)) { return null; }
-    if (!isFiniteNumber(d.eq)) { return null; }
-    if (!isOneOf(d.confidence, ['sufficient', 'insufficient'] as const)) { return null; }
-    if (d.triggerType !== undefined && !isOneOf(d.triggerType, TRIGGER_TYPES)) { return null; }
-    if (d.blockedReason !== undefined && !isOneOf(d.blockedReason, INTERVENTION_BLOCKED_REASONS)) { return null; }
-    if (d.suppressionReason !== undefined && !isOneOf(d.suppressionReason, INTERVENTION_SUPPRESSION_REASONS)) { return null; }
-    if (d.dismissReason !== undefined && !isOneOf(d.dismissReason, INTERVENTION_DISMISS_REASONS)) { return null; }
-    if (!isOptBoolean(d.rawWanted)) { return null; }
-    return stripUndefined({
-        type: 'intervention' as const,
-        timestamp,
-        action: d.action,
-        level: d.level,
-        shouldIntervene: d.shouldIntervene,
-        eq: d.eq,
-        confidence: d.confidence,
-        triggerType: d.triggerType as InterventionEvent['triggerType'],
-        blockedReason: d.blockedReason as InterventionEvent['blockedReason'],
-        suppressionReason: d.suppressionReason as InterventionEvent['suppressionReason'],
-        dismissReason: d.dismissReason as InterventionEvent['dismissReason'],
-        rawWanted: d.rawWanted as boolean | undefined,
-    });
 }
 
 function parseViewNavigation(d: Record<string, unknown>, timestamp: number): ViewNavigationEvent | null {
@@ -761,9 +668,6 @@ const EVENT_PARSERS = {
     irisChatMessage: parseIrisChatMessage,
     irisChatSendAttempt: parseIrisChatSendAttempt,
     irisChatFeedback: parseIrisChatFeedback,
-    eqSnapshot: parseEqSnapshot,
-    eqEngineState: parseEqEngineState,
-    intervention: parseIntervention,
     viewNavigation: parseViewNavigation,
     panelVisibility: parsePanelVisibility,
     problemStatementScroll: parseProblemStatementScroll,

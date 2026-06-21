@@ -250,21 +250,6 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         >
                             Open Recordings Folder
                         </button>
-                        <button
-                            onClick={() => postCommand(vscodeApi, 'replaySession')}
-                            style={{
-                                flex: 1,
-                                padding: '8px 12px',
-                                border: '1px solid var(--vscode-button-border, transparent)',
-                                borderRadius: '4px',
-                                background: 'var(--vscode-button-secondaryBackground)',
-                                color: 'var(--vscode-button-secondaryForeground)',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                            }}
-                        >
-                            Replay Session
-                        </button>
                     </div>
                 </Container>
             )}

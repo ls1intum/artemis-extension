@@ -20,15 +20,7 @@
 import * as assert from 'assert';
 
 import { KNOWN_EVENT_TYPES, parseRecordedEvent, parseSessionMetadata } from '@extension/services/recording/parseRecordedData';
-import type { InterventionEvent, RecordedEvent, SessionMetadata } from '@extension/services/recording/types';
-import {
-    INTERVENTION_BLOCKED_REASONS,
-    INTERVENTION_DISMISS_REASONS,
-    INTERVENTION_LEVELS,
-    INTERVENTION_RECORD_ACTIONS,
-    INTERVENTION_SUPPRESSION_REASONS,
-    TRIGGER_TYPES,
-} from '@extension/services/recording/types';
+import type { RecordedEvent, SessionMetadata } from '@extension/services/recording/types';
 
 const ts = 1700000000000;
 
@@ -118,7 +110,6 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         const e: RecordedEvent = {
             type: 'buildResult', timestamp: ts, successful: false,
             errorCount: 2, failedTests: ['t1', 't2'], buildFailed: false,
-            buildErrorFamilies: ['type-mismatch'],
             exerciseId: 7, participationId: 8, submissionId: 9,
             failedTestDetails: [{ testName: 't1', detail: 'expected 1 got 2' }],
         };
@@ -207,51 +198,6 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         };
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
-
-    test('eqSnapshot — with triggerType', () => {
-        const e: RecordedEvent = {
-            type: 'eqSnapshot', timestamp: ts, eq: 0.42,
-            confidence: 'sufficient', source: 'trigger', triggerType: 'idle',
-        };
-        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-    });
-
-    test('eqEngineState — with empty snapshots', () => {
-        const e: RecordedEvent = {
-            type: 'eqEngineState', timestamp: ts, snapshots: [],
-            currentEQ: 0, pairCount: 0, confidence: 'insufficient',
-        };
-        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-    });
-
-    test('eqEngineState — with populated snapshots', () => {
-        const e: RecordedEvent = {
-            type: 'eqEngineState', timestamp: ts,
-            snapshots: [{ timestamp: ts - 1, hasErrors: true, errorFamilies: ['compile'], errorCount: 3 }],
-            currentEQ: 0.18, pairCount: 5, confidence: 'sufficient',
-        };
-        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-    });
-
-    test('intervention — all optional fields populated', () => {
-        const e: RecordedEvent = {
-            type: 'intervention', timestamp: ts, action: 'blocked', level: 'notification',
-            shouldIntervene: false, eq: 0.7, confidence: 'sufficient',
-            triggerType: 'idle', blockedReason: 'cooldown', rawWanted: true,
-        };
-        assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-    });
-
-    for (const blockedReason of ['recent-progress', 'last-dismissed'] as const) {
-        test(`intervention — blockedReason='${blockedReason}' round-trips`, () => {
-            const e: RecordedEvent = {
-                type: 'intervention', timestamp: ts, action: 'blocked', level: 'notification',
-                shouldIntervene: false, eq: 0.5, confidence: 'sufficient',
-                triggerType: 'idle', blockedReason, rawWanted: true,
-            };
-            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-        });
-    }
 
     test('viewNavigation', () => {
         const e: RecordedEvent = {
@@ -476,22 +422,6 @@ suite('parseRecordedEvent — per-variant rejection', () => {
         const bad = {
             type: 'textChange', timestamp: ts, uri: 'file:///a.ts',
             changes: [{ range: { startLine: 'x' }, rangeOffset: 0, rangeLength: 0, text: '' }],
-        };
-        assert.strictEqual(parseRecordedEvent(bad), null);
-    });
-
-    test('eqSnapshot rejects unknown confidence literal', () => {
-        const bad = {
-            type: 'eqSnapshot', timestamp: ts, eq: 0.5,
-            confidence: 'maybe', source: 'save',
-        };
-        assert.strictEqual(parseRecordedEvent(bad), null);
-    });
-
-    test('intervention rejects unknown action literal', () => {
-        const bad = {
-            type: 'intervention', timestamp: ts, action: 'wiggled', level: 'subtle',
-            shouldIntervene: true, eq: 0.5, confidence: 'sufficient',
         };
         assert.strictEqual(parseRecordedEvent(bad), null);
     });
@@ -786,84 +716,45 @@ suite('KNOWN_EVENT_TYPES — drift regression for #215', () => {
     });
 });
 
-/**
- * Single-source guard for the intervention enum vocabulary (#257).
- *
- * The InterventionEvent field types and the parser's isOneOf checks now derive
- * from the SAME exported const tuples. This suite asserts the property that
- * matters for replay fidelity: every declared enum value round-trips through
- * the parser (none silently dropped), and an unknown value is rejected. The
- * fixtures are typed as RecordedEvent, so a tuple/type drift also fails to
- * compile — the runtime checks below are the belt to that suspenders.
- */
-suite('parseRecordedEvent — intervention enum single-source guard (#257)', () => {
-    function baseIntervention(): InterventionEvent {
-        return {
+// ── Backward-compat: removed event schema is tolerated, not crashed ───
+//
+// Old recordings on disk may still carry the deleted EQ event types and the
+// removed buildResult.buildErrorFamilies field. The parser must skip / ignore
+// them (return null for unknown types, drop unknown keys), never throw.
+suite('parseRecordedEvent — removed-schema backward compatibility', () => {
+    test('legacy eqSnapshot line is skipped (unknown type → null)', () => {
+        const legacy = {
+            type: 'eqSnapshot', timestamp: ts, eq: 0.42,
+            confidence: 'sufficient', source: 'save', triggerType: 'execution-error',
+        };
+        assert.strictEqual(parseRecordedEvent(legacy), null);
+    });
+
+    test('legacy eqEngineState line is skipped (unknown type → null)', () => {
+        const legacy = {
+            type: 'eqEngineState', timestamp: ts,
+            snapshots: [{ timestamp: ts - 1, hasErrors: true, errorFamilies: ['compile'], errorCount: 3 }],
+            currentEQ: 0.18, pairCount: 5, confidence: 'sufficient',
+        };
+        assert.strictEqual(parseRecordedEvent(legacy), null);
+    });
+
+    test('legacy intervention line is skipped (unknown type → null)', () => {
+        const legacy = {
             type: 'intervention', timestamp: ts, action: 'shown', level: 'subtle',
             shouldIntervene: true, eq: 0.3, confidence: 'sufficient',
         };
-    }
-
-    for (const action of INTERVENTION_RECORD_ACTIONS) {
-        test(`action='${action}' round-trips`, () => {
-            const e: RecordedEvent = { ...baseIntervention(), action };
-            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-        });
-    }
-
-    for (const level of INTERVENTION_LEVELS) {
-        test(`level='${level}' round-trips`, () => {
-            const e: RecordedEvent = { ...baseIntervention(), level };
-            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-        });
-    }
-
-    for (const triggerType of TRIGGER_TYPES) {
-        test(`triggerType='${triggerType}' round-trips`, () => {
-            const e: RecordedEvent = { ...baseIntervention(), triggerType };
-            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-        });
-    }
-
-    for (const blockedReason of INTERVENTION_BLOCKED_REASONS) {
-        test(`blockedReason='${blockedReason}' round-trips`, () => {
-            const e: RecordedEvent = { ...baseIntervention(), action: 'blocked', shouldIntervene: false, blockedReason };
-            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-        });
-    }
-
-    for (const dismissReason of INTERVENTION_DISMISS_REASONS) {
-        test(`dismissReason='${dismissReason}' round-trips`, () => {
-            const e: RecordedEvent = { ...baseIntervention(), action: 'dismissed', dismissReason };
-            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-        });
-    }
-
-    for (const suppressionReason of INTERVENTION_SUPPRESSION_REASONS) {
-        test(`suppressionReason='${suppressionReason}' round-trips`, () => {
-            const e: RecordedEvent = { ...baseIntervention(), action: 'suppressed', suppressionReason };
-            assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
-        });
-    }
-
-    // One rejection per field family: an unknown value must reject the whole
-    // event (returns null), proving the guard is actually wired to the parser.
-    test('rejects unknown action', () => {
-        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'exploded' }), null);
+        assert.strictEqual(parseRecordedEvent(legacy), null);
     });
-    test('rejects unknown level', () => {
-        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), level: 'whisper' }), null);
-    });
-    test('rejects unknown triggerType', () => {
-        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), triggerType: 'telepathy' }), null);
-    });
-    test('rejects unknown blockedReason', () => {
-        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'blocked', shouldIntervene: false, blockedReason: 'vibes' }), null);
-    });
-    test('rejects unknown dismissReason', () => {
-        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'dismissed', dismissReason: 'ragequit' }), null);
-    });
-    test('rejects unknown suppressionReason', () => {
-        assert.strictEqual(parseRecordedEvent({ ...baseIntervention(), action: 'suppressed', suppressionReason: 'gremlins' }), null);
+
+    test('legacy buildResult.buildErrorFamilies is ignored, event still parses', () => {
+        const legacy = {
+            type: 'buildResult', timestamp: ts, successful: false,
+            errorCount: 1, failedTests: ['t1'], buildFailed: false,
+            buildErrorFamilies: ['type-mismatch'],
+        };
+        const parsed = parseRecordedEvent(legacy);
+        assert.ok(parsed && parsed.type === 'buildResult', 'buildResult still parses');
+        assert.ok(!('buildErrorFamilies' in parsed), 'buildErrorFamilies dropped from output');
     });
 });

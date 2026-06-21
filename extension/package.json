@@ -76,11 +76,6 @@
         "icon": "$(graph)"
       },
       {
-        "command": "artemis.replaySession",
-        "title": "Artemis: Replay Session (EQ Tuning)",
-        "icon": "$(play)"
-      },
-      {
         "command": "artemis.openRecordingsFolder",
         "title": "Artemis: Open Recordings Folder",
         "icon": "$(folder-opened)"

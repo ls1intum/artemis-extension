@@ -3,7 +3,7 @@
  *
  * Constructs a stub StruggleCoordinator + (wireSessionRecorder-built)
  * SessionRecorder pointing at a temp directory; drives the coordinator's
- * recorder-feed events (onDidCalculateEQ / onDidTick / onDidAlert) and the
+ * recorder-feed events (onDidTick / onDidAlert) and the
  * startup contributors, and asserts they reach the on-disk JSONL stream.
  *
  * Whitebox brittleness:
@@ -31,7 +31,6 @@ import type {
 import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth/consentService';
-import type { EQConfidence, EQState } from '@extension/services/eq/types';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type {
@@ -39,8 +38,6 @@ import type {
     BreakpointChangeEvent,
     ConfigurationChangeEvent,
     ConfigurationSnapshotEvent,
-    EqEngineStateEvent,
-    EqSnapshotEvent,
     PanelVisibilityEvent,
     RecordedEvent,
     StruggleScoreEvent,
@@ -59,28 +56,21 @@ interface MutableConfigState {
 
 /**
  * Stub StruggleCoordinator exposing exactly the surface the recorder wiring
- * subscribes: the three recorder-feed events plus getEqEngineState(). The
- * fire helpers let tests drive each event directly without constructing the
- * real engine; mirrors the provider stubs in this file.
+ * subscribes: the two recorder-feed events (tick, alert). The fire helpers let
+ * tests drive each event directly without constructing the real engine; mirrors
+ * the provider stubs in this file.
  */
 type CoordinatorStub = StruggleCoordinator & {
-    fireCalculateEQ: (p: { eq: number; confidence: EQConfidence; source: 'save' | 'build' }) => void;
     fireTick: (tick: TickRecord) => void;
     fireAlert: (alert: AlertRecord) => void;
 };
 
 function stubCoordinator(): CoordinatorStub {
-    const onDidCalculateEQ = new vscode.EventEmitter<{ eq: number; confidence: EQConfidence; source: 'save' | 'build' }>();
     const onDidTick = new vscode.EventEmitter<TickRecord>();
     const onDidAlert = new vscode.EventEmitter<AlertRecord>();
     const coordinator = {
-        onDidCalculateEQ: onDidCalculateEQ.event,
         onDidTick: onDidTick.event,
         onDidAlert: onDidAlert.event,
-        getEqEngineState: (): EQState => ({
-            snapshots: [], currentEQ: 0, pairCount: 0, confidence: 'insufficient',
-        }),
-        fireCalculateEQ: (p: { eq: number; confidence: EQConfidence; source: 'save' | 'build' }) => onDidCalculateEQ.fire(p),
         fireTick: (tick: TickRecord) => onDidTick.fire(tick),
         fireAlert: (alert: AlertRecord) => onDidAlert.fire(alert),
     };
@@ -573,36 +563,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         }
     });
 
-    // ── Forwarding: Engine v2 recorder feed (EQ snapshot, tick, alert) ──────
-
-    test('forwards onDidCalculateEQ to recordEqSnapshot (3-arg, no triggerType)', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
-        try {
-            const stub = sandbox.stub(harness.recorder, 'recordEqSnapshot');
-            harness.coordinator.fireCalculateEQ({ eq: 0.4, confidence: 'sufficient', source: 'save' });
-            sinon.assert.calledOnceWithExactly(stub, 0.4, 'sufficient', 'save');
-        } finally {
-            await harness.dispose();
-        }
-    });
-
-    test('onDidCalculateEQ is recorded as an eqSnapshot event on disk', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
-        try {
-            await harness.recorder.startSession(42);
-            harness.coordinator.fireCalculateEQ({ eq: 0.55, confidence: 'sufficient', source: 'build' });
-            await harness.recorder.endSession();
-
-            const events = await readAllRecordedEvents(harness.tmpDir);
-            const snap = events.find(e => e.type === 'eqSnapshot') as EqSnapshotEvent | undefined;
-            assert.ok(snap, 'eqSnapshot event missing');
-            assert.strictEqual(snap!.eq, 0.55);
-            assert.strictEqual(snap!.confidence, 'sufficient');
-            assert.strictEqual(snap!.source, 'build');
-        } finally {
-            await harness.dispose();
-        }
-    });
+    // ── Forwarding: recorder feed (tick, alert) ──────
 
     test('forwards onDidTick to recordStruggleScore with the feature row', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
@@ -738,30 +699,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         }
     });
 
-    // ── Startup contributors: eqEngineState + panelVisibility seeds ─────────
-
-    test('startup seeds eqEngineState from struggleCoordinator.getEqEngineState()', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
-        try {
-            const eqState = {
-                snapshots: [{ timestamp: 111, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }],
-                currentEQ: 0.4, pairCount: 5, confidence: 'sufficient' as const,
-            };
-            sandbox.stub(harness.coordinator, 'getEqEngineState').returns(eqState as unknown as EQState);
-            await harness.recorder.startSession(42);
-            await harness.recorder.endSession();
-
-            const events = await readAllRecordedEvents(harness.tmpDir);
-            const seed = events.find(e => e.type === 'eqEngineState') as EqEngineStateEvent | undefined;
-            assert.ok(seed, 'eqEngineState startup seed missing — contributor not registered?');
-            assert.deepStrictEqual(seed!.snapshots, [{ timestamp: 111, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }]);
-            assert.strictEqual(seed!.currentEQ, 0.4);
-            assert.strictEqual(seed!.pairCount, 5);
-            assert.strictEqual(seed!.confidence, 'sufficient');
-        } finally {
-            await harness.dispose();
-        }
-    });
+    // ── Startup contributors: panelVisibility seeds ─────────
 
     test('startup seeds panelVisibility for both artemis and chat from getCurrentVisibility()', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });

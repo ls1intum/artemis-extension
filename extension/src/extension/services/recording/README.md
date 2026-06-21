@@ -18,18 +18,13 @@ recording/
 ├── index.ts                   Barrel (SessionRecorder + RecordingStatusBarService)
 │
 │   (uriFilter.ts now lives at services/sensing/uriFilter.ts — moved out of
-│    recording/ so the EQ engine can import it without coupling into recording/)
+│    recording/ so the struggle engine can import it without coupling into recording/)
 │
 ├── lifecycleController.ts     RecorderLifecycleState (pure state: phase FSM,
 │                              generation counters, ActiveSessionState) plus
 │                              LifecycleController (_doStart / _doFinalize /
 │                              _doDisable orchestration, recordInternal,
 │                              writeLifecycleEvent). Both classes co-located.
-│
-├── replay/
-│   ├── replayCommand.ts       VS Code command: replay a recording offline
-│   ├── replayEngine.ts        Feeds recorded events through the EQ engine
-│   └── snapshotReconstructor.ts  Rebuilds file states from snapshots+deltas
 │
 ├── snapshots/
 │   └── snapshotManager.ts     File snapshots with retry (max 3) + in-flight
@@ -107,11 +102,9 @@ and `eventCount`.
 Not everything recorder-related lives here. The core is self-contained, but:
 
 - `activation/sessionRecorderWiring.ts` — wires the recorder into the extension
-  (instantiates it, registers the four startup contributors: EQ engine
-  state, panel visibility, struggle-detection configuration, and the initial
-  breakpoint snapshot).
-- `replay/` — consumer side. Reads recordings back for EQ tuning.
-  Imports `RecordedEvent` from here, produces nothing.
+  (instantiates it, registers the three startup contributors: panel
+  visibility, struggle-detection configuration, and the initial breakpoint
+  snapshot).
 - `sensing/buildResultGuard.ts` — shared `shouldAcceptBuildResult()` used by
   both the struggle coordinator and the recorder's `onNewResult` path.
 

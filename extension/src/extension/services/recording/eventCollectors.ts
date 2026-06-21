@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 
-import { buildErrorFamiliesFromFeedbacks } from '@extension/services/eq/buildErrorFamily';
 import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 import type { ResultDTO } from '@extension/types';
 
@@ -107,8 +106,6 @@ export function collectBuildResult(result: ResultDTO, activeExerciseId?: number)
             }
         }
     }
-    // Shared builder: same families (and truncation) as the live EQ path, so replay matches live.
-    const buildErrorFamilies = buildErrorFamiliesFromFeedbacks(result.feedbacks);
     return {
         type: 'buildResult',
         timestamp: Date.now(),
@@ -116,7 +113,6 @@ export function collectBuildResult(result: ResultDTO, activeExerciseId?: number)
         errorCount: (result.testCaseCount ?? 0) - (result.passedTestCaseCount ?? 0),
         failedTests,
         buildFailed: result.submission?.buildFailed ?? false,
-        buildErrorFamilies: buildErrorFamilies.length > 0 ? buildErrorFamilies : undefined,
         exerciseId: activeExerciseId,
         participationId: result.participation?.id,
         submissionId: result.submission?.id,

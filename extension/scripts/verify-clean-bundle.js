@@ -1,5 +1,4 @@
-// Fail-closed proof that the Open VSX bundle excludes the recorder (which
-// contains replay/ as a subtree) and consent.
+// Fail-closed proof that the Open VSX bundle excludes the recorder and consent.
 // Reads the variant metafiles and asserts no forbidden input path is present.
 const fs = require('fs');
 const path = require('path');
@@ -28,7 +27,7 @@ function main() {
         console.error('FAIL: forbidden inputs in clean bundle:\n' + hits.join('\n'));
         process.exit(1);
     }
-    console.log('OK: clean bundle contains no recorder/consent/replay inputs');
+    console.log('OK: clean bundle contains no recorder/consent inputs');
 }
 
 module.exports = { forbiddenInputs, FORBIDDEN };

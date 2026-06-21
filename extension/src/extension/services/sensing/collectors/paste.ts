@@ -3,9 +3,9 @@
  * Manual-paste heuristic (sensing collector).
  *
  * Distinguishes a user-initiated multi-line paste from formatter/refactoring
- * rewrites and Copilot/snippet insertions. Moved verbatim from the v1
- * compileEquivalentEmitter (PR 2a); consumers pass their own minimum line
- * count where configured.
+ * rewrites and Copilot/snippet insertions. Moved verbatim from the (since
+ * removed) v1 compile-equivalent emitter; consumers pass their own minimum
+ * line count where configured.
  *
  * Must stay free of module-load side effects: vitest logic tests import this
  * file with a partial vscode mock (type-only vscode usage is fine).

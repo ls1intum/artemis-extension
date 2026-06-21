@@ -86,13 +86,9 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordIrisChatFeedback(messageId, helpful);
     }));
 
-    // Engine v2 recorder feed: passive EQ snapshots + per-tick struggle score +
-    // emitted alerts. The coordinator delegates onDidTick/onDidAlert from the
-    // engine and exposes onDidCalculateEQ from the passive EQ logger; recording
-    // is bundle-excluded so the coordinator never imports the recorder (Decision 1).
-    disposables.push(struggleCoordinator.onDidCalculateEQ(({ eq, confidence, source }) => {
-        sessionRecorder.recordEqSnapshot(eq, confidence, source);
-    }));
+    // Recorder feed: per-tick struggle score + emitted alerts. The coordinator
+    // delegates onDidTick/onDidAlert from the engine; recording is bundle-excluded
+    // so the coordinator never imports the recorder (Decision 1).
     disposables.push(struggleCoordinator.onDidTick(tick => {
         sessionRecorder.recordStruggleScore({
             t: tick.t, s: tick.s, v: tick.v,
@@ -154,27 +150,6 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // initial-state events and the `startupPhaseComplete` marker. They
     // replace the old onDidChangeState seeding path (which fired after the
     // first user event, not deterministically at session start).
-
-    // EQ engine state seeding
-    disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
-        const eqState = struggleCoordinator.getEqEngineState();
-        if (eqState.snapshots.length === 0) {
-            return [];
-        }
-        return [{
-            type: 'eqEngineState',
-            timestamp: ctx.timestamp,
-            snapshots: eqState.snapshots.map(s => ({
-                timestamp: s.timestamp,
-                hasErrors: s.hasErrors,
-                errorFamilies: [...s.errorFamilies],
-                errorCount: s.errorCount,
-            })),
-            currentEQ: eqState.currentEQ,
-            pairCount: eqState.pairCount,
-            confidence: eqState.confidence,
-        }];
-    }));
 
     // Panel visibility seeds — snapshot what is visible at session start.
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {

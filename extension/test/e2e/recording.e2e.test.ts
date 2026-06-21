@@ -673,16 +673,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         recorder.recordIrisChatReceived('hi student', 'm-recv', 's-1', 1700000002);
         recorder.recordIrisChatSendAttempt('attempt body', 'failed', 'network down');
         recorder.recordIrisChatFeedback('m-recv', true);
-        recorder.recordEqSnapshot(0.42, 'sufficient', 'save', 'execution-error');
-        recorder.recordEqEngineState(
-            [{ timestamp: 1700000010, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }],
-            0.42, 7, 'sufficient',
-        );
-        recorder.recordIntervention('shown', 'notification', true, 0.5, 'sufficient', 'idle');
-        recorder.recordIntervention('blocked', 'subtle', false, 0.2, 'insufficient', 'idle',
-            { blockedReason: 'cooldown', rawWanted: true });
-        recorder.recordIntervention('dismissed', 'proactive', true, 0.7, 'sufficient', 'multiline-paste',
-            { dismissReason: 'user-action' });
         recorder.recordViewNavigation('problem-statement', 'code-editor');
         recorder.recordPanelVisibility('artemis', true);
         recorder.recordPanelVisibility('chat', false);
@@ -707,9 +697,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(count('irisChatMessage'), 2, '2 irisChatMessage (sent + received)');
         assert.strictEqual(count('irisChatSendAttempt'), 1, '1 irisChatSendAttempt');
         assert.strictEqual(count('irisChatFeedback'), 1, '1 irisChatFeedback');
-        assert.strictEqual(count('eqSnapshot'), 1, '1 eqSnapshot');
-        assert.strictEqual(count('eqEngineState'), 1, '1 eqEngineState');
-        assert.strictEqual(count('intervention'), 3, '3 intervention');
         assert.strictEqual(count('viewNavigation'), 1, '1 viewNavigation');
         assert.strictEqual(count('panelVisibility'), 2, '2 panelVisibility');
         assert.strictEqual(count('configurationSnapshot'), 1, '1 configurationSnapshot');
@@ -733,11 +720,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             { type: 'irisChatMessage', direction: 'received', content: 'hi student', messageId: 'm-recv', sessionId: 's-1', sentAt: 1700000002 },
             { type: 'irisChatSendAttempt', content: 'attempt body', status: 'failed', errorMessage: 'network down' },
             { type: 'irisChatFeedback', messageId: 'm-recv', helpful: true },
-            { type: 'eqSnapshot', eq: 0.42, confidence: 'sufficient', source: 'save', triggerType: 'execution-error' },
-            { type: 'eqEngineState', snapshots: [{ timestamp: 1700000010, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }], currentEQ: 0.42, pairCount: 7, confidence: 'sufficient' },
-            { type: 'intervention', action: 'shown', level: 'notification', shouldIntervene: true, eq: 0.5, confidence: 'sufficient', triggerType: 'idle' },
-            { type: 'intervention', action: 'blocked', level: 'subtle', shouldIntervene: false, eq: 0.2, confidence: 'insufficient', triggerType: 'idle', blockedReason: 'cooldown', rawWanted: true },
-            { type: 'intervention', action: 'dismissed', level: 'proactive', shouldIntervene: true, eq: 0.7, confidence: 'sufficient', triggerType: 'multiline-paste', dismissReason: 'user-action' },
             { type: 'viewNavigation', from: 'problem-statement', to: 'code-editor' },
             { type: 'panelVisibility', panel: 'artemis', visible: true },
             { type: 'panelVisibility', panel: 'chat', visible: false },
@@ -756,8 +738,8 @@ suite('Session Recorder — E2E (VS Code only)', function () {
 
         // ── Parser round-trip for every Class B event ──
         const classBTypes = new Set<RecordedEvent['type']>([
-            'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback', 'eqSnapshot', 'eqEngineState',
-            'intervention', 'viewNavigation', 'panelVisibility', 'configurationSnapshot', 'configurationChange',
+            'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback',
+            'viewNavigation', 'panelVisibility', 'configurationSnapshot', 'configurationChange',
             'testResultsOverviewView', 'taskFeedbackView', 'submission',
         ]);
         for (const e of events.filter(e => classBTypes.has(e.type))) {

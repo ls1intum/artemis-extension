@@ -66,7 +66,6 @@ export const WebviewCmd = {
     RequestGitIdentity: 'requestGitIdentity',
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
-    ReplaySession: 'replaySession',
 
     // Views
     ShowAiConfig: 'showAiConfig',
@@ -159,7 +158,6 @@ interface WebviewCmdPayloads {
 
     // Recording
     openRecordingsFolder: undefined;
-    replaySession: undefined;
 
     // Git
     saveGitIdentity: { name: string; email: string };

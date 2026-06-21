@@ -12,7 +12,7 @@ const m = JSON.parse(fs.readFileSync(srcManifest, 'utf8'));
 const props = m.contributes?.configuration?.properties;
 if (props) { delete props['artemis.dataCollectionConsent']; }
 
-const dropCmds = new Set(['artemis.replaySession', 'artemis.openRecordingsFolder']);
+const dropCmds = new Set(['artemis.openRecordingsFolder']);
 if (Array.isArray(m.contributes?.commands)) {
     m.contributes.commands = m.contributes.commands.filter(c => !dropCmds.has(c.command));
 }

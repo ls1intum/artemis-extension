@@ -44,7 +44,7 @@ import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } 
 
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { AlertEvent, InterventionBlockedReason, InterventionDismissReason, InterventionLevel, InterventionRecordAction, InterventionSuppressionReason, RecordedEvent, SerializedErrorSnapshot, StruggleScoreEvent, SubmissionPayload, TriggerType } from './types';
+import type { AlertEvent, RecordedEvent, StruggleScoreEvent, SubmissionPayload } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -388,56 +388,12 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    recordEqSnapshot(
-        eq: number,
-        confidence: 'sufficient' | 'insufficient',
-        source: 'save' | 'build' | 'trigger',
-        triggerType?: string,
-    ): void {
-        this._record({
-            type: 'eqSnapshot',
-            eq,
-            confidence,
-            source,
-            triggerType,
-        });
-    }
-
     recordStruggleScore(sample: Omit<StruggleScoreEvent, 'type' | 'timestamp'>): void {
         this._record({ type: 'struggleScore', ...sample });
     }
 
     recordAlert(alert: Omit<AlertEvent, 'type' | 'timestamp'>): void {
         this._record({ type: 'alert', ...alert });
-    }
-
-    recordIntervention(
-        action: InterventionRecordAction,
-        level: InterventionLevel,
-        shouldIntervene: boolean,
-        eq: number,
-        confidence: 'sufficient' | 'insufficient',
-        triggerType?: TriggerType,
-        opts?: {
-            blockedReason?: InterventionBlockedReason;
-            suppressionReason?: InterventionSuppressionReason;
-            dismissReason?: InterventionDismissReason;
-            rawWanted?: boolean;
-        },
-    ): void {
-        this._record({
-            type: 'intervention',
-            action,
-            level,
-            shouldIntervene,
-            eq,
-            confidence,
-            triggerType,
-            blockedReason: opts?.blockedReason,
-            suppressionReason: opts?.suppressionReason,
-            dismissReason: opts?.dismissReason,
-            rawWanted: opts?.rawWanted,
-        });
     }
 
     recordViewNavigation(from: string, to: string): void {
@@ -508,21 +464,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         this._record({
             type: 'configurationChange',
             changes,
-        });
-    }
-
-    recordEqEngineState(
-        snapshots: SerializedErrorSnapshot[],
-        currentEQ: number,
-        pairCount: number,
-        confidence: 'sufficient' | 'insufficient',
-    ): void {
-        this._record({
-            type: 'eqEngineState',
-            snapshots,
-            currentEQ,
-            pairCount,
-            confidence,
         });
     }
 

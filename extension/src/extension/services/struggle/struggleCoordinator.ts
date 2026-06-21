@@ -1,13 +1,9 @@
 // extension/src/extension/services/struggle/struggleCoordinator.ts
 import * as vscode from 'vscode';
 
-import { CompileEquivalentEmitter } from '@extension/services/eq/compileEquivalentEmitter';
-import { ErrorQuotientEngine } from '@extension/services/eq/errorQuotientEngine';
-import type { EQConfidence, EQState } from '@extension/services/eq/types';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
 import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
-import type { SessionResettable } from '@extension/services/sessionLifecycle';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import { SPEC } from '@extension/services/struggle/constants';
 import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
@@ -30,17 +26,14 @@ export interface StruggleCoordinatorDeps {
 }
 
 /**
- * Owns Engine v2 (the live decision path) plus the passive EQ logger
- * (telemetry only, no decision role — spec R3). Replaces the v1 TelemetryManager.
+ * Owns the struggle engine (the live decision path). Replaces the v1 TelemetryManager.
  *
  * Responsibilities:
- *  - WebSocket build-result producer: guard → hub.emitBuildResult (engine) AND
- *    feed the EQ logger (eqSnapshot continuity).
+ *  - WebSocket build-result producer: guard → hub.emitBuildResult (engine).
  *  - Engine alert → AlertSink (single-level delivery).
- *  - Expose onDidAlert / onDidTick / onDidCalculateEQ for the recorder
- *    (subscribed by activation/sessionRecorderWiring; clean-bundle inversion,
- *    Decision 1).
- *  - getSnapshot() for the v2 debug UI.
+ *  - Expose onDidAlert / onDidTick for the recorder (subscribed by
+ *    activation/sessionRecorderWiring; clean-bundle inversion, Decision 1).
+ *  - getSnapshot() for the debug UI.
  *  - Exercise session lifecycle.
  */
 export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageHandler {
@@ -49,8 +42,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private readonly _exerciseRegistry: ExerciseRegistry | undefined;
     private readonly _engine: StruggleEngine;
     private readonly _clock: EngineClock;
-    private readonly _eqEngine = new ErrorQuotientEngine();
-    private readonly _compileEmitter = new CompileEquivalentEmitter();
     private readonly _disposables: vscode.Disposable[] = [];
     private _activeExerciseId: number | undefined;
     private _sessionStartMs = 0;
@@ -58,9 +49,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private _lastAlert: AlertRecord | undefined;
     private _isEnabled = true;
     private _showInterventions = true;
-
-    private readonly _onDidCalculateEQ = new vscode.EventEmitter<{ eq: number; confidence: EQConfidence; source: 'save' | 'build' }>();
-    readonly onDidCalculateEQ = this._onDidCalculateEQ.event;
 
     constructor(deps: StruggleCoordinatorDeps) {
         this._hub = deps.hub;
@@ -73,8 +61,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         // The alert is ALWAYS recorded via the engine's onDidAlert (the recorder
         // wiring subscribes the engine directly); only UI delivery is gated.
         // Delivery requires BOTH struggle detection enabled AND interventions
-        // shown: disabling detection (enabled=false) must suppress interventions,
-        // not just stop EQ intake.
+        // shown: disabling detection (enabled=false) must suppress interventions.
         this._disposables.push(this._engine.onDidAlert(alert => {
             this._lastAlert = alert;
             if (this._isEnabled && this._showInterventions) {
@@ -82,17 +69,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
             }
         }));
         this._disposables.push(this._engine.onDidTick(tick => { this._lastTick = tick; }));
-
-        // Passive EQ logger (no decision role): settle + build → snapshot → eqSnapshot.
-        this._disposables.push(this._hub.onDiagnosticsSettled(signal => {
-            if (this._isEnabled) { this._compileEmitter.handleDiagnosticsSettled(signal); }
-        }));
-        this._disposables.push(this._compileEmitter.onDidEmitCompileEquivalent(event => {
-            if (this._eqEngine.addSnapshot(event.snapshot)) {
-                const { eq, confidence } = this._eqEngine.getCurrentEQ();
-                this._onDidCalculateEQ.fire({ eq, confidence, source: event.source });
-            }
-        }));
 
         this._loadConfiguration();
         this._disposables.push(vscode.workspace.onDidChangeConfiguration(e => {
@@ -105,7 +81,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (!this._isEnabled) { return; }
         if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) { return; }
         this._hub.emitBuildResult(result);          // engine (FM/FM+/improved + fast decay)
-        this._compileEmitter.handleBuildResult(result);   // passive EQ
     }
 
     private _websocketService: ArtemisWebsocketService | undefined;
@@ -125,9 +100,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (this._activeExerciseId !== undefined) { this.endExerciseSession(); }
         this._activeExerciseId = exerciseId;
         this._sessionStartMs = this._clock.now();
-        const ctx = { exerciseId, exerciseRoot };
-        this._eqEngine.onSessionStart(ctx);
-        this._compileEmitter.onSessionStart(ctx);
         this._alertSink.reset?.();                 // clear any stale intervention from the prior session
         this._engine.start({ sessionStartMs: this._sessionStartMs, exerciseRoot });
         this._lastTick = undefined;
@@ -141,16 +113,9 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
      *  uses the engine's own interval timer). */
     advanceTo(nowMs: number): void { this._engine.advanceTo(nowMs); }
 
-    /** Passive EQ logger state for the recorder's eqEngineState startup contributor. */
-    getEqEngineState(): EQState { return this._eqEngine.getState(); }
-
     endExerciseSession(): void {
         if (this._activeExerciseId === undefined) { return; }
         this._engine.stop();
-        // Both implement SessionResettable; onSessionEnd is optional on the
-        // contract, so call only when the concrete logger defines it.
-        (this._eqEngine as SessionResettable).onSessionEnd?.();
-        (this._compileEmitter as SessionResettable).onSessionEnd?.();
         this._activeExerciseId = undefined;
     }
 
@@ -189,8 +154,5 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this.endExerciseSession();
         while (this._disposables.length > 0) { this._disposables.pop()?.dispose(); }
         this._engine.dispose();
-        this._eqEngine.dispose?.();
-        this._compileEmitter.dispose();
-        this._onDidCalculateEQ.dispose();
     }
 }

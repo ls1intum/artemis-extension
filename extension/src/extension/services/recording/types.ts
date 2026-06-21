@@ -5,65 +5,6 @@
  * Serialized as one JSON object per line in JSONL files.
  */
 
-// ── Recorded-event vocabulary ─────────────────────────────────────────
-// These trigger/intervention vocabularies are referenced by the recorded
-// `intervention` event (legacy, parse-only) and shared with the rest of the
-// recording schema. They were the last survivors of the deleted v1 telemetry
-// layer (PR 2c); the declarations now live here, fully self-contained, so the
-// viewer's sync-types.mjs can inline recording/types.ts without resolving any
-// '@extension/...' alias.
-
-/**
- * Active intervention levels (excludes 'none').
- */
-export const INTERVENTION_LEVELS = ['subtle', 'notification', 'proactive'] as const;
-export type InterventionLevel = typeof INTERVENTION_LEVELS[number];
-
-/**
- * Trigger types from Pu et al. 2025 [P11, Section 4, Figure 4]
- */
-export const TRIGGER_TYPES = ['execution-error', 'multiline-paste', 'idle', 'selection-maintained'] as const;
-export type TriggerType = typeof TRIGGER_TYPES[number];
-
-/**
- * Reason why an intervention was blocked (i.e. rawWanted=true but shouldIntervene=false).
- *
- * - 'cooldown'        — internal cooldown (notification/proactive only)
- * - 'warmup'          — Exercise hasn't reached the 5-minute warmup yet
- * - 'recent-progress' — Student made progress within the 2-minute grace period
- * - 'session-limit'   — Max interventions per session exceeded
- * - 'last-dismissed'  — Previous intervention was dismissed (non-proactive blocked)
- * - 'low-confidence'  — EQ above threshold but confidence gate is 'insufficient'
- */
-export const INTERVENTION_BLOCKED_REASONS = [
-    'cooldown',
-    'warmup',
-    'session-limit',
-    'low-confidence',
-    'recent-progress',
-    'last-dismissed',
-] as const;
-export type InterventionBlockedReason = typeof INTERVENTION_BLOCKED_REASONS[number];
-
-/**
- * Reason why an intervention was dismissed.
- *
- * - 'user-action'  — User explicitly clicked "Not now" / "Later"
- * - 'hidden'       — Hint was hidden implicitly (e.g. build succeeded, session ended)
- * - 'replaced'     — A newer intervention replaced the current one
- * - 'session-end'  — Session ended while intervention was pending
- */
-export const INTERVENTION_DISMISS_REASONS = ['user-action', 'hidden', 'replaced', 'session-end'] as const;
-export type InterventionDismissReason = typeof INTERVENTION_DISMISS_REASONS[number];
-
-/**
- * Reason a wanted intervention was suppressed without being delivered to the user.
- * Currently only one reason exists; left as a union so future suppression sources
- * (e.g. per-condition study mode) can extend it cleanly.
- */
-export const INTERVENTION_SUPPRESSION_REASONS = ['user-disabled'] as const;
-export type InterventionSuppressionReason = typeof INTERVENTION_SUPPRESSION_REASONS[number];
-
 // ── Serialization helpers ─────────────────────────────────────────────
 
 export interface SerializedRange {
@@ -123,7 +64,6 @@ export interface BuildResultEvent {
     /** Legacy: flat array of detailText strings for failed test feedbacks. Kept for backwards compat. */
     failedTests: string[];
     buildFailed: boolean;
-    buildErrorFamilies?: string[];
     // Scoping fields (added in Block F)
     exerciseId?: number;
     participationId?: number;
@@ -247,62 +187,6 @@ export interface IrisChatFeedbackEvent {
     timestamp: number;
     messageId: string;
     helpful: boolean;
-}
-
-export interface EqSnapshotEvent {
-    type: 'eqSnapshot';
-    timestamp: number;
-    eq: number;
-    confidence: 'sufficient' | 'insufficient';
-    source: 'save' | 'build' | 'trigger';
-    triggerType?: string;
-}
-
-export interface SerializedErrorSnapshot {
-    timestamp: number;
-    hasErrors: boolean;
-    errorFamilies: string[];
-    errorCount: number;
-}
-
-export interface EqEngineStateEvent {
-    type: 'eqEngineState';
-    timestamp: number;
-    snapshots: SerializedErrorSnapshot[];
-    currentEQ: number;
-    pairCount: number;
-    confidence: 'sufficient' | 'insufficient';
-}
-
-/**
- * Recorded intervention action. Recording-specific (the live decision side has
- * no 'action' concept). The trigger/blocked/dismiss/suppression vocabularies it
- * references are declared at the top of this file (formerly in the v1 telemetry layer).
- */
-export const INTERVENTION_RECORD_ACTIONS = ['shown', 'accepted', 'dismissed', 'blocked', 'suppressed'] as const;
-export type InterventionRecordAction = typeof INTERVENTION_RECORD_ACTIONS[number];
-
-export interface InterventionEvent {
-    type: 'intervention';
-    timestamp: number;
-    action: InterventionRecordAction;
-    level: InterventionLevel;
-    /** True for shown/accepted/dismissed/suppressed; false for blocked. */
-    shouldIntervene: boolean;
-    eq: number;
-    confidence: 'sufficient' | 'insufficient';
-    triggerType?: TriggerType;
-    /** Populated when action='blocked'. Identifies why the intervention was blocked. */
-    blockedReason?: InterventionBlockedReason;
-    /** Populated when action='suppressed'. Identifies the suppression source. */
-    suppressionReason?: InterventionSuppressionReason;
-    /** Populated when action='dismissed'. Identifies how the intervention was dismissed. */
-    dismissReason?: InterventionDismissReason;
-    /**
-     * Whether the EQ was above the severity threshold, regardless of confidence/guardrails.
-     * Populated when action='blocked' to explain the signal that was suppressed.
-     */
-    rawWanted?: boolean;
 }
 
 export interface ViewNavigationEvent {
@@ -614,9 +498,6 @@ export type RecordedEvent =
     | IrisChatMessageEvent
     | IrisChatSendAttemptEvent
     | IrisChatFeedbackEvent
-    | EqSnapshotEvent
-    | EqEngineStateEvent
-    | InterventionEvent
     | ViewNavigationEvent
     | PanelVisibilityEvent
     | ProblemStatementScrollEvent

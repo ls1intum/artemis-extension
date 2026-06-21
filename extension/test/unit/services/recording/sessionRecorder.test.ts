@@ -22,7 +22,6 @@ import { RecordingStorageWriter } from '@extension/services/recording/storageWri
 import type {
     ConfigurationChangeEvent,
     ConfigurationSnapshotEvent,
-    InterventionEvent,
     RecordedEvent,
     SubmissionEvent,
 } from '@extension/services/recording/types';
@@ -231,7 +230,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         // These must be dropped:
         recorder.recordIrisChatSent('should-not-appear');
         recorder.recordIrisChatReceived('also-not');
-        recorder.recordEqSnapshot(0.5, 'sufficient', 'save');
 
         // Let any queued lifecycle work drain.
         await new Promise(resolve => setTimeout(resolve, 20));
@@ -324,12 +322,10 @@ suite('SessionRecorder (Block AB+E)', () => {
         recorder.enable();
 
         const marker: RecordedEvent = {
-            type: 'eqEngineState',
+            type: 'panelVisibility',
             timestamp: 1234,
-            snapshots: [],
-            currentEQ: 0.42,
-            pairCount: 5,
-            confidence: 'sufficient',
+            panel: 'artemis',
+            visible: true,
         };
 
         recorder.registerStartupContributor(() => [marker]);
@@ -342,7 +338,7 @@ suite('SessionRecorder (Block AB+E)', () => {
 
         const startIdx = types.indexOf('sessionStart');
         const completeIdx = types.indexOf('startupPhaseComplete');
-        const markerIdx = events.findIndex(e => e.type === 'eqEngineState' && (e as { currentEQ: number }).currentEQ === 0.42);
+        const markerIdx = events.findIndex(e => e.type === 'panelVisibility' && (e as { panel: string }).panel === 'artemis');
 
         assert.ok(startIdx >= 0);
         assert.ok(completeIdx > startIdx);
@@ -425,7 +421,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         const beforeLength = collectWrittenEvents(fs).length;
 
         recorder.recordIrisChatSent('ghost');
-        recorder.recordEqSnapshot(0.1, 'sufficient', 'save');
 
         const afterLength = collectWrittenEvents(fs).length;
 
@@ -918,28 +913,7 @@ suite('SessionRecorder (Block AB+E)', () => {
     });
 });
 
-suite('SessionRecorder — intervention suppression and configuration provenance', () => {
-    test('recordIntervention with suppressed action persists suppressionReason', async () => {
-        const { recorder, fs } = makeRecorder();
-        recorder.enable();
-        await recorder.startSession(42);
-        recorder.recordIntervention(
-            'suppressed', 'notification', true, 0.55, 'sufficient', 'execution-error',
-            { suppressionReason: 'user-disabled', rawWanted: true },
-        );
-        await recorder.endSession();
-        const events = collectWrittenEvents(fs);
-        const intervention = events.find(e => e.type === 'intervention') as InterventionEvent | undefined;
-        assert.ok(intervention, 'intervention event missing');
-        assert.strictEqual(intervention!.action, 'suppressed');
-        assert.strictEqual(intervention!.shouldIntervene, true);
-        assert.strictEqual(intervention!.suppressionReason, 'user-disabled');
-        assert.strictEqual(intervention!.rawWanted, true);
-        assert.strictEqual(intervention!.level, 'notification');
-        assert.strictEqual(intervention!.triggerType, 'execution-error');
-        try { await recorder.shutdown(); } catch { /* ignore */ }
-    });
-
+suite('SessionRecorder — configuration provenance', () => {
     test('recordConfigurationSnapshot persists both keys', async () => {
         const { recorder, fs } = makeRecorder();
         recorder.enable();
