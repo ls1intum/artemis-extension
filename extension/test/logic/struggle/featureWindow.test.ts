@@ -29,16 +29,6 @@ describe('FeatureWindowTracker (Python compute_features core port)', () => {
         expect(w.computeAt(120).nOneCharInserts).toBe(2);
     });
 
-    it('n4 ratio uses +0.5 smoothing on raw counts in the window', () => {
-        const w = new FeatureWindowTracker();
-        for (let i = 0; i < 7; i++) { w.ingestScroll(3 + i); }
-        const f = w.computeAt(10);
-        expect(f.scrollEvents).toBe(7);
-        expect(f.n4Ratio).toBeCloseTo((7 + 0.5) / (0 + 0.5), 12);       // 15
-        expect(f.n4State).toBe(true);
-        expect(f.fN4).toBe(1);                                          // clip(15/10)=1
-    });
-
     it('longest gap with edits: max diff over [w0, tc..., t]', () => {
         const w = new FeatureWindowTracker();
         w.ingestTextChange(12, 0);    // textChange event without 1-char insert still counts for gaps
@@ -70,14 +60,14 @@ describe('FeatureWindowTracker (Python compute_features core port)', () => {
     });
 });
 
-describe('severityFrom (spec §1 formula)', () => {
-    it('combines the core mean with capped bonuses', () => {
-        const s = severityFrom({ fTyping: 0.6, fGap: 0.3, fN4: 0.0 }, { fFb: 1, fA8: 1, fN2: 1 });
-        expect(s.sBase).toBeCloseTo(0.3, 12);
-        expect(s.s).toBeCloseTo(Math.min(1, 0.3 + 0.25 + 0.15 + 0.10), 12);
+describe('severityFrom (spec §1 formula, v3 2-feature mean)', () => {
+    it('combines the 2-feature core mean with capped bonuses', () => {
+        const s = severityFrom({ fTyping: 0.6, fGap: 0.3 }, { fFb: 1, fA8: 1, fN2: 1 });
+        expect(s.sBase).toBeCloseTo(0.45, 12);                          // (0.6 + 0.3) / 2
+        expect(s.s).toBeCloseTo(Math.min(1, 0.45 + 0.25 + 0.15 + 0.10), 12);
     });
     it('caps S at 1', () => {
-        const s = severityFrom({ fTyping: 1, fGap: 1, fN4: 1 }, { fFb: 1, fA8: 0, fN2: 0 });
+        const s = severityFrom({ fTyping: 1, fGap: 1 }, { fFb: 1, fA8: 0, fN2: 0 });
         expect(s.s).toBe(1);
     });
 });

@@ -1,10 +1,10 @@
 /**
- * Rolling-window core features (spec §0/§1): 1-char-insert rate, scroll/insert
- * ratio (N4), longest edit gap — computed at tick t over (t - eff, t] with
- * eff = max(10, min(60, t)). Port of compute_features (engine_v2.py).
+ * Rolling-window core features (spec §0/§1, v3 2-feature substrate): 1-char-insert
+ * rate and longest edit gap — computed at tick t over (t - eff, t] with
+ * eff = max(10, min(60, t)). Port of compute_features (engine_v2.py minus the
+ * dropped N4 scroll/insert-ratio feature).
  *
  * Inputs are session-relative seconds; ingestion in non-decreasing ts order.
- * Scroll events are the DEBOUNCED visibleRange stream (see Decision 5).
  */
 import { SPEC } from '@extension/services/struggle/constants';
 
@@ -22,15 +22,11 @@ function upperBound(arr: readonly number[], x: number): number {
 export interface WindowFeatures {
     readonly effectiveWindowS: number;
     readonly nOneCharInserts: number;
-    readonly scrollEvents: number;
     readonly typingRate: number;
-    readonly n4Ratio: number;
     readonly longestGapS: number;
     readonly fTyping: number;
     readonly fGap: number;
-    readonly fN4: number;
     readonly tsState: boolean;
-    readonly n4State: boolean;
 }
 
 const clip01 = (x: number): number => Math.min(1, Math.max(0, x));
@@ -38,7 +34,6 @@ const clip01 = (x: number): number => Math.min(1, Math.max(0, x));
 export class FeatureWindowTracker {
     private readonly _ins1: number[] = [];
     private readonly _tc: number[] = [];
-    private readonly _scroll: number[] = [];
 
     /** One textChange EVENT at ts with its count of 1-char inserts (rangeLength==0, text.length==1). */
     ingestTextChange(tsS: number, oneCharInserts: number): void {
@@ -48,19 +43,12 @@ export class FeatureWindowTracker {
         }
     }
 
-    /** One debounced scroll (visibleRange) event at ts. */
-    ingestScroll(tsS: number): void {
-        this._scroll.push(tsS);
-    }
-
     computeAt(tS: number): WindowFeatures {
         const eff = Math.max(SPEC.MIN_EFFECTIVE_WINDOW_S, Math.min(SPEC.WINDOW_S, tS));
         const w0 = tS - eff;
 
         const nIns1 = upperBound(this._ins1, tS) - upperBound(this._ins1, w0);
-        const nScroll = upperBound(this._scroll, tS) - upperBound(this._scroll, w0);
         const typingRate = 60 * nIns1 / eff;
-        const ratio = (nScroll + 0.5) / (nIns1 + 0.5);
 
         const lo = upperBound(this._tc, w0);
         const hi = upperBound(this._tc, tS);
@@ -81,21 +69,16 @@ export class FeatureWindowTracker {
         return {
             effectiveWindowS: eff,
             nOneCharInserts: nIns1,
-            scrollEvents: nScroll,
             typingRate,
-            n4Ratio: ratio,
             longestGapS: longestGap,
             fTyping: clip01(1 - typingRate / SPEC.TYPING_ANCHOR_PER_MIN),
             fGap: clip01(longestGap / SPEC.GAP_NORM_S),
-            fN4: clip01(ratio / SPEC.N4_RATIO_THRESH),
             tsState: typingRate < SPEC.TS_TYPING_THRESH_PER_MIN,
-            n4State: ratio >= SPEC.N4_RATIO_THRESH,
         };
     }
 
     reset(): void {
         this._ins1.length = 0;
         this._tc.length = 0;
-        this._scroll.length = 0;
     }
 }

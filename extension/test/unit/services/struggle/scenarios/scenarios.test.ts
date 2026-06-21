@@ -4,7 +4,7 @@ import * as assert from 'assert';
 import { runScenario } from './scenarioRunner';
 import { SCENARIOS } from './scenarios';
 
-suite('struggle engine v2 scenarios', () => {
+suite('struggle engine v3 scenarios', () => {
     for (const scenario of SCENARIOS) {
         test(`[${scenario.category}] ${scenario.id}`, () => {
             const { alerts, ticks } = runScenario(scenario);

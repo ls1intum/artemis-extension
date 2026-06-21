@@ -12,18 +12,14 @@ const MINIMAL_TICK = {
     t: 10,
     effectiveWindowS: 10,
     nOneCharInserts: 0,
-    scrollEvents: 0,
     typingRate: 5,
-    n4Ratio: 0,
     longestGapS: 0,
     fTyping: 0.75,
     fGap: 0,
-    fN4: 0,
     fFb: 0 as 0 | 1,
     fA8: 0 as 0 | 1,
     fN2: 0 as 0 | 1,
     tsState: false,
-    n4State: false,
     sBase: 0.1,
     s: 0.1,
     v: 0.05,
@@ -45,7 +41,7 @@ const MINIMAL_ALERT = {
 const MINIMAL_SESSION = {
     pid: 'P1',
     durationS: 600,
-    theta: 0.6,
+    theta: 0.7,
     graceS: 32.94,
     ticks: [MINIMAL_TICK],
     alerts: [MINIMAL_ALERT],
@@ -119,7 +115,7 @@ describe('parseGoldenSession', () => {
 // ── assertSpecConstants ───────────────────────────────────────────────────────
 
 describe('assertSpecConstants', () => {
-    it('passes for theta=0.6 and graceS=32.94', () => {
+    it('passes for theta=0.7 and graceS=32.94', () => {
         const session = parseGoldenSession(MINIMAL_SESSION);
         expect(() => assertSpecConstants(session)).not.toThrow();
     });
@@ -134,8 +130,8 @@ describe('assertSpecConstants', () => {
         expect(() => assertSpecConstants(session)).toThrow(/graceS/);
     });
 
-    it('confirms SPEC.THETA_FULL === 0.6', () => {
-        expect(SPEC.THETA_FULL).toBe(0.6);
+    it('confirms SPEC.THETA_FULL === 0.7', () => {
+        expect(SPEC.THETA_FULL).toBe(0.7);
     });
 
     it('confirms SPEC.GRACE_S === 32.94', () => {

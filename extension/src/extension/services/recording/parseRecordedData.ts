@@ -273,13 +273,13 @@ function parseStartupPhaseComplete(_d: Record<string, unknown>, timestamp: numbe
 
 function parseConfigurationSnapshot(d: Record<string, unknown>, timestamp: number): ConfigurationSnapshotEvent | null {
     if (!isBoolean(d.struggleDetectionEnabled) || !isBoolean(d.showInterventions)) { return null; }
-    if (d.engineVersion !== undefined && !isOneOf(d.engineVersion, ['v2'] as const)) { return null; }
+    if (d.engineVersion !== undefined && !isOneOf(d.engineVersion, ['v2', 'v3'] as const)) { return null; }
     return stripUndefined({
         type: 'configurationSnapshot' as const,
         timestamp,
         struggleDetectionEnabled: d.struggleDetectionEnabled,
         showInterventions: d.showInterventions,
-        engineVersion: d.engineVersion as 'v2' | undefined,
+        engineVersion: d.engineVersion as 'v2' | 'v3' | undefined,
     });
 }
 
@@ -607,14 +607,16 @@ function parseSubmission(d: Record<string, unknown>, timestamp: number): Submiss
 }
 
 function parseStruggleScore(d: Record<string, unknown>, timestamp: number): StruggleScoreEvent | null {
-    const nums = ['t', 's', 'v', 'fTyping', 'fGap', 'fN4', 'fFb', 'fA8', 'fN2', 'typingRate', 'longestGapS', 'n4Ratio'] as const;
+    // v3 2-feature schema: the v2 fN4/n4Ratio fields are no longer required and,
+    // if present in an old recording, are ignored (not copied to the output).
+    const nums = ['t', 's', 'v', 'fTyping', 'fGap', 'fFb', 'fA8', 'fN2', 'typingRate', 'longestGapS'] as const;
     for (const k of nums) { if (!isFiniteNumber(d[k])) { return null; } }
     return {
         type: 'struggleScore', timestamp,
         t: d.t as number, s: d.s as number, v: d.v as number,
-        fTyping: d.fTyping as number, fGap: d.fGap as number, fN4: d.fN4 as number,
+        fTyping: d.fTyping as number, fGap: d.fGap as number,
         fFb: d.fFb as number, fA8: d.fA8 as number, fN2: d.fN2 as number,
-        typingRate: d.typingRate as number, longestGapS: d.longestGapS as number, n4Ratio: d.n4Ratio as number,
+        typingRate: d.typingRate as number, longestGapS: d.longestGapS as number,
     };
 }
 

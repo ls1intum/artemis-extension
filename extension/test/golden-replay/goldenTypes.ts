@@ -7,18 +7,14 @@ export interface GoldenTick {
     readonly t: number;
     readonly effectiveWindowS: number;
     readonly nOneCharInserts: number;
-    readonly scrollEvents: number;
     readonly typingRate: number;
-    readonly n4Ratio: number;
     readonly longestGapS: number;
     readonly fTyping: number;
     readonly fGap: number;
-    readonly fN4: number;
     readonly fFb: 0 | 1;
     readonly fA8: 0 | 1;
     readonly fN2: 0 | 1;
     readonly tsState: boolean;
-    readonly n4State: boolean;
     readonly sBase: number;
     readonly s: number;
     readonly v: number;
@@ -121,18 +117,14 @@ function parseTick(raw: unknown, idx: number): GoldenTick {
         t: assertNumber(r['t'], `${prefix}.t`),
         effectiveWindowS: assertNumber(r['effectiveWindowS'], `${prefix}.effectiveWindowS`),
         nOneCharInserts: assertNumber(r['nOneCharInserts'], `${prefix}.nOneCharInserts`),
-        scrollEvents: assertNumber(r['scrollEvents'], `${prefix}.scrollEvents`),
         typingRate: assertNumber(r['typingRate'], `${prefix}.typingRate`),
-        n4Ratio: assertNumber(r['n4Ratio'], `${prefix}.n4Ratio`),
         longestGapS: assertNumber(r['longestGapS'], `${prefix}.longestGapS`),
         fTyping: assertNumber(r['fTyping'], `${prefix}.fTyping`),
         fGap: assertNumber(r['fGap'], `${prefix}.fGap`),
-        fN4: assertNumber(r['fN4'], `${prefix}.fN4`),
         fFb: assertBit(r['fFb'], `${prefix}.fFb`),
         fA8: assertBit(r['fA8'], `${prefix}.fA8`),
         fN2: assertBit(r['fN2'], `${prefix}.fN2`),
         tsState: assertBoolean(r['tsState'], `${prefix}.tsState`),
-        n4State: assertBoolean(r['n4State'], `${prefix}.n4State`),
         sBase: assertNumber(r['sBase'], `${prefix}.sBase`),
         s: assertNumber(r['s'], `${prefix}.s`),
         v: assertNumber(r['v'], `${prefix}.v`),

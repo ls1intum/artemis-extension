@@ -1,8 +1,8 @@
 // extension/test/unit/services/struggle/scenarios/scenarioRunner.ts
 /**
- * Scenario harness v2: drives the StruggleEngine end-to-end with synthetic
- * sensor events on a sinon-faked clock. Scenarios are typed TS data; every
- * event is anchored at a session-relative time in seconds.
+ * Scenario harness (Engine v3): drives the StruggleEngine end-to-end with
+ * synthetic sensor events on a sinon-faked clock. Scenarios are typed TS data;
+ * every event is anchored at a session-relative time in seconds.
  */
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
@@ -19,7 +19,6 @@ export type ScenarioEvent =
     | { at: number; type: 'terminalRun' }
     | { at: number; type: 'paste'; chars: number; lines: number; uri?: string }
     | { at: number; type: 'feedbackView'; action: 'opened' | 'closed'; viewId: string }
-    | { at: number; type: 'scroll'; count: number; overS: number; uri?: string }
     | { at: number; type: 'diagnostics'; errors: Array<{ line: number; code: string; message: string }>; uri?: string }
     | { at: number; type: 'selection'; line: number; uri?: string };
 
@@ -114,15 +113,6 @@ export function runScenario(scenario: Scenario): ScenarioResult {
                     atomic.push({ at: ev.at, fire: () => hub.emit.taskFeedbackView.fire({
                         ts: START + ev.at * 1000, action: ev.action, viewId: ev.viewId,
                     }) });
-                    break;
-                case 'scroll':
-                    for (let i = 0; i < ev.count; i++) {
-                        const at = ev.at + (i * ev.overS) / Math.max(1, ev.count - 1);
-                        atomic.push({ at, fire: () => hub.emit.visibleRanges.fire({
-                            ts: START + at * 1000,
-                            event: { textEditor: { document: { uri } } },
-                        } as never) });
-                    }
                     break;
                 case 'diagnostics': {
                     atomic.push({ at: ev.at, fire: () => {

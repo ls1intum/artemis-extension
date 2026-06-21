@@ -7,18 +7,14 @@ export interface FeatureVector {
     readonly t: number;
     readonly effectiveWindowS: number;
     readonly nOneCharInserts: number;
-    readonly scrollEvents: number;
     readonly typingRate: number;
-    readonly n4Ratio: number;
     readonly longestGapS: number;
     readonly fTyping: number;
     readonly fGap: number;
-    readonly fN4: number;
     readonly fFb: number;
     readonly fA8: number;
     readonly fN2: number;
     readonly tsState: boolean;
-    readonly n4State: boolean;
 }
 
 /** Outcome of one engine tick (input for the struggleScore recording in PR 2c). */

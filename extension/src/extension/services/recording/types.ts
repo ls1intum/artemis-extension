@@ -133,8 +133,9 @@ export interface ConfigurationSnapshotEvent {
     timestamp: number;
     struggleDetectionEnabled: boolean;
     showInterventions: boolean;
-    /** Decision engine version live at session start (Engine v2 from PR 2c). */
-    engineVersion?: 'v2';
+    /** Decision engine version live at session start ('v3' = current 2-feature
+     *  substrate; 'v2' retained for backward-compatible parsing of old recordings). */
+    engineVersion?: 'v2' | 'v3';
 }
 
 /**
@@ -442,11 +443,12 @@ export interface SubmissionEvent {
  */
 export type SubmissionPayload = Pick<SubmissionEvent, 'status' | 'participationId' | 'commitMessage' | 'failureReason'>;
 
-// ── Block L: Engine v2 score + alert events (schemaVersion 3) ────────
+// ── Block L: Engine score + alert events (schemaVersion 3) ────────
 /** Boundary types as recorded (mirror of services/struggle BoundaryType). */
 export type RecordedBoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE';
 
-/** Engine v2 per-tick score sample (every 10 s). */
+/** Engine per-tick score sample (every 10 s). v3 2-feature substrate: the v2
+ *  N4 (fN4/n4Ratio) fields were dropped. */
 export interface StruggleScoreEvent {
     type: 'struggleScore';
     timestamp: number;
@@ -456,16 +458,14 @@ export interface StruggleScoreEvent {
     v: number;
     fTyping: number;
     fGap: number;
-    fN4: number;
     fFb: number;
     fA8: number;
     fN2: number;
     typingRate: number;
     longestGapS: number;
-    n4Ratio: number;
 }
 
-/** Engine v2 emitted alert. */
+/** Engine emitted alert. */
 export interface AlertEvent {
     type: 'alert';
     timestamp: number;

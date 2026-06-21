@@ -1,6 +1,6 @@
 // extension/src/extension/services/struggle/struggleEngine.ts
 /**
- * Engine-v2 orchestrator (spec §0-§5): consumes ONLY the sensorHub, computes
+ * Engine-v3 orchestrator (spec §0-§5): consumes ONLY the sensorHub, computes
  * S/V/boundaries/gates/alerting on a strict 10-s grid (first tick at +10 s,
  * never at 0). One code path for live and replay (spec §5):
  *
@@ -12,7 +12,8 @@
  *
  * Sensor policy at intake mirrors the recorder (the frozen parameters were
  * derived on recorded streams): shouldRecordUri(uri, exerciseRoot) filtering;
- * selection/visibleRange trailing debounce (Decision 5).
+ * selection trailing debounce (Decision 5). v3 no longer consumes the editor
+ * visibleRange stream (the dropped N4 scroll feature).
  */
 import * as vscode from 'vscode';
 
@@ -22,7 +23,7 @@ import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 import { AlertStateMachine } from '@extension/services/struggle/alerting/alertStateMachine';
 import { BoundaryTracker } from '@extension/services/struggle/boundaries/boundaryTracker';
 import {
-    SELECTION_DEBOUNCE_MS, SPEC, VISIBLE_RANGE_DEBOUNCE_MS,
+    SELECTION_DEBOUNCE_MS, SPEC,
 } from '@extension/services/struggle/constants';
 import { FastDecayTracker, VTracker } from '@extension/services/struggle/dynamics/decay';
 import { TrailingDebouncer } from '@extension/services/struggle/intake/trailingDebouncer';
@@ -89,7 +90,6 @@ export class StruggleEngine implements vscode.Disposable {
     private _boundaries = new BoundaryTracker();
     private _machine = new AlertStateMachine();
     private _selectionDebounce: TrailingDebouncer<{ tsS: number; uriKey: string; endLine: number }> | undefined;
-    private _scrollDebounce: TrailingDebouncer<number> | undefined;
     /** Replay feeds already-debounced recorded streams (Decision 5). */
     private readonly _preDebounced: boolean;
     private readonly _opts: StruggleEngineOptions | undefined;
@@ -130,7 +130,6 @@ export class StruggleEngine implements vscode.Disposable {
     stop(): void {
         if (this._session !== undefined) {
             this._selectionDebounce?.flush();
-            this._scrollDebounce?.flush();
             this.advanceTo(this._clock.now());
         }
         this._teardown();
@@ -148,7 +147,6 @@ export class StruggleEngine implements vscode.Disposable {
             sub.dispose();
         }
         this._selectionDebounce?.dispose();
-        this._scrollDebounce?.dispose();
         this._session = undefined;
     }
 
@@ -191,9 +189,6 @@ export class StruggleEngine implements vscode.Disposable {
         const subs = this._subscriptions;
         this._selectionDebounce = new TrailingDebouncer(SELECTION_DEBOUNCE_MS, p => {
             this._enqueue(p.tsS, () => this._n2.ingestSelection(p.tsS, p.uriKey, p.endLine));
-        });
-        this._scrollDebounce = new TrailingDebouncer<number>(VISIBLE_RANGE_DEBOUNCE_MS, tsS => {
-            this._enqueue(tsS, () => this._features.ingestScroll(tsS));
         });
 
         subs.push(this._hub.onDidChangeTextDocument(signal => {
@@ -241,19 +236,6 @@ export class StruggleEngine implements vscode.Disposable {
                 this._enqueue(payload.tsS, () => this._n2.ingestSelection(payload.tsS, payload.uriKey, payload.endLine));
             } else {
                 this._selectionDebounce!.push(payload.uriKey, payload);
-            }
-        }));
-
-        subs.push(this._hub.onDidChangeTextEditorVisibleRanges(signal => {
-            const uri = signal.event.textEditor.document.uri;
-            if (!this._passesUriFilter(uri)) {
-                return;
-            }
-            const tsS = this._relS(signal.ts);
-            if (this._preDebounced) {
-                this._enqueue(tsS, () => this._features.ingestScroll(tsS));
-            } else {
-                this._scrollDebounce!.push(uri.toString(), tsS);
             }
         }));
 
@@ -338,7 +320,7 @@ export class StruggleEngine implements vscode.Disposable {
         const { sBase, s } = severityFrom(wf, { fFb, fA8, fN2 });
         const fast = this._fastDecay.activeAt(tS);
         const v = this._v.update(tS, s, fast);
-        const boundaries = this._boundaries.flagsAt(tS, wf.tsState, wf.n4State);
+        const boundaries = this._boundaries.flagsAt(tS, wf.tsState);
         const graceActive = this._lastFmBadS !== null
             && this._lastFmBadS <= tS
             && tS - this._lastFmBadS <= SPEC.GRACE_S;

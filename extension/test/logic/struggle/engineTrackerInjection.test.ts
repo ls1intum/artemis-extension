@@ -91,7 +91,7 @@ describe('StruggleEngine — injectable A8/N2 trackers', () => {
         expect(alerts[0].primary).toBe('STATE');
         expect(alerts[0].path).toBe('armed');
         const tick49 = ticks.find(t => t.t === 490)!;
-        expect(Math.abs(tick49.s - 0.7)).toBeLessThan(1e-9);
+        expect(Math.abs(tick49.s - 1.0)).toBeLessThan(1e-9);   // v3 2-feature idle: (1+1)/2
         // Default real trackers: an idle session never trips A8 or N2.
         for (const tick of ticks) {
             expect(tick.features.fA8).toBe(0);

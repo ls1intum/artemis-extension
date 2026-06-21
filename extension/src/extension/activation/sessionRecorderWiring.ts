@@ -92,9 +92,9 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     disposables.push(struggleCoordinator.onDidTick(tick => {
         sessionRecorder.recordStruggleScore({
             t: tick.t, s: tick.s, v: tick.v,
-            fTyping: tick.features.fTyping, fGap: tick.features.fGap, fN4: tick.features.fN4,
+            fTyping: tick.features.fTyping, fGap: tick.features.fGap,
             fFb: tick.features.fFb, fA8: tick.features.fA8, fN2: tick.features.fN2,
-            typingRate: tick.features.typingRate, longestGapS: tick.features.longestGapS, n4Ratio: tick.features.n4Ratio,
+            typingRate: tick.features.typingRate, longestGapS: tick.features.longestGapS,
         });
     }));
     disposables.push(struggleCoordinator.onDidAlert(alert => {
@@ -181,7 +181,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
             timestamp: ctx.timestamp,
             struggleDetectionEnabled: enabled,
             showInterventions,
-            engineVersion: 'v2',
+            engineVersion: 'v3',
         }];
     }));
 

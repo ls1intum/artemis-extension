@@ -58,9 +58,9 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         assert.deepStrictEqual(alerts.map(a => a.t), [490]);
         assert.strictEqual(alerts[0].primary, 'STATE');
         assert.strictEqual(alerts[0].path, 'armed');
-        // idle severity: fTyping=1, fGap=1, fN4=0.1 -> S = 0.7 >= theta
+        // idle severity (v3 2-feature): fTyping=1, fGap=1 -> S = (1+1)/2 = 1.0 >= theta(0.7)
         const tick49 = ticks.find(t => t.t === 490)!;
-        assert.ok(Math.abs(tick49.s - 0.7) < 1e-9);
+        assert.ok(Math.abs(tick49.s - 1.0) < 1e-9);
     });
 
     test('E6 re-alerts every 120 s while the idle state persists', () => {
@@ -166,7 +166,7 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         }
     });
 
-    test('stop() final drain: a due tick still consumes flushed debounced evidence', () => {
+    test('stop() final drain: a due tick still runs and consumes queued evidence', () => {
         engine.dispose();
         const clock = sinon.useFakeTimers({ now: START, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
         try {
@@ -179,53 +179,14 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
             engine.start({ sessionStartMs: START });
             engine.advanceTo(START + 60_000);                  // ticks 10..60 ran
             clock.tick(69_950);                                 // now = +69.95 s
-            const editor = { textEditor: { document: { uri: vscode.Uri.parse('file:///ws/Main.java') } } };
-            hub.emit.visibleRanges.fire({ ts: Date.now(), event: editor as never });
-            clock.tick(300);                                    // debouncer flushes at +70.25 s
+            const sig = fakeTextChange('file:///ws/Main.java', ['a'], 'x');
+            (sig as { ts: number }).ts = Date.now();           // +69.95 s, queued for tick 70
+            hub.emit.textChange.fire(sig as never);
+            clock.tick(300);                                    // now = +70.25 s
             engine.stop();                                      // tick 70 is DUE and must run
             const t70 = seen.find(t => t.t === 70);
             assert.ok(t70, 'tick 70 must run during the final drain');
-            assert.strictEqual(t70!.features.scrollEvents, 1);
-        } finally {
-            clock.restore();
-            engine.dispose();
-        }
-    });
-
-    test('preDebouncedIntake bypasses the debouncers (replay mode, Decision 5)', () => {
-        engine.dispose();
-        hub = new TestSensorHub();
-        engine = new StruggleEngine(hub, undefined, { preDebouncedIntake: true });
-        const seen: TickRecord[] = [];
-        engine.onDidTick(t => seen.push(t));
-        engine.start({ sessionStartMs: START });
-        const editor = { textEditor: { document: { uri: vscode.Uri.parse('file:///ws/Main.java') } } };
-        for (let i = 0; i < 3; i++) {
-            hub.emit.visibleRanges.fire({ ts: START + 2_000 + i * 100, event: editor as never });
-        }
-        engine.advanceTo(START + 10_000);
-        assert.strictEqual(seen[0].features.scrollEvents, 3);   // every recorded event counts
-    });
-
-    test('debounced scroll: a raw visibleRange burst counts once (recorder parity)', () => {
-        engine.dispose();
-        const clock = sinon.useFakeTimers({ now: START, toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'Date'] });
-        try {
-            hub = new TestSensorHub();
-            engine = new StruggleEngine(hub);
-            const seen: TickRecord[] = [];
-            engine.onDidTick(t => seen.push(t));
-            engine.start({ sessionStartMs: START });
-            const editor = {
-                textEditor: { document: { uri: vscode.Uri.parse('file:///ws/Main.java') } },
-            };
-            for (let i = 0; i < 5; i++) {
-                clock.tick(50);
-                hub.emit.visibleRanges.fire({ ts: Date.now(), event: editor as never });
-            }
-            clock.tick(10_000);
-            const t10 = seen.find(t => t.t === 10)!;
-            assert.strictEqual(t10.features.scrollEvents, 1);
+            assert.strictEqual(t70!.features.nOneCharInserts, 1);
         } finally {
             clock.restore();
             engine.dispose();

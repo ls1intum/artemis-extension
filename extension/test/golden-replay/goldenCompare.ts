@@ -69,13 +69,10 @@ function compareTickFields(
     const numericFields: Array<{ field: string; replay: number; golden: number }> = [
         { field: 'effectiveWindowS', replay: rt.features.effectiveWindowS, golden: gt.effectiveWindowS },
         { field: 'nOneCharInserts', replay: rt.features.nOneCharInserts, golden: gt.nOneCharInserts },
-        { field: 'scrollEvents', replay: rt.features.scrollEvents, golden: gt.scrollEvents },
         { field: 'typingRate', replay: rt.features.typingRate, golden: gt.typingRate },
-        { field: 'n4Ratio', replay: rt.features.n4Ratio, golden: gt.n4Ratio },
         { field: 'longestGapS', replay: rt.features.longestGapS, golden: gt.longestGapS },
         { field: 'fTyping', replay: rt.features.fTyping, golden: gt.fTyping },
         { field: 'fGap', replay: rt.features.fGap, golden: gt.fGap },
-        { field: 'fN4', replay: rt.features.fN4, golden: gt.fN4 },
         { field: 'fFb', replay: rt.features.fFb, golden: gt.fFb },
         { field: 'fA8', replay: rt.features.fA8, golden: gt.fA8 },
         { field: 'fN2', replay: rt.features.fN2, golden: gt.fN2 },
@@ -107,18 +104,6 @@ function compareTickFields(
             replay: rt.features.tsState,
             golden: gt.tsState,
             message: `tick[${index}] t=${t}: field "tsState" diverged (replay=${rt.features.tsState}, golden=${gt.tsState})`,
-        };
-    }
-
-    if (rt.features.n4State !== gt.n4State) {
-        return {
-            kind: 'tickField',
-            t,
-            index,
-            field: 'n4State',
-            replay: rt.features.n4State,
-            golden: gt.n4State,
-            message: `tick[${index}] t=${t}: field "n4State" diverged (replay=${rt.features.n4State}, golden=${gt.n4State})`,
         };
     }
 

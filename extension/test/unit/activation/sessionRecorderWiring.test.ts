@@ -188,18 +188,14 @@ function makeTick(overrides: Partial<TickRecord> = {}): TickRecord {
             t: 10,
             effectiveWindowS: 10,
             nOneCharInserts: 0,
-            scrollEvents: 0,
             typingRate: 12,
-            n4Ratio: 1.5,
             longestGapS: 8,
             fTyping: 0.4,
             fGap: 0.2,
-            fN4: 0.15,
             fFb: 0,
             fA8: 0,
             fN2: 0,
             tsState: false,
-            n4State: false,
         },
         sBase: 0.3,
         s: 0.35,
@@ -360,7 +356,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         sandbox.restore();
     });
 
-    test('configurationSnapshot is emitted at startup with engineVersion v2', async () => {
+    test('configurationSnapshot is emitted at startup with engineVersion v3', async () => {
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: false, developerMode: false });
         try {
             await harness.recorder.startSession(42);
@@ -371,7 +367,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             assert.ok(snap, 'configurationSnapshot missing — startup contributor not registered?');
             assert.strictEqual(snap!.struggleDetectionEnabled, true);
             assert.strictEqual(snap!.showInterventions, false);
-            assert.strictEqual(snap!.engineVersion, 'v2');
+            assert.strictEqual(snap!.engineVersion, 'v3');
         } finally {
             await harness.dispose();
         }
@@ -573,8 +569,8 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             sinon.assert.calledOnce(stub);
             sinon.assert.calledWithExactly(stub, {
                 t: 10, s: 0.35, v: 0.42,
-                fTyping: 0.4, fGap: 0.2, fN4: 0.15, fFb: 0, fA8: 0, fN2: 0,
-                typingRate: 12, longestGapS: 8, n4Ratio: 1.5,
+                fTyping: 0.4, fGap: 0.2, fFb: 0, fA8: 0, fN2: 0,
+                typingRate: 12, longestGapS: 8,
             });
         } finally {
             await harness.dispose();
@@ -607,7 +603,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             harness.coordinator.fireAlert(makeAlert());
             sinon.assert.calledOnceWithExactly(stub, {
                 t: 30, v: 0.7, types: ['FM'], primary: 'FM',
-                path: 'armed', inWarmup: false, inGrace: false, theta: 0.6,
+                path: 'armed', inWarmup: false, inGrace: false, theta: 0.7,
             });
         } finally {
             await harness.dispose();
@@ -628,7 +624,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             assert.strictEqual(alert!.primary, 'E4');
             assert.deepStrictEqual(alert!.types, ['E4', 'N1']);
             assert.strictEqual(alert!.path, 'e6');
-            assert.strictEqual(alert!.theta, 0.6);
+            assert.strictEqual(alert!.theta, 0.7);
         } finally {
             await harness.dispose();
         }

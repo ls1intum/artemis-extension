@@ -2,9 +2,10 @@
 /**
  * Boundary bookkeeping (spec §3): FM/FM+/E4/N1 events are assigned to the
  * FIRST tick >= event time and evaluated exactly once there; the STATE
- * boundary has interval semantics (pending at every tick with an active TS/N4
+ * boundary has interval semantics (pending at every tick with an active TS
  * state after warmup — this realizes the "synthetic warmup entry" without an
- * exit/re-entry). Port of assign_to_ticks / build_boundaries (engine_v2.py).
+ * exit/re-entry). Port of assign_to_ticks / build_boundaries (engine_v2.py,
+ * v3 drops the N4-state arm).
  *
  * Incremental contract: ingest() in non-decreasing tick consumption order —
  * flagsAt(t) consumes every buffered event with ts <= t and must be called
@@ -68,7 +69,7 @@ export class BoundaryTracker {
      * Boundary types pending at tick t, in BOUNDARY_PRIORITY order. Consumes
      * every buffered event with ts <= t (exactly-once tick assignment).
      */
-    flagsAt(tS: number, tsState: boolean, n4State: boolean, warmupS: number = SPEC.WARMUP_S): BoundaryType[] {
+    flagsAt(tS: number, tsState: boolean, warmupS: number = SPEC.WARMUP_S): BoundaryType[] {
         const present = new Set<BoundaryType>();
         for (const [type, buffer] of this._buffers) {
             let consumed = 0;
@@ -80,7 +81,7 @@ export class BoundaryTracker {
                 buffer.splice(0, consumed);
             }
         }
-        if ((tsState || n4State) && tS > warmupS) {
+        if (tsState && tS > warmupS) {
             present.add('STATE');
         }
         return BOUNDARY_PRIORITY.filter(k => present.has(k));

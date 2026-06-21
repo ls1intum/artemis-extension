@@ -1,9 +1,11 @@
 // extension/src/extension/services/struggle/constants.ts
 /**
- * Frozen Engine-v2 parameters (ENGINE_V2_SPEC.md Rev 3.1; derived_params.json
- * v2_spec_constants, frozen 2026-06-12 on the derivation set P2/P4/P5/P6/P8/P10).
- * NOTHING here may be re-tuned — the held-out evaluation (episode F1 0.42 vs
- * 0.00 for v1) is only valid for exactly these values.
+ * Frozen Engine-v3 parameters: the 2-feature core substrate (feature_set =
+ * ['typing', 'gap']). Derived from ENGINE_V2_SPEC.md Rev 3.1 / derived_params.json
+ * on the derivation set P2/P4/P5/P6/P8/P10. v3 drops the v2 N4 (scroll/insert
+ * ratio) feature, so the equal-weighted core mean is a /2 average and theta_full
+ * rises 0.6 -> 0.7. NOTHING here may be re-tuned — the held-out evaluation is
+ * only valid for exactly these values.
  *
  * Evidence tags ([D] own study data, [L] literature, [D+L] both, ENG declared
  * engineering choice) follow the spec.
@@ -19,8 +21,6 @@ export const SPEC = {
     TYPING_ANCHOR_PER_MIN: 20,
     /** f_gap = clip(gap/40, 0, 1). [D+L] (F2 rho=+0.37 6/6); constant 40 ENG */
     GAP_NORM_S: 40,
-    /** f_n4 = clip(ratio/10, 0, 1); N4 state at ratio >= 10. Feature/sign [D] (F2 rho=+0.35 6/6; beats A10 6/6). Value 10 + the /10 divisor ENG: a-priori Task-Vorgabe, D4 only confirmed it (recall 0.52, no sweep), did not produce it; same 10 serves as state-threshold AND severity-norm divisor, D4 validated only the binary use. */
-    N4_RATIO_THRESH: 10,
     /** TS state: typing_rate < 5/min. Signal [D] (A5 rho -0.37, 6/6); value 5 = ENG (closest ABS grid budget to REL-z's 26 among coarse label-free grid {5,10,15,20}, but a poor match: 57 vs 26, ~2.2x overshoot; no grid point truly matches). D4 in-sample: recall 0.74 with precision 0.29-0.73, ~8-10 alerts/h */
     TS_TYPING_THRESH_PER_MIN: 5,
     /** A8 region persistence: >= 80 % of changes of the last 5 min in one method, >= 30 changes. [D] weak (F1 enrichment 1.10, CI [0.89,1.35] crosses 1, 5/6 TN; lead NEGATIVE -197.9 s = flags ongoing, not incipient; loose collapses to 0.98). 300/30/0.8 hand-set, no sweep. [L] dropped: no paper defines this same-method edit-persistence construct (Jadud=compilation pairs, Watson=error-resolution-time); conceptual analogy only, parameters not from literature. */
@@ -51,8 +51,13 @@ export const SPEC = {
     REALERT_S: 120, // = COOLDOWN_S
     /** B4 grace after a bad-build result; suppresses FOLLOWING non-FM boundaries only. [D+L]: gate concept [L] (Assistance Dilemma, Koedinger & Aleven 2007, Dong 2021 - pause before intervening); value 32.94 = F3 median [D], low-confidence (median of n=5 per-TN medians, spread 6.2-77.1 s, LOO 22.35-38.08 s, pooled 15.1 s) */
     GRACE_S: 32.94,
-    /** theta_full, grid-argmax over episode-F1 {0.5, 0.6, 0.7} on the derivation set (median F1 0.4396 vs 0.5->0.4279 / 0.7->0.4037). [D] but margin-fragile: 0.6-vs-0.5 only 0.0117 over n=6, pooled F1 tied 0.44 across all three theta; held-out run tests 0.6 only. Coarse grid. */
-    THETA_FULL: 0.6,
+    /** theta_full for the v3 2-feature substrate (typing+gap), frozen at 0.7
+     *  (derived_params.json v3). Dropping the N4 feature makes the equal-weighted
+     *  core mean a /2 (not /3) average, lifting the score band, so the episode-F1
+     *  optimal threshold shifts up from the v2 3-feature value of 0.6. [D]
+     *  grid-argmax over {0.5,0.6,0.7}; coarse grid, margin-fragile (the v2 spread
+     *  was within 0.012 over n=6). */
+    THETA_FULL: 0.7,
     /** FM bad deltas (failed_count > 0). Definitional taxonomy: the deterministic
      * complement of {improved} among failed builds (no sub-label discrimination ran).
      * [L] Pu 2025 (build-feedback as intervention point, exec-error 67%/0%); [D] only as
@@ -67,11 +72,10 @@ export const BOUNDARY_PRIORITY = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const
 export type BoundaryType = typeof BOUNDARY_PRIORITY[number];
 
 /**
- * Intake debounces mirroring the recorder (ObservationRegistry.SELECTION_DEBOUNCE_MS /
- * VISIBLE_RANGE_DEBOUNCE_MS): the frozen feature derivations ran on the recorder's
- * debounced streams, so the live engine must see the same stream shape. struggle/
- * must not import recording/ (clean bundle), hence the duplicated values; a unit
- * parity test asserts equality (test/unit/services/struggle/debounceParity.test.ts).
+ * Intake debounce mirroring the recorder (ObservationRegistry.SELECTION_DEBOUNCE_MS):
+ * the frozen feature derivations ran on the recorder's debounced selection stream,
+ * so the live engine must see the same stream shape. struggle/ must not import
+ * recording/ (clean bundle), hence the duplicated value; a unit parity test asserts
+ * equality (test/unit/services/struggle/debounceParity.test.ts).
  */
 export const SELECTION_DEBOUNCE_MS = 200;
-export const VISIBLE_RANGE_DEBOUNCE_MS = 300;
