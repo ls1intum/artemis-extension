@@ -54,4 +54,16 @@ describe('verify-clean-bundle', () => {
         ]);
         expect(forbiddenInputs(f)).toHaveLength(2);
     });
+
+    it('is fail-closed: flags unlisted telemetry-subtree files, allows only types.ts', () => {
+        const f = metaWith([
+            'src/extension/services/telemetry/uriFilter.ts', // recorder util, never explicitly listed
+            'src/extension/services/telemetry/someNewFile.ts', // any future addition
+            'src/extension/services/telemetry/types.ts', // allowlisted exception
+        ]);
+        expect(forbiddenInputs(f)).toEqual([
+            'src/extension/services/telemetry/uriFilter.ts',
+            'src/extension/services/telemetry/someNewFile.ts',
+        ]);
+    });
 });
