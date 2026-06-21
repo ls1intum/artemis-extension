@@ -89,7 +89,7 @@ export default [{
                 ['^\\u0000'],
                 ['^vscode$', '^node:', '^@(?!extension(?:/|$)|webview(?:/|$)|shared(?:/|$)|test(?:/|$)|root(?:/|$))', '^[a-z]'],
                 ['^@shared(/|$)'],
-                ['^@(extension|webview|test|root)(/|$)'],
+                ['^@(extension|webview|test|root)(/|$)', '^@(struggleView|dataCollection|telemetry)$'],
                 ['^\\.'],
             ],
         }],

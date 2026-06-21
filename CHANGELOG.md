@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Changed
+
+- **Open VSX Build**: The Open VSX (EduIDE/Theia cloud) distribution now also excludes the struggle-detection engine and its webview UI via fail-closed build seams (on top of the existing recorder/consent exclusion) and ships cloud-tailored setting defaults.
+
 ### Fixed
 
 - **Local Dev Server Preset**: The "Local Development" server option now targets `localhost:8080` (the Artemis server) instead of `localhost:9000`.

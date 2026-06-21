@@ -24,14 +24,34 @@ describe('verify-clean-bundle', () => {
             'src/extension/services/auth/consentService.ts',
             'src/extension/services/telemetry/metrics/errorQuotientEngine.ts',
         ]);
-        expect(forbiddenInputs(f)).toHaveLength(2);
+        expect(forbiddenInputs(f)).toHaveLength(3);
     });
 
     it('passes a clean input set', () => {
         const f = metaWith([
-            'src/extension/services/telemetry/metrics/errorQuotientEngine.ts',
+            'src/extension/services/telemetry/types.ts',
             'src/extension/dataCollection/noop.ts',
         ]);
         expect(forbiddenInputs(f)).toEqual([]);
+    });
+
+    it('flags the struggle engine entry points', () => {
+        const f = metaWith([
+            'src/extension/services/telemetry/telemetryManager.ts',
+            'src/extension/services/telemetry/decision/interventionDecisionEngine.ts',
+            'src/extension/services/telemetry/eventPipeline/boundaryTriggerEmitter.ts',
+            'src/extension/services/telemetry/types.ts', // allowed
+        ]);
+        expect(forbiddenInputs(f)).toHaveLength(3);
+    });
+
+    it('flags the struggle-detection webview view files', () => {
+        const f = metaWith([
+            'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',
+            'src/webview/views/StruggleDetection/StruggleDetectionView.module.css',
+            'src/webview/views/StruggleDetection/stub.tsx', // allowed
+            'src/webview/views/StruggleDetection/types.ts', // allowed
+        ]);
+        expect(forbiddenInputs(f)).toHaveLength(2);
     });
 });

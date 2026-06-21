@@ -1,4 +1,4 @@
-// Fail-closed proof that the Open VSX bundle excludes recorder/consent/replay.
+// Fail-closed proof that the Open VSX bundle excludes recorder/consent/replay/struggle-engine.
 // Reads the variant metafiles and asserts no forbidden input path is present.
 const fs = require('fs');
 const path = require('path');
@@ -8,6 +8,23 @@ const FORBIDDEN = [
     'src/extension/services/telemetry/replay/',
     'src/extension/services/auth/consentService.ts',
     'src/extension/activation/sessionRecorderWiring.ts',
+    // Struggle-detection webview view — excluded from the clean webview build via @struggleView alias.
+    // stub.tsx, types.ts, and index.ts are NOT forbidden (stub is the alias target in openvsx).
+    'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',
+    'src/webview/views/StruggleDetection/StruggleDetectionView.module.css',
+    // Struggle-detection engine — excluded from the clean build via @telemetry/noop.
+    'src/extension/services/telemetry/telemetryManager.ts',
+    'src/extension/services/telemetry/metrics/',
+    'src/extension/services/telemetry/eventPipeline/',
+    'src/extension/services/telemetry/decision/',
+    'src/extension/services/telemetry/intervention/',
+    'src/extension/services/telemetry/interventionService.ts',
+    'src/extension/services/telemetry/interventionFilter.ts',
+    'src/extension/services/telemetry/buildResultTracker.ts',
+    'src/extension/services/telemetry/inactivityService.ts',
+    'src/extension/services/telemetry/diagnosticPersistenceService.ts',
+    'src/extension/services/telemetry/debugDashboard.ts',
+    'src/extension/services/telemetry/buildResultGuard.ts',
 ];
 
 function forbiddenInputs(metafilePath) {
@@ -28,7 +45,7 @@ function main() {
         console.error('FAIL: forbidden inputs in clean bundle:\n' + hits.join('\n'));
         process.exit(1);
     }
-    console.log('OK: clean bundle contains no recorder/consent/replay inputs');
+    console.log('OK: clean bundle contains no recorder/consent/replay, struggle-engine, or struggle-view inputs');
 }
 
 module.exports = { forbiddenInputs, FORBIDDEN };

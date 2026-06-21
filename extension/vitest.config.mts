@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
 	plugins: [react()],
+	// Build-time constants injected by esbuild's `define` in the real build
+	// (esbuild.js). Mirror them here so webview components that reference them
+	// (App.tsx, DashboardView.tsx, StruggleDetectionView.tsx) run under vitest.
+	// Tests exercise full-build behaviour, so both are true.
+	define: {
+		__IRIS_RECORDING__: 'true',
+		__IRIS_TELEMETRY__: 'true',
+	},
 	resolve: {
 		alias: {
 			// Stub the vscode module for tests that import extension-host code
@@ -14,6 +22,7 @@ export default defineConfig({
 			'@shared': new URL('./src/shared', import.meta.url).pathname,
 			'@test': new URL('./test', import.meta.url).pathname,
 			'@root/package.json': new URL('./package.json', import.meta.url).pathname,
+			'@struggleView': new URL('./src/webview/views/StruggleDetection/index.ts', import.meta.url).pathname,
 		},
 	},
 	test: {
