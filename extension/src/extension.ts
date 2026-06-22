@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { wireDataCollection } from '@dataCollection';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import { ArtemisApiService } from '@extension/api';
@@ -10,7 +9,7 @@ import { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { TelemetryManager } from '@extension/services/telemetry';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
@@ -24,9 +23,11 @@ import {
     initializeTheiaContext,
 } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils';
+import { wireDataCollection } from '@dataCollection';
+import { createTelemetryManager } from '@telemetry';
 
 // Module-level references for deactivate() cleanup
-let activeTelemetryManager: TelemetryManager | undefined;
+let activeTelemetryManager: ITelemetryManager | undefined;
 let activeDataCollection: DataCollectionHandle | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -63,7 +64,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const exerciseRegistry = new ExerciseRegistry();
-	const telemetryManager = new TelemetryManager(exerciseRegistry);
+	const telemetryManager = createTelemetryManager(exerciseRegistry);
 	activeTelemetryManager = telemetryManager;
 	telemetryManager.setWebsocketService(artemisWebsocketService);
 

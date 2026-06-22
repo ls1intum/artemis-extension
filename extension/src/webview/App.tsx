@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import type { VsCodeApi } from '@shared/messageContracts';
 import { WebviewMsgType } from '@shared/messageContracts';
 
+import { StruggleDetectionView } from '@struggleView';
+
 import styles from './App.module.css';
 import { AiConfigView } from './views/AiConfig';
 import { CourseDetailView } from './views/CourseDetail';
@@ -14,7 +16,6 @@ import { IrisChatView } from './views/IrisChat';
 import { LoginView } from './views/Login';
 import { RecommendedExtensionsView } from './views/RecommendedExtensions';
 import { ServiceStatusView } from './views/ServiceStatus';
-import { StruggleDetectionView } from './views/StruggleDetection';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -55,7 +56,9 @@ export function App({ vscodeApi }: AppProps) {
 			case 'aiConfig':
 				return <AiConfigView vscodeApi={vscodeApi} />;
 			case 'struggleDetection':
-				return <StruggleDetectionView vscodeApi={vscodeApi} />;
+				return __IRIS_TELEMETRY__
+					? <StruggleDetectionView vscodeApi={vscodeApi} />
+					: <div>Unknown view: {viewName}</div>;
 			default:
 				return <div>Unknown view: {viewName}</div>;
 		}

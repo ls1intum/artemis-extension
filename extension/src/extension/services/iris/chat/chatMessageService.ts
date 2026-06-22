@@ -5,7 +5,7 @@ import { ExtensionMsg } from '@shared/messageContracts';
 import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { StruggleContext } from '@extension/services/telemetry';
+import type { StruggleContext } from '@extension/services/telemetry';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
 import { ActiveContext } from '@extension/types';

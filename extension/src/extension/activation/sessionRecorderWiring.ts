@@ -4,7 +4,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { SessionRecorder } from '@extension/services/telemetry/recording';
 import {
     RecordingStatusBarService as RecordingStatusBarServiceImpl,
@@ -22,7 +22,7 @@ interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
     consentService: ConsentService;
     artemisWebsocketService: ArtemisWebsocketService;
-    telemetryManager: TelemetryManager;
+    telemetryManager: ITelemetryManager;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
