@@ -32,7 +32,7 @@ import type {
 /**
  * The single place that reads VS Code APIs for behavioral sensing.
  *
- * Every consumer (session recorder, EQ logger, struggle engine) attaches to
+ * Every consumer (session recorder, struggle engine) attaches to
  * these typed channels instead of subscribing to `vscode.*` itself, and uses
  * the read* methods instead of global state reads. Policy (phase gates,
  * URI filters, debouncing, consent) lives in the consumers, NOT here.

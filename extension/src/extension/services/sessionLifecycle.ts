@@ -1,5 +1,5 @@
 /**
- * Session-lifecycle contracts shared across services (EQ logger, struggle
+ * Session-lifecycle contracts shared across services (session recorder, struggle
  * coordinator). Neutral home so no service depends on another just for these
  * types. Moved out of the former v1 telemetry layer in PR 2c as it was deleted.
  */

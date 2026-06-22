@@ -2,9 +2,9 @@ import { defineConfig } from '@vscode/test-cli';
 
 export default defineConfig([
 	{
-		// Unit tests (default). Includes the passive-EQ logger tests
-		// (out/test/unit/services/eq/**) and the Engine v2 struggle tests
-		// (out/test/unit/services/struggle/**); the former v1 'struggle' label
+		// Unit tests (default). Runs everything under out/test/unit/**
+		// (including the struggle-engine tests under
+		// out/test/unit/services/struggle/**); the former v1 'struggle' label
 		// was retired with the v1 decision path in PR 2c.
 		label: 'unit',
 		files: 'out/test/unit/**/*.test.js',

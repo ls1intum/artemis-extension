@@ -215,7 +215,7 @@ export class SessionRecorder implements WebSocketMessageHandler {
         );
     }
 
-    // ── Public recording methods for chat / view / EQ / lifecycle events ──
+    // ── Public recording methods for chat / view / lifecycle events ──
     //
     // The public `record*` wrappers below are thin shells around `_record`,
     // which centralises the phase check, the timestamp, the generation capture,
@@ -233,7 +233,7 @@ export class SessionRecorder implements WebSocketMessageHandler {
      *
      * `RecordedEventWithoutTimestamp` is a *distributive* omit — the built-in
      * `Omit<RecordedEvent, 'timestamp'>` collapses the discriminated union and
-     * drops per-variant fields like `action`, `eq`, `panel`, etc.
+     * drops per-variant fields like `action`, `panel`, etc.
      */
     private _record(event: RecordedEventWithoutTimestamp): void {
         if (this._phase !== 'recording') {

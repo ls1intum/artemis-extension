@@ -27,7 +27,7 @@ export interface DiagnosticsChangeSignal extends Stamped { readonly uris: readon
 export interface DiagnosticsSettledSignal extends Stamped {
     /**
      * Ordering token of the most recent save in the coalesced burst. Consumers
-     * with session semantics (EQ emitter) compare it against their own
+     * with session semantics compare it against their own
      * session-start token to drop settles whose triggering save predates the
      * session (PR1 decision log #1b). Tokens, not timestamps: a save and a
      * session switch in the same millisecond must still be strictly ordered.

@@ -31,7 +31,7 @@ export class ExerciseRegistry {
      * Enables the StruggleCoordinator to filter WebSocket build results by the
      * currently-active exercise — the ResultDTO only carries a participationId,
      * not an exerciseId, so without this map a result from exercise A would
-     * contaminate the EQ engine of the active exercise B.
+     * contaminate the struggle engine of the active exercise B.
      */
     private participationToExercise: Map<number, number> = new Map();
 

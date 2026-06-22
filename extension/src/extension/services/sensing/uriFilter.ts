@@ -1,6 +1,6 @@
 /**
  * Central URI filter of the sensing layer, shared by every consumer that
- * scopes itself to exercise files (sensing collectors, EQ pipeline, session
+ * scopes itself to exercise files (sensing collectors, session
  * recorder, replay).
  *
  * ## Design rationale

@@ -118,7 +118,7 @@ export interface EngineSessionContext {
     readonly exerciseRoot?: import('vscode').Uri;
 }
 
-/** Live engine state for the debug UI (replaces the v1 EQ StruggleContext). */
+/** Live engine state for the debug UI. */
 export interface StruggleSnapshot {
     isStruggling: boolean;
     /** Live threshold signal (S_base); isStruggling = urgency >= θ (NOT v >= θ). */
