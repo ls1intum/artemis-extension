@@ -103,8 +103,9 @@ export const TUNING = {
     maxAlertsPerMinute: 2,
     maxAlertsPerSession: 6,
     minDeliveryGapS: 30,
-    /** Tier-3 add-on (Test-Stagnation): plateau length N + production enable.
-     *  No golden to break. ENG */
+    /** Tier-3 add-on (Test-Stagnation): no-progress streak length N (a build is
+     *  no-progress when passed tests don't reach a new high, incl. failed builds)
+     *  + production enable. No golden to break. ENG */
     testStagnationN: 3,
     enableTestStagnation: true,
 };
