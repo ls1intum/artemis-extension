@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { createRecordingWebviewHandlers } from '@dataCollection';
 
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
 import type {
@@ -24,7 +23,6 @@ import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { SubmissionPayload } from '@extension/services/recording/types';
-import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { IProviderRegistry } from '@extension/services/ui';
 import {
     BuildDiagnosticsService,
@@ -35,10 +33,12 @@ import {
     ViewInitDataService,
 } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
 import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
 import { CONFIG, resolveServerUrl } from '@extension/utils';
+import { createRecordingWebviewHandlers } from '@dataCollection';
 
 import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -82,7 +82,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
-    private readonly _struggleCoordinator: StruggleCoordinator;
+    private readonly _struggleCoordinator: IStruggleCoordinator;
     private readonly _renderService: ProblemStatementRenderService;
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { logger } from '@extension/services/loggingService';
-import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
 import type { IProviderRegistry } from './providerRegistry';
@@ -12,7 +12,7 @@ export class ExerciseOpeningService {
     constructor(
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _providerRegistry: IProviderRegistry,
-        private _struggleCoordinator?: StruggleCoordinator,
+        private _struggleCoordinator?: IStruggleCoordinator,
         private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 

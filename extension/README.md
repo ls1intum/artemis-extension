@@ -93,7 +93,7 @@ Access these commands via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 Configure through VS Code settings (`Cmd+,` or `Ctrl+,`):
 
 - `artemis.serverUrl` - Artemis server URL (default: `https://artemis.tum.de`)
-- `artemis.developerMode` - Enable developer mode (debug buttons and live struggle score)
+- `artemis.developerMode` - Enable developer mode (debug buttons and extra diagnostics)
 - `artemis.defaultCommitMessage` - Default message for automatic submissions
 - `artemis.showUnsavedChangesWarning` - Warn before submitting with unsaved changes
 

@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { wireDataCollection } from '@dataCollection';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import { ArtemisApiService } from '@extension/api';
@@ -8,13 +7,9 @@ import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider
 import { AuthManager } from '@extension/services/auth';
 import { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { InterventionService } from '@extension/services/intervention';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
-import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
-import { TUNING } from '@extension/services/struggle/config';
-import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
@@ -22,15 +17,18 @@ import {
     buildChatProviderSink,
     wireWorkspaceDetection,
 } from '@extension/services/workspace/wireWorkspaceDetection';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import {
     authenticateFromEnvironment,
     detectPlatformCapabilities,
     initializeTheiaContext,
 } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils';
+import { wireDataCollection } from '@dataCollection';
+import { createStruggleEngine, registerDebugCommands } from '@telemetry';
 
 // Module-level references for deactivate() cleanup
-let activeStruggleCoordinator: StruggleCoordinator | undefined;
+let activeStruggleCoordinator: IStruggleCoordinator | undefined;
 let activeDataCollection: DataCollectionHandle | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -69,18 +67,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	const exerciseRegistry = new ExerciseRegistry();
 	const sensorHub = new VsCodeSensorHub(capabilities);
 	context.subscriptions.push(sensorHub);
-	const interventionService = new InterventionService();
-	context.subscriptions.push(interventionService);
-	// Tier-2 delivery throttle wraps the UI sink (downstream of the recorded
-	// alert path, so goldens/research are unaffected). Reads TUNING defaults.
-	const throttledSink = new ThrottledAlertSink(interventionService, TUNING);
-	const struggleCoordinator = new StruggleCoordinator({
-		hub: sensorHub,
-		alertSink: throttledSink,
-		exerciseRegistry,
-	});
+	// The struggle/intervention engine lives behind the @telemetry build seam:
+	// real in the full build, a no-op in the Open VSX (EduIDE/cloud) build, so the
+	// cloud bundle ships no tracking engine. The factory owns the whole value graph
+	// (InterventionService + ThrottledAlertSink + StruggleCoordinator).
+	const struggleCoordinator = createStruggleEngine({ hub: sensorHub, exerciseRegistry, context });
 	activeStruggleCoordinator = struggleCoordinator;
 	struggleCoordinator.setWebsocketService(artemisWebsocketService);
+	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
@@ -195,7 +189,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(registerAllCommands({
 		context, authManager, artemisApiService, artemisWebsocketService,
-		struggleCoordinator, providerRegistry, artemisWebviewProvider, chatWebviewProvider,
+		providerRegistry, artemisWebviewProvider, chatWebviewProvider,
 		updateAuthContext,
 	}));
 

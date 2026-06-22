@@ -52,3 +52,6 @@ test/ui/screenshots/
 # Tool artifacts (RuVector agent memory, Claude Code session locks)
 ruvector.db
 .claude/scheduled_tasks.lock
+
+# Local planning docs (scratch). ADRs under docs/adr/ stay tracked.
+docs/plans/

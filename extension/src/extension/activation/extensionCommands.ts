@@ -3,9 +3,7 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { AuthManager } from '@extension/services/auth';
-import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
@@ -430,7 +428,7 @@ const KNOWN_SERVERS: ReadonlyArray<{ label: string; url: string }> = [
     { label: 'Test Server 5 (artemis-test5.artemis.cit.tum.de)',    url: 'https://artemis-test5.artemis.cit.tum.de' },
     { label: 'Test Server 6 (artemis-test6.artemis.cit.tum.de)',    url: 'https://artemis-test6.artemis.cit.tum.de' },
     { label: 'Test Server 9 (artemis-test9.artemis.cit.tum.de)',    url: 'https://artemis-test9.artemis.cit.tum.de' },
-    { label: 'Local Development (localhost:9000)',                   url: 'http://localhost:9000' },
+    { label: 'Local Development (localhost:8080)',                   url: 'http://localhost:8080' },
 ];
 
 function registerSetServerUrlCommand(): vscode.Disposable {
@@ -526,11 +524,6 @@ function registerClearTrustedDomainsCommand(context: vscode.ExtensionContext): v
     });
 }
 
-function registerStruggleScoreCommand(struggleCoordinator: StruggleCoordinator): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
-        await showStruggleScoreDialog(struggleCoordinator.getSnapshot());
-    });
-}
 
 /**
  * Developer-only command: copy the current raw JWT to the clipboard for use
@@ -683,7 +676,6 @@ interface CommandDeps {
     authManager: AuthManager;
     artemisApiService: ArtemisApiService;
     artemisWebsocketService: ArtemisWebsocketService;
-    struggleCoordinator: StruggleCoordinator;
     providerRegistry: IProviderRegistry;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
@@ -701,7 +693,6 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerGoToSourceErrorCommand(),
         registerSetServerUrlCommand(),
         registerClearTrustedDomainsCommand(deps.context),
-        registerStruggleScoreCommand(deps.struggleCoordinator),
         registerShowJwtTokenCommand(deps.authManager),
         registerShowTheiaEnvironmentCommand(),
     );

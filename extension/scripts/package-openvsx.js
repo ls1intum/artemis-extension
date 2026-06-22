@@ -12,6 +12,11 @@ const run = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', cwd: root, ...
 run('npm run check-types && npm run lint:src');
 run('node esbuild.js --production --variant=openvsx');
 
+// 1b. Fail-closed proof: the clean bundle must contain NO struggle/intervention
+//     engine, recorder, or consent code (reads the openvsx metafiles esbuild just
+//     wrote). Aborts packaging if any forbidden input reappears.
+run('node scripts/verify-clean-bundle.js');
+
 // 2. Reset the staging dir.
 fs.rmSync(staging, { recursive: true, force: true });
 fs.mkdirSync(staging, { recursive: true });

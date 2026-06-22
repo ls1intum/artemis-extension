@@ -7,13 +7,13 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import { GitService } from '@extension/services/workspace/gitService';
 import {
     collectExerciseSources,
     detectWorkspaceExercise,
     detectWorkspaceForRepoUris,
 } from '@extension/services/workspace/workspaceDetectionService';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 import { resolveServerUrl } from '@extension/utils';
 
@@ -25,7 +25,7 @@ export class ViewInitDataService {
 
     constructor(
         private readonly _appStateManager: AppStateManager,
-        private readonly _struggleCoordinator: StruggleCoordinator | undefined,
+        private readonly _struggleCoordinator: IStruggleCoordinator | undefined,
         private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         private readonly _courseAccessStorage?: CourseAccessStorageService,

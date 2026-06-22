@@ -4,6 +4,22 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-06-22
+
+### Changed
+
+- **Open VSX Build**: The Open VSX (EduIDE/Theia cloud) distribution now also excludes the struggle-detection engine and its webview UI via fail-closed build seams (on top of the existing recorder/consent exclusion) and ships cloud-tailored setting defaults.
+
+### Fixed
+
+- **Local Dev Server Preset**: The "Local Development" server option now targets `localhost:8080` (the Artemis server) instead of `localhost:9000`.
+
+### Internal
+
+- **Open VSX Bundle Verifier**: `verify-clean-bundle.js` now denies the entire telemetry subtree by default (fail-closed) instead of a hand-picked denylist, so any new telemetry/recorder file is kept out of the clean build automatically.
+
+## [0.4.6] - 2026-06-18
+
 ### Added
 
 - **Reading Telemetry**: The session recorder now captures problem-statement reading behavior (scrolling and text selections, with extended consent only).

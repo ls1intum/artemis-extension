@@ -15,8 +15,8 @@ import {
 import type { RecordedEvent } from '@extension/services/recording/types';
 import type { SensorHub } from '@extension/services/sensing';
 import { SPEC } from '@extension/services/struggle/config';
-import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { PlatformCapabilities } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils/constants';
 
@@ -24,7 +24,7 @@ interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
     consentService: ConsentService;
     artemisWebsocketService: ArtemisWebsocketService;
-    struggleCoordinator: StruggleCoordinator;
+    struggleCoordinator: IStruggleCoordinator;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
