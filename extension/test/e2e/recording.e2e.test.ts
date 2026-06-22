@@ -971,14 +971,37 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             return;
         }
 
-        si.executeCommand('echo recorder-e2e-sentinel');
-        await sleep(3000);
+        // Run the command and wait for THIS shell execution to actually END. In a
+        // headless host without a rendered terminal viewport, shellIntegration can
+        // be present yet executeCommand silently no-ops (VS Code's bundled xterm
+        // throws "reading 'dimensions'" internally), so the execution never ends.
+        // Subscribe before issuing the command (no end-event race) and match the
+        // exact returned execution handle so an unrelated same-terminal execution
+        // cannot flip the flag.
+        let execution: vscode.TerminalShellExecution | undefined;
+        let executionEnded = false;
+        const endSub = vscode.window.onDidEndTerminalShellExecution(e => {
+            if (execution && e.execution === execution) { executionEnded = true; }
+        });
+        execution = si.executeCommand('echo recorder-e2e-sentinel');
+        for (let i = 0; i < 32 && !executionEnded; i++) { await sleep(250); }
+        endSub.dispose();
+        await sleep(500); // let the recorder flush the captured event to JSONL
         term.dispose();
         await sleep(800);
         await recorder.endSession();
 
         const { sessionDir, events } = readSingleSession(storageDir);
         const cmds = events.filter((e): e is TerminalCommandEvent => e.type === 'terminalCommand');
+        // Best-effort contract: if the headless terminal never actually ran the
+        // command (no execution-end AND nothing captured), shell integration is
+        // effectively unavailable here, so skip rather than fail. The capture logic
+        // itself is covered deterministically by terminalShellExecution.test.ts. A
+        // command that DID end but produced no event is a real bug and still fails.
+        if (!executionEnded && cmds.length === 0) {
+            this.skip();
+            return;
+        }
         assert.ok(cmds.length >= 1, 'at least one terminalCommand captured');
         const sentinel = cmds.find(c => c.command.includes('recorder-e2e-sentinel'));
         assert.ok(sentinel, 'terminalCommand for our sentinel command captured');
