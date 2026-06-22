@@ -35,11 +35,10 @@ export interface TickRecord {
 
 /**
  * Schicht-2 → Schicht-3 hand-off, one per 10-s tick. The DecisionEngine reads
- * `urgency` + `editCandidate` ONLY; `telemetry` (S/V) is recorder/regression
- * substrate that the decision NEVER reads — the v3 threshold moved off the V
- * peak-hold curve onto `urgency = S_base = (f_typing + f_gap)/2` (the
- * `alerts_full_u` configuration). Discrete high-precision triggers
- * (Test-/Prüf-Stagnation) join this contract on their own path in WS3.
+ * `urgency` + `editCandidate` + `discreteTriggers` ONLY; `telemetry` (S/V) is
+ * recorder/regression substrate that the decision NEVER reads — the v3 threshold
+ * moved off the V peak-hold curve onto `urgency = S_base = (f_typing + f_gap)/2`
+ * (the `alerts_full_u` configuration).
  */
 export interface EngineTick {
     /** Session-relative tick time (s). */
@@ -52,6 +51,11 @@ export interface EngineTick {
         readonly typingRate: number | null;
         readonly graceActive: boolean;
     };
+    /** Discrete high-precision add-on triggers, on their OWN decision path (NOT
+     *  B2/B4-gated). (Prüf-Stagnation deferred until a real attempt signal exists.) */
+    readonly discreteTriggers: {
+        readonly testStagnation: boolean;
+    };
     /** Recorder/regression substrate only — never read by the DecisionEngine. */
     readonly telemetry: {
         readonly s: number;
@@ -60,10 +64,16 @@ export interface EngineTick {
     };
 }
 
-/** The DecisionEngine's per-tick output, before the engine stamps `ts`/telemetry. */
-export interface DecisionAlert {
+/** Discrete high-precision triggers (Engine v3 add-ons; own decision path). */
+export type DiscreteTrigger = 'test-stagnation';
+
+/**
+ * Edit-path alert: boundary-driven, the alerts_full_u decision surface. The
+ * threshold signal `urgency` (S_base) crossed θ at a pending boundary.
+ */
+export interface EditDecisionAlert {
+    readonly kind: 'edit';
     readonly t: number;
-    /** The threshold signal (S_base) that crossed θ at this tick. */
     readonly urgency: number;
     readonly typesPreGate: readonly BoundaryType[];
     readonly types: readonly BoundaryType[];
@@ -73,21 +83,28 @@ export interface DecisionAlert {
     readonly inGrace: boolean;
 }
 
-/** Audit record of an emitted alert (Python run_state_machine audit row). */
-export interface AlertRecord {
+/**
+ * Discrete-path alert: an add-on trigger (e.g. Test-Stagnation) that fires on
+ * its OWN path, bypassing the B2/B4 gate matrix. It is NOT boundary-shaped.
+ * `urgency` is carried as telemetry (the discrete decision does not threshold on it).
+ */
+export interface DiscreteDecisionAlert {
+    readonly kind: 'discrete';
     readonly t: number;
-    readonly ts: number;
-    /** Threshold signal (S_base) that fired the alert — the live v3 decision input. */
     readonly urgency: number;
+    readonly trigger: DiscreteTrigger;
+    readonly inWarmup: boolean;
+}
+
+/** The DecisionEngine's per-tick output, before the engine stamps `ts`/telemetry. */
+export type DecisionAlert = EditDecisionAlert | DiscreteDecisionAlert;
+
+/** Audit record of an emitted alert (+ absolute ts and the telemetry V). */
+export type AlertRecord = DecisionAlert & {
+    readonly ts: number;
     /** Peak-hold V at the firing tick — TELEMETRY only, NOT the decision signal. */
     readonly v: number;
-    readonly typesPreGate: readonly BoundaryType[];
-    readonly types: readonly BoundaryType[];
-    readonly primary: BoundaryType;
-    readonly path: 'armed' | 'e6';
-    readonly inWarmup: boolean;
-    readonly inGrace: boolean;
-}
+};
 
 /** Injectable clock/scheduler so tests and replay drive ticks deterministically. */
 export interface EngineClock {
@@ -109,6 +126,6 @@ export interface StruggleSnapshot {
     v: number;
     s: number;
     primaryBoundary: BoundaryType | null;
-    lastAlert: { t: number; types: readonly BoundaryType[]; path: 'armed' | 'e6' } | null;
+    lastAlert: { t: number; kind: 'edit' | 'discrete'; summary: string } | null;
     sessionSeconds: number;
 }

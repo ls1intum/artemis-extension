@@ -85,6 +85,7 @@ function makeReplayTick(gt: GoldenTick): TickRecord {
 /** Build an AlertRecord matching a GoldenAlert. */
 function makeReplayAlert(ga: GoldenAlert): AlertRecord {
     return {
+        kind: 'edit',
         t: ga.t,
         ts: ga.t * 1000,
         // The golden's decision signal; WS5 adds a distinct urgency column to the

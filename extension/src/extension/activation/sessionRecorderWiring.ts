@@ -98,11 +98,16 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         });
     }));
     disposables.push(struggleCoordinator.onDidAlert(alert => {
-        sessionRecorder.recordAlert({
-            t: alert.t, urgency: alert.urgency, v: alert.v,
-            types: [...alert.types], primary: alert.primary,
-            path: alert.path, inWarmup: alert.inWarmup, inGrace: alert.inGrace, theta: SPEC.THETA_FULL,
-        });
+        sessionRecorder.recordAlert(alert.kind === 'edit'
+            ? {
+                kind: 'edit', t: alert.t, urgency: alert.urgency, v: alert.v,
+                types: [...alert.types], primary: alert.primary,
+                path: alert.path, inWarmup: alert.inWarmup, inGrace: alert.inGrace, theta: SPEC.THETA_FULL,
+            }
+            : {
+                kind: 'discrete', t: alert.t, urgency: alert.urgency, v: alert.v,
+                trigger: alert.trigger, inWarmup: alert.inWarmup, theta: SPEC.THETA_FULL,
+            });
     }));
 
     // Provider navigation/visibility events

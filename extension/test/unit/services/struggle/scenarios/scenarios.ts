@@ -126,4 +126,24 @@ export const SCENARIOS: Scenario[] = [
         // upward drift (e.g. to 0.62) fails.
         expected: { noAlerts: true, finalVBelow: 0.61 },
     },
+    {
+        id: 'test-stagnation-while-typing',
+        category: 'subtle',
+        description: 'Steady typing keeps the edit path silent (B2 + low urgency), but three builds stuck at the same passing count fire a discrete Test-Stagnation alert (breaks warmup).',
+        durationS: 220,
+        events: [
+            // 120/min typing -> fTyping 0, urgency ~ 0, and typing_rate >= 20 so B2
+            // blocks every edit boundary. The failing builds raise FM, but the edit
+            // path never alerts.
+            { at: 0, type: 'typing', durationS: 220, charsPerSecond: 2 },
+            // Builds land exactly on grid ticks AND share each timestamp with a
+            // typing char — the harness must enqueue both before that tick runs.
+            { at: 60, type: 'build', failed: ['a', 'b', 'c'], passed: 2, total: 5 },
+            { at: 120, type: 'build', failed: ['a', 'b', 'c'], passed: 2, total: 5 },
+            { at: 180, type: 'build', failed: ['a', 'b', 'c'], passed: 2, total: 5 }, // 3rd identical (2/5) plateau -> fires at tick 180
+        ],
+        // The discrete add-on is NOT B2-gated and breaks warmup, so it fires at the
+        // 3rd stuck build's tick (180). No edit alert ever fires (B2 + urgency < θ).
+        expected: { alertTimes: [180], alertKinds: ['discrete'] },
+    },
 ];

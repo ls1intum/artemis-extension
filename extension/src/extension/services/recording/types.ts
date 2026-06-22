@@ -64,6 +64,10 @@ export interface BuildResultEvent {
     /** Legacy: flat array of detailText strings for failed test feedbacks. Kept for backwards compat. */
     failedTests: string[];
     buildFailed: boolean;
+    /** Raw test-case counts (for the Test-Stagnation add-on). Null/absent for a
+     *  compile-error build (buildFailed) and for older recordings. */
+    passedTestCaseCount?: number;
+    testCaseCount?: number;
     // Scoping fields (added in Block F)
     exerciseId?: number;
     participationId?: number;
@@ -465,8 +469,9 @@ export interface StruggleScoreEvent {
     longestGapS: number;
 }
 
-/** Engine emitted alert. */
-export interface AlertEvent {
+/** Engine emitted alert. Discriminated by `kind`: an edit-path (boundary) alert
+ *  or a discrete-trigger add-on alert. Legacy rows without `kind` parse as 'edit'. */
+interface AlertEventBase {
     type: 'alert';
     timestamp: number;
     t: number;
@@ -474,13 +479,27 @@ export interface AlertEvent {
      *  recordings, where v was the decision signal. */
     urgency?: number;
     v: number;
+    inWarmup: boolean;
+    theta: number;
+}
+
+export interface EditAlertEvent extends AlertEventBase {
+    kind: 'edit';
     types: RecordedBoundaryType[];
     primary: RecordedBoundaryType;
     path: 'armed' | 'e6';
-    inWarmup: boolean;
     inGrace: boolean;
-    theta: number;
 }
+
+export interface DiscreteAlertEvent extends AlertEventBase {
+    kind: 'discrete';
+    trigger: 'test-stagnation';
+}
+
+export type AlertEvent = EditAlertEvent | DiscreteAlertEvent;
+
+/** Omit that distributes over a union, so discriminated members keep their own keys. */
+export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 // ── Discriminated union ───────────────────────────────────────────────
 

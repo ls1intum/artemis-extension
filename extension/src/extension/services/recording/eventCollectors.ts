@@ -106,13 +106,17 @@ export function collectBuildResult(result: ResultDTO, activeExerciseId?: number)
             }
         }
     }
+    // A compile-error build carries no usable test info — drop any stale counts.
+    const buildFailed = result.submission?.buildFailed ?? false;
     return {
         type: 'buildResult',
         timestamp: Date.now(),
         successful: result.successful,
         errorCount: (result.testCaseCount ?? 0) - (result.passedTestCaseCount ?? 0),
         failedTests,
-        buildFailed: result.submission?.buildFailed ?? false,
+        buildFailed,
+        passedTestCaseCount: buildFailed ? undefined : result.passedTestCaseCount,
+        testCaseCount: buildFailed ? undefined : result.testCaseCount,
         exerciseId: activeExerciseId,
         participationId: result.participation?.id,
         submissionId: result.submission?.id,

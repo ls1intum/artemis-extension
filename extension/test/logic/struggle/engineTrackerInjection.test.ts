@@ -6,6 +6,7 @@ import type {
 } from '@extension/services/struggle/struggleEngine';
 import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, EngineClock, TickRecord } from '@extension/services/struggle/types';
+import { asEditAlert } from '@test/__shared__/alertNarrow';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 const START = 1_000_000_000_000;
@@ -88,8 +89,9 @@ describe('StruggleEngine — injectable A8/N2 trackers', () => {
         engine.advanceTo(START + 520_000);
 
         expect(alerts.map(a => a.t)).toEqual([490]);
-        expect(alerts[0].primary).toBe('STATE');
-        expect(alerts[0].path).toBe('armed');
+        const a0 = asEditAlert(alerts[0]);
+        expect(a0.primary).toBe('STATE');
+        expect(a0.path).toBe('armed');
         const tick49 = ticks.find(t => t.t === 490)!;
         expect(Math.abs(tick49.s - 1.0)).toBeLessThan(1e-9);   // v3 2-feature idle: (1+1)/2
         // Default real trackers: an idle session never trips A8 or N2.

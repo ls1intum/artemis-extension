@@ -14,7 +14,7 @@
 import type { BoundaryType } from '@extension/services/struggle/constants';
 import { SPEC } from '@extension/services/struggle/constants';
 import { applyGraceFilter, isFluentTyping, survivesWarmup } from '@extension/services/struggle/gates/gates';
-import type { DecisionAlert } from '@extension/services/struggle/types';
+import type { EditDecisionAlert } from '@extension/services/struggle/types';
 
 export interface MachineParams {
     thetaFull: number;
@@ -25,7 +25,7 @@ export interface MachineParams {
     realertS: number;
 }
 
-const DEFAULT_PARAMS: MachineParams = {
+export const DEFAULT_MACHINE_PARAMS: MachineParams = {
     thetaFull: SPEC.THETA_FULL,
     graceS: SPEC.GRACE_S,
     warmupS: SPEC.WARMUP_S,
@@ -54,10 +54,25 @@ export class AlertStateMachine {
     private _lastAlert = Number.NEGATIVE_INFINITY;
 
     constructor(params?: Partial<MachineParams>) {
-        this._p = { ...DEFAULT_PARAMS, ...params };
+        this._p = { ...DEFAULT_MACHINE_PARAMS, ...params };
     }
 
-    tick(input: MachineTickInput): DecisionAlert | null {
+    /** The last-alert tick time — the cooldown clock. Shared with the
+     *  DecisionEngine's discrete path so edit + discrete alerts honour ONE cooldown. */
+    get lastAlertT(): number {
+        return this._lastAlert;
+    }
+
+    /** Stamp the cooldown clock when a discrete add-on alert fires elsewhere.
+     *  Moves ONLY `_lastAlert` (the shared cooldown) — `_armed`/`_inStateSince`
+     *  are untouched, so the edit path's hysteresis/E6 bookkeeping is unchanged
+     *  (a discrete alert can postpone the next edit E6 via the shared cooldown,
+     *  which is the intended single-cooldown behaviour). */
+    registerAlert(t: number): void {
+        this._lastAlert = t;
+    }
+
+    tick(input: MachineTickInput): EditDecisionAlert | null {
         const { t, urgency } = input;
         const p = this._p;
 
@@ -109,6 +124,7 @@ export class AlertStateMachine {
         this._lastAlert = t;
         this._armed = false;
         return {
+            kind: 'edit',
             t,
             urgency,
             typesPreGate: preGate,

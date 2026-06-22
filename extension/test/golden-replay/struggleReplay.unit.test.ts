@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RecordedEvent } from '@extension/services/recording/types';
+import { asEditAlert } from '@test/__shared__/alertNarrow';
 
 import { replaySession } from './struggleReplay';
 
@@ -43,7 +44,7 @@ describe('replaySession — causal mode', () => {
         );
         // The idle session crosses warmup (480s) with no typing -> STATE alert.
         expect(result.alerts.length).toBeGreaterThanOrEqual(1);
-        expect(result.alerts[0].primary).toBe('STATE');
+        expect(asEditAlert(result.alerts[0]).primary).toBe('STATE');
     });
 });
 

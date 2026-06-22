@@ -24,7 +24,7 @@ import { BoundaryTracker } from '@extension/services/struggle/boundaries/boundar
 import {
     SELECTION_DEBOUNCE_MS, SPEC,
 } from '@extension/services/struggle/constants';
-import { DecisionEngine } from '@extension/services/struggle/decision/decisionEngine';
+import { type DecisionAblation, DecisionEngine } from '@extension/services/struggle/decision/decisionEngine';
 import { FastDecayTracker, VTracker } from '@extension/services/struggle/dynamics/decay';
 import { TrailingDebouncer } from '@extension/services/struggle/intake/trailingDebouncer';
 import { BuildDeltaTracker } from '@extension/services/struggle/signals/buildDelta';
@@ -35,6 +35,7 @@ import { FeedbackViewTracker } from '@extension/services/struggle/signals/feedba
 import { methodAtLine, parseMethods } from '@extension/services/struggle/signals/javaMethods';
 import { A8Tracker } from '@extension/services/struggle/signals/regionPersistence';
 import { severityFrom } from '@extension/services/struggle/signals/severity';
+import { TestStagnationTracker } from '@extension/services/struggle/signals/testStagnation';
 import type {
     AlertRecord, EngineClock, EngineSessionContext, EngineTick, TickRecord,
 } from '@extension/services/struggle/types';
@@ -60,6 +61,9 @@ interface StruggleEngineOptions {
     /** Factories for scripted A8/N2 trackers (golden-replay exact mode, PR 3).
      *  Omitted factories fall back to the real online trackers. */
     trackers?: { a8?: () => A8TrackerLike; n2?: () => N2TrackerLike };
+    /** Ablation toggles for the DecisionEngine add-ons. The golden-replay harness
+     *  passes validated-base mode (add-ons OFF); production leaves them ON. */
+    decision?: DecisionAblation;
 }
 
 export class StruggleEngine implements vscode.Disposable {
@@ -78,6 +82,9 @@ export class StruggleEngine implements vscode.Disposable {
     private _queue: QueuedEvent[] = [];
     private _nextTickS = SPEC.TICK_S;
     private _lastFmBadS: number | null = null;
+    /** Set when a build assigned to the current tick is a Test-Stagnation fire;
+     *  read into the EngineTick's discreteTriggers, then cleared each tick. */
+    private _pendingTestStagnation = false;
 
     private _features = new FeatureWindowTracker();
     private _feedback = new FeedbackViewTracker();
@@ -85,6 +92,7 @@ export class StruggleEngine implements vscode.Disposable {
     private _a8: A8TrackerLike = new A8Tracker();
     private _n2: N2TrackerLike = new N2Tracker();
     private _buildDelta = new BuildDeltaTracker();
+    private _testStagnation = new TestStagnationTracker();
     private _fastDecay = new FastDecayTracker();
     private _v = new VTracker();
     private _boundaries = new BoundaryTracker();
@@ -287,6 +295,11 @@ export class StruggleEngine implements vscode.Disposable {
                 if (c.isFMPlus) {
                     this._boundaries.ingest('FM_PLUS', tsS);
                 }
+                // Discrete add-on: a Test-Stagnation fire is assigned to this
+                // build's tick (the drain runs before the tick computes).
+                if (this._testStagnation.ingest(c)) {
+                    this._pendingTestStagnation = true;
+                }
             });
         }));
 
@@ -331,8 +344,10 @@ export class StruggleEngine implements vscode.Disposable {
             t: tS,
             urgency: sBase,
             editCandidate: { boundaries, typingRate: wf.typingRate, graceActive },
+            discreteTriggers: { testStagnation: this._pendingTestStagnation },
             telemetry: { s, v, fastDecay: fast },
         };
+        this._pendingTestStagnation = false;            // consumed by this tick
         const decision = this._decision.decide(engineTick);
 
         const tsMs = (this._session?.sessionStartMs ?? 0) + tS * 1000;
@@ -358,15 +373,17 @@ export class StruggleEngine implements vscode.Disposable {
         this._queue = [];
         this._nextTickS = SPEC.TICK_S;
         this._lastFmBadS = null;
+        this._pendingTestStagnation = false;
         this._features = new FeatureWindowTracker();
         this._feedback = new FeedbackViewTracker();
         this._shadow = new DocumentShadowTracker();
         this._a8 = this._opts?.trackers?.a8?.() ?? new A8Tracker();
         this._n2 = this._opts?.trackers?.n2?.() ?? new N2Tracker();
         this._buildDelta = new BuildDeltaTracker();
+        this._testStagnation = new TestStagnationTracker();
         this._fastDecay = new FastDecayTracker();
         this._v = new VTracker();
         this._boundaries = new BoundaryTracker();
-        this._decision = new DecisionEngine();
+        this._decision = new DecisionEngine(undefined, this._opts?.decision);
     }
 }

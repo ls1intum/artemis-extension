@@ -205,7 +205,9 @@ function parseBuildResult(d: Record<string, unknown>, timestamp: number): BuildR
     if (!isBoolean(d.buildFailed)) { return null; }
     if (!isOptFiniteNumber(d.exerciseId)
         || !isOptFiniteNumber(d.participationId)
-        || !isOptFiniteNumber(d.submissionId)) {
+        || !isOptFiniteNumber(d.submissionId)
+        || !isOptFiniteNumber(d.passedTestCaseCount)
+        || !isOptFiniteNumber(d.testCaseCount)) {
         return null;
     }
     let failedTestDetails: BuildResultEvent['failedTestDetails'];
@@ -225,6 +227,8 @@ function parseBuildResult(d: Record<string, unknown>, timestamp: number): BuildR
         errorCount: d.errorCount,
         failedTests: d.failedTests as string[],
         buildFailed: d.buildFailed,
+        passedTestCaseCount: d.passedTestCaseCount as number | undefined,
+        testCaseCount: d.testCaseCount as number | undefined,
         exerciseId: d.exerciseId as number | undefined,
         participationId: d.participationId as number | undefined,
         submissionId: d.submissionId as number | undefined,
@@ -624,19 +628,30 @@ const RECORDED_BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
 
 function parseAlert(d: Record<string, unknown>, timestamp: number): AlertEvent | null {
     if (!isFiniteNumber(d.t) || !isFiniteNumber(d.v) || !isFiniteNumber(d.theta)) { return null; }
+    if (!isBoolean(d.inWarmup)) { return null; }
+    if (d.kind !== undefined && d.kind !== 'edit' && d.kind !== 'discrete') { return null; }
+    // urgency is the v3 decision signal; legacy v2 recordings omit it (ignored).
+    const base = {
+        type: 'alert' as const, timestamp,
+        ...(isFiniteNumber(d.urgency) ? { urgency: d.urgency as number } : {}),
+        t: d.t as number, v: d.v as number,
+        inWarmup: d.inWarmup as boolean, theta: d.theta as number,
+    };
+    if (d.kind === 'discrete') {
+        if (d.trigger !== 'test-stagnation') { return null; }
+        return { ...base, kind: 'discrete', trigger: 'test-stagnation' };
+    }
+    // Edit alert (explicit kind 'edit', or a legacy row with no kind).
     if (!Array.isArray(d.types) || !d.types.every(x => isOneOf(x, RECORDED_BOUNDARY_TYPES))) { return null; }
     if (!isOneOf(d.primary, RECORDED_BOUNDARY_TYPES)) { return null; }
     if (!isOneOf(d.path, ['armed', 'e6'] as const)) { return null; }
-    if (!isBoolean(d.inWarmup) || !isBoolean(d.inGrace)) { return null; }
+    if (!isBoolean(d.inGrace)) { return null; }
     return {
-        type: 'alert', timestamp,
-        // urgency is the v3 decision signal; legacy v2 recordings omit it (ignored).
-        ...(isFiniteNumber(d.urgency) ? { urgency: d.urgency as number } : {}),
-        t: d.t as number, v: d.v as number,
+        ...base, kind: 'edit',
         types: d.types as RecordedBoundaryType[],
         primary: d.primary as RecordedBoundaryType,
         path: d.path as 'armed' | 'e6',
-        inWarmup: d.inWarmup as boolean, inGrace: d.inGrace as boolean, theta: d.theta as number,
+        inGrace: d.inGrace as boolean,
     };
 }
 

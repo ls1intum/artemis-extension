@@ -85,7 +85,11 @@ export function replaySession(events: RecordedEvent[], opts: ReplayOpts): Replay
         clearInterval: () => { /* harness-driven */ },
     };
 
-    const engine = new StruggleEngine(hub, clock, { preDebouncedIntake: true, trackers });
+    // Validated-base mode: discrete add-ons OFF so the replay matches the
+    // alerts_full_u golden surface (edit path only).
+    const engine = new StruggleEngine(hub, clock, {
+        preDebouncedIntake: true, trackers, decision: { enableTestStagnation: false },
+    });
     const ticks: TickRecord[] = [];
     const alerts: AlertRecord[] = [];
     const subs: vscode.Disposable[] = [

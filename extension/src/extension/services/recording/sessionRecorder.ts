@@ -44,7 +44,7 @@ import type { ProblemStatementScrollPayload, ProblemStatementSelectionPayload } 
 
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
-import type { AlertEvent, RecordedEvent, StruggleScoreEvent, SubmissionPayload } from './types';
+import type { AlertEvent, DistributiveOmit, RecordedEvent, StruggleScoreEvent, SubmissionPayload } from './types';
 
 /**
  * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
@@ -392,8 +392,8 @@ export class SessionRecorder implements WebSocketMessageHandler {
         this._record({ type: 'struggleScore', ...sample });
     }
 
-    recordAlert(alert: Omit<AlertEvent, 'type' | 'timestamp'>): void {
-        this._record({ type: 'alert', ...alert });
+    recordAlert(alert: DistributiveOmit<AlertEvent, 'type' | 'timestamp'>): void {
+        this._record({ type: 'alert', ...alert } as AlertEvent);
     }
 
     recordViewNavigation(from: string, to: string): void {

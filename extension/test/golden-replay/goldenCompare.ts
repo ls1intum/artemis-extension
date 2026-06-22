@@ -141,6 +141,20 @@ function compareAlertFields(
 ): ExactDivergence | null {
     const t = ga.t;
 
+    // Goldens are validated-base (edit-only); a discrete add-on alert here is a
+    // real divergence (and lets the rest of this fn narrow `ra` to an edit alert).
+    if (ra.kind !== 'edit') {
+        return {
+            kind: 'alertField',
+            t,
+            index,
+            field: 'kind',
+            replay: ra.kind,
+            golden: 'edit',
+            message: `alert[${index}] t=${t}: replay produced a discrete '${ra.trigger}' alert where the golden has an edit alert`,
+        };
+    }
+
     if (!approxEq(ra.v, ga.v)) {
         return {
             kind: 'alertField',
@@ -357,7 +371,7 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
     for (const [t, ra] of replayByT) {
         const ga = goldenByT.get(t);
         if (ga === undefined) { alertTimesOnlyInReplay++; }
-        else if (ra.primary !== ga.primary || ra.path !== ga.path) { alertSharedTimeFieldMismatches++; }
+        else if (ra.kind !== 'edit' || ra.primary !== ga.primary || ra.path !== ga.path) { alertSharedTimeFieldMismatches++; }
     }
     for (const t of goldenByT.keys()) {
         if (!replayByT.has(t)) { alertTimesOnlyInGolden++; }

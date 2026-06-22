@@ -5,6 +5,7 @@ import * as sinon from 'sinon';
 import type { ResultDTO } from '@extension/domain/submissions';
 import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
+import { asEditAlert } from '@test/__shared__/alertNarrow';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 function failingResult(failed: string[], buildFailed = false): ResultDTO {
@@ -56,8 +57,9 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
     test('T8d: an idle session alerts at the first warmup-free tick (t=490)', () => {
         engine.advanceTo(START + 520_000);
         assert.deepStrictEqual(alerts.map(a => a.t), [490]);
-        assert.strictEqual(alerts[0].primary, 'STATE');
-        assert.strictEqual(alerts[0].path, 'armed');
+        const a0 = asEditAlert(alerts[0]);
+        assert.strictEqual(a0.primary, 'STATE');
+        assert.strictEqual(a0.path, 'armed');
         // idle severity (v3 2-feature): fTyping=1, fGap=1 -> S = (1+1)/2 = 1.0 >= theta(0.7)
         const tick49 = ticks.find(t => t.t === 490)!;
         assert.ok(Math.abs(tick49.s - 1.0) < 1e-9);
@@ -66,7 +68,7 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
     test('E6 re-alerts every 120 s while the idle state persists', () => {
         engine.advanceTo(START + 740_000);
         assert.deepStrictEqual(alerts.map(a => a.t), [490, 610, 730]);
-        assert.deepStrictEqual(alerts.map(a => a.path), ['armed', 'e6', 'e6']);
+        assert.deepStrictEqual(alerts.map(a => asEditAlert(a).path), ['armed', 'e6', 'e6']);
     });
 
     test('an FM boundary breaks through warmup when V is already high', () => {
@@ -74,9 +76,10 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         engine.advanceTo(START + 400_000);
         hub.emit.buildResult.fire({ ts: START + 400_500, result: failingResult([], true) });
         engine.advanceTo(START + 480_000);
-        assert.strictEqual(alerts[0]?.t, 410);
-        assert.strictEqual(alerts[0]?.primary, 'FM');
-        assert.strictEqual(alerts[0]?.inWarmup, true);
+        const fm = asEditAlert(alerts[0]);
+        assert.strictEqual(fm.t, 410);
+        assert.strictEqual(fm.primary, 'FM');
+        assert.strictEqual(fm.inWarmup, true);
     });
 
     test('drain rule: an event with ts exactly on the grid belongs to that tick', () => {

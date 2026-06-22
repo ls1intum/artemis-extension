@@ -29,6 +29,10 @@ export function rehydrateResultDTO(event: BuildResultEvent): ResultDTO {
         id: event.submissionId ?? 0,
         successful: event.successful,
         feedbacks: failedFeedbacks,
+        // Defensive null at the rehydrate boundary: a compile-error build has no
+        // usable test info, so counts never reach the Test-Stagnation add-on.
+        passedTestCaseCount: event.buildFailed ? undefined : event.passedTestCaseCount,
+        testCaseCount: event.buildFailed ? undefined : event.testCaseCount,
         submission: { id: event.submissionId, buildFailed: event.buildFailed },
     };
 }

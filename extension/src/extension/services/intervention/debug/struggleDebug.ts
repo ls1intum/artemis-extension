@@ -11,7 +11,7 @@ export async function showStruggleScoreDialog(snapshot: StruggleSnapshot): Promi
         `V (decayed severity, telemetry): ${snapshot.v.toFixed(3)}`,
         `S (instantaneous, telemetry): ${snapshot.s.toFixed(3)}`,
         `Boundary at last tick: ${snapshot.primaryBoundary ?? '—'}`,
-        `Last alert: ${lastAlert ? `t=${lastAlert.t}s (${lastAlert.types.join('+')}, ${lastAlert.path})` : '—'}`,
+        `Last alert: ${lastAlert ? `t=${lastAlert.t}s (${lastAlert.kind}: ${lastAlert.summary})` : '—'}`,
         `Session: ${snapshot.sessionSeconds}s`,
     ];
     await vscode.window.showInformationMessage('Engine v3 — struggle state', { modal: true, detail: lines.join('\n') }, 'OK');

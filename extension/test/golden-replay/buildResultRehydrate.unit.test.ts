@@ -15,6 +15,8 @@ function buildResultEvent(opts: {
     timestamp?: number;
     buildFailed: boolean;
     failedDetails?: string[];
+    passedTestCaseCount?: number;
+    testCaseCount?: number;
 }): BuildResultEvent {
     const details = opts.failedDetails ?? [];
     return {
@@ -24,6 +26,8 @@ function buildResultEvent(opts: {
         errorCount: details.length,
         failedTests: details,
         buildFailed: opts.buildFailed,
+        passedTestCaseCount: opts.passedTestCaseCount,
+        testCaseCount: opts.testCaseCount,
         failedTestDetails: details.length > 0
             ? details.map((detail, i) => ({ testName: `test${i}`, detail }))
             : undefined,
@@ -80,6 +84,25 @@ describe('rehydrateResultDTO + buildDelta classification', () => {
         const c = tracker.ingest(2, rehydrateResultDTO(buildResultEvent({ buildFailed: false, failedDetails: ['a', 'c'] })));
         expect(c.delta).toBe('same-count');
         expect(c.failedCount).toBe(2);
+    });
+
+    it('carries test-case counts through to BuildClassification (live==replay parity)', () => {
+        const tracker = new BuildDeltaTracker();
+        const c = tracker.ingest(1, rehydrateResultDTO(buildResultEvent({
+            buildFailed: false, failedDetails: ['a'], passedTestCaseCount: 4, testCaseCount: 5,
+        })));
+        expect(c.passedTestCaseCount).toBe(4);
+        expect(c.testCaseCount).toBe(5);
+    });
+
+    it('nulls counts for a compile-error build even if the event carried them', () => {
+        const tracker = new BuildDeltaTracker();
+        const c = tracker.ingest(1, rehydrateResultDTO(buildResultEvent({
+            buildFailed: true, passedTestCaseCount: 3, testCaseCount: 9,
+        })));
+        expect(c.delta).toBe('compile-error');
+        expect(c.passedTestCaseCount).toBeNull();
+        expect(c.testCaseCount).toBeNull();
     });
 
     it('populates only buildDelta-relevant fields (buildFailed + failed feedbacks)', () => {

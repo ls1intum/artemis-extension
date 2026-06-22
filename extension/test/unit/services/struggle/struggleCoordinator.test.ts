@@ -5,6 +5,7 @@ import * as sinon from 'sinon';
 import type { ResultDTO } from '@extension/domain/submissions';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { AlertRecord } from '@extension/services/struggle/types';
+import { asEditAlert } from '@test/__shared__/alertNarrow';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 function failingBuild(buildFailed = true): ResultDTO {
@@ -40,7 +41,7 @@ suite('StruggleCoordinator', () => {
         coord.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
         coord.advanceTo(coord.sessionStartMs + 520_000);   // test-only passthrough to engine.advanceTo
         assert.ok(delivered.length >= 1);
-        assert.strictEqual(delivered[0].primary, 'STATE');
+        assert.strictEqual(asEditAlert(delivered[0]).primary, 'STATE');
     });
 
     test('getSnapshot reflects the last tick', () => {

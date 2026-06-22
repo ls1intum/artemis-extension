@@ -11,6 +11,13 @@ import type { AlertRecord, EngineClock, StruggleSnapshot, TickRecord } from '@ex
 import type { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
+/** One-line summary of an alert for the snapshot/debug UI (kind-aware). */
+function summarizeAlert(a: AlertRecord): { t: number; kind: 'edit' | 'discrete'; summary: string } {
+    return a.kind === 'edit'
+        ? { t: a.t, kind: 'edit', summary: `${a.types.join('+')} ${a.path}` }
+        : { t: a.t, kind: 'discrete', summary: a.trigger };
+}
+
 // Real clock used in production when none is injected; mirror the engine's DEFAULT_CLOCK.
 const DEFAULT_CLOCK: EngineClock = {
     now: () => Date.now(),
@@ -130,9 +137,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
             v: tick?.v ?? 0,
             s: tick?.s ?? 0,
             primaryBoundary: tick && tick.boundariesPreGate.length > 0 ? tick.boundariesPreGate[0] : null,
-            lastAlert: this._lastAlert
-                ? { t: this._lastAlert.t, types: this._lastAlert.types, path: this._lastAlert.path }
-                : null,
+            lastAlert: this._lastAlert ? summarizeAlert(this._lastAlert) : null,
             sessionSeconds: tick?.t ?? 0,
         };
     }

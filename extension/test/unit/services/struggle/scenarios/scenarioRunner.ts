@@ -15,7 +15,7 @@ import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 export type ScenarioEvent =
     | { at: number; type: 'typing'; durationS: number; charsPerSecond: number; uri?: string }
-    | { at: number; type: 'build'; failed: string[]; buildFailed?: boolean }
+    | { at: number; type: 'build'; failed: string[]; buildFailed?: boolean; passed?: number; total?: number }
     | { at: number; type: 'terminalRun' }
     | { at: number; type: 'paste'; chars: number; lines: number; uri?: string }
     | { at: number; type: 'feedbackView'; action: 'opened' | 'closed'; viewId: string }
@@ -31,6 +31,8 @@ export interface Scenario {
     expected: {
         /** Exact alert tick times (session-relative seconds). */
         alertTimes?: number[];
+        /** Exact alert kinds, positionally aligned with alertTimes (edit|discrete). */
+        alertKinds?: Array<'edit' | 'discrete'>;
         noAlerts?: boolean;
         /** Optional invariant on the final tick's V. */
         finalVBelow?: number;
@@ -98,6 +100,8 @@ export function runScenario(scenario: Scenario): ScenarioResult {
                             id: 1,
                             submission: { id: 1, buildFailed: ev.buildFailed ?? false },
                             feedbacks: ev.failed.map(d => ({ positive: false, detailText: d, text: 't' })),
+                            passedTestCaseCount: ev.passed,
+                            testCaseCount: ev.total,
                         } as unknown as ResultDTO,
                     }) });
                     break;
@@ -139,18 +143,25 @@ export function runScenario(scenario: Scenario): ScenarioResult {
         }
         atomic.sort((a, b) => a.at - b.at);
 
-        // Ordering per atomic event (tick contract): (1) advance the sinon
-        // clock to the event time — intake debouncers flush and ENQUEUE, the
-        // engine does NOT tick (noop interval); (2) fire the event so an
-        // event at exactly a grid time is enqueued before its tick runs;
-        // (3) advanceTo(event time) processes every due grid tick.
+        // Ordering per timestamp (tick contract): (1) advance the sinon clock to
+        // the event time — intake debouncers flush and ENQUEUE, the engine does
+        // NOT tick (noop interval); (2) fire ALL events at this timestamp so any
+        // event at exactly a grid time is enqueued before its tick runs (events
+        // sharing a timestamp must all enqueue before that tick — otherwise the
+        // first one's advanceTo runs the tick before the rest are enqueued and
+        // they drain one tick late); (3) advanceTo(time) processes every due tick.
         let currentS = 0;
-        for (const a of atomic) {
-            if (a.at > currentS) {
-                clock.tick((a.at - currentS) * 1000);
-                currentS = a.at;
+        let i = 0;
+        while (i < atomic.length) {
+            const at = atomic[i].at;
+            if (at > currentS) {
+                clock.tick((at - currentS) * 1000);
+                currentS = at;
             }
-            a.fire();
+            while (i < atomic.length && atomic[i].at === at) {
+                atomic[i].fire();
+                i++;
+            }
             engine.advanceTo(START + currentS * 1000);
         }
         if (scenario.durationS > currentS) {

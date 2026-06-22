@@ -20,6 +20,11 @@ export interface BuildClassification {
     readonly isFM: boolean;
     readonly isFMPlus: boolean;
     readonly improved: boolean;
+    /** Passing/total test-case counts (from ResultDTO). Both null for a
+     *  compile-error build (buildFailed) — no test info — so a stale backend
+     *  count can never contaminate the Test-Stagnation add-on. */
+    readonly passedTestCaseCount: number | null;
+    readonly testCaseCount: number | null;
 }
 
 function failedSetOf(result: ResultDTO): Set<string> {
@@ -71,6 +76,10 @@ export class BuildDeltaTracker {
         const isFM = delta === 'compile-error'
             || (hasFailed && badDeltas.includes(delta))
             || (hasFailed && delta === 'first');
+        // A compile-error build carries no test info; null the counts so the
+        // Test-Stagnation add-on can never read a stale backend value.
+        const passedTestCaseCount = buildFailed ? null : result.passedTestCaseCount ?? null;
+        const testCaseCount = buildFailed ? null : result.testCaseCount ?? null;
         return {
             tsS,
             delta,
@@ -78,6 +87,8 @@ export class BuildDeltaTracker {
             isFM,
             isFMPlus: delta === 'improved' && hasFailed,
             improved: delta === 'improved',
+            passedTestCaseCount,
+            testCaseCount,
         };
     }
 

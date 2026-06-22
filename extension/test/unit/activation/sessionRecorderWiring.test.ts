@@ -46,6 +46,7 @@ import type {
 import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import { asEditAlert } from '@test/__shared__/alertNarrow';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 interface MutableConfigState {
@@ -208,8 +209,9 @@ function makeTick(overrides: Partial<TickRecord> = {}): TickRecord {
 }
 
 /** Build a minimal AlertRecord. */
-function makeAlert(overrides: Partial<AlertRecord> = {}): AlertRecord {
+function makeAlert(overrides: Partial<Extract<AlertRecord, { kind: 'edit' }>> = {}): AlertRecord {
     return {
+        kind: 'edit',
         t: 30,
         ts: 1_700_000_030_000,
         urgency: 0.7,      // decision signal (distinct from telemetry V below)
@@ -220,6 +222,20 @@ function makeAlert(overrides: Partial<AlertRecord> = {}): AlertRecord {
         path: 'armed',
         inWarmup: false,
         inGrace: false,
+        ...overrides,
+    };
+}
+
+/** Build a minimal discrete (Test-Stagnation) AlertRecord. */
+function makeDiscreteAlert(overrides: Partial<Extract<AlertRecord, { kind: 'discrete' }>> = {}): AlertRecord {
+    return {
+        kind: 'discrete',
+        t: 180,
+        ts: 1_700_000_180_000,
+        urgency: 0.01,
+        v: 0.2,
+        trigger: 'test-stagnation',
+        inWarmup: true,
         ...overrides,
     };
 }
@@ -603,7 +619,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             const stub = sandbox.stub(harness.recorder, 'recordAlert');
             harness.coordinator.fireAlert(makeAlert());
             sinon.assert.calledOnceWithExactly(stub, {
-                t: 30, urgency: 0.7, v: 0.85, types: ['FM'], primary: 'FM',
+                kind: 'edit', t: 30, urgency: 0.7, v: 0.85, types: ['FM'], primary: 'FM',
                 path: 'armed', inWarmup: false, inGrace: false, theta: 0.7,
             });
         } finally {
@@ -619,13 +635,33 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             await harness.recorder.endSession();
 
             const events = await readAllRecordedEvents(harness.tmpDir);
-            const alert = events.find(e => e.type === 'alert') as AlertEvent | undefined;
-            assert.ok(alert, 'alert event missing');
-            assert.strictEqual(alert!.t, 45);
-            assert.strictEqual(alert!.primary, 'E4');
-            assert.deepStrictEqual(alert!.types, ['E4', 'N1']);
-            assert.strictEqual(alert!.path, 'e6');
-            assert.strictEqual(alert!.theta, 0.7);
+            const found = events.find(e => e.type === 'alert') as AlertEvent | undefined;
+            assert.ok(found, 'alert event missing');
+            const alert = asEditAlert(found);
+            assert.strictEqual(alert.t, 45);
+            assert.strictEqual(alert.primary, 'E4');
+            assert.deepStrictEqual(alert.types, ['E4', 'N1']);
+            assert.strictEqual(alert.path, 'e6');
+            assert.strictEqual(alert.theta, 0.7);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('a discrete Test-Stagnation alert is recorded with its kind + trigger and round-trips', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            await harness.recorder.startSession(7);
+            harness.coordinator.fireAlert(makeDiscreteAlert());
+            await harness.recorder.endSession();
+
+            const events = await readAllRecordedEvents(harness.tmpDir);
+            const found = events.find(e => e.type === 'alert') as AlertEvent | undefined;
+            assert.ok(found, 'alert event missing');
+            assert.strictEqual(found.kind, 'discrete');
+            assert.strictEqual(found.kind === 'discrete' ? found.trigger : null, 'test-stagnation');
+            assert.strictEqual(found.t, 180);
+            assert.strictEqual(found.theta, 0.7);
         } finally {
             await harness.dispose();
         }
