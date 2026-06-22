@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOUNDARY_PRIORITY, SPEC } from '@extension/services/struggle/constants';
+import { BOUNDARY_PRIORITY, SPEC } from '@extension/services/struggle/config';
 
 describe('frozen Engine-v3 constants (2-feature substrate; derived_params.json)', () => {
     it('matches the frozen parameter set exactly', () => {

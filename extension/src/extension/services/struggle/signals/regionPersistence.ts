@@ -10,7 +10,7 @@
  * Keys are `${uriKey}|${method}`; unmapped changes (method null) count toward
  * the window total but never toward dominance.
  */
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 function isSubsequence(short: string, long: string): boolean {
     let i = 0;

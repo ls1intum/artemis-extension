@@ -12,6 +12,8 @@ import { InterventionService } from '@extension/services/intervention';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
+import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
+import { TUNING } from '@extension/services/struggle/config';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
@@ -69,9 +71,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(sensorHub);
 	const interventionService = new InterventionService();
 	context.subscriptions.push(interventionService);
+	// Tier-2 delivery throttle wraps the UI sink (downstream of the recorded
+	// alert path, so goldens/research are unaffected). Reads TUNING defaults.
+	const throttledSink = new ThrottledAlertSink(interventionService, TUNING);
 	const struggleCoordinator = new StruggleCoordinator({
 		hub: sensorHub,
-		alertSink: interventionService,
+		alertSink: throttledSink,
 		exerciseRegistry,
 	});
 	activeStruggleCoordinator = struggleCoordinator;

@@ -1,5 +1,5 @@
 import type { RecordedEvent } from '@extension/services/recording/types';
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 import type { GoldenSession } from './goldenTypes';
 

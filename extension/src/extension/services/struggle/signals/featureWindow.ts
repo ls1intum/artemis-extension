@@ -6,7 +6,7 @@
  *
  * Inputs are session-relative seconds; ingestion in non-decreasing ts order.
  */
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 /** Index of the first element > x (upper bound) in an ascending array. */
 function upperBound(arr: readonly number[], x: number): number {

@@ -99,4 +99,59 @@ suite('StruggleCoordinator', () => {
             stub.restore();
         }
     });
+
+    test('startExerciseSession resets the sink per-session budget via resetSession (not reset)', () => {
+        const calls = { reset: 0, resetSession: 0 };
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, reset: () => { calls.reset++; }, resetSession: () => { calls.resetSession++; } },
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1);
+            assert.strictEqual(calls.resetSession, 1, 'new session resets the throttle budget');
+            assert.strictEqual(calls.reset, 0, 'session start is not the UI-only reset');
+        } finally {
+            c.dispose();
+        }
+    });
+
+    test('turning showInterventions off mid-session clears the UI (reset) WITHOUT resetting the throttle budget (resetSession)', () => {
+        let showInterventions = true;
+        const realGet = vscode.workspace.getConfiguration;
+        const getStub = sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
+            const cfg = realGet.call(vscode.workspace, section);
+            if (section === 'artemis.struggleDetection') {
+                return { ...cfg, get: (key: string, dflt?: unknown) => (key === 'showInterventions' ? showInterventions : cfg.get(key, dflt)) } as vscode.WorkspaceConfiguration;
+            }
+            return cfg;
+        });
+        let configHandler: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
+        const onChangeStub = sinon.stub(vscode.workspace, 'onDidChangeConfiguration')
+            .callsFake(((h: (e: vscode.ConfigurationChangeEvent) => void) => {
+                configHandler = h;
+                return new vscode.Disposable(() => { /* noop */ });
+            }) as typeof vscode.workspace.onDidChangeConfiguration);
+        try {
+            const calls = { reset: 0, resetSession: 0 };
+            const c = new StruggleCoordinator({
+                hub: new TestSensorHub(),
+                alertSink: { deliver: () => { /* noop */ }, reset: () => { calls.reset++; }, resetSession: () => { calls.resetSession++; } },
+                exerciseRegistry: undefined,
+            });
+            try {
+                c.startExerciseSession(1);                       // resetSession -> 1
+                const sessionResetsBefore = calls.resetSession;
+                showInterventions = false;                       // toggle delivery off mid-session
+                configHandler?.({ affectsConfiguration: () => true } as vscode.ConfigurationChangeEvent);
+                assert.strictEqual(calls.reset, 1, 'config-off clears the UI via reset');
+                assert.strictEqual(calls.resetSession, sessionResetsBefore, 'config-off must NOT reset the throttle budget');
+            } finally {
+                c.dispose();
+            }
+        } finally {
+            onChangeStub.restore();
+            getStub.restore();
+        }
+    });
 });

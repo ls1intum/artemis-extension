@@ -9,7 +9,7 @@
  * MUST be ingested in non-decreasing ts order (the engine's drain rule
  * guarantees this); queries activeAt(t) come after all events <= t.
  */
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 export class FastDecayTracker {
     private _lastImprovedS: number | null = null;

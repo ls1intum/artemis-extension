@@ -8,7 +8,7 @@
  * line_first, NOT the current line). Causal deviation, Decision 4: activity
  * ends at the removing snapshot.
  */
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 const SKIP_COST = 1e7;
 

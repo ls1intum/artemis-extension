@@ -19,7 +19,7 @@
 import * as vscode from 'vscode';
 
 import type { RecordedEvent } from '@extension/services/recording/types';
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, EngineClock, TickRecord } from '@extension/services/struggle/types';
 

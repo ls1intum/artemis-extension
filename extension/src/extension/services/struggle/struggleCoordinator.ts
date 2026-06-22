@@ -5,7 +5,7 @@ import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
 import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, EngineClock, StruggleSnapshot, TickRecord } from '@extension/services/struggle/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
@@ -107,7 +107,13 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (this._activeExerciseId !== undefined) { this.endExerciseSession(); }
         this._activeExerciseId = exerciseId;
         this._sessionStartMs = this._clock.now();
-        this._alertSink.reset?.();                 // clear any stale intervention from the prior session
+        // New session: reset the sink's per-session throttle budget AND clear any
+        // stale intervention (resetSession falls back to reset when unsupported).
+        if (this._alertSink.resetSession) {
+            this._alertSink.resetSession();
+        } else {
+            this._alertSink.reset?.();
+        }
         this._engine.start({ sessionStartMs: this._sessionStartMs, exerciseRoot });
         this._lastTick = undefined;
         this._lastAlert = undefined;

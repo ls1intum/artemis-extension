@@ -11,8 +11,8 @@
  * flagsAt(t) consumes every buffered event with ts <= t and must be called
  * with strictly increasing t (the engine's grid guarantees both).
  */
-import type { BoundaryType } from '@extension/services/struggle/constants';
-import { BOUNDARY_PRIORITY, SPEC } from '@extension/services/struggle/constants';
+import type { BoundaryType } from '@extension/services/struggle/config';
+import { BOUNDARY_PRIORITY, SPEC } from '@extension/services/struggle/config';
 
 /** Score ticks t = 10, 20, ... <= duration (first tick at 10 s). Test/audit helper. */
 export function ticksFor(durationS: number): number[] {

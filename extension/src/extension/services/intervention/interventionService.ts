@@ -6,11 +6,13 @@ import type { AlertSink } from '@extension/services/struggle/alerting/alertSink'
 import type { AlertRecord } from '@extension/services/struggle/types';
 
 /**
- * Single-level struggle intervention (spec R4): one status-bar hint shown on a
- * v2 alert; clicking it opens the Iris chat. The engine's alert state machine
- * (cooldown 120 s, gates, hysteresis, E6 re-alert) governs frequency, so no
- * extra suppression/cadence logic lives here — that is exactly what makes the
- * v1 spam (idle/selection triggers + adaptive cadence) go away.
+ * Single-level struggle intervention (spec R4): one status-bar hint shown on an
+ * alert; clicking it opens the Iris chat. The engine's alert state machine
+ * (cooldown 120 s, gates, hysteresis, E6 re-alert) governs DETECTION frequency,
+ * and a Tier-2 ThrottledAlertSink decorator (WS4) shapes DELIVERY frequency
+ * upstream of this class; this class itself adds no cadence logic — that is
+ * exactly what makes the v1 spam (idle/selection triggers + adaptive cadence) go
+ * away.
  *
  * Tier-ready: deliver() receives the full AlertRecord (V, path armed|e6,
  * boundary types). Escalation-over-persistence (path === 'e6') and richer UX

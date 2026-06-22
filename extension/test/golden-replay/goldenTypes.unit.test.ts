@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RecordedEvent } from '@extension/services/recording/types';
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 import { parseGoldenSession } from './goldenTypes';
 import { assertEveryChangeHasSnapshot, assertFeedbackViewMatched, assertSpecConstants } from './invariants';

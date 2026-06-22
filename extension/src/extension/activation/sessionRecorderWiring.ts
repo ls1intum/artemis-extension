@@ -14,7 +14,7 @@ import {
 } from '@extension/services/recording/eventCollectors';
 import type { RecordedEvent } from '@extension/services/recording/types';
 import type { SensorHub } from '@extension/services/sensing';
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { PlatformCapabilities } from '@extension/theia';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BoundaryType } from '@extension/services/struggle/constants';
+import type { BoundaryType } from '@extension/services/struggle/config';
 import { DecisionEngine } from '@extension/services/struggle/decision/decisionEngine';
 import type { EngineTick } from '@extension/services/struggle/types';
 import { asEditAlert } from '@test/__shared__/alertNarrow';

@@ -9,7 +9,7 @@
  * classification of build_inputs (engine_v2.py).
  */
 import type { ResultDTO } from '@extension/domain/submissions';
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 export type BuildDelta = 'compile-error' | 'first' | 'identical-set' | 'improved' | 'worse' | 'same-count';
 

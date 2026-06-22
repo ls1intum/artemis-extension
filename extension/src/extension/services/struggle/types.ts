@@ -1,5 +1,5 @@
 // extension/src/extension/services/struggle/types.ts
-import type { BoundaryType } from './constants';
+import type { BoundaryType } from './config';
 
 /** Per-tick feature vector (Python compute_features row). All rates per minute,
  *  times in session-relative seconds. */

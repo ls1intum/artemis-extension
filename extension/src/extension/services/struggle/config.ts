@@ -1,11 +1,19 @@
-// extension/src/extension/services/struggle/constants.ts
+// extension/src/extension/services/struggle/config.ts
 /**
- * Frozen Engine-v3 parameters: the 2-feature core substrate (feature_set =
- * ['typing', 'gap']). Derived from ENGINE_V2_SPEC.md Rev 3.1 / derived_params.json
- * on the derivation set P2/P4/P5/P6/P8/P10. v3 drops the v2 N4 (scroll/insert
- * ratio) feature, so the equal-weighted core mean is a /2 average and theta_full
- * rises 0.6 -> 0.7. NOTHING here may be re-tuned — the held-out evaluation is
- * only valid for exactly these values.
+ * The ONE struggle-detection config, split by MUTABILITY into two exports:
+ *
+ *  - `SPEC` (frozen, `as const`): the validated detector surface. Golden-pinned;
+ *    NOTHING here may be re-tuned — the held-out F1 + golden parity are valid only
+ *    for exactly these values, INCLUDING the "🔧 ENG" ones (not-data-derived is NOT
+ *    safe-to-change). Changing any SPEC value invalidates the evaluation.
+ *  - `TUNING` (mutable defaults): the version-tunable layer — Tier-2 delivery
+ *    throttle (downstream of the recorded/golden alert path) and the Tier-3
+ *    add-on knobs (no golden to break). Tuning these CANNOT affect goldens or the
+ *    held-out F1.
+ *
+ * The frozen/tunable boundary IS the verifiable boundary: `SPEC` feeds the
+ * golden-pinned decision; `TUNING` feeds the downstream throttle + the unevaluated
+ * add-ons. Both live here so every number is visible in one place.
  *
  * Evidence tags ([D] own study data, [L] literature, [D+L] both, ENG declared
  * engineering choice) follow the spec.
@@ -79,3 +87,24 @@ export type BoundaryType = typeof BOUNDARY_PRIORITY[number];
  * equality (test/unit/services/struggle/debounceParity.test.ts).
  */
 export const SELECTION_DEBOUNCE_MS = 200;
+
+/**
+ * Version-tunable layer (MUTABLE, deliberately NOT `as const`). None of these
+ * feed the golden-pinned decision — they are the downstream Tier-2 delivery
+ * throttle plus the unevaluated Tier-3 add-on knobs. All ENG (engineering
+ * defaults), safe to re-tune per version without touching held-out F1 or golden
+ * parity. The user-facing on/off (`enabled`/`showInterventions`) lives in VS Code
+ * settings, not here.
+ */
+export const TUNING = {
+    /** Tier-2 delivery throttle (ThrottledAlertSink), delivery-only. `minDeliveryGapS`
+     *  is a hard floor BETWEEN DELIVERIES and MUST NOT be conflated with the SPEC
+     *  detector cooldown (a Schicht-3 decision guard, 120 s). ENG */
+    maxAlertsPerMinute: 2,
+    maxAlertsPerSession: 6,
+    minDeliveryGapS: 30,
+    /** Tier-3 add-on (Test-Stagnation): plateau length N + production enable.
+     *  No golden to break. ENG */
+    testStagnationN: 3,
+    enableTestStagnation: true,
+};

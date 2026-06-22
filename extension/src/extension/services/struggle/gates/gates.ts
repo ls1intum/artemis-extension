@@ -4,8 +4,8 @@
  * three predicates the alert state machine applies IN ITS FIXED ORDER —
  * the order lives in alerting/alertStateMachine.ts, not here.
  */
-import type { BoundaryType } from '@extension/services/struggle/constants';
-import { SPEC } from '@extension/services/struggle/constants';
+import type { BoundaryType } from '@extension/services/struggle/config';
+import { SPEC } from '@extension/services/struggle/config';
 
 /** B2 (soft, fail-open): no alert while typing fluently. null = no data = open. */
 export function isFluentTyping(typingRate: number | null): boolean {

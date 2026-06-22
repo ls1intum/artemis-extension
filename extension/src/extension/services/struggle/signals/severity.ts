@@ -4,7 +4,7 @@
  * so the mean is over 2 features, not 3. Weights are frozen engineering choices
  * motivated by near-equal mixed-model betas; see constants.ts.
  */
-import { SPEC } from '@extension/services/struggle/constants';
+import { SPEC } from '@extension/services/struggle/config';
 
 export function severityFrom(
     core: { fTyping: number; fGap: number },

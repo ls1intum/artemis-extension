@@ -1,5 +1,5 @@
-import type { BoundaryType } from '@extension/services/struggle/constants';
-import { BOUNDARY_PRIORITY } from '@extension/services/struggle/constants';
+import type { BoundaryType } from '@extension/services/struggle/config';
+import { BOUNDARY_PRIORITY } from '@extension/services/struggle/config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

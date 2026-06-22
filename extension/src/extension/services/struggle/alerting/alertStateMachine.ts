@@ -11,8 +11,8 @@
  *      cooldown -> armed/E6
  *   3. alert bookkeeping (E6 resets in_state_since; DECISIONS_v2 #20)
  */
-import type { BoundaryType } from '@extension/services/struggle/constants';
-import { SPEC } from '@extension/services/struggle/constants';
+import type { BoundaryType } from '@extension/services/struggle/config';
+import { SPEC } from '@extension/services/struggle/config';
 import { applyGraceFilter, isFluentTyping, survivesWarmup } from '@extension/services/struggle/gates/gates';
 import type { EditDecisionAlert } from '@extension/services/struggle/types';
 

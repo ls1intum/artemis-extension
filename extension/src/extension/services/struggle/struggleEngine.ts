@@ -22,8 +22,8 @@ import type { SensorHub } from '@extension/services/sensing';
 import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 import { BoundaryTracker } from '@extension/services/struggle/boundaries/boundaryTracker';
 import {
-    SELECTION_DEBOUNCE_MS, SPEC,
-} from '@extension/services/struggle/constants';
+    SELECTION_DEBOUNCE_MS, SPEC, TUNING,
+} from '@extension/services/struggle/config';
 import { type DecisionAblation, DecisionEngine } from '@extension/services/struggle/decision/decisionEngine';
 import { FastDecayTracker, VTracker } from '@extension/services/struggle/dynamics/decay';
 import { TrailingDebouncer } from '@extension/services/struggle/intake/trailingDebouncer';
@@ -92,7 +92,7 @@ export class StruggleEngine implements vscode.Disposable {
     private _a8: A8TrackerLike = new A8Tracker();
     private _n2: N2TrackerLike = new N2Tracker();
     private _buildDelta = new BuildDeltaTracker();
-    private _testStagnation = new TestStagnationTracker();
+    private _testStagnation = new TestStagnationTracker(TUNING.testStagnationN);
     private _fastDecay = new FastDecayTracker();
     private _v = new VTracker();
     private _boundaries = new BoundaryTracker();
@@ -380,10 +380,15 @@ export class StruggleEngine implements vscode.Disposable {
         this._a8 = this._opts?.trackers?.a8?.() ?? new A8Tracker();
         this._n2 = this._opts?.trackers?.n2?.() ?? new N2Tracker();
         this._buildDelta = new BuildDeltaTracker();
-        this._testStagnation = new TestStagnationTracker();
+        this._testStagnation = new TestStagnationTracker(TUNING.testStagnationN);
         this._fastDecay = new FastDecayTracker();
         this._v = new VTracker();
         this._boundaries = new BoundaryTracker();
-        this._decision = new DecisionEngine(undefined, this._opts?.decision);
+        // Golden-replay overrides with validated-base mode; production defaults
+        // the ablation from TUNING (add-ons on).
+        this._decision = new DecisionEngine(
+            undefined,
+            this._opts?.decision ?? { enableTestStagnation: TUNING.enableTestStagnation },
+        );
     }
 }

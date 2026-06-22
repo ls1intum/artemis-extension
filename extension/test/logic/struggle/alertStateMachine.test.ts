@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AlertStateMachine, type MachineParams } from '@extension/services/struggle/alerting/alertStateMachine';
-import type { BoundaryType } from '@extension/services/struggle/constants';
+import type { BoundaryType } from '@extension/services/struggle/config';
 
 function ticksFor(durationS: number): number[] {
     const out: number[] = [];
