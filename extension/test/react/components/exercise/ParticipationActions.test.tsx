@@ -551,7 +551,7 @@ describe('ParticipationActions', () => {
 			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
 		});
 
-		it('shows "Open in Artemis" even when the workspace is connected', () => {
+		it('does NOT show "Open in Artemis" when the workspace is connected (open exercise)', () => {
 			render(
 				<ParticipationActions
 					exerciseType="programming"
@@ -560,7 +560,8 @@ describe('ParticipationActions', () => {
 					isManagedEnvironment={true}
 				/>
 			);
-			expect(screen.getByRole('button', { name: 'Open in Artemis' })).toBeInTheDocument();
+			// In the open/connected exercise only Submit + More options belong here.
+			expect(screen.queryByRole('button', { name: 'Open in Artemis' })).not.toBeInTheDocument();
 		});
 
 		it('calls onOpenInBrowser when "Open in Artemis" is clicked', async () => {
@@ -569,7 +570,7 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					workspaceStatus="clean"
+					workspaceStatus="disconnected"
 					isManagedEnvironment={true}
 					onOpenInBrowser={handleOpenInBrowser}
 				/>

@@ -275,12 +275,13 @@ export function ParticipationActions({
         {renderSubmitButtonGroup()}
         {renderCommitMessageInput()}
         <div className={styles.actionButtonRow}>
-          {isManagedEnvironment ? (
-            <Button variant="primary" onClick={onOpenInBrowser} fullWidth>
-              Open in Artemis
-            </Button>
-          ) : (
-            !isWorkspaceConnected && (
+          {!isWorkspaceConnected && (
+            isManagedEnvironment ? (
+              // EduIDE: cloning is meaningless, so offer the web exercise instead.
+              <Button variant="primary" onClick={onOpenInBrowser} fullWidth>
+                Open in Artemis
+              </Button>
+            ) : (
               <Button variant="primary" onClick={onClone} fullWidth>
                 Clone Repository
               </Button>

@@ -257,7 +257,25 @@ describe('ExerciseDetailView', () => {
 	});
 
 	describe('managed environment (EduIDE)', () => {
-		it('replaces clone affordances with "Open in Artemis" when exerciseDetailInit carries isManagedEnvironment', async () => {
+		it('shows "Open in Artemis" (not Clone) when managed and the workspace is disconnected', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'exerciseDetailInit',
+				exerciseData: makeExerciseDataWithParticipation(),
+				hideDeveloperTools: false,
+				repoStatus: { isConnected: false, hasChanges: false, isPracticeRepo: false },
+				isManagedEnvironment: true,
+			});
+
+			await waitFor(() => {
+				expect(screen.getByRole('button', { name: 'Open in Artemis' })).toBeInTheDocument();
+			});
+			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
+		});
+
+		it('shows no "Open in Artemis" and no Clone/Open Repository when managed and connected (open exercise)', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<ExerciseDetailView vscodeApi={mockApi} />);
 
@@ -270,10 +288,11 @@ describe('ExerciseDetailView', () => {
 			});
 
 			await waitFor(() => {
-				expect(screen.getByRole('button', { name: 'Open in Artemis' })).toBeInTheDocument();
+				expect(screen.getByRole('button', { name: /Submit/i })).toBeInTheDocument();
 			});
+			// The open/connected exercise must not surface "Open in Artemis".
+			expect(screen.queryByRole('button', { name: 'Open in Artemis' })).not.toBeInTheDocument();
 
-			// Clone affordances are gone, even inside the More-options dropdown.
 			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
 			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
