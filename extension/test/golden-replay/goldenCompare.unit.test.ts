@@ -32,7 +32,7 @@ function makeTick(overrides: Partial<GoldenTick> = {}): GoldenTick {
 function makeAlert(overrides: Partial<GoldenAlert> = {}): GoldenAlert {
     return {
         t: 10,
-        v: 0.65,
+        urgency: 0.65,
         typesPreGate: ['FM'],
         types: ['FM'],
         primary: 'FM',
@@ -88,10 +88,10 @@ function makeReplayAlert(ga: GoldenAlert): AlertRecord {
         kind: 'edit',
         t: ga.t,
         ts: ga.t * 1000,
-        // The golden's decision signal; WS5 adds a distinct urgency column to the
-        // golden schema. Until then this synthetic fixture reuses v.
-        urgency: ga.v,
-        v: ga.v,
+        urgency: ga.urgency,
+        // The golden carries only the urgency decision signal; the telemetry V is
+        // compared at the tick level, not here, so this fixture mirrors urgency.
+        v: ga.urgency,
         typesPreGate: [...ga.typesPreGate],
         types: [...ga.types],
         primary: ga.primary,

@@ -29,7 +29,7 @@ const MINIMAL_TICK = {
 
 const MINIMAL_ALERT = {
     t: 10,
-    v: 0.65,
+    urgency: 0.65,
     typesPreGate: ['FM'] as const,
     types: ['FM'] as const,
     primary: 'FM' as const,

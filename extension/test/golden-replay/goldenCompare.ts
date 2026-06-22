@@ -155,15 +155,15 @@ function compareAlertFields(
         };
     }
 
-    if (!approxEq(ra.v, ga.v)) {
+    if (!approxEq(ra.urgency, ga.urgency)) {
         return {
             kind: 'alertField',
             t,
             index,
-            field: 'v',
-            replay: ra.v,
-            golden: ga.v,
-            message: `alert[${index}] t=${t}: field "v" diverged (replay=${ra.v}, golden=${ga.v})`,
+            field: 'urgency',
+            replay: ra.urgency,
+            golden: ga.urgency,
+            message: `alert[${index}] t=${t}: field "urgency" diverged (replay=${ra.urgency}, golden=${ga.urgency})`,
         };
     }
 

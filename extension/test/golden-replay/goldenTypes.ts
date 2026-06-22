@@ -25,7 +25,9 @@ export interface GoldenTick {
 
 export interface GoldenAlert {
     readonly t: number;
-    readonly v: number;
+    /** The urgency (S_base) that fired the alert — the v3 decision signal
+     *  (alerts_full_u). The substrate V is compared at the tick level, not here. */
+    readonly urgency: number;
     readonly typesPreGate: BoundaryType[];
     readonly types: BoundaryType[];
     readonly primary: BoundaryType;
@@ -155,7 +157,7 @@ function parseAlert(raw: unknown, idx: number): GoldenAlert {
     }
     return {
         t: assertNumber(r['t'], `${prefix}.t`),
-        v: assertNumber(r['v'], `${prefix}.v`),
+        urgency: assertNumber(r['urgency'], `${prefix}.urgency`),
         typesPreGate: parseBoundaryArray(r['typesPreGate'], `${prefix}.typesPreGate`),
         types: parseBoundaryArray(r['types'], `${prefix}.types`),
         primary,

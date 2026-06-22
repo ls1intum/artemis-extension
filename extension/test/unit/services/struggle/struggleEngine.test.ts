@@ -63,6 +63,9 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         // idle severity (v3 2-feature): fTyping=1, fGap=1 -> S = (1+1)/2 = 1.0 >= theta(0.7)
         const tick49 = ticks.find(t => t.t === 490)!;
         assert.ok(Math.abs(tick49.s - 1.0) < 1e-9);
+        // The alert payload carries the firing tick's V telemetry (the golden
+        // parity compares V at tick level only, so guard the alert stamping here).
+        assert.strictEqual(a0.v, tick49.v);
     });
 
     test('E6 re-alerts every 120 s while the idle state persists', () => {
