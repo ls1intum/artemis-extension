@@ -2,6 +2,7 @@ import type { VsCodeApi } from '@shared/messageContracts';
 
 export interface StruggleData {
     isStruggling: boolean;
+    urgency: number;
     v: number;
     s: number;
     primaryBoundary: 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | null;

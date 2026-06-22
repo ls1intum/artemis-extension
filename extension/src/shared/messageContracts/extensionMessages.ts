@@ -143,6 +143,8 @@ interface ExtensionMsgPayloads {
     };
     struggleDetectionInit: {
         isStruggling: boolean;
+        /** v3 decision signal (S_base); isStruggling = urgency >= θ. */
+        urgency: number;
         v: number;
         s: number;
         primaryBoundary: 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | null;

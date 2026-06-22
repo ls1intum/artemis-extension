@@ -212,7 +212,8 @@ function makeAlert(overrides: Partial<AlertRecord> = {}): AlertRecord {
     return {
         t: 30,
         ts: 1_700_000_030_000,
-        v: 0.7,
+        urgency: 0.7,      // decision signal (distinct from telemetry V below)
+        v: 0.85,
         typesPreGate: ['FM'],
         types: ['FM'],
         primary: 'FM',
@@ -602,7 +603,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             const stub = sandbox.stub(harness.recorder, 'recordAlert');
             harness.coordinator.fireAlert(makeAlert());
             sinon.assert.calledOnceWithExactly(stub, {
-                t: 30, v: 0.7, types: ['FM'], primary: 'FM',
+                t: 30, urgency: 0.7, v: 0.85, types: ['FM'], primary: 'FM',
                 path: 'armed', inWarmup: false, inGrace: false, theta: 0.7,
             });
         } finally {

@@ -99,7 +99,8 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     }));
     disposables.push(struggleCoordinator.onDidAlert(alert => {
         sessionRecorder.recordAlert({
-            t: alert.t, v: alert.v, types: [...alert.types], primary: alert.primary,
+            t: alert.t, urgency: alert.urgency, v: alert.v,
+            types: [...alert.types], primary: alert.primary,
             path: alert.path, inWarmup: alert.inWarmup, inGrace: alert.inGrace, theta: SPEC.THETA_FULL,
         });
     }));

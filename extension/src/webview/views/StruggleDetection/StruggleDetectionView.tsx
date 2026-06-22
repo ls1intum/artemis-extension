@@ -8,9 +8,9 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import styles from './StruggleDetectionView.module.css';
 import type { StruggleData, StruggleDetectionViewProps } from './types';
 
-/** V-meter colour: red at/above θ_full (0.6), amber approaching, green below. */
-function getVColor(v: number): string {
-    return v >= 0.6 ? '#f44336' : v >= 0.5 ? '#ff9800' : '#4caf50';
+/** Urgency-meter colour: red at/above θ_full (0.7), amber approaching, green below. */
+function getUrgencyColor(u: number): string {
+    return u >= 0.7 ? '#f44336' : u >= 0.6 ? '#ff9800' : '#4caf50';
 }
 
 export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps) {
@@ -68,8 +68,8 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
         );
     }
 
-    const vColor = getVColor(data.v);
-    const vPercent = Math.min(Math.max(data.v * 100, 0), 100);
+    const urgencyColor = getUrgencyColor(data.urgency);
+    const urgencyPercent = Math.min(Math.max(data.urgency * 100, 0), 100);
 
     return (
         <div className={styles.struggleDetectionView}>
@@ -82,11 +82,11 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 subtitle="Monitors your development patterns to detect when you might need help."
             />
 
-            {/* Severity (V) */}
+            {/* Urgency — the v3 decision signal (S_base) that triggers alerts. */}
             <Container
                 header={
                     <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                        Severity (V)
+                        Urgency (decision signal)
                     </div>
                 }
                 variant="default"
@@ -98,30 +98,30 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         <div style={{
                             fontSize: '36px',
                             fontWeight: 700,
-                            color: vColor,
+                            color: urgencyColor,
                             minWidth: '80px'
                         }}>
-                            {data.v.toFixed(2)}
+                            {data.urgency.toFixed(2)}
                         </div>
                         <div style={{ flex: 1 }}>
                             <div style={{
                                 fontSize: '14px',
                                 fontWeight: 600,
-                                color: vColor,
+                                color: urgencyColor,
                                 marginBottom: '4px'
                             }}>
-                                {data.v >= 0.6 ? 'At or above alert threshold' : 'Below alert threshold'}
+                                {data.urgency >= 0.7 ? 'At or above alert threshold' : 'Below alert threshold'}
                             </div>
                             <div style={{
                                 fontSize: '12px',
                                 color: 'var(--vscode-descriptionForeground)'
                             }}>
-                                Decayed severity, 0.0 (calm) &mdash; 1.0 (severe). Alert at &theta; = 0.60.
+                                Core severity (typing + gap), 0.0 (calm) &mdash; 1.0 (severe). Alert at &theta; = 0.70.
                             </div>
                         </div>
                     </div>
 
-                    {/* Progress bar with θ marker at 60% */}
+                    {/* Progress bar with θ marker at 70% */}
                     <div style={{
                         position: 'relative',
                         height: '8px',
@@ -131,15 +131,15 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                     }}>
                         <div style={{
                             height: '100%',
-                            width: `${vPercent}%`,
+                            width: `${urgencyPercent}%`,
                             borderRadius: '4px',
-                            background: vColor,
+                            background: urgencyColor,
                             transition: 'width 0.3s ease'
                         }} />
                         <div style={{
                             position: 'absolute',
                             top: 0,
-                            left: '60%',
+                            left: '70%',
                             width: '2px',
                             height: '100%',
                             background: 'var(--vscode-foreground)'
@@ -155,7 +155,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         padding: '0 2px'
                     }}>
                         <span>0.0</span>
-                        <span>&theta; 0.60</span>
+                        <span>&theta; 0.70</span>
                         <span>1.0</span>
                     </div>
                 </div>
@@ -190,10 +190,22 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         alignItems: 'center'
                     }}>
                         <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Instantaneous score (S)
+                            Instantaneous score (S, telemetry)
                         </span>
                         <Badge variant="muted">
                             {data.s.toFixed(2)}
+                        </Badge>
+                    </div>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
+                            Severity (V, telemetry)
+                        </span>
+                        <Badge variant="muted">
+                            {data.v.toFixed(2)}
                         </Badge>
                     </div>
                     <div style={{

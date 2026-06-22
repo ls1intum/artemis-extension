@@ -470,6 +470,9 @@ export interface AlertEvent {
     type: 'alert';
     timestamp: number;
     t: number;
+    /** v3 threshold signal (S_base) that fired the alert. Absent in legacy v2
+     *  recordings, where v was the decision signal. */
+    urgency?: number;
     v: number;
     types: RecordedBoundaryType[];
     primary: RecordedBoundaryType;

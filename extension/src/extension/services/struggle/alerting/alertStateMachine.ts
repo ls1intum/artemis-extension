@@ -1,9 +1,12 @@
 // extension/src/extension/services/struggle/alerting/alertStateMachine.ts
 /**
- * Alerting state machine (spec §5) with the gate sequence of spec §4 — an
- * exact port of run_state_machine (engine_v2.py). The ORDER of the checks is
- * load-bearing and verified by the ported unit tests T3-T9:
- *   1. V bookkeeping (hysteresis / over-theta run)
+ * Edit-path alerting state machine (spec §5) with the gate sequence of spec §4
+ * — an exact port of run_state_machine (engine_v2.py). v3 feeds it the threshold
+ * signal `urgency = S_base = (f_typing + f_gap)/2` in place of the V peak-hold
+ * curve (the `alerts_full_u` configuration, script 35); the machine STRUCTURE is
+ * unchanged. The ORDER of the checks is load-bearing and verified by the ported
+ * unit tests T3-T9:
+ *   1. urgency bookkeeping (hysteresis / over-theta run on S_base)
  *   2. boundaries present? -> B2 -> grace filter -> warmup filter -> theta ->
  *      cooldown -> armed/E6
  *   3. alert bookkeeping (E6 resets in_state_since; DECISIONS_v2 #20)
@@ -11,6 +14,7 @@
 import type { BoundaryType } from '@extension/services/struggle/constants';
 import { SPEC } from '@extension/services/struggle/constants';
 import { applyGraceFilter, isFluentTyping, survivesWarmup } from '@extension/services/struggle/gates/gates';
+import type { DecisionAlert } from '@extension/services/struggle/types';
 
 export interface MachineParams {
     thetaFull: number;
@@ -33,24 +37,14 @@ const DEFAULT_PARAMS: MachineParams = {
 export interface MachineTickInput {
     /** Session-relative tick time (s). */
     t: number;
-    v: number;
+    /** Threshold signal — v3 S_base (NOT the V curve). */
+    urgency: number;
     /** Boundary types pending at this tick, in BOUNDARY_PRIORITY order. */
     boundaries: readonly BoundaryType[];
     /** Current window typing rate; null = no data (B2 fail-open). */
     typingRate: number | null;
     /** B4: inside the grace window after a bad-build result? (computed by the engine) */
     graceActive: boolean;
-}
-
-export interface MachineAlert {
-    t: number;
-    v: number;
-    typesPreGate: readonly BoundaryType[];
-    types: readonly BoundaryType[];
-    primary: BoundaryType;
-    path: 'armed' | 'e6';
-    inWarmup: boolean;
-    inGrace: boolean;
 }
 
 export class AlertStateMachine {
@@ -63,15 +57,15 @@ export class AlertStateMachine {
         this._p = { ...DEFAULT_PARAMS, ...params };
     }
 
-    tick(input: MachineTickInput): MachineAlert | null {
-        const { t, v } = input;
+    tick(input: MachineTickInput): DecisionAlert | null {
+        const { t, urgency } = input;
         const p = this._p;
 
-        // Step 1: V bookkeeping (hysteresis / over-theta run)
-        if (v < p.thetaFull - p.hysteresis) {
+        // Step 1: urgency bookkeeping (hysteresis / over-theta run on S_base)
+        if (urgency < p.thetaFull - p.hysteresis) {
             this._armed = true;
             this._inStateSince = null;
-        } else if (v >= p.thetaFull && this._inStateSince === null) {
+        } else if (urgency >= p.thetaFull && this._inStateSince === null) {
             this._inStateSince = t;
         }
 
@@ -93,7 +87,7 @@ export class AlertStateMachine {
         if (present.length === 0) {
             return null;
         }
-        if (v < p.thetaFull) {
+        if (urgency < p.thetaFull) {
             return null;
         }
         if (t - this._lastAlert < p.cooldownS) {
@@ -116,7 +110,7 @@ export class AlertStateMachine {
         this._armed = false;
         return {
             t,
-            v,
+            urgency,
             typesPreGate: preGate,
             types: present,
             primary: present[0],                            // BOUNDARY_PRIORITY-sorted input

@@ -630,6 +630,8 @@ function parseAlert(d: Record<string, unknown>, timestamp: number): AlertEvent |
     if (!isBoolean(d.inWarmup) || !isBoolean(d.inGrace)) { return null; }
     return {
         type: 'alert', timestamp,
+        // urgency is the v3 decision signal; legacy v2 recordings omit it (ignored).
+        ...(isFiniteNumber(d.urgency) ? { urgency: d.urgency as number } : {}),
         t: d.t as number, v: d.v as number,
         types: d.types as RecordedBoundaryType[],
         primary: d.primary as RecordedBoundaryType,

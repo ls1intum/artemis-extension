@@ -122,8 +122,11 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     // ── Debug snapshot ─────────────────────────────────────────────────
     getSnapshot(): StruggleSnapshot {
         const tick = this._lastTick;
+        // v3: isStruggling thresholds on urgency = S_base (the live decision
+        // signal), NOT the V peak-hold curve. V stays as telemetry below.
         return {
-            isStruggling: tick ? tick.v >= SPEC.THETA_FULL : false,
+            isStruggling: tick ? tick.sBase >= SPEC.THETA_FULL : false,
+            urgency: tick?.sBase ?? 0,
             v: tick?.v ?? 0,
             s: tick?.s ?? 0,
             primaryBoundary: tick && tick.boundariesPreGate.length > 0 ? tick.boundariesPreGate[0] : null,

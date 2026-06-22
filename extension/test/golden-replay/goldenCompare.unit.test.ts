@@ -87,6 +87,9 @@ function makeReplayAlert(ga: GoldenAlert): AlertRecord {
     return {
         t: ga.t,
         ts: ga.t * 1000,
+        // The golden's decision signal; WS5 adds a distinct urgency column to the
+        // golden schema. Until then this synthetic fixture reuses v.
+        urgency: ga.v,
         v: ga.v,
         typesPreGate: [...ga.typesPreGate],
         types: [...ga.types],

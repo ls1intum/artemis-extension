@@ -238,6 +238,7 @@ export class ViewInitDataService {
         this._postMessage({
             type: ExtensionMsg.StruggleDetectionInit,
             isStruggling: snapshot?.isStruggling ?? false,
+            urgency: snapshot?.urgency ?? 0,
             v: snapshot?.v ?? 0,
             s: snapshot?.s ?? 0,
             primaryBoundary: snapshot?.primaryBoundary ?? null,

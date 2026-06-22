@@ -20,11 +20,11 @@ import * as vscode from 'vscode';
 import type { ResultDTO } from '@extension/domain/submissions';
 import type { SensorHub } from '@extension/services/sensing';
 import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
-import { AlertStateMachine } from '@extension/services/struggle/alerting/alertStateMachine';
 import { BoundaryTracker } from '@extension/services/struggle/boundaries/boundaryTracker';
 import {
     SELECTION_DEBOUNCE_MS, SPEC,
 } from '@extension/services/struggle/constants';
+import { DecisionEngine } from '@extension/services/struggle/decision/decisionEngine';
 import { FastDecayTracker, VTracker } from '@extension/services/struggle/dynamics/decay';
 import { TrailingDebouncer } from '@extension/services/struggle/intake/trailingDebouncer';
 import { BuildDeltaTracker } from '@extension/services/struggle/signals/buildDelta';
@@ -36,7 +36,7 @@ import { methodAtLine, parseMethods } from '@extension/services/struggle/signals
 import { A8Tracker } from '@extension/services/struggle/signals/regionPersistence';
 import { severityFrom } from '@extension/services/struggle/signals/severity';
 import type {
-    AlertRecord, EngineClock, EngineSessionContext, TickRecord,
+    AlertRecord, EngineClock, EngineSessionContext, EngineTick, TickRecord,
 } from '@extension/services/struggle/types';
 
 const DEFAULT_CLOCK: EngineClock = {
@@ -88,7 +88,7 @@ export class StruggleEngine implements vscode.Disposable {
     private _fastDecay = new FastDecayTracker();
     private _v = new VTracker();
     private _boundaries = new BoundaryTracker();
-    private _machine = new AlertStateMachine();
+    private _decision = new DecisionEngine();
     private _selectionDebounce: TrailingDebouncer<{ tsS: number; uriKey: string; endLine: number }> | undefined;
     /** Replay feeds already-debounced recorded streams (Decision 5). */
     private readonly _preDebounced: boolean;
@@ -325,12 +325,18 @@ export class StruggleEngine implements vscode.Disposable {
             && this._lastFmBadS <= tS
             && tS - this._lastFmBadS <= SPEC.GRACE_S;
 
-        const machineAlert = this._machine.tick({
-            t: tS, v, boundaries, typingRate: wf.typingRate, graceActive,
-        });
+        // Schicht 3: the DecisionEngine owns the alert decision. It thresholds on
+        // urgency = sBase (NOT V); s/v/fastDecay travel as telemetry only.
+        const engineTick: EngineTick = {
+            t: tS,
+            urgency: sBase,
+            editCandidate: { boundaries, typingRate: wf.typingRate, graceActive },
+            telemetry: { s, v, fastDecay: fast },
+        };
+        const decision = this._decision.decide(engineTick);
 
         const tsMs = (this._session?.sessionStartMs ?? 0) + tS * 1000;
-        const alert: AlertRecord | null = machineAlert === null ? null : { ...machineAlert, ts: tsMs };
+        const alert: AlertRecord | null = decision === null ? null : { ...decision, ts: tsMs, v };
         const record: TickRecord = {
             t: tS,
             ts: tsMs,
@@ -361,6 +367,6 @@ export class StruggleEngine implements vscode.Disposable {
         this._fastDecay = new FastDecayTracker();
         this._v = new VTracker();
         this._boundaries = new BoundaryTracker();
-        this._machine = new AlertStateMachine();
+        this._decision = new DecisionEngine();
     }
 }

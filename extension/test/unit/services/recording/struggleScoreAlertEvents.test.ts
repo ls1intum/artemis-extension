@@ -12,7 +12,7 @@ suite('schema v3: struggleScore + alert events', () => {
         assert.ok(ev);
         assert.strictEqual(ev!.type, 'struggleScore');
     });
-    test('parseRecordedEvent accepts a well-formed alert', () => {
+    test('parseRecordedEvent accepts a well-formed alert (legacy v2: no urgency)', () => {
         const ev = parseRecordedEvent({
             type: 'alert', timestamp: 2000, t: 490, v: 0.7,
             types: ['STATE'], primary: 'STATE', path: 'armed',
@@ -20,6 +20,16 @@ suite('schema v3: struggleScore + alert events', () => {
         });
         assert.ok(ev);
         assert.strictEqual(ev!.type, 'alert');
+        assert.strictEqual((ev as { urgency?: number }).urgency, undefined);
+    });
+    test('parseRecordedEvent preserves urgency on a v3 alert', () => {
+        const ev = parseRecordedEvent({
+            type: 'alert', timestamp: 2000, t: 490, urgency: 0.72, v: 0.85,
+            types: ['STATE'], primary: 'STATE', path: 'armed',
+            inWarmup: false, inGrace: false, theta: 0.7,
+        });
+        assert.ok(ev);
+        assert.strictEqual((ev as { urgency?: number }).urgency, 0.72);
     });
     test('rejects struggleScore with a non-finite score', () => {
         assert.strictEqual(parseRecordedEvent({ type: 'struggleScore', timestamp: 1, t: 10, s: NaN, v: 0 }), null);
