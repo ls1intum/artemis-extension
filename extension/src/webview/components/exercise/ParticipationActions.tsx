@@ -54,6 +54,12 @@ interface ParticipationActionsProps {
   isPracticeAvailable?: boolean;
   showClonedNotice?: boolean;
   onOpenClonedRepository?: () => void;
+  /**
+   * EduIDE (managed Theia) mode. The exercise repo is already the workspace,
+   * so clone affordances are meaningless: the primary Clone button becomes
+   * "Open in Artemis", and the dropdown Clone / Open Repository entries hide.
+   */
+  isManagedEnvironment?: boolean;
 }
 
 export function ParticipationActions({
@@ -83,6 +89,7 @@ export function ParticipationActions({
   isPracticeAvailable = false,
   showClonedNotice = false,
   onOpenClonedRepository,
+  isManagedEnvironment = false,
 }: ParticipationActionsProps) {
   const isProgramming = exerciseType === 'programming';
   const hasParticipation = participationStatus !== 'not-started';
@@ -268,10 +275,16 @@ export function ParticipationActions({
         {renderSubmitButtonGroup()}
         {renderCommitMessageInput()}
         <div className={styles.actionButtonRow}>
-          {!isWorkspaceConnected && (
-            <Button variant="primary" onClick={onClone} fullWidth>
-              Clone Repository
+          {isManagedEnvironment ? (
+            <Button variant="primary" onClick={onOpenInBrowser} fullWidth>
+              Open in Artemis
             </Button>
+          ) : (
+            !isWorkspaceConnected && (
+              <Button variant="primary" onClick={onClone} fullWidth>
+                Clone Repository
+              </Button>
+            )
           )}
           <div className={styles.moreMenu} ref={moreMenuRef}>
             <Button variant="link" onClick={() => setIsDropdownOpen(prev => !prev)}>
@@ -281,7 +294,7 @@ export function ParticipationActions({
               <div className={styles.moreDropdown}>
                 {/* Section: Workspace */}
                 <div className={styles.dropdownSection}>
-                  {isWorkspaceConnected && (
+                  {!isManagedEnvironment && isWorkspaceConnected && (
                     <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onClone?.(); }}>
                       <GitBranch size={14} aria-hidden="true" />
                       <span>Clone Repository</span>
@@ -291,7 +304,7 @@ export function ParticipationActions({
                     <Activity size={14} aria-hidden="true" />
                     <span>Check workspace status</span>
                   </button>
-                  {onOpenRepository && (
+                  {!isManagedEnvironment && onOpenRepository && (
                     <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenRepository(); }}>
                       <FolderOpen size={14} aria-hidden="true" />
                       <span>Open Repository</span>

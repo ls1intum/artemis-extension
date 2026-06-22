@@ -14,6 +14,7 @@ import {
     detectWorkspaceExercise,
     detectWorkspaceForRepoUris,
 } from '@extension/services/workspace/workspaceDetectionService';
+import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 import { resolveServerUrl } from '@extension/utils';
 
@@ -183,6 +184,8 @@ export class ViewInitDataService {
             return;
         }
 
+        const isManagedEnvironment = getTheiaEnvironment().isManagedEnvironment;
+
         const participations = exerciseData.exercise?.studentParticipations ?? [];
         const repoUris = participations
             .map(p => p.repositoryUri)
@@ -202,6 +205,7 @@ export class ViewInitDataService {
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData,
                     hideDeveloperTools: !this._isDeveloperMode(),
+                    isManagedEnvironment,
                     repoStatus,
                     serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
                 });
@@ -213,6 +217,7 @@ export class ViewInitDataService {
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData,
                     hideDeveloperTools: !this._isDeveloperMode(),
+                    isManagedEnvironment,
                     serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
                 });
             });
@@ -222,6 +227,7 @@ export class ViewInitDataService {
                 type: ExtensionMsg.ExerciseDetailInit,
                 exerciseData,
                 hideDeveloperTools: !this._isDeveloperMode(),
+                isManagedEnvironment,
                 serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
             });
         }

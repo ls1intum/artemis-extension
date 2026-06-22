@@ -8,6 +8,7 @@ import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { collectExerciseSources, detectWorkspaceExercise, detectWorkspaceForRepoUris } from '@extension/services/workspace/workspaceDetectionService';
+import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
 import { getReactWebviewHtml } from './webviewHtml';
@@ -26,6 +27,7 @@ export class FullscreenPanelManager {
             title: `Exercise: ${exerciseTitle}`,
             viewName: 'exerciseDetail',
             onReady: (postSafe) => {
+                const isManagedEnvironment = getTheiaEnvironment().isManagedEnvironment;
                 const repoUris = (exerciseData.exercise?.studentParticipations ?? [])
                     .map(p => p.repositoryUri)
                     .filter((uri): uri is string => !!uri);
@@ -36,6 +38,7 @@ export class FullscreenPanelManager {
                             type: ExtensionMsg.ExerciseDetailInit,
                             exerciseData,
                             hideDeveloperTools: false,
+                            isManagedEnvironment,
                             repoStatus,
                         });
                     }).catch(() => {
@@ -43,6 +46,7 @@ export class FullscreenPanelManager {
                             type: ExtensionMsg.ExerciseDetailInit,
                             exerciseData,
                             hideDeveloperTools: false,
+                            isManagedEnvironment,
                         });
                     });
                 } else {
@@ -50,6 +54,7 @@ export class FullscreenPanelManager {
                         type: ExtensionMsg.ExerciseDetailInit,
                         exerciseData,
                         hideDeveloperTools: false,
+                        isManagedEnvironment,
                     });
                 }
             },

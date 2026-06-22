@@ -256,6 +256,69 @@ describe('ExerciseDetailView', () => {
 		);
 	});
 
+	describe('managed environment (EduIDE)', () => {
+		it('replaces clone affordances with "Open in Artemis" when exerciseDetailInit carries isManagedEnvironment', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'exerciseDetailInit',
+				exerciseData: makeExerciseDataWithParticipation(),
+				hideDeveloperTools: false,
+				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				isManagedEnvironment: true,
+			});
+
+			await waitFor(() => {
+				expect(screen.getByRole('button', { name: 'Open in Artemis' })).toBeInTheDocument();
+			});
+
+			// Clone affordances are gone, even inside the More-options dropdown.
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
+		});
+
+		it('hides the "Repository cloned" banner when managed', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'exerciseDetailInit',
+				exerciseData: makeExerciseData(),
+				hideDeveloperTools: false,
+				isManagedEnvironment: true,
+			});
+			await waitFor(() => expect(screen.getByText('My Exercise')).toBeInTheDocument());
+
+			// clonedNotice is set later (store ← ShowClonedRepoNotice), after init resets it.
+			act(() => {
+				useExerciseDetailStore.getState().setClonedNotice('My Exercise', 99);
+			});
+
+			expect(screen.queryByText(/Repository cloned for/i)).not.toBeInTheDocument();
+		});
+
+		it('shows the "Repository cloned" banner in non-managed (desktop) mode', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'exerciseDetailInit',
+				exerciseData: makeExerciseData(),
+				hideDeveloperTools: false,
+				isManagedEnvironment: false,
+			});
+			await waitFor(() => expect(screen.getByText('My Exercise')).toBeInTheDocument());
+
+			act(() => {
+				useExerciseDetailStore.getState().setClonedNotice('My Exercise', 99);
+			});
+
+			expect(screen.getByText(/Repository cloned for/i)).toBeInTheDocument();
+		});
+	});
+
 	it('shows developer tools by default (hideDeveloperTools = false)', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData(),
