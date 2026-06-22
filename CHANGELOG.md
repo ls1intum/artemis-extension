@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-06-22
+
 ### Changed
 
 - **Open VSX Build**: The Open VSX (EduIDE/Theia cloud) distribution now also excludes the struggle-detection engine and its webview UI via fail-closed build seams (on top of the existing recorder/consent exclusion) and ships cloud-tailored setting defaults.
