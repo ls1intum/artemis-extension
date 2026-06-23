@@ -8,6 +8,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **EduIDE Exercise Actions**: In the EduIDE (Theia cloud) build the exercise repository is already the workspace, so cloning is replaced by an "Open in Artemis" button. The primary "Clone Repository" button, the dropdown "Clone Repository" and "Open Repository" entries, and the "recently cloned" notice are hidden in this managed environment; the "Copy Clone URL" options remain. The desktop build is unchanged.
 
+### Fixed
+
+- **EduIDE Server Links**: In EduIDE (Theia) the "Open in Artemis" button and other browser-open actions now target the connected Artemis server (delivered via the data-bridge) instead of falling back to the production default; problem-statement relative links resolve against the same server.
+
 ## [0.4.7] - 2026-06-22
 
 ### Changed
