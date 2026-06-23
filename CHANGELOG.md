@@ -12,6 +12,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **EduIDE Server Links**: In EduIDE (Theia) the "Open in Artemis" button and other browser-open actions now target the connected Artemis server (delivered via the data-bridge) instead of falling back to the production default; problem-statement relative links resolve against the same server.
 
+### Internal
+
+- **EduIDE Auto-Update**: A new release-pipeline job notifies the EduIDE (Theia cloud) repository after a successful Open VSX publish, which automatically opens a PR bumping the bundled extension version, replacing the previous manual version-pin step.
+
 ## [0.4.7] - 2026-06-22
 
 ### Changed

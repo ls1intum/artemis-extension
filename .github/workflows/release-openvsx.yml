@@ -486,3 +486,34 @@ jobs:
               exit 1
             }
           done
+
+  notify_eduide:
+    name: Notify EduIDE (bump bundled extension)
+    needs: [prepare, publish_openvsx, release]
+    # Fire only after a real release whose Open VSX publish succeeded - EduIDE bundles
+    # the Open VSX (clean) build, so a marketplace-only release must NOT notify it.
+    if: |
+      !cancelled() && !inputs.dry_run && inputs.publish_openvsx &&
+      needs.publish_openvsx.result == 'success' &&
+      needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Trigger EduIDE bundled-extension bump
+        env:
+          EDUIDE_DISPATCH_TOKEN: ${{ secrets.EDUIDE_DISPATCH_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Fire the EduIDE auto-update workflow (workflow_dispatch via API). The token
+          # needs only Actions:read/write on EduIDE/EduIDE; the actual file bump + PR is
+          # done there by EduIDE's own GITHUB_TOKEN (least privilege for the cross-org token).
+          curl -fsSL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${EDUIDE_DISPATCH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/EduIDE/EduIDE/actions/workflows/artemis_extension_auto_update.yml/dispatches" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"version\":\"${VERSION}\"}}"
+          echo "Dispatched EduIDE auto-update for $VERSION"
