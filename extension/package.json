@@ -293,7 +293,7 @@
     "roundtrip-recording": "tsx scripts/roundtrip-recording.ts",
     "event-coverage": "tsx scripts/event-coverage.ts",
     "prepare": "husky",
-    "vscode:prepublish": "npm run package"
+    "vscode:prepublish": "node scripts/sync-marketplace-docs.js && npm run package"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
