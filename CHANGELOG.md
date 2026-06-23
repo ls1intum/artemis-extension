@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Internal
+
+- **EduIDE Auto-Update**: A new release-pipeline job notifies the EduIDE (Theia cloud) repository after a successful Open VSX publish, which automatically opens a PR bumping the bundled extension version, replacing the previous manual version-pin step.
+
 ## [0.4.7] - 2026-06-22
 
 ### Changed
