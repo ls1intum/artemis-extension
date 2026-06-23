@@ -1,385 +1,148 @@
-# Artemis VS Code Extension - Developer Documentation
+# Artemis VS Code Extension
 
-> [View Changelog](CHANGELOG.md)
+> 📋 [Changelog](https://github.com/ls1intum/artemis-extension/blob/main/CHANGELOG.md) · [Installation](#installation) · [Features](#features) · [Developer docs](DEVELOPER.md)
 
-> **Documentation Guide**:
-> - **This README**: Development setup and contributor guide
-> - **[Extension README](extension/README.md)**: User-facing documentation (VS Code Marketplace)
+Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** directly into your VS Code environment. This extension brings Artemis (an interactive platform for programming exercises, instant feedback, and AI-powered tutoring) right into your IDE, so you can access personalized support, exercise materials, and intelligent feedback without leaving your workspace.
 
+> Are you a developer working on the extension itself? See **[DEVELOPER.md](DEVELOPER.md)** for build, architecture, and release docs, and **[CONTRIBUTING.md](CONTRIBUTING.md)** for the contribution workflow.
 
-This repository contains the VS Code extension for **Artemis: Interactive Learning with Individual Feedback**. The extension integrates Artemis—an innovative platform for interactive learning, programming exercises, and AI-powered tutoring—directly into the VS Code IDE, enabling students to access personalized support, exercise materials, and intelligent feedback without leaving their development workspace.
+## Screenshots
 
-## About Artemis
+### Dashboard & Course Overview
+![Dashboard](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/extension/media/screenshots/dashboard.png)
+*Access your courses, exercises, and get started with Iris AI tutor from the main dashboard*
 
-Artemis brings interactive learning to life with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. Offering customization for instructors and real-time collaboration for students, this platform bridges creativity and education. Embrace a new era of engaging, adaptive learning and artificial intelligence support with Artemis, where innovation meets inclusivity. Find out more on [https://artemisapp.github.io](https://artemisapp.github.io)
+### Iris AI Chat - Intelligent Tutoring
+![Iris Chat](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/extension/media/screenshots/iris-chat.png)
+*Get context-aware help from Iris AI tutor without leaving VS Code*
 
-### Main Goals
+### Real-Time Build Status & Test Results
+![Test Results](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/extension/media/screenshots/test-results.png)
+*Monitor your submission results and test case performance in real-time*
 
-- **User experience**: Provide an intuitive and engaging interface that enhances the learning experience for both students and instructors
-- **Scalable infrastructure**: Build a robust platform capable of supporting large-scale courses with thousands of participants simultaneously
-- **Constructive alignment**: Align learning goals, activities, and assessments through well-integrated features such as the exam mode
-- **Learning analytics**: Leverage data to provide actionable insights into student performance and engagement
+## Features
 
-### Key Features
+### 🎓 Artemis Integration
 
-- **Programming Exercises**: Version control integration, automatic individual feedback based on test cases and static code analysis, support for any programming language
-- **AI-Powered Support**: Integration with **Iris**, a LLM-based virtual assistant that supports students with questions, pro-active assistance, and personalized guidance
-- **Instant Feedback**: Students receive immediate and individual feedback on submissions with customizable feedback messages
-- **Interactive Instructions**: Task-based and UML diagram integration directly into dynamic problem statements
-- **Multiple Exercise Types**: Programming, quiz, modeling, text, and file upload exercises
-- **Exam Mode**: Create online exams with exercise variants, integrated plagiarism checks, and student reviews
-- **Learning Analytics**: Track competencies, monitor progress, and receive personalized learning paths with **Atlas**
-- **AI Assessment**: Automated assessment support with **Athena** for text, modeling, and programming exercises
+- **Activity Bar Icons**: Quick access to Artemis and the Iris AI tutor from the activity bar
+- **Secure Authentication**: Log in directly with your Artemis credentials
+- **Course Browser**: View your enrolled courses and exercise details
+- **Interactive Dashboard**: Overview of exercises, deadlines, and course activities
+- **Exercise Management**: Clone repositories, submit solutions, and track your progress
+- **Real-Time Updates**: WebSocket integration for live build results and notifications
+- **Theme Support**: Choose from VSCode-native, modern, or synthwave visual themes
 
-## Extension Features
+### 🤖 Iris AI Tutoring
 
-### Artemis Integration
+**Iris** is an intelligent virtual tutor integrated into the extension, providing personalized learning support:
 
-- **Activity Bar Icon**: Click the Artemis logo in the activity bar to open the Artemis sidebar
-- **Secure Login**: Authenticate directly with your Artemis Learning Management System from VS Code
-- **Course Access**: Browse your courses, view exercise details, and access learning materials
-- **Dashboard View**: Overview of your current exercises, deadlines, and course activities
-- **Responsive Design**: Adapts seamlessly to VS Code themes (light/dark mode)
-- **Multiple Themes**: Choose from VSCode-native, modern, or synthwave visual themes
+- **Context-Aware Assistance**: Get help based on your current programming exercise
+- **Personalized Guidance**: Receive hints and explanations tailored to your work
+- **Exercise Q&A**: Ask questions about lectures, exercises, and learning performance
+- **Smart Hints**: Iris provides subtle guidance without giving away full solutions
+- **Pro-Active Support**: Receive motivational messages and learning suggestions
+- **Rate Limit Monitoring**: View your API usage and Iris availability status
 
-### Iris AI Tutoring
+### 📊 Service Monitoring
 
-The extension integrates **Iris**, Artemis's intelligent virtual tutor, directly into your coding environment:
+- **Health Status**: Monitor Artemis and Iris service availability
+- **WebSocket Status**: Check the real-time connection status
+- **Rate Limit Information**: Track your API usage quotas
+- **Service Diagnostics**: Troubleshoot connectivity issues
 
-- **Context-Aware Assistance**: Get help with programming exercises based on your current work
-- **Exercise-Specific Guidance**: Receive personalized hints and explanations for your active exercises
-- **Instant Q&A**: Ask questions about lectures, exercises, and your learning performance
-- **Pro-Active Support**: Iris can proactively suggest next steps and motivate continued learning
-- **Health Status Monitoring**: Check Iris availability and rate limits to ensure optimal assistance
+### 🎨 Customizable Themes
 
-### Service Monitoring
-
-- **Real-Time Status**: Monitor the health and availability of Artemis services
-- **Rate Limit Information**: View your current API usage and remaining quotas
-- **Service Diagnostics**: Check connectivity and troubleshoot integration issues
+Choose your preferred visual style:
+- **VSCode Theme**: Native styling that matches your editor
+- **Modern Theme**: Clean, card-based design with contemporary aesthetics
+- **Synthwave Theme**: Retro-futuristic neon aesthetic
 
 ## Getting Started
 
 ### Requirements
 
-- **VS Code** version 1.104.0 or higher
-- Access to an **Artemis Learning Management System** server
-- Valid Artemis user credentials (student or instructor account)
+- **VS Code** version 1.97.0 or higher
+- Access to an **Artemis** server (e.g., `artemis.tum.de`)
+- A valid Artemis account (student or instructor)
 
 ### Installation
 
-1. Install the extension from the VS Code Marketplace
+1. Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/) or [Open VSX](https://open-vsx.org/extension/aet-tum/iris-thaumantias)
 2. Click the Artemis logo in the activity bar
-3. Configure your Artemis server URL in settings if different from the default
+3. Log in with your credentials
 
-### How to Use
+### Quick Start
 
-1. **Login**: Click the Artemis logo in the activity bar and enter your credentials
-2. **Browse Courses**: Navigate your enrolled courses from the dashboard
-3. **View Exercises**: Select exercises to view details, deadlines, and instructions
-4. **Access Iris**: Click the chat icon to open the Iris AI tutor for assistance
-5. **Monitor Services**: Use "Artemis: Check Iris Health Status" command to verify service availability
+1. **Log in**: Click the Artemis icon, then enter your server URL and credentials
+2. **Browse courses**: Navigate your enrolled courses from the dashboard
+3. **Select an exercise**: Click an exercise to view its details and instructions
+4. **Clone the repository**: Use the clone action to start working locally
+5. **Get AI help**: Click the Iris chat icon to ask questions about your exercise
+6. **Submit your solution**: Use submit & push to hand in your work
 
-To access commands, open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) and type "Artemis".
+## Commands
 
-## Available Commands
+Access these via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
-- `Artemis: Login to Artemis` - Opens the Artemis login interface
-- `Artemis: Check Iris Health Status` - Checks if the Iris AI tutoring system is active and shows rate limit information
+- `Artemis: Login` - Open the login interface
+- `Artemis: Logout` - Sign out of Artemis
+- `Artemis: Check Iris Health Status` - View Iris availability and rate limits
+- `Artemis: Check WebSocket Connection Status` - Verify the real-time connection
+- `Artemis: Connect WebSocket` - Manually connect to the Artemis WebSocket
+- `Artemis: Set Server URL` - Change the connected Artemis server
 
 ## Extension Settings
 
-Configure the extension through VS Code settings:
+Configure the extension through VS Code settings (`Cmd+,` or `Ctrl+,`):
 
-- `artemis.serverUrl`: The URL of the Artemis server to connect to (default: `https://artemis.tum.de`)
+- `artemis.serverUrl` - Artemis server URL (default: `https://artemis.tum.de`)
+- `artemis.iris.sendUncommittedChanges` - Allow Iris to access your uncommitted file changes
+- `artemis.defaultCommitMessage` - Default commit message for automatic exercise submissions
+- `artemis.showUnsavedChangesWarning` - Warn when there are unsaved changes before submitting
+- `artemis.defaultClonePath` - Default folder where exercise repositories are cloned
+- `artemis.showSetDefaultClonePathPrompt` - Ask to set a default clone folder on first clone
+- `artemis.startPage` - Which page to show after logging in
+- `artemis.showStartPageSuggestion` - Suggest configuring the start page when an exercise is detected
+- `artemis.showWebSocketStatusBar` - Show the WebSocket connection status in the status bar
+- `artemis.developerMode` - Enable developer mode (debug tools and extra diagnostics)
 
-## EduTelligence Integration
+## About Artemis
 
-This extension integrates **Iris**, an AI-powered virtual tutor from the EduTelligence suite. Iris provides intelligent student assistance, answering questions about exercises, lectures, and learning performance directly within your VS Code environment.
+Artemis is an interactive learning platform with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. It offers:
 
-## Artemis Platform Features
+- **Programming Exercises**: Support for Java, Python, C, Swift, Kotlin, and many more languages
+- **Automatic Feedback**: Instant feedback based on test cases and static code analysis
+- **Multiple Exercise Types**: Programming, quiz, modeling, text, and file upload exercises
+- **Exam Mode**: Online exams with variants and plagiarism detection
+- **Learning Analytics**: Track competencies and progress with **Atlas**
+- **AI Assessment**: Automated assessment support with **Athena**
 
-The Artemis platform, which this extension connects to, offers extensive capabilities:
+Used by the Technical University of Munich (TUM), University of Stuttgart, Karlsruhe Institute of Technology (KIT), TU Wien, JKU Linz, LFU Innsbruck, and many more. Learn more at [artemisapp.github.io](https://artemisapp.github.io).
 
-### Exercise Types
+### Iris & EduTelligence
 
-- **Programming Exercises**: Java, Python, C, Haskell, Kotlin, VHDL, Assembler, Swift, OCaml, and more
-- **Quiz Exercises**: Multiple choice, drag and drop, short answer, and modeling quizzes
-- **Modeling Exercises**: UML diagrams with the Apollon editor and semi-automatic assessment
-- **Text Exercises**: Manual and semi-automatic assessment with NLP support
-- **File Upload Exercises**: Flexible submission format for any file type
+This extension integrates **Iris**, an AI-powered virtual tutor from the EduTelligence suite, providing intelligent assistance through context-aware guidance and personalized learning support.
 
-### Assessment & Grading
+## Privacy & Data
 
-- Double-blind grading with structured grading criteria
-- Assessment training process with example submissions
-- Student rating of assessments and complaint mechanism
-- Automated grading and grade key configuration
-- Bonus configurations for final exams
-
-### Communication & Collaboration
-
-- Course announcements and notifications
-- Question channels and private chats
-- Customizable web and email notifications
-- Mobile app support for iOS and Android
-
-### Learning & Analytics
-
-- **Atlas**: Competency-based management system with adaptive learning
-- Progress tracking toward learning objectives
-- Performance comparison with course averages
-- Personalized learning paths based on individual progress
-
-### Additional Features
-
-- **Lectures**: Upload slides, video integration, and competency definitions
-- **Exam Mode**: Online exams with variants, plagiarism checks, and test runs
-- **Tutorial Groups**: Session planning, tutor assignment, and attendance tracking
-- **Plagiarism Detection**: Integrated checks for programming, text, and modeling exercises
-- **LTI Integration**: Connect with Moodle, edX, and other learning management systems
-
-## Architecture
-
-The extension connects to the Artemis application server via REST APIs, providing seamless integration between your local development environment and the Artemis platform. The server architecture includes:
-
-- **Application Server**: Spring Boot-based server with REST interfaces
-- **Version Control System**: Git repository management for programming exercises
-- **Continuous Integration**: Automated testing and feedback generation
-- **Build Agents**: Docker-based execution environments for secure code testing
-
-## Universities Using Artemis
-
-Artemis is actively used by numerous universities worldwide, including:
-
-- Technical University of Munich (TUM)
-- LFU Innsbruck, Uni Salzburg, JKU Linz, AAU Klagenfurt, TU Wien
-- University of Stuttgart
-- Universität Passau
-- Karlsruhe Institute of Technology (KIT)
-- Hochschule München
-- Technische Universität Dresden
-- Hochschule Heilbronn
-
-For a complete list and more information, visit [https://artemisapp.github.io](https://artemisapp.github.io)
-
-## Development Setup
-
-### Prerequisites
-
-- Node.js (v22.x or higher)
-- npm
-- VS Code (version 1.97.0 or higher)
-- (Optional) vsce: `npm install -g @vscode/vsce`
-
-### Building the Extension
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ls1intum/artemis-extension.git
-   cd artemis-extension/extension
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Compile the extension:
-   ```bash
-   npm run compile
-   ```
-
-4. Watch for changes during development:
-   ```bash
-   npm run watch
-   ```
-
-5. Package the extension:
-   ```bash
-   npm run package
-   ```
-
-#### Packaging for Distribution
-
-To create a `.vsix` file for distribution:
-```bash
-# Install vsce if not already installed
-npm install -g @vscode/vsce
-
-# Package the extension
-cd extension
-vsce package
-```
-
-### Project Structure
-
-```
-artemis-extension/
-├── README.md                     # This file (developer documentation)
-├── CONTRIBUTING.md               # Contribution guidelines
-├── extension/                    # VS Code extension package
-│   ├── src/
-│   │   ├── extension.ts          # Entry point & activation
-│   │   ├── extension/            # Extension host code
-│   │   │   ├── activation/       # Command registration, wiring
-│   │   │   ├── api/              # Artemis REST API client
-│   │   │   ├── controller/       # Message handling, state, routing
-│   │   │   │   └── commands/     # Command handlers by domain
-│   │   │   ├── models/           # Domain model classes
-│   │   │   ├── provider/         # Webview providers, CodeLens
-│   │   │   ├── services/         # Business logic by domain
-│   │   │   │   ├── auth/         # Authentication & consent
-│   │   │   │   ├── iris/         # AI chat features
-│   │   │   │   ├── telemetry/    # Struggle detection, recording
-│   │   │   │   ├── ui/           # UI orchestration services
-│   │   │   │   ├── websocket/    # Real-time updates (STOMP)
-│   │   │   │   └── workspace/    # Git, file monitoring
-│   │   │   ├── types/            # Domain types & ambient shims
-│   │   │   └── utils/            # Shared utilities
-│   │   ├── shared/               # Cross-runtime types
-│   │   │   ├── messageContracts/ # Extension↔Webview messaging
-│   │   │   └── types/            # Shared API response types
-│   │   └── webview/              # React frontend
-│   │       ├── components/       # Reusable UI components
-│   │       ├── views/            # Page-level views
-│   │       ├── stores/           # Zustand state stores
-│   │       ├── hooks/            # Custom React hooks
-│   │       └── styles/           # Base CSS
-│   ├── test/                     # Test suites
-│   │   ├── unit/                 # Extension host tests
-│   │   └── react/                # React component tests
-│   └── docs/                     # Developer guide, ADRs, diagrams
-└── recording-viewer/             # Standalone session recording viewer (Vite/React)
-```
-
-### Key Architecture Components
-
-#### Runtime Split
-The codebase separates into three runtimes:
-- **`extension/`**: VS Code extension host (Node.js) — services, providers, controllers
-- **`webview/`**: React frontend rendered in VS Code webview panels
-- **`shared/`**: Types and message contracts used by both runtimes
-
-#### Extension Host
-- **`controller/`**: Coordinates webview messages via command modules, manages app state
-- **`provider/`**: VS Code webview providers (sidebar, chat, fullscreen panels)
-- **`services/`**: Domain-organized business logic (auth, iris, telemetry, websocket, workspace, ui)
-- **`api/`**: REST client for Artemis server communication
-
-#### Webview (React)
-- **`views/`**: Page components (Dashboard, CourseList, ExerciseDetail, IrisChat, etc.)
-- **`components/`**: Shared UI components (Button, Badge, List, etc.)
-- **`stores/`**: Zustand stores hydrated from extension messages
-
-#### Styling
-- CSS Modules for component-scoped styles
-- VS Code theme integration via native CSS custom properties
-
-### Available Scripts
-
-- `npm run compile` - Compile TypeScript and run linting
-- `npm run watch` - Watch mode for development
-- `npm run package` - Build production bundle
-- `npm run lint` - Run ESLint
-- `npm run check-types` - Type check without emitting
-- `npm run test:unit` - Run unit tests
-- `npm run test:react` - Run React tests
-
-### Running the Extension Locally
-
-#### Quick Start
-1. Open the project in VS Code
-2. Press `F5` (or click Run → Start Debugging)
-3. Select "Run Extension" from the dropdown (if prompted)
-4. A new Extension Development Host window will open with your extension loaded
-5. Click the Artemis icon in the activity bar to test functionality
-
-#### Available Launch Configurations
-
-The project includes three launch configurations (press `F5` and select):
-
-1. **Run Extension** (Recommended for development)
-   - Automatically starts watch mode
-   - Recompiles on file changes
-   - Best for active development
-
-2. **Run Extension (No Watch)**
-   - Runs the extension without watch mode
-   - Use when you just want to test without auto-recompilation
-
-3. **Extension Tests**
-   - Runs the extension test suite
-   - Automatically compiles tests before running
-
-#### Development Workflow
-
-**Option 1: Automatic (Recommended)**
-```bash
-# Just press F5 in VS Code
-# Watch mode starts automatically
-# Make changes → See them reflected automatically
-```
-
-**Option 2: Manual Watch Mode**
-```bash
-cd extension
-npm run watch
-# Then press F5 in VS Code
-```
-
-### Debugging
-
-- **Set breakpoints**: Click in the gutter next to line numbers in TypeScript files
-- **Debug Console**: View and execute code in the debug context
-- **Variables panel**: Inspect variables and their values
-- **Call Stack**: See the execution path
-- **Output panel**: Check "Artemis" or "Extension Host" for logs
-- **Problems panel**: View TypeScript and ESLint errors
-
-#### Debug Tips
-- Set conditional breakpoints for specific scenarios
-- Use "Restart" (Ctrl+Shift+F5) to reload the extension with changes
-- Check the "Extension Host" output panel for extension errors
-
-## Contributing
-
-We welcome contributions from the community! 
-
-**📖 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.**
-
-### Quick Contribution Guide
-
-1. Fork the repository
-2. Create a feature branch from `main`
-3. Make your changes following our coding guidelines
-4. Ensure all tests pass and code is properly linted
-5. Submit a pull request with a clear description
-
-### Code Guidelines
-
-- Follow TypeScript best practices
-- Use meaningful variable and function names
-- Add comments for complex logic
-- Maintain existing code style (enforced by ESLint)
-- Update documentation when adding new features
-- Use conventional commit messages
-
-Please use your real name and an authentic profile picture when contributing. We adhere to [GitHub's Open Source Guides](https://opensource.guide/) and [Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies).
-
-## Resources
-
-- **Artemis Platform**: [https://artemisapp.github.io](https://artemisapp.github.io)
-- **Documentation**: [https://docs.artemis.cit.tum.de](https://docs.artemis.cit.tum.de)
-- **GitHub Repository**: [https://github.com/ls1intum/Artemis](https://github.com/ls1intum/Artemis)
-- **Extension Guidelines**: [VS Code Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+- Your credentials are stored securely in VS Code's secret storage
+- Communication with Artemis servers uses HTTPS encryption
+- Iris interactions may be logged for quality improvement (per your institution's policies)
 
 ## Support
 
-For questions, issues, or feature requests:
-- Open an issue on the GitHub repository
-- Contact the Artemis development team via the communication channels listed on the main repository
+- **Artemis Documentation**: [docs.artemis.cit.tum.de](https://docs.artemis.cit.tum.de)
+- **Artemis Platform**: [artemisapp.github.io](https://artemisapp.github.io)
+- **Issues**: [GitHub Issues](https://github.com/ls1intum/artemis-extension/issues)
+
+## Contributing
+
+Contributions are welcome. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the workflow and **[DEVELOPER.md](DEVELOPER.md)** for build and architecture docs.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**Enjoy enhanced learning with Artemis in VS Code!**
+**Enjoy enhanced learning with Artemis in VS Code! 🚀**
