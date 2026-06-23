@@ -31,6 +31,8 @@ export interface TickRecord {
     /** Boundary types pending at this tick BEFORE gates (audit). */
     readonly boundariesPreGate: readonly BoundaryType[];
     readonly alert: AlertRecord | null;
+    /** Why this tick did/did not fire (telemetry; never read by the decision). */
+    readonly decisionTrace: DecisionTrace;
 }
 
 /**
@@ -66,6 +68,38 @@ export interface EngineTick {
 
 /** Discrete high-precision triggers (Engine v3 add-ons; own decision path). */
 export type DiscreteTrigger = 'test-stagnation';
+
+export type EditTraceReason =
+	| 'fired'              // an edit alert fired this tick
+	| 'no-candidate'       // no boundary was pending
+	| 'b2-fluent-typing'   // B2: typing fluently
+	| 'b4-grace-filter'    // B4: grace window removed all (non-FM/FM+) boundaries
+	| 'd1-warmup'          // D1: warmup removed all (non-FM/E4) boundaries
+	| 'below-threshold'    // urgency < theta
+	| 'cooldown'           // within COOLDOWN_S of the last alert
+	| 'not-rearmed';       // machine not re-armed and not yet E6-eligible (hysteresis/over-θ-span gate)
+
+export interface EditTrace {
+	readonly reason: EditTraceReason;
+	readonly urgency: number;
+	readonly theta: number;
+	readonly typingRate: number | null;
+	/** Boundaries pending BEFORE gating (BOUNDARY_PRIORITY order). */
+	readonly boundariesPresent: readonly BoundaryType[];
+	/** t - lastAlert; Number.POSITIVE_INFINITY if no alert has fired yet. */
+	readonly secondsSinceLastAlert: number;
+	readonly inWarmup: boolean;
+	readonly graceActive: boolean;
+}
+
+export type DecisionOutcome = 'fired-edit' | 'fired-discrete' | 'suppressed';
+
+/** Combined per-tick decision trace (edit path + discrete outcome). Telemetry. */
+export interface DecisionTrace extends EditTrace {
+	readonly outcome: DecisionOutcome;
+	/** The discrete trigger that fired, when outcome === 'fired-discrete'; else null. */
+	readonly discreteTrigger: DiscreteTrigger | null;
+}
 
 /**
  * Edit-path alert: boundary-driven, the alerts_full_u decision surface. The
