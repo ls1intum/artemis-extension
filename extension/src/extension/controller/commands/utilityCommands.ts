@@ -6,7 +6,7 @@ import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContr
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import { CONFIG, extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
+import { extractErrorMessage, resolveServerUrl } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -77,8 +77,9 @@ export class UtilityCommandModule {
 
     private handleOpenWebsite = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+            // Resolve via the single source of truth so EduIDE/Theia (data-bridge
+            // ARTEMIS_URL) opens the connected server, not the config default.
+            const serverUrl = resolveServerUrl();
             const payload = getOptionalPayload<WebCmd<'openWebsite'>>(message);
             const urlPath = payload?.path || '/courses';
             await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}${urlPath}`));

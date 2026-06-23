@@ -536,4 +536,93 @@ describe('ParticipationActions', () => {
 			expect(handleOpenInBrowser).toHaveBeenCalledOnce();
 		});
 	});
+
+	describe('managed environment (EduIDE)', () => {
+		it('shows "Open in Artemis" instead of the primary Clone button when participated', () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="disconnected"
+					isManagedEnvironment={true}
+				/>
+			);
+			expect(screen.getByRole('button', { name: 'Open in Artemis' })).toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
+		});
+
+		it('does NOT show "Open in Artemis" when the workspace is connected (open exercise)', () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					isManagedEnvironment={true}
+				/>
+			);
+			// In the open/connected exercise only Submit + More options belong here.
+			expect(screen.queryByRole('button', { name: 'Open in Artemis' })).not.toBeInTheDocument();
+		});
+
+		it('calls onOpenInBrowser when "Open in Artemis" is clicked', async () => {
+			const handleOpenInBrowser = vi.fn();
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="disconnected"
+					isManagedEnvironment={true}
+					onOpenInBrowser={handleOpenInBrowser}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: 'Open in Artemis' }));
+
+			expect(handleOpenInBrowser).toHaveBeenCalledOnce();
+		});
+
+		it('hides the dropdown "Clone Repository" entry', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					isManagedEnvironment={true}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
+		});
+
+		it('hides the "Open Repository" entry', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					isManagedEnvironment={true}
+					onOpenRepository={vi.fn()}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
+		});
+
+		it('keeps the "Copy Clone URL" entry', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					isManagedEnvironment={true}
+					onCopyCloneUrl={vi.fn()}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			expect(screen.getByRole('button', { name: 'Copy Clone URL' })).toBeInTheDocument();
+		});
+	});
 });

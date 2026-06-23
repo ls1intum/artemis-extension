@@ -25,8 +25,16 @@ suite('detectTheiaEnvironment / initializeTheiaContext', () => {
         showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage');
     });
 
-    teardown(() => {
+    teardown(async () => {
         sandbox.restore();
+        // Reset the global Theia singleton to the Desktop default so a managed-env
+        // value set by a test cannot leak into suites that run afterwards (the
+        // singleton is module-level state shared across the whole unit run).
+        // With DATA_BRIDGE_ENABLED unset, detection short-circuits to Desktop
+        // before touching any (now-restored) vscode command.
+        delete process.env.DATA_BRIDGE_ENABLED;
+        await initializeTheiaContext();
+        // Restore the ambient env var; this alone does not re-trigger detection.
         if (originalDataBridgeEnabled === undefined) {
             delete process.env.DATA_BRIDGE_ENABLED;
         } else {

@@ -8,6 +8,7 @@ import type {
     RenderedProblemStatementDTO,
 } from '@extension/domain/problemStatementRendering';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
+import { initializeTheiaContext } from '@extension/theia/theiaEnvironment';
 
 suite('ProblemStatementRenderService', () => {
     let sandbox: sinon.SinonSandbox;
@@ -104,6 +105,38 @@ suite('ProblemStatementRenderService', () => {
         assert.ok(result.html.includes('src="https://artemis.example.com/api/files/foo.png"'));
         // Absolute URLs are left alone
         assert.ok(result.html.includes('src="https://other/x.png"'));
+    });
+
+    test('rewrites relative src URLs against the Theia/EduIDE server URL, not the VS Code config', async () => {
+        // In EduIDE the real server URL comes from the data-bridge (ARTEMIS_URL),
+        // not from the `artemis.serverUrl` config (which is left unset → production default).
+        // getServerUrl() must resolve via resolveServerUrl() so relative links point at the
+        // actual server the student is connected to.
+        const theiaUrl = 'https://artemis-test2.artemis.cit.tum.de';
+        const originalBridge = process.env.DATA_BRIDGE_ENABLED;
+        try {
+            process.env.DATA_BRIDGE_ENABLED = '1';
+            sandbox.stub(vscode.commands, 'getCommands').resolves(['dataBridge.getEnv']);
+            sandbox.stub(vscode.commands, 'executeCommand')
+                .withArgs('dataBridge.getEnv', sinon.match.any)
+                .resolves({ THEIA: 'true', ARTEMIS_URL: theiaUrl, ARTEMIS_TOKEN: 'tok-123' });
+            await initializeTheiaContext();
+
+            renderStub.resolves(mockDto({ html: '<img src="/api/files/foo.png">' }));
+            const result = await service.render(mockExercise());
+            assert.ok(result);
+            assert.ok(
+                result.html.includes(`src="${theiaUrl}/api/files/foo.png"`),
+                `Expected relative URL rewritten against the EduIDE server; got: ${result.html}`,
+            );
+        } finally {
+            if (originalBridge === undefined) {
+                delete process.env.DATA_BRIDGE_ENABLED;
+            } else {
+                process.env.DATA_BRIDGE_ENABLED = originalBridge;
+            }
+            await initializeTheiaContext();
+        }
     });
 
     test('caches result for identical input — no second API call', async () => {

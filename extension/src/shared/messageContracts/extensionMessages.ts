@@ -114,6 +114,8 @@ interface ExtensionMsgPayloads {
         hideDeveloperTools: boolean;
         repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
         serverRenderedProblemStatement?: RenderedProblemStatementPayload;
+        /** EduIDE (managed Theia): hide clone affordances, show "Open in Artemis". */
+        isManagedEnvironment?: boolean;
     };
     serviceStatusInit: {
         serverUrl?: string;
