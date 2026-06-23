@@ -133,6 +133,14 @@ Releasing is driven by `.github/workflows/release-openvsx.yml` (manual `workflow
 3. Publishes to Open VSX and/or the VS Marketplace, then tags and creates a GitHub release with the changelog notes.
 4. On a successful **Open VSX** publish, dispatches EduIDE's `artemis_extension_auto_update.yml`, which opens a PR bumping the bundled extension version. Reviewing, merging, building, and deploying in EduIDE stay manual.
 
+### Cutting a release
+
+1. Bump the `version` in `extension/package.json` and add the matching `## [x.y.z]` section to `CHANGELOG.md`; merge to `dev` (or `main`).
+2. Go to **Actions → "Release to Open VSX and VS Marketplace" → Run workflow**.
+3. Pick the branch (`main` for a normal release, `dev` for an ad-hoc / hotfix release of pre-merge work), enter the exact `version` (must match `package.json`), and leave both publish toggles on - or tick **Dry run** to build and validate only.
+4. Approve the `production` environment gate when prompted.
+5. On success the workflow tags the commit, creates the GitHub release with the changelog notes, and (after the Open VSX publish) dispatches the EduIDE bundled-extension bump PR.
+
 ### Marketplace docs are generated
 
 The store listings show the repo-root **`README.md`** (user docs) and **`CHANGELOG.md`**. At package time these are copied into `extension/` (`scripts/sync-marketplace-docs.js` for the full build via `vscode:prepublish`; `package-openvsx.js` copies them into staging for the clean build). `extension/README.md` and `extension/CHANGELOG.md` are therefore **generated and git-ignored** - edit only the repo-root copies.
