@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
 
 import { AlertStateMachine, type MachineParams } from '@extension/services/struggle/alerting/alertStateMachine';
 import type { BoundaryType } from '@extension/services/struggle/config';
+import { SPEC } from '@extension/services/struggle/config';
 
 function ticksFor(durationS: number): number[] {
     const out: number[] = [];
@@ -94,4 +95,63 @@ describe('AlertStateMachine (Python run_state_machine port)', () => {
         const alerts = drive(30, { urgency: () => 0.8, typingRate: () => 10, params: { warmupS: 0 } });
         expect(alerts).toHaveLength(1);
     });
+});
+
+test('lastTrace reports B2 suppression while typing fluently', () => {
+    const m = new AlertStateMachine();
+    m.tick({ t: 20, urgency: 0.9, boundaries: ['STATE'], typingRate: SPEC.B2_TYPING_PER_MIN, graceActive: false });
+    expect(m.lastTrace.reason).toBe('b2-fluent-typing');
+    expect(m.lastTrace.boundariesPresent).toEqual(['STATE']);
+});
+
+test('lastTrace reports below-threshold at a boundary under theta', () => {
+    const m = new AlertStateMachine();
+    m.tick({ t: 600, urgency: 0.5, boundaries: ['STATE'], typingRate: 0, graceActive: false });
+    expect(m.lastTrace.reason).toBe('below-threshold');
+});
+
+test('lastTrace reports fired when an alert fires', () => {
+    const m = new AlertStateMachine();
+    expect(m.tick({ t: 600, urgency: 0.9, boundaries: ['FM'], typingRate: 0, graceActive: false })).not.toBeNull();
+    expect(m.lastTrace.reason).toBe('fired');
+});
+
+test('lastTrace reports no-candidate when no boundary is pending', () => {
+    const m = new AlertStateMachine();
+    m.tick({ t: 600, urgency: 0.9, boundaries: [], typingRate: 0, graceActive: false });
+    expect(m.lastTrace.reason).toBe('no-candidate');
+});
+
+test('lastTrace reports d1-warmup when warmup clears a non-FM/E4 boundary', () => {
+    const m = new AlertStateMachine();
+    m.tick({ t: 100, urgency: 0.9, boundaries: ['STATE'], typingRate: 0, graceActive: false });
+    expect(m.lastTrace.reason).toBe('d1-warmup');
+});
+
+test('lastTrace reports b4-grace-filter when grace removes a non-FM STATE boundary', () => {
+    const m = new AlertStateMachine();
+    m.tick({ t: 600, urgency: 0.9, boundaries: ['STATE'], typingRate: 0, graceActive: true });
+    expect(m.lastTrace.reason).toBe('b4-grace-filter');
+});
+
+// Interaction: grace keeps FM_PLUS (non-empty), but warmup then empties it.
+test('grace keeps FM_PLUS yet warmup clears it -> d1-warmup, and the alert output matches the original (null)', () => {
+    const m = new AlertStateMachine();
+    const alert = m.tick({ t: 100, urgency: 0.9, boundaries: ['FM_PLUS'], typingRate: 0, graceActive: true });
+    expect(alert).toBeNull();            // FM_PLUS is not in survivesWarmup {FM,E4}
+    expect(m.lastTrace.reason).toBe('d1-warmup');
+});
+
+// Interaction: FM survives both grace and warmup -> fires even inside warmup.
+test('FM survives grace + warmup and fires', () => {
+    const m = new AlertStateMachine();
+    expect(m.tick({ t: 100, urgency: 0.9, boundaries: ['FM'], typingRate: 0, graceActive: true })).not.toBeNull();
+    expect(m.lastTrace.reason).toBe('fired');
+});
+
+test('lastTrace reports cooldown after a recent alert', () => {
+    const m = new AlertStateMachine();
+    m.tick({ t: 600, urgency: 0.9, boundaries: ['FM'], typingRate: 0, graceActive: false }); // fires
+    m.tick({ t: 610, urgency: 0.9, boundaries: ['FM'], typingRate: 0, graceActive: false }); // 10 < COOLDOWN_S
+    expect(m.lastTrace.reason).toBe('cooldown');
 });

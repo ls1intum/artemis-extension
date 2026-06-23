@@ -14,7 +14,7 @@
 import type { BoundaryType } from '@extension/services/struggle/config';
 import { SPEC } from '@extension/services/struggle/config';
 import { applyGraceFilter, isFluentTyping, survivesWarmup } from '@extension/services/struggle/gates/gates';
-import type { EditDecisionAlert } from '@extension/services/struggle/types';
+import type { EditDecisionAlert, EditTrace, EditTraceReason } from '@extension/services/struggle/types';
 
 export interface MachineParams {
     thetaFull: number;
@@ -52,10 +52,23 @@ export class AlertStateMachine {
     private _armed = true;
     private _inStateSince: number | null = null;
     private _lastAlert = Number.NEGATIVE_INFINITY;
+    // No initializer here — set in constructor after _p is assigned.
+    private _lastTrace: EditTrace;
 
     constructor(params?: Partial<MachineParams>) {
         this._p = { ...DEFAULT_MACHINE_PARAMS, ...params };
+        this._lastTrace = this._emptyTrace();
     }
+
+    private _emptyTrace(): EditTrace {
+        return {
+            reason: 'no-candidate', urgency: 0, theta: this._p.thetaFull,
+            typingRate: null, boundariesPresent: [], secondsSinceLastAlert: Number.POSITIVE_INFINITY,
+            inWarmup: false, graceActive: false,
+        };
+    }
+
+    get lastTrace(): EditTrace { return this._lastTrace; }
 
     /** The last-alert tick time — the cooldown clock. Shared with the
      *  DecisionEngine's discrete path so edit + discrete alerts honour ONE cooldown. */
@@ -75,6 +88,13 @@ export class AlertStateMachine {
     tick(input: MachineTickInput): EditDecisionAlert | null {
         const { t, urgency } = input;
         const p = this._p;
+        const base = {
+            urgency, theta: p.thetaFull, typingRate: input.typingRate,
+            boundariesPresent: [...input.boundaries] as readonly BoundaryType[],
+            secondsSinceLastAlert: t - this._lastAlert,
+            inWarmup: t <= p.warmupS, graceActive: input.graceActive,
+        };
+        const record = (reason: EditTraceReason): void => { this._lastTrace = { reason, ...base }; };
 
         // Step 1: urgency bookkeeping (hysteresis / over-theta run on S_base)
         if (urgency < p.thetaFull - p.hysteresis) {
@@ -84,55 +104,35 @@ export class AlertStateMachine {
             this._inStateSince = t;
         }
 
-        // Step 2: alert condition
+        // Step 2: alert condition (gate order is load-bearing; outputs identical to the original)
         let present = [...input.boundaries];
-        if (present.length === 0) {
-            return null;
-        }
+        if (present.length === 0) { record('no-candidate'); return null; }
         const preGate = [...present];
-        if (isFluentTyping(input.typingRate)) {
-            return null;                                    // B2 blocks everything
-        }
+        if (isFluentTyping(input.typingRate)) { record('b2-fluent-typing'); return null; }
         if (input.graceActive) {
-            present = applyGraceFilter(present);            // B4: only FM/FM+ survive
+            present = applyGraceFilter(present);
+            if (present.length === 0) { record('b4-grace-filter'); return null; }
         }
-        if (t <= p.warmupS && !survivesWarmup(present)) {
-            present = [];                                   // D1: only FM/E4 break through
-        }
-        if (present.length === 0) {
-            return null;
-        }
-        if (urgency < p.thetaFull) {
-            return null;
-        }
-        if (t - this._lastAlert < p.cooldownS) {
-            return null;
-        }
+        if (t <= p.warmupS && !survivesWarmup(present)) { record('d1-warmup'); return null; }
+        if (urgency < p.thetaFull) { record('below-threshold'); return null; }
+        if (t - this._lastAlert < p.cooldownS) { record('cooldown'); return null; }
         let e6 = false;
         if (!this._armed) {
             if (this._inStateSince !== null && t - this._inStateSince >= p.realertS) {
-                e6 = true;                                  // E6 re-alert without re-arm
-            } else {
-                return null;
-            }
+                e6 = true;
+            } else { record('not-rearmed'); return null; }
         }
 
         // Step 3: alert
-        if (e6) {
-            this._inStateSince = t;                         // E6 reset (DECISIONS_v2 #20)
-        }
+        if (e6) { this._inStateSince = t; }
         this._lastAlert = t;
         this._armed = false;
+        record('fired');
         return {
-            kind: 'edit',
-            t,
-            urgency,
-            typesPreGate: preGate,
-            types: present,
-            primary: present[0],                            // BOUNDARY_PRIORITY-sorted input
+            kind: 'edit', t, urgency,
+            typesPreGate: preGate, types: present, primary: present[0],
             path: e6 ? 'e6' : 'armed',
-            inWarmup: t <= p.warmupS,
-            inGrace: input.graceActive,
+            inWarmup: t <= p.warmupS, inGrace: input.graceActive,
         };
     }
 
@@ -140,5 +140,6 @@ export class AlertStateMachine {
         this._armed = true;
         this._inStateSince = null;
         this._lastAlert = Number.NEGATIVE_INFINITY;
+        this._lastTrace = this._emptyTrace();
     }
 }
