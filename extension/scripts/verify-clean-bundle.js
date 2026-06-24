@@ -19,15 +19,30 @@ const FORBIDDEN_SUBTREES = [
 const FORBIDDEN = [
     'src/extension/services/auth/consentService.ts',
     'src/extension/activation/sessionRecorderWiring.ts',
-    // Struggle-detection webview view, excluded via the @struggleView alias.
-    // stub.tsx, types.ts, and index.ts are NOT forbidden (stub is the alias target).
-    'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',
-    'src/webview/views/StruggleDetection/StruggleDetectionView.module.css',
 ];
+
+// Files under src/webview/views/StruggleDetection/ that ARE allowed in the
+// clean bundle: stub.tsx is the no-op the @struggleView alias resolves to;
+// types.ts and index.ts are type/re-export only.
+const STRUGGLE_VIEW_ALLOWED = ['stub.tsx', 'types.ts', 'index.ts'];
+const STRUGGLE_VIEW_PREFIX = 'src/webview/views/StruggleDetection/';
+
+// recharts must never enter the clean bundle (it is a dev-only live-view dep).
+const FORBIDDEN_MODULES = ['node_modules/recharts'];
 
 function isForbiddenInput(input) {
     const p = input.replace(/\\/g, '/');
-    return FORBIDDEN_SUBTREES.some(s => p.includes(s)) || FORBIDDEN.some(f => p.includes(f));
+    if (FORBIDDEN_SUBTREES.some(s => p.includes(s))) { return true; }
+    if (FORBIDDEN.some(f => p.includes(f))) { return true; }
+    if (FORBIDDEN_MODULES.some(m => p.includes(m))) { return true; }
+    // Forbid every file under StruggleDetection/ except the three allowed stubs.
+    const sdIdx = p.indexOf(STRUGGLE_VIEW_PREFIX);
+    if (sdIdx !== -1) {
+        const filename = p.slice(sdIdx + STRUGGLE_VIEW_PREFIX.length);
+        // Only allow the explicitly whitelisted filenames (no subdirectories).
+        if (!STRUGGLE_VIEW_ALLOWED.includes(filename)) { return true; }
+    }
+    return false;
 }
 
 function forbiddenInputs(metafilePath) {
@@ -47,8 +62,8 @@ function main() {
         console.error('FAIL: forbidden inputs in clean bundle:\n' + hits.join('\n'));
         process.exit(1);
     }
-    console.log('OK: clean bundle contains no struggle-engine, intervention, recorder, consent, or struggle-view inputs');
+    console.log('OK: clean bundle contains no struggle-engine, intervention, recorder, consent, struggle-view, or recharts inputs');
 }
 
-module.exports = { forbiddenInputs, FORBIDDEN, FORBIDDEN_SUBTREES };
+module.exports = { forbiddenInputs, FORBIDDEN, FORBIDDEN_SUBTREES, FORBIDDEN_MODULES, STRUGGLE_VIEW_ALLOWED };
 if (require.main === module) { main(); }
