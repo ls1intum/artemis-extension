@@ -11,7 +11,7 @@ import { WebSocketStatusBarService } from '@extension/services/websocket/websock
  * Tests for WebSocketStatusBarService visibility logic.
  *
  * Uses sinon stubs to control:
- * - vscode.workspace.getConfiguration (controls showWebSocketStatusBar / developerMode)
+ * - vscode.workspace.getConfiguration (controls developerMode)
  * - vscode.window.createStatusBarItem (captures mock status bar item)
  * - vscode.commands.registerCommand (returns a no-op disposable)
  * - ArtemisWebsocketService (mock with captured onDidChangeConnectionState callback)
@@ -23,6 +23,7 @@ suite('WebSocketStatusBarService', () => {
     let sandbox: sinon.SinonSandbox;
     let mockWsService: sinon.SinonStubbedInstance<ArtemisWebsocketService> & { reconnectAttempts: number };
     let capturedCallback: (isConnected: boolean, wasEverConnected?: boolean) => void;
+    let capturedConfigCallback: (e: vscode.ConfigurationChangeEvent) => void = () => {};
     /**
      * Drive the mock through a (status, isConnected, wasEverConnected) tuple
      * and fire the captured callback so the status bar pulls the new value
@@ -45,7 +46,6 @@ suite('WebSocketStatusBarService', () => {
 
         // Default config values
         configValues = {
-            showWebSocketStatusBar: false,
             developerMode: false,
         };
 
@@ -74,8 +74,11 @@ suite('WebSocketStatusBarService', () => {
         };
         sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as unknown as vscode.WorkspaceConfiguration);
 
-        // Stub onDidChangeConfiguration
-        sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').returns({ dispose: () => {} } as vscode.Disposable);
+        // capture the configuration-change listener so a test can fire it
+        sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake((cb) => {
+            capturedConfigCallback = cb as (e: vscode.ConfigurationChangeEvent) => void;
+            return { dispose: () => {} } as vscode.Disposable;
+        });
 
         // Stub registerCommand
         sandbox.stub(vscode.commands, 'registerCommand').callsFake(() => {
@@ -120,34 +123,27 @@ suite('WebSocketStatusBarService', () => {
     }
 
     suite('visibility', () => {
-        test('hidden when showWebSocketStatusBar=false and connected', () => {
-            configValues.showWebSocketStatusBar = false;
+        test('hidden when developerMode=false and connected', () => {
             configValues.developerMode = false;
-
             createService();
-
-            // Simulate connected
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
             driveState('connected');
-
-            // Should be hidden (setting is off, not disconnected/reconnecting)
-            assert.ok(mockStatusBarItem.hide.called, 'Status bar should be hidden when setting is off and connected');
+            assert.ok(mockStatusBarItem.hide.called, 'Hidden when developerMode off and connected');
+            assert.ok(!mockStatusBarItem.show.called, 'Not shown when developerMode off and connected');
         });
 
-        test('shown when showWebSocketStatusBar=true and connected', () => {
-            configValues.showWebSocketStatusBar = true;
-            configValues.developerMode = false;
-
+        test('shown when developerMode=true and connected', () => {
+            configValues.developerMode = true;
             createService();
-
-            // Simulate connected
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
             driveState('connected');
-
-            // Should be shown (setting is on)
-            assert.ok(mockStatusBarItem.show.called, 'Status bar should be shown when setting is on and connected');
+            assert.ok(mockStatusBarItem.show.called, 'Shown when developerMode on and connected');
+            assert.ok(!mockStatusBarItem.hide.called, 'Not hidden when developerMode on and connected');
         });
 
-        test('ALWAYS shown when disconnected (override rule ignores showWebSocketStatusBar)', () => {
-            configValues.showWebSocketStatusBar = false;
+        test('ALWAYS shown when disconnected (override rule ignores developerMode)', () => {
             configValues.developerMode = false;
 
             createService();
@@ -162,8 +158,7 @@ suite('WebSocketStatusBarService', () => {
             assert.ok(!mockStatusBarItem.hide.called, 'Status bar must NOT be hidden when disconnected');
         });
 
-        test('ALWAYS shown when reconnecting (override rule ignores showWebSocketStatusBar)', () => {
-            configValues.showWebSocketStatusBar = false;
+        test('ALWAYS shown when reconnecting (override rule ignores developerMode)', () => {
             configValues.developerMode = false;
 
             createService();
@@ -176,8 +171,7 @@ suite('WebSocketStatusBarService', () => {
             assert.ok(mockStatusBarItem.show.called, 'Status bar MUST be shown when reconnecting regardless of setting');
         });
 
-        test('ALWAYS shown when retries are exhausted (override rule ignores showWebSocketStatusBar)', () => {
-            configValues.showWebSocketStatusBar = false;
+        test('ALWAYS shown when retries are exhausted (override rule ignores developerMode)', () => {
             configValues.developerMode = false;
 
             createService();
@@ -189,11 +183,26 @@ suite('WebSocketStatusBarService', () => {
 
             assert.ok(mockStatusBarItem.show.called, 'Status bar MUST be shown when retries are exhausted');
         });
+
+        test('reacts to developerMode configuration change', () => {
+            configValues.developerMode = false;
+            createService();
+            driveState('connected');
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
+
+            configValues.developerMode = true;
+            capturedConfigCallback({
+                affectsConfiguration: (section: string) => section === 'artemis.developerMode',
+            } as vscode.ConfigurationChangeEvent);
+
+            assert.ok(mockStatusBarItem.show.called, 'enabling developerMode shows the item while connected');
+        });
     });
 
     suite('status text', () => {
         test('connected shows "$(plug) WS Connected"', () => {
-            configValues.showWebSocketStatusBar = true;
+            configValues.developerMode = true;
 
             createService();
             driveState('connected');
@@ -209,9 +218,7 @@ suite('WebSocketStatusBarService', () => {
         });
 
         test('reconnecting shows "$(sync~spin) Reconnecting (N/20)..."', () => {
-            configValues.showWebSocketStatusBar = false;
-
-            // Set reconnect attempt count
+            configValues.developerMode = true;
             mockWsService.reconnectAttempts = 3;
 
             createService();
@@ -232,7 +239,7 @@ suite('WebSocketStatusBarService', () => {
         });
 
         test('disconnected shows "$(debug-disconnect) WS Disconnected"', () => {
-            configValues.showWebSocketStatusBar = false;
+            configValues.developerMode = true;
 
             createService();
             driveState('disconnected');
@@ -270,7 +277,7 @@ suite('WebSocketStatusBarService', () => {
 
     suite('reconnect flash', () => {
         test('after reconnection with setting off, hides after 2s timeout', async () => {
-            configValues.showWebSocketStatusBar = false;
+            configValues.developerMode = false;
             const clock = sandbox.useFakeTimers();
 
             try {
@@ -296,22 +303,16 @@ suite('WebSocketStatusBarService', () => {
             }
         });
 
-        test('when setting is on, does not hide after reconnection', async () => {
-            configValues.showWebSocketStatusBar = true;
+        test('with developerMode on, does not hide after a reconnection', () => {
+            configValues.developerMode = true;
             const clock = sandbox.useFakeTimers();
-
             try {
                 createService();
+                driveState('reconnecting');
                 mockStatusBarItem.hide.resetHistory();
-
-                // Simulate successful reconnect
                 driveState('connected');
-
-                // Advance past timeout
                 clock.tick(3000);
-
-                // Should NOT be hidden since setting is on
-                assert.ok(!mockStatusBarItem.hide.called, 'Should not hide when setting is on');
+                assert.ok(!mockStatusBarItem.hide.called, 'developerMode keeps the item visible through a reconnect');
             } finally {
                 clock.restore();
             }
@@ -327,7 +328,7 @@ suite('WebSocketStatusBarService', () => {
         });
 
         test('dispose clears reconnect hide timeout', () => {
-            configValues.showWebSocketStatusBar = false;
+            configValues.developerMode = false;
             const clock = sandbox.useFakeTimers();
 
             try {
@@ -352,8 +353,8 @@ suite('WebSocketStatusBarService', () => {
     });
 
     suite('authentication gate', () => {
-        test('logged out + setting off + state disconnected → hidden', () => {
-            configValues.showWebSocketStatusBar = false;
+        test('logged out + developerMode off + state disconnected → hidden', () => {
+            configValues.developerMode = false;
 
             createService(false);
             mockStatusBarItem.show.resetHistory();
@@ -363,16 +364,16 @@ suite('WebSocketStatusBarService', () => {
 
             assert.ok(
                 mockStatusBarItem.hide.called,
-                'Status bar must be hidden when logged out and setting is off, even with disconnected state'
+                'Hidden when logged out and developerMode off'
             );
             assert.ok(
                 !mockStatusBarItem.show.called,
-                'Status bar must NOT be shown when logged out and setting is off'
+                'Not shown when logged out and developerMode off'
             );
         });
 
-        test('logged out + setting on + state disconnected → shown', () => {
-            configValues.showWebSocketStatusBar = true;
+        test('logged out + developerMode on + state disconnected → shown', () => {
+            configValues.developerMode = true;
 
             createService(false);
             mockStatusBarItem.show.resetHistory();
@@ -382,12 +383,12 @@ suite('WebSocketStatusBarService', () => {
 
             assert.ok(
                 mockStatusBarItem.show.called,
-                'Status bar must be shown when logged out but setting is explicitly on'
+                'Shown when logged out but developerMode on'
             );
         });
 
         test('logged out → logged in transition re-applies visibility (logged-in rules return)', () => {
-            configValues.showWebSocketStatusBar = false;
+            configValues.developerMode = false;
 
             const service = createService(false);
             driveState('disconnected');
@@ -397,7 +398,7 @@ suite('WebSocketStatusBarService', () => {
             // Transition: user logs in
             service.setAuthenticated(true);
 
-            // With setting off + logged in + state disconnected → needs attention → show
+            // With developerMode off + logged in + state disconnected → needs attention → show
             assert.ok(
                 mockStatusBarItem.show.called,
                 'After login, logged-in visibility rules must take over (disconnected → show)'
@@ -405,7 +406,7 @@ suite('WebSocketStatusBarService', () => {
         });
 
         test('logged in → logged out transition re-applies visibility (statusbar hides)', () => {
-            configValues.showWebSocketStatusBar = false;
+            configValues.developerMode = false;
 
             const service = createService(true);
             driveState('disconnected');
@@ -423,7 +424,7 @@ suite('WebSocketStatusBarService', () => {
         });
 
         test('setAuthenticated is idempotent (same value is a no-op)', () => {
-            configValues.showWebSocketStatusBar = false;
+            configValues.developerMode = false;
 
             const service = createService(true);
             driveState('disconnected');
@@ -444,7 +445,7 @@ suite('WebSocketStatusBarService', () => {
         test('reconnectAttempts getter returns the internal counter value', () => {
             // This tests that the getter is accessible on the service
             // We test via the status bar text which reads reconnectAttempts
-            configValues.showWebSocketStatusBar = false;
+            configValues.developerMode = false;
             mockWsService.reconnectAttempts = 7;
 
             createService();

@@ -174,12 +174,7 @@
         "artemis.developerMode": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Enable developer mode to show debugging tools, including debug buttons in views and live struggle detection score in the status bar."
-        },
-        "artemis.showWebSocketStatusBar": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show the WebSocket connection status in the status bar during normal operation. When a connection failure occurs, the status bar item is always shown regardless of this setting."
+          "markdownDescription": "Enable developer mode to show debugging tools, including debug buttons in views, the live struggle detection score, and the WebSocket connection status (with diagnostics on hover) in the status bar."
         },
         "artemis.defaultCommitMessage": {
           "type": "string",

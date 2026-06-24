@@ -34,7 +34,6 @@ export const VSCODE_CONFIG = {
     DEFAULT_CLONE_PATH_KEY: 'defaultClonePath',
     SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY: 'showSetDefaultClonePathPrompt',
     DEVELOPER_MODE_KEY: 'developerMode',
-    SHOW_WEBSOCKET_STATUS_BAR_KEY: 'showWebSocketStatusBar',
     START_PAGE_KEY: 'startPage',
     SHOW_START_PAGE_SUGGESTION_KEY: 'showStartPageSuggestion',
     DATA_COLLECTION_CONSENT_KEY: 'dataCollectionConsent',

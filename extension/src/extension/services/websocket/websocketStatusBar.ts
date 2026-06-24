@@ -11,18 +11,15 @@ import { ArtemisWebsocketService } from './artemisWebsocketService';
  * StatusBar item showing WebSocket connection status.
  *
  * Visibility rules:
- * - When logged out: hidden unless `artemis.showWebSocketStatusBar` is true
- *   (no WebSocket exists, so the default "needs attention on disconnect" rule
- *   would surface a misleading red error indicator)
- * - When logged in:
- *   - ALWAYS shown when disconnected or reconnecting
- *   - Otherwise shown only when `artemis.showWebSocketStatusBar` is true
- *   - After reconnection with setting off: 2s flash then hidden
+ * - developerMode ON: always shown (any state, including connected and while
+ *   logged out) — diagnostics.
+ * - developerMode OFF:
+ *   - shown when disconnected or reconnecting (a problem the user can act on)
+ *   - 2s flash after a successful reconnect, then hidden
+ *   - otherwise hidden (incl. logged out)
  *
- * Auth state is supplied externally via {@link setAuthenticated}; the service
- * does not own auth lifecycle.
- *
- * Click action: always reconnect (reset + connect). No-op while connecting.
+ * Auth state is supplied externally via {@link setAuthenticated}.
+ * Click action: reset + reconnect. No-op while connecting/reconnecting.
  */
 export class WebSocketStatusBarService implements vscode.Disposable {
     private readonly _statusBarItem: vscode.StatusBarItem;
@@ -30,7 +27,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _stateSubscription?: vscode.Disposable;
     private _currentStatus: WebSocketDisplayStatus = 'disconnected';
-    private _showStatusBar = false;
+    private _isDevMode = false;
     private _isAuthenticated = false;
     private _reconnectHideTimeout?: ReturnType<typeof setTimeout>;
 
@@ -56,7 +53,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
         this._disposables.push(
             vscode.workspace.onDidChangeConfiguration(event => {
-                if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_WEBSOCKET_STATUS_BAR_KEY}`)) {
+                if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DEVELOPER_MODE_KEY}`)) {
                     this._updateVisibilitySetting();
                 }
             })
@@ -71,7 +68,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
     private _updateVisibilitySetting(): void {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        this._showStatusBar = config.get<boolean>(VSCODE_CONFIG.SHOW_WEBSOCKET_STATUS_BAR_KEY, false);
+        this._isDevMode = config.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
         this._applyVisibility();
     }
 
@@ -82,7 +79,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         if (
             this._currentStatus === 'connected'
             && previousStatus === 'reconnecting'
-            && !this._showStatusBar
+            && !this._isDevMode
         ) {
             if (this._reconnectHideTimeout) {
                 clearTimeout(this._reconnectHideTimeout);
@@ -110,10 +107,8 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     }
 
     private _applyVisibility(): void {
-        // Logged out: there is no WebSocket to surface a state for. Honor the
-        // explicit "always show" setting for diagnostics, otherwise hide.
         if (!this._isAuthenticated) {
-            if (this._showStatusBar) {
+            if (this._isDevMode) {
                 this._statusBarItem.show();
             } else {
                 this._statusBarItem.hide();
@@ -127,7 +122,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
         if (needsAttention) {
             this._statusBarItem.show();
-        } else if (this._showStatusBar) {
+        } else if (this._isDevMode) {
             this._statusBarItem.show();
         } else if (this._reconnectHideTimeout) {
             this._statusBarItem.show();
