@@ -69,41 +69,44 @@ sequenceDiagram
     participant Web as Artemis SPA (/connect/vscode)
     participant API as Artemis Server
 
-    Ext->>Ext: generate state + PKCE (verifier, S256 challenge)
-    Ext->>Browser: openExternal /connect/vscode?state=..&code_challenge=..
+    Ext->>Ext: generate state + PKCE; callback = asExternalUri(uriScheme://.../auth-callback)
+    Ext->>Ext: persist pending{ state -> verifier, callback } in secrets (TTL ~5m)
+    Ext->>Browser: openExternal /connect/vscode?state=..&code_challenge=..&callback=..
     Browser->>Web: GET /connect/vscode (guarded route)
     Note over Web: not authenticated → guard stores previousUrl,<br/>redirects to /sign-in
     Browser->>Web: user logs in (PASSKEY / SAML / password)
     Note over Web: handleLoginSuccess() restores previousUrl<br/>→ navigates back to /connect/vscode
-    Web->>API: POST /api/account/native-login/code<br/>(cookie-authenticated, same-origin)<br/>{ code_challenge }
-    Note over API: mint one-time code,<br/>bind to userLogin + code_challenge<br/>+ session-remaining-validity,<br/>store in Hazelcast (TTL ~60s)
-    API-->>Web: { code }
-    Web->>Browser: redirect vscode://aet-tum.iris-thaumantias/auth-callback?code=..&state=..
-    Browser->>Ext: OS opens custom scheme → UriHandler
-    Note over Ext: validate state
+    Web->>API: POST /api/account/native-login/code<br/>(cookie-authenticated, same-origin)<br/>{ code_challenge, callback }
+    Note over API: validate callback against allowlist;<br/>mint one-time code bound to principal +<br/>code_challenge + callback + absolute<br/>originSessionExpiresAt; store (TTL ~60s)
+    API-->>Web: { code, callback }
+    Web->>Browser: redirect <validated callback>?code=..&state=..
+    Browser->>Ext: callback opens VS Code (custom scheme, or asExternalUri https under Remote) → UriHandler (may cold-start via onUri)
+    Note over Ext: look up pending by state<br/>(reject if missing/expired)
     Ext->>API: POST /api/core/public/native-login/token<br/>{ code, code_verifier }
-    Note over API: verify PKCE, consume code,<br/>mint FULL JWT capped to session validity
+    Note over API: atomic verify-and-consume PKCE;<br/>mint FULL JWT capped to originSessionExpiresAt
     API-->>Ext: { access_token }
-    Note over Ext: store as "jwt=<token>" (secrets), call getCurrentUser()
+    Note over Ext: store as "jwt=<token>" (secrets), delete pending, getCurrentUser()
 ```
 
 ### 3.2 Components
 
 **Extension (this repo):**
 - New command "Sign in with browser".
-- Declare `onUri` activation and register a `UriHandler` (`vscode.window.registerUriHandler`). The extension does not currently declare `onUri` in `extension/package.json`.
-- Generate `state` (CSRF) + PKCE `code_verifier`/`code_challenge` (S256).
-- Build the callback via `vscode.env.asExternalUri(...)` so it also works under VS Code Remote; for desktop this resolves to `vscode://aet-tum.iris-thaumantias/...`.
-- On callback: validate `state`, exchange `code + code_verifier` for the JWT, store it as `jwt=<token>` via `authManager.storeArtemisCredentials(...)` (no change to the cookie architecture), then `getCurrentUser()`.
+- Register a `UriHandler` (`vscode.window.registerUriHandler`) **early in `activate()`**, independent of whether the login webview is open, and declare the `onUri` activation event in `extension/package.json` (not currently declared) so the callback can cold-start the extension.
+- Derive the callback URI with `vscode.env.asExternalUri(vscode.Uri.parse(\`${vscode.env.uriScheme}://aet-tum.iris-thaumantias/auth-callback\`))`. Do **not** hardcode the `vscode` scheme: `env.uriScheme` is `vscode`, `vscode-insiders`, etc., and under Remote/Codespaces `asExternalUri` may return an `https` loopback. The resolved callback is sent to Artemis as a parameter and validated server-side against an allowlist (see server).
+- Generate `state` (CSRF, >=128-bit) + PKCE `code_verifier`/`code_challenge` (S256).
+- **Persist the pending login** keyed by `state` in `context.secrets` (or `globalState`) as `{ code_verifier, serverUrl, callbackUri, createdAt, expiresAt }`, short TTL (~5 min). It must survive webview reload, window reload, and `onUri` cold-start; it is not held in webview state. (Today the extension persists only the final token + server URL — `authManager.ts` — so this store is new.)
+- On callback: look up the pending entry by `state` (reject if missing/expired), exchange `code + code_verifier` for the JWT, store it as `jwt=<token>` via `authManager.storeArtemisCredentials(...)` (no change to the cookie architecture), delete the pending entry, then `getCurrentUser()`.
+- With multiple windows the topmost handles the URI; an unknown/expired `state` must be ignored gracefully.
 - Keep the password login as a fallback.
 
 **Artemis server (new, small):**
-- A short-lived one-time-code store (reuse the Hazelcast nonce-store pattern from PR #12534, generalized out of the SAML package).
-- `POST /api/account/native-login/code` — authenticated (`@EnforceAtLeastStudent`), called same-origin from `/connect/vscode`. Accepts `code_challenge`. Mints a one-time code bound to the user, the challenge, and **the current session's remaining validity**. Returns `{ code }`.
-- `POST /api/core/public/native-login/token` — public (the extension is not yet authenticated; PKCE protects it). Accepts `{ code, code_verifier }`, verifies PKCE, consumes the code once, mints a **full** JWT (`buildLoginCookie(..., tool=null)`) **capped to the originating session's remaining validity**, returns `{ access_token }`.
+- A short-lived one-time-code store (reuse the Hazelcast nonce-store pattern from PR #12534, generalized out of the SAML package). Precise semantics in Section 3.4.
+- `POST /api/account/native-login/code` — authenticated (`@EnforceAtLeastStudent`), called same-origin from `/connect/vscode`. Accepts `code_challenge` (+ method) and the extension `callback`. **Validates `callback` against a strict server-side allowlist** of the extension's schemes/authorities (e.g. `vscode://aet-tum.iris-thaumantias/*`, `vscode-insiders://aet-tum.iris-thaumantias/*`, and the `asExternalUri` https-loopback form); rejects anything else. Mints a one-time code bound to the principal, the `code_challenge`, the validated `callback`, and the **absolute origin-session expiry**. Returns `{ code }` plus the validated `callback`.
+- `POST /api/core/public/native-login/token` — public (the extension is not yet authenticated; PKCE protects it). Accepts `{ code, code_verifier }`, performs **atomic verify-and-consume**, mints a **full** JWT (`buildLoginCookie(..., tool=null)`) **capped to the origin session's expiry**, returns `{ access_token }`. Exact rules in Section 3.4.
 
 **Artemis webapp (new, small):**
-- A guarded route/component `/connect/vscode` (declaring `authorities`) that, once authenticated, calls `native-login/code` and redirects the browser to the extension callback with `code` + `state`.
+- A guarded route/component `/connect/vscode` (declaring `authorities`) that, once authenticated, posts `code_challenge` + the extension `callback` to `native-login/code`, then redirects the browser to the **server-validated** callback with `code` + `state`. Callback validation is authoritative on the server, not the page.
 
 ### 3.3 Security requirements (from codex review)
 
@@ -112,15 +115,27 @@ sequenceDiagram
 - **No open redirect.** Do not reflect an arbitrary `redirect_uri`. Pin the callback to the extension's scheme (`vscode://aet-tum.iris-thaumantias/*`) and/or the `asExternalUri`-produced URI; reject anything else.
 - **Strict `state` matching** in the extension; with multiple VS Code windows the topmost handles the URI, so an unmatched `state` must be ignored gracefully.
 - **Same-origin only.** The `native-login/code` call is made by the Artemis SPA to Artemis (cookie sent automatically). The extension never XHRs to a loopback; it only exchanges the code over HTTPS to Artemis. Avoids CORS and SameSite pitfalls.
-- One-time code: single-use, short TTL (~60s), invalidated on first exchange.
+- **CSRF.** Artemis disables CSRF globally and is stateless-JWT (`SecurityConfiguration`: `.csrf(CsrfConfigurer::disable)`, `SessionCreationPolicy.STATELESS`), so both new endpoints follow the existing public-login precedent (`/api/core/public/authenticate`, itself a public JWT-minting POST) and need **no CSRF token and no new exemption**. Forgery is prevented structurally instead: the public `native-login/token` requires the PKCE `code_verifier` (never sent to the browser), and a cross-origin attacker can neither read the `native-login/code` response (same-origin policy) nor receive the code anywhere but the allowlisted callback.
+- **Forged `/connect/vscode` links are neutralized by the server-side callback allowlist.** A tricked, logged-in victim could be lured to a `/connect/vscode` link with an attacker-chosen `code_challenge`, but the code is delivered only to an allowlisted extension callback (the victim's own VS Code) and is unusable without the `code_verifier` (which never leaves the extension). So no usable code reaches the attacker. This only holds if the callback is validated on the server, not just on the page.
+
+### 3.4 One-time code & PKCE: precise semantics
+
+The public exchange endpoint mints full JWTs, so the code store must be exact:
+
+- **Code entropy:** >=128 bits of CSPRNG randomness; opaque; single-use.
+- **Bound fields (immutable):** principal identity (resolved server-side from the authenticated session, never from client input), `code_challenge` (+ method `S256`), the server-validated `callback`, and an **absolute `originSessionExpiresAt`** instant (not a "remaining seconds" snapshot).
+- **Code TTL:** the code expires ~60s after issuance (separate from `originSessionExpiresAt`).
+- **Exchange:** verify `S256(code_verifier) == code_challenge`. On success, **atomically** consume the code (single redemption) and mint the JWT with expiry = `min(default lifetime, originSessionExpiresAt)`. Never grant more lifetime or scope than the origin session had (no `rememberMe` escalation).
+- **Failed verifier:** do **not** consume the code; increment an attempt counter and invalidate after a small cap (e.g. 3). Rate-limit the endpoint.
+- **Reject** redemption once `now >= originSessionExpiresAt` or the code TTL has passed.
 
 ## 4. Scope estimate (honest)
 
-This is a small but real feature, not a 2-file change:
+This is a small but real, **security-sensitive** feature, not a 2-file change:
 
-- **Artemis server:** code store + 2 endpoints (issue code, exchange code) ≈ 3 files (+ tests), reusing the nonce-store pattern from #12534.
+- **Artemis server:** code store + 2 endpoints (issue code, exchange code) + callback allowlist ≈ 3-4 files plus thorough integration tests. The public exchange endpoint mints full JWTs, so expect security-review scrutiny (Sections 3.3-3.4).
 - **Artemis webapp:** 1 route + 1 component (the `/connect/vscode` handoff page).
-- **Extension:** UriHandler + `onUri` activation + "Sign in with browser" command + PKCE/state + code exchange + storage.
+- **Extension:** UriHandler + `onUri` activation + "Sign in with browser" command + PKCE/state + a persisted pending-login store + code exchange + storage, with tests.
 
 Still substantially smaller than the dead 14-file SAML-only PR, and it delivers SSO and passkey together. The login-return plumbing is free (Section 1.3).
 
@@ -130,12 +145,14 @@ PR #12534 (`feature/general/saml2-sso-redirect-uri`, draft, auto-closed as stale
 
 Recommendation: do not revive it as-is. Build the generic handoff in Section 3 (PKCE, no raw token in URL, method-agnostic). Reuse its `SAML2RedirectUriValidator` and `HazelcastSaml2RedirectUriRepository` as the basis for the generalized validator/code store.
 
-## 6. Open decisions
+## 6. Decisions and open questions
 
-1. **Desktop-only vs Remote.** v1 can target desktop (`vscode://` callback). Remote/Codespaces via `asExternalUri` is a follow-up; the server callback allowlist must account for it.
-2. **Fixed callback vs allowlisted set.** Pin to `vscode://aet-tum.iris-thaumantias/*` for the smallest, safest surface.
-3. **Eventually migrate password login to this flow too?** Out of scope for v1, but it would let the extension drop in-app credential handling entirely.
-4. **Upstream coordination.** This needs an Artemis PR; align the endpoint shape with the maintainers before implementing.
+**Decided — v1 callback policy (single, authoritative).** The extension always resolves its callback at runtime via `vscode.env.asExternalUri(Uri.parse(\`${vscode.env.uriScheme}://aet-tum.iris-thaumantias/auth-callback\`))` and sends that resolved value to the server. The server validates it against a fixed allowlist covering the extension's custom-scheme forms (`vscode://` and `vscode-insiders://` under authority `aet-tum.iris-thaumantias`) **and** the `asExternalUri` https-loopback form used under Remote/Codespaces. This one policy covers desktop and Remote, so there is no separate "fixed vs dynamic" or "desktop vs Remote" choice; anything outside the allowlist is rejected.
+
+Open:
+1. **Exact allowlist entries.** Confirm the precise scheme/authority/path patterns (and whether VSCodium or other forks are in scope) with the maintainers.
+2. **Eventually migrate password login to this flow too?** Out of scope for v1, but it would let the extension drop in-app credential handling entirely.
+3. **Upstream coordination.** This needs an Artemis PR; align the endpoint shape with the maintainers before implementing.
 
 ## 7. References
 
