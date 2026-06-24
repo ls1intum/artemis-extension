@@ -457,4 +457,41 @@ suite('WebSocketStatusBarService', () => {
             );
         });
     });
+
+    suite('normal mode labels', () => {
+        test('normal mode connected shows "Artemis: connected"', () => {
+            configValues.developerMode = false;
+            createService();
+            driveState('connected');
+            assert.ok(
+                mockStatusBarItem.text.includes('Artemis: connected'),
+                `Expected "Artemis: connected", got: ${mockStatusBarItem.text}`
+            );
+        });
+
+        test('normal mode disconnected shows "Artemis: offline"', () => {
+            configValues.developerMode = false;
+            createService();
+            driveState('disconnected');
+            assert.ok(
+                mockStatusBarItem.text.includes('Artemis: offline'),
+                `Expected "Artemis: offline", got: ${mockStatusBarItem.text}`
+            );
+        });
+
+        test('normal mode reconnecting shows "Artemis: reconnecting (N/20)"', () => {
+            configValues.developerMode = false;
+            mockWsService.reconnectAttempts = 2;
+            createService();
+            driveState('reconnecting');
+            assert.ok(
+                mockStatusBarItem.text.includes('Artemis: reconnecting'),
+                `Expected "Artemis: reconnecting", got: ${mockStatusBarItem.text}`
+            );
+            assert.ok(
+                mockStatusBarItem.text.includes('2/20'),
+                `Expected "2/20", got: ${mockStatusBarItem.text}`
+            );
+        });
+    });
 });

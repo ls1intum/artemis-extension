@@ -134,27 +134,35 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private _updateStatusBarItem(): void {
         this._applyVisibility();
 
+        const attempts = this._websocketService.reconnectAttempts;
+
         switch (this._currentStatus) {
             case 'connected':
-                this._statusBarItem.text = '$(plug) WS Connected';
+                this._statusBarItem.text = this._isDevMode
+                    ? '$(plug) WS Connected'
+                    : '$(plug) Artemis: connected';
                 this._statusBarItem.tooltip = 'WebSocket connected. Click to reconnect.';
                 this._statusBarItem.backgroundColor = undefined;
                 break;
-            case 'reconnecting': {
-                const attempts = this._websocketService.reconnectAttempts;
-                this._statusBarItem.text = `$(sync~spin) Reconnecting (${attempts}/20)...`;
+            case 'reconnecting':
+                this._statusBarItem.text = this._isDevMode
+                    ? `$(sync~spin) WS Reconnecting (${attempts}/20)...`
+                    : `$(sync~spin) Artemis: reconnecting (${attempts}/20)...`;
                 this._statusBarItem.tooltip = 'WebSocket reconnecting...';
                 this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
                 break;
-            }
             case 'connecting':
-                this._statusBarItem.text = '$(sync~spin) WS Connecting...';
+                this._statusBarItem.text = this._isDevMode
+                    ? '$(sync~spin) WS Connecting...'
+                    : '$(sync~spin) Artemis: connecting...';
                 this._statusBarItem.tooltip = 'WebSocket connecting...';
                 this._statusBarItem.backgroundColor = undefined;
                 break;
             case 'disconnected':
             default:
-                this._statusBarItem.text = '$(debug-disconnect) WS Disconnected';
+                this._statusBarItem.text = this._isDevMode
+                    ? '$(debug-disconnect) WS Disconnected'
+                    : '$(debug-disconnect) Artemis: offline';
                 this._statusBarItem.tooltip = 'WebSocket disconnected. Click to reconnect.';
                 this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 break;
