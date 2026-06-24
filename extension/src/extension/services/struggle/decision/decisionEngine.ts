@@ -27,7 +27,9 @@
 import {
     AlertStateMachine, DEFAULT_MACHINE_PARAMS, type MachineParams,
 } from '@extension/services/struggle/alerting/alertStateMachine';
-import type { DecisionAlert, EditDecisionAlert, EngineTick } from '@extension/services/struggle/types';
+import type {
+    DecisionAlert, DecisionTrace, DiscreteDecisionAlert, EditDecisionAlert, EngineTick,
+} from '@extension/services/struggle/types';
 
 /** Ablation toggles for the add-on decision paths. Default = production (all ON). */
 export interface DecisionAblation {
@@ -39,20 +41,32 @@ export class DecisionEngine {
     private readonly _editMachine: AlertStateMachine;
     private readonly _params: MachineParams;
     private readonly _enableTestStagnation: boolean;
+    private _lastTrace: DecisionTrace;
 
     constructor(params?: Partial<MachineParams>, ablation?: DecisionAblation) {
         this._params = { ...DEFAULT_MACHINE_PARAMS, ...params };
         this._editMachine = new AlertStateMachine(params);
         this._enableTestStagnation = ablation?.enableTestStagnation ?? true;
+        this._lastTrace = { ...this._editMachine.lastTrace, outcome: 'suppressed', discreteTrigger: null };
     }
+
+    get lastTrace(): DecisionTrace { return this._lastTrace; }
 
     /** Decide whether this tick produces an (unthrottled) alert candidate. */
     decide(tick: EngineTick): DecisionAlert | null {
         const edit = this._editPath(tick);
+        const editTrace = this._editMachine.lastTrace;
         if (edit !== null) {
+            this._lastTrace = { ...editTrace, outcome: 'fired-edit', discreteTrigger: null };
             return edit;                                   // edit alert wins the tick
         }
-        return this._discretePath(tick);
+        const discrete = this._discretePath(tick);
+        if (discrete !== null) {
+            this._lastTrace = { ...editTrace, outcome: 'fired-discrete', discreteTrigger: discrete.trigger };
+            return discrete;
+        }
+        this._lastTrace = { ...editTrace, outcome: 'suppressed', discreteTrigger: null };
+        return null;
     }
 
     /** Edit path: urgency thresholding + B2/B4/warmup gates + cooldown/E6. */
@@ -69,7 +83,7 @@ export class DecisionEngine {
 
     /** Discrete add-on path (NOT B2/B4-gated). Test-Stagnation breaks warmup;
      *  guarded only by the shared cooldown. */
-    private _discretePath(tick: EngineTick): DecisionAlert | null {
+    private _discretePath(tick: EngineTick): DiscreteDecisionAlert | null {
         if (!this._enableTestStagnation || !tick.discreteTriggers.testStagnation) {
             return null;
         }
@@ -88,5 +102,6 @@ export class DecisionEngine {
 
     reset(): void {
         this._editMachine.reset();
+        this._lastTrace = { ...this._editMachine.lastTrace, outcome: 'suppressed', discreteTrigger: null };
     }
 }

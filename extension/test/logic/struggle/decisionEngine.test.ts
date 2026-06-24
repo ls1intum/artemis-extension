@@ -173,3 +173,43 @@ describe('DecisionEngine — discrete (Test-Stagnation) path', () => {
         expect(e6.path).toBe('e6');
     });
 });
+
+describe('DecisionEngine — lastTrace', () => {
+    function tickWith(over: Partial<EngineTick>): EngineTick {
+        return {
+            t: 600, urgency: 0.9,
+            editCandidate: { boundaries: ['FM'], typingRate: 0, graceActive: false },
+            discreteTriggers: { testStagnation: false },
+            telemetry: { s: 0, v: 0, fastDecay: false },
+            ...over,
+        };
+    }
+
+    it('lastTrace outcome is fired-edit when the edit path fires', () => {
+        const d = new DecisionEngine(undefined, { enableTestStagnation: false });
+        expect(d.decide(tickWith({}))?.kind).toBe('edit');
+        expect(d.lastTrace.outcome).toBe('fired-edit');
+        expect(d.lastTrace.reason).toBe('fired');
+        expect(d.lastTrace.discreteTrigger).toBeNull();
+    });
+
+    it('lastTrace outcome is fired-discrete and names the trigger', () => {
+        const d = new DecisionEngine(undefined, { enableTestStagnation: true });
+        const alert = d.decide(tickWith({
+            editCandidate: { boundaries: [], typingRate: 0, graceActive: false },
+            discreteTriggers: { testStagnation: true },
+        }));
+        expect(alert?.kind).toBe('discrete');
+        expect(d.lastTrace.outcome).toBe('fired-discrete');
+        expect(d.lastTrace.discreteTrigger).toBe('test-stagnation');
+        expect(d.lastTrace.reason).toBe('no-candidate'); // the edit path had no boundary
+    });
+
+    it('lastTrace outcome is suppressed with the edit reason when nothing fires', () => {
+        const d = new DecisionEngine(undefined, { enableTestStagnation: false });
+        expect(d.decide(tickWith({ urgency: 0.5 }))).toBeNull();
+        expect(d.lastTrace.outcome).toBe('suppressed');
+        expect(d.lastTrace.reason).toBe('below-threshold');
+        expect(d.lastTrace.discreteTrigger).toBeNull();
+    });
+});
