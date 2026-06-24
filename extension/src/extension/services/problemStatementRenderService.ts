@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api/artemisApi';
 import type { ProblemStatementRenderRequest, TestFeedbackInput } from '@extension/domain/problemStatementRendering';
-import { CONFIG, VSCODE_CONFIG } from '@extension/utils/constants';
+import { VSCODE_CONFIG } from '@extension/utils/constants';
 import { extractLatestFeedbacks } from '@extension/utils/participationHelpers';
+import { resolveServerUrl } from '@extension/utils/serverUrl';
 
 import { LogCategory, logger } from './loggingService';
 
@@ -179,8 +180,9 @@ export class ProblemStatementRenderService implements vscode.Disposable {
     }
 
     private getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY) || CONFIG.ARTEMIS_SERVER_URL_DEFAULT;
+        // Single source of truth: in EduIDE/Theia this is the data-bridge
+        // ARTEMIS_URL; on Desktop it falls back to the `artemis.serverUrl` config.
+        return resolveServerUrl();
     }
 }
 

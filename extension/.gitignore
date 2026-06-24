@@ -17,6 +17,12 @@ out/
 coverage/
 *.vsix
 
+# Marketplace docs — generated at package time from the repo-root copies
+# (scripts/sync-marketplace-docs.js / package-openvsx.js). Edit the root files,
+# never these. Anchored so only the extension/ copies are ignored.
+/README.md
+/CHANGELOG.md
+
 # Bundle analysis reports (generated, regenerate with npm run build:analyze)
 dist/meta-*.json
 dist/*.html
