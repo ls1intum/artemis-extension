@@ -209,6 +209,80 @@ suite('WebSocketStatusBarService', () => {
 
             assert.ok(mockStatusBarItem.show.called, 'enabling developerMode shows the item while connected');
         });
+
+        test('enabling developerMode while connected re-renders text and tooltip immediately (no driveState)', () => {
+            // Start in student mode + connected
+            configValues.developerMode = false;
+            createService();
+            driveState('connected');
+
+            // Verify student label is showing
+            assert.ok(
+                mockStatusBarItem.text.includes('Artemis: connected'),
+                `precondition: expected student label, got: ${mockStatusBarItem.text}`
+            );
+
+            // Toggle developerMode on via config change — no intervening driveState
+            configValues.developerMode = true;
+            capturedConfigCallback({
+                affectsConfiguration: (section: string) => section === 'artemis.developerMode',
+            } as vscode.ConfigurationChangeEvent);
+
+            // Text must switch to dev label immediately
+            assert.ok(
+                mockStatusBarItem.text.includes('WS Connected'),
+                `expected "WS Connected" after enabling devMode, got: ${mockStatusBarItem.text}`
+            );
+            assert.ok(
+                !mockStatusBarItem.text.includes('Artemis: connected'),
+                `student label must be gone after enabling devMode, got: ${mockStatusBarItem.text}`
+            );
+
+            // Tooltip must switch to dev diagnostics (MarkdownString with serverUrl)
+            const tooltip = mockStatusBarItem.tooltip;
+            const tooltipText = typeof tooltip === 'string' ? tooltip : (tooltip?.value ?? '');
+            assert.ok(
+                tooltipText.includes('artemis.test'),
+                `expected dev tooltip with serverUrl after enabling devMode, got: ${tooltipText}`
+            );
+        });
+
+        test('disabling developerMode while disconnected re-renders text and tooltip immediately (no driveState)', () => {
+            // Start in dev mode + disconnected
+            configValues.developerMode = true;
+            createService();
+            driveState('disconnected');
+
+            // Verify dev label is showing
+            assert.ok(
+                mockStatusBarItem.text.includes('WS Disconnected'),
+                `precondition: expected dev label, got: ${mockStatusBarItem.text}`
+            );
+
+            // Toggle developerMode off via config change — no intervening driveState
+            configValues.developerMode = false;
+            capturedConfigCallback({
+                affectsConfiguration: (section: string) => section === 'artemis.developerMode',
+            } as vscode.ConfigurationChangeEvent);
+
+            // Text must switch to student label immediately
+            assert.ok(
+                mockStatusBarItem.text.includes('Artemis: offline'),
+                `expected "Artemis: offline" after disabling devMode, got: ${mockStatusBarItem.text}`
+            );
+            assert.ok(
+                !mockStatusBarItem.text.includes('WS Disconnected'),
+                `dev label must be gone after disabling devMode, got: ${mockStatusBarItem.text}`
+            );
+
+            // Tooltip must switch to student disconnected message
+            const tooltip = mockStatusBarItem.tooltip;
+            const tooltipText = typeof tooltip === 'string' ? tooltip : (tooltip?.value ?? '');
+            assert.ok(
+                tooltipText.includes('Connection to Artemis lost'),
+                `expected student tooltip after disabling devMode, got: ${tooltipText}`
+            );
+        });
     });
 
     suite('status text', () => {
@@ -493,6 +567,32 @@ suite('WebSocketStatusBarService', () => {
             assert.ok(v.includes('test-session-id'), `sessionId, got: ${v}`);
             assert.ok(v.includes('/user/topic/results'), `subscription topic, got: ${v}`);
             assert.ok(v.includes('0/20'), `reconnect counts, got: ${v}`);
+        });
+
+        test('dev mode tooltip with zero subscriptions shows "Subscriptions (0)" and "none"', () => {
+            configValues.developerMode = true;
+            (mockWsService.getDiagnostics as sinon.SinonStub).returns({
+                clientConnected: false,
+                clientActive: false,
+                subscriptionCount: 0,
+                subscriptions: [],
+                reconnectAttempts: 0,
+                maxReconnectAttempts: 20,
+                sessionId: 'test-session-id',
+                serverUrl: 'https://artemis.test',
+                websocketUrl: 'wss://artemis.test/ws',
+            });
+
+            createService();
+            driveState('connected');
+
+            assert.ok(
+                mockStatusBarItem.tooltip instanceof vscode.MarkdownString,
+                'dev tooltip must be a MarkdownString'
+            );
+            const v = tooltipValue();
+            assert.ok(v.includes('Subscriptions (0)'), `expected "Subscriptions (0)", got: ${v}`);
+            assert.ok(v.includes('none'), `expected "none" for empty subscriptions, got: ${v}`);
         });
     });
 

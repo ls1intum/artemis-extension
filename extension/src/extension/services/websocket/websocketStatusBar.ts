@@ -69,7 +69,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private _updateVisibilitySetting(): void {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         this._isDevMode = config.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
-        this._applyVisibility();
+        this._updateStatusBarItem();
     }
 
     private _refreshStatus(): void {
