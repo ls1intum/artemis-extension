@@ -16,12 +16,25 @@ run('node esbuild.js --production --variant=openvsx');
 fs.rmSync(staging, { recursive: true, force: true });
 fs.mkdirSync(staging, { recursive: true });
 
-// 3. Copy packaged assets + the clean dist into staging. (No CHANGELOG: the full
-//    build does not ship one either - it lives at the repo root, not extension/.)
-for (const entry of ['dist', 'media', 'LICENSE', 'README.md', '.vscodeignore']) {
+// 3. Copy packaged assets + the clean dist into staging.
+for (const entry of ['dist', 'media', 'LICENSE', '.vscodeignore']) {
     const from = path.join(root, entry);
     if (!fs.existsSync(from)) { continue; }
     fs.cpSync(from, path.join(staging, entry), { recursive: true });
+}
+
+// 3b. The user README and CHANGELOG are single-sourced at the repo root (the
+//     extension/ copies are generated + git-ignored). Copy them in so the Open VSX
+//     listing shows the same description and a Changelog tab as the marketplace build.
+//     Fail closed if either is missing - a silently description-less store page is
+//     worse than a hard stop.
+const repoRoot = path.join(root, '..');
+for (const doc of ['README.md', 'CHANGELOG.md']) {
+    const from = path.join(repoRoot, doc);
+    if (!fs.existsSync(from)) {
+        throw new Error(`[package-openvsx] expected ${doc} at the repo root (${from}) but it is missing`);
+    }
+    fs.cpSync(from, path.join(staging, doc));
 }
 
 // 4. Generate the clean manifest into staging.
