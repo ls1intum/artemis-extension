@@ -11,6 +11,7 @@ import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
 import { createProviderRegistry } from '@extension/services/ui';
+import { StruggleAlertStatusBar } from '@extension/services/ui/struggleAlertStatusBar';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
 import {
@@ -141,6 +142,20 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
+
+	// Developer-only: surface the engine's live alert decision (firing / gated /
+	// armed) in the status bar. Reads the coordinator's tick stream; no-op
+	// coordinator never ticks, so the clean build shows nothing. Clicking it
+	// reveals the panel and opens the live-engine view.
+	const struggleAlertStatusBar = new StruggleAlertStatusBar(
+		struggleCoordinator,
+		() => vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false),
+		() => {
+			artemisWebviewProvider.showStruggleDetection();
+			void vscode.commands.executeCommand(`${ArtemisWebviewProvider.viewType}.focus`);
+		},
+	);
+	context.subscriptions.push(struggleAlertStatusBar);
 
 	const contextStore = new ContextStore(context);
 	context.subscriptions.push(contextStore);

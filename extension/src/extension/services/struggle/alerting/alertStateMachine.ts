@@ -14,7 +14,7 @@
 import type { BoundaryType } from '@extension/services/struggle/config';
 import { SPEC } from '@extension/services/struggle/config';
 import { applyGraceFilter, isFluentTyping, survivesWarmup } from '@extension/services/struggle/gates/gates';
-import type { EditDecisionAlert, EditTrace, EditTraceReason } from '@extension/services/struggle/types';
+import type { EditDecisionAlert, EditTrace, EditTraceReason, GateConditions } from '@extension/services/struggle/types';
 
 export interface MachineParams {
     thetaFull: number;
@@ -65,6 +65,10 @@ export class AlertStateMachine {
             reason: 'no-candidate', urgency: 0, theta: this._p.thetaFull,
             typingRate: null, boundariesPresent: [], secondsSinceLastAlert: Number.POSITIVE_INFINITY,
             inWarmup: false, graceActive: false,
+            gates: {
+                fluentTyping: false, grace: false, warmup: false,
+                belowThreshold: false, cooldown: false, notRearmed: false,
+            },
         };
     }
 
@@ -88,21 +92,42 @@ export class AlertStateMachine {
     tick(input: MachineTickInput): EditDecisionAlert | null {
         const { t, urgency } = input;
         const p = this._p;
-        const base = {
-            urgency, theta: p.thetaFull, typingRate: input.typingRate,
-            boundariesPresent: [...input.boundaries] as readonly BoundaryType[],
-            secondsSinceLastAlert: t - this._lastAlert,
-            inWarmup: t <= p.warmupS, graceActive: input.graceActive,
-        };
-        const record = (reason: EditTraceReason): void => { this._lastTrace = { reason, ...base }; };
 
-        // Step 1: urgency bookkeeping (hysteresis / over-theta run on S_base)
+        // Step 1: urgency bookkeeping (hysteresis / over-theta run on S_base).
+        // Moved ABOVE `base` so the gate-condition snapshot below reads the same
+        // _armed/_inStateSince the gates check. `base` does not depend on Step 1
+        // (it never reads _armed/_inStateSince, and Step 1 leaves _lastAlert
+        // untouched), so the recorded trace + the alert returns are unchanged.
         if (urgency < p.thetaFull - p.hysteresis) {
             this._armed = true;
             this._inStateSince = null;
         } else if (urgency >= p.thetaFull && this._inStateSince === null) {
             this._inStateSince = t;
         }
+
+        // Per-gate live conditions (telemetry only; never read by the decision).
+        // Each flag is the gate's standalone blocking condition, INDEPENDENT of
+        // whether a boundary is present, so the developer view can light up gates
+        // even on idle/no-candidate ticks. Computed before Step 2/3 mutate state,
+        // matching `base.secondsSinceLastAlert` (pre-fire _lastAlert).
+        const gates: GateConditions = {
+            fluentTyping: isFluentTyping(input.typingRate),
+            grace: input.graceActive,
+            warmup: t <= p.warmupS,
+            belowThreshold: urgency < p.thetaFull,
+            cooldown: t - this._lastAlert < p.cooldownS,
+            notRearmed: !this._armed
+                && !(this._inStateSince !== null && t - this._inStateSince >= p.realertS),
+        };
+
+        const base = {
+            urgency, theta: p.thetaFull, typingRate: input.typingRate,
+            boundariesPresent: [...input.boundaries] as readonly BoundaryType[],
+            secondsSinceLastAlert: t - this._lastAlert,
+            inWarmup: t <= p.warmupS, graceActive: input.graceActive,
+            gates,
+        };
+        const record = (reason: EditTraceReason): void => { this._lastTrace = { reason, ...base }; };
 
         // Step 2: alert condition (gate order is load-bearing; outputs identical to the original)
         let present = [...input.boundaries];

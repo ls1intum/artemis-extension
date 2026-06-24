@@ -23,7 +23,7 @@ export function createLiveEngineFeed(
     return {
         subscribe() { /* no engine in the clean build */ },
         unsubscribe() { /* no engine in the clean build */ },
-        clear() { /* no engine in the clean build */ },
+        setSessionActive(_active: boolean) { /* no engine in the clean build */ },
         dispose() { /* nothing to dispose */ },
     };
 }

@@ -43,6 +43,25 @@ describe('AlertStateMachine (Python run_state_machine port)', () => {
         const alerts = drive(30, { urgency: (_t, i) => vs[i], params: { warmupS: 0, cooldownS: 0 } });
         expect(alerts.map(a => a.t)).toEqual([10]);
     });
+
+    it('records live per-gate conditions every tick, independent of a boundary', () => {
+        const m = new AlertStateMachine({ thetaFull: 0.6, warmupS: 60, cooldownS: 120 });
+        // Idle, in warm-up, urgency below θ, NO boundary (reason = no-candidate):
+        // the warm-up and below-threshold gates are still reported as engaged.
+        m.tick({ t: 10, urgency: 0.3, boundaries: [], typingRate: 0, graceActive: false });
+        expect(m.lastTrace.reason).toBe('no-candidate');
+        expect(m.lastTrace.gates).toMatchObject({
+            warmup: true, belowThreshold: true, fluentTyping: false, grace: false, cooldown: false, notRearmed: false,
+        });
+
+        // Typing fast flips fluentTyping on, still with no boundary.
+        m.tick({ t: 20, urgency: 0.3, boundaries: [], typingRate: 200, graceActive: false });
+        expect(m.lastTrace.gates.fluentTyping).toBe(true);
+
+        // Past warm-up and urgency over θ: both of those gates go clear.
+        m.tick({ t: 70, urgency: 0.9, boundaries: [], typingRate: 0, graceActive: false });
+        expect(m.lastTrace.gates).toMatchObject({ warmup: false, belowThreshold: false });
+    });
     it('T3b: 0.45 < theta-0.1 -> re-arm + alert', () => {
         const vs = [0.7, 0.45, 0.7];
         const alerts = drive(30, { urgency: (_t, i) => vs[i], params: { warmupS: 0, cooldownS: 0 } });

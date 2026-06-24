@@ -36,6 +36,16 @@ export interface LiveDecisionTrace {
     secondsSinceLastAlert: number | null;
     inWarmup: boolean;
     graceActive: boolean;
+    /** Live per-gate conditions for the developer gate view (mirrors the engine's
+     *  GateConditions; each flag = that gate's blocking condition currently holds). */
+    gates: {
+        fluentTyping: boolean;
+        grace: boolean;
+        warmup: boolean;
+        belowThreshold: boolean;
+        cooldown: boolean;
+        notRearmed: boolean;
+    };
 }
 
 export interface LiveTick {
@@ -78,6 +88,7 @@ export const ExtensionMsg = {
     StruggleLiveBackfill: 'struggleLiveBackfill',
     StruggleLiveTick: 'struggleLiveTick',
     StruggleLiveReset: 'struggleLiveReset',
+    StruggleLiveSessionState: 'struggleLiveSessionState',
     ViewInitError: 'viewInitError',
 
     // Auth
@@ -198,6 +209,9 @@ interface ExtensionMsgPayloads {
     struggleLiveBackfill: { ticks: LiveTick[] };
     struggleLiveTick: { tick: LiveTick };
     struggleLiveReset: undefined;
+    /** Whether an exercise struggle-session is currently active (drives the live
+     *  view's session indicator + empty-state wording). */
+    struggleLiveSessionState: { active: boolean };
     viewInitError: { error: string };
 
     // Auth

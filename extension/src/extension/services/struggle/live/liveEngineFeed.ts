@@ -8,6 +8,7 @@ import type { TickRecord } from '@extension/services/struggle/types';
 export class LiveEngineFeed implements vscode.Disposable {
     private readonly _buffer: LiveTick[] = [];
     private _subscribed = false;
+    private _sessionActive = false;
     private readonly _sub: vscode.Disposable;
 
     constructor(
@@ -32,6 +33,14 @@ export class LiveEngineFeed implements vscode.Disposable {
                 boundariesPresent: [...tr.boundariesPresent],
                 secondsSinceLastAlert: Number.isFinite(tr.secondsSinceLastAlert) ? tr.secondsSinceLastAlert : null,
                 inWarmup: tr.inWarmup, graceActive: tr.graceActive,
+                gates: {
+                    fluentTyping: tr.gates.fluentTyping,
+                    grace: tr.gates.grace,
+                    warmup: tr.gates.warmup,
+                    belowThreshold: tr.gates.belowThreshold,
+                    cooldown: tr.gates.cooldown,
+                    notRearmed: tr.gates.notRearmed,
+                },
             },
         };
     }
@@ -50,14 +59,24 @@ export class LiveEngineFeed implements vscode.Disposable {
         this._subscribed = true;
         this._post({ type: ExtensionMsg.StruggleLiveReset });
         this._post({ type: ExtensionMsg.StruggleLiveBackfill, ticks: [...this._buffer] });
+        this._post({ type: ExtensionMsg.StruggleLiveSessionState, active: this._sessionActive });
     }
 
     unsubscribe(): void { this._subscribed = false; }
 
-    clear(): void {
-        this._buffer.length = 0;
+    setSessionActive(active: boolean): void {
+        const wasActive = this._sessionActive;
+        this._sessionActive = active;
+        // A fresh session (inactive → active) restarts the chart: drop the
+        // previous session's curve so the new run starts clean.
+        if (active && !wasActive) {
+            this._buffer.length = 0;
+            if (this._subscribed && this._isDeveloperMode()) {
+                this._post({ type: ExtensionMsg.StruggleLiveReset });
+            }
+        }
         if (this._subscribed && this._isDeveloperMode()) {
-            this._post({ type: ExtensionMsg.StruggleLiveReset });
+            this._post({ type: ExtensionMsg.StruggleLiveSessionState, active });
         }
     }
 

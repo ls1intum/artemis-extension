@@ -79,6 +79,27 @@ export type EditTraceReason =
 	| 'cooldown'           // within COOLDOWN_S of the last alert
 	| 'not-rearmed';       // machine not re-armed and not yet E6-eligible (hysteresis/over-θ-span gate)
 
+/**
+ * Per-gate live conditions, one boolean per decision gate. Each flag is whether
+ * that gate's blocking condition currently holds, INDEPENDENT of whether a
+ * boundary is pending this tick, so the developer gate view can light up gates
+ * even on idle / no-candidate ticks. Telemetry only; never read by the decision.
+ */
+export interface GateConditions {
+	/** B2: typing rate at/above the fluent threshold. */
+	readonly fluentTyping: boolean;
+	/** B4: inside the post-build grace window. */
+	readonly grace: boolean;
+	/** D1: inside the exercise warm-up period. */
+	readonly warmup: boolean;
+	/** Urgency below the alert threshold θ. */
+	readonly belowThreshold: boolean;
+	/** Inside the post-alert cooldown. */
+	readonly cooldown: boolean;
+	/** E6: machine not re-armed and not yet over-θ-span eligible. */
+	readonly notRearmed: boolean;
+}
+
 export interface EditTrace {
 	readonly reason: EditTraceReason;
 	readonly urgency: number;
@@ -90,6 +111,8 @@ export interface EditTrace {
 	readonly secondsSinceLastAlert: number;
 	readonly inWarmup: boolean;
 	readonly graceActive: boolean;
+	/** Live per-gate conditions (telemetry; for the developer gate view). */
+	readonly gates: GateConditions;
 }
 
 export type DecisionOutcome = 'fired-edit' | 'fired-discrete' | 'suppressed';

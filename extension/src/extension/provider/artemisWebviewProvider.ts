@@ -207,7 +207,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
         this._disposables.push(
             this._liveEngineFeed,
-            this._struggleCoordinator.onDidStartSession(() => this._liveEngineFeed.clear()),
+            this._struggleCoordinator.onDidStartSession(() => this._liveEngineFeed.setSessionActive(true)),
+            this._struggleCoordinator.onDidEndSession(() => this._liveEngineFeed.setSessionActive(false)),
         );
 
         // 9. Webview message handler — now routes commands through the facade.
@@ -234,6 +235,19 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._messageHandler,
             (msg) => this._postMessageSafe(msg),
             this._courseAccessStorage,
+        );
+
+        // 10b. Keep the struggle snapshot panel (urgency meter + status) live: the
+        //      init is a one-shot, so without this it freezes at the value captured
+        //      when the page opened. Re-send it on each engine tick, but only while
+        //      the struggle page is the active view (other pages are not re-pushed).
+        //      The no-op coordinator never ticks, so the clean build does nothing.
+        this._disposables.push(
+            this._struggleCoordinator.onDidTick(() => {
+                if (this._appStateManager.currentState === 'struggle-detection') {
+                    this._viewInitDataService.sendStruggleDetectionInit();
+                }
+            }),
         );
 
         // 11. Submission WS handler — fans build results into diagnostics
@@ -445,6 +459,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      */
     public showLogin(): void {
         this._navigationFacade.showLogin();
+    }
+
+    /** Navigate the panel to the developer struggle-detection / live-engine view. */
+    public showStruggleDetection(): void {
+        this._navigationFacade.showStruggleDetection();
     }
 
     // ── BaseWebviewProvider hooks ──────────────────────────────────────

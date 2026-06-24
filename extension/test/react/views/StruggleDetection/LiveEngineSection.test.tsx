@@ -22,6 +22,10 @@ function makeTrace(overrides: Partial<LiveDecisionTrace> = {}): LiveDecisionTrac
         secondsSinceLastAlert: null,
         inWarmup: false,
         graceActive: false,
+        gates: {
+            fluentTyping: false, grace: false, warmup: false,
+            belowThreshold: false, cooldown: false, notRearmed: false,
+        },
         ...overrides,
     };
 }
@@ -36,6 +40,7 @@ interface TickOverrides {
     inWarmup?: boolean;
     graceActive?: boolean;
     secondsSinceLastAlert?: number | null;
+    gates?: LiveDecisionTrace['gates'];
 }
 
 function makeTick(t: number, o: TickOverrides = {}): LiveTick {
@@ -57,6 +62,7 @@ function makeTick(t: number, o: TickOverrides = {}): LiveTick {
             inWarmup: o.inWarmup ?? false,
             graceActive: o.graceActive ?? false,
             secondsSinceLastAlert: o.secondsSinceLastAlert ?? null,
+            ...(o.gates ? { gates: o.gates } : {}),
         }),
     };
 }
@@ -151,5 +157,45 @@ describe('LiveEngineSection', () => {
             warn.mockRestore();
             error.mockRestore();
         }
+    });
+
+    it('shows the no-session indicator and empty-state when no session is active', () => {
+        const api = createMockVsCodeApi();
+        render(<LiveEngineSection vscodeApi={api} />);
+        act(() => dispatchExtensionMessage({ type: 'struggleLiveSessionState', active: false }));
+        // Both the top indicator and the empty chart box spell out "no active session".
+        expect(screen.getAllByText(/no active exercise session/i).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('shows the active-session indicator once a session is active', () => {
+        const api = createMockVsCodeApi();
+        render(<LiveEngineSection vscodeApi={api} />);
+        act(() => dispatchExtensionMessage({ type: 'struggleLiveSessionState', active: true }));
+        expect(screen.getByText(/exercise session active/i)).toBeInTheDocument();
+    });
+
+    it('lights up each gate whose live condition is engaged', () => {
+        const api = createMockVsCodeApi();
+        render(<LiveEngineSection vscodeApi={api} />);
+        act(() => dispatchExtensionMessage({
+            type: 'struggleLiveTick',
+            tick: makeTick(20, { gates: {
+                fluentTyping: true, grace: false, warmup: true,
+                belowThreshold: false, cooldown: false, notRearmed: false,
+            } }),
+        }));
+        // Fluent typing + warm-up engaged; the other four clear. Independent of any
+        // boundary — these light up purely from the gate conditions.
+        expect(screen.getByText('Fluent typing')).toBeInTheDocument();
+        expect(screen.getByText('Exercise warm-up')).toBeInTheDocument();
+        expect(screen.getAllByText('engaged')).toHaveLength(2);
+        expect(screen.getAllByText('clear')).toHaveLength(4);
+    });
+
+    it('shows all gates clear when none are engaged', () => {
+        const api = createMockVsCodeApi();
+        render(<LiveEngineSection vscodeApi={api} />);
+        act(() => dispatchExtensionMessage({ type: 'struggleLiveTick', tick: makeTick(20) }));
+        expect(screen.getAllByText('clear')).toHaveLength(6);
     });
 });

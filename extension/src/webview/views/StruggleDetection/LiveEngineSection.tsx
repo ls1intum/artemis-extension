@@ -16,8 +16,8 @@ import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 import { Badge, Container } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
-import type { GlossaryKey } from './glossary';
-import { boundaryText, discreteText, GLOSSARY, reasonText } from './glossary';
+import type { EditTraceReason } from './glossary';
+import { discreteText, GLOSSARY, reasonText } from './glossary';
 import styles from './LiveEngineSection.module.css';
 
 interface LiveEngineSectionProps {
@@ -31,6 +31,26 @@ const V_COLOR = '#22c55e';
 const THETA_COLOR = '#f44336';
 const BOUNDARY_COLOR = '#38bdf8';
 const ALERT_COLOR = '#ef4444';
+
+/**
+ * The six decision gates paired with the live gate flag (on the tick's decision
+ * trace) that drives each one's light. Order matches the engine's evaluation
+ * order, but every light reflects that gate's STANDALONE condition (independent of
+ * whether a boundary is pending), so the panel shows live activity even on idle
+ * ticks; e.g. "Fluent typing" lights up the moment you type.
+ */
+const GATES: { reason: EditTraceReason; flag: keyof LiveTick['decisionTrace']['gates'] }[] = [
+    { reason: 'b2-fluent-typing', flag: 'fluentTyping' },
+    { reason: 'b4-grace-filter', flag: 'grace' },
+    { reason: 'd1-warmup', flag: 'warmup' },
+    { reason: 'below-threshold', flag: 'belowThreshold' },
+    { reason: 'cooldown', flag: 'cooldown' },
+    { reason: 'not-rearmed', flag: 'notRearmed' },
+];
+
+/** Session-indicator dot colours (active session vs. idle / no session). */
+const SESSION_ON_COLOR = '#22c55e';
+const SESSION_OFF_COLOR = '#6b7280';
 
 /** Fixed chart height; width is measured from the container (see useMeasuredWidth). */
 const CHART_HEIGHT = 220;
@@ -62,37 +82,21 @@ function useMeasuredWidth(fallback: number): [RefObject<HTMLDivElement>, number]
     return [ref, width];
 }
 
-/** Boundary glossary keys, used to render their codes as secondary badges. */
-const BOUNDARY_KEYS: BoundaryType[] = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'];
-
-/** Every glossary key the live view renders, for the collapsible legend. */
-const LEGEND_KEYS: GlossaryKey[] = [
-    'urgency', 's', 'v', 'theta', 'fastDecay',
-    'FM', 'FM_PLUS', 'E4', 'N1', 'STATE',
-    'fired', 'no-candidate', 'b2-fluent-typing', 'b4-grace-filter',
-    'd1-warmup', 'below-threshold', 'cooldown', 'not-rearmed',
-    'test-stagnation',
-];
-
-/** Small secondary developer tag rendering an internal code (never the sole label). */
-function CodeTag({ code }: { code: string }) {
-    return <span className={styles.code}>{code}</span>;
-}
-
 /**
  * Developer-only live view of the v3 struggle engine. Owns BOTH the message
  * listener AND the subscribe/unsubscribe lifecycle, so the listener is attached
  * before `struggleLiveSubscribe` is posted (no lost backfill). Renders the
  * urgency curve plus a plain-language "what is the engine doing right now" panel.
  *
- * Every visible symbol's text is read from the glossary (Self-Explaining UI):
- * internal codes appear only as small secondary tags, never as the sole label.
+ * Every visible symbol is spelled out in full (Self-Explaining UI): no internal
+ * codes are shown on screen. The deeper engine detail lives in hover tooltips.
  */
 export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
     const [ticks, setTicks] = useState<LiveTick[]>([]);
+    // null until the first session-state message arrives (subscribe posts it).
+    const [sessionActive, setSessionActive] = useState<boolean | null>(null);
     const [showS, setShowS] = useState(false);
     const [showV, setShowV] = useState(false);
-    const [legendOpen, setLegendOpen] = useState(false);
     const [chartRef, chartWidth] = useMeasuredWidth(FALLBACK_CHART_WIDTH);
 
     // 1) Register the message listener FIRST so it is live before we subscribe.
@@ -103,8 +107,10 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
             setTicks((prev) => [...prev, msg.tick]);
         } else if (msg.type === ExtensionMsg.StruggleLiveReset) {
             setTicks([]);
+        } else if (msg.type === ExtensionMsg.StruggleLiveSessionState) {
+            setSessionActive(msg.active);
         }
-    }, [setTicks]);
+    }, [setTicks, setSessionActive]);
 
     // 2) Subscribe on mount / unsubscribe on unmount. Runs after the listener is
     //    set up (effects fire in declaration order), so the backfill is not lost.
@@ -126,12 +132,28 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
         >
             <div className={styles.section}>
                 <p className={styles.note}>
-                    The curve advances one point every ~10&nbsp;s — the engine&apos;s real tick resolution.
+                    The curve advances one point every ~10&nbsp;s (the engine&apos;s real tick resolution).
                 </p>
+
+                <div className={styles.sessionIndicator}>
+                    <span
+                        className={styles.sessionDot}
+                        style={{ background: sessionActive ? SESSION_ON_COLOR : SESSION_OFF_COLOR }}
+                    />
+                    <span>
+                        {sessionActive === null
+                            ? 'Checking session status.'
+                            : sessionActive
+                                ? 'Exercise session active: the engine is ticking every ~10 s.'
+                                : 'No active exercise session. Open an exercise to start the live engine.'}
+                    </span>
+                </div>
 
                 {ticks.length === 0 ? (
                     <div className={styles.chartEmpty}>
-                        Waiting for the first engine tick… the curve will appear once the session produces data.
+                        {sessionActive === false
+                            ? 'No active exercise session. Open an Artemis exercise to start the engine, then the curve will appear here.'
+                            : 'Waiting for the first engine tick. The curve will appear once the session produces data.'}
                     </div>
                 ) : (
                     <>
@@ -153,7 +175,7 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
                                     width={36}
                                 />
                                 {/* Alert threshold (θ). Spelled out on the line; full
-                                    explanation lives in the panel + legend below. */}
+                                    explanation lives in the panel below. */}
                                 <ReferenceLine
                                     y={theta}
                                     stroke={THETA_COLOR}
@@ -184,34 +206,33 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
                         <div className={styles.markerLegend}>
                             <span className={styles.markerItem}>
                                 <span className={styles.swatch} style={{ background: URGENCY_COLOR }} />
-                                {GLOSSARY.urgency.text} <CodeTag code={GLOSSARY.urgency.code} />
+                                <span title={GLOSSARY.urgency.tooltip}>{GLOSSARY.urgency.text}</span>
                             </span>
                             <span className={styles.markerItem}>
                                 <span className={styles.dotSwatch} style={{ background: THETA_COLOR }} />
-                                {GLOSSARY.theta.text} <CodeTag code={GLOSSARY.theta.code} />
+                                <span title={GLOSSARY.theta.tooltip}>{GLOSSARY.theta.text}</span>
                             </span>
                             <span className={styles.markerItem}>
                                 <span className={styles.dotSwatch} style={{ background: BOUNDARY_COLOR }} />
-                                Blue dot — a boundary moment was present at that tick
-                                {BOUNDARY_KEYS.map((b) => <CodeTag key={b} code={GLOSSARY[b].code} />)}
+                                <span>Blue dot: a boundary moment was present at that tick</span>
                             </span>
                             <span className={styles.markerItem}>
                                 <span className={styles.ringSwatch} style={{ borderColor: ALERT_COLOR }} />
-                                Red ring — an alert actually fired at that tick
+                                <span>Red ring: an alert actually fired at that tick</span>
                             </span>
                         </div>
 
                         <div className={styles.toggleRow}>
-                            <span>Also show:</span>
+                            <span>Also show on the curve:</span>
                             <label className={styles.toggleLabel}>
                                 <input type="checkbox" checked={showS} onChange={(e) => setShowS(e.target.checked)} />
                                 <span className={styles.swatch} style={{ background: S_COLOR }} />
-                                {GLOSSARY.s.text} <CodeTag code={GLOSSARY.s.code} />
+                                <span title={GLOSSARY.s.tooltip}>{GLOSSARY.s.text}</span>
                             </label>
                             <label className={styles.toggleLabel}>
                                 <input type="checkbox" checked={showV} onChange={(e) => setShowV(e.target.checked)} />
                                 <span className={styles.swatch} style={{ background: V_COLOR }} />
-                                {GLOSSARY.v.text} <CodeTag code={GLOSSARY.v.code} />
+                                <span title={GLOSSARY.v.tooltip}>{GLOSSARY.v.text}</span>
                             </label>
                         </div>
                     </>
@@ -220,31 +241,16 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
                 <CurrentTickPanel tick={latest} />
 
                 <span data-testid="live-tick-count" style={{ display: 'none' }}>{ticks.length}</span>
-
-                <div>
-                    <button type="button" className={styles.legendToggle} onClick={() => setLegendOpen((v) => !v)}>
-                        {legendOpen ? '▾ Hide legend' : '▸ Show legend (what every symbol means)'}
-                    </button>
-                    {legendOpen && (
-                        <ul className={styles.legendList} style={{ marginTop: '8px' }}>
-                            {LEGEND_KEYS.map((k) => (
-                                <li key={k} className={styles.legendEntry}>
-                                    <CodeTag code={GLOSSARY[k].code} />
-                                    <span className={styles.legendText}>{GLOSSARY[k].text}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
             </div>
         </Container>
     );
 }
 
 /**
- * "What is the engine doing right now" — the latest tick spelled out in plain
+ * "What is the engine doing right now": the latest tick spelled out in plain
  * language. The decision reason comes from the glossary via `reasonText` (or
- * `discreteText` when a discrete trigger fired). Codes appear only as small tags.
+ * `discreteText` when a discrete trigger fired). Hover any label for the deeper
+ * engine detail; no internal codes are shown on screen.
  */
 function CurrentTickPanel({ tick }: { tick: LiveTick | null }) {
     if (!tick) {
@@ -255,16 +261,17 @@ function CurrentTickPanel({ tick }: { tick: LiveTick | null }) {
         );
     }
 
-    const { decisionTrace: trace, urgency, theta, boundariesPreGate, alertKind } = tick;
+    const { decisionTrace: trace, urgency, theta, boundariesPreGate } = tick;
     const fired = trace.outcome === 'fired-edit' || trace.outcome === 'fired-discrete';
 
     // Headline: spelled-out decision. Discrete path names its trigger explicitly.
+    // Keep the condition inline so TS narrows `discreteTrigger` to non-null here.
     const headline = trace.outcome === 'fired-discrete' && trace.discreteTrigger
         ? discreteText(trace.discreteTrigger)
         : reasonText(trace.reason);
-    const headlineCode = trace.outcome === 'fired-discrete' && trace.discreteTrigger
-        ? GLOSSARY[trace.discreteTrigger].code
-        : GLOSSARY[trace.reason].code;
+    const headlineTooltip = trace.outcome === 'fired-discrete' && trace.discreteTrigger
+        ? GLOSSARY[trace.discreteTrigger].tooltip
+        : GLOSSARY[trace.reason].tooltip;
 
     const aboveTheta = urgency >= theta;
 
@@ -277,30 +284,30 @@ function CurrentTickPanel({ tick }: { tick: LiveTick | null }) {
             <div className={styles.panel}>
                 <div className={styles.headline}>
                     <Badge variant={fired ? 'error' : 'muted'}>{fired ? 'Alert fired' : 'Holding back'}</Badge>{' '}
-                    {headline} <CodeTag code={headlineCode} />
+                    <span title={headlineTooltip}>{headline}</span>
                 </div>
 
                 <div className={styles.row}>
-                    <span className={styles.rowLabel}>{GLOSSARY.urgency.text} <CodeTag code={GLOSSARY.urgency.code} /></span>
+                    <span className={styles.rowLabel} title={GLOSSARY.urgency.tooltip}>{GLOSSARY.urgency.text}</span>
                     <Badge variant={aboveTheta ? 'error' : 'success'}>{urgency.toFixed(2)}</Badge>
                 </div>
 
                 <div className={styles.row}>
-                    <span className={styles.rowLabel}>{GLOSSARY.theta.text} <CodeTag code={GLOSSARY.theta.code} /></span>
+                    <span className={styles.rowLabel} title={GLOSSARY.theta.tooltip}>{GLOSSARY.theta.text}</span>
                     <Badge variant="muted">{theta.toFixed(2)}</Badge>
                 </div>
 
                 <div>
                     <div className={styles.rowLabel} style={{ marginBottom: '6px' }}>Boundary moments present this tick</div>
                     {boundariesPreGate.length === 0 ? (
-                        <p className={styles.muted}>None — no boundary event is pending, so there is nothing to nudge on.</p>
+                        <p className={styles.muted}>None. No boundary event is pending, so there is nothing to nudge on.</p>
                     ) : (
                         <div className={styles.panel}>
                             {boundariesPreGate.map((b: BoundaryType) => {
-                                const { text, code } = boundaryText(b);
+                                const entry = GLOSSARY[b];
                                 return (
-                                    <div key={b} className={styles.boundaryItem}>
-                                        <span>{text}</span> <CodeTag code={code} />
+                                    <div key={b} className={styles.boundaryItem} title={entry.tooltip}>
+                                        <span>{entry.text}</span>
                                     </div>
                                 );
                             })}
@@ -308,24 +315,29 @@ function CurrentTickPanel({ tick }: { tick: LiveTick | null }) {
                     )}
                 </div>
 
-                <div className={styles.badgeRow}>
-                    {trace.inWarmup && (
-                        <Badge variant="warning">{GLOSSARY['d1-warmup'].text}</Badge>
-                    )}
-                    {trace.graceActive && (
-                        <Badge variant="warning">{GLOSSARY['b4-grace-filter'].text}</Badge>
-                    )}
-                    {trace.reason === 'cooldown' && (
-                        <Badge variant="info">{GLOSSARY.cooldown.text}</Badge>
-                    )}
-                    {alertKind !== null && (
-                        <Badge variant="error">
-                            {alertKind === 'discrete'
-                                ? 'An alert fired this tick on the test-stagnation path'
-                                : 'An alert fired this tick on the edit / boundary path'}
-                            {' '}<CodeTag code={alertKind} />
-                        </Badge>
-                    )}
+                {/* Live decision gates: each light reflects that gate's standalone
+                    condition this tick (independent of a boundary), so the panel shows
+                    activity even when idle: "Fluent typing" lights up as you type. */}
+                <div>
+                    <div className={styles.rowLabel} style={{ marginBottom: '6px' }}>
+                        Decision gates (lit = currently engaged)
+                    </div>
+                    <ul className={styles.gateList}>
+                        {GATES.map(({ reason, flag }) => {
+                            const active = trace.gates[flag];
+                            return (
+                                <li
+                                    key={flag}
+                                    className={`${styles.gateItem} ${active ? styles.gateActive : styles.gateInactive}`}
+                                    title={GLOSSARY[reason].tooltip}
+                                >
+                                    <span className={styles.gateDot} />
+                                    <span className={styles.gateName}>{GLOSSARY[reason].gate}</span>
+                                    <span className={styles.gateStatusLabel}>{active ? 'engaged' : 'clear'}</span>
+                                </li>
+                            );
+                        })}
+                    </ul>
                 </div>
 
                 {trace.secondsSinceLastAlert !== null && (

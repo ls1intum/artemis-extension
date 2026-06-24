@@ -9,7 +9,8 @@ function fakeTick(t: number, over: any = {}): any {
         boundariesPreGate: [], alert: null,
         decisionTrace: { outcome: 'suppressed', reason: 'no-candidate', discreteTrigger: null,
             urgency: 0.4, theta: 0.7, typingRate: 0, boundariesPresent: [],
-            secondsSinceLastAlert: Number.POSITIVE_INFINITY, inWarmup: false, graceActive: false },
+            secondsSinceLastAlert: Number.POSITIVE_INFINITY, inWarmup: false, graceActive: false,
+            gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: false, notRearmed: false } },
         ...over };
 }
 
@@ -40,7 +41,8 @@ test('serializes Infinity secondsSinceLastAlert to null and carries discreteTrig
     const live = LiveEngineFeed.toLiveTick(fakeTick(10, { decisionTrace: {
         outcome: 'fired-discrete', reason: 'no-candidate', discreteTrigger: 'test-stagnation',
         urgency: 0.4, theta: 0.7, typingRate: 0, boundariesPresent: [],
-        secondsSinceLastAlert: Number.POSITIVE_INFINITY, inWarmup: false, graceActive: false }, alert: { kind: 'discrete' } }));
+        secondsSinceLastAlert: Number.POSITIVE_INFINITY, inWarmup: false, graceActive: false,
+        gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: false, notRearmed: false } }, alert: { kind: 'discrete' } }));
     expect(live.decisionTrace.secondsSinceLastAlert).toBeNull();
     expect(live.decisionTrace.discreteTrigger).toBe('test-stagnation');
     expect(live.alertKind).toBe('discrete');
@@ -64,15 +66,46 @@ test('drops oldest past the cap', () => {
     expect(posted.find(m => m.type === ExtensionMsg.StruggleLiveBackfill).ticks.map((t: any) => t.t)).toEqual([20, 30]);
 });
 
-test('clear() empties the buffer and posts reset when subscribed', () => {
+test('subscribe announces the current session-active state', () => {
+    const emitter = new vscode.EventEmitter<any>();
+    const posted: any[] = [];
+    const feed = new LiveEngineFeed({ onDidTick: emitter.event }, m => posted.push(m), () => true, 600);
+    feed.subscribe();
+    expect(posted.find(m => m.type === ExtensionMsg.StruggleLiveSessionState))
+        .toEqual({ type: ExtensionMsg.StruggleLiveSessionState, active: false });
+});
+
+test('setSessionActive(true) on a fresh session resets the chart and announces the active state', () => {
     const emitter = new vscode.EventEmitter<any>();
     const posted: any[] = [];
     const feed = new LiveEngineFeed({ onDidTick: emitter.event }, m => posted.push(m), () => true, 600);
     emitter.fire(fakeTick(10));
     feed.subscribe();
     posted.length = 0;
-    feed.clear();
-    expect(posted).toEqual([{ type: ExtensionMsg.StruggleLiveReset }]);
+    feed.setSessionActive(true);
+    expect(posted).toEqual([
+        { type: ExtensionMsg.StruggleLiveReset },
+        { type: ExtensionMsg.StruggleLiveSessionState, active: true },
+    ]);
+    // The buffer was cleared: a re-subscribe backfills only ticks after the reset.
     emitter.fire(fakeTick(20));
-    expect(posted.find(m => m.type === ExtensionMsg.StruggleLiveBackfill)).toBeUndefined(); // buffer was cleared
+    posted.length = 0;
+    feed.subscribe();
+    expect(posted.find(m => m.type === ExtensionMsg.StruggleLiveBackfill).ticks.map((t: any) => t.t)).toEqual([20]);
+});
+
+test('setSessionActive(false) announces the idle state without clearing the buffer', () => {
+    const emitter = new vscode.EventEmitter<any>();
+    const posted: any[] = [];
+    const feed = new LiveEngineFeed({ onDidTick: emitter.event }, m => posted.push(m), () => true, 600);
+    feed.setSessionActive(true);          // become active first (pre-subscribe: silent)
+    emitter.fire(fakeTick(10));
+    feed.subscribe();
+    posted.length = 0;
+    feed.setSessionActive(false);
+    expect(posted).toEqual([{ type: ExtensionMsg.StruggleLiveSessionState, active: false }]);
+    // Buffer intact: the previous session's curve stays until a new session starts.
+    posted.length = 0;
+    feed.subscribe();
+    expect(posted.find(m => m.type === ExtensionMsg.StruggleLiveBackfill).ticks.map((t: any) => t.t)).toEqual([10]);
 });

@@ -28,6 +28,7 @@ export class NoopStruggleCoordinator implements IStruggleCoordinator {
     public readonly onDidTick: vscode.Event<TickRecord> = neverEvent();
     public readonly onDidAlert: vscode.Event<AlertRecord> = neverEvent();
     public readonly onDidStartSession: vscode.Event<void> = neverEvent();
+    public readonly onDidEndSession: vscode.Event<void> = neverEvent();
 
     public setWebsocketService(_ws: ArtemisWebsocketService): void { /* no-op */ }
     public startExerciseSession(_exerciseId: number, _exerciseRoot?: vscode.Uri): void { /* no-op */ }

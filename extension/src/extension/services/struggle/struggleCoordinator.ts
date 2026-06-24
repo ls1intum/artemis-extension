@@ -51,6 +51,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private readonly _clock: EngineClock;
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _onDidStartSession = new vscode.EventEmitter<void>();
+    private readonly _onDidEndSession = new vscode.EventEmitter<void>();
     private _activeExerciseId: number | undefined;
     private _sessionStartMs = 0;
     private _lastTick: TickRecord | undefined;
@@ -64,7 +65,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._exerciseRegistry = deps.exerciseRegistry;
         this._clock = deps.clock ?? DEFAULT_CLOCK;
         this._engine = new StruggleEngine(this._hub, this._clock);
-        this._disposables.push(this._onDidStartSession);
+        this._disposables.push(this._onDidStartSession, this._onDidEndSession);
 
         // Engine alert → sink (UI gated) + snapshot bookkeeping.
         // The alert is ALWAYS recorded via the engine's onDidAlert (the recorder
@@ -108,6 +109,10 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
      *  UI-agnostic (it only emits the event, it never owns the feed). */
     get onDidStartSession(): vscode.Event<void> { return this._onDidStartSession.event; }
 
+    /** Fires when the active exercise session ends (engine stopped). Lets the
+     *  live-view feed flip its session indicator back to inactive. */
+    get onDidEndSession(): vscode.Event<void> { return this._onDidEndSession.event; }
+
     // ── Session lifecycle ──────────────────────────────────────────────
     startExerciseSession(exerciseId: number, exerciseRoot?: vscode.Uri): void {
         if (this._activeExerciseId === exerciseId) { return; }
@@ -140,6 +145,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (this._activeExerciseId === undefined) { return; }
         this._engine.stop();
         this._activeExerciseId = undefined;
+        this._onDidEndSession.fire();
     }
 
     // ── Debug snapshot ─────────────────────────────────────────────────

@@ -4,6 +4,10 @@ export const emptyDecisionTrace: DecisionTrace = {
     outcome: 'suppressed', reason: 'no-candidate', discreteTrigger: null,
     urgency: 0, theta: 0.7, typingRate: null, boundariesPresent: [],
     secondsSinceLastAlert: Number.POSITIVE_INFINITY, inWarmup: false, graceActive: false,
+    gates: {
+        fluentTyping: false, grace: false, warmup: false,
+        belowThreshold: false, cooldown: false, notRearmed: false,
+    },
 };
 
 export function tickRecord(over: Partial<TickRecord> = {}): TickRecord {

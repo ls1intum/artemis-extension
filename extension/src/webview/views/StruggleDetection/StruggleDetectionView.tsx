@@ -83,7 +83,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 subtitle="Monitors your development patterns to detect when you might need help."
             />
 
-            {/* Urgency — the v3 decision signal (S_base) that triggers alerts. */}
+            {/* Urgency: the v3 decision signal (S_base) that triggers alerts. */}
             <Container
                 header={
                     <div style={{ fontSize: '15px', fontWeight: 600 }}>
@@ -117,7 +117,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                                 fontSize: '12px',
                                 color: 'var(--vscode-descriptionForeground)'
                             }}>
-                                Core severity (typing + gap), 0.0 (calm) &mdash; 1.0 (severe). Alert at &theta; = 0.70.
+                                Core severity (typing + gap), 0.0 (calm) to 1.0 (severe). Alert at &theta; = 0.70.
                             </div>
                         </div>
                     </div>
@@ -218,7 +218,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                             Boundary at last tick
                         </span>
                         <Badge variant={data.primaryBoundary ? 'default' : 'muted'}>
-                            {data.primaryBoundary ?? '—'}
+                            {data.primaryBoundary ?? 'none'}
                         </Badge>
                     </div>
                     <div style={{
@@ -230,14 +230,14 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                             Last alert
                         </span>
                         <Badge variant="muted">
-                            {data.lastAlertT !== null ? `at ${data.lastAlertT}s` : '—'}
+                            {data.lastAlertT !== null ? `at ${data.lastAlertT}s` : 'none yet'}
                         </Badge>
                     </div>
                 </div>
             </Container>
 
             {/* Developer-only live engine view (curve + current-tick gate panel).
-                Owns its own subscribe/unsubscribe lifecycle — the parent must NOT
+                Owns its own subscribe/unsubscribe lifecycle; the parent must NOT
                 post struggleLiveSubscribe (avoids the listener-before-subscribe race). */}
             {data.developerMode && <LiveEngineSection vscodeApi={vscodeApi} />}
 

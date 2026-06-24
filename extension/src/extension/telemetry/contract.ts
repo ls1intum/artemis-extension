@@ -25,6 +25,7 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
     | 'onDidTick'
     | 'onDidAlert'
     | 'onDidStartSession'
+    | 'onDidEndSession'
 >;
 
 /**
@@ -39,8 +40,10 @@ export interface ILiveEngineFeed {
     subscribe(): void;
     /** Stop streaming live ticks (the buffer keeps filling). */
     unsubscribe(): void;
-    /** Drop the buffer (and reset the webview when subscribed). */
-    clear(): void;
+    /** Report whether an exercise session is active. A fresh session (false→true)
+     *  resets the chart buffer; either transition updates the webview's session
+     *  indicator (when subscribed in developer mode). */
+    setSessionActive(active: boolean): void;
     dispose(): void;
 }
 
