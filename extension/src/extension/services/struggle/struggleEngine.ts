@@ -349,6 +349,7 @@ export class StruggleEngine implements vscode.Disposable {
         };
         this._pendingTestStagnation = false;            // consumed by this tick
         const decision = this._decision.decide(engineTick);
+        const decisionTrace = this._decision.lastTrace;
 
         const tsMs = (this._session?.sessionStartMs ?? 0) + tS * 1000;
         const alert: AlertRecord | null = decision === null ? null : { ...decision, ts: tsMs, v };
@@ -362,6 +363,7 @@ export class StruggleEngine implements vscode.Disposable {
             fastDecay: fast,
             boundariesPreGate: boundaries,
             alert,
+            decisionTrace,
         };
         this._onDidTick.fire(record);
         if (alert !== null) {

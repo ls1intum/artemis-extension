@@ -48,6 +48,7 @@ import type { AlertRecord, TickRecord } from '@extension/services/struggle/types
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { asEditAlert } from '@test/__shared__/alertNarrow';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
+import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 interface MutableConfigState {
     enabled: boolean;
@@ -204,6 +205,7 @@ function makeTick(overrides: Partial<TickRecord> = {}): TickRecord {
         fastDecay: false,
         boundariesPreGate: [],
         alert: null,
+        decisionTrace: emptyDecisionTrace,
         ...overrides,
     };
 }

@@ -4,6 +4,7 @@ import type { AlertRecord, TickRecord } from '@extension/services/struggle/types
 
 import { compareExact, summarizeCausal } from './goldenCompare';
 import type { GoldenAlert, GoldenSession, GoldenTick } from './goldenTypes';
+import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ function makeReplayTick(gt: GoldenTick): TickRecord {
         fastDecay: gt.fastDecay,
         boundariesPreGate: [...gt.boundaries],
         alert: null,
+        decisionTrace: emptyDecisionTrace,
     };
 }
 

@@ -172,6 +172,13 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         }
     });
 
+    test('emitted TickRecord carries the decision trace', () => {
+        engine.advanceTo(START + 10_000);   // first grid tick at t=10
+        const last = ticks.at(-1)!;
+        assert.strictEqual(last.decisionTrace.reason, 'no-candidate');
+        assert.strictEqual(last.decisionTrace.outcome, 'suppressed');
+    });
+
     test('stop() final drain: a due tick still runs and consumes queued evidence', () => {
         engine.dispose();
         const clock = sinon.useFakeTimers({ now: START, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
