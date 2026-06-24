@@ -1,0 +1,229 @@
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    /* Let the section shrink inside the container body instead of being held
+       open by its widest child (the fixed-width chart SVG). */
+    min-width: 0;
+}
+
+.chartFrame {
+    width: 100%;
+    height: 220px;
+    border: 1px solid var(--vscode-panel-border, #333);
+    border-radius: 4px;
+    background: var(--vscode-editor-background, #1e1e1e);
+    /* The chart is a fixed-width SVG (width = measured clientWidth). overflow:hidden
+       collapses this flex item's automatic min-width to 0, so the SVG can never hold
+       the column open wider than the viewport (which would lock the measurement wide
+       and cause horizontal page overflow). min-width:0 is the same intent, explicit. */
+    min-width: 0;
+    overflow: hidden;
+}
+
+.chartEmpty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 220px;
+    border: 1px solid var(--vscode-panel-border, #333);
+    border-radius: 4px;
+    background: var(--vscode-editor-background, #1e1e1e);
+    color: var(--vscode-descriptionForeground);
+    font-size: 13px;
+    text-align: center;
+    padding: 0 16px;
+}
+
+.toggleRow {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.toggleLabel {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.toggleLabel input {
+    flex: 0 0 auto;
+    margin-top: 3px;
+}
+
+.toggleLabel .swatch {
+    margin-top: 5px;
+}
+
+.swatch {
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+    display: inline-block;
+    flex: 0 0 auto;
+}
+
+.markerLegend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.markerItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.markerItem .swatch {
+    margin-top: 6px;
+}
+
+.markerItem .dotSwatch,
+.markerItem .ringSwatch {
+    margin-top: 4px;
+}
+
+.dotSwatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex: 0 0 auto;
+}
+
+.ringSwatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: inline-block;
+    flex: 0 0 auto;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.headline {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    line-height: 1.4;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.rowLabel {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+}
+
+.gateList {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.gateItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.gateDot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    display: inline-block;
+    background: #4b5563;
+}
+
+.gateName {
+    flex: 1;
+    min-width: 0;
+}
+
+.gateStatusLabel {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* Gate currently engaged (its blocking condition holds): a lit, glowing dot. */
+.gateActive {
+    color: var(--vscode-foreground);
+    font-weight: 600;
+}
+.gateActive .gateDot {
+    background: #22c55e;
+    box-shadow: 0 0 7px 1px rgba(34, 197, 94, 0.8);
+}
+.gateActive .gateStatusLabel {
+    color: #22c55e;
+}
+
+/* Gate currently clear (its condition does not hold this tick). */
+.gateInactive {
+    opacity: 0.5;
+}
+.gateInactive .gateDot {
+    background: #4b5563;
+}
+
+.boundaryItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+}
+
+.muted {
+    color: var(--vscode-descriptionForeground);
+    font-size: 13px;
+}
+
+.note {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+.sessionIndicator {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+}
+
+.sessionDot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-top: 3px;
+    display: inline-block;
+    flex: 0 0 auto;
+}

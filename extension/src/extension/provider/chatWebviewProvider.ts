@@ -19,7 +19,6 @@ import {
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
@@ -120,7 +119,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _courseDataCache: CourseDataCache | undefined,
-        private readonly _telemetryManager: ITelemetryManager | undefined,
         contextStore: ContextStore,
     ) {
         super(LogCategory.IRIS_CHAT);
@@ -384,13 +382,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     // ── Public API ─────────────────────────────────────────────────────
-
-    /**
-     * Get current struggle context for Iris chat integration
-     */
-    public getStruggleContext(): StruggleContext | undefined {
-        return this._telemetryManager?.getStruggleContext();
-    }
 
     /**
      * Access the WebSocket message handler for wiring up received-message events.
@@ -838,7 +829,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             const result = await this._chatMessageService.sendMessage({
                 text: content,
                 isNoAiEnabled: this._noAiDetectionService.isNoAiEnabled,
-                struggleContext: this.getStruggleContext(),
             });
 
             if (result.sent) {

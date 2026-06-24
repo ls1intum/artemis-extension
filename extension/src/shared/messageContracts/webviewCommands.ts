@@ -66,7 +66,6 @@ export const WebviewCmd = {
     RequestGitIdentity: 'requestGitIdentity',
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
-    ReplaySession: 'replaySession',
 
     // Views
     ShowAiConfig: 'showAiConfig',
@@ -74,6 +73,8 @@ export const WebviewCmd = {
     ShowServiceStatus: 'showServiceStatus',
     ShowGitCredentials: 'showGitCredentials',
     ShowStruggleDetection: 'showStruggleDetection',
+    StruggleLiveSubscribe: 'struggleLiveSubscribe',
+    StruggleLiveUnsubscribe: 'struggleLiveUnsubscribe',
     PerformHealthChecks: 'performHealthChecks',
 
     // Iris Chat
@@ -159,7 +160,6 @@ interface WebviewCmdPayloads {
 
     // Recording
     openRecordingsFolder: undefined;
-    replaySession: undefined;
 
     // Git
     saveGitIdentity: { name: string; email: string };
@@ -170,6 +170,8 @@ interface WebviewCmdPayloads {
     showServiceStatus: undefined;
     showGitCredentials: undefined;
     showStruggleDetection: undefined;
+    struggleLiveSubscribe: undefined;
+    struggleLiveUnsubscribe: undefined;
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat

@@ -42,12 +42,15 @@ export const MARKER_COLORS: Record<EventType, string> = {
     debugSession: '#f59e0b',
     breakpointChange: '#f43f5e',
     submission: '#34d399',
+    struggleScore: '#e879f9',
+    alert: '#dc2626',
 };
 
 export const ALL_EVENT_TYPES = [
     'sessionStart', 'sessionEnd', 'consentChange', 'startupPhaseComplete',
     'configurationSnapshot', 'configurationChange',
     'eqSnapshot', 'eqEngineState', 'intervention', 'buildResult', 'submission',
+    'struggleScore', 'alert',
     'textChange', 'save',
     'diagnostics',
     'fileSwitch',

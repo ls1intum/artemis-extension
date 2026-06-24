@@ -9,14 +9,16 @@ import { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { ITelemetryManager } from '@extension/services/telemetry';
+import { VsCodeSensorHub } from '@extension/services/sensing';
 import { createProviderRegistry } from '@extension/services/ui';
+import { StruggleAlertStatusBar } from '@extension/services/ui/struggleAlertStatusBar';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
 import {
     buildChatProviderSink,
     wireWorkspaceDetection,
 } from '@extension/services/workspace/wireWorkspaceDetection';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import {
     authenticateFromEnvironment,
     detectPlatformCapabilities,
@@ -24,10 +26,10 @@ import {
 } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils';
 import { wireDataCollection } from '@dataCollection';
-import { createTelemetryManager } from '@telemetry';
+import { createStruggleEngine, registerDebugCommands } from '@telemetry';
 
 // Module-level references for deactivate() cleanup
-let activeTelemetryManager: ITelemetryManager | undefined;
+let activeStruggleCoordinator: IStruggleCoordinator | undefined;
 let activeDataCollection: DataCollectionHandle | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -64,9 +66,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const exerciseRegistry = new ExerciseRegistry();
-	const telemetryManager = createTelemetryManager(exerciseRegistry);
-	activeTelemetryManager = telemetryManager;
-	telemetryManager.setWebsocketService(artemisWebsocketService);
+	const sensorHub = new VsCodeSensorHub(capabilities);
+	context.subscriptions.push(sensorHub);
+	// The struggle/intervention engine lives behind the @telemetry build seam:
+	// real in the full build, a no-op in the Open VSX (EduIDE/cloud) build, so the
+	// cloud bundle ships no tracking engine. The factory owns the whole value graph
+	// (InterventionService + ThrottledAlertSink + StruggleCoordinator).
+	const struggleCoordinator = createStruggleEngine({ hub: sensorHub, exerciseRegistry, context });
+	activeStruggleCoordinator = struggleCoordinator;
+	struggleCoordinator.setWebsocketService(artemisWebsocketService);
+	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
@@ -126,7 +135,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
-		telemetryManager,
+		struggleCoordinator,
 		updateAuthContext,
 		courseDataCache,
 	});
@@ -134,16 +143,30 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
+	// Developer-only: surface the engine's live alert decision (firing / gated /
+	// armed) in the status bar. Reads the coordinator's tick stream; no-op
+	// coordinator never ticks, so the clean build shows nothing. Clicking it
+	// reveals the panel and opens the live-engine view.
+	const struggleAlertStatusBar = new StruggleAlertStatusBar(
+		struggleCoordinator,
+		() => vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false),
+		() => {
+			artemisWebviewProvider.showStruggleDetection();
+			void vscode.commands.executeCommand(`${ArtemisWebviewProvider.viewType}.focus`);
+		},
+	);
+	context.subscriptions.push(struggleAlertStatusBar);
+
 	const contextStore = new ContextStore(context);
 	context.subscriptions.push(contextStore);
 
 	const chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
-		noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager,
+		noAiDetectionService, exerciseRegistry, courseDataCache,
 		contextStore,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
-		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
+		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
@@ -159,13 +182,29 @@ export async function activate(context: vscode.ExtensionContext) {
 		sink: buildChatProviderSink(chatWebviewProvider),
 	}));
 
-	context.subscriptions.push(telemetryManager);
+	context.subscriptions.push(struggleCoordinator);
 	context.subscriptions.push(artemisWebsocketService);
 	context.subscriptions.push(websocketStatusBarService);
 
+	// Task-feedback view lifecycle → engine (consent-independent). The engine
+	// must see feedback views even when recording is OFF, so this is wired here
+	// rather than inside sessionRecorderWiring (whose own feedback subscriptions
+	// only run while recording). Wrapped in try/catch because the hub's internal
+	// emitters do NOT isolate listener errors (see sensorHub.ts).
+	context.subscriptions.push(artemisWebviewProvider.onDidOpenTaskFeedback(p => {
+		try { sensorHub.emitTaskFeedbackView('opened', p.viewId); } catch (err) {
+			logger.error('emitTaskFeedbackView(opened) failed', LogCategory.TELEMETRY, err);
+		}
+	}));
+	context.subscriptions.push(artemisWebviewProvider.onDidCloseTaskFeedback(p => {
+		try { sensorHub.emitTaskFeedbackView('closed', p.viewId); } catch (err) {
+			logger.error('emitTaskFeedbackView(closed) failed', LogCategory.TELEMETRY, err);
+		}
+	}));
+
 	context.subscriptions.push(registerAllCommands({
 		context, authManager, artemisApiService, artemisWebsocketService,
-		telemetryManager, providerRegistry, artemisWebviewProvider, chatWebviewProvider,
+		providerRegistry, artemisWebviewProvider, chatWebviewProvider,
 		updateAuthContext,
 	}));
 
@@ -224,12 +263,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	activeDataCollection = wireDataCollection({
 		context,
 		artemisWebsocketService,
-		telemetryManager,
+		struggleCoordinator,
 		artemisWebviewProvider,
 		chatWebviewProvider,
 		capabilities,
 		exerciseRegistry,
 		contextStore,
+		sensorHub,
 	});
 
 	// Configuration listener
@@ -277,15 +317,15 @@ export async function deactivate(): Promise<void> {
 		}
 		activeDataCollection = undefined;
 	}
-	if (activeTelemetryManager) {
+	if (activeStruggleCoordinator) {
 		try {
 			// Explicit dispose so session-end + command/status-bar teardown
 			// run before VS Code disposes context.subscriptions. dispose() is
 			// idempotent, so the subscription teardown is a safe no-op.
-			activeTelemetryManager.dispose();
+			activeStruggleCoordinator.dispose();
 		} catch (err) {
-			logger.error('Failed to dispose TelemetryManager during deactivate', LogCategory.TELEMETRY, err);
+			logger.error('Failed to dispose StruggleCoordinator during deactivate', LogCategory.TELEMETRY, err);
 		}
-		activeTelemetryManager = undefined;
+		activeStruggleCoordinator = undefined;
 	}
 }

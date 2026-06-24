@@ -76,11 +76,6 @@
         "icon": "$(graph)"
       },
       {
-        "command": "artemis.replaySession",
-        "title": "Artemis: Replay Session (EQ Tuning)",
-        "icon": "$(play)"
-      },
-      {
         "command": "artemis.openRecordingsFolder",
         "title": "Artemis: Open Recordings Folder",
         "icon": "$(folder-opened)"
@@ -174,7 +169,7 @@
         "artemis.developerMode": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Enable developer mode to show debugging tools, including debug buttons in views and live struggle detection score in the status bar."
+          "markdownDescription": "Enable developer mode to show debugging tools and diagnostics, including debug buttons in views and extra status-bar indicators."
         },
         "artemis.showWebSocketStatusBar": {
           "type": "boolean",
@@ -276,10 +271,10 @@
     "lint:src": "eslint src",
     "test:unit": "vscode-test --label unit",
     "test:unit:coverage": "vscode-test --label unit --coverage",
+    "test:golden-replay": "vitest run --config vitest.golden-replay.config.mts",
     "test:react": "vitest run",
     "test:react:watch": "vitest",
     "test:react:coverage": "vitest run --coverage",
-    "test:struggle": "npm run compile-tests && vscode-test --label struggle",
     "test:e2e": "npm run compile-tests && vscode-test --label e2e",
     "test:recorder-e2e": "npm run compile-tests && vscode-test --label recorder-e2e",
     "test:ui": "bash test/e2e/ui/run-tests.sh",
@@ -347,6 +342,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-textarea-autosize": "8.5.9",
+    "recharts": "3.8.0",
     "shiki": "3.23.0",
     "streamdown": "2.5.0",
     "use-stick-to-bottom": "1.1.3",

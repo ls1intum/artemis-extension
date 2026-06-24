@@ -12,6 +12,56 @@ import type { ChatContextType } from '@shared/types/context';
 
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
+// ---------------------------------------------------------------------------
+// Shared boundary union (mirrors engine's BOUNDARY_PRIORITY order)
+// ---------------------------------------------------------------------------
+
+export const BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+export type BoundaryType = typeof BOUNDARY_TYPES[number];
+
+// ---------------------------------------------------------------------------
+// Live-tick wire types (extension → struggle-detection webview)
+// ---------------------------------------------------------------------------
+
+export interface LiveDecisionTrace {
+    outcome: 'fired-edit' | 'fired-discrete' | 'suppressed';
+    reason: 'fired' | 'no-candidate' | 'b2-fluent-typing' | 'b4-grace-filter'
+        | 'd1-warmup' | 'below-threshold' | 'cooldown' | 'not-rearmed';
+    discreteTrigger: 'test-stagnation' | null;
+    urgency: number;
+    theta: number;
+    typingRate: number | null;
+    boundariesPresent: BoundaryType[];
+    /** Infinity serialised as null (not JSON-safe). */
+    secondsSinceLastAlert: number | null;
+    inWarmup: boolean;
+    graceActive: boolean;
+    /** Live per-gate conditions for the developer gate view (mirrors the engine's
+     *  GateConditions; each flag = that gate's blocking condition currently holds). */
+    gates: {
+        fluentTyping: boolean;
+        grace: boolean;
+        warmup: boolean;
+        belowThreshold: boolean;
+        cooldown: boolean;
+        notRearmed: boolean;
+    };
+}
+
+export interface LiveTick {
+    /** Session-relative seconds. */
+    t: number;
+    /** S_base urgency score. */
+    urgency: number;
+    s: number;
+    v: number;
+    theta: number;
+    boundariesPreGate: BoundaryType[];
+    alertKind: 'edit' | 'discrete' | null;
+    alertPrimary: BoundaryType | null;
+    decisionTrace: LiveDecisionTrace;
+}
+
 /**
  * Display-facing projection of the websocket connection state. Both the chat
  * webview and the status bar render off this. The webview store also has an
@@ -35,6 +85,10 @@ export const ExtensionMsg = {
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
     AiConfigInit: 'aiConfigInit',
     StruggleDetectionInit: 'struggleDetectionInit',
+    StruggleLiveBackfill: 'struggleLiveBackfill',
+    StruggleLiveTick: 'struggleLiveTick',
+    StruggleLiveReset: 'struggleLiveReset',
+    StruggleLiveSessionState: 'struggleLiveSessionState',
     ViewInitError: 'viewInitError',
 
     // Auth
@@ -145,13 +199,21 @@ interface ExtensionMsgPayloads {
     };
     struggleDetectionInit: {
         isStruggling: boolean;
-        eq: number;
-        eqConfidence: 'insufficient' | 'sufficient';
-        triggerType?: string;
-        recommendedAction: 'none' | 'subtle' | 'notification' | 'proactive';
+        /** v3 decision signal (S_base); isStruggling = urgency >= θ. */
+        urgency: number;
+        v: number;
+        s: number;
+        primaryBoundary: 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | null;
+        lastAlertT: number | null;
         isEnabled: boolean;
         developerMode: boolean;
     };
+    struggleLiveBackfill: { ticks: LiveTick[] };
+    struggleLiveTick: { tick: LiveTick };
+    struggleLiveReset: undefined;
+    /** Whether an exercise struggle-session is currently active (drives the live
+     *  view's session indicator + empty-state wording). */
+    struggleLiveSessionState: { active: boolean };
     viewInitError: { error: string };
 
     // Auth

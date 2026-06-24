@@ -22,8 +22,7 @@ import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import type { ITelemetryManager } from '@extension/services/telemetry';
-import type { SubmissionPayload } from '@extension/services/telemetry/recording/types';
+import type { SubmissionPayload } from '@extension/services/recording/types';
 import type { IProviderRegistry } from '@extension/services/ui';
 import {
     BuildDiagnosticsService,
@@ -34,11 +33,13 @@ import {
     ViewInitDataService,
 } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { ILiveEngineFeed, IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
 import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
-import { CONFIG, resolveServerUrl } from '@extension/utils';
+import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 import { createRecordingWebviewHandlers } from '@dataCollection';
+import { createLiveEngineFeed } from '@telemetry';
 
 import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -82,7 +83,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
-    private readonly _telemetryManager: ITelemetryManager;
+    private readonly _struggleCoordinator: IStruggleCoordinator;
+    private readonly _liveEngineFeed: ILiveEngineFeed;
     private readonly _renderService: ProblemStatementRenderService;
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;
@@ -119,7 +121,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._exerciseRegistry = deps.exerciseRegistry;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
-        this._telemetryManager = deps.telemetryManager;
+        this._struggleCoordinator = deps.struggleCoordinator;
         this._authContextUpdater = deps.updateAuthContext;
         this._courseDataCache = deps.courseDataCache;
         const buildErrorCodeLensProvider = deps.buildErrorCodeLensProvider;
@@ -148,7 +150,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._exerciseOpeningService = new ExerciseOpeningService(
             this._exerciseRegistry,
             this._providerRegistry,
-            this._telemetryManager,
+            this._struggleCoordinator,
             this._courseAccessStorage,
         );
 
@@ -192,6 +194,23 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             getServerUrl: () => resolveServerUrl(),
         });
 
+        // 8b. Live engine-decision feed (developer-mode struggle view). Built via
+        //     the @telemetry seam so the clean build never imports the real feed
+        //     (which lives under the build-excluded services/struggle/ subtree).
+        //     Streams to the same webview post as the init service; gated on the
+        //     same artemis.developerMode probe. A new exercise session clears the
+        //     buffer so the chart restarts with the session.
+        this._liveEngineFeed = createLiveEngineFeed(
+            this._struggleCoordinator,
+            (msg) => this._postMessageSafe(msg as ExtensionToWebviewMessage),
+            () => this._isDeveloperMode(),
+        );
+        this._disposables.push(
+            this._liveEngineFeed,
+            this._struggleCoordinator.onDidStartSession(() => this._liveEngineFeed.setSessionActive(true)),
+            this._struggleCoordinator.onDidEndSession(() => this._liveEngineFeed.setSessionActive(false)),
+        );
+
         // 9. Webview message handler — now routes commands through the facade.
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
@@ -205,16 +224,30 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseDataCache,
             this._courseAccessStorage,
             createRecordingWebviewHandlers(this._extensionContext.globalStorageUri),
+            this._liveEngineFeed,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
 
         // 10. Init data service — depends on the message handler being ready.
         this._viewInitDataService = new ViewInitDataService(
             this._appStateManager,
-            this._telemetryManager,
+            this._struggleCoordinator,
             this._messageHandler,
             (msg) => this._postMessageSafe(msg),
             this._courseAccessStorage,
+        );
+
+        // 10b. Keep the struggle snapshot panel (urgency meter + status) live: the
+        //      init is a one-shot, so without this it freezes at the value captured
+        //      when the page opened. Re-send it on each engine tick, but only while
+        //      the struggle page is the active view (other pages are not re-pushed).
+        //      The no-op coordinator never ticks, so the clean build does nothing.
+        this._disposables.push(
+            this._struggleCoordinator.onDidTick(() => {
+                if (this._appStateManager.currentState === 'struggle-detection') {
+                    this._viewInitDataService.sendStruggleDetectionInit();
+                }
+            }),
         );
 
         // 11. Submission WS handler — fans build results into diagnostics
@@ -428,6 +461,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._navigationFacade.showLogin();
     }
 
+    /** Navigate the panel to the developer struggle-detection / live-engine view. */
+    public showStruggleDetection(): void {
+        this._navigationFacade.showStruggleDetection();
+    }
+
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
 
     protected _onReady(): void {
@@ -445,6 +483,17 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      * the storage service is constructed in this ctor with this getter as a
      * callback - moving it to the facade would create a cycle.
      */
+    /**
+     * Developer-mode probe — same `artemis.developerMode` setting the view-init
+     * service reads to gate the developer struggle view. The live engine feed
+     * only streams while this is on.
+     */
+    private _isDeveloperMode(): boolean {
+        return vscode.workspace
+            .getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION)
+            .get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
+    }
+
     private _currentCourseAccessScope(): CourseAccessScope | null {
         const info = this._appStateManager.userInfo;
         if (!info) { return null; }
