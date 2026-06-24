@@ -141,21 +141,18 @@ export class WebSocketStatusBarService implements vscode.Disposable {
                 this._statusBarItem.text = this._isDevMode
                     ? '$(plug) WS Connected'
                     : '$(plug) Artemis: connected';
-                this._statusBarItem.tooltip = 'WebSocket connected. Click to reconnect.';
                 this._statusBarItem.backgroundColor = undefined;
                 break;
             case 'reconnecting':
                 this._statusBarItem.text = this._isDevMode
                     ? `$(sync~spin) WS Reconnecting (${attempts}/20)...`
                     : `$(sync~spin) Artemis: reconnecting (${attempts}/20)...`;
-                this._statusBarItem.tooltip = 'WebSocket reconnecting...';
                 this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
                 break;
             case 'connecting':
                 this._statusBarItem.text = this._isDevMode
                     ? '$(sync~spin) WS Connecting...'
                     : '$(sync~spin) Artemis: connecting...';
-                this._statusBarItem.tooltip = 'WebSocket connecting...';
                 this._statusBarItem.backgroundColor = undefined;
                 break;
             case 'disconnected':
@@ -163,10 +160,63 @@ export class WebSocketStatusBarService implements vscode.Disposable {
                 this._statusBarItem.text = this._isDevMode
                     ? '$(debug-disconnect) WS Disconnected'
                     : '$(debug-disconnect) Artemis: offline';
-                this._statusBarItem.tooltip = 'WebSocket disconnected. Click to reconnect.';
                 this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 break;
         }
+
+        this._statusBarItem.tooltip = this._buildTooltip();
+    }
+
+    private _buildTooltip(): string | vscode.MarkdownString {
+        if (this._isDevMode) {
+            return this._buildDevTooltip();
+        }
+        switch (this._currentStatus) {
+            case 'reconnecting': {
+                const md = new vscode.MarkdownString();
+                const attempts = this._websocketService.reconnectAttempts;
+                md.appendMarkdown(
+                    `**Reconnecting to Artemis... (${attempts}/20)**\n\n`
+                    + `Live updates are paused and will resume automatically.`
+                );
+                return md;
+            }
+            case 'disconnected': {
+                const md = new vscode.MarkdownString();
+                md.appendMarkdown(
+                    `**Connection to Artemis lost**\n\n`
+                    + `Live updates (build results, submission status, Iris) are paused.\n\n`
+                    + `Click to reconnect. If it keeps failing, check your internet connection or sign in again.`
+                );
+                return md;
+            }
+            case 'connecting':
+                return 'Connecting to Artemis...';
+            case 'connected':
+            default:
+                return 'Connected to Artemis. Click to reconnect.';
+        }
+    }
+
+    private _buildDevTooltip(): vscode.MarkdownString {
+        const d = this._websocketService.getDiagnostics();
+        const md = new vscode.MarkdownString();
+        md.appendMarkdown(`## WebSocket (dev)\n\n`);
+        md.appendMarkdown(`**Status:** ${this._currentStatus}\n\n`);
+        md.appendMarkdown(`**Connection:**\n`);
+        md.appendMarkdown(`- clientConnected: ${d.clientConnected}\n`);
+        md.appendMarkdown(`- clientActive: ${d.clientActive}\n`);
+        md.appendMarkdown(`- reconnect: ${d.reconnectAttempts}/${d.maxReconnectAttempts}\n\n`);
+        md.appendMarkdown(`**Subscriptions (${d.subscriptionCount}):**\n`);
+        if (d.subscriptions.length > 0) {
+            d.subscriptions.forEach(s => md.appendMarkdown(`- \`${s}\`\n`));
+        } else {
+            md.appendMarkdown(`- *none*\n`);
+        }
+        md.appendMarkdown(`\n**Session:** \`${d.sessionId}\`\n\n`);
+        md.appendMarkdown(`**Server:** \`${d.serverUrl}\`\n`);
+        md.appendMarkdown(`**WebSocket:** \`${d.websocketUrl}\`\n`);
+        return md;
     }
 
     private _clickInFlight = false;

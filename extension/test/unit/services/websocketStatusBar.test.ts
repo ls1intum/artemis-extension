@@ -101,6 +101,17 @@ suite('WebSocketStatusBarService', () => {
             disconnect: sandbox.stub().resolves(),
             resetConnectionState: sandbox.stub(),
             reconnectAttempts: 0,
+            getDiagnostics: sandbox.stub().returns({
+                clientConnected: false,
+                clientActive: false,
+                subscriptionCount: 2,
+                subscriptions: ['/user/topic/results', '/user/topic/submissions'],
+                reconnectAttempts: 0,
+                maxReconnectAttempts: 20,
+                sessionId: 'test-session-id',
+                serverUrl: 'https://artemis.test',
+                websocketUrl: 'wss://artemis.test/ws',
+            }),
         } as unknown as sinon.SinonStubbedInstance<ArtemisWebsocketService> & { reconnectAttempts: number };
 
         driveState = (status, isConnected = status === 'connected', wasEverConnected = status === 'reconnecting' || status === 'connected') => {
@@ -438,6 +449,50 @@ suite('WebSocketStatusBarService', () => {
                 !mockStatusBarItem.show.called && !mockStatusBarItem.hide.called,
                 'setAuthenticated with unchanged value must not trigger show/hide'
             );
+        });
+    });
+
+    suite('tooltip tiers', () => {
+        function tooltipValue(): string {
+            const t = mockStatusBarItem.tooltip;
+            return typeof t === 'string' ? t : (t?.value ?? '');
+        }
+
+        test('normal mode disconnected tooltip explains the impact', () => {
+            configValues.developerMode = false;
+            createService();
+            driveState('disconnected');
+            assert.ok(tooltipValue().includes('Connection to Artemis lost'), `got: ${tooltipValue()}`);
+            assert.ok(tooltipValue().includes('Live updates'), `got: ${tooltipValue()}`);
+        });
+
+        test('normal mode reconnecting tooltip reassures', () => {
+            configValues.developerMode = false;
+            createService();
+            driveState('reconnecting');
+            assert.ok(tooltipValue().includes('Reconnecting to Artemis'), `got: ${tooltipValue()}`);
+        });
+
+        test('normal mode connected tooltip is the simple one-liner', () => {
+            configValues.developerMode = false;
+            createService();
+            driveState('connected');
+            assert.ok(
+                tooltipValue().includes('Connected to Artemis. Click to reconnect.'),
+                `got: ${tooltipValue()}`
+            );
+        });
+
+        test('dev mode tooltip shows full diagnostics', () => {
+            configValues.developerMode = true;
+            createService();
+            driveState('connected');
+            const v = tooltipValue();
+            assert.ok(v.includes('artemis.test'), `serverUrl, got: ${v}`);
+            assert.ok(v.includes('wss://artemis.test/ws'), `websocketUrl, got: ${v}`);
+            assert.ok(v.includes('test-session-id'), `sessionId, got: ${v}`);
+            assert.ok(v.includes('/user/topic/results'), `subscription topic, got: ${v}`);
+            assert.ok(v.includes('0/20'), `reconnect counts, got: ${v}`);
         });
     });
 
