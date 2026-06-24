@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
+import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 import { compareExact, summarizeCausal } from './goldenCompare';
 import type { GoldenAlert, GoldenSession, GoldenTick } from './goldenTypes';
-import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

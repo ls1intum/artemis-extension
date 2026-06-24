@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
-import type { TickRecord } from '@extension/services/struggle/types';
+
 import type { LiveTick } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
+
+import type { TickRecord } from '@extension/services/struggle/types';
 
 export class LiveEngineFeed implements vscode.Disposable {
     private readonly _buffer: LiveTick[] = [];
