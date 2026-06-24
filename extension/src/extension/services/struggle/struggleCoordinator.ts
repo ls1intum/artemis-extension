@@ -50,6 +50,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private readonly _engine: StruggleEngine;
     private readonly _clock: EngineClock;
     private readonly _disposables: vscode.Disposable[] = [];
+    private readonly _onDidStartSession = new vscode.EventEmitter<void>();
     private _activeExerciseId: number | undefined;
     private _sessionStartMs = 0;
     private _lastTick: TickRecord | undefined;
@@ -63,6 +64,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._exerciseRegistry = deps.exerciseRegistry;
         this._clock = deps.clock ?? DEFAULT_CLOCK;
         this._engine = new StruggleEngine(this._hub, this._clock);
+        this._disposables.push(this._onDidStartSession);
 
         // Engine alert → sink (UI gated) + snapshot bookkeeping.
         // The alert is ALWAYS recorded via the engine's onDidAlert (the recorder
@@ -101,6 +103,11 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     get onDidAlert() { return this._engine.onDidAlert; }
     get onDidTick() { return this._engine.onDidTick; }
 
+    /** Fires after a new exercise session is live (engine started). Activation
+     *  subscribes this to clear the live-feed buffer; the coordinator stays
+     *  UI-agnostic (it only emits the event, it never owns the feed). */
+    get onDidStartSession(): vscode.Event<void> { return this._onDidStartSession.event; }
+
     // ── Session lifecycle ──────────────────────────────────────────────
     startExerciseSession(exerciseId: number, exerciseRoot?: vscode.Uri): void {
         if (this._activeExerciseId === exerciseId) { return; }
@@ -117,6 +124,9 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._engine.start({ sessionStartMs: this._sessionStartMs, exerciseRoot });
         this._lastTick = undefined;
         this._lastAlert = undefined;
+        // New session is live: notify activation so the live-feed buffer clears
+        // (fired last so the clear lands once the new session is fully started).
+        this._onDidStartSession.fire();
     }
 
     /** ms epoch of the active session start (test/replay helper). */

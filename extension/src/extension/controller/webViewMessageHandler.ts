@@ -54,6 +54,7 @@ export class WebViewMessageHandler {
         courseDataCache?: CourseDataCache,
         courseAccessStorage?: CourseAccessStorageService,
         recordingHandlers: CommandMap = {},
+        struggleLiveFeed?: { subscribe(): void; unsubscribe(): void },
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -69,6 +70,7 @@ export class WebViewMessageHandler {
             providerRegistry,
             courseDataCache,
             courseAccessStorage,
+            struggleLiveFeed,
         };
 
         this.repositoryStatusModule = new RepositoryStatusCommands(context);

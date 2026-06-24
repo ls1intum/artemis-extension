@@ -4,9 +4,10 @@ import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
 import { TUNING } from '@extension/services/struggle/config';
+import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 
-import type { IStruggleCoordinator, StruggleEngineDeps } from './contract';
+import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps } from './contract';
 
 /**
  * Real struggle-detection engine (full / Marketplace / Desktop build).
@@ -28,6 +29,19 @@ export function createStruggleEngine(deps: StruggleEngineDeps): IStruggleCoordin
         alertSink: throttledSink,
         exerciseRegistry: deps.exerciseRegistry,
     });
+}
+
+/**
+ * Builds the live engine-decision feed for the developer-mode struggle view.
+ * Kept behind the seam so the clean build never imports {@link LiveEngineFeed}
+ * (it lives under the build-excluded `services/struggle/` subtree).
+ */
+export function createLiveEngineFeed(
+    coordinator: IStruggleCoordinator,
+    post: (msg: unknown) => void,
+    isDeveloperMode: () => boolean,
+): ILiveEngineFeed {
+    return new LiveEngineFeed(coordinator, post, isDeveloperMode);
 }
 
 /** Registers the struggle-score debug command (full build only). */

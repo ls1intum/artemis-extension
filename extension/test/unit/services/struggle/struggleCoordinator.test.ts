@@ -52,6 +52,14 @@ suite('StruggleCoordinator', () => {
         assert.strictEqual(snap.sessionSeconds, 20);
     });
 
+    test('onDidStartSession fires on startExerciseSession', () => {
+        let count = 0;
+        const sub = coord.onDidStartSession(() => { count++; });
+        coord.startExerciseSession(1);
+        assert.strictEqual(count, 1);
+        sub.dispose();
+    });
+
     test('onDidTick fires for the recorder', () => {
         coord.startExerciseSession(1);
         const ticks: number[] = [];

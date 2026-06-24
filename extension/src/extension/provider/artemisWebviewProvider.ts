@@ -33,12 +33,13 @@ import {
     ViewInitDataService,
 } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
-import type { IStruggleCoordinator } from '@extension/telemetry/contract';
+import type { ILiveEngineFeed, IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
 import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
-import { CONFIG, resolveServerUrl } from '@extension/utils';
+import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 import { createRecordingWebviewHandlers } from '@dataCollection';
+import { createLiveEngineFeed } from '@telemetry';
 
 import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -83,6 +84,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
     private readonly _struggleCoordinator: IStruggleCoordinator;
+    private readonly _liveEngineFeed: ILiveEngineFeed;
     private readonly _renderService: ProblemStatementRenderService;
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;
@@ -192,6 +194,22 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             getServerUrl: () => resolveServerUrl(),
         });
 
+        // 8b. Live engine-decision feed (developer-mode struggle view). Built via
+        //     the @telemetry seam so the clean build never imports the real feed
+        //     (which lives under the build-excluded services/struggle/ subtree).
+        //     Streams to the same webview post as the init service; gated on the
+        //     same artemis.developerMode probe. A new exercise session clears the
+        //     buffer so the chart restarts with the session.
+        this._liveEngineFeed = createLiveEngineFeed(
+            this._struggleCoordinator,
+            (msg) => this._postMessageSafe(msg as ExtensionToWebviewMessage),
+            () => this._isDeveloperMode(),
+        );
+        this._disposables.push(
+            this._liveEngineFeed,
+            this._struggleCoordinator.onDidStartSession(() => this._liveEngineFeed.clear()),
+        );
+
         // 9. Webview message handler — now routes commands through the facade.
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
@@ -205,6 +223,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseDataCache,
             this._courseAccessStorage,
             createRecordingWebviewHandlers(this._extensionContext.globalStorageUri),
+            this._liveEngineFeed,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
 
@@ -445,6 +464,17 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      * the storage service is constructed in this ctor with this getter as a
      * callback - moving it to the facade would create a cycle.
      */
+    /**
+     * Developer-mode probe — same `artemis.developerMode` setting the view-init
+     * service reads to gate the developer struggle view. The live engine feed
+     * only streams while this is on.
+     */
+    private _isDeveloperMode(): boolean {
+        return vscode.workspace
+            .getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION)
+            .get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
+    }
+
     private _currentCourseAccessScope(): CourseAccessScope | null {
         const info = this._appStateManager.userInfo;
         if (!info) { return null; }

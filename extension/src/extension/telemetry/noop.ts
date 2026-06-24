@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-import type { IStruggleCoordinator, StruggleEngineDeps } from './contract';
+import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps } from './contract';
 import { NoopStruggleCoordinator } from './noopStruggleCoordinator';
 
 /**
@@ -12,6 +12,20 @@ import { NoopStruggleCoordinator } from './noopStruggleCoordinator';
  */
 export function createStruggleEngine(_deps: StruggleEngineDeps): IStruggleCoordinator {
     return new NoopStruggleCoordinator();
+}
+
+/** No-op live feed in the clean build: no engine, so nothing ever streams. */
+export function createLiveEngineFeed(
+    _coordinator: IStruggleCoordinator,
+    _post: (msg: unknown) => void,
+    _isDeveloperMode: () => boolean,
+): ILiveEngineFeed {
+    return {
+        subscribe() { /* no engine in the clean build */ },
+        unsubscribe() { /* no engine in the clean build */ },
+        clear() { /* no engine in the clean build */ },
+        dispose() { /* nothing to dispose */ },
+    };
 }
 
 /** No-op in the clean build: the struggle-score command is never registered. */

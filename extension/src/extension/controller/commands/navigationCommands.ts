@@ -22,6 +22,8 @@ export class NavigationCommandModule {
             [WebviewCmd.ShowAiConfig]: this.handleShowAiConfig,
             [WebviewCmd.ShowServiceStatus]: this.handleShowServiceStatus,
             [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
+            [WebviewCmd.StruggleLiveSubscribe]: this.handleStruggleLiveSubscribe,
+            [WebviewCmd.StruggleLiveUnsubscribe]: this.handleStruggleLiveUnsubscribe,
             [WebviewCmd.ShowRecommendedExtensions]: this.handleShowRecommendedExtensions,
             [WebviewCmd.ShowGitCredentials]: this.handleShowGitCredentials,
             [WebviewCmd.LoadArchivedCourses]: this.handleLoadArchivedCourses,
@@ -149,6 +151,14 @@ export class NavigationCommandModule {
 
     private handleShowStruggleDetection = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showStruggleDetection();
+    };
+
+    private handleStruggleLiveSubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        this.context.struggleLiveFeed?.subscribe();
+    };
+
+    private handleStruggleLiveUnsubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        this.context.struggleLiveFeed?.unsubscribe();
     };
 
     private handleShowRecommendedExtensions = async (_message: WebviewToExtensionMessage): Promise<void> => {

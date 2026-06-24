@@ -29,4 +29,11 @@ export interface CommandContext {
     providerRegistry: IProviderRegistry;
     courseDataCache?: CourseDataCache;
     courseAccessStorage?: CourseAccessStorageService;
+    /**
+     * Live engine-decision feed for the developer-mode struggle view. Subscribe
+     * streams buffered + live ticks to the webview; unsubscribe stops the stream.
+     * Optional: absent in the clean (no-engine) build and in tests that don't
+     * exercise the live view.
+     */
+    struggleLiveFeed?: { subscribe(): void; unsubscribe(): void };
 }

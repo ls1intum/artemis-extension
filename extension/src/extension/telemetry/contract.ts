@@ -24,7 +24,25 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
     | 'dispose'
     | 'onDidTick'
     | 'onDidAlert'
+    | 'onDidStartSession'
 >;
+
+/**
+ * Live engine-decision feed for the developer-mode struggle view, behind the
+ * `@telemetry` seam so the clean build never imports the real
+ * {@link LiveEngineFeed} (it lives under the build-excluded
+ * `services/struggle/` subtree). The full factory returns the real feed; the
+ * no-op factory returns an inert stub.
+ */
+export interface ILiveEngineFeed {
+    /** Reset the webview chart and stream the buffered + live ticks. */
+    subscribe(): void;
+    /** Stop streaming live ticks (the buffer keeps filling). */
+    unsubscribe(): void;
+    /** Drop the buffer (and reset the webview when subscribed). */
+    clear(): void;
+    dispose(): void;
+}
 
 /**
  * Non-engine dependencies the full-build factory needs to construct the live
