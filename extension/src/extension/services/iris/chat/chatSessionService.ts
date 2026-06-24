@@ -410,7 +410,8 @@ export class IrisChatSessionService {
                     role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
                     content: content,
                     timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                    helpful: (msg as { helpful?: boolean | null }).helpful
+                    helpful: (msg as { helpful?: boolean | null }).helpful,
+                    origin: (msg.origin === 'PROACTIVE_STRUGGLE' ? 'proactive' : undefined) as 'proactive' | undefined
                 };
             });
 
@@ -517,6 +518,21 @@ export class IrisChatSessionService {
     }
 
     public switchToSession(sessionId: string): void {
+        // Fire-and-forget for the user-driven sidebar switch: the caller does
+        // not await, so swallow load errors here (they are already surfaced to
+        // the webview by the load path itself).
+        this._switchToSessionAndLoad(sessionId).catch(err => {
+            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
+        });
+    }
+
+    /**
+     * Set `sessionId` active and load its messages, returning the load promise.
+     * Shared by {@link switchToSession} (fire-and-forget) and
+     * {@link openProactiveSession} (which awaits, so its `Promise<void>` only
+     * resolves once the messages have been posted to the webview).
+     */
+    private async _switchToSessionAndLoad(sessionId: string): Promise<void> {
         logger.info('Switching to session:', LogCategory.IRIS_CHAT, sessionId);
 
         const irisSessionManager = this._getIrisWebSocketSessionClient();
@@ -530,9 +546,48 @@ export class IrisChatSessionService {
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
 
         // Load messages for the switched session
-        this._loadIrisMessages().catch(err => {
-            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
-        });
+        await this._loadIrisMessages();
+    }
+
+    /**
+     * Open the Iris session carrying a proactive bubble, identified by its
+     * Artemis session id (spec §5.5 `active`). The session is freshly created
+     * server-side and has no USER reply yet, so it is OMITTED from the
+     * sessions/overview that {@link loadAllSessionsForContext} consumes, so a
+     * plain reload would never import it. We therefore inject a local entry
+     * keyed `session-<artemisSessionId>` directly (unless one already exists),
+     * then switch to it; the switch's own message-load fetches the session by
+     * id via {@link initializeIrisSessionAndLoadMessages} and surfaces the
+     * `origin: 'proactive'` bubble.
+     */
+    public async openProactiveSession(artemisSessionId: number): Promise<void> {
+        const localId = `session-${artemisSessionId}`;
+
+        const activeContext = this.deps.contextStore.getActiveContext();
+        if (!activeContext) {
+            logger.warn(
+                `openProactiveSession(${artemisSessionId}) ignored: no active context to attach the session to`,
+                LogCategory.IRIS_CHAT,
+            );
+            return;
+        }
+
+        // Existence check against the active context's session list (the
+        // snapshot only ever lists sessions for the active context), so
+        // repeated `active` events for the same session do not duplicate it.
+        const alreadyExists = this.deps.contextStore.snapshot().sessions.some(session => session.id === localId);
+        if (!alreadyExists) {
+            logger.info(`Injecting local entry for proactive session ${localId}`, LogCategory.IRIS_CHAT);
+            this.deps.contextStore.createSessionWithDetails('Iris suggestion', 1, Date.now(), artemisSessionId);
+            this.deps.postSnapshot();
+        }
+
+        // Set the entry active (guarded on existence, which we just ensured) and
+        // run the existing load path: it reuses the entry's artemisSessionId,
+        // fetches that session's messages by id, and posts LoadMessages with the
+        // proactive bubble mapped to origin: 'proactive'. Awaited so this method
+        // only resolves once the bubble has been posted to the webview.
+        await this._switchToSessionAndLoad(localId);
     }
 
     public async resetAndReloadSessions(): Promise<number> {

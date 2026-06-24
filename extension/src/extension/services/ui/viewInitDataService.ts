@@ -13,8 +13,8 @@ import {
     detectWorkspaceExercise,
     detectWorkspaceForRepoUris,
 } from '@extension/services/workspace/workspaceDetectionService';
-import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
+import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 import { resolveServerUrl } from '@extension/utils';
 

@@ -12,6 +12,7 @@ const path = require('path');
 const FORBIDDEN_SUBTREES = [
     'src/extension/services/struggle/',
     'src/extension/services/intervention/',
+    'src/extension/services/struggleIntervention/',
     'src/extension/services/recording/',
 ];
 

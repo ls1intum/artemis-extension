@@ -5,11 +5,11 @@ import * as sinon from 'sinon';
 import { InterventionService } from '@extension/services/intervention';
 import type { AlertRecord } from '@extension/services/struggle/types';
 
-function alert(overrides: Partial<Extract<AlertRecord, { kind: 'edit' }>> = {}): AlertRecord {
+function alert(overrides: Partial<AlertRecord> = {}): AlertRecord {
     return {
         kind: 'edit', t: 490, ts: 1000, urgency: 0.7, v: 0.7, typesPreGate: ['STATE'], types: ['STATE'],
         primary: 'STATE', path: 'armed', inWarmup: false, inGrace: false, ...overrides,
-    };
+    } as AlertRecord;
 }
 
 suite('InterventionService (AlertSink, single-level)', () => {

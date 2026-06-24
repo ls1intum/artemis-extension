@@ -53,6 +53,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private readonly _onDidStartSession = new vscode.EventEmitter<void>();
     private readonly _onDidEndSession = new vscode.EventEmitter<void>();
     private _activeExerciseId: number | undefined;
+    private _activeExerciseRoot: vscode.Uri | undefined;
     private _sessionStartMs = 0;
     private _lastTick: TickRecord | undefined;
     private _lastAlert: AlertRecord | undefined;
@@ -118,6 +119,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (this._activeExerciseId === exerciseId) { return; }
         if (this._activeExerciseId !== undefined) { this.endExerciseSession(); }
         this._activeExerciseId = exerciseId;
+        this._activeExerciseRoot = exerciseRoot;
         this._sessionStartMs = this._clock.now();
         // New session: reset the sink's per-session throttle budget AND clear any
         // stale intervention (resetSession falls back to reset when unsupported).
@@ -137,6 +139,14 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     /** ms epoch of the active session start (test/replay helper). */
     get sessionStartMs(): number { return this._sessionStartMs; }
 
+    /** Active exercise id (undefined between sessions). Read by the proactive
+     *  intervention orchestrator to key the egress endpoint. */
+    get activeExerciseId(): number | undefined { return this._activeExerciseId; }
+
+    /** Active exercise workspace root (undefined between sessions). Read by the
+     *  orchestrator for file collection + the `.noai` marker probe. */
+    get activeExerciseRoot(): vscode.Uri | undefined { return this._activeExerciseRoot; }
+
     /** Drive the engine's grid ticks deterministically (tests/replay; production
      *  uses the engine's own interval timer). */
     advanceTo(nowMs: number): void { this._engine.advanceTo(nowMs); }
@@ -145,6 +155,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (this._activeExerciseId === undefined) { return; }
         this._engine.stop();
         this._activeExerciseId = undefined;
+        this._activeExerciseRoot = undefined;
         this._onDidEndSession.fire();
     }
 

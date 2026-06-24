@@ -72,7 +72,33 @@ export async function activate(context: vscode.ExtensionContext) {
 	// real in the full build, a no-op in the Open VSX (EduIDE/cloud) build, so the
 	// cloud bundle ships no tracking engine. The factory owns the whole value graph
 	// (InterventionService + ThrottledAlertSink + StruggleCoordinator).
-	const struggleCoordinator = createStruggleEngine({ hub: sensorHub, exerciseRegistry, context });
+	// Forward-declared so the orchestrator's lazy chat hooks (openProactiveSession /
+	// setProactiveBadge) can reach the chat provider; it is constructed below, well
+	// before any alert or server event fires.
+	let chatWebviewProvider: ChatWebviewProvider | undefined;
+	const { coordinator: struggleCoordinator, promptConsentIfAsk } = createStruggleEngine({
+		hub: sensorHub,
+		exerciseRegistry,
+		context,
+		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
+		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
+		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
+		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
+		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
+		subscribeStruggleTopic: (topic, onFrame) => {
+			let activeUnsub: (() => void) | undefined;
+			const subscribeNow = (): void => {
+				if (!artemisWebsocketService.isConnected()) { return; }
+				try { activeUnsub = artemisWebsocketService.subscribeToTopic(topic, onFrame); }
+				catch (error) { logger.error(`Failed to subscribe to ${topic}`, LogCategory.WEBSOCKET, error); }
+			};
+			subscribeNow();
+			const stateSub = artemisWebsocketService.onDidChangeConnectionState(({ connected }) => {
+				if (connected) { subscribeNow(); } else { activeUnsub = undefined; }
+			});
+			return { dispose: () => { stateSub.dispose(); try { activeUnsub?.(); } catch { /* stale sub after disconnect */ } activeUnsub = undefined; } };
+		},
+	});
 	activeStruggleCoordinator = struggleCoordinator;
 	struggleCoordinator.setWebsocketService(artemisWebsocketService);
 	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
@@ -160,7 +186,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const contextStore = new ContextStore(context);
 	context.subscriptions.push(contextStore);
 
-	const chatWebviewProvider = new ChatWebviewProvider(
+	chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
 		noAiDetectionService, exerciseRegistry, courseDataCache,
 		contextStore,
@@ -251,6 +277,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
 			});
+			// Ask once (only while undecided) whether Iris may proactively read code
+			// when the student appears stuck. No-op in the clean build.
+			void promptConsentIfAsk();
 		}
 	} catch (error) {
 		logger.error('Error checking initial auth state', LogCategory.AUTH, error);

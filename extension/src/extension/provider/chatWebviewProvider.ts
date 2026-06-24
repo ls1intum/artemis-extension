@@ -334,6 +334,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             this._onDidChangePanelVisibility.fire(webviewView.visible);
             if (webviewView.visible) {
+                this.setProactiveBadge(false);
                 logger.debug('Iris Chat view became visible, loading data...', LogCategory.VIEW);
                 this._sendInitData();
             } else {
@@ -440,6 +441,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     public switchToSession(sessionId: string): void {
         this._chatSessionService.switchToSession(sessionId);
+    }
+
+    /** Show/clear a badge on the Iris view to flag a proactive suggestion (spec §8 active surface). */
+    setProactiveBadge(on: boolean): void {
+        if (this._view) {
+            this._view.badge = on ? { value: 1, tooltip: 'Iris has a suggestion for you' } : undefined;
+        }
+    }
+
+    /**
+     * Open/attach the Iris session carrying a proactive bubble (spec §5.5 `active`). The session is freshly
+     * created server-side with a single LLM bubble and no USER reply, so it is OMITTED from the sessions/overview
+     * a plain reload consumes; importing it that way never works. Delegated to the session service, which injects
+     * a local entry keyed `session-<artemisSessionId>` (unless present), switches to it, and lets the existing
+     * message-load surface the bubble.
+     */
+    async openProactiveSession(sessionId: number): Promise<void> {
+        await this._chatSessionService.openProactiveSession(sessionId);
     }
 
     public getSelectedContext(): ActiveContext | null {

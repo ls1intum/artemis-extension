@@ -1,6 +1,7 @@
 import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '@extension/domain/problemStatementRendering';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { StruggleEgressResult, StruggleInterventionRequest } from '@extension/services/struggleIntervention/struggleContract';
 import type {
     ArtemisParticipation,
     ArtemisUser,
@@ -534,6 +535,30 @@ export class ArtemisApiService {
                 return parseApiObject<IrisChatMessage>('IrisChatMessage', await fallbackResponse.json());
             }
             throw error;
+        }
+    }
+
+    /**
+     * Trigger a proactive struggle intervention (spec §5.2), exercise-keyed. Fire-and-forget: the server
+     * returns 202 {accepted, exerciseId, jobId} (body ignored in v1) and the gated result arrives over the
+     * per-user struggle topic. Auth + 401 handling via makeRequest. Returns a {@link StruggleEgressResult} so the
+     * orchestrator can degrade to the no-AI lamp on a 404 (feature missing — spec §9, §11).
+     */
+    async postStruggleIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult> {
+        try {
+            await this.makeRequest(`/api/iris/chat/exercises/${exerciseId}/struggle-intervention`, {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+            return 'accepted';
+        }
+        catch (error) {
+            // A 404 means this Artemis lacks the endpoint (old / feature-less) → degrade to the no-AI lamp for the
+            // session (spec §11: "no-AI lamp remains"). Any other failure (transient 5xx / network / 401) → silent.
+            if (error instanceof ApiError && error.status === 404) {
+                return 'unavailable';
+            }
+            return 'failed';
         }
     }
 

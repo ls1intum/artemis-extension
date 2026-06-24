@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps } from './contract';
+import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, StruggleEngineHandle } from './contract';
 import { NoopStruggleCoordinator } from './noopStruggleCoordinator';
 
 /**
@@ -10,8 +10,12 @@ import { NoopStruggleCoordinator } from './noopStruggleCoordinator';
  * behavioural-tracking engine at all (verified fail-closed by
  * scripts/verify-clean-bundle.js, run in scripts/package-openvsx.js).
  */
-export function createStruggleEngine(_deps: StruggleEngineDeps): IStruggleCoordinator {
-    return new NoopStruggleCoordinator();
+export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineHandle {
+    return {
+        coordinator: new NoopStruggleCoordinator(),
+        // No engine in the clean build, so there is nothing to consent to.
+        promptConsentIfAsk: async () => { /* no proactive egress in the clean build */ },
+    };
 }
 
 /** No-op live feed in the clean build: no engine, so nothing ever streams. */

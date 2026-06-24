@@ -49,12 +49,44 @@ export interface ILiveEngineFeed {
 
 /**
  * Non-engine dependencies the full-build factory needs to construct the live
- * engine. The no-op factory ignores them. The struggle/intervention value graph
- * itself lives ONLY inside the full `@telemetry` module.
+ * engine + the proactive intervention orchestrator. The no-op factory ignores
+ * them. The struggle/intervention value graph itself lives ONLY inside the full
+ * `@telemetry` module — these closures only reach always-bundled collaborators
+ * (the API service, the chat provider, the websocket service), so the clean
+ * build never imports `services/struggle|intervention|struggleIntervention`.
+ *
+ * The struggle-intervention wire types are referenced TYPE-ONLY here (erased at
+ * build time), so naming them never pulls `struggleIntervention/` into a bundle.
  */
 export interface StruggleEngineDeps {
     hub: SensorHub;
     exerciseRegistry: ExerciseRegistry;
     /** Registers the lifetime of the intervention service + delivery sink. */
     context: vscode.ExtensionContext;
+    /** POST the proactive struggle signal to Artemis (egress); returns the egress result. */
+    postIntervention(
+        exerciseId: number,
+        body: import('@extension/services/struggleIntervention/struggleContract').StruggleInterventionRequest,
+    ): Promise<import('@extension/services/struggleIntervention/struggleContract').StruggleEgressResult>;
+    /** Open/attach the Iris session carrying a proactive bubble. Lazy: the chat
+     *  provider is constructed after the engine, so this is only called later. */
+    openProactiveSession(sessionId: number): Promise<void>;
+    /** Set/clear the proactive badge on the Iris view. Lazy (see above). */
+    setProactiveBadge(on: boolean): void;
+    /** Reconnect-aware websocket subscribe primitive for the per-user struggle
+     *  topic. The seam calls `subscribeStruggleEvents` with this internally, so
+     *  `extension.ts` never imports anything from `struggleIntervention/`. */
+    subscribeStruggleTopic(topic: string, onFrame: (data: unknown) => void): { dispose(): void };
+}
+
+/**
+ * What the full `createStruggleEngine` returns: the coordinator (the only struggle
+ * surface `extension.ts` keeps a reference to) plus a post-auth consent prompt
+ * hook. The server-event subscription is wired INSIDE the seam, so no receiver is
+ * exposed (and `IStruggleCoordinator` stays free of server-event members).
+ */
+export interface StruggleEngineHandle {
+    coordinator: IStruggleCoordinator;
+    /** Ask once, post-auth, whether Iris may proactively read code; no-op once decided. */
+    promptConsentIfAsk(): Promise<void>;
 }

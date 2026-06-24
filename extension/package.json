@@ -166,6 +166,17 @@
           "default": true,
           "markdownDescription": "Allow Iris to access your uncommitted file changes (unsaved, unstaged, and unpushed files). When enabled, Iris can see your current work-in-progress code to provide better assistance. **Privacy**: Only files from your current workspace are sent, and only when you send a message to Iris."
         },
+        "artemis.iris.proactiveCodeEgress": {
+          "type": "string",
+          "enum": ["ask", "enabled", "disabled"],
+          "enumDescriptions": [
+            "Ask once whether to allow proactive code reading",
+            "Allow Iris to proactively read your current code when you appear stuck",
+            "Never send code proactively (a local hint is shown instead)"
+          ],
+          "default": "ask",
+          "markdownDescription": "Controls whether Iris may proactively read your current exercise code to offer help when the struggle detector flags that you may be stuck. Separate from `artemis.dataCollectionConsent`."
+        },
         "artemis.developerMode": {
           "type": "boolean",
           "default": false,
