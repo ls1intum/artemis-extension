@@ -47,7 +47,7 @@ This removes the need for new login-return plumbing:
 - `src/main/webapp/app/core/home/home.component.ts`: after login, `handleLoginSuccess()` retrieves `previousUrl` and calls `router.navigateByUrl(previousUrl)`.
 - **All login paths funnel through `handleLoginSuccess()`** — password, the `authenticationSuccess` event, passkey autofill (conditional mediation), and the explicit `loginWithPasskey()`.
 
-So a guarded SPA route (e.g. `/connect/vscode`) will be re-entered automatically after **any** login, including passkey.
+So a guarded SPA route (e.g. `/external-login`) will be re-entered automatically after **any** login, including passkey.
 
 ## 2. Why browser-delegated is the only viable path
 
@@ -66,16 +66,16 @@ sequenceDiagram
     autonumber
     participant Ext as VS Code Extension
     participant Browser as System Browser
-    participant Web as Artemis SPA (/connect/vscode)
+    participant Web as Artemis SPA (/external-login)
     participant API as Artemis Server
 
     Ext->>Ext: generate state + PKCE; callback = asExternalUri(uriScheme://.../auth-callback)
     Ext->>Ext: persist pending{ state -> verifier, callback } in secrets (TTL ~5m)
-    Ext->>Browser: openExternal /connect/vscode?state=..&code_challenge=..&callback=..
-    Browser->>Web: GET /connect/vscode (guarded route)
+    Ext->>Browser: openExternal /external-login?state=..&code_challenge=..&callback=..
+    Browser->>Web: GET /external-login (guarded route)
     Note over Web: not authenticated → guard stores previousUrl,<br/>redirects to /sign-in
     Browser->>Web: user logs in (PASSKEY / SAML / password)
-    Note over Web: handleLoginSuccess() restores previousUrl<br/>→ navigates back to /connect/vscode
+    Note over Web: handleLoginSuccess() restores previousUrl<br/>→ navigates back to /external-login
     Web->>API: POST /api/account/native-login/code<br/>(cookie-authenticated, same-origin)<br/>{ code_challenge, callback }
     Note over API: validate callback against allowlist;<br/>mint one-time code bound to principal +<br/>code_challenge + callback + absolute<br/>originSessionExpiresAt; store (TTL ~60s)
     API-->>Web: { code, callback }
@@ -102,11 +102,11 @@ sequenceDiagram
 
 **Artemis server (new, small):**
 - A short-lived one-time-code store (reuse the Hazelcast nonce-store pattern from PR #12534, generalized out of the SAML package). Precise semantics in Section 3.4.
-- `POST /api/account/native-login/code` — authenticated (`@EnforceAtLeastStudent`), called same-origin from `/connect/vscode`. Accepts `code_challenge` (+ method) and the extension `callback`. **Validates `callback` against a strict server-side allowlist** of the extension's schemes/authorities (e.g. `vscode://aet-tum.iris-thaumantias/*`, `vscode-insiders://aet-tum.iris-thaumantias/*`, and the `asExternalUri` https-loopback form); rejects anything else. Mints a one-time code bound to the principal, the `code_challenge`, the validated `callback`, and the **absolute origin-session expiry**. Returns `{ code }` plus the validated `callback`.
+- `POST /api/account/native-login/code` — authenticated (`@EnforceAtLeastStudent`), called same-origin from `/external-login`. Accepts `code_challenge` (+ method) and the extension `callback`. **Validates `callback` against a strict server-side allowlist** of the extension's schemes/authorities (e.g. `vscode://aet-tum.iris-thaumantias/*`, `vscode-insiders://aet-tum.iris-thaumantias/*`, and the `asExternalUri` https-loopback form); rejects anything else. Mints a one-time code bound to the principal, the `code_challenge`, the validated `callback`, and the **absolute origin-session expiry**. Returns `{ code }` plus the validated `callback`.
 - `POST /api/core/public/native-login/token` — public (the extension is not yet authenticated; PKCE protects it). Accepts `{ code, code_verifier }`, performs **atomic verify-and-consume**, mints a **full** JWT (`buildLoginCookie(..., tool=null)`) **capped to the origin session's expiry**, returns `{ access_token }`. Exact rules in Section 3.4.
 
 **Artemis webapp (new, small):**
-- A guarded route/component `/connect/vscode` (declaring `authorities`) that, once authenticated, posts `code_challenge` + the extension `callback` to `native-login/code`, then redirects the browser to the **server-validated** callback with `code` + `state`. Callback validation is authoritative on the server, not the page.
+- A guarded route/component `/external-login` (declaring `authorities`) that, once authenticated, posts `code_challenge` + the extension `callback` to `native-login/code`, then redirects the browser to the **server-validated** callback with `code` + `state`. Callback validation is authoritative on the server, not the page.
 
 ### 3.3 Security requirements (from codex review)
 
@@ -116,7 +116,7 @@ sequenceDiagram
 - **Strict `state` matching** in the extension; with multiple VS Code windows the topmost handles the URI, so an unmatched `state` must be ignored gracefully.
 - **Same-origin only.** The `native-login/code` call is made by the Artemis SPA to Artemis (cookie sent automatically). The extension never XHRs to a loopback; it only exchanges the code over HTTPS to Artemis. Avoids CORS and SameSite pitfalls.
 - **CSRF.** Artemis disables CSRF globally and is stateless-JWT (`SecurityConfiguration`: `.csrf(CsrfConfigurer::disable)`, `SessionCreationPolicy.STATELESS`), so both new endpoints follow the existing public-login precedent (`/api/core/public/authenticate`, itself a public JWT-minting POST) and need **no CSRF token and no new exemption**. Forgery is prevented structurally instead: the public `native-login/token` requires the PKCE `code_verifier` (never sent to the browser), and a cross-origin attacker can neither read the `native-login/code` response (same-origin policy) nor receive the code anywhere but the allowlisted callback.
-- **Forged `/connect/vscode` links are neutralized by the server-side callback allowlist.** A tricked, logged-in victim could be lured to a `/connect/vscode` link with an attacker-chosen `code_challenge`, but the code is delivered only to an allowlisted extension callback (the victim's own VS Code) and is unusable without the `code_verifier` (which never leaves the extension). So no usable code reaches the attacker. This only holds if the callback is validated on the server, not just on the page.
+- **Forged `/external-login` links are neutralized by the server-side callback allowlist.** A tricked, logged-in victim could be lured to a `/external-login` link with an attacker-chosen `code_challenge`, but the code is delivered only to an allowlisted extension callback (the victim's own VS Code) and is unusable without the `code_verifier` (which never leaves the extension). So no usable code reaches the attacker. This only holds if the callback is validated on the server, not just on the page.
 
 ### 3.4 One-time code & PKCE: precise semantics
 
@@ -134,7 +134,7 @@ The public exchange endpoint mints full JWTs, so the code store must be exact:
 This is a small but real, **security-sensitive** feature, not a 2-file change:
 
 - **Artemis server:** code store + 2 endpoints (issue code, exchange code) + callback allowlist ≈ 3-4 files plus thorough integration tests. The public exchange endpoint mints full JWTs, so expect security-review scrutiny (Sections 3.3-3.4).
-- **Artemis webapp:** 1 route + 1 component (the `/connect/vscode` handoff page).
+- **Artemis webapp:** 1 route + 1 component (the `/external-login` handoff page).
 - **Extension:** UriHandler + `onUri` activation + "Sign in with browser" command + PKCE/state + a persisted pending-login store + code exchange + storage, with tests.
 
 Still substantially smaller than the dead 14-file SAML-only PR, and it delivers SSO and passkey together. The login-return plumbing is free (Section 1.3).
