@@ -1,5 +1,5 @@
-import { GLOSSARY, reasonText, boundaryText, discreteText } from '@webview/views/StruggleDetection/glossary';
 import type { GlossaryKey } from '@webview/views/StruggleDetection/glossary';
+import { boundaryText, discreteText, GLOSSARY, reasonText } from '@webview/views/StruggleDetection/glossary';
 
 const ALL_KEYS: GlossaryKey[] = [
     'FM', 'FM_PLUS', 'E4', 'N1', 'STATE',

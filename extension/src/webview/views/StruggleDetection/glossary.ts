@@ -6,8 +6,14 @@
  * Enforcement: `GLOSSARY` is typed as `Record<GlossaryKey, ...>`, so a missing
  * key is a compile error.
  */
-import type { BoundaryType } from '@extension/services/struggle/config';
-import type { EditTraceReason } from '@extension/services/struggle/types';
+// Webview (browser) code must read shared shapes from @shared, never from the
+// extension-host layer. The shared LiveDecisionTrace mirrors the engine's
+// EditTraceReason / BoundaryType unions exactly (kept in lock-step by the
+// boundary-type parity guard), so these are the authoritative wire types here.
+import type { BoundaryType, LiveDecisionTrace } from '@shared/messageContracts';
+
+/** Decision-reason union, as carried on the wire (mirrors the engine's EditTraceReason). */
+export type EditTraceReason = LiveDecisionTrace['reason'];
 
 /**
  * Union of every key that the live view needs a label/tooltip for:

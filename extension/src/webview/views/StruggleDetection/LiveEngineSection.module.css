@@ -1,0 +1,170 @@
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.chartFrame {
+    width: 100%;
+    height: 220px;
+    border: 1px solid var(--vscode-panel-border, #333);
+    border-radius: 4px;
+    background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.chartEmpty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 220px;
+    border: 1px solid var(--vscode-panel-border, #333);
+    border-radius: 4px;
+    background: var(--vscode-editor-background, #1e1e1e);
+    color: var(--vscode-descriptionForeground);
+    font-size: 13px;
+    text-align: center;
+    padding: 0 16px;
+}
+
+.toggleRow {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.toggleLabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.swatch {
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.markerLegend {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.markerItem {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dotSwatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.ringSwatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: inline-block;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.headline {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    line-height: 1.4;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.rowLabel {
+    font-size: 13px;
+    color: var(--vscode-foreground);
+}
+
+.badgeRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.code {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--vscode-badge-background, #4d4d4d);
+    color: var(--vscode-badge-foreground, #fff);
+    opacity: 0.75;
+}
+
+.boundaryItem {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+}
+
+.muted {
+    color: var(--vscode-descriptionForeground);
+    font-size: 13px;
+}
+
+.note {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+.legendToggle {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--vscode-textLink-foreground);
+    cursor: pointer;
+    font-size: 12px;
+    text-align: left;
+}
+
+.legendList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.legendEntry {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+}
+
+.legendText {
+    flex: 1;
+}

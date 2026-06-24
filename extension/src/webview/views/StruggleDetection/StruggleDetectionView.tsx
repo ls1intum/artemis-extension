@@ -5,6 +5,7 @@ import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 import { BackLink, Badge, Container, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
+import { LiveEngineSection } from './LiveEngineSection';
 import styles from './StruggleDetectionView.module.css';
 import type { StruggleData, StruggleDetectionViewProps } from './types';
 
@@ -234,6 +235,11 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                     </div>
                 </div>
             </Container>
+
+            {/* Developer-only live engine view (curve + current-tick gate panel).
+                Owns its own subscribe/unsubscribe lifecycle — the parent must NOT
+                post struggleLiveSubscribe (avoids the listener-before-subscribe race). */}
+            {data.developerMode && <LiveEngineSection vscodeApi={vscodeApi} />}
 
             {/* Developer tools */}
             {__IRIS_RECORDING__ && data.developerMode && (
