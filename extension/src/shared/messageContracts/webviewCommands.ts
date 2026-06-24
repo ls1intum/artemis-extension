@@ -73,6 +73,8 @@ export const WebviewCmd = {
     ShowServiceStatus: 'showServiceStatus',
     ShowGitCredentials: 'showGitCredentials',
     ShowStruggleDetection: 'showStruggleDetection',
+    StruggleLiveSubscribe: 'struggleLiveSubscribe',
+    StruggleLiveUnsubscribe: 'struggleLiveUnsubscribe',
     PerformHealthChecks: 'performHealthChecks',
 
     // Iris Chat
@@ -168,6 +170,8 @@ interface WebviewCmdPayloads {
     showServiceStatus: undefined;
     showGitCredentials: undefined;
     showStruggleDetection: undefined;
+    struggleLiveSubscribe: undefined;
+    struggleLiveUnsubscribe: undefined;
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat

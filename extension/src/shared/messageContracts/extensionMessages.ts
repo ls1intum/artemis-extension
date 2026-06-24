@@ -12,6 +12,46 @@ import type { ChatContextType } from '@shared/types/context';
 
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
+// ---------------------------------------------------------------------------
+// Shared boundary union (mirrors engine's BOUNDARY_PRIORITY order)
+// ---------------------------------------------------------------------------
+
+export const BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+export type BoundaryType = typeof BOUNDARY_TYPES[number];
+
+// ---------------------------------------------------------------------------
+// Live-tick wire types (extension → struggle-detection webview)
+// ---------------------------------------------------------------------------
+
+export interface LiveDecisionTrace {
+    outcome: 'fired-edit' | 'fired-discrete' | 'suppressed';
+    reason: 'fired' | 'no-candidate' | 'b2-fluent-typing' | 'b4-grace-filter'
+        | 'd1-warmup' | 'below-threshold' | 'cooldown' | 'not-rearmed';
+    discreteTrigger: 'test-stagnation' | null;
+    urgency: number;
+    theta: number;
+    typingRate: number | null;
+    boundariesPresent: BoundaryType[];
+    /** Infinity serialised as null (not JSON-safe). */
+    secondsSinceLastAlert: number | null;
+    inWarmup: boolean;
+    graceActive: boolean;
+}
+
+export interface LiveTick {
+    /** Session-relative seconds. */
+    t: number;
+    /** S_base urgency score. */
+    urgency: number;
+    s: number;
+    v: number;
+    theta: number;
+    boundariesPreGate: BoundaryType[];
+    alertKind: 'edit' | 'discrete' | null;
+    alertPrimary: BoundaryType | null;
+    decisionTrace: LiveDecisionTrace;
+}
+
 /**
  * Display-facing projection of the websocket connection state. Both the chat
  * webview and the status bar render off this. The webview store also has an
@@ -35,6 +75,9 @@ export const ExtensionMsg = {
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
     AiConfigInit: 'aiConfigInit',
     StruggleDetectionInit: 'struggleDetectionInit',
+    StruggleLiveBackfill: 'struggleLiveBackfill',
+    StruggleLiveTick: 'struggleLiveTick',
+    StruggleLiveReset: 'struggleLiveReset',
     ViewInitError: 'viewInitError',
 
     // Auth
@@ -152,6 +195,9 @@ interface ExtensionMsgPayloads {
         isEnabled: boolean;
         developerMode: boolean;
     };
+    struggleLiveBackfill: { ticks: LiveTick[] };
+    struggleLiveTick: { tick: LiveTick };
+    struggleLiveReset: undefined;
     viewInitError: { error: string };
 
     // Auth
