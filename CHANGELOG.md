@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Added
+
+- **Browser Sign-In (Passkey/SSO)**: New "Sign in with browser" option that completes login in your browser (including passkeys and SSO) and hands the session back to the editor. Desktop only.
+
 ## [0.4.8] - 2026-06-24
 
 ### Changed
