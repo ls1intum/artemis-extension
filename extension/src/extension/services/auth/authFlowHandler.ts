@@ -11,6 +11,8 @@ import { ApiError } from '@extension/types';
 import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 
 import { AuthManager } from './authManager';
+import { EXTERNAL_LOGIN_CALLBACK_PATH } from './externalLoginStarter';
+import { PendingExternalLoginStore } from './pendingExternalLogin';
 
 export class AuthFlowHandler {
     constructor(
@@ -23,6 +25,7 @@ export class AuthFlowHandler {
             hideLoadingAndSendServerUrl: () => void;
             showLogin: () => void;
         },
+        private readonly _pendingStore: PendingExternalLoginStore,
     ) {}
 
     public async checkServerUrlChange(): Promise<void> {
@@ -114,6 +117,80 @@ export class AuthFlowHandler {
             // branch above, which runs before reaching here).
             logger.error('Startup authentication did not complete (credentials kept)', LogCategory.AUTH, error);
             this._callbacks.hideLoadingAndSendServerUrl();
+        }
+    }
+
+    /**
+     * Completes a browser-delegated login from the custom-scheme callback. Validates the anti-forgery
+     * state and the pending flow, exchanges the one-time code for a JWT, and wires up the authenticated UI.
+     *
+     * @param uri the callback URI, e.g. {@code vscode://<extension-id>/external-login-callback?code=..&state=..}
+     */
+    public async completeExternalLogin(uri: vscode.Uri): Promise<void> {
+        if (uri.path !== EXTERNAL_LOGIN_CALLBACK_PATH) {
+            logger.warn(`Ignoring URI with unexpected path: ${uri.path}`, LogCategory.AUTH);
+            return;
+        }
+
+        const params = new URLSearchParams(uri.query);
+        const code = params.get('code') ?? undefined;
+        const state = params.get('state') ?? undefined;
+
+        const pending = await this._pendingStore.load();
+
+        if (!code || !state || !pending || pending.state !== state || this._pendingStore.isExpired(pending) || pending.serverUrl !== resolveServerUrl()) {
+            // Do NOT consume the pending record here: a stray/bogus callback must not cancel a legitimate
+            // in-flight login. The real callback can still arrive; abandoned flows expire via their TTL.
+            logger.warn('Rejected external-login callback (missing/expired/mismatched pending state)', LogCategory.AUTH);
+            vscode.window.showErrorMessage('Browser sign-in could not be completed. Please try again.');
+            this._callbacks.showLogin();
+            return;
+        }
+
+        // Valid callback: consume the pending record (single-use) before exchanging.
+        await this._pendingStore.clear();
+
+        try {
+            await this._artemisApi.exchangeExternalLoginCode(code, pending.verifier);
+        } catch (error) {
+            logger.error('External-login code exchange failed', LogCategory.AUTH, error);
+            vscode.window.showErrorMessage('Browser sign-in could not be completed. Please try again.');
+            this._callbacks.showLogin();
+            return;
+        }
+
+        // The token is now stored and valid. A failure past this point is post-auth wiring only and must
+        // not discard a valid token — mirror checkExistingAuthentication's no-logout-on-transient policy.
+        try {
+            const user = await this._artemisApi.getCurrentUser();
+            const updater = this._getAuthContextUpdater();
+            if (updater) {
+                await updater(true);
+            }
+            await this._callbacks.onAuthenticated({
+                username: user.login || 'User',
+                serverUrl: resolveServerUrl(),
+                user,
+            });
+            vscode.window.showInformationMessage(`Successfully signed in to Artemis as ${user.login ?? 'your account'}`);
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 401) {
+                await this._authManager.clear();
+                const updater = this._getAuthContextUpdater();
+                if (updater) {
+                    await updater(false);
+                }
+                this._callbacks.showLogin();
+            } else {
+                // The token is valid (exchange succeeded); mark the session authenticated so it is usable.
+                // The dashboard renders on the next view resolution even though immediate navigation failed.
+                logger.warn('Signed in but post-login setup did not complete (credentials kept)', LogCategory.AUTH, error);
+                const updater = this._getAuthContextUpdater();
+                if (updater) {
+                    await updater(true);
+                }
+                vscode.window.showInformationMessage('Signed in to Artemis. Reopen the Artemis panel if it does not refresh automatically.');
+            }
         }
     }
 

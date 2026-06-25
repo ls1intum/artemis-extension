@@ -883,4 +883,48 @@ suite('Artemis API Service Test Suite', () => {
             clock.restore();
         }
     });
+
+    test('exchangeExternalLoginCode stores the JWT cookie on success', async () => {
+        let stored: { token?: string; serverUrl?: string; persist?: boolean } = {};
+        (authManager as any).storeArtemisCredentials = async (token: string, serverUrl: string, persist: boolean) => {
+            stored = { token, serverUrl, persist };
+        };
+        global.fetch = async (url: any, options: any) => {
+            assert.strictEqual(url, 'https://artemis.example.com/api/core/public/external-login/token');
+            assert.strictEqual(options.method, 'POST');
+            const body = JSON.parse(options.body);
+            assert.strictEqual(body.code, 'one-time');
+            assert.strictEqual(body.codeVerifier, 'verifier');
+            return { ok: true, status: 200, json: async () => ({ accessToken: 'jwt-123' }) } as any;
+        };
+
+        await apiService.exchangeExternalLoginCode('one-time', 'verifier');
+
+        assert.strictEqual(stored.token, 'jwt=jwt-123', 'stores the Desktop cookie string');
+        assert.strictEqual(stored.persist, true);
+    });
+
+    test('exchangeExternalLoginCode throws and stores nothing on a non-2xx response', async () => {
+        let storeCalled = false;
+        (authManager as any).storeArtemisCredentials = async () => { storeCalled = true; };
+        global.fetch = async () => ({ ok: false, status: 401, statusText: 'Unauthorized' } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeExternalLoginCode('c', 'v'),
+            (err: unknown) => err instanceof ApiError && err.status === 401,
+        );
+        assert.strictEqual(storeCalled, false, 'a failed exchange must not store a token');
+    });
+
+    test('exchangeExternalLoginCode throws when no access token is returned', async () => {
+        let storeCalled = false;
+        (authManager as any).storeArtemisCredentials = async () => { storeCalled = true; };
+        global.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeExternalLoginCode('c', 'v'),
+            (err: unknown) => err instanceof Error && /no access token/i.test(err.message),
+        );
+        assert.strictEqual(storeCalled, false);
+    });
 });

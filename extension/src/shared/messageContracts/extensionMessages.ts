@@ -157,7 +157,7 @@ interface ExtensionMsgPayloads {
     // Auth
     loginSuccess: { username: string };
     loginError: { error: string };
-    setServerUrl: { serverUrl: string };
+    setServerUrl: { serverUrl: string; browserLoginAvailable?: boolean };
 
     // Loading
     showLoading: { message: string };

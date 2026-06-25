@@ -386,6 +386,37 @@ export class ArtemisApiService {
     }
 
     /**
+     * Exchanges a one-time external-login code and its PKCE verifier for a full Artemis JWT.
+     *
+     * Public endpoint (no auth header). On success the JWT is stored as the Desktop cookie string
+     * ("jwt=<token>"); on any failure nothing is stored, so a failed exchange never leaves a token behind.
+     *
+     * @param code         the one-time code received via the extension callback
+     * @param codeVerifier the PKCE code verifier matching the challenge sent at issue time
+     */
+    async exchangeExternalLoginCode(code: string, codeVerifier: string): Promise<void> {
+        const response = await fetchWithTimeout(`${this.getServerUrl()}${CONFIG.API.ENDPOINTS.EXTERNAL_LOGIN_TOKEN}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': getUserAgent(),
+            },
+            body: JSON.stringify({ code, codeVerifier }),
+        });
+
+        if (!response.ok) {
+            throw new ApiError('Browser login could not be completed.', response.status);
+        }
+
+        const body = (await response.json()) as { accessToken?: string };
+        if (!body.accessToken) {
+            throw new Error('Browser login succeeded but no access token was returned');
+        }
+
+        await this.authManager.storeArtemisCredentials(`${CONFIG.AUTH_COOKIE_NAME}=${body.accessToken}`, this.getServerUrl(), true);
+    }
+
+    /**
      * Inform the Artemis server that the user is logging out.
      *
      * Best-effort: this method never throws. The calling logout flow

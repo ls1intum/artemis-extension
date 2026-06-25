@@ -284,7 +284,8 @@ export class ViewInitDataService {
     }
 
     public sendLoginInit(): void {
-        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl() });
+        // Browser-delegated login is a Desktop affordance; Theia/EduIDE authenticates from the environment.
+        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl(), browserLoginAvailable: !getTheiaEnvironment().isTheia });
     }
 
     private _isDeveloperMode(): boolean {

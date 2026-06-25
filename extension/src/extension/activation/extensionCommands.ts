@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { AuthManager } from '@extension/services/auth';
+import { startBrowserLogin } from '@extension/services/auth/externalLoginStarter';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -15,6 +16,18 @@ import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@exte
 function registerLoginCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.login', () => {
         vscode.commands.executeCommand('artemis.loginView.focus');
+    });
+}
+
+function registerLoginWithBrowserCommand(context: vscode.ExtensionContext): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.loginWithBrowser', async () => {
+        try {
+            await startBrowserLogin(context);
+            vscode.window.showInformationMessage('Continue in your browser to finish signing in to Artemis.');
+        } catch (error) {
+            logger.error('Failed to start browser login', LogCategory.AUTH, error);
+            vscode.window.showErrorMessage('Could not start browser sign-in. Please try again.');
+        }
     });
 }
 
@@ -692,6 +705,7 @@ interface CommandDeps {
 export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
     return vscode.Disposable.from(
         registerLoginCommand(),
+        registerLoginWithBrowserCommand(deps.context),
         registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
         registerResetIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.providerRegistry),

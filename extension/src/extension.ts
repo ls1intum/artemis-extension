@@ -134,6 +134,20 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
+	// Browser-delegated login: handle the vscode:// callback the Artemis web app redirects to after the
+	// user signs in (passkey/SAML/password). Desktop only — Theia/EduIDE authenticates from the environment.
+	if (!theiaEnv.isTheia) {
+		context.subscriptions.push(
+			vscode.window.registerUriHandler({
+				handleUri: async (uri) => {
+					// Focus is UX only (not a readiness barrier); completion drives the UI via app state.
+					void vscode.commands.executeCommand('artemis.loginView.focus');
+					await artemisWebviewProvider.completeExternalLogin(uri);
+				},
+			})
+		);
+	}
+
 	const contextStore = new ContextStore(context);
 	context.subscriptions.push(contextStore);
 

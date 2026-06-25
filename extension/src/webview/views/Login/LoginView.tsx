@@ -47,6 +47,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	// Server URL for health checks
 	const [serverUrl, setServerUrl] = useState('');
 
+	// Whether browser-delegated login is offered (Desktop only; hidden in Theia/EduIDE)
+	const [browserLoginAvailable, setBrowserLoginAvailable] = useState(false);
+
 	// Health check state
 	const [showHealthChecks, setShowHealthChecks] = useState(false);
 	const [healthServices, setHealthServices] = useState<ServiceInfo[]>([]);
@@ -126,6 +129,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 			case ExtensionMsg.SetServerUrl: {
 				setServerUrl(msg.serverUrl ?? '');
+				setBrowserLoginAvailable(msg.browserLoginAvailable ?? false);
 				break;
 			}
 
@@ -181,6 +185,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 	const handleOpenSettings = () => {
 		postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
+	};
+
+	const handleBrowserLogin = () => {
+		postCommand(vscodeApi, 'loginWithBrowser');
 	};
 
 	return (
@@ -288,6 +296,21 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 						>
 							{isSubmitting ? 'Logging in...' : 'Login to Artemis'}
 						</Button>
+
+						{browserLoginAvailable && (
+							<div style={{ marginTop: '12px' }}>
+								<Button
+									type="button"
+									variant="secondary"
+									fullWidth
+									disabled={isSubmitting}
+									onClick={handleBrowserLogin}
+									testId="login-browser"
+								>
+									Sign in with browser
+								</Button>
+							</div>
+						)}
 
 						{/* Quick links */}
 						<div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>

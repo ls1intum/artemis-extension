@@ -135,4 +135,38 @@ describe('LoginView', () => {
 		});
 	});
 
+	it('shows the browser-login button and posts loginWithBrowser when available', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<LoginView vscodeApi={mockApi} />);
+
+		// Hidden until the extension reports availability (Desktop only)
+		expect(screen.queryByTestId('login-browser')).not.toBeInTheDocument();
+
+		dispatchExtensionMessage({
+			type: 'setServerUrl',
+			serverUrl: 'https://artemis.example.com',
+			browserLoginAvailable: true,
+		});
+
+		const browserButton = await screen.findByTestId('login-browser');
+		await userEvent.click(browserButton);
+
+		expect(mockApi.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'command', command: 'loginWithBrowser' }));
+	});
+
+	it('hides the browser-login button when not available (e.g. Theia)', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<LoginView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'setServerUrl',
+			serverUrl: 'https://artemis.example.com',
+			browserLoginAvailable: false,
+		});
+
+		await waitFor(() => {
+			expect(screen.queryByTestId('login-browser')).not.toBeInTheDocument();
+		});
+	});
+
 });

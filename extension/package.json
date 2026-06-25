@@ -34,7 +34,8 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onView:artemis.loginView"
+    "onView:artemis.loginView",
+    "onUri"
   ],
   "main": "./dist/extension.js",
   "browser": "./dist/extension.js",
@@ -44,6 +45,11 @@
         "command": "artemis.login",
         "title": "Artemis: Login",
         "icon": "$(sign-in)"
+      },
+      {
+        "command": "artemis.loginWithBrowser",
+        "title": "Artemis: Sign in with Browser",
+        "icon": "$(globe)"
       },
       {
         "command": "artemis.logout",
@@ -110,6 +116,10 @@
         {
           "command": "artemis.login",
           "when": "!iris:managedEnvironment"
+        },
+        {
+          "command": "artemis.loginWithBrowser",
+          "when": "!iris:theia"
         },
         {
           "command": "artemis.logout",

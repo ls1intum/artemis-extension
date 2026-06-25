@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
+import { startBrowserLogin } from '@extension/services/auth/externalLoginStarter';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { CONFIG, VSCODE_CONFIG } from '@extension/utils/constants';
 
@@ -14,6 +15,7 @@ export class AuthCommandModule {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.Login]: this.handleLogin,
+            [WebviewCmd.LoginWithBrowser]: this.handleLoginWithBrowser,
             [WebviewCmd.Logout]: this.handleLogout,
         };
     }
@@ -71,6 +73,16 @@ export class AuthCommandModule {
         } catch (error: unknown) {
             logger.error('Logout error:', LogCategory.AUTH, error);
             vscode.window.showErrorMessage('Error during logout');
+        }
+    };
+
+    private handleLoginWithBrowser = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            await startBrowserLogin(this.context.extensionContext);
+            vscode.window.showInformationMessage('Continue in your browser to finish signing in to Artemis.');
+        } catch (error: unknown) {
+            logger.error('Failed to start browser login:', LogCategory.AUTH, error);
+            vscode.window.showErrorMessage('Could not start browser sign-in. Please try again.');
         }
     };
 

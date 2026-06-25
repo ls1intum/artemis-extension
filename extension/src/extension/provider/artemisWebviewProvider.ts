@@ -17,6 +17,7 @@ import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import type { ResultDTO } from '@extension/domain';
 import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
+import { PendingExternalLoginStore } from '@extension/services/auth/pendingExternalLogin';
 import { type CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -237,6 +238,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 hideLoadingAndSendServerUrl: () => this._navigationFacade.hideLoadingAndSendServerUrl(),
                 showLogin: () => this._navigationFacade.showLogin(),
             },
+            new PendingExternalLoginStore(this._extensionContext),
         );
 
         // 13. Wire WebSocket subscription handler
@@ -426,6 +428,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      */
     public showLogin(): void {
         this._navigationFacade.showLogin();
+    }
+
+    /** Completes a browser-delegated login from the custom-scheme callback (see the URI handler in extension.ts). */
+    public completeExternalLogin(uri: vscode.Uri): Promise<void> {
+        return this._authFlowHandler.completeExternalLogin(uri);
     }
 
     // ── BaseWebviewProvider hooks ──────────────────────────────────────

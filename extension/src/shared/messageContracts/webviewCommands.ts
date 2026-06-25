@@ -15,6 +15,7 @@ export const WebviewMsgType = {
 export const WebviewCmd = {
     // Auth
     Login: 'login',
+    LoginWithBrowser: 'loginWithBrowser',
     Logout: 'logout',
 
     // Navigation
@@ -112,6 +113,7 @@ export type WebviewCmd = (typeof WebviewCmd)[keyof typeof WebviewCmd];
 interface WebviewCmdPayloads {
     // Auth
     login: { username: string; password: string; rememberMe: boolean };
+    loginWithBrowser: undefined;
     logout: undefined;
 
     // Navigation

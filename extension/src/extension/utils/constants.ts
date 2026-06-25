@@ -2,9 +2,12 @@
 export const CONFIG = {
     ARTEMIS_SERVER_URL_DEFAULT: 'https://artemis.tum.de',
     AUTH_COOKIE_NAME: 'jwt',
+    // Web app path that bridges a browser login back to the extension (browser-delegated login).
+    EXTERNAL_LOGIN_PATH: '/external-login',
     SECRET_KEYS: {
         ARTEMIS_TOKEN: 'artemis-auth-token',
         ARTEMIS_SERVER_URL: 'artemis-server-url',
+        PENDING_EXTERNAL_LOGIN: 'artemis-pending-external-login',
     },
     WEBVIEW: {
         VIEW_TYPE: 'artemis.loginView',
@@ -15,6 +18,7 @@ export const CONFIG = {
             AUTHENTICATE: '/api/core/public/authenticate',
             LOGOUT: '/api/core/public/logout',
             RENDER_PROBLEM_STATEMENT: '/api/exercise/problem-statement/render',
+            EXTERNAL_LOGIN_TOKEN: '/api/core/public/external-login/token',
         },
         // Backstop against a server that accepts the connection but never responds.
         // Generous on purpose so slow networks are not falsely aborted; this only
