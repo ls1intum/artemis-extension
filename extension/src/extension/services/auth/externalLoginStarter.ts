@@ -37,9 +37,13 @@ export async function startBrowserLogin(context: vscode.ExtensionContext): Promi
     // asExternalUri keeps the callback resolvable in remote/UI scenarios.
     const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://${context.extension.id}${EXTERNAL_LOGIN_CALLBACK_PATH}`));
 
+    // toString(true) = skipEncoding. asExternalUri may append a ?windowId=N marker; with default
+    // encoding that inner query gets pre-encoded and then double-encoded by URLSearchParams, which makes
+    // the marker fold into the callback's path on the way back (breaking the path match). Skipping the
+    // inner encoding keeps windowId a proper query param so the callback round-trips cleanly.
     const params = new URLSearchParams({
         code_challenge: challenge,
-        callback: callbackUri.toString(),
+        callback: callbackUri.toString(true),
         state,
     });
     const webUrl = `${serverUrl}${CONFIG.EXTERNAL_LOGIN_PATH}?${params.toString()}`;

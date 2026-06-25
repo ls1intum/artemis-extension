@@ -185,6 +185,36 @@ suite('AuthFlowHandler.completeExternalLogin', () => {
         assert.strictEqual(state.showLoginCalled, false);
     });
 
+    test('completes when asExternalUri folds ?windowId into the path', async () => {
+        // Real-world callback shape: asExternalUri appends a ?windowId=N marker; after the web app's
+        // redirect round-trip it arrives encoded inside the path ("%3FwindowId%3D3") rather than in the
+        // query, while code/state are in the real query. The handler must still parse and complete.
+        const { handler, state } = makeHandler({ pending: validPending() });
+        const uri = vscode.Uri.parse('vscode://aet-tum.iris-thaumantias/external-login-callback%3FwindowId%3D3?code=one-time&state=the-state');
+        assert.ok(uri.path.includes('?windowId'), 'precondition: windowId marker is folded into the path');
+        await handler.completeExternalLogin(uri);
+        assert.deepStrictEqual(state.exchanged, { code: 'one-time', verifier: 'the-verifier' });
+        assert.strictEqual(state.pendingCleared, true, 'pending must be consumed');
+        assert.strictEqual(state.showLoginCalled, false);
+    });
+
+    test('reads code/state when the whole query is folded into the path', async () => {
+        // Defensive fallback: if a platform folds the entire query (incl. code/state) into the path.
+        const { handler, state } = makeHandler({ pending: validPending() });
+        const uri = vscode.Uri.parse('vscode://aet-tum.iris-thaumantias/external-login-callback%3Fcode%3Done-time%26state%3Dthe-state');
+        await handler.completeExternalLogin(uri);
+        assert.deepStrictEqual(state.exchanged, { code: 'one-time', verifier: 'the-verifier' });
+        assert.strictEqual(state.pendingCleared, true, 'pending must be consumed');
+    });
+
+    test('rejects a near-miss path that merely ends with the callback path', async () => {
+        const { handler, state } = makeHandler({ pending: validPending() });
+        await handler.completeExternalLogin(vscode.Uri.parse('vscode://aet-tum.iris-thaumantias/evil/external-login-callback?code=one-time&state=the-state'));
+        assert.strictEqual(state.exchanged, undefined, 'a non-exact path must not exchange');
+        assert.strictEqual(state.pendingCleared, false, 'a non-exact path must not consume the pending flow');
+        assert.strictEqual(state.showLoginCalled, false, 'an unexpected path is ignored silently, not a failed login');
+    });
+
     test('rejects a state mismatch without exchanging', async () => {
         const { handler, state } = makeHandler({ pending: validPending() });
         await handler.completeExternalLogin(callbackUri('code=one-time&state=wrong'));

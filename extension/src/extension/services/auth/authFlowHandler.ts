@@ -127,12 +127,20 @@ export class AuthFlowHandler {
      * @param uri the callback URI, e.g. {@code vscode://<extension-id>/external-login-callback?code=..&state=..}
      */
     public async completeExternalLogin(uri: vscode.Uri): Promise<void> {
-        if (uri.path !== EXTERNAL_LOGIN_CALLBACK_PATH) {
+        // asExternalUri appends a ?windowId=N marker to the callback. Depending on how it round-trips
+        // through the web app's redirect, that marker can fold into uri.path (e.g.
+        // "/external-login-callback?windowId=3") instead of staying in uri.query. Strip any query that
+        // leaked into the path before matching, and read params from both sources.
+        const pathQueryIndex = uri.path.indexOf('?');
+        const path = pathQueryIndex === -1 ? uri.path : uri.path.slice(0, pathQueryIndex);
+        const pathQuery = pathQueryIndex === -1 ? '' : uri.path.slice(pathQueryIndex + 1);
+
+        if (path !== EXTERNAL_LOGIN_CALLBACK_PATH) {
             logger.warn(`Ignoring URI with unexpected path: ${uri.path}`, LogCategory.AUTH);
             return;
         }
 
-        const params = new URLSearchParams(uri.query);
+        const params = new URLSearchParams([uri.query, pathQuery].filter(Boolean).join('&'));
         const code = params.get('code') ?? undefined;
         const state = params.get('state') ?? undefined;
 
@@ -141,7 +149,7 @@ export class AuthFlowHandler {
         if (!code || !state || !pending || pending.state !== state || this._pendingStore.isExpired(pending) || pending.serverUrl !== resolveServerUrl()) {
             // Do NOT consume the pending record here: a stray/bogus callback must not cancel a legitimate
             // in-flight login. The real callback can still arrive; abandoned flows expire via their TTL.
-            logger.warn('Rejected external-login callback (missing/expired/mismatched pending state)', LogCategory.AUTH);
+            logger.warn(`Rejected external-login callback: code=${!!code} state=${!!state} pending=${!!pending} stateMatch=${pending?.state === state} expired=${pending ? this._pendingStore.isExpired(pending) : 'n/a'} serverMatch=${pending?.serverUrl === resolveServerUrl()}`, LogCategory.AUTH);
             vscode.window.showErrorMessage('Browser sign-in could not be completed. Please try again.');
             this._callbacks.showLogin();
             return;

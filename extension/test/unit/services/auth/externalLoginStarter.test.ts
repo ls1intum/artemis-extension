@@ -46,4 +46,19 @@ suite('startBrowserLogin', () => {
         assert.ok(callback!.startsWith(`vscode://${EXTENSION_ID}/`), `callback must target the extension id, got ${callback}`);
         assert.ok(callback!.endsWith('/external-login-callback'), 'callback path must be the external-login-callback');
     });
+
+    test('keeps the asExternalUri windowId marker as a real query param (not folded into the path)', async () => {
+        // asExternalUri adds ?windowId=N for window-correct routing. toString(true) keeps it a proper
+        // query param so the callback round-trips back as a query rather than folded into the path.
+        (vscode.env.asExternalUri as sinon.SinonStub).callsFake(async (uri: vscode.Uri) => uri.with({ query: 'windowId=7' }));
+
+        await startBrowserLogin(context);
+
+        const opened = new URL((openExternal.firstCall.args[0] as vscode.Uri).toString(true));
+        const callback = opened.searchParams.get('callback');
+        assert.ok(callback, 'callback must be present');
+        const callbackUrl = new URL(callback!);
+        assert.strictEqual(callbackUrl.pathname, '/external-login-callback', 'windowId must not leak into the path');
+        assert.strictEqual(callbackUrl.searchParams.get('windowId'), '7', 'windowId must stay a real query param');
+    });
 });
