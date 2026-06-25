@@ -214,7 +214,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             md.appendMarkdown(`- *none*\n`);
         }
         md.appendMarkdown(`\n**Session:** \`${d.sessionId}\`\n\n`);
-        md.appendMarkdown(`**Server:** \`${d.serverUrl}\`\n`);
+        md.appendMarkdown(`**Server:** \`${d.serverUrl}\`\n\n`);
         md.appendMarkdown(`**WebSocket:** \`${d.websocketUrl}\`\n`);
         return md;
     }
