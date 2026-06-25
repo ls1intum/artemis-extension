@@ -895,7 +895,7 @@ suite('Artemis API Service Test Suite', () => {
             const body = JSON.parse(options.body);
             assert.strictEqual(body.code, 'one-time');
             assert.strictEqual(body.codeVerifier, 'verifier');
-            return { ok: true, status: 200, json: async () => ({ accessToken: 'jwt-123' }) } as any;
+            return { ok: true, status: 200, json: async () => ({ access_token: 'jwt-123' }) } as any;
         };
 
         await apiService.exchangeExternalLoginCode('one-time', 'verifier');

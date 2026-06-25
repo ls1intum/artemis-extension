@@ -408,12 +408,12 @@ export class ArtemisApiService {
             throw new ApiError('Browser login could not be completed.', response.status);
         }
 
-        const body = (await response.json()) as { accessToken?: string };
-        if (!body.accessToken) {
+        const body = (await response.json()) as { access_token?: string };
+        if (!body.access_token) {
             throw new Error('Browser login succeeded but no access token was returned');
         }
 
-        await this.authManager.storeArtemisCredentials(`${CONFIG.AUTH_COOKIE_NAME}=${body.accessToken}`, this.getServerUrl(), true);
+        await this.authManager.storeArtemisCredentials(`${CONFIG.AUTH_COOKIE_NAME}=${body.access_token}`, this.getServerUrl(), true);
     }
 
     /**
