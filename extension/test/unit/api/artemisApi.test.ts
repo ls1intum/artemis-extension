@@ -84,6 +84,22 @@ suite('Artemis API Service Test Suite', () => {
         }
     });
 
+    test('treats a 200 account response with a whitespace-only body as unauthenticated (401)', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '   \n',
+        } as any);
+
+        try {
+            await apiService.getCurrentUser();
+            assert.fail('Should have thrown error');
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual((error as ApiError).status, 401);
+        }
+    });
+
     test('should handle 401 error', async () => {
         global.fetch = async () => ({
             ok: false,
