@@ -6,6 +6,7 @@ import { ExtensionMsg } from '@shared/messageContracts';
 import { isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { classifyIrisFrame } from '@extension/services/struggleIntervention/classifyIrisFrame';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import type { IrisChatMessage } from '@extension/types';
 
@@ -64,6 +65,8 @@ export class IrisWebSocketMessageHandler {
             if (msg.sender !== 'USER' && content) {
                 logger.info('🤖 Sending assistant message to webview (this should hide thinking indicator)', LogCategory.WEBSOCKET);
                 const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
+                const frameClass = classifyIrisFrame(data);
+                const isProactive = frameClass.kind === 'message' && frameClass.proactive;
                 this._postMessage({
                     type: ExtensionMsg.AddMessage,
                     message: {
@@ -71,7 +74,8 @@ export class IrisWebSocketMessageHandler {
                         role: 'assistant',
                         content: content,
                         timestamp: sentAtMs ?? Date.now(),
-                        helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null
+                        helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null,
+                        ...(isProactive ? { origin: 'proactive' as const } : {})
                     }
                 });
 

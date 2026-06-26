@@ -47,6 +47,7 @@ function MessageBubbleComponent({
 
     const hasFeedback = message.helpful !== undefined && message.helpful !== null;
     const isFailed = message.status === 'error';
+    const isProactive = isAssistant && message.origin === 'proactive';
 
     return (
         <div
@@ -63,8 +64,15 @@ function MessageBubbleComponent({
                         [styles.userBubble]: isUser,
                         [styles.assistantBubble]: isAssistant,
                         [styles.error]: isFailed,
+                        [styles.proactiveBubble]: isProactive,
                     })}
+                    data-origin={isProactive ? 'proactive' : undefined}
                 >
+                    {isProactive && (
+                        <div className={styles.proactiveCaption}>
+                            Iris noticed you might be stuck
+                        </div>
+                    )}
                     {/* Always render the original message content. The error
                         footer below augments it instead of replacing it, so the
                         user can see what they tried to send. */}
@@ -153,6 +161,7 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.content === next.message.content &&
         prev.message.helpful === next.message.helpful &&
         prev.message.status === next.message.status &&
+        prev.message.origin === next.message.origin &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
         prev.retryDisabled === next.retryDisabled &&

@@ -18,6 +18,14 @@ export interface ChatMessage {
      * stays non-retryable as long as `.noai` is still detected).
      */
     errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+    /**
+     * Durable provenance marker for assistant messages. `'proactive'` flags a
+     * message Iris pushed unprompted (struggle intervention) so the bubble can
+     * render distinctly. Survives a history reload because the extension maps
+     * the server's `'PROACTIVE_STRUGGLE'` onto this flag on both the live
+     * websocket path and the GET /messages history path.
+     */
+    origin?: 'proactive';
 }
 
 // Chat session summary (from extension)
