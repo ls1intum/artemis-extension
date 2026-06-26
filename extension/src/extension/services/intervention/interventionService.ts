@@ -54,6 +54,8 @@ export class InterventionService implements vscode.Disposable, AlertSink, Sessio
         this._current = alert;
         this._statusBarItem.text = '$(lightbulb) Need help?';
         this._statusBarItem.tooltip = 'Iris noticed you might be stuck — click to open the chat.';
+        // Warning (orange) background so the proactive nudge stands out instead of getting lost in the status bar.
+        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         this._statusBarItem.show();
         this._onDidDeliver.fire(alert);
     }
@@ -68,6 +70,7 @@ export class InterventionService implements vscode.Disposable, AlertSink, Sessio
         this._ambientVisible = true;
         this._statusBarItem.text = '$(lightbulb) Need help?';
         this._statusBarItem.tooltip = hint || 'Iris noticed you might be stuck.';
+        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         this._statusBarItem.show();
     }
 
@@ -95,6 +98,7 @@ export class InterventionService implements vscode.Disposable, AlertSink, Sessio
         // path (which does not set these) cannot read a stale `opensChat=false`/hint from a prior ambient.
         this._ambientHint = undefined;
         this._ambientOpensChat = true;
+        this._statusBarItem.backgroundColor = undefined;
         this._statusBarItem.hide();
     }
 
