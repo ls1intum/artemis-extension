@@ -155,7 +155,15 @@ export class ArtemisApiService {
     // Get current user information
     async getCurrentUser(): Promise<ArtemisUser> {
         const response = await this.makeRequest('/api/core/public/account');
-        return parseArtemisUser(await response.json());
+        const body = (await response.text()).trim();
+        if (!body) {
+            // /api/core/public/account is public: an unauthenticated request gets a
+            // 200 with an empty body rather than a 401. Surface it as a 401 so callers
+            // (notably startup credential validation) clear the stale token instead of
+            // treating the empty response as a transient failure and keeping it.
+            throw new ApiError('Not authenticated', 401);
+        }
+        return parseArtemisUser(JSON.parse(body));
     }
 
     // Get archived courses (inactive courses from previous semesters)
