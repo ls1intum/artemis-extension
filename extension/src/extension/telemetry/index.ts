@@ -4,10 +4,12 @@ import * as path from 'path';
 
 import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
+import { LogCategory, logger } from '@extension/services/loggingService';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
 import { TUNING } from '@extension/services/struggle/config';
 import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
+import type { TickRecord } from '@extension/services/struggle/types';
 import { showActiveNotification } from '@extension/services/struggleIntervention/activeNotification';
 import { collectExerciseScopedFiles } from '@extension/services/struggleIntervention/exerciseScopedCollector';
 import { InterventionEventLog } from '@extension/services/struggleIntervention/interventionEventLog';
@@ -16,6 +18,17 @@ import { subscribeStruggleEvents } from '@extension/services/struggleInterventio
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 
 import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, StruggleEngineHandle } from './contract';
+
+/** One-line developer-mode summary of a single engine tick (urgency vs θ + the gates that suppressed it). */
+function formatTick(t: TickRecord): string {
+    const d = t.decisionTrace;
+    const gatesOn = Object.entries(d.gates).filter(([, on]) => on).map(([name]) => name);
+    const why = d.outcome === 'suppressed' && gatesOn.length > 0 ? ` (gates: ${gatesOn.join(', ')})` : '';
+    const boundaries = d.boundariesPresent.length > 0 ? d.boundariesPresent.join('+') : '–';
+    const typing = d.typingRate === null ? '–' : `${Math.round(d.typingRate)}`;
+    return `tick t=${t.t}s urgency=${d.urgency.toFixed(2)}/θ${d.theta.toFixed(2)} `
+        + `typing=${typing}/min boundaries=[${boundaries}] → ${d.outcome}${why}`;
+}
 
 /**
  * Real struggle-detection engine + proactive intervention (full / Marketplace /
@@ -29,6 +42,12 @@ import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, Struggl
  * subtrees are bundled there (proved fail-closed by scripts/verify-clean-bundle.js).
  */
 export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHandle {
+    // Developer-mode diagnostic sink: surfaces engine ticks, the outgoing intervention
+    // request, and Iris's inbound response into the "Artemis Extension" output channel.
+    // Silent for normal students (gated on artemis.developerMode), so it stays in permanently.
+    const isDevMode = (): boolean => vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false);
+    const devLog = (msg: string): void => { if (isDevMode()) { logger.info(msg, LogCategory.STRUGGLE); } };
+
     const lamp = new InterventionService();
     deps.context.subscriptions.push(lamp);
 
@@ -63,6 +82,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         setBadge: on => deps.setProactiveBadge(on),
         showActiveNotification: () => showActiveNotification(() => orchestrator.recordOutcome('clicked')),
         log,
+        devLog,
     });
 
     // Tier-2 delivery throttle wraps the orchestrator (downstream of the recorded
@@ -75,7 +95,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     });
 
     // Every engine tick -> orchestrator trajectory buffer (ungated; gating lives on deliver()).
-    deps.context.subscriptions.push(coordinator.onDidTick(t => orchestrator.onTick(t)));
+    // In developer mode, also surface the per-tick decision so it's visible why an alert (does not) fire.
+    deps.context.subscriptions.push(coordinator.onDidTick(t => {
+        orchestrator.onTick(t);
+        if (isDevMode()) { devLog(formatTick(t)); }
+    }));
     // A lamp click on a surfaced hint is an engagement signal for the local eval log.
     deps.context.subscriptions.push(lamp.onDidClick(() => orchestrator.recordOutcome('clicked')));
     // Inbound per-user struggle events (ambient/active) from the server -> orchestrator.
@@ -85,10 +109,16 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // must never surface in (or consume the per-session budget of) the new session.
     deps.context.subscriptions.push(subscribeStruggleEvents(deps.subscribeStruggleTopic, {
         onServerAmbient: (exerciseId, hint, c) => {
-            if (exerciseId === coordinator.activeExerciseId) { orchestrator.onServerAmbient(hint, c); }
+            const active = exerciseId === coordinator.activeExerciseId;
+            devLog(`◀ Iris AMBIENT exercise=${exerciseId} conf=${c ?? '–'}`
+                + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}: "${hint}"`);
+            if (active) { orchestrator.onServerAmbient(hint, c); }
         },
         onServerActive: (exerciseId, sid, c) => {
-            if (exerciseId === coordinator.activeExerciseId) { orchestrator.onServerActive(sid, c); }
+            const active = exerciseId === coordinator.activeExerciseId;
+            devLog(`◀ Iris ACTIVE exercise=${exerciseId} session=${sid} conf=${c ?? '–'}`
+                + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
+            if (active) { orchestrator.onServerActive(sid, c); }
         },
     }));
 

@@ -33,6 +33,8 @@ export interface StruggleInterventionDeps {
     showActiveNotification(): void;
     log: InterventionEventLog;
     setTimeoutFn?: (fn: () => void, ms: number) => void;
+    /** Developer-mode diagnostic sink (gated upstream); no-op when omitted. Pure string out, no effects. */
+    devLog?(msg: string): void;
 }
 
 /**
@@ -69,9 +71,16 @@ export class StruggleInterventionService implements AlertSink {
         void this._handleAlert(alert);
     }
 
+    /** Developer-mode diagnostic line (gated upstream); no-op when devLog is not injected. */
+    private _dbg(msg: string): void {
+        this._deps.devLog?.(msg);
+    }
+
     /** No-AI path: deterministic signal-keyed local template on the lamp, ZERO egress; click shows the template. */
     private _fallback(signal: StruggleSignal): void {
-        this._deps.showAmbient(templateForSignal(signal), false);
+        const template = templateForSignal(signal);
+        this._dbg(`  ↳ FALLBACK (no egress): local lamp template "${template}"`);
+        this._deps.showAmbient(template, false);
         this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'template' }, signal);
     }
 
@@ -79,21 +88,33 @@ export class StruggleInterventionService implements AlertSink {
         // Phase 0: only edit-path alerts produce a proactive intervention. Discrete
         // add-on alerts (e.g. test-stagnation) are fully skipped here: no POST, no
         // wire signal, no local fallback surface.
-        if (alert.kind !== 'edit') { return; }
+        if (alert.kind !== 'edit') {
+            this._dbg(`alert kind=${alert.kind} skipped (only edit-path alerts intervene)`);
+            return;
+        }
         try {
             const signal = buildStruggleSignal(alert, this._buffer.snapshot());
+            const optedIn = this._deps.isEgressEnabled();
+            const hasExercise = this._deps.getExerciseId() !== undefined;
+            const noaiMarker = this._deps.hasNoaiMarker();
             const outcome = decideOutcome({
-                optedIn: this._deps.isEgressEnabled(),
+                optedIn,
                 inFlight: this._inFlight,
-                hasExercise: this._deps.getExerciseId() !== undefined,
-                noaiMarker: this._deps.hasNoaiMarker(),
+                hasExercise,
+                noaiMarker,
                 serverAvailable: this._serverAvailable,
             });
+            this._dbg(`▶ ALERT t=${signal.alert.tSessionS}s boundary=${signal.alert.primaryBoundary} `
+                + `severity=${signal.alert.severity.toFixed(2)} `
+                + `top=[${signal.dominantComponents.map(c => `${c.name}=${c.value.toFixed(2)}`).join(', ')}] `
+                + `→ decision=${outcome} `
+                + `(egressOptIn=${optedIn}, hasExercise=${hasExercise}, noai=${noaiMarker}, serverUp=${this._serverAvailable}, inFlight=${this._inFlight})`);
             if (outcome === 'fallback') {
                 this._fallback(signal);
                 return;
             }
             if (outcome === 'skip') {
+                this._dbg('  ↳ SKIP (no POST, no surface)');
                 return;
             }
             const exerciseId = this._deps.getExerciseId() as number;
@@ -103,15 +124,21 @@ export class StruggleInterventionService implements AlertSink {
             this._pendingSignal = signal;
             this._setInFlight(true);
             const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
+            const paths = Object.keys(uncommittedFiles);
+            const bytes = paths.reduce((n, p) => n + uncommittedFiles[p].length, 0);
+            this._dbg(`  ↳ POST exercise=${exerciseId} → ${paths.length} file(s), ${bytes}B egress`
+                + (paths.length ? `: [${paths.map(p => `${p} (${uncommittedFiles[p].length}B)`).join(', ')}]` : ''));
             await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'server', signal });
             const result = await this._deps.postIntervention(exerciseId, { struggleSignal: signal, uncommittedFiles });
+            this._dbg(`  ↳ POST result: ${result}`);
             if (result === 'unavailable') {
                 this._serverAvailable = false;
                 this._setInFlight(false);
                 this._fallback(signal);
             }
         }
-        catch {
+        catch (err) {
+            this._dbg(`  ↳ ERROR during intervention: ${err instanceof Error ? err.message : String(err)}`);
             this._setInFlight(false);
         }
     }
@@ -132,11 +159,13 @@ export class StruggleInterventionService implements AlertSink {
         this._serverAvailable = true;
         this._setInFlight(false);
         if (this._activeCount >= MAX_ACTIVE_PER_SESSION) {
+            this._dbg(`  ↳ ACTIVE session=${sessionId} CAPPED (${this._activeCount}/${MAX_ACTIVE_PER_SESSION} this session) → lamp only`);
             this._deps.showAmbient('Iris added a suggestion to the chat.', true);
             this._surface({ action: 'active', finalAction: 'ambient', surface: 'lamp', source: 'server', confidence }, this._pendingSignal);
             return;
         }
         this._activeCount += 1;
+        this._dbg(`  ↳ ACTIVE → opening proactive session=${sessionId} (#${this._activeCount}/${MAX_ACTIVE_PER_SESSION})`);
         void this._deps.openSession(sessionId);
         this._deps.setBadge(true);
         this._deps.showActiveNotification();
