@@ -611,8 +611,6 @@ suite('Artemis API Service Test Suite', () => {
         await apiService.markMessageHelpful(sessionId, messageId, true);
     });
 
-    // isServerUrlChanged moved to AuthManager — tested in authManager.test.ts
-
     test('should fallback to creating VCS token when none exists', async () => {
         const participationId = 9;
         let attempt = 0;
