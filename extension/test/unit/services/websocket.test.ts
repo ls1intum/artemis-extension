@@ -197,7 +197,7 @@ suite('ArtemisWebsocketService Safety Features', () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
         // Pre-authenticate to avoid auth errors
-        await authManager.storeArtemisCredentials('jwt=test-token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=test-token', true);
         wsService = new TestableArtemisWebsocketService(authManager);
     });
 
@@ -319,7 +319,7 @@ suite('ArtemisWebsocketService Connection State Management', () => {
     setup(async () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
-        await authManager.storeArtemisCredentials('jwt=test-token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=test-token', true);
         wsService = new TestableArtemisWebsocketService(authManager);
     });
 
@@ -417,7 +417,7 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
     setup(async () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
-        await authManager.storeArtemisCredentials('jwt=test-token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=test-token', true);
         wsService = new TestableArtemisWebsocketService(authManager);
     });
 
@@ -520,7 +520,7 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
     setup(async () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
-        await authManager.storeArtemisCredentials('jwt=test-token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=test-token', true);
 
         wsService = new TestableArtemisWebsocketService(authManager);
 
@@ -647,7 +647,7 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
     setup(async () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
-        await authManager.storeArtemisCredentials('jwt=test-token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=test-token', true);
 
         wsService = new TestableArtemisWebsocketService(authManager);
 
@@ -821,7 +821,7 @@ suite('WebSocket Integration Tests', () => {
     setup(async () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
-        await authManager.storeArtemisCredentials('jwt=test-token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=test-token', true);
 
         wsService = new TestableArtemisWebsocketService(authManager);
 
@@ -951,7 +951,7 @@ suite('WebSocket Race Condition Fixes', () => {
     setup(async () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
-        await authManager.storeArtemisCredentials('jwt=test-token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=test-token', true);
         wsService = new TestableArtemisWebsocketService(authManager);
     });
 

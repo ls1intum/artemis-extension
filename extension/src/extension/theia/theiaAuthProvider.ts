@@ -31,7 +31,6 @@ export async function authenticateFromEnvironment(
     // Store raw JWT in memory only — never persist ENV tokens to SecretStorage
     await authManager.storeArtemisCredentials(
         theiaEnv.artemisToken,
-        theiaEnv.artemisUrl,
         false,
     );
 

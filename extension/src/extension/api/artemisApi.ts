@@ -380,7 +380,7 @@ export class ArtemisApiService {
         }
 
         // Store as cookie string — Desktop auth sends Cookie header, not Bearer
-        await this.authManager.storeArtemisCredentials(jwtCookie, this.getServerUrl(), rememberMe);
+        await this.authManager.storeArtemisCredentials(jwtCookie, rememberMe);
 
         return { success: true };
     }

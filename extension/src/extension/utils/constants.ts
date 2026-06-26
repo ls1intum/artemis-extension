@@ -4,7 +4,6 @@ export const CONFIG = {
     AUTH_COOKIE_NAME: 'jwt',
     SECRET_KEYS: {
         ARTEMIS_TOKEN: 'artemis-auth-token',
-        ARTEMIS_SERVER_URL: 'artemis-server-url',
     },
     WEBVIEW: {
         VIEW_TYPE: 'artemis.loginView',

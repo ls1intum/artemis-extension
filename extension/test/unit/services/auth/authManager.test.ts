@@ -16,15 +16,12 @@ suite('AuthManager Test Suite', () => {
 
     test('should store and retrieve credentials', async () => {
         const jwt = 'jwt=12345';
-        const url = 'https://artemis.example.com';
 
-        await authManager.storeArtemisCredentials(jwt, url, true);
+        await authManager.storeArtemisCredentials(jwt, true);
 
         const storedJwt = await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        const storedUrl = await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
 
         assert.strictEqual(storedJwt, jwt);
-        assert.strictEqual(storedUrl, url);
 
         const headers = await authManager.getAuthHeaders();
         assert.deepStrictEqual(headers, { 'Cookie': jwt });
@@ -32,23 +29,19 @@ suite('AuthManager Test Suite', () => {
 
     test('should clear credentials', async () => {
         const jwt = 'jwt=12345';
-        const url = 'https://artemis.example.com';
 
-        await authManager.storeArtemisCredentials(jwt, url, true);
+        await authManager.storeArtemisCredentials(jwt, true);
         await authManager.clear();
 
         const storedJwt = await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        const storedUrl = await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
 
         assert.strictEqual(storedJwt, undefined);
-        assert.strictEqual(storedUrl, undefined);
     });
 
     test('should use memory token if not persisted', async () => {
         const jwt = 'jwt=memory';
-        const url = 'https://artemis.example.com';
 
-        await authManager.storeArtemisCredentials(jwt, url, false);
+        await authManager.storeArtemisCredentials(jwt, false);
 
         const storedJwt = await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
         assert.strictEqual(storedJwt, undefined); // Should not be in secrets
@@ -59,7 +52,7 @@ suite('AuthManager Test Suite', () => {
 
     test('should return correct auth headers', async () => {
         const jwt = 'jwt=token';
-        await authManager.storeArtemisCredentials(jwt, 'url', false);
+        await authManager.storeArtemisCredentials(jwt, false);
 
         const headers = await authManager.getAuthHeaders();
         assert.deepStrictEqual(headers, { 'Cookie': jwt });
@@ -68,7 +61,7 @@ suite('AuthManager Test Suite', () => {
     test('should return Bearer headers when enableBearerAuth is called', async () => {
         const jwt = 'eyJhbGciOiJIUzI1NiJ9.raw-token';
         authManager.enableBearerAuth();
-        await authManager.storeArtemisCredentials(jwt, 'url', false);
+        await authManager.storeArtemisCredentials(jwt, false);
 
         const headers = await authManager.getAuthHeaders();
         assert.deepStrictEqual(headers, { 'Authorization': `Bearer ${jwt}` });
@@ -94,59 +87,15 @@ suite('AuthManager Test Suite', () => {
     });
 
     test('hasAuthToken returns true when only in-memory token is set', async () => {
-        await authManager.storeArtemisCredentials('jwt=memory', 'https://example.com', false);
+        await authManager.storeArtemisCredentials('jwt=memory', false);
         const result = await authManager.hasAuthToken();
         assert.strictEqual(result, true);
     });
 
     test('hasAuthToken returns false after clear', async () => {
-        await authManager.storeArtemisCredentials('jwt=token', 'https://example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
         await authManager.clear();
         const result = await authManager.hasAuthToken();
-        assert.strictEqual(result, false);
-    });
-
-    // --- getStoredLoginServerUrl / isServerUrlChanged ---
-
-    test('getStoredLoginServerUrl returns undefined when not stored', async () => {
-        const result = await authManager.getStoredLoginServerUrl();
-        assert.strictEqual(result, undefined);
-    });
-
-    test('getStoredLoginServerUrl returns stored URL after persist', async () => {
-        const url = 'https://artemis.example.com';
-        await authManager.storeArtemisCredentials('jwt=token', url, true);
-        const result = await authManager.getStoredLoginServerUrl();
-        assert.strictEqual(result, url);
-    });
-
-    test('getStoredLoginServerUrl returns undefined when not persisted', async () => {
-        await authManager.storeArtemisCredentials('jwt=memory', 'https://example.com', false);
-        const result = await authManager.getStoredLoginServerUrl();
-        assert.strictEqual(result, undefined);
-    });
-
-    test('getStoredLoginServerUrl returns undefined after clear', async () => {
-        await authManager.storeArtemisCredentials('jwt=token', 'https://example.com', true);
-        await authManager.clear();
-        const result = await authManager.getStoredLoginServerUrl();
-        assert.strictEqual(result, undefined);
-    });
-
-    test('isServerUrlChanged returns false when no stored URL', async () => {
-        const result = await authManager.isServerUrlChanged('https://new.example.com');
-        assert.strictEqual(result, false);
-    });
-
-    test('isServerUrlChanged returns true when URL differs', async () => {
-        await authManager.storeArtemisCredentials('jwt=token', 'https://old.example.com', true);
-        const result = await authManager.isServerUrlChanged('https://new.example.com');
-        assert.strictEqual(result, true);
-    });
-
-    test('isServerUrlChanged returns false when URL matches', async () => {
-        await authManager.storeArtemisCredentials('jwt=token', 'https://same.example.com', true);
-        const result = await authManager.isServerUrlChanged('https://same.example.com');
         assert.strictEqual(result, false);
     });
 
