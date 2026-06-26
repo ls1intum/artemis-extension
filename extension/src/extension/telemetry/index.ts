@@ -9,7 +9,7 @@ import { ThrottledAlertSink } from '@extension/services/struggle/alerting/thrott
 import { TUNING } from '@extension/services/struggle/config';
 import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
-import type { TickRecord } from '@extension/services/struggle/types';
+import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import { showActiveNotification } from '@extension/services/struggleIntervention/activeNotification';
 import { collectExerciseScopedFiles } from '@extension/services/struggleIntervention/exerciseScopedCollector';
 import { InterventionEventLog } from '@extension/services/struggleIntervention/interventionEventLog';
@@ -120,6 +120,35 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
             if (active) { orchestrator.onServerActive(sid, c); }
         },
+    }));
+
+    // Developer-only: force a synthetic edit-path alert straight into the orchestrator,
+    // bypassing the engine gates (warmup / θ / B2 / B4) and the Tier-2 throttle that make
+    // a real alert slow + flaky to provoke. decideOutcome still runs, so egress consent /
+    // exercise presence stay realistic: with egress on you get the full POST → Pyris →
+    // bubble round-trip, otherwise the local fallback lamp. Palette entry is dev-gated.
+    deps.context.subscriptions.push(vscode.commands.registerCommand('artemis.forceStruggleIntervention', () => {
+        if (!isDevMode()) {
+            void vscode.window.showWarningMessage('Artemis: "Force Struggle Intervention" is developer-mode only.');
+            return;
+        }
+        const snap = coordinator.getSnapshot();
+        const forced: AlertRecord = {
+            kind: 'edit',
+            t: Math.round(snap.sessionSeconds),
+            ts: Date.now(),
+            urgency: 1,
+            v: snap.v,
+            typesPreGate: ['STATE'],
+            types: ['STATE'],
+            primary: 'STATE',
+            path: 'armed',
+            inWarmup: false,
+            inGrace: false,
+        };
+        devLog('▶ FORCED intervention (dev command): synthetic edit alert boundary=STATE urgency=1 → orchestrator.deliver()');
+        orchestrator.deliver(forced);
+        void vscode.window.showInformationMessage('Artemis (Dev): forced a struggle intervention — watch the [Struggle] output channel.');
     }));
 
     return { coordinator, promptConsentIfAsk: () => consent.promptIfAsk() };

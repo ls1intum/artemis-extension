@@ -98,6 +98,11 @@
         "command": "artemis.showTheiaEnvironment",
         "title": "Artemis: Show Theia Environment (Diagnostic)",
         "icon": "$(info)"
+      },
+      {
+        "command": "artemis.forceStruggleIntervention",
+        "title": "Artemis: Force Struggle Intervention (Developer)",
+        "icon": "$(zap)"
       }
     ],
     "menus": {
@@ -116,6 +121,10 @@
         },
         {
           "command": "artemis.showJwtToken",
+          "when": "config.artemis.developerMode"
+        },
+        {
+          "command": "artemis.forceStruggleIntervention",
           "when": "config.artemis.developerMode"
         }
       ]
