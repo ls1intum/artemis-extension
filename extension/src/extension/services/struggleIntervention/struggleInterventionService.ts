@@ -59,6 +59,7 @@ export class StruggleInterventionService implements AlertSink {
     private _inFlightGen = 0;
     private _activeCount = 0;
     private _serverAvailable = true;
+    private _courseProactiveOff = false;
     private _pendingSignal: StruggleSignal | undefined;
     private _lastSurface: SurfaceMeta | undefined;
     private _lastSurfaceSignal: StruggleSignal | undefined;
@@ -106,6 +107,12 @@ export class StruggleInterventionService implements AlertSink {
             this._dbg(`alert kind=${alert.kind} skipped (only edit-path alerts intervene)`);
             return;
         }
+        // Proactive is off for this course (§13): pause for the session — no POST, no surface, no lamp. Cleared on
+        // reset() (next exercise re-probes), like the 404 latch.
+        if (this._courseProactiveOff) {
+            this._dbg('  ↳ SKIP (course proactive disabled for this session)');
+            return;
+        }
         try {
             const signal = buildStruggleSignal(alert, this._buffer.snapshot());
             const optedIn = this._deps.isEgressEnabled();
@@ -145,6 +152,15 @@ export class StruggleInterventionService implements AlertSink {
             await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'server', signal });
             const result = await this._deps.postIntervention(exerciseId, { struggleSignal: signal, uncommittedFiles });
             this._dbg(`  ↳ POST result: ${result}`);
+            if (result === 'course-off') {
+                // Deliberate instructor opt-out (§13): pause proactive for the session with NO fallback lamp, and
+                // release the slot (there is no pending job). The latch keeps it paused even if the in-flight
+                // watchdog later fires; reset() re-probes next exercise.
+                this._dbg('  ↳ COURSE-OFF: proactive disabled for this course → pause session, no lamp');
+                this._courseProactiveOff = true;
+                this._setInFlight(false);
+                return;
+            }
             if (result === 'unavailable') {
                 this._serverAvailable = false;
                 this._setInFlight(false);
@@ -265,6 +281,7 @@ export class StruggleInterventionService implements AlertSink {
         this._setInFlight(false);            // also invalidates any pending in-flight timeout (gen bump)
         this._activeCount = 0;
         this._serverAvailable = true;        // re-probe the server next session: a 404 latch is per-session (spec §11)
+        this._courseProactiveOff = false;    // course-off is also a per-session latch (spec §13): re-probe next exercise
         this._pendingSignal = undefined;
         this._lastSurface = undefined;
         this._lastSurfaceSignal = undefined;

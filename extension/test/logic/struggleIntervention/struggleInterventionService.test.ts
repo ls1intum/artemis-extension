@@ -108,6 +108,33 @@ describe('StruggleInterventionService', () => {
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
     });
 
+    it('course-off latches (survives the in-flight watchdog): no lamp, no re-POST until reset (spec §13)', async () => {
+        // Capture the in-flight watchdog callback so we can fire it manually. This is the load-bearing part of the
+        // test: course-off must RELEASE the in-flight slot, so the "no second POST" guarantee has to come from a
+        // real per-session latch, NOT from a flag left stuck in-flight (which the watchdog would otherwise clear).
+        let fireInflightWatchdog: (() => void) | undefined;
+        const post = vi.fn(async () => 'course-off' as const);
+        const deps = fakeDeps({ postIntervention: post, setTimeoutFn: (fn) => { fireInflightWatchdog = fn; } });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(deps.showAmbient).not.toHaveBeenCalled();   // course-off => no no-AI lamp
+
+        // The watchdog fires: without the latch this would un-wedge the session and let the next alert POST again.
+        fireInflightWatchdog?.();
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(post).toHaveBeenCalledTimes(1);             // latched, not merely in-flight
+
+        svc.reset();                                       // new exercise / re-probe clears the latch
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(post).toHaveBeenCalledTimes(2);
+    });
+
     it('inbound ambient event (no anchor) → lamp hint (opensChat=true) + clears in-flight', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
