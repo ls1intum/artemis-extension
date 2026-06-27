@@ -92,7 +92,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         softThreshold: TUNING.softThreshold,
         pauseStrikes: TUNING.pauseStrikes,
         setBadge: on => deps.setProactiveBadge(on),
-        showActiveNotification: () => showActiveNotification(() => orchestrator.recordOutcome('clicked')),
+        showActiveNotification: () => showActiveNotification(
+            () => orchestrator.recordOutcome('clicked'),
+            () => orchestrator.recordOutcome('dismissed'),
+        ),
         log,
         devLog,
     });
