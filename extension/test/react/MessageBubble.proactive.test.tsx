@@ -30,6 +30,18 @@ describe('MessageBubble proactive', () => {
         expect(onDismiss).toHaveBeenCalledWith(7);
     });
 
+    it('renders the thumbs and Dismiss in one action bar, thumbs left and Dismiss right', () => {
+        render(<MessageBubble message={proactive({ id: 7 })} onFeedback={() => {}} onDismiss={() => {}} />);
+        const thumbUp = screen.getByRole('button', { name: 'Helpful' });
+        const dismiss = screen.getByRole('button', { name: /dismiss/i });
+
+        // Thumbs and Dismiss share the action bar (visually revealed on hover via CSS),
+        // with Dismiss after the thumbs in document order.
+        const actionRow = thumbUp.parentElement?.parentElement;
+        expect(actionRow).toContainElement(dismiss);
+        expect(thumbUp.compareDocumentPosition(dismiss) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('renders a dismissed proactive bubble collapsed but keeps the caption (never deleted)', () => {
         const { container } = render(
             <MessageBubble message={proactive({ id: 7, proactiveOutcome: 'DISMISSED', content: 'secret body' })} onFeedback={() => {}} />,

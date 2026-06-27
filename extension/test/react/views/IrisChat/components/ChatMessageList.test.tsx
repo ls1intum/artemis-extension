@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
@@ -210,7 +211,7 @@ describe('ChatMessageList', () => {
 		}
 	});
 
-	it('passes onFeedback to message bubbles (feedback buttons visible on hover)', () => {
+	it('passes onFeedback to message bubbles', () => {
 		const onFeedback = vi.fn();
 		const messages = [makeMessage({ role: 'assistant', content: 'Answer' }, 0)];
 		render(
@@ -225,6 +226,121 @@ describe('ChatMessageList', () => {
 		);
 		// onFeedback is passed through — verify message renders
 		expect(screen.getByText('Answer')).toBeInTheDocument();
+	});
+
+	it('collapses a run of consecutive proactive messages, hiding earlier repeats behind a toggle', () => {
+		const messages = [
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 1' }, 0),
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 2' }, 1),
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 3 latest' }, 2),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		// Only the latest suggestion shows; earlier repeats are folded away.
+		expect(screen.getByText('Repeat 3 latest')).toBeInTheDocument();
+		expect(screen.queryByText('Repeat 1')).not.toBeInTheDocument();
+		expect(screen.queryByText('Repeat 2')).not.toBeInTheDocument();
+		// The toggle advertises how many earlier suggestions are folded.
+		expect(screen.getByText(/show 2 earlier suggestions/i)).toBeInTheDocument();
+	});
+
+	it('expands the folded proactive repeats when the toggle is clicked', async () => {
+		const messages = [
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 1' }, 0),
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 2 latest' }, 1),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		expect(screen.queryByText('Repeat 1')).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole('button', { name: /show 1 earlier suggestion/i }));
+		expect(screen.getByText('Repeat 1')).toBeInTheDocument();
+	});
+
+	it('flips the toggle label and aria-expanded between Show and Hide', async () => {
+		const messages = [
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 1' }, 0),
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 2 latest' }, 1),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		const toggle = screen.getByRole('button', { name: /show 1 earlier suggestion/i });
+		expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		await userEvent.click(toggle);
+		const collapse = screen.getByRole('button', { name: /hide earlier suggestions/i });
+		expect(collapse).toHaveAttribute('aria-expanded', 'true');
+	});
+
+	it('collapses a run even when the latest proactive message is already dismissed', () => {
+		const messages = [
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Earlier repeat' }, 0),
+			makeMessage(
+				{ role: 'assistant', origin: 'proactive', content: 'Latest secret body', proactiveOutcome: 'DISMISSED', id: 9 },
+				1,
+			),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		// The run still folds the earlier repeat behind the toggle.
+		expect(screen.getByText(/show 1 earlier suggestion/i)).toBeInTheDocument();
+		expect(screen.queryByText('Earlier repeat')).not.toBeInTheDocument();
+		// The dismissed latest renders collapsed: caption + "Show suggestion", body hidden.
+		expect(screen.getByText('Iris thought this might help')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /show suggestion/i })).toBeInTheDocument();
+		expect(screen.queryByText('Latest secret body')).not.toBeInTheDocument();
+	});
+
+	it('does not collapse proactive messages that are separated by a student turn', () => {
+		const messages = [
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Hint A' }, 0),
+			makeMessage({ role: 'user', content: 'thanks' }, 1),
+			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Hint B' }, 2),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		// Both proactive hints render in full; nothing is folded.
+		expect(screen.getByText('Hint A')).toBeInTheDocument();
+		expect(screen.getByText('Hint B')).toBeInTheDocument();
+		expect(screen.queryByText(/earlier suggestion/i)).not.toBeInTheDocument();
 	});
 
 	it('shows stage indicator when activeStage is present', () => {

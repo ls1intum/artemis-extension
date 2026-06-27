@@ -10,3 +10,36 @@
     display: flex;
     flex-direction: column;
 }
+
+/* A collapsed run of consecutive proactive messages. The toggle reveals the
+   earlier repeats; the latest suggestion always renders below it. */
+.proactiveRun {
+    display: flex;
+    flex-direction: column;
+}
+
+/* A subtle link-style disclosure line (no border), with a chevron. The top
+   margin gives it breathing room below the preceding message (whose hover
+   timestamp drops ~18px into the gap). */
+.runToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin: 22px 16px 2px;
+    padding: 2px 0;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.runToggle:hover {
+    color: var(--vscode-foreground);
+    text-decoration: underline;
+}
+
+.runToggleIcon {
+    flex-shrink: 0;
+}

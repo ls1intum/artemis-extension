@@ -49,7 +49,6 @@ function MessageBubbleComponent({
         }
     };
 
-    const hasFeedback = message.helpful !== undefined && message.helpful !== null;
     const isFailed = message.status === 'error';
     const isProactive = isAssistant && message.origin === 'proactive';
     const isDismissed = isProactive && message.proactiveOutcome === 'DISMISSED';
@@ -112,47 +111,48 @@ function MessageBubbleComponent({
                         </>
                     )}
 
-                    {isProactive && !isDismissed && message.id !== undefined && onDismiss && (
-                        <button
-                            type="button"
-                            className={styles.dismissButton}
-                            onClick={() => onDismiss(message.id as number)}
-                            aria-label="Dismiss this suggestion"
-                        >
-                            Dismiss
-                        </button>
-                    )}
-
                     {isAssistant && !isFailed && !(isDismissed && !expanded) && (
-                        <div
-                            className={clsx(styles.feedbackContainer, {
-                                [styles.visible]: hovering || hasFeedback,
-                            })}
-                        >
-                            <button
-                                className={clsx(styles.feedbackButton, {
-                                    [styles.selected]: message.helpful === true,
-                                })}
-                                onClick={() => handleFeedback('positive')}
-                                aria-label="Helpful"
-                            >
-                                <ThumbsUp
-                                    size={16}
-                                    fill={message.helpful === true ? 'currentColor' : 'none'}
-                                />
-                            </button>
-                            <button
-                                className={clsx(styles.feedbackButton, {
-                                    [styles.selected]: message.helpful === false,
-                                })}
-                                onClick={() => handleFeedback('negative')}
-                                aria-label="Not helpful"
-                            >
-                                <ThumbsDown
-                                    size={16}
-                                    fill={message.helpful === false ? 'currentColor' : 'none'}
-                                />
-                            </button>
+                        <div className={clsx(styles.actionRow, { [styles.actionRowCard]: isProactive })}>
+                            {/* Hover-revealed floating bar: absolutely positioned so it reserves no
+                                space in the resting state (no empty gap) and overhangs the bubble's
+                                bottom edge on hover. Thumbs on the left. */}
+                            <div className={styles.feedbackContainer}>
+                                <button
+                                    className={clsx(styles.feedbackButton, {
+                                        [styles.selected]: message.helpful === true,
+                                    })}
+                                    onClick={() => handleFeedback('positive')}
+                                    aria-label="Helpful"
+                                >
+                                    <ThumbsUp
+                                        size={16}
+                                        fill={message.helpful === true ? 'currentColor' : 'none'}
+                                    />
+                                </button>
+                                <button
+                                    className={clsx(styles.feedbackButton, {
+                                        [styles.selected]: message.helpful === false,
+                                    })}
+                                    onClick={() => handleFeedback('negative')}
+                                    aria-label="Not helpful"
+                                >
+                                    <ThumbsDown
+                                        size={16}
+                                        fill={message.helpful === false ? 'currentColor' : 'none'}
+                                    />
+                                </button>
+                            </div>
+                            {/* Dismiss sits to the right of the thumbs in the same bar. */}
+                            {isProactive && !isDismissed && message.id !== undefined && onDismiss && (
+                                <button
+                                    type="button"
+                                    className={styles.dismissButton}
+                                    onClick={() => onDismiss(message.id as number)}
+                                    aria-label="Dismiss this suggestion"
+                                >
+                                    Dismiss
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

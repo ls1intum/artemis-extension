@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -136,47 +136,34 @@ describe('MessageBubble', () => {
 		expect(screen.queryByRole('button', { name: 'Helpful' })).not.toBeInTheDocument();
 	});
 
-	it('shows feedback buttons for assistant messages on hover', async () => {
+	it('renders feedback buttons for assistant messages (revealed on hover via CSS)', () => {
 		const message = makeMessage({ role: 'assistant', content: 'Here is help.' });
-		const { container } = render(
-			<MessageBubble message={message} onFeedback={vi.fn()} />
-		);
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
 
-		const wrapper = container.firstChild as HTMLElement;
-		await userEvent.hover(wrapper);
-
+		// The thumbs live in the DOM (a floating bar shown on hover via CSS), so they
+		// are reachable without simulating hover in jsdom.
 		expect(screen.getByRole('button', { name: 'Helpful' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Not helpful' })).toBeInTheDocument();
 	});
 
-	it('calls onFeedback with positive when helpful button clicked', async () => {
+	// The action bar is pointer-events:none until hover (CSS), which jsdom cannot
+	// simulate; fireEvent dispatches directly to verify the handler wiring.
+	it('calls onFeedback with positive when helpful button clicked', () => {
 		const onFeedback = vi.fn();
 		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
-		const { container } = render(
-			<MessageBubble message={message} onFeedback={onFeedback} />
-		);
+		render(<MessageBubble message={message} onFeedback={onFeedback} />);
 
-		const wrapper = container.firstChild as HTMLElement;
-		await userEvent.hover(wrapper);
-
-		const helpfulButton = screen.getByRole('button', { name: 'Helpful' });
-		await userEvent.click(helpfulButton);
+		fireEvent.click(screen.getByRole('button', { name: 'Helpful' }));
 
 		expect(onFeedback).toHaveBeenCalledWith(1, 'positive');
 	});
 
-	it('calls onFeedback with negative when not helpful button clicked', async () => {
+	it('calls onFeedback with negative when not helpful button clicked', () => {
 		const onFeedback = vi.fn();
 		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
-		const { container } = render(
-			<MessageBubble message={message} onFeedback={onFeedback} />
-		);
+		render(<MessageBubble message={message} onFeedback={onFeedback} />);
 
-		const wrapper = container.firstChild as HTMLElement;
-		await userEvent.hover(wrapper);
-
-		const notHelpfulButton = screen.getByRole('button', { name: 'Not helpful' });
-		await userEvent.click(notHelpfulButton);
+		fireEvent.click(screen.getByRole('button', { name: 'Not helpful' }));
 
 		expect(onFeedback).toHaveBeenCalledWith(1, 'negative');
 	});

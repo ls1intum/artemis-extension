@@ -128,16 +128,40 @@
     cursor: not-allowed;
 }
 
+/* A hover-revealed floating action bar. Absolutely positioned so it reserves
+   no layout space in the resting state (no empty gap) and can overhang the
+   bubble's bottom edge. It stays a child of the bubble, so hovering the bar
+   itself keeps `.messageWrapper:hover` true (no disappear-on-approach). */
+.actionRow {
+    position: absolute;
+    left: 10px;
+    bottom: -14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+}
+
+/* `:focus-within` keeps the bar reachable by keyboard: the buttons stay in the
+   tab order, so focusing one must also make it visible (it is not mouse-only). */
+.messageWrapper:hover .actionRow,
+.messageWrapper:focus-within .actionRow {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* On a proactive card the buttons span the card: thumbs on the left, Dismiss
+   on the right. No container chrome — just the buttons float over the edge. */
+.actionRow.actionRowCard {
+    right: 10px;
+    justify-content: space-between;
+}
+
 .feedbackContainer {
     display: flex;
     gap: 4px;
-    margin-top: 8px;
-    opacity: 0;
-    transition: opacity 150ms ease;
-}
-
-.feedbackContainer.visible {
-    opacity: 1;
 }
 
 .feedbackButton {
@@ -187,8 +211,6 @@
 
 .dismissButton,
 .dismissedToggle {
-    align-self: flex-start;
-    margin-top: 6px;
     padding: 2px 8px;
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
@@ -196,6 +218,17 @@
     border: 1px solid var(--vscode-widget-border, transparent);
     border-radius: 4px;
     cursor: pointer;
+}
+
+/* The dismissed-collapse toggle ("Show suggestion"/"Hide") sits inline under
+   the caption; the Dismiss action lives in the action row and hugs the right. */
+.dismissedToggle {
+    align-self: flex-start;
+    margin-top: 6px;
+}
+
+.dismissButton {
+    margin-left: auto;
 }
 
 .dismissButton:hover,
