@@ -33,6 +33,24 @@ export const Disposable = {
     },
 };
 
+/**
+ * Minimal MarkdownString matching the subset extension-host code uses: a mutable `value` set from the
+ * constructor and an `isTrusted` flag (so command-link hovers can be asserted under vitest).
+ */
+export class MarkdownString {
+    value: string;
+    isTrusted?: boolean | { readonly enabledCommands: readonly string[] };
+
+    constructor(value = '') {
+        this.value = value;
+    }
+
+    appendMarkdown(value: string): this {
+        this.value += value;
+        return this;
+    }
+}
+
 type Listener<T> = (e: T) => void;
 
 /**

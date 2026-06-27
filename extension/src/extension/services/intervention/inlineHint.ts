@@ -29,7 +29,13 @@ export function isAnchorLive(anchorFile: string, anchorLine: number, editors: re
     return ed.visibleRanges.some(r => line >= r.start.line && line <= r.end.line);
 }
 
-/** Whole-line hover content: the fuller message (action links are added in Slice 4). */
+/**
+ * Whole-line hover: the fuller message + Open chat / Dismiss command links (spec §4.1, §5.2). `message` is
+ * server-provided (the LLM gate's hint), so trust is scoped to ONLY the two intervention commands — a hint
+ * carrying its own `command:` link can never execute arbitrary VS Code commands from this trusted hover.
+ */
 export function buildHoverMarkdown(message: string): vscode.MarkdownString {
-    return new vscode.MarkdownString(message);
+    const md = new vscode.MarkdownString(`${message}\n\n[Open chat](command:iris.intervention.inlineOpen) · [Dismiss](command:iris.intervention.inlineDismiss)`);
+    md.isTrusted = { enabledCommands: ['iris.intervention.inlineOpen', 'iris.intervention.inlineDismiss'] };
+    return md;
 }

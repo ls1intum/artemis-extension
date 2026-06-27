@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 
-import { buildCueText, isAnchorLive, resolveAnchorEditor } from '@extension/services/intervention/inlineHint';
+import { buildCueText, buildHoverMarkdown, isAnchorLive, resolveAnchorEditor } from '@extension/services/intervention/inlineHint';
 
 /** A fake visible TextEditor at `<root>/<relFsPath>` whose viewport spans the 0-based line range [firstLine, lastLine]. */
 function fakeEditor(rootFsPath: string, relFsPath: string, firstLine: number, lastLine: number): vscode.TextEditor {
@@ -46,6 +46,16 @@ describe('inlineHint helpers', () => {
         it('is not live when the exercise root is undefined', () => {
             const ed = fakeEditor('/repo', 'src/A.java', 0, 60);
             expect(isAnchorLive('src/A.java', 42, [ed], undefined)).toBe(false);
+        });
+    });
+
+    describe('buildHoverMarkdown', () => {
+        it('hover carries Open chat + Dismiss links, trusting ONLY those two commands (not the server hint)', () => {
+            const md = buildHoverMarkdown('Look at the loop bound.');
+            // Scoped trust: a malicious/injected hint cannot smuggle an executable command: link.
+            expect(md.isTrusted).toEqual({ enabledCommands: ['iris.intervention.inlineOpen', 'iris.intervention.inlineDismiss'] });
+            expect(md.value).toContain('command:iris.intervention.inlineOpen');
+            expect(md.value).toContain('command:iris.intervention.inlineDismiss');
         });
     });
 });

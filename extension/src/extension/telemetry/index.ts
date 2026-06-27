@@ -100,6 +100,20 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         devLog,
     });
 
+    // Inline-hover action links (spec §4.1, §5.2): Open chat engages (clears backoff), Dismiss → backoff; both
+    // remove the cue. Registered behind the seam so extension.ts never imports the intervention surface.
+    deps.context.subscriptions.push(
+        vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
+            orchestrator.recordOutcome('clicked');
+            inline.clear();
+            void vscode.commands.executeCommand('iris.chatView.focus');
+        }),
+        vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
+            orchestrator.recordOutcome('dismissed');
+            inline.clear();
+        }),
+    );
+
     // Tier-2 delivery throttle wraps the orchestrator (downstream of the recorded
     // alert path, so goldens/research are unaffected). Reads TUNING defaults.
     const throttledSink = new ThrottledAlertSink(orchestrator, TUNING);
