@@ -48,6 +48,9 @@ export interface StruggleInterventionEvent {
     action: 'ambient' | 'active';
     message?: string;
     sessionId?: number;
+    /** Saved IrisMessage id for the persisted proactive message (spec §7.2/§8). Set for ambient and active after
+     *  unify-persistence; lets a later slice target the exact message (open/reveal/dismiss). */
+    messageId?: number;
     /** Server-computed Pyris confidence, forwarded by Plan 2 (Task 4b 5-component DTO) for the client eval log (§12). */
     confidence?: number;
 }

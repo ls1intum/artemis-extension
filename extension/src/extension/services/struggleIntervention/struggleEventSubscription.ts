@@ -8,7 +8,7 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
     if (data === null || typeof data !== 'object') {
         return undefined;
     }
-    const f = data as { exerciseId?: unknown; action?: unknown; message?: unknown; sessionId?: unknown; confidence?: unknown };
+    const f = data as { exerciseId?: unknown; action?: unknown; message?: unknown; sessionId?: unknown; messageId?: unknown; confidence?: unknown };
     if (typeof f.exerciseId !== 'number' || (f.action !== 'ambient' && f.action !== 'active')) {
         return undefined;
     }
@@ -16,11 +16,13 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
     if (f.action === 'active' && sessionId === undefined) {
         return undefined;
     }
+    const messageId = typeof f.messageId === 'number' ? f.messageId : undefined;
     return {
         exerciseId: f.exerciseId,
         action: f.action,
         message: typeof f.message === 'string' ? f.message : undefined,
         sessionId,
+        messageId,
         confidence: typeof f.confidence === 'number' ? f.confidence : undefined,
     };
 }

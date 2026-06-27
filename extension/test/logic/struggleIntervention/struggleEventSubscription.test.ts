@@ -15,6 +15,14 @@ describe('classifyStruggleEvent', () => {
         const e = classifyStruggleEvent({ exerciseId: 42, action: 'ambient', message: 'x', confidence: 0.7 });
         expect(e?.confidence).toBe(0.7);
     });
+    it('parses messageId when present (ambient + active)', () => {
+        expect(classifyStruggleEvent({ exerciseId: 1, action: 'ambient', message: 'hi', sessionId: 9, messageId: 556, confidence: 0.8 })?.messageId).toBe(556);
+        expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9, messageId: 555 })?.messageId).toBe(555);
+    });
+    it('leaves messageId undefined when absent or non-numeric', () => {
+        expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9 })?.messageId).toBeUndefined();
+        expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9, messageId: 'x' })?.messageId).toBeUndefined();
+    });
     it('returns undefined for malformed / non-struggle frames', () => {
         expect(classifyStruggleEvent({ foo: 1 })).toBeUndefined();
         expect(classifyStruggleEvent(null)).toBeUndefined();
