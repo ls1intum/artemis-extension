@@ -116,6 +116,33 @@ describe('ExerciseDetailView', () => {
 		});
 	});
 
+	it('re-requests the proactive card when the .noai status changes (live freshness, spec §14)', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'exerciseDetailInit',
+			exerciseData: makeExerciseData(),
+			hideDeveloperTools: false,
+		});
+		await waitFor(() => expect(screen.getByText('My Exercise')).toBeInTheDocument());
+
+		const post = vi.mocked(mockApi.postMessage);
+		post.mockClear();
+		act(() => {
+			dispatchExtensionMessage({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected: true });
+		});
+
+		// Reads the live exercise from the store at message time (not a closed-over render value).
+		expect(post).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'requestProactiveControl',
+				payload: { exerciseId: 42, courseId: 1 },
+			})
+		);
+	});
+
 	it('renders exercise title from store data', () => {
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
 		const mockApi = createMockVsCodeApi();

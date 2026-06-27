@@ -78,3 +78,8 @@
   color: var(--vscode-textLink-foreground);
   text-decoration: underline;
 }
+
+.cardNote {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-import { postCommand, type VsCodeApi } from '@shared/messageContracts';
+import { postCommand, type ProactiveCardReason, type ProactiveCardState, type VsCodeApi } from '@shared/messageContracts';
 import type {
     ExerciseDetailsResponse,
     ParticipationSummary,
@@ -15,6 +15,15 @@ interface RepoStatus {
     hasChanges: boolean;
     isPracticeRepo: boolean;
 }
+
+/** AskIris proactive control + its §14 availability card, tagged with the exercise it belongs to (spec §12.2). */
+type ProactiveControlState = {
+    exerciseId: number;
+    preference: 'on' | 'off';
+    autoPaused: boolean;
+    cardState: ProactiveCardState;
+    reason?: ProactiveCardReason;
+};
 
 interface DirtyPagesStatus {
     hasDirtyPages: boolean;
@@ -44,8 +53,8 @@ interface ExerciseDetailState {
     repoStatus: RepoStatus | null;
     clonedNotice: { exerciseTitle: string; participationId: number } | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
-    /** AskIris proactive on/off control (spec §12.2), tagged with its exercise so a late update can't paint the wrong card. */
-    proactiveControl: { exerciseId: number; preference: 'on' | 'off'; autoPaused: boolean } | null;
+    /** AskIris proactive on/off control + availability card (spec §12.2 / §14), tagged with its exercise so a late update can't paint the wrong card. */
+    proactiveControl: ProactiveControlState | null;
 
     // Actions
     setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean, repoStatus?: RepoStatus) => void;
@@ -58,7 +67,7 @@ interface ExerciseDetailState {
     setRepoStatus: (status: RepoStatus) => void;
     setClonedNotice: (exerciseTitle: string, participationId: number) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
-    setProactiveControl: (control: { exerciseId: number; preference: 'on' | 'off'; autoPaused: boolean } | null) => void;
+    setProactiveControl: (control: ProactiveControlState | null) => void;
     clearClonedNotice: () => void;
     /** Clear all pending entries (e.g. on result arrival without per-participation context). */
     clearPendingSubmission: () => void;

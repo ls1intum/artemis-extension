@@ -8,14 +8,14 @@ describe('AskIris proactive control', () => {
 
     it('renders an On/Off switch when control is provided and toggles it', () => {
         const onToggle = vi.fn();
-        render(<AskIris {...base} proactiveControl={{ preference: 'on', autoPaused: false, onToggle, onResume: () => {} }} />);
+        render(<AskIris {...base} proactiveControl={{ preference: 'on', autoPaused: false, cardState: 'available', onToggle, onResume: () => {} }} />);
         fireEvent.click(screen.getByRole('switch', { name: /proactive/i }));
         expect(onToggle).toHaveBeenCalledWith(false);   // on -> off
     });
 
     it('shows Auto-paused + a Resume action', () => {
         const onResume = vi.fn();
-        render(<AskIris {...base} proactiveControl={{ preference: 'on', autoPaused: true, onToggle: () => {}, onResume }} />);
+        render(<AskIris {...base} proactiveControl={{ preference: 'on', autoPaused: true, cardState: 'available', onToggle: () => {}, onResume }} />);
         expect(screen.getByText(/auto-paused/i)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: /resume/i }));
         expect(onResume).toHaveBeenCalled();
