@@ -8,7 +8,7 @@
 
 **Scope of THIS slice (§12.2 control only).** The On/Off switch + the 3-state badge + Resume, the client preference service, and the seam/orchestrator wiring that makes the preference suppress proactive and exposes the pause state. **Out of scope (Slice 5c):** the full card-state matrix (Available / Off-disabled-for-course / Unavailable / Degraded) and the §14 cases-2/3 exercise-view banner. 5b assumes the "Available" case (Iris on, course-proactive on, consent ok); 5c adds the other states + the banner + the AI-opt-in gating of the switch.
 
-**Architecture.** A client-side `ProactivePreferenceService` (VS Code `globalState`, keyed by server+principal, value = a per-exercise-id on/off map; default On) mirrors `CourseAccessStorageService`. The orchestrator (behind the `@telemetry` seam) reads the preference via an injected `isStudentProactiveOn(exerciseId)` dep and **suppresses** the POST/surface when the student turned it off; it exposes `isProactivePaused(exerciseId)`, `setStudentProactive(on)`, and `resumeProactive()` on the `StruggleEngineHandle`. The webview AskIris card requests its state on every `ExerciseDetailInit` (`requestProactiveControl`) and after each action; the host (a new `ProactiveControlCommandModule`, wired through `CommandContext` exactly like the existing `struggleLiveFeed` seam capability) reads the preference + pause state and replies with an `UpdateProactiveControl` message. **No live auto-pause push in 5b** — the webview re-requests the control state on every `ExerciseDetailInit` (which the provider re-posts on each sidebar visibility refresh via `sendInitData()`) and after every control action, so the badge is correct on view open, on re-focus, and after each action; a backoff auto-pause that flips while the card is continuously visible shows on the next refresh. (A live event push is a small 5c add-on.)
+**Architecture.** A client-side `ProactivePreferenceService` (VS Code `globalState`, keyed by server+principal, value = a per-exercise-id on/off map; default On) mirrors `CourseAccessStorageService`. The orchestrator (behind the `@telemetry` seam) reads the preference via an injected `isStudentProactiveOn(exerciseId)` dep and **suppresses** the POST/surface when the student turned it off; it exposes `isProactivePaused(exerciseId)`, `setStudentProactive(exerciseId, on)`, and `resumeProactive(exerciseId)` on the `StruggleEngineHandle` (all exercise-scoped — codex code-review — so a toggle on A never clobbers B; OPTIONAL on the handle and omitted by the no-op build so the clean build shows no switch). The webview AskIris card requests its state on every `ExerciseDetailInit` (`requestProactiveControl`) and after each action; the host (a new `ProactiveControlCommandModule`, wired through `CommandContext` exactly like the existing `struggleLiveFeed` seam capability) reads the preference + pause state and replies with an `UpdateProactiveControl` message. **No live auto-pause push in 5b** — the webview re-requests the control state on every `ExerciseDetailInit` (which the provider re-posts on each sidebar visibility refresh via `sendInitData()`) and after every control action, so the badge is correct on view open, on re-focus, and after each action; a backoff auto-pause that flips while the card is continuously visible shows on the next refresh. (A live event push is a small 5c add-on.)
 
 **Tech Stack:** Extension (TypeScript + React, Vitest `test/logic` + `test/react`). No Artemis/Pyris change.
 
@@ -20,7 +20,7 @@ Spec refs: §12.2 (the On/Off switch + 3-state badge + Resume + the "Available" 
 - **Commit messages:** Conventional Commits. **No AI attribution** (no `Co-Authored-By`, no `🤖`, no "Generated with"). Overrides any default trailer.
 - **Staging:** exact files only. `git` from the repo root `/Users/liamberger/Documents/private/MA/artemis-extension`; run `npx vitest`/`npm run` from `extension/`. Never `git add -A`/`.`.
 - **Verification:** targeted Vitest green + `npm run check-types` (eslint misses TS6133; `check-types` is the real gate).
-- **Clean-build seam (`@telemetry`):** the new orchestrator capabilities cross the seam via `StruggleEngineHandle` + `StruggleEngineDeps`; the no-op factory must implement the same surface so the Open VSX bundle still excludes the engine (`scripts/verify-clean-bundle.js`). The preference service is a plain client service (always bundled) — it must NOT import anything from `services/struggle|intervention`.
+- **Clean-build seam (`@telemetry`):** the new orchestrator capabilities cross the seam via `StruggleEngineHandle` + `StruggleEngineDeps`; the three proactive-control handle methods are OPTIONAL and the no-op factory OMITS them (codex code-review), so the Open VSX bundle still excludes the engine (`scripts/verify-clean-bundle.js`) AND the clean build never assembles a `proactiveControl` capability (no dead switch). `StruggleEngineDeps.isStudentProactiveOn` stays a required dep. The preference service is a plain client service (always bundled) — it must NOT import anything from `services/struggle|intervention`.
 - **Invariants:** Desktop = Cookie auth, Theia = Bearer (untouched). No `^`/`~` added. CSS-module lookups static camelCase.
 - **Default On (§12.2):** a never-set preference reads as On; only an explicit Off suppresses.
 
@@ -200,7 +200,7 @@ git -C /Users/liamberger/Documents/private/MA/artemis-extension commit -m "feat(
 - Test: `extension/test/logic/struggleIntervention/struggleInterventionService.test.ts`
 
 **Interfaces:**
-- Produces: `StruggleEngineDeps.isStudentProactiveOn(exerciseId: number): boolean` (consumed: suppress POST/surface when off); `StruggleEngineHandle.isProactivePaused(exerciseId: number): boolean`, `setStudentProactive(on: boolean): void`, `resumeProactive(): void`. The orchestrator gains a `isStudentProactiveOn` dep, an `isProactivePaused`, a `resumeProactive` (clears the Slice-4a counters), and a `setStudentProactive` (off → clear lamp/badge; on → resume).
+- Produces: `StruggleEngineDeps.isStudentProactiveOn(exerciseId: number): boolean` (consumed: suppress POST/surface when off); `StruggleEngineHandle.isProactivePaused?(exerciseId)`, `setStudentProactive?(exerciseId, on)`, `resumeProactive?(exerciseId)` — **OPTIONAL on the handle (codex code-review): the no-op build omits them, so extension.ts builds no `proactiveControl` and the clean build never shows a switch.** The orchestrator gains the `isStudentProactiveOn` dep, plus `isProactivePaused`, `resumeProactive` and `setStudentProactive` that are all **exercise-scoped** (codex code-review): `setStudentProactive(exerciseId, on)` / `resumeProactive(exerciseId)` only touch the LIVE surfaces/backoff when `getExerciseId() === exerciseId`, so a toggle on exercise A never clobbers exercise B's lamp/inline/badge/backoff (the durable preference, persisted by the command module, is what suppresses A when A is active).
 
 - [ ] **Step 1: Failing logic tests**
 
@@ -217,12 +217,14 @@ it('student-off suppresses the proactive POST entirely', async () => {
     expect(deps.showAmbient).not.toHaveBeenCalled();
 });
 
-it('resumeProactive clears an auto-pause', () => {
+it('resumeProactive clears an auto-pause for the active exercise, but not for another', () => {
     const deps = fakeDeps();
     const svc = new StruggleInterventionService(deps);
     for (let i = 0; i < 5; i++) { svc.recordChatDismiss(); }   // Slice 4b: drives the backoff to paused
     expect(svc.isProactivePaused(42)).toBe(true);              // 42 is fakeDeps' active exercise
-    svc.resumeProactive();
+    svc.resumeProactive(999);                                  // wrong exercise → no effect
+    expect(svc.isProactivePaused(42)).toBe(true);
+    svc.resumeProactive(42);                                   // active exercise → cleared
     expect(svc.isProactivePaused(42)).toBe(false);
 });
 
@@ -236,16 +238,25 @@ it('inbound ambient/active are dropped when the student turned proactive off (mi
     expect(deps.showActiveNotification).not.toHaveBeenCalled();
 });
 
-it('setStudentProactive(false) clears a standing inline cue + lamp + badge', () => {
+it('setStudentProactive(active exercise, false) clears a standing inline cue + lamp + badge', () => {
     const deps = fakeDeps();
     const svc = new StruggleInterventionService(deps);
-    svc.setStudentProactive(false);
+    svc.setStudentProactive(42, false);   // 42 is fakeDeps' active exercise
     expect(deps.clearInline).toHaveBeenCalled();
     expect(deps.clearLamp).toHaveBeenCalled();
     expect(deps.setBadge).toHaveBeenCalledWith(false);
 });
+
+it('setStudentProactive on a NON-active exercise does not touch live surfaces (no cross-exercise clobber)', () => {
+    const deps = fakeDeps();
+    const svc = new StruggleInterventionService(deps);
+    svc.setStudentProactive(999, false);   // active is 42, not 999
+    expect(deps.clearInline).not.toHaveBeenCalled();
+    expect(deps.clearLamp).not.toHaveBeenCalled();
+    expect(deps.setBadge).not.toHaveBeenCalled();
+});
 ```
-(`isProactivePaused(42)` works because `fakeDeps().getExerciseId` returns 42; `recordChatDismiss` + `isPaused`/the counters are Slice-4a/4b members. The inbound-drop test guards the mid-flight opt-out path added in Step 3; the inline-clear test locks the codex-r2 fix that Off clears the inline cue too.)
+(`isProactivePaused(42)` works because `fakeDeps().getExerciseId` returns 42; `recordChatDismiss` + `isPaused`/the counters are Slice-4a/4b members. The inbound-drop test guards the mid-flight opt-out path; the inline-clear test locks the Off-clears-inline fix; the non-active tests lock the codex code-review exercise-scoping fix.)
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -280,19 +291,32 @@ In `struggleInterventionService.ts`:
         return this._deps.getExerciseId() === exerciseId && this.isPaused();
     }
 
-    /** Clear the Slice-4a backoff (the "Resume" action / a student re-enable). */
-    resumeProactive(): void {
+    /** Clear the Slice-4a session backoff counters. Private: the public methods add the active-exercise guard. */
+    private _clearBackoff(): void {
         this._dismissStrikes = 0;
         this._annoyance = 0;
         this._softSkipBudget = 0;
     }
 
-    /** Immediate effect of the AskIris On/Off switch: off → clear ALL visible proactive surfaces (lamp, inline cue,
-     *  badge); on → clear any auto-pause. The inline cue is cleared too because a proactive ambient can be an inline
-     *  decoration (onServerAmbient → showInline), and Off must take effect on every currently-visible surface (codex r2). */
-    setStudentProactive(on: boolean): void {
+    /** "Resume" action — clears the auto-pause backoff ONLY when the active session is the one being resumed (codex
+     *  code-review: the backoff is session-scoped, so resuming A while B is active must not clear B's backoff). */
+    resumeProactive(exerciseId: number): void {
+        if (this._deps.getExerciseId() !== exerciseId) {
+            return;
+        }
+        this._clearBackoff();
+    }
+
+    /** Immediate effect of the AskIris On/Off switch. The durable preference is persisted by the caller; here we only
+     *  touch the LIVE surfaces, and ONLY when the toggled exercise is the active one — a toggle on A must not clear B's
+     *  lamp/inline/badge/backoff (codex code-review). Off clears lamp + inline cue (a proactive ambient can be inline)
+     *  + badge; On clears any auto-pause. */
+    setStudentProactive(exerciseId: number, on: boolean): void {
+        if (this._deps.getExerciseId() !== exerciseId) {
+            return;
+        }
         if (on) {
-            this.resumeProactive();
+            this._clearBackoff();
         }
         else {
             this._deps.clearLamp();
@@ -309,21 +333,16 @@ In `telemetry/contract.ts`, add to `StruggleEngineDeps`:
     /** Durable per-exercise student opt-out (spec §12.2): false → the orchestrator suppresses proactive for it. */
     isStudentProactiveOn(exerciseId: number): boolean;
 ```
-and to `StruggleEngineHandle`:
+and to `StruggleEngineHandle` — **OPTIONAL (codex code-review)** so the no-op build can omit them and the clean build shows no switch:
 ```ts
-    /** True iff the delivery backoff is paused for this exercise (AskIris "Auto-paused" badge). */
-    isProactivePaused(exerciseId: number): boolean;
-    /** Apply the AskIris switch: off clears visible surfaces, on clears any auto-pause. */
-    setStudentProactive(on: boolean): void;
-    /** "Resume" action: clear the auto-pause backoff. */
-    resumeProactive(): void;
+    /** True iff the delivery backoff is paused for this exercise (AskIris "Auto-paused" badge). Absent in the clean build. */
+    isProactivePaused?(exerciseId: number): boolean;
+    /** Apply the AskIris switch for an exercise: off clears its live surfaces, on clears any auto-pause. Absent in clean build. */
+    setStudentProactive?(exerciseId: number, on: boolean): void;
+    /** "Resume" action: clear the auto-pause backoff for an exercise. Absent in the clean build. */
+    resumeProactive?(exerciseId: number): void;
 ```
-In `telemetry/noop.ts`, add to the returned handle in `createStruggleEngine`:
-```ts
-        isProactivePaused: () => false,
-        setStudentProactive: () => { /* no engine in the clean build */ },
-        resumeProactive: () => { /* no engine in the clean build */ },
-```
+In `telemetry/noop.ts`, **OMIT all three** from the returned handle (codex code-review) — the clean build has no proactive engine, so extension.ts assembles no `proactiveControl` capability and the switch never renders. (`promptConsentIfAsk`/`recordProactiveDismiss` stay.)
 In `telemetry/index.ts`: thread the dep into the orchestrator's deps (in the `new StruggleInterventionService({...})` deps object):
 ```ts
         isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
@@ -331,8 +350,8 @@ In `telemetry/index.ts`: thread the dep into the orchestrator's deps (in the `ne
 and return the three handle methods (add them to the existing `createStruggleEngine` return object — whose members are contributed by earlier slices):
 ```ts
         isProactivePaused: exerciseId => orchestrator.isProactivePaused(exerciseId),
-        setStudentProactive: on => orchestrator.setStudentProactive(on),
-        resumeProactive: () => orchestrator.resumeProactive(),
+        setStudentProactive: (exerciseId, on) => orchestrator.setStudentProactive(exerciseId, on),
+        resumeProactive: exerciseId => orchestrator.resumeProactive(exerciseId),
 ```
 
 - [ ] **Step 5: Run green + type-check + commit**
@@ -396,11 +415,11 @@ import type { ProactivePreferenceService } from '@extension/services/proactivePr
 ```ts
     /** Durable per-exercise proactive on/off preference (client-side, spec §12.2). Absent in tests that don't need it. */
     proactivePreference?: ProactivePreferenceService;
-    /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. */
+    /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. All exercise-scoped (codex code-review). */
     proactiveControl?: {
         isProactivePaused(exerciseId: number): boolean;
-        setStudentProactive(on: boolean): void;
-        resumeProactive(): void;
+        setStudentProactive(exerciseId: number, on: boolean): void;
+        resumeProactive(exerciseId: number): void;
     };
 ```
 
@@ -433,17 +452,21 @@ export class ProactiveControlCommandModule {
     private handleSetEnabled = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { exerciseId, enabled } = getPayload<WebCmd<'setProactiveEnabled'>>(message);
         this.context.proactivePreference?.setProactiveOn(exerciseId, enabled);
-        this.context.proactiveControl?.setStudentProactive(enabled);
+        this.context.proactiveControl?.setStudentProactive(exerciseId, enabled);
         this._push(exerciseId);
     };
 
     private handleResume = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { exerciseId } = getPayload<WebCmd<'resumeProactive'>>(message);
-        this.context.proactiveControl?.resumeProactive();
+        this.context.proactiveControl?.resumeProactive(exerciseId);
         this._push(exerciseId);
     };
 
     private _push(exerciseId: number): void {
+        // No proactive engine (clean/Open VSX build) → never surface a switch for a feature that isn't shipped (codex code-review).
+        if (!this.context.proactiveControl) {
+            return;
+        }
         const on = this.context.proactivePreference?.isProactiveOn(exerciseId) ?? true;
         const autoPaused = on && (this.context.proactiveControl?.isProactivePaused(exerciseId) ?? false);
         const msg: ExtensionToWebviewMessage = {
@@ -492,15 +515,25 @@ describe('ProactiveControlCommandModule', () => {
         const h = harness({ on: false });
         await h.mod.getHandlers()[WebviewCmd.SetProactiveEnabled](cmd('setProactiveEnabled', { exerciseId: 42, enabled: false }));
         expect(h.pref.setProactiveOn).toHaveBeenCalledWith(42, false);
-        expect(h.control.setStudentProactive).toHaveBeenCalledWith(false);
+        expect(h.control.setStudentProactive).toHaveBeenCalledWith(42, false);   // exercise-scoped (codex code-review)
         expect(h.sent[0]).toMatchObject({ preference: 'off' });
     });
 
     it('resume delegates to the engine + re-pushes', async () => {
         const h = harness();
         await h.mod.getHandlers()[WebviewCmd.ResumeProactive](cmd('resumeProactive', { exerciseId: 42 }));
-        expect(h.control.resumeProactive).toHaveBeenCalled();
+        expect(h.control.resumeProactive).toHaveBeenCalledWith(42);
         expect(h.sent[0]).toMatchObject({ exerciseId: 42 });
+    });
+
+    // codex code-review: clean/no-engine build must not surface a switch.
+    it('pushes nothing when there is no proactive engine (clean build → switch stays hidden)', async () => {
+        const sent: any[] = [];
+        const pref = { isProactiveOn: vi.fn(() => true), setProactiveOn: vi.fn() };
+        const ctx = { proactivePreference: pref, proactiveControl: undefined, sendMessage: (m: any) => sent.push(m) } as any;
+        const mod = new ProactiveControlCommandModule(ctx);
+        await mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42 }));
+        expect(sent).toHaveLength(0);
     });
 });
 ```
@@ -537,15 +570,18 @@ In `webViewMessageHandler.ts`, add the two optional constructor params (after `s
 
 In `extension.ts`:
 - Change `const artemisWebviewProvider = …` (~line 155) to a forward-declared `let artemisWebviewProvider: ArtemisWebviewProvider | undefined;` BEFORE `createStruggleEngine` (mirror the existing `let chatWebviewProvider` at ~line 78), then assign `artemisWebviewProvider = new ArtemisWebviewProvider({...})` at the current site.
-- Add the three new handle methods to the EXISTING `createStruggleEngine(...)` destructure (which already pulls `coordinator`/`promptConsentIfAsk` + whatever earlier slices added) and add the new dep, then build the capability (~line 79):
+- Add the three new (optional) handle methods to the EXISTING `createStruggleEngine(...)` destructure and add the new dep. **Implementation note (deviation from a whole-provider forward-decl):** rather than forward-declaring the whole `artemisWebviewProvider` as `| undefined` (which would force `?.` on its closure call-sites), use a NARROW forward-ref `let proactivePreferenceRef` that the engine reads lazily, then wire it right after the provider is built. The provider stays `const`. Build `proactiveControl` ONLY when all three methods are present (codex code-review — the clean/no-engine build omits them, so it gets `undefined` and shows no switch):
 ```ts
+	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
 	const { coordinator: struggleCoordinator, promptConsentIfAsk, /* …existing… */ isProactivePaused, setStudentProactive, resumeProactive } = createStruggleEngine({
 		// …existing deps…
-		isStudentProactiveOn: exerciseId => artemisWebviewProvider?.proactivePreference.isProactiveOn(exerciseId) ?? true,
+		isStudentProactiveOn: exerciseId => proactivePreferenceRef?.isProactiveOn(exerciseId) ?? true,
 	});
-	const proactiveControl = { isProactivePaused, setStudentProactive, resumeProactive };
+	const proactiveControl = isProactivePaused && setStudentProactive && resumeProactive
+		? { isProactivePaused, setStudentProactive, resumeProactive }
+		: undefined;
 ```
-- Pass `proactiveControl` into the `ArtemisWebviewProvider({...})` deps object (~line 155, alongside `struggleCoordinator`).
+- Pass `proactiveControl` into the `ArtemisWebviewProvider({...})` deps object (~line 155, alongside `struggleCoordinator`), and right after constructing the provider set `proactivePreferenceRef = artemisWebviewProvider.proactivePreference;` (the engine's dep is only called at alert-time, long after this assignment).
 
 - [ ] **Step 5: Run green + type-check + commit**
 
@@ -725,7 +761,9 @@ git -C /Users/liamberger/Documents/private/MA/artemis-extension commit -m "feat(
 - **Client-side preference (user decision):** `ProactivePreferenceService` in `globalState`, default On (only OFF persisted), keyed server+principal — no Artemis change. Consumed by the orchestrator via the injected `isStudentProactiveOn` dep, so the engine suppresses without knowing about VS Code.
 - **Seam-safe:** the new orchestrator capabilities cross via `StruggleEngineDeps`/`StruggleEngineHandle`; the no-op implements them (`isProactivePaused → false`, others no-op); the preference service imports nothing from `services/struggle|intervention`, so the clean bundle is unaffected. The host capability is injected exactly like `struggleLiveFeed` (optional `CommandContext` field, absent in the clean build).
 - **Suppression is complete:** student-off gates both the egress path (`_handleAlert`, no POST) and the inbound server surfaces (`onServerAmbient`/`onServerActive`, drop a mid-flight surface). Default-on means an unset exercise behaves exactly as today.
-- **Off clears every visible surface (codex r2):** `setStudentProactive(false)` clears the lamp, the inline cue (`clearInline()` — a proactive ambient can be an inline decoration), and the badge; not just the lamp. Locked by a unit test.
+- **Off clears every visible surface (codex r2):** `setStudentProactive(exerciseId, false)` clears the lamp, the inline cue (`clearInline()` — a proactive ambient can be an inline decoration), and the badge; not just the lamp. Locked by a unit test.
+- **Exercise-scoped mutators (codex code-review):** `setStudentProactive(exerciseId, on)` and `resumeProactive(exerciseId)` only touch live surfaces / the session backoff when `getExerciseId() === exerciseId`, so a toggle/resume on exercise A never clobbers exercise B's lamp/inline/badge/backoff. The durable preference (persisted by the command module) is what actually suppresses A. Locked by non-active-exercise unit tests.
+- **No dead switch in the clean build (codex code-review):** the three handle methods are OPTIONAL and OMITTED by the no-op build; extension.ts assembles `proactiveControl` only when all three exist; the command module's `_push` early-returns when `proactiveControl` is absent — so the Open VSX / no-engine build never emits `UpdateProactiveControl` and the AskIris switch never renders. (The FULL-build "unavailable for other reasons" cases — course-off, consent, 404-degraded — remain the deferred Slice 5c matrix.) Locked by a `_push`-with-no-engine unit test + `verify-clean-bundle`.
 - **No stale badge across exercise switches (codex r2):** the store value is `exerciseId`-tagged, `setExerciseData(...)` resets `proactiveControl` to `null` (the partial `set()` otherwise preserves it), and the view renders the control only when the tag matches the **live** `exercise.id` at render time. The `UpdateProactiveControl` handler stores UNCONDITIONALLY (no closed-over `exerciseData` guard — `useExtensionMessage` would keep a stale closure since `exerciseData` is not in its deps; an in-handler compare would drop valid updates). A store unit test proves the reset.
 - **Host-side behavior is tested, not just type-checked (codex r2):** a `ProactiveControlCommandModule` unit test covers the `_push` Off>Auto-paused precedence + request/set/resume delegation; the orchestrator test covers inbound-surface suppression when student-off; the store test covers the no-stale-leak reset. (Only the extension.ts/provider WIRING itself stays `check-types`-gated.)
 - **Accepted residual (codex r2, low):** the per-scope OFF preference map is unbounded in principle, but bounded in practice by the number of exercises a student explicitly turns off (small); not worth a GC pass this slice.
