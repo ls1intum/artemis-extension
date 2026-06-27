@@ -77,6 +77,8 @@ export interface StruggleEngineDeps {
      *  topic. The seam calls `subscribeStruggleEvents` with this internally, so
      *  `extension.ts` never imports anything from `struggleIntervention/`. */
     subscribeStruggleTopic(topic: string, onFrame: (data: unknown) => void): { dispose(): void };
+    /** Durable per-exercise student opt-out (spec §12.2): false → the orchestrator suppresses proactive for it. */
+    isStudentProactiveOn(exerciseId: number): boolean;
 }
 
 /**
@@ -91,4 +93,15 @@ export interface StruggleEngineHandle {
     promptConsentIfAsk(): Promise<void>;
     /** Record a chat-bubble dismiss into the delivery backoff (Slice 4a). No-op in the clean build. */
     recordProactiveDismiss(): void;
+    /**
+     * Proactive control (AskIris On/Off switch, spec §12.2). These three are ABSENT in the clean (no-engine) build:
+     * extension.ts only assembles a `proactiveControl` capability when they are present, so the clean build never
+     * surfaces a switch for a feature it doesn't ship.
+     */
+    /** True iff the delivery backoff is paused for this exercise ("Auto-paused" badge). */
+    isProactivePaused?(exerciseId: number): boolean;
+    /** Apply the AskIris switch for an exercise: off clears its live surfaces, on clears any auto-pause. */
+    setStudentProactive?(exerciseId: number, on: boolean): void;
+    /** "Resume" action: clear the auto-pause backoff for an exercise. */
+    resumeProactive?(exerciseId: number): void;
 }

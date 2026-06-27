@@ -89,6 +89,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         showInline: (f, l, h, m) => inline.show(f, l, h, m),
         clearInline: () => inline.clear(),
         isAnchorLive: (f, l) => isAnchorLive(f, l, vscode.window.visibleTextEditors, coordinator.activeExerciseRoot),
+        isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
         softThreshold: TUNING.softThreshold,
         pauseStrikes: TUNING.pauseStrikes,
         setBadge: on => deps.setProactiveBadge(on),
@@ -187,6 +188,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         coordinator,
         promptConsentIfAsk: () => consent.promptIfAsk(),
         recordProactiveDismiss: () => orchestrator.recordChatDismiss(),
+        isProactivePaused: exerciseId => orchestrator.isProactivePaused(exerciseId),
+        setStudentProactive: (exerciseId, on) => orchestrator.setStudentProactive(exerciseId, on),
+        resumeProactive: exerciseId => orchestrator.resumeProactive(exerciseId),
     };
 }
 

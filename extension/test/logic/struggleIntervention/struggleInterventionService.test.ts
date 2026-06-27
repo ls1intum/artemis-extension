@@ -18,6 +18,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showInline: vi.fn(),
         clearInline: vi.fn(),
         isAnchorLive: () => false,
+        isStudentProactiveOn: () => true,
         softThreshold: 3,
         pauseStrikes: 5,
         setBadge: vi.fn(),
@@ -133,6 +134,56 @@ describe('StruggleInterventionService', () => {
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(2);
+    });
+
+    it('student-off suppresses the proactive POST entirely', async () => {
+        const post = vi.fn(async () => 'accepted' as const);
+        const deps = fakeDeps({ postIntervention: post, isStudentProactiveOn: () => false });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(post).not.toHaveBeenCalled();
+        expect(deps.showAmbient).not.toHaveBeenCalled();
+    });
+
+    it('inbound ambient/active are dropped when the student turned proactive off (mid-flight opt-out)', () => {
+        const deps = fakeDeps({ isStudentProactiveOn: () => false });
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerAmbient('hint', undefined, undefined, undefined);
+        svc.onServerActive(99);
+        expect(deps.showAmbient).not.toHaveBeenCalled();
+        expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.showActiveNotification).not.toHaveBeenCalled();
+    });
+
+    it('setStudentProactive(active exercise, false) clears a standing inline cue + lamp + badge', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc.setStudentProactive(42, false);   // 42 is fakeDeps' active exercise
+        expect(deps.clearInline).toHaveBeenCalled();
+        expect(deps.clearLamp).toHaveBeenCalled();
+        expect(deps.setBadge).toHaveBeenCalledWith(false);
+    });
+
+    it('setStudentProactive on a NON-active exercise does not touch live surfaces (no cross-exercise clobber)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc.setStudentProactive(999, false);   // active is 42, not 999
+        expect(deps.clearInline).not.toHaveBeenCalled();
+        expect(deps.clearLamp).not.toHaveBeenCalled();
+        expect(deps.setBadge).not.toHaveBeenCalled();
+    });
+
+    it('resumeProactive clears an auto-pause for the active exercise, but not for another', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        for (let i = 0; i < 5; i++) { svc.recordChatDismiss(); }   // Slice 4b: drives the backoff to paused
+        expect(svc.isProactivePaused(42)).toBe(true);              // 42 is fakeDeps' active exercise
+        svc.resumeProactive(999);                                  // wrong exercise → no effect
+        expect(svc.isProactivePaused(42)).toBe(true);
+        svc.resumeProactive(42);                                   // active exercise → cleared
+        expect(svc.isProactivePaused(42)).toBe(false);
     });
 
     it('inbound ambient event (no anchor) → lamp hint (opensChat=true) + clears in-flight', () => {

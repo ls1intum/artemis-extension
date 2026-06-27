@@ -81,6 +81,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		exerciseRegistry,
 		context,
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
+		// Default-on placeholder; Task 3 replaces this with the AskIris provider's per-exercise preference (spec §12.2).
+		isStudentProactiveOn: () => true,
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A

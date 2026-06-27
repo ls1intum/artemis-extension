@@ -16,6 +16,8 @@ export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineH
         // No engine in the clean build, so there is nothing to consent to.
         promptConsentIfAsk: async () => { /* no proactive egress in the clean build */ },
         recordProactiveDismiss: () => { /* no backoff in the clean build */ },
+        // isProactivePaused / setStudentProactive / resumeProactive are intentionally OMITTED: the clean build has no
+        // proactive engine, so extension.ts builds no proactiveControl capability and the AskIris switch never renders.
     };
 }
 

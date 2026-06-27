@@ -35,6 +35,8 @@ export interface StruggleInterventionDeps {
     clearInline(): void;
     /** True iff the anchored file is a visible editor AND the (1-based) line is in a visible range (spec §4). */
     isAnchorLive(anchorFile: string, anchorLine: number): boolean;
+    /** Durable per-exercise student opt-out (spec §12.2): false → the orchestrator suppresses proactive for it. */
+    isStudentProactiveOn(exerciseId: number): boolean;
     /** Reject-backoff thresholds (spec §5.2): annoyance owes a soft skip past `softThreshold`; `pauseStrikes`
      *  consecutive dismisses hard-pause proactive for the exercise. */
     softThreshold: number;
@@ -113,6 +115,13 @@ export class StruggleInterventionService implements AlertSink {
             this._dbg('  ↳ SKIP (course proactive disabled for this session)');
             return;
         }
+        // Student turned proactive off for this exercise (spec §12.2): no POST, no surface. Default-on, so an unset
+        // exercise is unaffected.
+        const studentExerciseId = this._deps.getExerciseId();
+        if (studentExerciseId !== undefined && !this._deps.isStudentProactiveOn(studentExerciseId)) {
+            this._dbg('  ↳ SKIP (student turned proactive off for this exercise)');
+            return;
+        }
         try {
             const signal = buildStruggleSignal(alert, this._buffer.snapshot());
             const optedIn = this._deps.isEgressEnabled();
@@ -180,6 +189,12 @@ export class StruggleInterventionService implements AlertSink {
     onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void {
         this._serverAvailable = true;
         this._setInFlight(false);
+        // The student may have toggled proactive off for this exercise while this POST was in flight (spec §12.2):
+        // drop the surface. The slot is already released above.
+        const exId = this._deps.getExerciseId();
+        if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
+            return;
+        }
         if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
             this._deps.clearLamp();   // exclusive surface: an inline cue supersedes any standing lamp
             this._deps.showInline(anchorFile, anchorLine, inlineHint, hint);
@@ -198,6 +213,11 @@ export class StruggleInterventionService implements AlertSink {
     onServerActive(sessionId: number, confidence?: number): void {
         this._serverAvailable = true;
         this._setInFlight(false);
+        // Student opted out mid-flight (spec §12.2): drop the surface (slot already released).
+        const exId = this._deps.getExerciseId();
+        if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
+            return;
+        }
         this._deps.clearInline();   // a stronger 'active' surface supersedes any standing inline cue (exclusive surface)
         if (this._activeCount >= MAX_ACTIVE_PER_SESSION) {
             this._dbg(`  ↳ ACTIVE session=${sessionId} CAPPED (${this._activeCount}/${MAX_ACTIVE_PER_SESSION} this session) → lamp only`);
@@ -264,6 +284,45 @@ export class StruggleInterventionService implements AlertSink {
     /** True while proactive is paused for this exercise (only an explicit dismiss can trigger this, spec §5.2). */
     isPaused(): boolean {
         return this._dismissStrikes >= this._deps.pauseStrikes;
+    }
+
+    /** True iff the delivery backoff is currently paused for the active exercise (drives the AskIris "Auto-paused" badge, §12.2). */
+    isProactivePaused(exerciseId: number): boolean {
+        return this._deps.getExerciseId() === exerciseId && this.isPaused();
+    }
+
+    /** Clear the Slice-4a session backoff counters. Private: the public methods add the active-exercise guard. */
+    private _clearBackoff(): void {
+        this._dismissStrikes = 0;
+        this._annoyance = 0;
+        this._softSkipBudget = 0;
+    }
+
+    /** "Resume" action: clear the auto-pause backoff — but ONLY when the active session is the one being resumed. The
+     *  backoff is session-scoped, so resuming exercise A while B is active must not clear B's backoff (codex review). */
+    resumeProactive(exerciseId: number): void {
+        if (this._deps.getExerciseId() !== exerciseId) {
+            return;
+        }
+        this._clearBackoff();
+    }
+
+    /** Immediate effect of the AskIris On/Off switch. The durable preference is persisted by the caller; here we only
+     *  touch the LIVE surfaces, and ONLY when the toggled exercise is the active one — a toggle on exercise A must not
+     *  clear exercise B's lamp/inline/badge/backoff (codex review). Off clears the lamp, the inline cue (a proactive
+     *  ambient can be an inline decoration) AND the badge; On clears any auto-pause. */
+    setStudentProactive(exerciseId: number, on: boolean): void {
+        if (this._deps.getExerciseId() !== exerciseId) {
+            return;
+        }
+        if (on) {
+            this._clearBackoff();
+        }
+        else {
+            this._deps.clearLamp();
+            this._deps.clearInline();
+            this._deps.setBadge(false);
+        }
     }
 
     /** Consume one owed soft skip; returns true if a skip was owed (caller drops the alert). */
