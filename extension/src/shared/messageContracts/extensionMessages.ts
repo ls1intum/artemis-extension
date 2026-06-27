@@ -20,6 +20,19 @@ export const BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
 export type BoundaryType = typeof BOUNDARY_TYPES[number];
 
 // ---------------------------------------------------------------------------
+// AskIris proactive-availability card state (spec §12.2 / §14)
+// ---------------------------------------------------------------------------
+
+/**
+ * Which proactive-availability state the AskIris card renders (spec §12.2, one term per §14 row).
+ * The clean (no-engine) build never sends a card at all — its "hidden" case is the ABSENCE of the
+ * `proactiveControl` capability, not a state here (see `proactiveControlCommands._push`).
+ */
+export type ProactiveCardState = 'available' | 'off-course' | 'unavailable' | 'degraded';
+/** Why a non-"available" card is in that state (drives the §14 banner / note copy). */
+export type ProactiveCardReason = 'noai' | 'iris-off' | 'course-off' | 'limited';
+
+// ---------------------------------------------------------------------------
 // Live-tick wire types (extension → struggle-detection webview)
 // ---------------------------------------------------------------------------
 
