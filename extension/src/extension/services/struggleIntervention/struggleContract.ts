@@ -53,4 +53,8 @@ export interface StruggleInterventionEvent {
     messageId?: number;
     /** Server-computed Pyris confidence, forwarded by Plan 2 (Task 4b 5-component DTO) for the client eval log (§12). */
     confidence?: number;
+    /** Inline anchor + cue (spec §4/§8). All optional; present only when the gate localized the nudge to one line. */
+    anchorFile?: string;
+    anchorLine?: number;
+    inlineHint?: string;
 }

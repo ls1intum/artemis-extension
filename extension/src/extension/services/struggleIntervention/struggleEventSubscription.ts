@@ -8,7 +8,10 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
     if (data === null || typeof data !== 'object') {
         return undefined;
     }
-    const f = data as { exerciseId?: unknown; action?: unknown; message?: unknown; sessionId?: unknown; messageId?: unknown; confidence?: unknown };
+    const f = data as {
+        exerciseId?: unknown; action?: unknown; message?: unknown; sessionId?: unknown; messageId?: unknown; confidence?: unknown;
+        anchorFile?: unknown; anchorLine?: unknown; inlineHint?: unknown;
+    };
     if (typeof f.exerciseId !== 'number' || (f.action !== 'ambient' && f.action !== 'active')) {
         return undefined;
     }
@@ -17,6 +20,9 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
         return undefined;
     }
     const messageId = typeof f.messageId === 'number' ? f.messageId : undefined;
+    const anchorFile = typeof f.anchorFile === 'string' ? f.anchorFile : undefined;
+    const anchorLine = typeof f.anchorLine === 'number' ? f.anchorLine : undefined;
+    const inlineHint = typeof f.inlineHint === 'string' ? f.inlineHint : undefined;
     return {
         exerciseId: f.exerciseId,
         action: f.action,
@@ -24,6 +30,9 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
         sessionId,
         messageId,
         confidence: typeof f.confidence === 'number' ? f.confidence : undefined,
+        anchorFile,
+        anchorLine,
+        inlineHint,
     };
 }
 

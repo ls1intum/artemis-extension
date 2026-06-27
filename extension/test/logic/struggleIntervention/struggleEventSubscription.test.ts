@@ -23,6 +23,18 @@ describe('classifyStruggleEvent', () => {
         expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9 })?.messageId).toBeUndefined();
         expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9, messageId: 'x' })?.messageId).toBeUndefined();
     });
+    it('parses anchor + inlineHint', () => {
+        const e = classifyStruggleEvent({ exerciseId: 1, action: 'ambient', sessionId: 9, messageId: 5, anchorFile: 'Sort.java', anchorLine: 42, inlineHint: 'off-by-one?' });
+        expect(e?.anchorFile).toBe('Sort.java');
+        expect(e?.anchorLine).toBe(42);
+        expect(e?.inlineHint).toBe('off-by-one?');
+    });
+    it('leaves anchor fields undefined when absent or wrong-typed', () => {
+        const e = classifyStruggleEvent({ exerciseId: 1, action: 'ambient', message: 'x', anchorFile: 7, anchorLine: 'x', inlineHint: 9 });
+        expect(e?.anchorFile).toBeUndefined();
+        expect(e?.anchorLine).toBeUndefined();
+        expect(e?.inlineHint).toBeUndefined();
+    });
     it('returns undefined for malformed / non-struggle frames', () => {
         expect(classifyStruggleEvent({ foo: 1 })).toBeUndefined();
         expect(classifyStruggleEvent(null)).toBeUndefined();
