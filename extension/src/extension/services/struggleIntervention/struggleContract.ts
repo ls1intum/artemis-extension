@@ -31,16 +31,19 @@ export interface StruggleInterventionRequest {
 /** 202 response body of the trigger (Plan 2 StruggleInterventionAcceptedDTO). */
 export interface StruggleInterventionAccepted {
     accepted: boolean;
+    /** True only when proactive is off for this course (§13) — distinct from an in-flight `accepted:false`. */
+    courseDisabled?: boolean;
     exerciseId: number;
     jobId?: string | null;
 }
 
 /**
- * Outcome of the trigger POST (spec §9/§11). `accepted` → enqueued, await the websocket decision; `unavailable`
- * → the endpoint is missing (404 — old/feature-less Artemis), so the client degrades to the no-AI lamp for the
- * session (spec §11: "no-AI lamp remains"); `failed` → a transient 4xx/5xx/network error → treat as silent.
+ * Outcome of the trigger POST (spec §9/§11/§13). `accepted` → enqueued, await the websocket decision; `course-off`
+ * → proactive is disabled for this course (§13), so the client pauses proactive for the session with NO no-AI lamp;
+ * `unavailable` → the endpoint is missing (404 — old/feature-less Artemis), so the client degrades to the no-AI lamp
+ * (spec §11); `failed` → a transient 4xx/5xx/network error → treat as silent.
  */
-export type StruggleEgressResult = 'accepted' | 'unavailable' | 'failed';
+export type StruggleEgressResult = 'accepted' | 'course-off' | 'unavailable' | 'failed';
 
 /** Per-user struggle event on /user/topic/iris/struggle-intervention (Plan 2 StruggleInterventionEventDTO). */
 export interface StruggleInterventionEvent {

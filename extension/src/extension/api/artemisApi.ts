@@ -1,7 +1,7 @@
 import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '@extension/domain/problemStatementRendering';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { StruggleEgressResult, StruggleInterventionRequest } from '@extension/services/struggleIntervention/struggleContract';
+import type { StruggleEgressResult, StruggleInterventionAccepted, StruggleInterventionRequest } from '@extension/services/struggleIntervention/struggleContract';
 import type {
     ArtemisParticipation,
     ArtemisUser,
@@ -540,16 +540,23 @@ export class ArtemisApiService {
 
     /**
      * Trigger a proactive struggle intervention (spec §5.2), exercise-keyed. Fire-and-forget: the server
-     * returns 202 {accepted, exerciseId, jobId} (body ignored in v1) and the gated result arrives over the
-     * per-user struggle topic. Auth + 401 handling via makeRequest. Returns a {@link StruggleEgressResult} so the
-     * orchestrator can degrade to the no-AI lamp on a 404 (feature missing — spec §9, §11).
+     * returns 202 {accepted, courseDisabled, exerciseId, jobId} and the gated result arrives over the per-user
+     * struggle topic. Auth + 401 handling via makeRequest. Returns a {@link StruggleEgressResult} so the orchestrator
+     * can pause proactive on a course-off (§13), or degrade to the no-AI lamp on a 404 (feature missing — spec §9, §11).
      */
     async postStruggleIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult> {
         try {
-            await this.makeRequest(`/api/iris/chat/exercises/${exerciseId}/struggle-intervention`, {
+            const response = await this.makeRequest(`/api/iris/chat/exercises/${exerciseId}/struggle-intervention`, {
                 method: 'POST',
                 body: JSON.stringify(body),
             });
+            // Course-off (§13) is a deliberate instructor choice: pause proactive with no lamp. An in-flight
+            // `accepted:false` (courseDisabled false/absent) is NOT course-off — treat it as accepted (a job is
+            // already running; await its websocket decision).
+            const accepted = (await response.json().catch(() => null)) as StruggleInterventionAccepted | null;
+            if (accepted?.accepted === false && accepted?.courseDisabled === true) {
+                return 'course-off';
+            }
             return 'accepted';
         }
         catch (error) {

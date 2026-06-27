@@ -883,4 +883,42 @@ suite('Artemis API Service Test Suite', () => {
             clock.restore();
         }
     });
+
+    // The 202 body is what distinguishes a deliberate course-off (§13, pause with no lamp) from an in-flight
+    // single-flight skip (§11, treat as accepted) from a missing endpoint (404, degrade to the lamp). These guard
+    // the actual JSON parsing in postStruggleIntervention, which the orchestrator test cannot see (it stubs the result).
+    const struggleBody = { struggleSignal: {}, uncommittedFiles: {} } as any;
+
+    test('postStruggleIntervention: 202 {accepted:false, courseDisabled:true} → course-off', async () => {
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes('/api/iris/chat/exercises/42/struggle-intervention'));
+            return { ok: true, status: 202, json: async () => ({ accepted: false, courseDisabled: true, exerciseId: 42 }) } as any;
+        };
+        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'course-off');
+    });
+
+    test('postStruggleIntervention: 202 in-flight {accepted:false, courseDisabled:false} → accepted (NOT course-off)', async () => {
+        global.fetch = async () => ({ ok: true, status: 202, json: async () => ({ accepted: false, courseDisabled: false, exerciseId: 42 }) } as any);
+        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'accepted');
+    });
+
+    test('postStruggleIntervention: 202 in-flight with courseDisabled ABSENT → accepted', async () => {
+        global.fetch = async () => ({ ok: true, status: 202, json: async () => ({ accepted: false, exerciseId: 42 }) } as any);
+        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'accepted');
+    });
+
+    test('postStruggleIntervention: 202 {accepted:true} → accepted', async () => {
+        global.fetch = async () => ({ ok: true, status: 202, json: async () => ({ accepted: true, courseDisabled: false, exerciseId: 42, jobId: 'tok' }) } as any);
+        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'accepted');
+    });
+
+    test('postStruggleIntervention: 404 → unavailable (feature missing → lamp)', async () => {
+        global.fetch = async () => ({ ok: false, status: 404, statusText: 'Not Found' } as any);
+        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'unavailable');
+    });
+
+    test('postStruggleIntervention: 500 → failed (silent)', async () => {
+        global.fetch = async () => ({ ok: false, status: 500, statusText: 'Internal Server Error' } as any);
+        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'failed');
+    });
 });
