@@ -4,6 +4,8 @@ import * as path from 'path';
 
 import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
+import { isAnchorLive } from '@extension/services/intervention/inlineHint';
+import { InlineHintDecoration } from '@extension/services/intervention/inlineHintDecoration';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
 import { TUNING } from '@extension/services/struggle/config';
@@ -66,6 +68,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // Forward ref: the orchestrator's deps read the coordinator lazily (only when
     // an alert fires, well after construction), so the cycle resolves by order.
     let coordinator: StruggleCoordinator;
+    // Inline in-editor cue surface (spec §4.1). The getExerciseRoot thunk reads the coordinator lazily (it is
+    // assigned below; the thunk only fires on later editor events), so constructing this before it is safe.
+    const inline = new InlineHintDecoration(deps.context.extensionUri, () => coordinator.activeExerciseRoot);
+    deps.context.subscriptions.push(inline);
     const orchestrator = new StruggleInterventionService({
         isEgressEnabled: () => consent.isEnabled,
         hasNoaiMarker: () => {
@@ -79,6 +85,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         openSession: async id => { await deps.openProactiveSession(id); },
         showAmbient: (hint, opensChat) => lamp.showAmbient(hint, opensChat),
         clearLamp: () => lamp.reset(),
+        showInline: (f, l, h, m) => inline.show(f, l, h, m),
+        clearInline: () => inline.clear(),
+        isAnchorLive: (f, l) => isAnchorLive(f, l, vscode.window.visibleTextEditors, coordinator.activeExerciseRoot),
         setBadge: on => deps.setProactiveBadge(on),
         showActiveNotification: () => showActiveNotification(() => orchestrator.recordOutcome('clicked')),
         log,
@@ -108,11 +117,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // exerciseId is not the one currently active: a late frame for a previous exercise
     // must never surface in (or consume the per-session budget of) the new session.
     deps.context.subscriptions.push(subscribeStruggleEvents(deps.subscribeStruggleTopic, {
-        onServerAmbient: (exerciseId, hint, c) => {
+        onServerAmbient: (exerciseId, hint, anchorFile, anchorLine, inlineHint, c) => {
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris AMBIENT exercise=${exerciseId} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}: "${hint}"`);
-            if (active) { orchestrator.onServerAmbient(hint, c); }
+            if (active) { orchestrator.onServerAmbient(hint, anchorFile, anchorLine, inlineHint, c); }
         },
         onServerActive: (exerciseId, sid, c) => {
             const active = exerciseId === coordinator.activeExerciseId;

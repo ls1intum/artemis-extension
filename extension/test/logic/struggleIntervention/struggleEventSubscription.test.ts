@@ -51,8 +51,8 @@ describe('subscribeStruggleEvents dispatch', () => {
         const onServerActive = vi.fn();
         subscribeStruggleEvents(subscribe, { onServerAmbient, onServerActive });
 
-        onFrame!({ exerciseId: 42, action: 'ambient', message: 'Re-check the logic.' });
-        expect(onServerAmbient).toHaveBeenCalledWith(42, 'Re-check the logic.', undefined);
+        onFrame!({ exerciseId: 42, action: 'ambient', message: 'Re-check the logic.', anchorFile: 'src/A.java', anchorLine: 42, inlineHint: 'off-by-one?' });
+        expect(onServerAmbient).toHaveBeenCalledWith(42, 'Re-check the logic.', 'src/A.java', 42, 'off-by-one?', undefined);
 
         onFrame!({ exerciseId: 99, action: 'active', sessionId: 7, confidence: 0.5 });
         expect(onServerActive).toHaveBeenCalledWith(99, 7, 0.5);

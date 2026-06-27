@@ -29,6 +29,12 @@ export interface StruggleInterventionDeps {
     showAmbient(hint: string, opensChat: boolean): void;
     /** Hide the status-bar lamp (called on session/context reset so stale hints do not survive). */
     clearLamp(): void;
+    /** Render the inline in-editor cue (gutter logo + after-line hint + hover) at the live anchor (spec §4.1). */
+    showInline(anchorFile: string, anchorLine: number, inlineHint: string, message: string): void;
+    /** Remove any inline cue (session/context reset). */
+    clearInline(): void;
+    /** True iff the anchored file is a visible editor AND the (1-based) line is in a visible range (spec §4). */
+    isAnchorLive(anchorFile: string, anchorLine: number): boolean;
     setBadge(on: boolean): void;
     showActiveNotification(): void;
     log: InterventionEventLog;
@@ -143,10 +149,20 @@ export class StruggleInterventionService implements AlertSink {
         }
     }
 
-    /** Inbound ambient event from the server (ambient is NOT capped — spec §10). */
-    onServerAmbient(hint: string, confidence?: number): void {
+    /**
+     * Inbound ambient event from the server (ambient is NOT capped — spec §10). Renders the inline in-editor cue
+     * when the gate localized the nudge to a line that is currently live on screen (spec §4); otherwise the lamp.
+     */
+    onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void {
         this._serverAvailable = true;
         this._setInFlight(false);
+        if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+            this._deps.clearLamp();   // exclusive surface: an inline cue supersedes any standing lamp
+            this._deps.showInline(anchorFile, anchorLine, inlineHint, hint);
+            this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'inline', source: 'server', confidence }, this._pendingSignal);
+            return;
+        }
+        this._deps.clearInline();     // exclusive surface: the lamp supersedes any standing inline cue
         this._deps.showAmbient(hint, true);
         this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', confidence }, this._pendingSignal);
     }
@@ -158,6 +174,7 @@ export class StruggleInterventionService implements AlertSink {
     onServerActive(sessionId: number, confidence?: number): void {
         this._serverAvailable = true;
         this._setInFlight(false);
+        this._deps.clearInline();   // a stronger 'active' surface supersedes any standing inline cue (exclusive surface)
         if (this._activeCount >= MAX_ACTIVE_PER_SESSION) {
             this._dbg(`  ↳ ACTIVE session=${sessionId} CAPPED (${this._activeCount}/${MAX_ACTIVE_PER_SESSION} this session) → lamp only`);
             this._deps.showAmbient('Iris added a suggestion to the chat.', true);
@@ -191,6 +208,7 @@ export class StruggleInterventionService implements AlertSink {
         this._lastSurfaceSignal = undefined;
         this._deps.setBadge(false);
         this._deps.clearLamp();
+        this._deps.clearInline();
     }
 
     private _setInFlight(on: boolean): void {

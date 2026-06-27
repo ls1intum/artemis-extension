@@ -40,7 +40,7 @@ export interface StruggleEventHandlers {
     /** `exerciseId` lets the consumer drop frames that belong to a now-inactive
      *  exercise (the per-user topic is NOT exercise-filtered server-side, so a
      *  late frame for a previous exercise can arrive after a fast switch). */
-    onServerAmbient(exerciseId: number, hint: string, confidence?: number): void;
+    onServerAmbient(exerciseId: number, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void;
     onServerActive(exerciseId: number, sessionId: number, confidence?: number): void;
 }
 
@@ -59,7 +59,7 @@ export function subscribeStruggleEvents(
             return;
         }
         if (e.action === 'ambient') {
-            handlers.onServerAmbient(e.exerciseId, e.message ?? '', e.confidence);
+            handlers.onServerAmbient(e.exerciseId, e.message ?? '', e.anchorFile, e.anchorLine, e.inlineHint, e.confidence);
         }
         else {
             handlers.onServerActive(e.exerciseId, e.sessionId as number, e.confidence);

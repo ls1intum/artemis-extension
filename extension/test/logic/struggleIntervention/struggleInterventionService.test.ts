@@ -15,6 +15,9 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         openSession: vi.fn(async () => undefined),
         showAmbient: vi.fn(),
         clearLamp: vi.fn(),
+        showInline: vi.fn(),
+        clearInline: vi.fn(),
+        isAnchorLive: () => false,
         setBadge: vi.fn(),
         showActiveNotification: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
@@ -103,17 +106,37 @@ describe('StruggleInterventionService', () => {
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
     });
 
-    it('inbound ambient event → lamp hint (opensChat=true) + clears in-flight', () => {
+    it('inbound ambient event (no anchor) → lamp hint (opensChat=true) + clears in-flight', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
-        svc.onServerAmbient('Re-check the logic.');
+        svc.onServerAmbient('Re-check the logic.', undefined, undefined, undefined);
         expect(deps.showAmbient).toHaveBeenCalledWith('Re-check the logic.', true);
+        expect(deps.showInline).not.toHaveBeenCalled();
+    });
+
+    it('inbound ambient event WITH a live anchor → inline cue, not the lamp, and clears any standing lamp (spec §4)', () => {
+        const deps = fakeDeps({ isAnchorLive: () => true });
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerAmbient('Re-check the logic.', 'src/A.java', 42, 'off-by-one?');
+        expect(deps.showInline).toHaveBeenCalledWith('src/A.java', 42, 'off-by-one?', 'Re-check the logic.');
+        expect(deps.showAmbient).not.toHaveBeenCalled();
+        expect(deps.clearLamp).toHaveBeenCalled();   // exclusive surface
+    });
+
+    it('inbound ambient event with an anchor that is NOT live → falls back to the lamp, and clears any standing inline cue', () => {
+        const deps = fakeDeps({ isAnchorLive: () => false });
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerAmbient('Re-check the logic.', 'src/A.java', 42, 'off-by-one?');
+        expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.showAmbient).toHaveBeenCalledWith('Re-check the logic.', true);
+        expect(deps.clearInline).toHaveBeenCalled();   // exclusive surface
     });
 
     it('inbound active event → open/fetch session + badge + notification, capped after 3 actives', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc.onServerActive(7); svc.onServerActive(7); svc.onServerActive(7);
+        expect(deps.clearInline).toHaveBeenCalled();   // active supersedes any standing inline cue (exclusive surface)
         expect(deps.openSession).toHaveBeenCalledTimes(3);
         expect(deps.openSession).toHaveBeenCalledWith(7);
         expect(deps.setBadge).toHaveBeenCalledTimes(3);
