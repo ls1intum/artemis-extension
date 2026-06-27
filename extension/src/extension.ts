@@ -219,6 +219,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		registry: exerciseRegistry,
 		courseDataCache,
 		sink: buildChatProviderSink(chatWebviewProvider),
+		// Reopening VS Code on an already-cloned exercise only triggers passive detection (Iris chat),
+		// not the webview open flow. Start the struggle session here too so detection resumes.
+		onWorkspaceExerciseDetected: (id, root) => struggleCoordinator.startExerciseSession(id, root),
+		// Symmetric: leaving the exercise (no workspace match) ends the session so it cannot go stale.
+		onWorkspaceExerciseCleared: () => struggleCoordinator.endExerciseSession(),
 	}));
 
 	context.subscriptions.push(struggleCoordinator);

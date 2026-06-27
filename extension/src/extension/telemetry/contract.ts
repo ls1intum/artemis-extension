@@ -19,6 +19,7 @@ import type { StruggleCoordinator } from '@extension/services/struggle/struggleC
 export type IStruggleCoordinator = Pick<StruggleCoordinator,
     | 'setWebsocketService'
     | 'startExerciseSession'
+    | 'endExerciseSession'
     | 'getSnapshot'
     | 'isEnabled'
     | 'dispose'

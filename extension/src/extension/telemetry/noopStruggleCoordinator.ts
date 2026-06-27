@@ -32,6 +32,7 @@ export class NoopStruggleCoordinator implements IStruggleCoordinator {
 
     public setWebsocketService(_ws: ArtemisWebsocketService): void { /* no-op */ }
     public startExerciseSession(_exerciseId: number, _exerciseRoot?: vscode.Uri): void { /* no-op */ }
+    public endExerciseSession(): void { /* no-op */ }
     public isEnabled(): boolean { return false; }
     public getSnapshot(): StruggleSnapshot {
         return {
