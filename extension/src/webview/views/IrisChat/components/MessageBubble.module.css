@@ -43,12 +43,13 @@
     opacity: 0.85;
 }
 
-/* Proactive (struggle-intervention) assistant messages get a restrained
-   accent so the unprompted nudge reads as distinct from a normal reply
-   without shouting. A left border plus a small caption is enough. */
+/* Proactive (struggle-intervention) assistant messages read as a distinct, unprompted
+   card: a faint tint plus rounded corners set them apart from the transparent normal
+   replies, without the old left "AI line" or a logo (spec §6.2). */
 .proactiveBubble {
-    border-left: 2px solid var(--vscode-charts-blue);
-    padding-left: 12px;
+    background-color: color-mix(in srgb, var(--vscode-charts-blue) 9%, transparent);
+    border-radius: 10px;
+    padding: 10px 12px;
 }
 
 .proactiveCaption {

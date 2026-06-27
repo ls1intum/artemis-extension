@@ -19,5 +19,6 @@ describe('MessageBubble proactive', () => {
     it('marks a proactive assistant bubble distinctly', () => {
         const { container } = render(<MessageBubble message={proactive()} onFeedback={() => {}} />);
         expect(container.querySelector('[data-origin="proactive"]')).not.toBeNull();
+        expect(container.textContent).toContain('Iris thought this might help');
     });
 });

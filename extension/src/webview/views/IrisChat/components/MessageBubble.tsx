@@ -70,7 +70,7 @@ function MessageBubbleComponent({
                 >
                     {isProactive && (
                         <div className={styles.proactiveCaption}>
-                            Iris noticed you might be stuck
+                            Iris thought this might help
                         </div>
                     )}
                     {/* Always render the original message content. The error
