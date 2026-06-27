@@ -78,6 +78,8 @@ interface ChatState {
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
     addMessage: (message: ChatMessage) => void;
+    /** Patch the proactive outcome on the message with this Artemis id (optimistic collapse). */
+    setProactiveOutcome: (messageId: number, outcome: NonNullable<ChatMessage['proactiveOutcome']>) => void;
     /**
      * Mark a still-pending user message as failed. Returns `true` only if
      * a matching message was found AND it was a pending user send
@@ -181,6 +183,14 @@ export const useChatStore = create<ChatState>()(
                 set((state) => ({
                     messages: [...state.messages, message],
                 }), false, 'addMessage');
+            },
+
+            setProactiveOutcome: (messageId, outcome) => {
+                set((state) => ({
+                    messages: state.messages.map((m) =>
+                        m.id === messageId ? { ...m, proactiveOutcome: outcome } : m,
+                    ),
+                }), false, 'setProactiveOutcome');
             },
 
             markMessageFailed: (localId, errorMessage, errorReason) => {

@@ -26,6 +26,13 @@ export interface ChatMessage {
      * websocket path and the GET /messages history path.
      */
     origin?: 'proactive';
+    /**
+     * Durable reaction to a proactive message. `'DISMISSED'` means the student
+     * collapsed the bubble; the bubble is kept (never deleted, spec §6.3) and
+     * re-renders collapsed after a history reload (the server round-trips it on
+     * `IrisMessageResponseDTO`).
+     */
+    proactiveOutcome?: 'DISMISSED';
 }
 
 // Chat session summary (from extension)

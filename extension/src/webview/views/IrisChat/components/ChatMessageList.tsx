@@ -25,6 +25,8 @@ interface ChatMessageListProps {
      * the map on every render.
      */
     isRetryDisabled?: (message: ChatMessage) => boolean;
+    /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes). */
+    onDismiss?: (messageId: number) => void;
 }
 
 export function ChatMessageList({
@@ -37,6 +39,7 @@ export function ChatMessageList({
     isChatDisabled,
     onRetry,
     isRetryDisabled,
+    onDismiss,
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
 
@@ -68,6 +71,7 @@ export function ChatMessageList({
                                 message={message}
                                 onFeedback={onFeedback}
                                 onRetry={onRetry}
+                                onDismiss={onDismiss}
                                 retryDisabled={
                                     isRetryDisabled ? isRetryDisabled(message) : false
                                 }

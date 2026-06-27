@@ -23,6 +23,8 @@ interface MessageBubbleProps {
      * Iris still disabled for the exercise).
      */
     retryDisabled?: boolean;
+    /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes, spec §6.3). */
+    onDismiss?: (messageId: number) => void;
 }
 
 function MessageBubbleComponent({
@@ -30,8 +32,10 @@ function MessageBubbleComponent({
     onFeedback,
     onRetry,
     retryDisabled,
+    onDismiss,
 }: MessageBubbleProps) {
     const [hovering, setHovering] = useState(false);
+    const [expanded, setExpanded] = useState(false);
     const isAssistant = message.role === 'assistant';
     const isUser = message.role === 'user';
     const streamdownComponents = useStreamdownConfig();
@@ -48,6 +52,7 @@ function MessageBubbleComponent({
     const hasFeedback = message.helpful !== undefined && message.helpful !== null;
     const isFailed = message.status === 'error';
     const isProactive = isAssistant && message.origin === 'proactive';
+    const isDismissed = isProactive && message.proactiveOutcome === 'DISMISSED';
 
     return (
         <div
@@ -65,6 +70,7 @@ function MessageBubbleComponent({
                         [styles.assistantBubble]: isAssistant,
                         [styles.error]: isFailed,
                         [styles.proactiveBubble]: isProactive,
+                        [styles.proactiveDismissed]: isDismissed,
                     })}
                     data-origin={isProactive ? 'proactive' : undefined}
                 >
@@ -73,19 +79,51 @@ function MessageBubbleComponent({
                             Iris thought this might help
                         </div>
                     )}
-                    {/* Always render the original message content. The error
-                        footer below augments it instead of replacing it, so the
-                        user can see what they tried to send. */}
-                    <div className={styles.content}>
-                        <Streamdown
-                            mode="static"
-                            components={streamdownComponents}
+                    {/* A dismissed proactive bubble collapses (caption stays, body hidden behind a toggle);
+                        every other message renders its content directly. The error footer below augments
+                        the content instead of replacing it, so the user can see what they tried to send. */}
+                    {isDismissed && !expanded ? (
+                        <button
+                            type="button"
+                            className={styles.dismissedToggle}
+                            onClick={() => setExpanded(true)}
                         >
-                            {message.content}
-                        </Streamdown>
-                    </div>
+                            Show suggestion
+                        </button>
+                    ) : (
+                        <>
+                            <div className={styles.content}>
+                                <Streamdown
+                                    mode="static"
+                                    components={streamdownComponents}
+                                >
+                                    {message.content}
+                                </Streamdown>
+                            </div>
+                            {isDismissed && expanded && (
+                                <button
+                                    type="button"
+                                    className={styles.dismissedToggle}
+                                    onClick={() => setExpanded(false)}
+                                >
+                                    Hide
+                                </button>
+                            )}
+                        </>
+                    )}
 
-                    {isAssistant && !isFailed && (
+                    {isProactive && !isDismissed && message.id !== undefined && onDismiss && (
+                        <button
+                            type="button"
+                            className={styles.dismissButton}
+                            onClick={() => onDismiss(message.id as number)}
+                            aria-label="Dismiss this suggestion"
+                        >
+                            Dismiss
+                        </button>
+                    )}
+
+                    {isAssistant && !isFailed && !(isDismissed && !expanded) && (
                         <div
                             className={clsx(styles.feedbackContainer, {
                                 [styles.visible]: hovering || hasFeedback,
@@ -162,10 +200,12 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.helpful === next.message.helpful &&
         prev.message.status === next.message.status &&
         prev.message.origin === next.message.origin &&
+        prev.message.proactiveOutcome === next.message.proactiveOutcome &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
         prev.retryDisabled === next.retryDisabled &&
         prev.onRetry === next.onRetry &&
+        prev.onDismiss === next.onDismiss &&
         prev.onFeedback === next.onFeedback
     );
 };

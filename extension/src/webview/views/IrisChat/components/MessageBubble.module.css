@@ -179,3 +179,26 @@
 .messageWrapper.assistant .timestamp {
     left: 16px;
 }
+
+/* A dismissed proactive card stays visible but recedes (spec §6.3: collapse, never delete). */
+.proactiveDismissed {
+    opacity: 0.6;
+}
+
+.dismissButton,
+.dismissedToggle {
+    align-self: flex-start;
+    margin-top: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: 1px solid var(--vscode-widget-border, transparent);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.dismissButton:hover,
+.dismissedToggle:hover {
+    color: var(--vscode-foreground);
+}
