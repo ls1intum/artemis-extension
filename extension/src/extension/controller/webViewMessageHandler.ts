@@ -9,6 +9,7 @@ import type { CourseAccessStorageService } from '@extension/services/courseAcces
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 
@@ -20,6 +21,7 @@ import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { mergeRecordingHandlers } from './commands/mergeCommandHandlers';
 import { NavigationCommandModule } from './commands/navigationCommands';
+import { ProactiveControlCommandModule } from './commands/proactiveControlCommands';
 import { ProblemStatementTrackingCommandModule } from './commands/problemStatementTrackingCommands';
 import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
 import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
@@ -55,6 +57,8 @@ export class WebViewMessageHandler {
         courseAccessStorage?: CourseAccessStorageService,
         recordingHandlers: CommandMap = {},
         struggleLiveFeed?: { subscribe(): void; unsubscribe(): void },
+        proactivePreference?: ProactivePreferenceService,
+        proactiveControl?: CommandContext['proactiveControl'],
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -71,6 +75,8 @@ export class WebViewMessageHandler {
             courseDataCache,
             courseAccessStorage,
             struggleLiveFeed,
+            proactivePreference,
+            proactiveControl,
         };
 
         this.repositoryStatusModule = new RepositoryStatusCommands(context);
@@ -89,6 +95,7 @@ export class WebViewMessageHandler {
             new ProblemStatementTrackingCommandModule(context),
             new BuildLogCommands(context),
             new ExerciseLifecycleCommands(context),
+            new ProactiveControlCommandModule(context),
         ];
 
         modules.forEach(module => {

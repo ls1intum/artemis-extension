@@ -9,6 +9,7 @@ import type { AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 
@@ -36,4 +37,12 @@ export interface CommandContext {
      * exercise the live view.
      */
     struggleLiveFeed?: { subscribe(): void; unsubscribe(): void };
+    /** Durable per-exercise proactive on/off preference (client-side, spec §12.2). Absent in tests that don't need it. */
+    proactivePreference?: ProactivePreferenceService;
+    /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. */
+    proactiveControl?: {
+        isProactivePaused(exerciseId: number): boolean;
+        setStudentProactive(exerciseId: number, on: boolean): void;
+        resumeProactive(exerciseId: number): void;
+    };
 }

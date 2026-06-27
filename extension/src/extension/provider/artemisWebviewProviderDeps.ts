@@ -1,6 +1,7 @@
 import type * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
+import type { CommandContext } from '@extension/controller/commands/types';
 import type { AuthManager } from '@extension/services/auth';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -22,4 +23,6 @@ export interface ArtemisWebviewProviderDeps {
     struggleCoordinator: IStruggleCoordinator;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
     courseDataCache?: CourseDataCache;
+    /** Behind-the-`@telemetry`-seam proactive control (pause/resume/apply); absent in the clean build (spec §12.2). */
+    proactiveControl?: CommandContext['proactiveControl'];
 }

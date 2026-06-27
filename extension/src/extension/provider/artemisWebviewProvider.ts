@@ -21,6 +21,7 @@ import { type CourseAccessScope, CourseAccessStorageService } from '@extension/s
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { SubmissionPayload } from '@extension/services/recording/types';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -80,6 +81,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _exerciseOpeningService: ExerciseOpeningService;
     private _startPageResolver: StartPageResolver;
     private readonly _courseAccessStorage: CourseAccessStorageService;
+    private readonly _proactivePreference: ProactivePreferenceService;
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
@@ -134,6 +136,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         // 2. CourseAccessStorage — its scope callback resolves on the provider.
         this._courseAccessStorage = new CourseAccessStorageService(
+            this._extensionContext.globalState,
+            () => this._currentCourseAccessScope(),
+        );
+        // Per-exercise proactive on/off preference (spec §12.2) — same globalState scope as course access.
+        this._proactivePreference = new ProactivePreferenceService(
             this._extensionContext.globalState,
             () => this._currentCourseAccessScope(),
         );
@@ -225,6 +232,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseAccessStorage,
             createRecordingWebviewHandlers(this._extensionContext.globalStorageUri),
             this._liveEngineFeed,
+            this._proactivePreference,
+            deps.proactiveControl,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
 
@@ -292,6 +301,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._onDidProblemStatementScroll,
             this._onDidProblemStatementSelection,
         );
+    }
+
+    /** The per-exercise proactive on/off preference (spec §12.2); read by the engine's `isStudentProactiveOn` dep. */
+    public get proactivePreference(): ProactivePreferenceService {
+        return this._proactivePreference;
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────

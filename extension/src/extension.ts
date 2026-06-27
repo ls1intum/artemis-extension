@@ -76,13 +76,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	// setProactiveBadge) can reach the chat provider; it is constructed below, well
 	// before any alert or server event fires.
 	let chatWebviewProvider: ChatWebviewProvider | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss } = createStruggleEngine({
+	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
+	// alert-time (long after the provider below is built), so default-on until it is wired.
+	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
-		// Default-on placeholder; Task 3 replaces this with the AskIris provider's per-exercise preference (spec §12.2).
-		isStudentProactiveOn: () => true,
+		isStudentProactiveOn: exerciseId => proactivePreferenceRef?.isProactiveOn(exerciseId) ?? true,
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
@@ -104,6 +106,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	activeStruggleCoordinator = struggleCoordinator;
 	struggleCoordinator.setWebsocketService(artemisWebsocketService);
 	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
+	// The behind-the-seam proactive control surface the AskIris command module drives (spec §12.2). Built ONLY when
+	// the engine provides the methods (the clean/no-engine build omits them), so that build never shows the switch.
+	const proactiveControl = isProactivePaused && setStudentProactive && resumeProactive
+		? { isProactivePaused, setStudentProactive, resumeProactive }
+		: undefined;
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
@@ -166,7 +173,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		struggleCoordinator,
 		updateAuthContext,
 		courseDataCache,
+		proactiveControl,
 	});
+	// Wire the engine's lazy preference read to the provider's preference service (built in its constructor above).
+	proactivePreferenceRef = artemisWebviewProvider.proactivePreference;
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);

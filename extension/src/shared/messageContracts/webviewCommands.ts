@@ -88,6 +88,10 @@ export const WebviewCmd = {
     ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
     MessageProactiveOutcome: 'messageProactiveOutcome',
+    // Proactive control (AskIris On/Off switch + 3-state badge, spec §12.2)
+    RequestProactiveControl: 'requestProactiveControl',
+    SetProactiveEnabled: 'setProactiveEnabled',
+    ResumeProactive: 'resumeProactive',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
     DebugSessions: 'debugSessions',
@@ -186,6 +190,9 @@ interface WebviewCmdPayloads {
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED' };
+    requestProactiveControl: { exerciseId: number };
+    setProactiveEnabled: { exerciseId: number; enabled: boolean };
+    resumeProactive: { exerciseId: number };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;
@@ -281,6 +288,9 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SwitchSession,
     WebviewCmd.MessageFeedback,
     WebviewCmd.MessageProactiveOutcome,
+    WebviewCmd.RequestProactiveControl,
+    WebviewCmd.SetProactiveEnabled,
+    WebviewCmd.ResumeProactive,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.FreshSsrPreview,

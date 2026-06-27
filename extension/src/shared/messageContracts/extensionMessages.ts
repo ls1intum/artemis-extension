@@ -120,6 +120,7 @@ export const ExtensionMsg = {
     ShowUnavailableState: 'showUnavailableState',
     HideUnavailableState: 'hideUnavailableState',
     UpdateNoAiStatus: 'updateNoAiStatus',
+    UpdateProactiveControl: 'updateProactiveControl',
     UpdateIrisStages: 'updateIrisStages',
     SendRejected: 'sendRejected',
 
@@ -296,6 +297,11 @@ interface ExtensionMsgPayloads {
     updateNoAiStatus: {
         isNoAiDetected: boolean;
         noAiFilePath?: string;
+    };
+    updateProactiveControl: {
+        exerciseId: number;
+        preference: 'on' | 'off';
+        autoPaused: boolean;
     };
     updateIrisStages: {
         stages: IrisStageDTO[];
