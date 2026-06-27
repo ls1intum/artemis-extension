@@ -44,5 +44,7 @@ export interface CommandContext {
         isProactivePaused(exerciseId: number): boolean;
         setStudentProactive(exerciseId: number, on: boolean): void;
         resumeProactive(exerciseId: number): void;
+        /** True iff proactive is degraded (no egress consent / 404). Session-global → no exercise id (spec §14). */
+        isProactiveDegraded(): boolean;
     };
 }

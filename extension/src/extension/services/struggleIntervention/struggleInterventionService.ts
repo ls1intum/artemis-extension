@@ -291,6 +291,16 @@ export class StruggleInterventionService implements AlertSink {
         return this._deps.getExerciseId() === exerciseId && this.isPaused();
     }
 
+    /**
+     * True iff proactive is running in a *degraded* mode (spec §14 cases 4-5): no proactive-egress consent
+     * (local-template-only) OR a 404-latched server (no-AI lamp fallback). Drives the AskIris "Degraded" card.
+     * Session-global (not exercise-scoped): both signals are per-session, like the course-off / 404 latches.
+     * Distinct from "paused" (§5.2 backoff) and from the student/course "off" states.
+     */
+    isProactiveDegraded(): boolean {
+        return !this._deps.isEgressEnabled() || !this._serverAvailable;
+    }
+
     /** Clear the Slice-4a session backoff counters. Private: the public methods add the active-exercise guard. */
     private _clearBackoff(): void {
         this._dismissStrikes = 0;

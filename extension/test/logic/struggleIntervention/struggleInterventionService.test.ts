@@ -109,6 +109,27 @@ describe('StruggleInterventionService', () => {
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
     });
 
+    it('isProactiveDegraded: true when egress consent is off (local-template fallback)', () => {
+        const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => false }));
+        expect(svc.isProactiveDegraded()).toBe(true);
+    });
+
+    it('isProactiveDegraded: false when consent on and server up', () => {
+        const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => true }));
+        expect(svc.isProactiveDegraded()).toBe(false);
+    });
+
+    it('isProactiveDegraded: true after a 404 latches the server unavailable', async () => {
+        const svc = new StruggleInterventionService(fakeDeps({
+            isEgressEnabled: () => true,
+            postIntervention: vi.fn(async () => 'unavailable' as const),
+        }));
+        svc.onTick(tick(530));
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(svc.isProactiveDegraded()).toBe(true);   // _serverAvailable latched false by the 404
+    });
+
     it('course-off latches (survives the in-flight watchdog): no lamp, no re-POST until reset (spec §13)', async () => {
         // Capture the in-flight watchdog callback so we can fire it manually. This is the load-bearing part of the
         // test: course-off must RELEASE the in-flight slot, so the "no second POST" guarantee has to come from a

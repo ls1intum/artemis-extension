@@ -79,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive } = createStruggleEngine({
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
@@ -108,8 +108,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
 	// The behind-the-seam proactive control surface the AskIris command module drives (spec §12.2). Built ONLY when
 	// the engine provides the methods (the clean/no-engine build omits them), so that build never shows the switch.
-	const proactiveControl = isProactivePaused && setStudentProactive && resumeProactive
-		? { isProactivePaused, setStudentProactive, resumeProactive }
+	const proactiveControl = isProactivePaused && setStudentProactive && resumeProactive && isProactiveDegraded
+		? { isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded }
 		: undefined;
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);

@@ -191,6 +191,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         isProactivePaused: exerciseId => orchestrator.isProactivePaused(exerciseId),
         setStudentProactive: (exerciseId, on) => orchestrator.setStudentProactive(exerciseId, on),
         resumeProactive: exerciseId => orchestrator.resumeProactive(exerciseId),
+        isProactiveDegraded: () => orchestrator.isProactiveDegraded(),
     };
 }
 
