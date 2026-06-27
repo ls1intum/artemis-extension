@@ -452,8 +452,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     /**
      * Open/attach the Iris session carrying a proactive bubble (spec §5.5 `active`). The session is freshly
-     * created server-side with a single LLM bubble and no USER reply, so it is OMITTED from the sessions/overview
-     * a plain reload consumes; importing it that way never works. Delegated to the session service, which injects
+     * created server-side with a single LLM bubble and no USER reply. The sessions/overview now lists such
+     * proactive-only sessions (spec §7.3), but a plain reload is async and may not have run yet, so for an
+     * immediate active open we still inject a local entry directly. Delegated to the session service, which adds
      * a local entry keyed `session-<artemisSessionId>` (unless present), switches to it, and lets the existing
      * message-load surface the bubble.
      */

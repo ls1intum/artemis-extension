@@ -552,12 +552,13 @@ export class IrisChatSessionService {
     /**
      * Open the Iris session carrying a proactive bubble, identified by its
      * Artemis session id (spec §5.5 `active`). The session is freshly created
-     * server-side and has no USER reply yet, so it is OMITTED from the
-     * sessions/overview that {@link loadAllSessionsForContext} consumes, so a
-     * plain reload would never import it. We therefore inject a local entry
-     * keyed `session-<artemisSessionId>` directly (unless one already exists),
-     * then switch to it; the switch's own message-load fetches the session by
-     * id via {@link initializeIrisSessionAndLoadMessages} and surfaces the
+     * server-side and has no USER reply yet. The sessions/overview that
+     * {@link loadAllSessionsForContext} consumes now lists such proactive-only
+     * sessions (spec §7.3), but that reload is async and may not have run yet,
+     * so for an immediate open we inject a local entry keyed
+     * `session-<artemisSessionId>` directly (unless one already exists), then
+     * switch to it; the switch's own message-load fetches the session by id via
+     * {@link initializeIrisSessionAndLoadMessages} and surfaces the
      * `origin: 'proactive'` bubble.
      */
     public async openProactiveSession(artemisSessionId: number): Promise<void> {
