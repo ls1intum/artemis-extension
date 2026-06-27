@@ -106,6 +106,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }>();
     public readonly onDidProvideIrisChatFeedback = this._onDidProvideIrisChatFeedback.event;
 
+    private readonly _onDidDismissProactive = new vscode.EventEmitter<void>();
+    /** Fires when the student dismisses a proactive bubble (drives the Slice-4a delivery backoff in extension.ts). */
+    public readonly onDidDismissProactive = this._onDidDismissProactive.event;
+
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
@@ -126,6 +130,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidSendIrisChatMessage);
         this._disposables.push(this._onDidAttemptIrisChatSend);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
+        this._disposables.push(this._onDidDismissProactive);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = contextStore;
         this._disposables.push(
@@ -593,6 +598,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     });
                     break;
                 }
+                case WebviewCmd.MessageProactiveOutcome: {
+                    const { sessionId, messageId } = getPayload<WebCmd<'messageProactiveOutcome'>>(message);
+                    void this._handleProactiveOutcome(sessionId, messageId);
+                    break;
+                }
                 case WebviewCmd.OpenHelpPopup:
                     this._handleOpenHelpPopup();
                     break;
@@ -909,6 +919,20 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         } catch (error) {
             logger.error('Failed to send feedback to server', LogCategory.IRIS_CHAT, error);
             vscode.window.showErrorMessage('Failed to submit feedback. Please try again.');
+        }
+    }
+
+    private async _handleProactiveOutcome(sessionId: number, messageId: number): Promise<void> {
+        // Signal the dismiss to the delivery backoff first (fire-and-forget), then persist.
+        this._onDidDismissProactive.fire();
+        if (!this._artemisApiService) {
+            logger.warn('Artemis API service not available for proactive outcome', LogCategory.IRIS_CHAT);
+            return;
+        }
+        try {
+            await this._artemisApiService.setProactiveOutcome(sessionId, messageId, 'DISMISSED');
+        } catch (error) {
+            logger.error('Failed to persist proactive outcome', LogCategory.IRIS_CHAT, error);
         }
     }
 

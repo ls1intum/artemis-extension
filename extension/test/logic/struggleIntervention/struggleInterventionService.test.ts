@@ -175,6 +175,13 @@ describe('StruggleInterventionService', () => {
         expect(svc.isPaused()).toBe(false);   // only the first counted (1 strike), not 5 -> no pause
     });
 
+    it('recordChatDismiss feeds the backoff even with no current surface (reloaded bubble)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        for (let i = 0; i < 5; i++) { svc.recordChatDismiss(); }   // no surface shown beforehand
+        expect(svc.isPaused()).toBe(true);
+    });
+
     it('inbound active event → open/fetch session + badge + notification, capped after 3 actives', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);

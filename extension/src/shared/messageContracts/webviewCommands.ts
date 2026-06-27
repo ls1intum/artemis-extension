@@ -87,6 +87,7 @@ export const WebviewCmd = {
     ReconnectWebSocket: 'reconnectWebSocket',
     ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
+    MessageProactiveOutcome: 'messageProactiveOutcome',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
     DebugSessions: 'debugSessions',
@@ -184,6 +185,7 @@ interface WebviewCmdPayloads {
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
+    messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED' };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;
@@ -278,6 +280,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SelectChatContext,
     WebviewCmd.SwitchSession,
     WebviewCmd.MessageFeedback,
+    WebviewCmd.MessageProactiveOutcome,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.FreshSsrPreview,

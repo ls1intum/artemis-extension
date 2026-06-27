@@ -183,7 +183,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         void vscode.window.showInformationMessage('Artemis (Dev): forced a struggle intervention — watch the [Struggle] output channel.');
     }));
 
-    return { coordinator, promptConsentIfAsk: () => consent.promptIfAsk() };
+    return {
+        coordinator,
+        promptConsentIfAsk: () => consent.promptIfAsk(),
+        recordProactiveDismiss: () => orchestrator.recordChatDismiss(),
+    };
 }
 
 /**

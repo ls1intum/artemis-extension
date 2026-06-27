@@ -101,6 +101,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     content: m.content,
                     timestamp: m.timestamp,
                     helpful: m.helpful ?? null,
+                    origin: m.origin,
+                    proactiveOutcome: m.proactiveOutcome,
                     status: 'sent',
                 });
                 if (m.role === 'assistant') {
@@ -130,6 +132,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         content: m.content,
                         timestamp: m.timestamp,
                         helpful: m.helpful ?? null,
+                        origin: m.origin,
+                        proactiveOutcome: m.proactiveOutcome,
                         status: 'sent' as const,
                     })),
                 );
@@ -273,6 +277,17 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             sessionId: activeSession.artemisSessionId,
             messageId,
             feedback,
+        });
+    };
+
+    const handleDismissProactive = (messageId: number) => {
+        const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
+        if (typeof activeSession?.artemisSessionId !== 'number') { return; }
+        store.setProactiveOutcome(messageId, 'DISMISSED');
+        postCommand(vscodeApi, 'messageProactiveOutcome', {
+            sessionId: activeSession.artemisSessionId,
+            messageId,
+            outcome: 'DISMISSED',
         });
     };
 
@@ -589,6 +604,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         streaming={store.streaming}
                         activeStage={activeStage}
                         onFeedback={handleFeedback}
+                        onDismiss={handleDismissProactive}
                         onSendPrompt={handleSendMessage}
                         hasContext={store.context !== null}
                         isChatDisabled={isChatDisabled}

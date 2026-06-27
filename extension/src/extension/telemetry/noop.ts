@@ -15,6 +15,7 @@ export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineH
         coordinator: new NoopStruggleCoordinator(),
         // No engine in the clean build, so there is nothing to consent to.
         promptConsentIfAsk: async () => { /* no proactive egress in the clean build */ },
+        recordProactiveDismiss: () => { /* no backoff in the clean build */ },
     };
 }
 

@@ -573,6 +573,17 @@ export class ArtemisApiService {
         );
     }
 
+    // Record how the student reacted to a proactive Iris message (spec §7.5).
+    async setProactiveOutcome(sessionId: number, messageId: number, outcome: 'DISMISSED'): Promise<void> {
+        await this.makeRequest(
+            `/api/iris/sessions/${sessionId}/messages/${messageId}/proactive-outcome`,
+            {
+                method: 'PUT',
+                body: JSON.stringify(outcome)
+            }
+        );
+    }
+
     // Unified Iris chat session endpoints (Artemis develop, PR #12504).
     async getCurrentChat(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
         const params = new URLSearchParams({ mode, entityId: String(entityId) });

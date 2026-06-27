@@ -75,7 +75,8 @@ export class IrisWebSocketMessageHandler {
                         content: content,
                         timestamp: sentAtMs ?? Date.now(),
                         helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null,
-                        ...(isProactive ? { origin: 'proactive' as const } : {})
+                        ...(isProactive ? { origin: 'proactive' as const } : {}),
+                        ...(msg['proactiveOutcome'] === 'DISMISSED' ? { proactiveOutcome: 'DISMISSED' as const } : {})
                     }
                 });
 

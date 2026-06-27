@@ -76,7 +76,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// setProactiveBadge) can reach the chat provider; it is constructed below, well
 	// before any alert or server event fires.
 	let chatWebviewProvider: ChatWebviewProvider | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk } = createStruggleEngine({
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
@@ -194,6 +194,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
+	context.subscriptions.push(chatWebviewProvider.onDidDismissProactive(() => recordProactiveDismiss()));
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
 	);

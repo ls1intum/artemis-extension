@@ -411,7 +411,8 @@ export class IrisChatSessionService {
                     content: content,
                     timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
                     helpful: (msg as { helpful?: boolean | null }).helpful,
-                    origin: (msg.origin === 'PROACTIVE_STRUGGLE' ? 'proactive' : undefined) as 'proactive' | undefined
+                    origin: (msg.origin === 'PROACTIVE_STRUGGLE' ? 'proactive' : undefined) as 'proactive' | undefined,
+                    proactiveOutcome: (msg.proactiveOutcome === 'DISMISSED' ? 'DISMISSED' : undefined) as 'DISMISSED' | undefined
                 };
             });
 

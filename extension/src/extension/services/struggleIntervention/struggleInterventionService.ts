@@ -229,6 +229,22 @@ export class StruggleInterventionService implements AlertSink {
         void this._deps.log.record({ ...surface, signal, studentOutcome: outcome });
     }
 
+    /**
+     * An explicit chat-bubble dismiss (spec §6.3). Unlike {@link recordOutcome}, this is NOT gated on a live
+     * surface: a persisted bubble can be dismissed after a reload when `_lastSurface` is already cleared, and the
+     * delivery backoff must still register it. Bumps the Slice-4a counters directly; eval-logs best-effort.
+     */
+    recordChatDismiss(): void {
+        this._dismissStrikes += 1;
+        this._annoyance += 2;
+        if (this._annoyance >= this._deps.softThreshold) {
+            this._softSkipBudget += 1;
+        }
+        if (this._lastSurface) {
+            void this._deps.log.record({ ...this._lastSurface, signal: this._lastSurfaceSignal, studentOutcome: 'dismissed' });
+        }
+    }
+
     /** True while proactive is paused for this exercise (only an explicit dismiss can trigger this, spec §5.2). */
     isPaused(): boolean {
         return this._dismissStrikes >= this._deps.pauseStrikes;

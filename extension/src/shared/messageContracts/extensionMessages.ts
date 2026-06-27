@@ -261,6 +261,8 @@ interface ExtensionMsgPayloads {
             content: string;
             timestamp: number;
             helpful?: boolean | null;
+            origin?: 'proactive';
+            proactiveOutcome?: 'DISMISSED';
         };
     };
     loadMessages: {
@@ -275,6 +277,8 @@ interface ExtensionMsgPayloads {
             content: string;
             timestamp: number;
             helpful?: boolean | null;
+            origin?: 'proactive';
+            proactiveOutcome?: 'DISMISSED';
         }>;
     };
     loadMessagesError: { localSessionId: string };

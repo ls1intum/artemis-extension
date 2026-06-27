@@ -89,4 +89,6 @@ export interface StruggleEngineHandle {
     coordinator: IStruggleCoordinator;
     /** Ask once, post-auth, whether Iris may proactively read code; no-op once decided. */
     promptConsentIfAsk(): Promise<void>;
+    /** Record a chat-bubble dismiss into the delivery backoff (Slice 4a). No-op in the clean build. */
+    recordProactiveDismiss(): void;
 }

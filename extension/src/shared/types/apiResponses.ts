@@ -179,6 +179,8 @@ export interface IrisChatMessage {
     sender?: string;
     sentAt?: string;
     content?: IrisChatMessageContent[];
+    origin?: string;
+    proactiveOutcome?: string;
     [key: string]: unknown;
 }
 
