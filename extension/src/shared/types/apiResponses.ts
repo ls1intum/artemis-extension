@@ -202,6 +202,8 @@ export interface IrisStageDTO {
 export interface IrisSettingsResponse {
     settings?: {
         enabled?: boolean;
+        /** Course-level proactive struggle detection toggle (spec §13; admin-only, default off). */
+        proactiveStruggleEnabled?: boolean;
         [key: string]: unknown;
     };
     effectiveRateLimit?: {

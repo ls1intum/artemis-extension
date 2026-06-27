@@ -1,5 +1,6 @@
 import { ExtensionMsg } from '@shared/messageContracts';
 
+import type { ArtemisApiService } from '@extension/api';
 import { MalformedResponseError } from '@extension/domain/errors';
 import { resolveCourseIdFromContext } from '@extension/services/iris/context/courseIdResolver';
 import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
@@ -118,80 +119,31 @@ export class IrisChatSessionService {
 
         logger.info(`Checking Iris settings for ${context.type}: ${context.title}`, LogCategory.IRIS_CHAT);
 
-        // Step 1: Profile probe. A 403 here is NOT a disable signal — that
-        // would mean "user not allowed to read the server profile", which
-        // is an infrastructure / auth issue. Profile-fetch failures
-        // therefore funnel through the same `unavailable` path as any
-        // other infra error.
-        let profileInfo;
-        try {
-            profileInfo = await this.deps.artemisApiService.getProfileInfo();
-        } catch (error: unknown) {
-            logger.error('Profile info fetch failed for Iris check:', LogCategory.IRIS_CHAT, error);
-            return { kind: 'unavailable', reason: `Profile probe failed: ${describeError(error)}` };
-        }
-        if (!this.deps.artemisApiService.isIrisProfileActive(profileInfo)) {
-            logger.info('Iris profile not active on server (global check failed)', LogCategory.IRIS_CHAT);
-            return { kind: 'disabled' };
-        }
-
-        // Step 2: Resolve courseId for an exercise context. Failures here
-        // are transient (registry not populated yet, exercise-details
-        // endpoint dropped) — never a disable signal.
-        let courseId: number;
-        if (context.type === 'course') {
-            courseId = context.id;
-        } else if (context.type === 'exercise') {
-            let resolvedCourseId: number | undefined;
-            try {
-                resolvedCourseId = await this.resolveCourseIdForExercise(context);
-            } catch (error: unknown) {
-                logger.error('Course resolution failed for exercise context:', LogCategory.IRIS_CHAT, error);
-                return { kind: 'unavailable', reason: `Could not resolve course: ${describeError(error)}` };
-            }
-            if (!resolvedCourseId) {
-                logger.warn('Unable to resolve course for exercise context; cannot check Iris settings', LogCategory.IRIS_CHAT);
-                return { kind: 'unavailable', reason: 'Could not resolve course for this exercise' };
-            }
-            courseId = resolvedCourseId;
-        } else {
+        // Unsupported context types are a hard "disabled" before any network call. NOTE (slice 5c): this
+        // front guard is a deliberate, kind-preserving simplification of the original (which probed the
+        // profile first). The ONLY divergence is the practically-unreachable {unsupported context type +
+        // getProfileInfo throws} case, which used to surface `unavailable` and is now `disabled`; contexts
+        // are only 'course'/'exercise' in practice, and only `availability.kind` is a caller contract (the
+        // chat surfaces a fixed UNAVAILABLE_USER_MESSAGE, never `availability.reason`).
+        if (context.type !== 'course' && context.type !== 'exercise') {
             logger.warn(`Unsupported context type for Iris: ${context.type}`, LogCategory.IRIS_CHAT);
             return { kind: 'disabled' };
         }
 
-        // Step 3: Iris settings call — this is the ONLY endpoint where a
-        // 403 has a "disabled" semantic (course-level forbidden = Iris
-        // chat off for this user). All other status codes (incl. 401,
-        // 4xx, 5xx) plus network/timeout/malformed map to unavailable
-        // through the shared classifier.
-        let settings: IrisSettingsResponse;
-        try {
-            settings = await this.deps.artemisApiService.getIrisCourseChatSettings(courseId);
-        } catch (error: unknown) {
-            logger.error('Iris settings fetch failed:', LogCategory.IRIS_CHAT, error);
-            return classifyAvailabilityFromError(error);
-        }
+        // Delegate to the shared §14 classifier so the manual chat and the AskIris proactive card
+        // (slice 5c) agree on one classification. The context-type → course-id resolution stays here.
+        const resolveCourseId = async (): Promise<number | undefined> =>
+            context.type === 'course' ? context.id : this.resolveCourseIdForExercise(context);
 
-        // Distinguish "enabled is explicitly false" from "enabled field is
-        // missing / non-boolean". The latter signals a malformed response,
-        // which is a transport-layer issue, not an intentional disable.
-        const chatSettings = settings?.settings;
-        if (!chatSettings || typeof chatSettings.enabled !== 'boolean') {
-            logger.warn('Iris settings response is missing or malformed', LogCategory.IRIS_CHAT, { settings });
-            return { kind: 'unavailable', reason: 'Malformed Iris settings response' };
+        const { availability } = await classifyIrisCourseAvailability(this.deps.artemisApiService, resolveCourseId);
+        if (availability.kind === 'enabled') {
+            logger.info('Iris chat is enabled, settings loaded', LogCategory.IRIS_CHAT);
+        } else if (availability.kind === 'disabled') {
+            logger.info('Iris chat is disabled (profile/settings)', LogCategory.IRIS_CHAT);
+        } else {
+            logger.error(`Iris availability check failed: ${availability.reason}`, LogCategory.IRIS_CHAT);
         }
-        if (chatSettings.enabled === false) {
-            logger.info('Iris chat is disabled in settings', LogCategory.IRIS_CHAT);
-            return { kind: 'disabled' };
-        }
-
-        logger.info('Iris chat is enabled, settings loaded:', LogCategory.IRIS_CHAT, {
-            enabled: chatSettings.enabled,
-            rateLimit: settings?.effectiveRateLimit?.requests,
-            rateLimitTimeframeHours: settings?.effectiveRateLimit?.timeframeHours
-        });
-
-        return { kind: 'enabled' };
+        return availability;
     }
 
     /**
@@ -716,6 +668,58 @@ export class IrisChatSessionService {
         this.deps.postSnapshot();
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
     }
+}
+
+/**
+ * The §14 availability classification shared by the manual chat
+ * ({@link IrisChatSessionService.checkAndLoadIrisSettings}) and the AskIris proactive card
+ * (slice 5c `ProactiveControlCommandModule`). Profile probe → resolve course → settings call, with
+ * the exact precedence both surfaces must agree on. Returns the raw settings too, so the card can read
+ * `proactiveStruggleEnabled` (§13) from the same fetch.
+ *
+ * Contract: only `availability.kind` is preserved/guaranteed across callers. The per-branch `reason`
+ * strings are logging-only (no consumer reads them — the chat surfaces a fixed message), so they are
+ * NOT a stable contract; do not assert exact `reason` text.
+ */
+export async function classifyIrisCourseAvailability(
+    api: Pick<ArtemisApiService, 'getProfileInfo' | 'isIrisProfileActive' | 'getIrisCourseChatSettings'>,
+    resolveCourseId: () => Promise<number | undefined>,
+): Promise<{ availability: IrisAvailability; settings?: IrisSettingsResponse }> {
+    // Step 1: profile probe (a throw = infra/auth issue = unavailable; profile inactive = disabled).
+    let profileInfo;
+    try {
+        profileInfo = await api.getProfileInfo();
+    } catch (error: unknown) {
+        return { availability: { kind: 'unavailable', reason: `Profile probe failed: ${describeError(error)}` } };
+    }
+    if (!api.isIrisProfileActive(profileInfo)) {
+        return { availability: { kind: 'disabled' } };
+    }
+    // Step 2: resolve the course (transient failures only — never a disable signal).
+    let courseId: number | undefined;
+    try {
+        courseId = await resolveCourseId();
+    } catch (error: unknown) {
+        return { availability: { kind: 'unavailable', reason: `Could not resolve course: ${describeError(error)}` } };
+    }
+    if (courseId === undefined) {
+        return { availability: { kind: 'unavailable', reason: 'Could not resolve course for this context' } };
+    }
+    // Step 3: settings call — the ONLY place a 403 means "disabled" (course-forbidden = Iris off for this user).
+    let settings: IrisSettingsResponse;
+    try {
+        settings = await api.getIrisCourseChatSettings(courseId);
+    } catch (error: unknown) {
+        return { availability: classifyAvailabilityFromError(error) };
+    }
+    const chatSettings = settings?.settings;
+    if (!chatSettings || typeof chatSettings.enabled !== 'boolean') {
+        return { availability: { kind: 'unavailable', reason: 'Malformed Iris settings response' } };
+    }
+    if (chatSettings.enabled === false) {
+        return { availability: { kind: 'disabled' }, settings };
+    }
+    return { availability: { kind: 'enabled' }, settings };
 }
 
 /**
