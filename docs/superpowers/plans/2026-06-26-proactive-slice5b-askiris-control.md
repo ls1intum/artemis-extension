@@ -225,8 +225,27 @@ it('resumeProactive clears an auto-pause', () => {
     svc.resumeProactive();
     expect(svc.isProactivePaused(42)).toBe(false);
 });
+
+it('inbound ambient/active are dropped when the student turned proactive off (mid-flight opt-out)', () => {
+    const deps = fakeDeps({ isStudentProactiveOn: () => false });
+    const svc = new StruggleInterventionService(deps);
+    svc.onServerAmbient('hint', undefined, undefined, undefined);
+    svc.onServerActive(99);
+    expect(deps.showAmbient).not.toHaveBeenCalled();
+    expect(deps.showInline).not.toHaveBeenCalled();
+    expect(deps.showActiveNotification).not.toHaveBeenCalled();
+});
+
+it('setStudentProactive(false) clears a standing inline cue + lamp + badge', () => {
+    const deps = fakeDeps();
+    const svc = new StruggleInterventionService(deps);
+    svc.setStudentProactive(false);
+    expect(deps.clearInline).toHaveBeenCalled();
+    expect(deps.clearLamp).toHaveBeenCalled();
+    expect(deps.setBadge).toHaveBeenCalledWith(false);
+});
 ```
-(`isProactivePaused(42)` works because `fakeDeps().getExerciseId` returns 42; `recordChatDismiss` + `isPaused`/the counters are Slice-4a/4b members.)
+(`isProactivePaused(42)` works because `fakeDeps().getExerciseId` returns 42; `recordChatDismiss` + `isPaused`/the counters are Slice-4a/4b members. The inbound-drop test guards the mid-flight opt-out path added in Step 3; the inline-clear test locks the codex-r2 fix that Off clears the inline cue too.)
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -268,13 +287,16 @@ In `struggleInterventionService.ts`:
         this._softSkipBudget = 0;
     }
 
-    /** Immediate effect of the AskIris On/Off switch: off → clear visible surfaces; on → clear any auto-pause. */
+    /** Immediate effect of the AskIris On/Off switch: off → clear ALL visible proactive surfaces (lamp, inline cue,
+     *  badge); on → clear any auto-pause. The inline cue is cleared too because a proactive ambient can be an inline
+     *  decoration (onServerAmbient → showInline), and Off must take effect on every currently-visible surface (codex r2). */
     setStudentProactive(on: boolean): void {
         if (on) {
             this.resumeProactive();
         }
         else {
             this._deps.clearLamp();
+            this._deps.clearInline();
             this._deps.setBadge(false);
         }
     }
@@ -335,6 +357,7 @@ git -C /Users/liamberger/Documents/private/MA/artemis-extension commit -m "feat(
 - Modify: `extension/src/extension/controller/commands/types.ts`
 - Create: `extension/src/extension/controller/commands/proactiveControlCommands.ts`
 - Modify: `extension/src/extension/controller/webViewMessageHandler.ts`, `extension/src/extension.ts`
+- Test: `extension/test/logic/proactiveControlCommands.test.ts` — the module's `_push` precedence + request/set/resume delegation (codex r2: Task 3 needs a runtime test, not just `check-types`).
 
 **Interfaces:**
 - Produces: webview→ext commands `requestProactiveControl`/`setProactiveEnabled`/`resumeProactive` (each `{ exerciseId: number }`, the second also `{ enabled: boolean }`); ext→webview `UpdateProactiveControl { exerciseId: number; preference: 'on' | 'off'; autoPaused: boolean }`; `CommandContext.proactivePreference?` + `CommandContext.proactiveControl?` (the seam capability, optional like `struggleLiveFeed`); a `ProactiveControlCommandModule`.
@@ -434,6 +457,55 @@ export class ProactiveControlCommandModule {
 }
 ```
 
+- [ ] **Step 3b: Failing test for the command module (`_push` precedence + delegation)**
+
+`extension/test/logic/proactiveControlCommands.test.ts` — build a fake `CommandContext` with stub `proactivePreference`/`proactiveControl` + a capturing `sendMessage`, then drive each handler. Locks the codex-r2 precedence (Off > Auto-paused) and the request/set/resume delegation:
+```ts
+import { describe, expect, it, vi } from 'vitest';
+
+import { ProactiveControlCommandModule } from '@extension/controller/commands/proactiveControlCommands';
+import { ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
+
+function harness(over: { on?: boolean; paused?: boolean } = {}) {
+    const pref = { isProactiveOn: vi.fn(() => over.on ?? true), setProactiveOn: vi.fn() };
+    const control = { isProactivePaused: vi.fn(() => over.paused ?? false), setStudentProactive: vi.fn(), resumeProactive: vi.fn() };
+    const sent: any[] = [];
+    const ctx = { proactivePreference: pref, proactiveControl: control, sendMessage: (m: any) => sent.push(m) } as any;
+    return { mod: new ProactiveControlCommandModule(ctx), pref, control, sent };
+}
+const cmd = (command: string, payload: any) => ({ command, payload } as any);
+
+describe('ProactiveControlCommandModule', () => {
+    it('request pushes the current preference + pause state', async () => {
+        const h = harness({ on: true, paused: true });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42 }));
+        expect(h.sent[0]).toMatchObject({ type: ExtensionMsg.UpdateProactiveControl, exerciseId: 42, preference: 'on', autoPaused: true });
+    });
+
+    it('Off wins over Auto-paused in the badge (precedence)', async () => {
+        const h = harness({ on: false, paused: true });   // backoff paused, but student turned it off
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42 }));
+        expect(h.sent[0]).toMatchObject({ preference: 'off', autoPaused: false });
+    });
+
+    it('setEnabled(false) persists + applies + re-pushes', async () => {
+        const h = harness({ on: false });
+        await h.mod.getHandlers()[WebviewCmd.SetProactiveEnabled](cmd('setProactiveEnabled', { exerciseId: 42, enabled: false }));
+        expect(h.pref.setProactiveOn).toHaveBeenCalledWith(42, false);
+        expect(h.control.setStudentProactive).toHaveBeenCalledWith(false);
+        expect(h.sent[0]).toMatchObject({ preference: 'off' });
+    });
+
+    it('resume delegates to the engine + re-pushes', async () => {
+        const h = harness();
+        await h.mod.getHandlers()[WebviewCmd.ResumeProactive](cmd('resumeProactive', { exerciseId: 42 }));
+        expect(h.control.resumeProactive).toHaveBeenCalled();
+        expect(h.sent[0]).toMatchObject({ exerciseId: 42 });
+    });
+});
+```
+(Confirm `getPayload` reads `message.payload` against the real contract when wiring `cmd(...)`; mirror an existing `test/logic` command-module test's message shape if it differs.)
+
 - [ ] **Step 4: Wire the preference service + the seam capability**
 
 The scope (`_currentCourseAccessScope`) lives on the **provider** (`appStateManager.userInfo`), so the preference service is created there (like `_courseAccessStorage`); the `proactiveControl` seam capability is built in `extension.ts` (from the engine handle) and passed INTO the provider via its deps; the engine's `isStudentProactiveOn` dep reads the provider's preference lazily (a forward-ref, exactly like `chatWebviewProvider`).
@@ -475,11 +547,11 @@ In `extension.ts`:
 ```
 - Pass `proactiveControl` into the `ArtemisWebviewProvider({...})` deps object (~line 155, alongside `struggleCoordinator`).
 
-- [ ] **Step 5: Type-check + commit**
+- [ ] **Step 5: Run green + type-check + commit**
 
-(No isolated runtime test for the wiring; it is gated by `check-types`. The module's logic is exercised by the Task-4 React flow + the Task-1/2 unit tests of the pieces it calls.)
+(The command-module logic is now covered by the Step-3b runtime test; the provider/extension.ts WIRING itself stays gated by `check-types`.)
 ```bash
-( cd /Users/liamberger/Documents/private/MA/artemis-extension/extension && npm run check-types ) 2>&1 | tail -20
+( cd /Users/liamberger/Documents/private/MA/artemis-extension/extension && npx vitest run test/logic/proactiveControlCommands.test.ts && npm run check-types ) 2>&1 | tail -20
 git -C /Users/liamberger/Documents/private/MA/artemis-extension add \
     extension/src/shared/messageContracts/webviewCommands.ts \
     extension/src/shared/messageContracts/extensionMessages.ts \
@@ -488,7 +560,8 @@ git -C /Users/liamberger/Documents/private/MA/artemis-extension add \
     extension/src/extension/controller/webViewMessageHandler.ts \
     extension/src/extension/provider/artemisWebviewProvider.ts \
     extension/src/extension/provider/artemisWebviewProviderDeps.ts \
-    extension/src/extension.ts
+    extension/src/extension.ts \
+    extension/test/logic/proactiveControlCommands.test.ts
 git -C /Users/liamberger/Documents/private/MA/artemis-extension commit -m "feat(struggle): host routing for the AskIris proactive control (preference + pause + resume)"
 ```
 
@@ -499,7 +572,7 @@ git -C /Users/liamberger/Documents/private/MA/artemis-extension commit -m "feat(
 **Files:**
 - Modify: `extension/src/webview/components/AskIris/AskIris.tsx`, `extension/src/webview/components/AskIris/AskIris.module.css`
 - Modify: `extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx`, `extension/src/webview/stores/useExerciseDetailStore.ts`
-- Test: `extension/test/react/AskIris.proactiveControl.test.tsx`
+- Test: `extension/test/react/AskIris.proactiveControl.test.tsx`, `extension/test/react/useExerciseDetailStore.proactiveControl.test.ts` (store reset — codex r2 no-stale-leak)
 
 **Interfaces:**
 - Produces: an optional `proactiveControl?: { preference: 'on' | 'off'; autoPaused: boolean; onToggle: (enabled: boolean) => void; onResume: () => void }` prop on `AskIris`; when present it renders the switch + 3-state badge. The store gains `proactiveControl` (fed by `UpdateProactiveControl`); `ExerciseDetailView` requests it on each `ExerciseDetailInit` + wires the callbacks to the new commands.
@@ -537,11 +610,29 @@ describe('AskIris proactive control', () => {
     });
 });
 ```
+And the store reset (codex r2 — a late `UpdateProactiveControl` for the prior exercise must not survive a switch) in `useExerciseDetailStore.proactiveControl.test.ts`:
+```ts
+import { describe, expect, it } from 'vitest';
+
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+
+describe('useExerciseDetailStore proactiveControl', () => {
+    it('setExerciseData clears a previous exercise\'s proactiveControl (no stale badge)', () => {
+        const store = useExerciseDetailStore.getState();
+        store.setProactiveControl({ exerciseId: 7, preference: 'off', autoPaused: false });
+        expect(useExerciseDetailStore.getState().proactiveControl?.exerciseId).toBe(7);
+        // Loading a different exercise must reset it (the partial set() otherwise preserves it).
+        store.setExerciseData({ exercise: { id: 8 } } as any, false);
+        expect(useExerciseDetailStore.getState().proactiveControl).toBeNull();
+    });
+});
+```
+(Match `setExerciseData`'s real arity from the store — it is `(data, hideDeveloperTools, repoStatus?)`; pass a minimal `exerciseData` shape that the hydrator accepts, mirroring an existing store test if one exists.)
 
 - [ ] **Step 2: Run to verify failure**
 
 ```bash
-( cd /Users/liamberger/Documents/private/MA/artemis-extension/extension && npx vitest run test/react/AskIris.proactiveControl.test.tsx ) 2>&1 | tail -25
+( cd /Users/liamberger/Documents/private/MA/artemis-extension/extension && npx vitest run test/react/AskIris.proactiveControl.test.tsx test/react/useExerciseDetailStore.proactiveControl.test.ts ) 2>&1 | tail -25
 ```
 Expected: FAIL.
 
@@ -592,7 +683,7 @@ Add `.proactiveControl`, `.proactiveSwitch`, `.autoPaused`, `.resume` to `AskIri
 
 - [ ] **Step 4: Store + view wiring**
 
-In `extension/src/webview/stores/useExerciseDetailStore.ts` (the real store path — `ExerciseDetailView` imports it from `@webview/stores/...`, NOT from `views/ExerciseDetail/`), add a `proactiveControl: { preference: 'on'|'off'; autoPaused: boolean } | null` state field (default null) + a `setProactiveControl(v)` action.
+In `extension/src/webview/stores/useExerciseDetailStore.ts` (the real store path — `ExerciseDetailView` imports it from `@webview/stores/...`, NOT from `views/ExerciseDetail/`), add a **`exerciseId`-tagged** `proactiveControl: { exerciseId: number; preference: 'on'|'off'; autoPaused: boolean } | null` state field (default null) + a `setProactiveControl(v)` action. **Codex r2 — no stale badge across exercise switches:** the store hydrator `setExerciseData(...)` uses a partial `set(...)` that PRESERVES unspecified fields, so it must explicitly reset `proactiveControl: null` (alongside the `clonedNotice: null`/`dirtyPagesStatus: null` it already resets). Tagging the value with `exerciseId` is the second guard: the view renders the control only when the tag matches the current exercise, so a late `UpdateProactiveControl` for a previous exercise can never paint the wrong badge.
 
 In `ExerciseDetailView.tsx`:
 - **Request the control state inside the `ExtensionMsg.ExerciseDetailInit` handler** (the existing `useExtensionMessage` case ~line 103), NOT in a one-time mount effect. The provider does not remount the view on sidebar re-focus — it re-posts `ExerciseDetailInit` via `sendInitData()` on each visibility refresh (`artemisWebviewProvider.ts:346/383`). Re-requesting on every `ExerciseDetailInit` therefore refreshes the badge (incl. a backoff "Auto-paused" that flipped while hidden):
@@ -601,10 +692,10 @@ In `ExerciseDetailView.tsx`:
         postCommand(vscodeApi, 'requestProactiveControl', { exerciseId: msg.exerciseData.exercise.id });
     }
 ```
-- Add a `useExtensionMessage` case for `ExtensionMsg.UpdateProactiveControl` → `setProactiveControl({ preference: msg.preference, autoPaused: msg.autoPaused })` (guard `msg.exerciseId === exerciseData?.exercise?.id`).
-- Pass the control to `<AskIris …>` (~line 609) when `proactiveControl` is set:
+- Add a `useExtensionMessage` case for `ExtensionMsg.UpdateProactiveControl` → store it **unconditionally** as `setProactiveControl({ exerciseId: msg.exerciseId, preference: msg.preference, autoPaused: msg.autoPaused })`. **Codex r2 — do NOT guard the handler on `exerciseData?.exercise?.id`:** `useExtensionMessage` keeps the handler closure until its `deps` change, and the current deps are `[vscodeApi, setExerciseData, setError]` (no `exerciseData`), so an in-handler compare would read a stale/`null` `exerciseData` and drop valid updates. The authority is instead the render-time match below (which reads the live `exercise.id`). Add the stable zustand action `setProactiveControl` to the `useExtensionMessage` deps array for exhaustive-deps correctness (a stable ref, so no behavior change / no re-subscribe churn).
+- Pass the control to `<AskIris …>` (~line 610) ONLY when it is set AND tagged for the current exercise — this render-time `exerciseId` match (reading the live `exercise.id`, not a closed-over value) is the single source of truth, so a stale update for a previous exercise never renders:
 ```tsx
-proactiveControl={proactiveControl ? {
+proactiveControl={proactiveControl && proactiveControl.exerciseId === exercise.id ? {
     preference: proactiveControl.preference,
     autoPaused: proactiveControl.autoPaused,
     onToggle: (enabled) => postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled }),
@@ -615,13 +706,14 @@ proactiveControl={proactiveControl ? {
 - [ ] **Step 5: Run green + type-check + commit**
 
 ```bash
-( cd /Users/liamberger/Documents/private/MA/artemis-extension/extension && npx vitest run test/react/AskIris.proactiveControl.test.tsx && npm run check-types ) 2>&1 | tail -20
+( cd /Users/liamberger/Documents/private/MA/artemis-extension/extension && npx vitest run test/react/AskIris.proactiveControl.test.tsx test/react/useExerciseDetailStore.proactiveControl.test.ts && npm run check-types ) 2>&1 | tail -20
 git -C /Users/liamberger/Documents/private/MA/artemis-extension add \
     extension/src/webview/components/AskIris/AskIris.tsx \
     extension/src/webview/components/AskIris/AskIris.module.css \
     extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx \
     extension/src/webview/stores/useExerciseDetailStore.ts \
-    extension/test/react/AskIris.proactiveControl.test.tsx
+    extension/test/react/AskIris.proactiveControl.test.tsx \
+    extension/test/react/useExerciseDetailStore.proactiveControl.test.ts
 git -C /Users/liamberger/Documents/private/MA/artemis-extension commit -m "feat(iris-chat): AskIris proactive On/Off switch + Auto-paused badge + Resume"
 ```
 
@@ -633,6 +725,10 @@ git -C /Users/liamberger/Documents/private/MA/artemis-extension commit -m "feat(
 - **Client-side preference (user decision):** `ProactivePreferenceService` in `globalState`, default On (only OFF persisted), keyed server+principal — no Artemis change. Consumed by the orchestrator via the injected `isStudentProactiveOn` dep, so the engine suppresses without knowing about VS Code.
 - **Seam-safe:** the new orchestrator capabilities cross via `StruggleEngineDeps`/`StruggleEngineHandle`; the no-op implements them (`isProactivePaused → false`, others no-op); the preference service imports nothing from `services/struggle|intervention`, so the clean bundle is unaffected. The host capability is injected exactly like `struggleLiveFeed` (optional `CommandContext` field, absent in the clean build).
 - **Suppression is complete:** student-off gates both the egress path (`_handleAlert`, no POST) and the inbound server surfaces (`onServerAmbient`/`onServerActive`, drop a mid-flight surface). Default-on means an unset exercise behaves exactly as today.
+- **Off clears every visible surface (codex r2):** `setStudentProactive(false)` clears the lamp, the inline cue (`clearInline()` — a proactive ambient can be an inline decoration), and the badge; not just the lamp. Locked by a unit test.
+- **No stale badge across exercise switches (codex r2):** the store value is `exerciseId`-tagged, `setExerciseData(...)` resets `proactiveControl` to `null` (the partial `set()` otherwise preserves it), and the view renders the control only when the tag matches the **live** `exercise.id` at render time. The `UpdateProactiveControl` handler stores UNCONDITIONALLY (no closed-over `exerciseData` guard — `useExtensionMessage` would keep a stale closure since `exerciseData` is not in its deps; an in-handler compare would drop valid updates). A store unit test proves the reset.
+- **Host-side behavior is tested, not just type-checked (codex r2):** a `ProactiveControlCommandModule` unit test covers the `_push` Off>Auto-paused precedence + request/set/resume delegation; the orchestrator test covers inbound-surface suppression when student-off; the store test covers the no-stale-leak reset. (Only the extension.ts/provider WIRING itself stays `check-types`-gated.)
+- **Accepted residual (codex r2, low):** the per-scope OFF preference map is unbounded in principle, but bounded in practice by the number of exercises a student explicitly turns off (small); not worth a GC pass this slice.
 - **No live auto-pause push (documented limitation, codex r1):** the webview re-requests on every `ExerciseDetailInit` (the provider re-posts it on each visibility refresh via `sendInitData()`, since it does NOT remount the view) and after every action; so the badge is correct on open, re-focus, and after each action. A live event push is a small 5c follow-up — flagged, not hidden.
 - **Preference key matches `CourseAccessStorageService` (codex r1):** the new service reuses an exported `normalizeScopeSegment` (extracted from `courseAccessStorageService`), so the server URL is normalized and the principal is `id:`/`login:`-prefixed identically — no split/collision across equivalent URLs.
 - **Correct store path (codex r1):** the exercise-detail store is `webview/stores/useExerciseDetailStore.ts` (not `views/ExerciseDetail/...`).
