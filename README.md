@@ -103,8 +103,7 @@ Configure the extension through VS Code settings (`Cmd+,` or `Ctrl+,`):
 - `artemis.showSetDefaultClonePathPrompt` - Ask to set a default clone folder on first clone
 - `artemis.startPage` - Which page to show after logging in
 - `artemis.showStartPageSuggestion` - Suggest configuring the start page when an exercise is detected
-- `artemis.showWebSocketStatusBar` - Show the WebSocket connection status in the status bar
-- `artemis.developerMode` - Enable developer mode (debug tools and extra diagnostics)
+- `artemis.developerMode` - Enable developer mode (debug tools, extra diagnostics, and an always-visible WebSocket status indicator)
 
 ## About Artemis
 

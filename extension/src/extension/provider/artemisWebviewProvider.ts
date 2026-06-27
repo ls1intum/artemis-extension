@@ -277,7 +277,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             {
                 onAuthenticated: (userInfo) => this._navigationFacade.navigateToStartPage(userInfo),
                 hideLoadingAndSendServerUrl: () => this._navigationFacade.hideLoadingAndSendServerUrl(),
-                showLogin: () => this._navigationFacade.showLogin(),
             },
         );
 
@@ -344,9 +343,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
             this._postMessageSafe(message);
         });
-
-        // Check if server URL has changed and clear credentials if needed
-        this._authFlowHandler.checkServerUrlChange();
 
         // Check for existing authentication and auto-login if valid
         this._authFlowHandler.checkExistingAuthentication();

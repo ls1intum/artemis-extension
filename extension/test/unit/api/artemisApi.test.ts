@@ -55,7 +55,7 @@ suite('Artemis API Service Test Suite', () => {
             return {
                 ok: true,
                 status: 200,
-                json: async () => mockUser,
+                text: async () => JSON.stringify(mockUser),
             } as any;
         };
 
@@ -63,6 +63,41 @@ suite('Artemis API Service Test Suite', () => {
         assert.ok(user);
         assert.strictEqual(user.id, 1);
         assert.strictEqual(user.login, 'test');
+    });
+
+    test('treats a 200 account response with an empty body as unauthenticated (401)', async () => {
+        // /api/core/public/account is public: an unauthenticated request gets a 200
+        // with an empty body rather than a 401. getCurrentUser must surface this as a
+        // 401 so startup credential validation clears the stale token.
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '',
+        } as any);
+
+        try {
+            await apiService.getCurrentUser();
+            assert.fail('Should have thrown error');
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual((error as ApiError).status, 401);
+        }
+    });
+
+    test('treats a 200 account response with a whitespace-only body as unauthenticated (401)', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '   \n',
+        } as any);
+
+        try {
+            await apiService.getCurrentUser();
+            assert.fail('Should have thrown error');
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual((error as ApiError).status, 401);
+        }
     });
 
     test('should handle 401 error', async () => {
@@ -610,8 +645,6 @@ suite('Artemis API Service Test Suite', () => {
 
         await apiService.markMessageHelpful(sessionId, messageId, true);
     });
-
-    // isServerUrlChanged moved to AuthManager — tested in authManager.test.ts
 
     test('should fallback to creating VCS token when none exists', async () => {
         const participationId = 9;

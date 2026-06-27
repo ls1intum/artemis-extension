@@ -32,26 +32,6 @@ export class AuthManager {
     }
 
     /**
-     * Returns the server URL that was active at the time of last successful login.
-     * Used exclusively for URL-change detection: if the user changes their
-     * `artemis.serverUrl` setting after login, stored credentials may be stale.
-     * The live server URL is always resolved via `resolveServerUrl()`.
-     */
-    public async getStoredLoginServerUrl(): Promise<string | undefined> {
-        return await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
-    }
-
-    /**
-     * Checks whether the user changed the server URL since their last login.
-     * @param currentUrl The currently resolved server URL from settings/env.
-     */
-    public async isServerUrlChanged(currentUrl: string): Promise<boolean> {
-        const storedUrl = await this.getStoredLoginServerUrl();
-        if (!storedUrl) { return false; }
-        return storedUrl !== currentUrl;
-    }
-
-    /**
      * Returns the raw JWT string (without any "jwt=" cookie prefix), suitable
      * for use in a `Cookie: jwt=<value>` or `Authorization: Bearer <value>` header.
      *
@@ -98,11 +78,10 @@ export class AuthManager {
         return { 'Cookie': token };
     }
 
-    public async storeArtemisCredentials(token: string, serverUrl: string, persist: boolean): Promise<void> {
+    public async storeArtemisCredentials(token: string, persist: boolean): Promise<void> {
         this.memoryToken = token;
         if (persist) {
             await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, token);
-            await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL, serverUrl);
         }
     }
 
@@ -110,7 +89,6 @@ export class AuthManager {
         this.memoryToken = undefined;
         try {
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-            await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
         } catch (err) {
             logger.error('Failed to clear auth credentials from secrets:', LogCategory.AUTH, err);
         }

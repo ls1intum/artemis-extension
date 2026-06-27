@@ -34,7 +34,6 @@ suite('AuthFlowHandler.checkExistingAuthentication', () => {
             {
                 onAuthenticated: opts.onAuthenticated ?? (async (info) => { state.authenticatedWith = info; }),
                 hideLoadingAndSendServerUrl: () => { state.hideCalled = true; },
-                showLogin: () => { /* noop */ },
             },
         );
         return { handler, state };

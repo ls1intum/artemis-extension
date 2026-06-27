@@ -24,7 +24,7 @@ import {
     detectPlatformCapabilities,
     initializeTheiaContext,
 } from '@extension/theia';
-import { VSCODE_CONFIG } from '@extension/utils';
+import { resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 import { wireDataCollection } from '@dataCollection';
 import { createStruggleEngine, registerDebugCommands } from '@telemetry';
 
@@ -314,9 +314,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		sensorHub,
 	});
 
-	// Configuration listener
+	// Configuration listener for the Artemis server URL.
 	if (theiaEnv.isManagedEnvironment) {
-		// In managed Theia environments, revert unauthorized changes to locked settings
+		// In managed Theia environments, revert unauthorized changes to the locked setting.
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`) && theiaEnv.artemisUrl) {
 				const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -325,26 +325,31 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}));
 	} else {
-		// In VS Code: prompt user to clear credentials when server URL changes
-		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
-				logger.info('Artemis server URL configuration changed', LogCategory.CONFIG);
-				const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-				const newServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY);
-				if (newServerUrl) {
-					vscode.window.showInformationMessage(
-						`Artemis server URL updated to: ${newServerUrl}. You may need to log in again if you were authenticated to a different server.`,
-						'Clear Credentials'
-					).then(selection => {
-						if (selection === 'Clear Credentials') {
-							authManager.clear().then(async () => {
-								await updateAuthContext(false);
-								vscode.window.showInformationMessage('Stored credentials cleared. Please log in again.');
-								artemisWebviewProvider.showLogin();
-							});
-						}
-					});
+		// On Desktop the server URL is freely configurable. When it actually changes
+		// while the user is logged in, clear the stored credentials and return to the
+		// login view: a token issued by the previous server is not valid on a different
+		// one. The last URL is tracked so a no-op settings save does not log the user out.
+		let lastServerUrl = resolveServerUrl();
+		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
+			if (!event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
+				return;
+			}
+			const newServerUrl = resolveServerUrl();
+			if (newServerUrl === lastServerUrl) {
+				return;
+			}
+			lastServerUrl = newServerUrl;
+			try {
+				if (!(await authManager.hasAuthToken())) {
+					return;
 				}
+				logger.info('Artemis server URL changed; clearing credentials stored for the previous server', LogCategory.CONFIG);
+				await authManager.clear();
+				await updateAuthContext(false);
+				artemisWebviewProvider.showLogin();
+				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');
+			} catch (error) {
+				logger.error('Failed to clear credentials after server URL change', LogCategory.AUTH, error);
 			}
 		}));
 	}

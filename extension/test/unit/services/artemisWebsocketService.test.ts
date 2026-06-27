@@ -147,7 +147,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         // Mock auth
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
 
         // Track state changes via EventEmitter (no immediate replay on subscribe)
         const states: boolean[] = [];
@@ -176,7 +176,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('should subscribe to topics and receive messages', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -218,7 +218,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('should handle disconnection', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -234,7 +234,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('should handle STOMP errors', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -263,7 +263,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('should connect when disconnected', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
 
         // Not connected yet
         assert.strictEqual(wsService.isConnected(), false);
@@ -285,7 +285,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('should subscribe to Iris session and receive messages', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -332,7 +332,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('stale unsubscribe should not remove active subscription', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        await authManager.storeArtemisCredentials('jwt=token', true);
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
