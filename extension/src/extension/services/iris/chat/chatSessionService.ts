@@ -693,6 +693,11 @@ export async function classifyIrisCourseAvailability(
         return { availability: { kind: 'unavailable', reason: `Profile probe failed: ${describeError(error)}` } };
     }
     if (!api.isIrisProfileActive(profileInfo)) {
+        logger.info(
+            `Iris availability: disabled — 'iris' not active (activeProfiles=[${(profileInfo.activeProfiles ?? []).join(',')}], `
+            + `activeModuleFeatures=[${(profileInfo.activeModuleFeatures ?? []).join(',')}])`,
+            LogCategory.IRIS_CHAT,
+        );
         return { availability: { kind: 'disabled' } };
     }
     // Step 2: resolve the course (transient failures only — never a disable signal).
@@ -717,6 +722,7 @@ export async function classifyIrisCourseAvailability(
         return { availability: { kind: 'unavailable', reason: 'Malformed Iris settings response' } };
     }
     if (chatSettings.enabled === false) {
+        logger.info(`Iris availability: disabled — course ${courseId} iris-settings.enabled is false`, LogCategory.IRIS_CHAT);
         return { availability: { kind: 'disabled' }, settings };
     }
     return { availability: { kind: 'enabled' }, settings };
