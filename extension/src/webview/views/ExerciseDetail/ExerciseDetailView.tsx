@@ -67,8 +67,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         dirtyPagesStatus,
         clonedNotice,
         pendingSubmissionsByParticipationId,
+        proactiveControl,
         setExerciseData,
         setError,
+        setProactiveControl,
         loadExerciseDetail,
         clearClonedNotice,
     } = useExerciseDetailStore();
@@ -112,6 +114,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             } else {
                 setServerRenderedPS(null);
             }
+            // (Re)request the proactive control state on every init — the provider re-posts init on each sidebar
+            // visibility refresh, so this refreshes the badge (incl. a backoff "Auto-paused" that flipped while hidden).
+            if (msg.exerciseData.exercise?.id !== undefined) {
+                postCommand(vscodeApi, 'requestProactiveControl', { exerciseId: msg.exerciseData.exercise.id });
+            }
         }
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
@@ -120,7 +127,13 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
             setServerRenderedPS({ html: msg.html });
         }
-    }, [vscodeApi, setExerciseData, setError]);
+        // Proactive control state (spec §12.2). Stored UNCONDITIONALLY here, tagged with its exerciseId; the render
+        // below only paints it when the tag matches the live exercise, so a late update for a previous exercise can
+        // never show a stale badge (and we avoid closing over a stale exerciseData in this handler).
+        if (msg.type === ExtensionMsg.UpdateProactiveControl) {
+            setProactiveControl({ exerciseId: msg.exerciseId, preference: msg.preference, autoPaused: msg.autoPaused });
+        }
+    }, [vscodeApi, setExerciseData, setError, setProactiveControl]);
 
     // Listen for exercise-related extension messages
     useExerciseStatusMessages(vscodeApi);
@@ -610,6 +623,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <AskIris
                 description="Open the Iris chat to discuss this exercise or get guidance."
                 onClick={handleAskIris}
+                proactiveControl={proactiveControl && proactiveControl.exerciseId === exercise.id ? {
+                    preference: proactiveControl.preference,
+                    autoPaused: proactiveControl.autoPaused,
+                    onToggle: (enabled) => postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled }),
+                    onResume: () => postCommand(vscodeApi, 'resumeProactive', { exerciseId: exercise.id! }),
+                } : undefined}
             />
 
             {/* Problem Statement */}

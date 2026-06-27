@@ -44,6 +44,8 @@ interface ExerciseDetailState {
     repoStatus: RepoStatus | null;
     clonedNotice: { exerciseTitle: string; participationId: number } | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
+    /** AskIris proactive on/off control (spec §12.2), tagged with its exercise so a late update can't paint the wrong card. */
+    proactiveControl: { exerciseId: number; preference: 'on' | 'off'; autoPaused: boolean } | null;
 
     // Actions
     setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean, repoStatus?: RepoStatus) => void;
@@ -56,6 +58,7 @@ interface ExerciseDetailState {
     setRepoStatus: (status: RepoStatus) => void;
     setClonedNotice: (exerciseTitle: string, participationId: number) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
+    setProactiveControl: (control: { exerciseId: number; preference: 'on' | 'off'; autoPaused: boolean } | null) => void;
     clearClonedNotice: () => void;
     /** Clear all pending entries (e.g. on result arrival without per-participation context). */
     clearPendingSubmission: () => void;
@@ -96,6 +99,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             repoStatus: null,
             clonedNotice: null,
             dirtyPagesStatus: null,
+            proactiveControl: null,
 
             setExerciseData: (data, hideDeveloperTools, repoStatus) => {
                 set({
@@ -103,6 +107,9 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     hideDeveloperTools,
                     isLoading: false,
                     error: null,
+                    // Reset the proactive control on every exercise load so the next exercise never shows the
+                    // previous one's badge while its fresh state is re-requested (spec §12.2).
+                    proactiveControl: null,
                     // Always reset to the freshly-loaded map (or `{}` if the
                     // server didn't supply one). Keeping stale entries across
                     // a reload would let an already-finished build keep
@@ -258,6 +265,10 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
             setDirtyPagesStatus: (status) => {
                 set({ dirtyPagesStatus: status }, false, 'setDirtyPagesStatus');
+            },
+
+            setProactiveControl: (control) => {
+                set({ proactiveControl: control }, false, 'setProactiveControl');
             },
 
             clearClonedNotice: () => {
