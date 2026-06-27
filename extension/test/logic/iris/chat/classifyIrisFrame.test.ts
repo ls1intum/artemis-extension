@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyIrisFrame } from '@extension/services/struggleIntervention/classifyIrisFrame';
+import { classifyIrisFrame } from '@extension/services/iris/chat/classifyIrisFrame';
 
 describe('classifyIrisFrame', () => {
     it('flags a proactive MESSAGE via message.origin', () => {

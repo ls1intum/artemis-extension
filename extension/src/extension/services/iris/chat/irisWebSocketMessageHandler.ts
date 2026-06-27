@@ -3,10 +3,10 @@ import * as vscode from 'vscode';
 import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 
+import { classifyIrisFrame } from '@extension/services/iris/chat/classifyIrisFrame';
 import { isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { classifyIrisFrame } from '@extension/services/struggleIntervention/classifyIrisFrame';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import type { IrisChatMessage } from '@extension/types';
 
