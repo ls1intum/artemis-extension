@@ -35,6 +35,10 @@ export interface StruggleInterventionDeps {
     clearInline(): void;
     /** True iff the anchored file is a visible editor AND the (1-based) line is in a visible range (spec §4). */
     isAnchorLive(anchorFile: string, anchorLine: number): boolean;
+    /** Reject-backoff thresholds (spec §5.2): annoyance owes a soft skip past `softThreshold`; `pauseStrikes`
+     *  consecutive dismisses hard-pause proactive for the exercise. */
+    softThreshold: number;
+    pauseStrikes: number;
     setBadge(on: boolean): void;
     showActiveNotification(): void;
     log: InterventionEventLog;
@@ -58,6 +62,10 @@ export class StruggleInterventionService implements AlertSink {
     private _pendingSignal: StruggleSignal | undefined;
     private _lastSurface: SurfaceMeta | undefined;
     private _lastSurfaceSignal: StruggleSignal | undefined;
+    // Reject backoff (delivery-layer, spec §5.2). Only an explicit dismiss moves these; engagement/new exercise clear them.
+    private _annoyance = 0;
+    private _dismissStrikes = 0;
+    private _softSkipBudget = 0;
 
     constructor(private readonly _deps: StruggleInterventionDeps) {}
 
@@ -189,12 +197,50 @@ export class StruggleInterventionService implements AlertSink {
         this._surface({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', confidence }, this._pendingSignal);
     }
 
-    /** A surfaced intervention was engaged (lamp click / notification action). Replays the LAST surfaced metadata. */
+    /**
+     * A surfaced intervention was engaged (lamp click / toast action / inline command). Replays the LAST surfaced
+     * metadata and feeds the reject backoff (dismiss escalates, click clears). Single-shot: the surface is
+     * snapshotted and cleared synchronously up front, so a surface yields exactly one outcome and any
+     * retriggered command or duplicate/stale callback on an already-consumed surface is a no-op (functional
+     * backoff state, not just telemetry, now rides on this). NOTE (Slice 4b): the FIRST stale callback that
+     * arrives after a later surface has overwritten `_lastSurface` is still misattributed to that newer surface;
+     * closing that needs per-surface identity tokens, which Slice 4b introduces.
+     */
     recordOutcome(outcome: 'clicked' | 'dismissed'): void {
-        if (!this._lastSurface) {
+        const surface = this._lastSurface;
+        if (!surface) {
             return;
         }
-        void this._deps.log.record({ ...this._lastSurface, signal: this._lastSurfaceSignal, studentOutcome: outcome });
+        const signal = this._lastSurfaceSignal;
+        this._lastSurface = undefined;
+        this._lastSurfaceSignal = undefined;
+        if (outcome === 'clicked') {
+            this._annoyance = 0;
+            this._dismissStrikes = 0;
+            this._softSkipBudget = 0;
+        }
+        else {
+            this._dismissStrikes += 1;
+            this._annoyance += 2;
+            if (this._annoyance >= this._deps.softThreshold) {
+                this._softSkipBudget += 1;   // escalating: one more owed per dismiss past the threshold
+            }
+        }
+        void this._deps.log.record({ ...surface, signal, studentOutcome: outcome });
+    }
+
+    /** True while proactive is paused for this exercise (only an explicit dismiss can trigger this, spec §5.2). */
+    isPaused(): boolean {
+        return this._dismissStrikes >= this._deps.pauseStrikes;
+    }
+
+    /** Consume one owed soft skip; returns true if a skip was owed (caller drops the alert). */
+    tryConsumeSoftSkip(): boolean {
+        if (this._softSkipBudget > 0) {
+            this._softSkipBudget -= 1;
+            return true;
+        }
+        return false;
     }
 
     /** AlertSink.reset — the coordinator calls this on session/context change. Clears ALL surfaces (incl. the lamp). */
@@ -209,6 +255,18 @@ export class StruggleInterventionService implements AlertSink {
         this._deps.setBadge(false);
         this._deps.clearLamp();
         this._deps.clearInline();
+    }
+
+    /**
+     * New-exercise reset: clear the per-exercise backoff, then the UI/session state. The plain {@link reset} (the
+     * coordinator's settings-toggle path) deliberately KEEPS the backoff so toggling interventions off/on cannot
+     * silently lift a pause earned by repeated dismisses (spec §5.2).
+     */
+    resetSession(): void {
+        this._annoyance = 0;
+        this._dismissStrikes = 0;
+        this._softSkipBudget = 0;
+        this.reset();
     }
 
     private _setInFlight(on: boolean): void {

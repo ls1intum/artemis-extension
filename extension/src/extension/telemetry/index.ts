@@ -88,6 +88,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         showInline: (f, l, h, m) => inline.show(f, l, h, m),
         clearInline: () => inline.clear(),
         isAnchorLive: (f, l) => isAnchorLive(f, l, vscode.window.visibleTextEditors, coordinator.activeExerciseRoot),
+        softThreshold: TUNING.softThreshold,
+        pauseStrikes: TUNING.pauseStrikes,
         setBadge: on => deps.setProactiveBadge(on),
         showActiveNotification: () => showActiveNotification(() => orchestrator.recordOutcome('clicked')),
         log,

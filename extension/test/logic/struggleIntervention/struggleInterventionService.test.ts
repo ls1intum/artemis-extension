@@ -18,6 +18,8 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showInline: vi.fn(),
         clearInline: vi.fn(),
         isAnchorLive: () => false,
+        softThreshold: 3,
+        pauseStrikes: 5,
         setBadge: vi.fn(),
         showActiveNotification: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
@@ -130,6 +132,47 @@ describe('StruggleInterventionService', () => {
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.showAmbient).toHaveBeenCalledWith('Re-check the logic.', true);
         expect(deps.clearInline).toHaveBeenCalled();   // exclusive surface
+    });
+
+    it('hard-pauses after pauseStrikes dismisses; clicked + resetSession clear it; reset() (UI-only) does NOT', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        const surface = () => svc.onServerAmbient('hint', undefined, undefined, undefined); // sets _lastSurface (lamp)
+        for (let i = 0; i < 5; i++) { surface(); svc.recordOutcome('dismissed'); }
+        expect(svc.isPaused()).toBe(true);
+        svc.reset();                                  // settings-toggle UI clear must NOT lift the per-exercise pause
+        expect(svc.isPaused()).toBe(true);
+        svc.resetSession();                           // a new exercise clears it
+        expect(svc.isPaused()).toBe(false);
+        for (let i = 0; i < 5; i++) { surface(); svc.recordOutcome('dismissed'); }
+        surface(); svc.recordOutcome('clicked');      // engagement also clears
+        expect(svc.isPaused()).toBe(false);
+    });
+
+    it('owes an escalating soft skip once annoyance crosses softThreshold (dismiss-driven)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        const surface = () => svc.onServerAmbient('hint', undefined, undefined, undefined);
+        surface(); svc.recordOutcome('dismissed');   // annoyance 2 (< 3) -> no skip yet
+        expect(svc.tryConsumeSoftSkip()).toBe(false);
+        surface(); svc.recordOutcome('dismissed');   // annoyance 4 (>= 3) -> one skip owed
+        expect(svc.tryConsumeSoftSkip()).toBe(true);  // consumed
+        expect(svc.tryConsumeSoftSkip()).toBe(false); // none left
+    });
+
+    it('recordOutcome is a no-op when nothing was surfaced', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc.recordOutcome('dismissed');
+        expect(svc.isPaused()).toBe(false);   // no surface -> no backoff mutation
+    });
+
+    it('single-shot: a surface yields exactly one outcome; repeated callbacks on it are no-ops', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerAmbient('hint', undefined, undefined, undefined);   // exactly ONE surface
+        for (let i = 0; i < 5; i++) { svc.recordOutcome('dismissed'); } // 5 callbacks on that SAME surface
+        expect(svc.isPaused()).toBe(false);   // only the first counted (1 strike), not 5 -> no pause
     });
 
     it('inbound active event → open/fetch session + badge + notification, capped after 3 actives', () => {
