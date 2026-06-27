@@ -55,6 +55,10 @@ describe('subscribeStruggleEvents dispatch', () => {
         expect(onServerAmbient).toHaveBeenCalledWith(42, 'Re-check the logic.', 'src/A.java', 42, 'off-by-one?', undefined);
 
         onFrame!({ exerciseId: 99, action: 'active', sessionId: 7, confidence: 0.5 });
-        expect(onServerActive).toHaveBeenCalledWith(99, 7, 0.5);
+        expect(onServerActive).toHaveBeenCalledWith(99, 7, undefined, undefined, undefined, 0.5);
+
+        // Spec §6.1: an active event with a localized anchor threads it through so the inline breadcrumb can render.
+        onFrame!({ exerciseId: 99, action: 'active', sessionId: 8, anchorFile: 'src/B.java', anchorLine: 84, inlineHint: 'check punctuation', confidence: 0.9 });
+        expect(onServerActive).toHaveBeenCalledWith(99, 8, 'src/B.java', 84, 'check punctuation', 0.9);
     });
 });

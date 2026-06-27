@@ -147,11 +147,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}: "${hint}"`);
             if (active) { orchestrator.onServerAmbient(hint, anchorFile, anchorLine, inlineHint, c); }
         },
-        onServerActive: (exerciseId, sid, c) => {
+        onServerActive: (exerciseId, sid, anchorFile, anchorLine, inlineHint, c) => {
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris ACTIVE exercise=${exerciseId} session=${sid} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
-            if (active) { orchestrator.onServerActive(sid, c); }
+            if (active) { orchestrator.onServerActive(sid, anchorFile, anchorLine, inlineHint, c); }
         },
     }));
 

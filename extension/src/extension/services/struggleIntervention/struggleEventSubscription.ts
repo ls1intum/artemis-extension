@@ -41,7 +41,9 @@ export interface StruggleEventHandlers {
      *  exercise (the per-user topic is NOT exercise-filtered server-side, so a
      *  late frame for a previous exercise can arrive after a fast switch). */
     onServerAmbient(exerciseId: number, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void;
-    onServerActive(exerciseId: number, sessionId: number, confidence?: number): void;
+    /** Active also carries the optional anchor: per spec §6.1 a localized active nudge ALSO drops the inline
+     *  breadcrumb at the line, so a missed toast still leaves a contextual pointer. */
+    onServerActive(exerciseId: number, sessionId: number, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void;
 }
 
 /**
@@ -62,7 +64,7 @@ export function subscribeStruggleEvents(
             handlers.onServerAmbient(e.exerciseId, e.message ?? '', e.anchorFile, e.anchorLine, e.inlineHint, e.confidence);
         }
         else {
-            handlers.onServerActive(e.exerciseId, e.sessionId as number, e.confidence);
+            handlers.onServerActive(e.exerciseId, e.sessionId as number, e.anchorFile, e.anchorLine, e.inlineHint, e.confidence);
         }
     });
 }

@@ -209,8 +209,10 @@ export class StruggleInterventionService implements AlertSink {
     /**
      * Inbound `active` struggle event (per-user topic). Open/attach + fetch the session so the persisted bubble
      * shows regardless of websocket timing; add the intrusive notification + badge, CAPPED at MAX active/session.
+     * Per spec §6.1, when the gate localized the nudge to a live line the active path ALSO drops the inline
+     * breadcrumb there, so a missed (auto-dismissing) toast still leaves a contextual pointer at the code.
      */
-    onServerActive(sessionId: number, confidence?: number): void {
+    onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number): void {
         this._serverAvailable = true;
         this._setInFlight(false);
         // Student opted out mid-flight (spec §12.2): drop the surface (slot already released).
@@ -218,8 +220,8 @@ export class StruggleInterventionService implements AlertSink {
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             return;
         }
-        this._deps.clearInline();   // a stronger 'active' surface supersedes any standing inline cue (exclusive surface)
         if (this._activeCount >= MAX_ACTIVE_PER_SESSION) {
+            this._deps.clearInline();   // capped → lamp only; no breadcrumb either
             this._dbg(`  ↳ ACTIVE session=${sessionId} CAPPED (${this._activeCount}/${MAX_ACTIVE_PER_SESSION} this session) → lamp only`);
             this._deps.showAmbient('Iris added a suggestion to the chat.', true);
             this._surface({ action: 'active', finalAction: 'ambient', surface: 'lamp', source: 'server', confidence }, this._pendingSignal);
@@ -230,6 +232,14 @@ export class StruggleInterventionService implements AlertSink {
         void this._deps.openSession(sessionId);
         this._deps.setBadge(true);
         this._deps.showActiveNotification();
+        // Spec §6.1: a localized active nudge ALSO leaves the inline breadcrumb at the live line; otherwise clear
+        // any stale inline cue (the active surface supersedes a previous one).
+        if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+            this._deps.clearLamp();   // exclusive surface: the inline breadcrumb supersedes any standing lamp (mirrors onServerAmbient)
+            this._deps.showInline(anchorFile, anchorLine, inlineHint, inlineHint);
+        } else {
+            this._deps.clearInline();
+        }
         this._surface({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', confidence }, this._pendingSignal);
     }
 

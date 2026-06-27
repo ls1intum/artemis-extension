@@ -296,4 +296,26 @@ describe('StruggleInterventionService', () => {
         expect(deps.showActiveNotification).toHaveBeenCalledTimes(3);
         expect(deps.showAmbient).toHaveBeenCalled();
     });
+
+    it('inbound active event with a live anchor ALSO drops the inline breadcrumb (spec §6.1)', () => {
+        const deps = fakeDeps({ isAnchorLive: () => true });
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
+        // the bubble still opens (active surface)...
+        expect(deps.openSession).toHaveBeenCalledWith(8);
+        expect(deps.showActiveNotification).toHaveBeenCalled();
+        // ...AND the inline breadcrumb is rendered at the anchor (was dropped before the fix)...
+        expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'check punctuation');
+        // ...and it clears any standing lamp (inline and lamp are exclusive surfaces, mirrors onServerAmbient).
+        expect(deps.clearLamp).toHaveBeenCalled();
+    });
+
+    it('inbound active event without a live anchor renders no inline cue (clears any stale one)', () => {
+        const deps = fakeDeps({ isAnchorLive: () => false });
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
+        expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.clearInline).toHaveBeenCalled();
+        expect(deps.openSession).toHaveBeenCalledWith(8);
+    });
 });
