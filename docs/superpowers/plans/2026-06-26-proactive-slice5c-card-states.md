@@ -18,6 +18,35 @@ The webview renders the pushed `cardState`: **Available** = the 5b On/Off switch
 
 Spec refs: §12.2 (the four card states + their division of labor), §14 (the availability matrix rows 1-6 + the cases-2/3 banner), §13 (the course `proactiveStruggleEnabled` whose client read this adds).
 
+## Post-5b reconciliation (codex-approved 2026-06-27, as-built)
+
+This plan was written + codex-signed as a document BEFORE 5a/5b were implemented. When execution began, the
+plan was re-verified against the real post-5b HEAD and codex re-approved the following deltas (the as-built code
+follows these, NOT the original task snippets where they differ):
+
+- **No `enginePresent` flag, no `'hidden'` card state.** 5b ships `proactiveControl === undefined` in the clean
+  build (noop OMITS the proactive methods; extension.ts conditional-assembles; `_push` early-returns on absent
+  control). So the clean-build "hidden" is the ABSENCE of the capability, not a card state. `ProactiveCardState`
+  is the four real states; `deriveProactiveCardState` takes 4 signals (no `enginePresent`). Task 3 adds ONLY
+  `isProactiveDegraded` to the seam (optional, omitted in noop, added to the existing conditional-assembly guard).
+- **Exercise-scoped seam signatures preserved.** `setStudentProactive(exerciseId, on)` / `resumeProactive(exerciseId)`
+  stay exactly as 5b shipped (the plan's `(on)`/`()` snippet would have undone 5b's cross-exercise isolation).
+  `isProactiveDegraded()` is session-global (no exercise id).
+- **Task 5 keeps 5b's stale-closure pattern.** The `UpdateProactiveControl` handler stores UNCONDITIONALLY, the
+  store field KEEPS `exerciseId`, and the match is at RENDER time (`proactiveControl.exerciseId === exercise.id`).
+  No handler-side `if (msg.exerciseId !== exerciseData?.exercise?.id) return` guard (that was the bug 5b fixed).
+- **Task 2 verification runs the mocha suite.** The existing `checkAndLoadIrisSettings` tests are mocha
+  (`test/unit/services/chatSessionService.test.ts`), not vitest; they assert only `kind` (refactor is kind-preserving,
+  57 mocha tests green). The unsupported-context guard moved to the front: a deliberate, documented, practically-
+  unreachable kind divergence (`reason` is logging-only, never a contract).
+- **Banner uses a new `data-variant="warning"` CSS rule** (the module had only success/error/info).
+- **Test path:** extend the existing `test/logic/proactiveControlCommands.test.ts` (no `commands/` subdir).
+- **Code-review fixes (codex, 2026-06-27):** the `whenNoAiReady` comment was softened (it makes the SENT card
+  authoritative, not the view's first paint); the exercise view now re-requests the card on `UpdateNoAiStatus`
+  (live `.noai` freshness, reading the exercise via `useExerciseDetailStore.getState()` at message time). The
+  live server-degraded (`_serverAvailable` flip) push is DEFERRED to a follow-up (Low, self-heals on refocus;
+  the local-fallback behavior already happens regardless of the card) — codex explicitly accepted this.
+
 ## Global Constraints
 
 - **Branch:** `feat/struggle-v3-integration`. Not `dev`/`main`.
