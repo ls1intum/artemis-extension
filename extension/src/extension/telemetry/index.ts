@@ -7,6 +7,7 @@ import { showStruggleScoreDialog } from '@extension/services/intervention/debug/
 import { isAnchorLive } from '@extension/services/intervention/inlineHint';
 import { InlineHintDecoration } from '@extension/services/intervention/inlineHintDecoration';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { BackoffGate } from '@extension/services/struggle/alerting/backoffGate';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
 import { TUNING } from '@extension/services/struggle/config';
 import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
@@ -99,9 +100,12 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // Tier-2 delivery throttle wraps the orchestrator (downstream of the recorded
     // alert path, so goldens/research are unaffected). Reads TUNING defaults.
     const throttledSink = new ThrottledAlertSink(orchestrator, TUNING);
+    // Reject backoff sits ABOVE the throttle so a paused/soft-skipped alert is dropped before the throttle counts
+    // it (the orchestrator owns the counters and satisfies BackoffSource via isPaused/tryConsumeSoftSkip).
+    const backoffGate = new BackoffGate(throttledSink, orchestrator);
     coordinator = new StruggleCoordinator({
         hub: deps.hub,
-        alertSink: throttledSink,
+        alertSink: backoffGate,
         exerciseRegistry: deps.exerciseRegistry,
     });
 
