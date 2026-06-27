@@ -50,6 +50,16 @@
   color: var(--vscode-descriptionForeground);
 }
 
+.toggleGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proactiveLabel {
+  color: var(--vscode-descriptionForeground);
+}
+
 .proactiveSwitch {
   cursor: pointer;
   padding: 1px 8px;

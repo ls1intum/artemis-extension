@@ -52,22 +52,30 @@ export function AskIris({ description, onClick, proactiveControl }: AskIrisProps
           {proactiveControl && (
             <div className={styles.proactiveControl}>
               {showSwitch && (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={proactiveControl.preference === 'on'}
-                  aria-label="Proactive struggle help"
-                  className={styles.proactiveSwitch}
-                  data-state={proactiveControl.preference}
-                  disabled={switchDisabled}
-                  onClick={() => proactiveControl.onToggle(proactiveControl.preference !== 'on')}
-                >
-                  {proactiveControl.preference === 'on' ? 'On' : 'Off'}
-                </button>
+                <span className={styles.toggleGroup}>
+                  {/* Visible label so the switch is self-explanatory (spec §12.2 awareness indicator: "is Iris watching?"). */}
+                  <span className={styles.proactiveLabel}>Proactive help</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={proactiveControl.preference === 'on'}
+                    aria-label="Proactive struggle help"
+                    title="When on, Iris offers a hint on its own if it detects you might be stuck. When off, it only helps when you click Ask."
+                    className={styles.proactiveSwitch}
+                    data-state={proactiveControl.preference}
+                    disabled={switchDisabled}
+                    onClick={() => proactiveControl.onToggle(proactiveControl.preference !== 'on')}
+                  >
+                    {proactiveControl.preference === 'on' ? 'On' : 'Off'}
+                  </button>
+                </span>
               )}
               {showSwitch && proactiveControl.autoPaused && state === 'available' && (
-                <span className={styles.autoPaused}>
-                  Auto-paused
+                <span
+                  className={styles.autoPaused}
+                  title="Iris paused proactive help because you dismissed its recent hints. Click Resume to turn it back on."
+                >
+                  Paused after dismissing recent hints
                   <button type="button" className={styles.resume} onClick={proactiveControl.onResume}>Resume</button>
                 </span>
               )}

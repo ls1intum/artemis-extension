@@ -13,10 +13,10 @@ describe('AskIris proactive control', () => {
         expect(onToggle).toHaveBeenCalledWith(false);   // on -> off
     });
 
-    it('shows Auto-paused + a Resume action', () => {
+    it('shows the dismiss-caused pause + a Resume action', () => {
         const onResume = vi.fn();
         render(<AskIris {...base} proactiveControl={{ preference: 'on', autoPaused: true, cardState: 'available', onToggle: () => {}, onResume }} />);
-        expect(screen.getByText(/auto-paused/i)).toBeInTheDocument();
+        expect(screen.getByText(/dismissing recent hints/i)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: /resume/i }));
         expect(onResume).toHaveBeenCalled();
     });
