@@ -315,6 +315,10 @@ interface ExtensionMsgPayloads {
         exerciseId: number;
         preference: 'on' | 'off';
         autoPaused: boolean;
+        /** Which availability card the AskIris control renders (spec §12.2 / §14). */
+        cardState: ProactiveCardState;
+        /** Why a non-"available" card is in that state (drives the §14 banner / note copy). */
+        cardReason?: ProactiveCardReason;
     };
     updateIrisStages: {
         stages: IrisStageDTO[];

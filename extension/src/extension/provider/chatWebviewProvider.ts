@@ -403,6 +403,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return this._noAiDetectionService.isNoAiEnabled;
     }
 
+    /**
+     * Resolves once the initial `.noai` workspace scan has run, so the first `isNoAiEnabled()` read is
+     * authoritative (spec §14 case 3). Used by the AskIris proactive card so the first render can't fail-open.
+     */
+    public whenNoAiReady(): Promise<void> {
+        return this._noAiDetectionService.waitForInitialization().then(() => undefined);
+    }
+
     public async clearAllSessions(): Promise<void> {
         // Mirrors the in-webview "Reset & Sync Sessions" menu button so the
         // command-palette and webview entry points behave identically.

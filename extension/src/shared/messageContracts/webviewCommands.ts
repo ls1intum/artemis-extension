@@ -190,9 +190,10 @@ interface WebviewCmdPayloads {
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED' };
-    requestProactiveControl: { exerciseId: number };
-    setProactiveEnabled: { exerciseId: number; enabled: boolean };
-    resumeProactive: { exerciseId: number };
+    // courseId lets every _push (init AND toggle/resume) re-derive §14 availability with the course id (slice 5c).
+    requestProactiveControl: { exerciseId: number; courseId?: number };
+    setProactiveEnabled: { exerciseId: number; enabled: boolean; courseId?: number };
+    resumeProactive: { exerciseId: number; courseId?: number };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;
