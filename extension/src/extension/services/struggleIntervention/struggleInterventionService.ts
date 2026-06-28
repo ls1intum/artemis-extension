@@ -101,25 +101,45 @@ export class StruggleInterventionService implements AlertSink {
         this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'template' }, signal);
     }
 
-    private async _handleAlert(alert: AlertRecord): Promise<void> {
-        // Phase 0: only edit-path alerts produce a proactive intervention. Discrete
-        // add-on alerts (e.g. test-stagnation) are fully skipped here: no POST, no
-        // wire signal, no local fallback surface.
+    /**
+     * Pre-throttle suppression (the BackoffSource predicate {@link shouldSuppress} wraps this). An alert that will
+     * NEVER surface, dropped ABOVE the throttle so it does not burn delivery budget. Three cases:
+     *  - a non-edit (discrete, e.g. test-stagnation) alert — Phase 0: never produces a proactive surface;
+     *  - the course-off latch (§13) — proactive disabled for this course this session;
+     *  - the per-exercise student opt-out (§12.2; default-on, so an unset exercise is unaffected).
+     * Returns the dev-log reason, or null when the alert may proceed.
+     */
+    private _suppressReason(alert: AlertRecord): string | null {
         if (alert.kind !== 'edit') {
-            this._dbg(`alert kind=${alert.kind} skipped (only edit-path alerts intervene)`);
-            return;
+            return `alert kind=${alert.kind} skipped (only edit-path alerts intervene)`;
         }
-        // Proactive is off for this course (§13): pause for the session — no POST, no surface, no lamp. Cleared on
-        // reset() (next exercise re-probes), like the 404 latch.
         if (this._courseProactiveOff) {
-            this._dbg('  ↳ SKIP (course proactive disabled for this session)');
+            return '  ↳ SKIP (course proactive disabled for this session)';
+        }
+        const exId = this._deps.getExerciseId();
+        if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
+            return '  ↳ SKIP (student turned proactive off for this exercise)';
+        }
+        return null;
+    }
+
+    /** BackoffSource: drop a suppressed alert above the throttle so it does not consume delivery budget. */
+    shouldSuppress(alert: AlertRecord): boolean {
+        return this._suppressReason(alert) !== null;
+    }
+
+    private async _handleAlert(alert: AlertRecord): Promise<void> {
+        // Pre-throttle suppression (also enforced by BackoffGate above the throttle, so a suppressed alert never
+        // burns delivery budget): non-edit / course-off / student-opt-out drop with no POST and no surface. Kept
+        // here too as the backstop for the direct dev-force path, which calls deliver() and bypasses the gate.
+        const suppressed = this._suppressReason(alert);
+        if (suppressed !== null) {
+            this._dbg(suppressed);
             return;
         }
-        // Student turned proactive off for this exercise (spec §12.2): no POST, no surface. Default-on, so an unset
-        // exercise is unaffected.
-        const studentExerciseId = this._deps.getExerciseId();
-        if (studentExerciseId !== undefined && !this._deps.isStudentProactiveOn(studentExerciseId)) {
-            this._dbg('  ↳ SKIP (student turned proactive off for this exercise)');
+        // Narrowing for the type system only: _suppressReason already dropped every non-edit alert above, so this
+        // is unreachable at runtime — it tells TS that `alert` is the edit variant for buildStruggleSignal below.
+        if (alert.kind !== 'edit') {
             return;
         }
         try {
@@ -164,7 +184,7 @@ export class StruggleInterventionService implements AlertSink {
             if (result === 'course-off') {
                 // Deliberate instructor opt-out (§13): pause proactive for the session with NO fallback lamp, and
                 // release the slot (there is no pending job). The latch keeps it paused even if the in-flight
-                // watchdog later fires; reset() re-probes next exercise.
+                // watchdog later fires, and survives a settings-toggle reset(); resetSession() re-probes next exercise.
                 this._dbg('  ↳ COURSE-OFF: proactive disabled for this course → pause session, no lamp');
                 this._courseProactiveOff = true;
                 this._setInFlight(false);
@@ -174,6 +194,11 @@ export class StruggleInterventionService implements AlertSink {
                 this._serverAvailable = false;
                 this._setInFlight(false);
                 this._fallback(signal);
+            }
+            if (result === 'failed') {
+                // Transient 4xx/5xx/network (contract: treat as silent — no fallback lamp), but RELEASE the
+                // in-flight slot now so the next alert can retry, instead of being skipped until the 30s watchdog.
+                this._setInFlight(false);
             }
         }
         catch (err) {
@@ -354,13 +379,15 @@ export class StruggleInterventionService implements AlertSink {
         return false;
     }
 
-    /** AlertSink.reset — the coordinator calls this on session/context change. Clears ALL surfaces (incl. the lamp). */
+    /**
+     * AlertSink.reset — the coordinator's settings-toggle / context-clear path. Clears ALL surfaces (incl. the
+     * lamp) + the in-flight slot, but DELIBERATELY KEEPS the per-session latches (404 / course-off) and the active
+     * cap: a config-off→on toggle mid-session must not silently lift a latch or refill the cap. Those clear only on
+     * {@link resetSession} (a new exercise).
+     */
     reset(): void {
         this._buffer.clear();
         this._setInFlight(false);            // also invalidates any pending in-flight timeout (gen bump)
-        this._activeCount = 0;
-        this._serverAvailable = true;        // re-probe the server next session: a 404 latch is per-session (spec §11)
-        this._courseProactiveOff = false;    // course-off is also a per-session latch (spec §13): re-probe next exercise
         this._pendingSignal = undefined;
         this._lastSurface = undefined;
         this._lastSurfaceSignal = undefined;
@@ -370,14 +397,19 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * New-exercise reset: clear the per-exercise backoff, then the UI/session state. The plain {@link reset} (the
-     * coordinator's settings-toggle path) deliberately KEEPS the backoff so toggling interventions off/on cannot
-     * silently lift a pause earned by repeated dismisses (spec §5.2).
+     * New-exercise reset: clear the per-exercise backoff AND the per-session latches (404 / course-off) + the
+     * active cap, then the UI/session state. The plain {@link reset} (the coordinator's settings-toggle path)
+     * deliberately KEEPS all of those so toggling interventions off/on cannot silently lift a pause earned by
+     * repeated dismisses (spec §5.2), re-probe a latched-off server (§11), un-latch course-off (§13), or refill
+     * the active cap.
      */
     resetSession(): void {
         this._annoyance = 0;
         this._dismissStrikes = 0;
         this._softSkipBudget = 0;
+        this._activeCount = 0;
+        this._serverAvailable = true;        // re-probe the server next session: a 404 latch is per-session (spec §11)
+        this._courseProactiveOff = false;    // course-off is also a per-session latch (spec §13): re-probe next exercise
         this.reset();
     }
 

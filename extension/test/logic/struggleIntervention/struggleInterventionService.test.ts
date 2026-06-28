@@ -48,6 +48,15 @@ describe('StruggleInterventionService', () => {
         expect(deps.showActiveNotification).not.toHaveBeenCalled();
     });
 
+    it('shouldSuppress (BackoffSource): true for non-edit + student-opt-out, false for a normal edit alert', () => {
+        // This is what BackoffGate consults ABOVE the throttle, so a suppressed alert never burns delivery budget.
+        const discrete: AlertRecord = { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, v: 0.72, trigger: 'test-stagnation', inWarmup: false };
+        expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(discrete)).toBe(true);                                    // non-edit → never surfaces
+        expect(new StruggleInterventionService(fakeDeps({ isStudentProactiveOn: () => false })).shouldSuppress(alert())).toBe(true); // opted out
+        expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(alert())).toBe(false);                                   // normal edit alert passes
+        // (course-off only latches after a POST → covered by the course-off latch test.)
+    });
+
     it('not opted in → shows a local template on the lamp (opensChat=false), never POSTs', async () => {
         const deps = fakeDeps({ isEgressEnabled: () => false });
         const svc = new StruggleInterventionService(deps);
@@ -109,6 +118,22 @@ describe('StruggleInterventionService', () => {
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
     });
 
+    it("'failed' POST releases the in-flight slot so the next alert retries instead of wedging for 30s (silent, no lamp)", async () => {
+        const post = vi.fn()
+            .mockResolvedValueOnce('failed' as const)
+            .mockResolvedValue('accepted' as const);
+        const deps = fakeDeps({ postIntervention: post });   // setTimeoutFn is a no-op here, so ONLY the 'failed' fix can release in-flight
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(alert());                                // first POST → 'failed'
+        await new Promise(r => setTimeout(r, 0));
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(deps.showAmbient).not.toHaveBeenCalled();     // 'failed' is silent: no fallback lamp (per contract)
+        svc.deliver(alert());                                // in-flight was released → this one POSTs again
+        await new Promise(r => setTimeout(r, 0));
+        expect(post).toHaveBeenCalledTimes(2);
+    });
+
     it('isProactiveDegraded: true when egress consent is off (local-template fallback)', () => {
         const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => false }));
         expect(svc.isProactiveDegraded()).toBe(true);
@@ -130,7 +155,19 @@ describe('StruggleInterventionService', () => {
         expect(svc.isProactiveDegraded()).toBe(true);   // _serverAvailable latched false by the 404
     });
 
-    it('course-off latches (survives the in-flight watchdog): no lamp, no re-POST until reset (spec §13)', async () => {
+    it('a 404 server-unavailable latch survives reset() (settings toggle) and clears only on resetSession() (new exercise)', async () => {
+        const svc = new StruggleInterventionService(fakeDeps({ postIntervention: vi.fn(async () => 'unavailable' as const) }));
+        svc.onTick(tick(530));
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(svc.isProactiveDegraded()).toBe(true);
+        svc.reset();
+        expect(svc.isProactiveDegraded()).toBe(true);   // settings-toggle clear KEEPS the per-session 404 latch
+        svc.resetSession();
+        expect(svc.isProactiveDegraded()).toBe(false);  // a new exercise re-probes the server
+    });
+
+    it('course-off latches (survives the in-flight watchdog + a settings-toggle reset): no re-POST until resetSession (spec §13)', async () => {
         // Capture the in-flight watchdog callback so we can fire it manually. This is the load-bearing part of the
         // test: course-off must RELEASE the in-flight slot, so the "no second POST" guarantee has to come from a
         // real per-session latch, NOT from a flag left stuck in-flight (which the watchdog would otherwise clear).
@@ -151,7 +188,12 @@ describe('StruggleInterventionService', () => {
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(1);             // latched, not merely in-flight
 
-        svc.reset();                                       // new exercise / re-probe clears the latch
+        svc.reset();                                       // settings-toggle UI clear must NOT lift the per-session latch
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(post).toHaveBeenCalledTimes(1);             // still latched after reset()
+
+        svc.resetSession();                                // a new exercise re-probes → clears the latch
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(2);
@@ -295,6 +337,19 @@ describe('StruggleInterventionService', () => {
         expect(deps.setBadge).toHaveBeenCalledTimes(3);
         expect(deps.showActiveNotification).toHaveBeenCalledTimes(3);
         expect(deps.showAmbient).toHaveBeenCalled();
+    });
+
+    it('the active cap survives reset() (settings toggle) and refills only on resetSession() (new exercise)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerActive(7); svc.onServerActive(7); svc.onServerActive(7);   // reaches the 3/session cap
+        expect(deps.openSession).toHaveBeenCalledTimes(3);
+        svc.reset();                                       // settings-toggle UI clear must NOT refill the cap
+        svc.onServerActive(7);
+        expect(deps.openSession).toHaveBeenCalledTimes(3); // still capped (lamp only) after reset()
+        svc.resetSession();                                // a new exercise refills the cap
+        svc.onServerActive(7);
+        expect(deps.openSession).toHaveBeenCalledTimes(4); // opens a session again
     });
 
     it('inbound active event with a live anchor ALSO drops the inline breadcrumb (spec §6.1)', () => {

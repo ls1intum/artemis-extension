@@ -5,19 +5,28 @@ import type { AlertRecord } from '@extension/services/struggle/types';
 import type { AlertSink } from './alertSink';
 
 export interface BackoffSource {
+    /** Drop this alert outright (before the backoff/throttle) — non-edit (discrete) alerts that never surface,
+     *  and the course-off / student-opt-out suppressions. Lives here so a suppressed alert does NOT burn the
+     *  throttle's per-session/min-gap budget (the orchestrator's own checks are below the throttle). */
+    shouldSuppress(alert: AlertRecord): boolean;
     isPaused(): boolean;
     tryConsumeSoftSkip(): boolean;
 }
 
 /**
- * Delivery-layer reject backoff (spec §5.2), placed ABOVE the throttle so a paused/soft-skipped alert is dropped
- * WITHOUT consuming the throttle's per-session/min-gap budget. The counters live in the orchestrator (it sees
- * recordOutcome); this gate only reads them.
+ * Delivery-layer reject backoff (spec §5.2), placed ABOVE the throttle so a suppressed / paused / soft-skipped
+ * alert is dropped WITHOUT consuming the throttle's per-session/min-gap budget. The counters + the suppression
+ * predicate live in the orchestrator (it sees recordOutcome + the course/student state); this gate only reads them.
  */
 export class BackoffGate implements AlertSink {
     constructor(private readonly inner: AlertSink, private readonly backoff: BackoffSource) {}
 
     deliver(alert: AlertRecord): void {
+        // Suppressed alerts (non-edit / course-off / student-opt-out) never surface, so drop them here — above the
+        // throttle — instead of inside the orchestrator (below it), where they would still burn delivery budget.
+        if (this.backoff.shouldSuppress(alert)) {
+            return;
+        }
         if (this.backoff.isPaused()) {
             return;
         }

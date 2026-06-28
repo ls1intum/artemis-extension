@@ -9,13 +9,15 @@ const round2 = (x: number): number => Math.round(x * 100) / 100;
  *  alerts are skipped upstream, spec Phase 0). */
 export type EditAlertRecord = Extract<AlertRecord, { kind: 'edit' }>;
 
-/** Each component's raw value + its contribution to severity s (core fX/3, bonus W_X·fX).
- *  v3 dropped the N4 feature, so the `n4` component is never emitted (the wire
- *  `ComponentName` keeps it for backward compatibility; it simply never appears). */
+/** Each component's raw value + its contribution to severity s (core fX/2, bonus W_X·fX).
+ *  v3's equal-weighted core is (fTyping+fGap)/2 (the N4 feature was dropped, so it is a /2 mean,
+ *  NOT the v2 /3), so each core component contributes fX/2 — using the old /3 here understates
+ *  typing+gap relative to the bonus weights and can mis-rank `dominantComponents`. The `n4`
+ *  component is never emitted (the wire `ComponentName` keeps it for backward compatibility). */
 function componentContributions(f: FeatureVector): Array<{ name: ComponentName; value: number; contribution: number }> {
     return [
-        { name: 'typing', value: f.fTyping, contribution: f.fTyping / 3 },
-        { name: 'gap', value: f.fGap, contribution: f.fGap / 3 },
+        { name: 'typing', value: f.fTyping, contribution: f.fTyping / 2 },
+        { name: 'gap', value: f.fGap, contribution: f.fGap / 2 },
         { name: 'feedbackViewing', value: f.fFb, contribution: SPEC.W_FB * f.fFb },
         { name: 'regionPersistence', value: f.fA8, contribution: SPEC.W_A8 * f.fA8 },
         { name: 'errorDistance', value: f.fN2, contribution: SPEC.W_N2 * f.fN2 },

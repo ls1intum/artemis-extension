@@ -29,7 +29,7 @@ describe('buildStruggleSignal', () => {
         expect(sig.trajectory).toHaveLength(2);
         expect(sig.trajectory[0]).toMatchObject({ t: 520 });
         expect(sig.sessionSeconds).toBe(530);
-        // fTyping (0.9/3=0.30) dominates fFb (0.25·1=0.25) dominates fGap (0.3/3=0.10); zero-contribution ones dropped.
+        // v3 core /2: fTyping (0.9/2=0.45) dominates fFb (0.25·1=0.25) dominates fGap (0.3/2=0.15); zero-contribution ones dropped.
         expect(sig.dominantComponents.map(c => c.name)).toEqual(['typing', 'feedbackViewing', 'gap']);
     });
 
