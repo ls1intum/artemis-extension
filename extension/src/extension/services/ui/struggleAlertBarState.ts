@@ -43,3 +43,73 @@ export function computeAlertBarState(tick: TickRecord): AlertBarState {
     }
     return { kind: 'armed', urgency, theta };
 }
+
+/** Human label per suppressing-gate reason, for the "gated: X" text. */
+const GATE_LABEL: Record<string, string> = {
+    'b2-fluent-typing': 'fluent typing',
+    'b4-grace-filter': 'grace window',
+    'd1-warmup': 'warm-up',
+    'cooldown': 'cooldown',
+    'not-rearmed': 're-arm',
+};
+
+/** Status-bar presentation for a tick. `background` is a theme-key hint the view maps to a
+ *  vscode.ThemeColor (kept vscode-free so this stays unit-testable). */
+export interface AlertBarDisplay {
+    text: string;
+    tooltip: string;
+    background: 'error' | 'warning' | null;
+}
+
+/** Seconds → "M:SS" (ceil, so a countdown stays at 1 until it truly hits 0). */
+function mmss(totalSeconds: number): string {
+    const s = Math.max(0, Math.ceil(totalSeconds));
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
+/**
+ * Build the status-bar text/tooltip/background for a classified tick + the warm-up countdown.
+ *
+ * firing/gated text is NEVER altered by warm-up: real FM/E4 alerts break through the warm-up gate
+ * and must stay visible. Only the 'armed' branch swaps to a "warm-up M:SS" readout while
+ * `warmupRemainingS > 0`, and every tooltip notes the warm-up time remaining while it lasts.
+ * The countdown is driven by tick time (warmupS − tick.t), not wall-clock, so it never reads 0:00
+ * before the engine's first post-warm-up tick.
+ */
+export function formatAlertBar(state: AlertBarState, warmupRemainingS: number): AlertBarDisplay {
+    const u = state.urgency.toFixed(2);
+    const th = state.theta.toFixed(2);
+    const inWarmup = warmupRemainingS > 0;
+    const warmupNote = inWarmup ? ` Warm-up: ${mmss(warmupRemainingS)} remaining (only FM/E4 alerts break through).` : '';
+    const click = ' Click to open the live engine view.';
+    switch (state.kind) {
+        case 'firing':
+            return {
+                text: '$(megaphone) Struggle alert',
+                background: 'error',
+                tooltip: `An alert is firing right now (urgency ${u}, θ ${th}). The student would be nudged.${warmupNote}${click}`,
+            };
+        case 'gated': {
+            const gate = (state.gateReason && GATE_LABEL[state.gateReason]) || 'a gate';
+            return {
+                text: `$(shield) Alert gated: ${gate}`,
+                background: 'warning',
+                tooltip: `The engine would alert (urgency ${u}, θ ${th}) but the ${gate} gate is holding it back.${warmupNote}${click}`,
+            };
+        }
+        case 'armed':
+        default:
+            if (inWarmup) {
+                return {
+                    text: `$(pulse) Struggle: warm-up ${mmss(warmupRemainingS)}`,
+                    background: null,
+                    tooltip: `Struggle engine warming up: ${mmss(warmupRemainingS)} remaining (only FM/E4 alerts break through). Urgency ${u} (alert at θ ${th}).${click}`,
+                };
+            }
+            return {
+                text: `$(pulse) Struggle: ${u}`,
+                background: null,
+                tooltip: `Struggle engine monitoring. Urgency ${u} (alert at θ ${th}).${click}`,
+            };
+    }
+}

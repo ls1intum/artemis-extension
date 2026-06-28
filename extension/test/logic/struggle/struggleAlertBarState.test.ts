@@ -1,4 +1,4 @@
-import { computeAlertBarState } from '@extension/services/ui/struggleAlertBarState';
+import { computeAlertBarState, formatAlertBar } from '@extension/services/ui/struggleAlertBarState';
 
 const BASE_TRACE = {
     outcome: 'suppressed', reason: 'no-candidate', discreteTrigger: null,
@@ -40,4 +40,37 @@ test('armed for below-threshold and no-candidate (not would-fire)', () => {
 test('a real alert wins even at high urgency with a fired reason', () => {
     const s = computeAlertBarState(fakeTick({ sBase: 0.95, alert: { kind: 'discrete' } }, { reason: 'fired', urgency: 0.95 }));
     expect(s.kind).toBe('firing');
+});
+
+test('formatAlertBar: armed shows the tick-time warm-up countdown while remaining > 0', () => {
+    const d = formatAlertBar({ kind: 'armed', urgency: 0.4, theta: 0.7 }, 470);
+    expect(d.text).toBe('$(pulse) Struggle: warm-up 7:50');
+    expect(d.background).toBeNull();
+    expect(d.tooltip).toContain('warming up');
+    expect(d.tooltip).toContain('7:50 remaining');
+});
+
+test('formatAlertBar: armed shows urgency (no warm-up) once remaining is 0', () => {
+    const d = formatAlertBar({ kind: 'armed', urgency: 0.42, theta: 0.7 }, 0);
+    expect(d.text).toBe('$(pulse) Struggle: 0.42');
+    expect(d.tooltip).not.toContain('warm-up');
+});
+
+test('formatAlertBar: firing text is never altered by warm-up, but the tooltip notes it', () => {
+    const d = formatAlertBar({ kind: 'firing', urgency: 0.9, theta: 0.7 }, 300);
+    expect(d.text).toBe('$(megaphone) Struggle alert');
+    expect(d.background).toBe('error');
+    expect(d.tooltip).toContain('Warm-up: 5:00 remaining');
+});
+
+test('formatAlertBar: gated text is never altered by warm-up; tooltip names the gate', () => {
+    const d = formatAlertBar({ kind: 'gated', urgency: 0.8, theta: 0.7, gateReason: 'cooldown' }, 120);
+    expect(d.text).toBe('$(shield) Alert gated: cooldown');
+    expect(d.background).toBe('warning');
+    expect(d.tooltip).toContain('cooldown gate');
+    expect(d.tooltip).toContain('Warm-up: 2:00 remaining');
+});
+
+test('formatAlertBar: the warm-up countdown ceils and zero-pads seconds', () => {
+    expect(formatAlertBar({ kind: 'armed', urgency: 0.4, theta: 0.7 }, 65.2).text).toBe('$(pulse) Struggle: warm-up 1:06');
 });

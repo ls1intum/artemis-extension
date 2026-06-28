@@ -3,16 +3,7 @@ import * as vscode from 'vscode';
 import type { TickRecord } from '@extension/services/struggle/types';
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 
-import { type AlertBarState, computeAlertBarState } from './struggleAlertBarState';
-
-/** Human label per suppressing-gate reason, for the "gated: X" text. */
-const GATE_LABEL: Record<string, string> = {
-    'b2-fluent-typing': 'fluent typing',
-    'b4-grace-filter': 'grace window',
-    'd1-warmup': 'warm-up',
-    'cooldown': 'cooldown',
-    'not-rearmed': 're-arm',
-};
+import { type AlertBarDisplay, computeAlertBarState, formatAlertBar } from './struggleAlertBarState';
 
 /**
  * Developer-only status bar item that surfaces the struggle engine's live alert
@@ -34,6 +25,9 @@ export class StruggleAlertStatusBar implements vscode.Disposable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _sessionActive = false;
     private _lastTick: TickRecord | undefined;
+    /** Warm-up length (s), read once from the engine caps. The clean build's no-op returns 0
+     *  (it never ticks, so the bar never renders), keeping this leak-free of struggle/config. */
+    private readonly _warmupS: number;
 
     constructor(
         coordinator: IStruggleCoordinator,
@@ -41,6 +35,7 @@ export class StruggleAlertStatusBar implements vscode.Disposable {
         /** Reveal the panel + open the live-engine view (clicked from the bar). */
         private readonly _onActivate: () => void,
     ) {
+        this._warmupS = coordinator.getDebugSnapshot().caps.warmupS;
         this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
         this._item.command = StruggleAlertStatusBar.COMMAND_ID;
         this._disposables.push(
@@ -68,33 +63,19 @@ export class StruggleAlertStatusBar implements vscode.Disposable {
             this._item.show();
             return;
         }
-        this._apply(computeAlertBarState(this._lastTick));
+        // Warm-up countdown is driven by TICK time (warmupS − tick.t), not wall-clock, so it never
+        // reads 0:00 before the engine's first post-warm-up tick.
+        const warmupRemainingS = Math.max(0, this._warmupS - this._lastTick.t);
+        this._apply(formatAlertBar(computeAlertBarState(this._lastTick), warmupRemainingS));
         this._item.show();
     }
 
-    private _apply(state: AlertBarState): void {
-        const u = state.urgency.toFixed(2);
-        const th = state.theta.toFixed(2);
-        switch (state.kind) {
-            case 'firing':
-                this._item.text = '$(megaphone) Struggle alert';
-                this._item.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-                this._item.tooltip = `An alert is firing right now (urgency ${u}, θ ${th}). The student would be nudged. Click to open the live engine view.`;
-                break;
-            case 'gated': {
-                const gate = (state.gateReason && GATE_LABEL[state.gateReason]) || 'a gate';
-                this._item.text = `$(shield) Alert gated: ${gate}`;
-                this._item.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-                this._item.tooltip = `The engine would alert (urgency ${u}, θ ${th}) but the ${gate} gate is holding it back. Click to open the live engine view.`;
-                break;
-            }
-            case 'armed':
-            default:
-                this._item.text = `$(pulse) Struggle: ${u}`;
-                this._item.backgroundColor = undefined;
-                this._item.tooltip = `Struggle engine monitoring. Urgency ${u} (alert at θ ${th}). Click to open the live engine view.`;
-                break;
-        }
+    private _apply(display: AlertBarDisplay): void {
+        this._item.text = display.text;
+        this._item.tooltip = display.tooltip;
+        this._item.backgroundColor = display.background === null
+            ? undefined
+            : new vscode.ThemeColor(display.background === 'error' ? 'statusBarItem.errorBackground' : 'statusBarItem.warningBackground');
     }
 
     dispose(): void {
