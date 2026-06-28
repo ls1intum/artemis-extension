@@ -1,7 +1,7 @@
 import type { StruggleInterventionEvent } from './struggleContract';
 
 /** The per-user struggle topic suffix (Plan 2 sends via IrisWebsocketService.send(login, "struggle-intervention", ...)). */
-export const STRUGGLE_EVENT_TOPIC = '/user/topic/iris/struggle-intervention';
+const STRUGGLE_EVENT_TOPIC = '/user/topic/iris/struggle-intervention';
 
 /** Pure: parse an inbound per-user struggle frame; undefined for anything that is not an ambient/active event. */
 export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent | undefined {

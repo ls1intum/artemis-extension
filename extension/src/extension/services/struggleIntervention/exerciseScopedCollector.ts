@@ -9,7 +9,7 @@ export interface EgressCaps {
     maxTotalBytes: number;
 }
 
-export const DEFAULT_EGRESS_CAPS: EgressCaps = { maxFiles: 40, maxPerFileBytes: 64 * 1024, maxTotalBytes: 256 * 1024 };
+const DEFAULT_EGRESS_CAPS: EgressCaps = { maxFiles: 40, maxPerFileBytes: 64 * 1024, maxTotalBytes: 256 * 1024 };
 
 export interface CandidateFile {
     path: string;
