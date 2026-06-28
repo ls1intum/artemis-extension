@@ -21,6 +21,7 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
     | 'startExerciseSession'
     | 'endExerciseSession'
     | 'getSnapshot'
+    | 'getDebugSnapshot'
     | 'isEnabled'
     | 'dispose'
     | 'onDidTick'

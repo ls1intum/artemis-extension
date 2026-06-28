@@ -12,7 +12,7 @@ import { ThrottledAlertSink } from '@extension/services/struggle/alerting/thrott
 import { TUNING } from '@extension/services/struggle/config';
 import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
-import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
+import type { AlertRecord } from '@extension/services/struggle/types';
 import { showActiveNotification } from '@extension/services/struggleIntervention/activeNotification';
 import { collectExerciseScopedFiles } from '@extension/services/struggleIntervention/exerciseScopedCollector';
 import { InterventionEventLog } from '@extension/services/struggleIntervention/interventionEventLog';
@@ -21,17 +21,7 @@ import { subscribeStruggleEvents } from '@extension/services/struggleInterventio
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 
 import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, StruggleEngineHandle } from './contract';
-
-/** One-line developer-mode summary of a single engine tick (urgency vs θ + the gates that suppressed it). */
-function formatTick(t: TickRecord): string {
-    const d = t.decisionTrace;
-    const gatesOn = Object.entries(d.gates).filter(([, on]) => on).map(([name]) => name);
-    const why = d.outcome === 'suppressed' && gatesOn.length > 0 ? ` (gates: ${gatesOn.join(', ')})` : '';
-    const boundaries = d.boundariesPresent.length > 0 ? d.boundariesPresent.join('+') : '–';
-    const typing = d.typingRate === null ? '–' : `${Math.round(d.typingRate)}`;
-    return `tick t=${t.t}s urgency=${d.urgency.toFixed(2)}/θ${d.theta.toFixed(2)} `
-        + `typing=${typing}/min boundaries=[${boundaries}] → ${d.outcome}${why}`;
-}
+import { formatTick } from './formatTick';
 
 /**
  * Real struggle-detection engine + proactive intervention (full / Marketplace /
@@ -131,7 +121,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // In developer mode, also surface the per-tick decision so it's visible why an alert (does not) fire.
     deps.context.subscriptions.push(coordinator.onDidTick(t => {
         orchestrator.onTick(t);
-        if (isDevMode()) { devLog(formatTick(t)); }
+        // Phase B: pass the live debug snapshot so the one-line tick log also carries the
+        // throttle/grace/fN2 timers (same data source the dev dashboard renders from).
+        if (isDevMode()) { devLog(formatTick(t, coordinator.getDebugSnapshot())); }
     }));
     // A lamp click on a surfaced hint is an engagement signal for the local eval log.
     deps.context.subscriptions.push(lamp.onDidClick(() => orchestrator.recordOutcome('clicked')));

@@ -1,5 +1,7 @@
 import type * as vscode from 'vscode';
 
+import type { StruggleDebugSnapshot } from '@shared/messageContracts';
+
 import type { AlertRecord, StruggleSnapshot, TickRecord } from '@extension/services/struggle/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 
@@ -43,6 +45,26 @@ export class NoopStruggleCoordinator implements IStruggleCoordinator {
             primaryBoundary: null,
             lastAlert: null,
             sessionSeconds: 0,
+        };
+    }
+    /** Inert snapshot for the clean build. The dev dashboard is stubbed out there, so this is
+     *  never rendered; caps are zeroed because importing SPEC/TUNING would defeat the seam. */
+    public getDebugSnapshot(): StruggleDebugSnapshot {
+        return {
+            sessionActive: false,
+            nowMs: 0,
+            sessionStartMs: 0,
+            lastAlertMs: null,
+            lastFmBadMs: null,
+            throttle: null,
+            fN2Active: false,
+            effectiveWindowS: 0,
+            longestGapS: 0,
+            notRearmed: false,
+            caps: {
+                warmupS: 0, cooldownS: 0, graceS: 0, minDeliveryGapS: 0,
+                maxAlertsPerMinute: 0, maxAlertsPerSession: 0, n2MinActiveS: 0, gapNormS: 0,
+            },
         };
     }
     public dispose(): void { /* no-op */ }

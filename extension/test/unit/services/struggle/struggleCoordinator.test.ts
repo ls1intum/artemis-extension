@@ -2,7 +2,11 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
+import type { StruggleDebugSnapshot } from '@shared/messageContracts';
+
 import type { ResultDTO } from '@extension/domain/submissions';
+import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
+import { SPEC, TUNING } from '@extension/services/struggle/config';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { AlertRecord } from '@extension/services/struggle/types';
 import { asEditAlert } from '@test/__shared__/alertNarrow';
@@ -122,6 +126,93 @@ suite('StruggleCoordinator', () => {
         } finally {
             c.dispose();
         }
+    });
+
+    test('getDebugSnapshot echoes the SPEC/TUNING caps + session anchors, no alert/build yet', () => {
+        coord.startExerciseSession(1);
+        coord.advanceTo(coord.sessionStartMs + 20_000);
+        const dbg = coord.getDebugSnapshot();
+        assert.strictEqual(dbg.sessionStartMs, coord.sessionStartMs);
+        assert.ok(dbg.nowMs >= dbg.sessionStartMs);
+        assert.strictEqual(dbg.lastAlertMs, null);
+        assert.strictEqual(dbg.lastFmBadMs, null);
+        assert.strictEqual(dbg.throttle, null, 'a plain sink does not expose throttle state');
+        assert.deepStrictEqual(dbg.caps, {
+            warmupS: SPEC.WARMUP_S,
+            cooldownS: SPEC.COOLDOWN_S,
+            graceS: SPEC.GRACE_S,
+            minDeliveryGapS: TUNING.minDeliveryGapS,
+            maxAlertsPerMinute: TUNING.maxAlertsPerMinute,
+            maxAlertsPerSession: TUNING.maxAlertsPerSession,
+            n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
+            gapNormS: SPEC.GAP_NORM_S,
+        });
+    });
+
+    test('getDebugSnapshot surfaces the last tick metrics (effective window grows to t)', () => {
+        coord.startExerciseSession(1);
+        coord.advanceTo(coord.sessionStartMs + 20_000);          // last tick t=20
+        const dbg = coord.getDebugSnapshot();
+        assert.strictEqual(dbg.effectiveWindowS, 20, 'max(10, min(60, 20)) = 20');
+        assert.strictEqual(typeof dbg.longestGapS, 'number');
+        assert.strictEqual(typeof dbg.fN2Active, 'boolean');
+        assert.strictEqual(typeof dbg.notRearmed, 'boolean');
+    });
+
+    test('getDebugSnapshot.throttle reflects a ThrottledAlertSink after a delivered alert', () => {
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: new ThrottledAlertSink({ deliver: () => { /* noop UI */ } }, TUNING),
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
+            c.advanceTo(c.sessionStartMs + 520_000);             // idle → STATE alert delivered
+            const dbg = c.getDebugSnapshot();
+            assert.ok(dbg.throttle, 'throttle state is exposed');
+            assert.ok(dbg.throttle!.deliveredThisSession >= 1, 'at least one alert was delivered');
+            assert.strictEqual(dbg.throttle!.deliveredAtMs.length, dbg.throttle!.deliveredThisSession);
+        } finally {
+            c.dispose();
+        }
+    });
+
+    test('getDebugSnapshot.lastFmBadMs is armed by a failing (FM) build', () => {
+        coord.startExerciseSession(1);
+        coord.onNewResult(failingBuild());                       // compile-error → isFM
+        coord.advanceTo(coord.sessionStartMs + 20_000);          // tick assigns the build
+        const dbg = coord.getDebugSnapshot();
+        assert.ok(dbg.lastFmBadMs !== null, 'grace anchor set after a bad build');
+        // The build was stamped ~session start, so the anchor sits within the session span.
+        assert.ok(dbg.lastFmBadMs! >= coord.sessionStartMs);
+    });
+
+    test('getDebugSnapshot.lastAlertMs is set once an alert fires', () => {
+        coord.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
+        coord.advanceTo(coord.sessionStartMs + 520_000);         // idle → alert
+        assert.ok(coord.getDebugSnapshot().lastAlertMs !== null);
+    });
+
+    test('getDebugSnapshot read WITHIN the firing onDidTick already reflects that alert (no one-tick lag)', () => {
+        // The engine fires onDidTick before onDidAlert, so a snapshot read by an onDidTick consumer
+        // on the firing tick must still see this tick's alert as the cooldown anchor (tick.alert path).
+        let firing: StruggleDebugSnapshot | undefined;
+        const sub = coord.onDidTick(tick => {
+            if (tick.alert !== null && firing === undefined) { firing = coord.getDebugSnapshot(); }
+        });
+        coord.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
+        coord.advanceTo(coord.sessionStartMs + 520_000);
+        sub.dispose();
+        assert.ok(firing, 'an alert fired on some tick');
+        assert.ok(firing!.lastAlertMs !== null, 'cooldown anchor reflects the firing tick, not a stale prior alert');
+    });
+
+    test('getDebugSnapshot.sessionActive tracks the session lifecycle', () => {
+        assert.strictEqual(coord.getDebugSnapshot().sessionActive, false, 'no session yet');
+        coord.startExerciseSession(1);
+        assert.strictEqual(coord.getDebugSnapshot().sessionActive, true);
+        coord.endExerciseSession();
+        assert.strictEqual(coord.getDebugSnapshot().sessionActive, false);
     });
 
     test('turning showInterventions off mid-session clears the UI (reset) WITHOUT resetting the throttle budget (resetSession)', () => {

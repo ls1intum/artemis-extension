@@ -33,6 +33,7 @@ function make(cfg: ThrottleConfig) {
         deliverAt(ms: number, t = ms / 1000) { nowMs = ms; sink.deliver(mkAlert(t)); },
         reset() { sink.reset(); },
         resetSession() { sink.resetSession(); },
+        state() { return sink.getThrottleState(); },
     };
 }
 
@@ -84,5 +85,44 @@ describe('ThrottledAlertSink', () => {
         h.deliverAt(10_000);       // allowed again
         expect(h.inner.delivered).toHaveLength(2);
         expect(h.inner.calls.resetSession).toBe(1);
+    });
+
+    describe('getThrottleState (dev debug snapshot)', () => {
+        it('reports zero state before any delivery', () => {
+            const h = make(LOOSE);
+            expect(h.state()).toEqual({ deliveredThisSession: 0, deliveredAtMs: [], lastDeliveryMs: null });
+        });
+
+        it('tracks delivered count + timestamps + last delivery after deliveries', () => {
+            const h = make(LOOSE);
+            h.deliverAt(0);
+            h.deliverAt(5_000);
+            expect(h.state()).toEqual({ deliveredThisSession: 2, deliveredAtMs: [0, 5_000], lastDeliveryMs: 5_000 });
+        });
+
+        it('does NOT count alerts the throttle dropped', () => {
+            const h = make({ ...LOOSE, minDeliveryGapS: 10 });
+            h.deliverAt(0);            // delivered
+            h.deliverAt(5_000);        // dropped (gap < 10s)
+            const s = h.state();
+            expect(s.deliveredThisSession).toBe(1);
+            expect(s.deliveredAtMs).toEqual([0]);
+        });
+
+        it('clears on resetSession but is preserved across reset', () => {
+            const h = make(LOOSE);
+            h.deliverAt(0);
+            h.reset();
+            expect(h.state().deliveredThisSession).toBe(1);   // budget kept
+            h.resetSession();
+            expect(h.state()).toEqual({ deliveredThisSession: 0, deliveredAtMs: [], lastDeliveryMs: null });
+        });
+
+        it('returns a COPY of the timestamp array (consumer cannot mutate the window)', () => {
+            const h = make(LOOSE);
+            h.deliverAt(0);
+            h.state().deliveredAtMs.push(999_999);
+            expect(h.state().deliveredAtMs).toEqual([0]);
+        });
     });
 });

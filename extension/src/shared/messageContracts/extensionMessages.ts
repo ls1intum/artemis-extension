@@ -75,6 +75,67 @@ export interface LiveTick {
     decisionTrace: LiveDecisionTrace;
 }
 
+// ---------------------------------------------------------------------------
+// Struggle debug snapshot (dev timers/counters dashboard + Phase B log)
+// ---------------------------------------------------------------------------
+
+/** Raw Tier-2 delivery-throttle state (counters + absolute ms timestamps). The
+ *  consumer computes every "remaining" locally against the snapshot's `nowMs`, so
+ *  this stays pure state with no derived countdowns baked in. */
+export interface StruggleThrottleState {
+    /** Alerts DELIVERED so far this session (vs caps.maxAlertsPerSession). */
+    deliveredThisSession: number;
+    /** Absolute ms timestamps of delivered alerts this session (the rolling per-minute window). */
+    deliveredAtMs: number[];
+    /** Absolute ms of the most recent delivery, or null if none yet (the min-gap floor). */
+    lastDeliveryMs: number | null;
+}
+
+/** SPEC/TUNING caps echoed once so the client computes "remaining" without re-importing config. */
+export interface StruggleDebugCaps {
+    warmupS: number;
+    cooldownS: number;
+    graceS: number;
+    minDeliveryGapS: number;
+    maxAlertsPerMinute: number;
+    maxAlertsPerSession: number;
+    n2MinActiveS: number;
+    gapNormS: number;
+}
+
+/**
+ * Latest-only engine STATE for the dev timers/counters dashboard and the Phase B
+ * per-tick log. NOT a history series, and deliberately SEPARATE from the per-tick
+ * {@link LiveTick} (never widen that). Every "remaining" value is derived by the
+ * consumer from these absolute ms anchors + {@link StruggleDebugCaps}, against a
+ * local 1 s clock offset-corrected by `nowMs`, so the 10 s emission cadence still
+ * yields smooth per-second countdowns.
+ */
+export interface StruggleDebugSnapshot {
+    /** Whether an exercise session is currently active. When false, all anchors below are stale
+     *  (a previous session's or zero) and the dashboard must show "no active session" instead of timers. */
+    sessionActive: boolean;
+    /** Engine clock at snapshot-build time (ms); the client's offset reference. */
+    nowMs: number;
+    /** Session start (ms); the warmup anchor. */
+    sessionStartMs: number;
+    /** Last engine alert (ms); the cooldown anchor. null if none fired yet. */
+    lastAlertMs: number | null;
+    /** Last bad-build that armed the B4 grace window (ms); the grace anchor. null if none. */
+    lastFmBadMs: number | null;
+    /** Delivery-throttle state, or null when the sink does not expose it. */
+    throttle: StruggleThrottleState | null;
+    /** fN2 "off-screen error" currently active (metric; a true countdown needs a tracker getter, deferred). */
+    fN2Active: boolean;
+    /** Effective feature window at the last tick: max(10, min(60, sessionSeconds)). */
+    effectiveWindowS: number;
+    /** Longest pause in the last window (s), shown against caps.gapNormS. */
+    longestGapS: number;
+    /** E6 re-arm gate: alert legality is gated SEPARATELY from the bare cooldown end. */
+    notRearmed: boolean;
+    caps: StruggleDebugCaps;
+}
+
 /**
  * Display-facing projection of the websocket connection state. Both the chat
  * webview and the status bar render off this. The webview store also has an
@@ -221,6 +282,8 @@ interface ExtensionMsgPayloads {
         lastAlertT: number | null;
         isEnabled: boolean;
         developerMode: boolean;
+        /** Latest engine timers/counters for the dev dashboard (developer mode only; omitted otherwise). */
+        debug?: StruggleDebugSnapshot;
     };
     struggleLiveBackfill: { ticks: LiveTick[] };
     struggleLiveTick: { tick: LiveTick };

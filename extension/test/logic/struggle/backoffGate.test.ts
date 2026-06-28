@@ -27,4 +27,16 @@ describe('BackoffGate', () => {
         expect(inner.reset).toHaveBeenCalled();
         expect(inner.resetSession).toHaveBeenCalled();
     });
+    it('forwards getThrottleState to the inner throttle (the throttle sits below this gate)', () => {
+        const state = { deliveredThisSession: 2, deliveredAtMs: [1, 2], lastDeliveryMs: 2 };
+        const inner = { deliver: vi.fn(), getThrottleState: vi.fn().mockReturnValue(state) };
+        const gate = new BackoffGate(inner as any, { isPaused: () => false, tryConsumeSoftSkip: () => false });
+        expect(gate.getThrottleState()).toBe(state);
+        expect(inner.getThrottleState).toHaveBeenCalledTimes(1);
+    });
+    it('returns undefined when the inner sink does not expose a throttle state', () => {
+        const inner = { deliver: vi.fn() };
+        const gate = new BackoffGate(inner as any, { isPaused: () => false, tryConsumeSoftSkip: () => false });
+        expect(gate.getThrottleState()).toBeUndefined();
+    });
 });

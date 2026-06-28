@@ -1,11 +1,13 @@
 // extension/src/extension/services/struggle/struggleCoordinator.ts
 import * as vscode from 'vscode';
 
+import type { StruggleDebugSnapshot } from '@shared/messageContracts';
+
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
 import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
-import { SPEC } from '@extension/services/struggle/config';
+import { SPEC, TUNING } from '@extension/services/struggle/config';
 import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, EngineClock, StruggleSnapshot, TickRecord } from '@extension/services/struggle/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
@@ -172,6 +174,46 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
             primaryBoundary: tick && tick.boundariesPreGate.length > 0 ? tick.boundariesPreGate[0] : null,
             lastAlert: this._lastAlert ? summarizeAlert(this._lastAlert) : null,
             sessionSeconds: tick?.t ?? 0,
+        };
+    }
+
+    /**
+     * Latest engine STATE for the dev timers/counters dashboard + the Phase B log. Pure assembly
+     * of absolute ms anchors (warmup/cooldown/grace), the delivery-throttle counters, and the
+     * last tick's metrics; the consumer derives every "remaining" locally. Telemetry only — never
+     * read by any decision. Anchors are absolute so a 1 s client clock yields smooth countdowns
+     * between the 10 s ticks.
+     */
+    getDebugSnapshot(): StruggleDebugSnapshot {
+        const tick = this._lastTick;
+        const lastFmBadS = this._engine.lastFmBadS;
+        // Cooldown anchor: prefer THIS tick's own alert. The engine fires onDidTick BEFORE onDidAlert,
+        // so on the exact firing tick `_lastAlert` (updated in the onDidAlert handler) is still the
+        // PREVIOUS alert; `tick.alert` already carries this tick's alert, keeping the cooldown fresh.
+        // (The throttle counts below intentionally still reflect deliveries through the prior tick:
+        // delivery is downstream of the decision and runs on onDidAlert, after this snapshot is read.)
+        const lastAlertMs = tick?.alert?.ts ?? this._lastAlert?.ts ?? null;
+        return {
+            sessionActive: this._activeExerciseId !== undefined,
+            nowMs: this._clock.now(),
+            sessionStartMs: this._sessionStartMs,
+            lastAlertMs,
+            lastFmBadMs: lastFmBadS === null ? null : this._sessionStartMs + lastFmBadS * 1000,
+            throttle: this._alertSink.getThrottleState?.() ?? null,
+            fN2Active: tick ? tick.features.fN2 > 0 : false,
+            effectiveWindowS: tick?.features.effectiveWindowS ?? 0,
+            longestGapS: tick?.features.longestGapS ?? 0,
+            notRearmed: tick?.decisionTrace.gates.notRearmed ?? false,
+            caps: {
+                warmupS: SPEC.WARMUP_S,
+                cooldownS: SPEC.COOLDOWN_S,
+                graceS: SPEC.GRACE_S,
+                minDeliveryGapS: TUNING.minDeliveryGapS,
+                maxAlertsPerMinute: TUNING.maxAlertsPerMinute,
+                maxAlertsPerSession: TUNING.maxAlertsPerSession,
+                n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
+                gapNormS: SPEC.GAP_NORM_S,
+            },
         };
     }
 

@@ -1,0 +1,103 @@
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { StruggleDebugSnapshot } from '@shared/messageContracts';
+
+import { TimersPanel } from '@webview/views/StruggleDetection/TimersPanel';
+
+const BASE = 1_700_000_000_000;
+
+function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnapshot {
+    return {
+        sessionActive: true,
+        nowMs: BASE,
+        sessionStartMs: BASE - 100_000,   // 100 s elapsed
+        lastAlertMs: null,
+        lastFmBadMs: null,
+        throttle: null,
+        fN2Active: false,
+        effectiveWindowS: 60,
+        longestGapS: 18,
+        notRearmed: false,
+        caps: {
+            warmupS: 480,
+            cooldownS: 120,
+            graceS: 32.94,
+            minDeliveryGapS: 30,
+            maxAlertsPerMinute: 2,
+            maxAlertsPerSession: 6,
+            n2MinActiveS: 60,
+            gapNormS: 40,
+        },
+        ...over,
+    };
+}
+
+describe('TimersPanel', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(BASE);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('renders the three groups', () => {
+        render(<TimersPanel debug={snapshot()} />);
+        expect(screen.getByText('Countdowns')).toBeInTheDocument();
+        expect(screen.getByText('Delivery counters')).toBeInTheDocument();
+        expect(screen.getByText('Last-tick metrics')).toBeInTheDocument();
+    });
+
+    it('shows a "no active session" empty state instead of bogus timers when inactive', () => {
+        render(<TimersPanel debug={snapshot({ sessionActive: false, sessionStartMs: 0, nowMs: BASE })} />);
+        expect(screen.getByText(/No active exercise session/i)).toBeInTheDocument();
+        expect(screen.queryByText('Countdowns')).not.toBeInTheDocument();
+    });
+
+    it('derives the warm-up countdown from session start (480 − 100 = 6:20)', () => {
+        render(<TimersPanel debug={snapshot()} />);
+        expect(screen.getByText('6:20')).toBeInTheDocument();
+    });
+
+    it('advances the countdown by the local 1 s clock between snapshots', () => {
+        render(<TimersPanel debug={snapshot()} />);
+        expect(screen.getByText('6:20')).toBeInTheDocument();
+        act(() => { vi.advanceTimersByTime(5_000); });
+        expect(screen.getByText('6:15')).toBeInTheDocument();
+    });
+
+    it('shows "no alert yet" for the cooldown when none has fired', () => {
+        render(<TimersPanel debug={snapshot({ lastAlertMs: null })} />);
+        expect(screen.getByText('no alert yet')).toBeInTheDocument();
+    });
+
+    it('derives the cooldown countdown from lastAlertMs (120 − 30 = 1:30)', () => {
+        render(<TimersPanel debug={snapshot({ lastAlertMs: BASE - 30_000 })} />);
+        expect(screen.getByText('1:30')).toBeInTheDocument();
+    });
+
+    it('shows the grace remaining when a bad build armed it (~33 − 10 = 23s)', () => {
+        render(<TimersPanel debug={snapshot({ lastFmBadMs: BASE - 10_000 })} />);
+        expect(screen.getByText('23s')).toBeInTheDocument();
+    });
+
+    it('renders the delivery counters from the throttle state', () => {
+        render(<TimersPanel debug={snapshot({
+            throttle: { deliveredThisSession: 2, deliveredAtMs: [BASE - 5_000], lastDeliveryMs: BASE - 5_000 },
+        })} />);
+        expect(screen.getByText('2 / 6')).toBeInTheDocument();   // session
+        expect(screen.getByText('1 / 2')).toBeInTheDocument();   // last minute (one delivery in window)
+    });
+
+    it('shows n/a counters when the sink exposes no throttle state', () => {
+        render(<TimersPanel debug={snapshot({ throttle: null })} />);
+        expect(screen.getAllByText('n/a').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('renders the off-screen-error and re-arm metrics', () => {
+        render(<TimersPanel debug={snapshot({ fN2Active: true, notRearmed: true })} />);
+        expect(screen.getByText('active')).toBeInTheDocument();
+        expect(screen.getByText('gated')).toBeInTheDocument();
+    });
+});

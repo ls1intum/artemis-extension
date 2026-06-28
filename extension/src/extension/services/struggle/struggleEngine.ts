@@ -176,6 +176,11 @@ export class StruggleEngine implements vscode.Disposable {
         }
     }
 
+    /** Session-relative seconds of the last bad-build (FM) that armed the B4 grace window,
+     *  or null when no grace is active. Exposed for the dev debug snapshot's grace countdown
+     *  (telemetry only; the decision reads grace internally via `graceActive`). */
+    get lastFmBadS(): number | null { return this._lastFmBadS; }
+
     // ── intake ─────────────────────────────────────────────────────────
 
     private _relS(tsMs: number): number {

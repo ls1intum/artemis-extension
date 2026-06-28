@@ -7,6 +7,7 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
 import { LiveEngineSection } from './LiveEngineSection';
 import styles from './StruggleDetectionView.module.css';
+import { TimersPanel } from './TimersPanel';
 import type { StruggleData, StruggleDetectionViewProps } from './types';
 
 /** Urgency-meter colour: red at/above θ_full (0.7), amber approaching, green below. */
@@ -235,6 +236,10 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                     </div>
                 </div>
             </Container>
+
+            {/* Developer-only timers/counters dashboard (warm-up, cooldown, grace, throttle, metrics).
+                Fed by the per-tick struggleDetectionInit snapshot; interpolates its own 1 s clock. */}
+            {data.developerMode && data.debug && <TimersPanel debug={data.debug} />}
 
             {/* Developer-only live engine view (curve + current-tick gate panel).
                 Owns its own subscribe/unsubscribe lifecycle; the parent must NOT

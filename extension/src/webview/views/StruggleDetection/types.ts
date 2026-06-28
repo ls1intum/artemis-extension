@@ -1,4 +1,4 @@
-import type { VsCodeApi } from '@shared/messageContracts';
+import type { StruggleDebugSnapshot, VsCodeApi } from '@shared/messageContracts';
 
 export interface StruggleData {
     isStruggling: boolean;
@@ -9,6 +9,8 @@ export interface StruggleData {
     lastAlertT: number | null;
     isEnabled: boolean;
     developerMode: boolean;
+    /** Latest engine timers/counters for the dev dashboard (developer mode only). */
+    debug?: StruggleDebugSnapshot;
 }
 
 export interface StruggleDetectionViewProps {

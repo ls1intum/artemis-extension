@@ -18,6 +18,8 @@
  * refill the per-session cap); resetSession() resets the budget for a new
  * exercise session.
  */
+import type { StruggleThrottleState } from '@shared/messageContracts';
+
 import type { AlertRecord } from '@extension/services/struggle/types';
 
 import type { AlertSink } from './alertSink';
@@ -60,6 +62,18 @@ export class ThrottledAlertSink implements AlertSink {
         this._inner.deliver(alert);
         this._deliveredAtMs.push(now);
         this._deliveredThisSession++;
+    }
+
+    /** Snapshot of the live delivery-throttle state for the dev debug view (telemetry only,
+     *  never feeds a decision). Returns a COPY of the timestamp array so the consumer cannot
+     *  mutate the rolling window. */
+    getThrottleState(): StruggleThrottleState {
+        const n = this._deliveredAtMs.length;
+        return {
+            deliveredThisSession: this._deliveredThisSession,
+            deliveredAtMs: [...this._deliveredAtMs],
+            lastDeliveryMs: n > 0 ? this._deliveredAtMs[n - 1] : null,
+        };
     }
 
     /** Clear the visible UI only — budget/rate history are preserved. */

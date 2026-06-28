@@ -259,6 +259,19 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             }),
         );
 
+        // 10c. Also refresh on session start/end. Ticks STOP when a session ends, so without this
+        //      the dev timers panel would freeze on the last active-session snapshot and never flip
+        //      to its "no active session" empty state (sessionActive only changes at these edges).
+        const refreshStruggleIfActive = (): void => {
+            if (this._appStateManager.currentState === 'struggle-detection') {
+                this._viewInitDataService.sendStruggleDetectionInit();
+            }
+        };
+        this._disposables.push(
+            this._struggleCoordinator.onDidStartSession(refreshStruggleIfActive),
+            this._struggleCoordinator.onDidEndSession(refreshStruggleIfActive),
+        );
+
         // 11. Submission WS handler — fans build results into diagnostics
         //     and, for results on the currently-rendered participation, triggers
         //     a re-fetch + PS re-render so test-case checkmarks stay current.

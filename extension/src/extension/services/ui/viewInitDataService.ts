@@ -241,6 +241,7 @@ export class ViewInitDataService {
     public sendStruggleDetectionInit(): void {
         const coordinator = this._struggleCoordinator;
         const snapshot = coordinator?.getSnapshot();
+        const developerMode = this._isDeveloperMode();
         this._postMessage({
             type: ExtensionMsg.StruggleDetectionInit,
             isStruggling: snapshot?.isStruggling ?? false,
@@ -250,7 +251,9 @@ export class ViewInitDataService {
             primaryBoundary: snapshot?.primaryBoundary ?? null,
             lastAlertT: snapshot?.lastAlert?.t ?? null,
             isEnabled: coordinator?.isEnabled() ?? false,
-            developerMode: this._isDeveloperMode(),
+            developerMode,
+            // Dev dashboard only: the full timers/counters snapshot. Omitted for normal students.
+            debug: developerMode ? coordinator?.getDebugSnapshot() : undefined,
         });
     }
 

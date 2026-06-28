@@ -1,3 +1,5 @@
+import type { StruggleThrottleState } from '@shared/messageContracts';
+
 import type { AlertRecord } from '@extension/services/struggle/types';
 
 import type { AlertSink } from './alertSink';
@@ -35,5 +37,10 @@ export class BackoffGate implements AlertSink {
         } else {
             this.inner.reset?.();
         }
+    }
+
+    /** Forward the throttle state from the inner sink (the throttle lives below this gate). */
+    getThrottleState(): StruggleThrottleState | undefined {
+        return this.inner.getThrottleState?.();
     }
 }
