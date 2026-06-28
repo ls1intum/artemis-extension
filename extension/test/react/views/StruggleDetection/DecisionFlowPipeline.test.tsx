@@ -80,6 +80,16 @@ describe('DecisionFlowPipeline', () => {
         expect(screen.getByText(/no boundary event was pending/i)).toBeInTheDocument();
     });
 
+    it('labels severity factually ("below threshold") when urgency is low, even though the blocker is the missing boundary (regression)', () => {
+        render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({
+            reason: 'no-candidate', urgency: 0.59, boundariesPresent: [],
+            gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: true, cooldown: false, notRearmed: false },
+        }) })} />);
+        expect(screen.getByText('below threshold')).toBeInTheDocument();        // severity reflects urgency < θ
+        expect(screen.queryByText('over threshold')).not.toBeInTheDocument();   // NOT mislabeled as over threshold
+        expect(screen.getByText('no boundary')).toBeInTheDocument();            // candidate is the decisive blocker
+    });
+
     it('shows the boundary short label and a warm-up gate countdown', () => {
         render(<DecisionFlowPipeline debug={snap({
             decisionTrace: trace({ reason: 'd1-warmup', boundariesPresent: ['STATE'], gates: { fluentTyping: false, grace: false, warmup: true, belowThreshold: false, cooldown: false, notRearmed: false } }),

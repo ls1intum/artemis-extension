@@ -80,12 +80,19 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
 
     const { reason } = trace;
     const fired = trace.outcome === 'fired-edit';
-    // Which stage stops the flow: 0=Severity, 1=Candidate, 2=Gates, 3=none (fired through).
-    const stopIdx = reason === 'below-threshold' ? 0
-        : reason === 'no-candidate' ? 1
-            : reason === 'fired' ? 3
-                : 2;
-    const statusOf = (i: number): StageStatus => (i < stopIdx ? 'pass' : i === stopIdx ? 'block' : 'neutral');
+
+    // Each stage shows its OWN factual condition; the engine's recorded `reason` marks the decisive
+    // blocker (red). The engine short-circuits in the order candidate → severity → gates (see
+    // alertStateMachine), so a stage can be factually "not ok" without being the recorded reason —
+    // e.g. urgency below θ while the reason is "no boundary". Such a stage is shown neutral (its
+    // sub-label still states the true condition), NOT green and NOT the red blocker.
+    const GATE_REASONS: EditTraceReason[] = ['b2-fluent-typing', 'b4-grace-filter', 'd1-warmup', 'cooldown', 'not-rearmed'];
+    const sevOk = trace.urgency >= trace.theta;
+    const candOk = trace.boundariesPresent.length > 0;
+    const sevStatus: StageStatus = reason === 'below-threshold' ? 'block' : sevOk ? 'pass' : 'neutral';
+    const candStatus: StageStatus = reason === 'no-candidate' ? 'block' : candOk ? 'pass' : 'neutral';
+    const gateBlocked = GATE_REASONS.includes(reason);
+    const gatesStatus: StageStatus = gateBlocked ? 'block' : reason === 'fired' ? 'pass' : 'neutral';
 
     const gateBlockSub = (): string => {
         if (reason === 'cooldown') { return `blocking · ${cooldownLeft !== null ? mmss(cooldownLeft) : '—'} left`; }
@@ -94,19 +101,18 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
         return 'blocking';
     };
 
-    const gatesStatus = statusOf(2);
     const stages: Stage[] = [
         {
             name: 'Severity',
-            status: statusOf(0),
+            status: sevStatus,
             value: trace.urgency.toFixed(2),
-            sub: statusOf(0) === 'block' ? 'below threshold' : 'over threshold',
+            sub: sevOk ? 'over threshold' : 'below threshold',
         },
         {
             name: 'Candidate',
-            status: statusOf(1),
-            value: boundaryShort(trace.boundariesPresent[0]),
-            sub: statusOf(1) === 'block' ? 'no boundary' : statusOf(1) === 'pass' ? 'boundary present' : '',
+            status: candStatus,
+            value: candOk ? boundaryShort(trace.boundariesPresent[0]) : 'none',
+            sub: candOk ? 'boundary present' : 'no boundary',
         },
         {
             name: 'Gates',
