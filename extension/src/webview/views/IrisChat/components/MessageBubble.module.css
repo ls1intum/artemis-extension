@@ -70,7 +70,10 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-width: 70%;
+    /* Fill a narrow sidebar (the 92% wins) but cap the line length on a wide
+       sidebar (the ~70ch wins) so lines stay readable. Applies to user and
+       assistant alike; only the alignment differs above. */
+    max-width: min(92%, 70ch);
 }
 
 .messageWrapper.user .bubbleColumn {
