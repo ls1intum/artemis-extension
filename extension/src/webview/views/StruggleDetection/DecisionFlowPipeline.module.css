@@ -10,7 +10,10 @@
     color: var(--vscode-descriptionForeground);
 }
 
-/* Stage flow: filled boxes, only the blocking stage carries red; passed stages green. */
+/* Stage flow: filled chips tinted to the semantic state (neutral / green pass / red block).
+   The tints are TRANSLUCENT so they adapt to the theme (a fixed dark fill reads as a dark-mode
+   island on a light editor): over a light card they become pale green/red/gray, over a dark card
+   subtle dark tints. All text uses VS Code tokens so it stays legible on either theme. */
 .pipe {
     display: flex;
     align-items: stretch;
@@ -19,8 +22,8 @@
 
 .stage {
     flex: 1;
-    background: #202020;
-    border: 1px solid #2e2e2e;
+    background: rgba(128, 128, 128, 0.12);
+    border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
     padding: 9px 6px;
     text-align: center;
     border-radius: 0;
@@ -30,47 +33,44 @@
 .stage:last-of-type { border-radius: 0 7px 7px 0; }
 
 .pass {
-    background: #1f2e22;
-    border-color: #2f5236;
+    background: rgba(46, 160, 67, 0.14);
+    border-color: rgba(46, 160, 67, 0.45);
 }
 
 .block {
-    background: #3a1c1c;
-    border-color: #6a3030;
+    background: rgba(248, 81, 73, 0.14);
+    border-color: rgba(248, 81, 73, 0.45);
 }
 
-/* The stage boxes are always dark (filled chips), so their text is fixed light rather than
-   theme tokens: a token foreground turns dark in a light VS Code theme and would be unreadable
-   on the dark box. The pass/block overrides below stay (already light, on their dark boxes). */
 .stageName {
     font-size: 9px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--vscode-descriptionForeground);
 }
 
 .stageValue {
     font-size: 13px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--vscode-foreground);
     margin-top: 4px;
     line-height: 1.25;
 }
 
-.block .stageValue { color: #f48771; }
+.block .stageValue { color: var(--vscode-errorForeground); }
 
 .stageSub {
     font-size: 10px;
     margin-top: 3px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--vscode-descriptionForeground);
 }
 
-.pass .stageSub { color: #7ee08a; }
-.block .stageSub { color: #cf8b91; }
+.pass .stageSub { color: var(--vscode-charts-green, #3fb950); }
+.block .stageSub { color: var(--vscode-errorForeground); }
 
 .arrow {
     align-self: center;
-    color: #555;
+    color: var(--vscode-descriptionForeground);
     font-size: 13px;
     padding: 0 3px;
 }
