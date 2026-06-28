@@ -100,6 +100,12 @@
     margin-bottom: 2px;
 }
 
+.gatesNote {
+    margin: 0 0 6px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
 .gate {
     display: flex;
     align-items: center;
@@ -115,7 +121,11 @@
     flex: none;
 }
 
-.gateOn .gateDot { background: #c25b62; }
+/* engaged: the gate's live condition holds, but it was NOT the decisive blocker this tick. */
+.gateOn .gateDot { background: #c9a05a; }
+
+/* blocking: the decisive gate the engine recorded as holding the nudge back this tick. */
+.gateBlocking .gateDot { background: #f48771; }
 
 .gateName {
     flex: 1;
@@ -127,4 +137,6 @@
     color: var(--vscode-descriptionForeground);
 }
 
-.gateOn .gateStatus { color: #c9a0a3; }
+.gateOn .gateStatus { color: #c9a05a; }
+.gateBlocking .gateName { color: var(--vscode-foreground); }
+.gateBlocking .gateStatus { color: #f48771; font-weight: 600; }

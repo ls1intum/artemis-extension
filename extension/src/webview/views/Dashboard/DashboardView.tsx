@@ -298,6 +298,22 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     {__IRIS_TELEMETRY__ && !hideDeveloperTools && (
                         <Button variant="ghost" fullWidth onClick={handleShowStruggleDetection} icon={<HeartPulse size={16} />}>
                             Struggle Detection
+                            <span
+                                style={{
+                                    marginLeft: '6px',
+                                    fontSize: '9px',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.05em',
+                                    textTransform: 'uppercase',
+                                    padding: '1px 5px',
+                                    borderRadius: '4px',
+                                    background: 'var(--vscode-badge-background)',
+                                    color: 'var(--vscode-badge-foreground)',
+                                }}
+                                title="Developer-only page (visible only with artemis.developerMode enabled)"
+                            >
+                                Dev
+                            </span>
                         </Button>
                     )}
                     <Button variant="ghost" fullWidth onClick={handleShowServiceStatus} icon={<Activity size={16} />}>

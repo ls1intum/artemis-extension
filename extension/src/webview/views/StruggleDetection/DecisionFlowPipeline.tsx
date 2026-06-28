@@ -149,13 +149,25 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
 
                 <div className={styles.group}>
                     <div className={styles.groupTitle}>All gates this tick</div>
+                    <p className={styles.gatesNote}>
+                        Live condition of each gate. &quot;blocking&quot; is the gate that actually held this tick back;
+                        &quot;engaged&quot; means its condition holds but the flow already stopped at an earlier stage.
+                    </p>
                     {GATES.map(({ reason: r, flag }) => {
                         const engaged = trace.gates[flag];
+                        // A gate only counts as the blocker when it is the engine's recorded decision reason;
+                        // otherwise an active condition (e.g. warm-up while there is no boundary) is just "engaged".
+                        const blocking = reason === r;
+                        const status = blocking ? 'blocking' : engaged ? 'engaged' : 'clear';
                         return (
-                            <div key={flag} className={`${styles.gate} ${engaged ? styles.gateOn : ''}`} title={GLOSSARY[r].tooltip}>
+                            <div
+                                key={flag}
+                                className={`${styles.gate} ${blocking ? styles.gateBlocking : engaged ? styles.gateOn : ''}`}
+                                title={GLOSSARY[r].tooltip}
+                            >
                                 <span className={styles.gateDot} />
                                 <span className={styles.gateName}>{GLOSSARY[r].gate}</span>
-                                <span className={styles.gateStatus}>{engaged ? 'engaged' : 'clear'}</span>
+                                <span className={styles.gateStatus}>{status}</span>
                             </div>
                         );
                     })}

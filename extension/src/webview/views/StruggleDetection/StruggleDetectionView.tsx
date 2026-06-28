@@ -122,11 +122,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 subtitle="Monitors your development patterns to detect when you might need help."
             />
 
-            {/* Decision-flow pipeline (top): how the latest tick decided. Renders only with an
-                active session + a real tick (the component self-guards). */}
-            {data.debug && <DecisionFlowPipeline debug={data.debug} />}
-
-            {/* Urgency: the v3 decision signal (S_base) that triggers alerts. */}
+            {/* Urgency (compact, top): the v3 decision signal (S_base) that triggers alerts. */}
             <Container
                 header={
                     <div style={{ fontSize: '15px', fontWeight: 600 }}>
@@ -136,47 +132,35 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 variant="default"
                 padding="default"
             >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {/* Score display */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{
-                            fontSize: '36px',
-                            fontWeight: 700,
-                            color: urgencyColor,
-                            minWidth: '80px'
-                        }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {/* Score + status on one line; the long explanation moves to a hover tooltip. */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+                        <div style={{ fontSize: '26px', fontWeight: 700, color: urgencyColor, minWidth: '54px', lineHeight: 1 }}>
                             {data.urgency.toFixed(2)}
                         </div>
-                        <div style={{ flex: 1 }}>
-                            <div style={{
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                color: urgencyColor,
-                                marginBottom: '4px'
-                            }}>
-                                {data.urgency >= 0.7 ? 'At or above alert threshold' : 'Below alert threshold'}
-                            </div>
-                            <div style={{
-                                fontSize: '12px',
-                                color: 'var(--vscode-descriptionForeground)'
-                            }}>
-                                Core severity (typing + gap), 0.0 (calm) to 1.0 (severe). Alert at &theta; = 0.70.
-                            </div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: urgencyColor }}>
+                            {data.urgency >= 0.7 ? 'At or above alert threshold' : 'Below alert threshold'}
+                        </div>
+                        <div
+                            style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}
+                            title="Core severity (typing + gap), 0.0 (calm) to 1.0 (severe). Alert at θ = 0.70."
+                        >
+                            &theta; = 0.70
                         </div>
                     </div>
 
-                    {/* Progress bar with θ marker at 70% */}
+                    {/* Slim progress bar with θ marker at 70% */}
                     <div style={{
                         position: 'relative',
-                        height: '8px',
-                        borderRadius: '4px',
+                        height: '6px',
+                        borderRadius: '3px',
                         background: 'var(--vscode-progressBar-background, #333)',
                         overflow: 'hidden'
                     }}>
                         <div style={{
                             height: '100%',
                             width: `${urgencyPercent}%`,
-                            borderRadius: '4px',
+                            borderRadius: '3px',
                             background: urgencyColor,
                             transition: 'width 0.3s ease'
                         }} />
@@ -189,21 +173,12 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                             background: 'var(--vscode-foreground)'
                         }} />
                     </div>
-
-                    {/* Scale markers */}
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontSize: '11px',
-                        color: 'var(--vscode-descriptionForeground)',
-                        padding: '0 2px'
-                    }}>
-                        <span>0.0</span>
-                        <span>&theta; 0.70</span>
-                        <span>1.0</span>
-                    </div>
                 </div>
             </Container>
+
+            {/* Decision-flow pipeline: how the latest tick decided. Renders only with an
+                active session + a real tick (the component self-guards). */}
+            {data.debug && <DecisionFlowPipeline debug={data.debug} />}
 
             {/* Developer-only timers/counters dashboard (warm-up, cooldown, grace, throttle, metrics).
                 Fed by the per-tick struggleDetectionInit snapshot; interpolates its own 1 s clock. */}

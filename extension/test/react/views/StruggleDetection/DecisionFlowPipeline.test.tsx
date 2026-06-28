@@ -91,8 +91,15 @@ describe('DecisionFlowPipeline', () => {
 
     it('shows a no-countdown gate block for fluent typing (B2 has no timer)', () => {
         render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({ reason: 'b2-fluent-typing', gates: { fluentTyping: true, grace: false, warmup: false, belowThreshold: false, cooldown: false, notRearmed: false } }) })} />);
-        expect(screen.getByText(/typing fluently/i)).toBeInTheDocument();   // verdict
-        expect(screen.getByText('blocking')).toBeInTheDocument();           // gate sub, no "· … left"
+        expect(screen.getByText(/typing fluently/i)).toBeInTheDocument();          // verdict
+        expect(screen.getAllByText('blocking').length).toBeGreaterThanOrEqual(1);  // gate stage + decisive gate row
+        expect(screen.queryByText(/blocking ·/)).not.toBeInTheDocument();          // B2 has no countdown
+    });
+
+    it('marks an engaged but non-decisive gate as "engaged", not "blocking" (warm-up while no boundary)', () => {
+        render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({ reason: 'no-candidate', gates: { fluentTyping: false, grace: false, warmup: true, belowThreshold: false, cooldown: false, notRearmed: false } }) })} />);
+        expect(screen.getByText('engaged')).toBeInTheDocument();         // warm-up condition holds
+        expect(screen.queryByText('blocking')).not.toBeInTheDocument();  // but the missing boundary was the blocker, not a gate
     });
 
     it('lists all six gates with their plain-language labels', () => {
