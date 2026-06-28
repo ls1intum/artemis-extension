@@ -96,6 +96,7 @@ export class ViewInitDataService {
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
                 workspaceExercise: noMatch,
+                hideDeveloperTools: !this._isDeveloperMode(),
             });
             return;
         }
@@ -109,6 +110,7 @@ export class ViewInitDataService {
                 workspaceExercise: detectedExercise
                     ? { id: detectedExercise.id, title: detectedExercise.title }
                     : noMatch,
+                hideDeveloperTools: !this._isDeveloperMode(),
             });
         }).catch((error) => {
             if (gen !== this._initGeneration) { return; }
@@ -117,6 +119,7 @@ export class ViewInitDataService {
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
                 workspaceExercise: noMatch,
+                hideDeveloperTools: !this._isDeveloperMode(),
             });
         });
     }

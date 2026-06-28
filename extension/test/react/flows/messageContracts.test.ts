@@ -450,6 +450,7 @@ describe('Message contracts: runtime shape validation', () => {
         const dashboardInit: ExtensionToWebviewMessage = {
             type: 'dashboardInit',
             courses: [],
+            hideDeveloperTools: false,
         };
 
         expect(loginSuccess.type).toBe('loginSuccess');

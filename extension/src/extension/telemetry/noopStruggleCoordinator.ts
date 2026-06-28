@@ -60,7 +60,7 @@ export class NoopStruggleCoordinator implements IStruggleCoordinator {
             fN2Active: false,
             effectiveWindowS: 0,
             longestGapS: 0,
-            notRearmed: false,
+            decisionTrace: null,
             caps: {
                 warmupS: 0, cooldownS: 0, graceS: 0, minDeliveryGapS: 0,
                 maxAlertsPerMinute: 0, maxAlertsPerSession: 0, n2MinActiveS: 0, gapNormS: 0,

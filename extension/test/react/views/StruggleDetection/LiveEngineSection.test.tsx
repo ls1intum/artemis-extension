@@ -77,28 +77,6 @@ function postedCommands(api: VsCodeApi): string[] {
 }
 
 describe('LiveEngineSection', () => {
-    it('renders the plain-language gate explanation for the latest tick', () => {
-        const api = createMockVsCodeApi();
-        render(<LiveEngineSection vscodeApi={api} />);
-        act(() => dispatchExtensionMessage({
-            type: 'struggleLiveBackfill',
-            ticks: [makeTick(20, { reason: 'b2-fluent-typing' })],
-        }));
-        // Spelled-out primary text present. A small secondary "B2" badge is
-        // allowed (spec) — do NOT assert its absence.
-        expect(screen.getByText(/typing fluently/i)).toBeInTheDocument();
-    });
-
-    it('names the discrete trigger in plain language', () => {
-        const api = createMockVsCodeApi();
-        render(<LiveEngineSection vscodeApi={api} />);
-        act(() => dispatchExtensionMessage({
-            type: 'struggleLiveTick',
-            tick: makeTick(30, { outcome: 'fired-discrete', discreteTrigger: 'test-stagnation' }),
-        }));
-        expect(screen.getByText(/tests are stuck/i)).toBeInTheDocument();
-    });
-
     it('appends streamed ticks and clears on StruggleLiveReset', () => {
         const api = createMockVsCodeApi();
         render(<LiveEngineSection vscodeApi={api} />);
@@ -126,16 +104,6 @@ describe('LiveEngineSection', () => {
         expect(postedCommands(api)).toContain('struggleLiveSubscribe');
         unmount();
         expect(postedCommands(api)).toContain('struggleLiveUnsubscribe');
-    });
-
-    it('renders active boundaries via their spelled-out glossary text', () => {
-        const api = createMockVsCodeApi();
-        render(<LiveEngineSection vscodeApi={api} />);
-        act(() => dispatchExtensionMessage({
-            type: 'struggleLiveTick',
-            tick: makeTick(40, { boundariesPreGate: ['FM'], reason: 'b4-grace-filter' }),
-        }));
-        expect(screen.getByText(/A build or test run just failed/i)).toBeInTheDocument();
     });
 
     it('renders the chart with data without emitting recharts size warnings', () => {
@@ -172,30 +140,5 @@ describe('LiveEngineSection', () => {
         render(<LiveEngineSection vscodeApi={api} />);
         act(() => dispatchExtensionMessage({ type: 'struggleLiveSessionState', active: true }));
         expect(screen.getByText(/exercise session active/i)).toBeInTheDocument();
-    });
-
-    it('lights up each gate whose live condition is engaged', () => {
-        const api = createMockVsCodeApi();
-        render(<LiveEngineSection vscodeApi={api} />);
-        act(() => dispatchExtensionMessage({
-            type: 'struggleLiveTick',
-            tick: makeTick(20, { gates: {
-                fluentTyping: true, grace: false, warmup: true,
-                belowThreshold: false, cooldown: false, notRearmed: false,
-            } }),
-        }));
-        // Fluent typing + warm-up engaged; the other four clear. Independent of any
-        // boundary — these light up purely from the gate conditions.
-        expect(screen.getByText('Fluent typing')).toBeInTheDocument();
-        expect(screen.getByText('Exercise warm-up')).toBeInTheDocument();
-        expect(screen.getAllByText('engaged')).toHaveLength(2);
-        expect(screen.getAllByText('clear')).toHaveLength(4);
-    });
-
-    it('shows all gates clear when none are engaged', () => {
-        const api = createMockVsCodeApi();
-        render(<LiveEngineSection vscodeApi={api} />);
-        act(() => dispatchExtensionMessage({ type: 'struggleLiveTick', tick: makeTick(20) }));
-        expect(screen.getAllByText('clear')).toHaveLength(6);
     });
 });

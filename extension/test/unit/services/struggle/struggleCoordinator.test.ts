@@ -156,7 +156,24 @@ suite('StruggleCoordinator', () => {
         assert.strictEqual(dbg.effectiveWindowS, 20, 'max(10, min(60, 20)) = 20');
         assert.strictEqual(typeof dbg.longestGapS, 'number');
         assert.strictEqual(typeof dbg.fN2Active, 'boolean');
-        assert.strictEqual(typeof dbg.notRearmed, 'boolean');
+        assert.ok(dbg.decisionTrace, 'decision trace is present once a tick has run');
+        assert.strictEqual(typeof dbg.decisionTrace!.outcome, 'string');
+        assert.strictEqual(typeof dbg.decisionTrace!.gates.notRearmed, 'boolean');
+    });
+
+    test('getDebugSnapshot.decisionTrace is null and getSnapshot is inactive once the session ends', () => {
+        coord.startExerciseSession(1);
+        coord.advanceTo(coord.sessionStartMs + 20_000);
+        assert.ok(coord.getDebugSnapshot().decisionTrace, 'trace present mid-session');
+        coord.endExerciseSession();
+        const dbg = coord.getDebugSnapshot();
+        assert.strictEqual(dbg.sessionActive, false);
+        assert.strictEqual(dbg.decisionTrace, null, 'stale _lastTick must not leak after the session ends');
+        const snap = coord.getSnapshot();
+        assert.strictEqual(snap.isStruggling, false);
+        assert.strictEqual(snap.urgency, 0, 'urgency meter reads zero when no session is active');
+        assert.strictEqual(snap.primaryBoundary, null);
+        assert.strictEqual(snap.lastAlert, null);
     });
 
     test('getDebugSnapshot.throttle reflects a ThrottledAlertSink after a delivered alert', () => {

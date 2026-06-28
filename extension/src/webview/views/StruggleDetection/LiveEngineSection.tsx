@@ -10,14 +10,13 @@ import {
     YAxis,
 } from 'recharts';
 
-import type { BoundaryType, LiveTick, VsCodeApi } from '@shared/messageContracts';
+import type { LiveTick, VsCodeApi } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
-import { Badge, Container } from '@webview/components';
+import { Container } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
-import type { EditTraceReason } from './glossary';
-import { discreteText, GLOSSARY, reasonText } from './glossary';
+import { GLOSSARY } from './glossary';
 import styles from './LiveEngineSection.module.css';
 
 interface LiveEngineSectionProps {
@@ -31,22 +30,6 @@ const V_COLOR = '#22c55e';
 const THETA_COLOR = '#f44336';
 const BOUNDARY_COLOR = '#38bdf8';
 const ALERT_COLOR = '#ef4444';
-
-/**
- * The six decision gates paired with the live gate flag (on the tick's decision
- * trace) that drives each one's light. Order matches the engine's evaluation
- * order, but every light reflects that gate's STANDALONE condition (independent of
- * whether a boundary is pending), so the panel shows live activity even on idle
- * ticks; e.g. "Fluent typing" lights up the moment you type.
- */
-const GATES: { reason: EditTraceReason; flag: keyof LiveTick['decisionTrace']['gates'] }[] = [
-    { reason: 'b2-fluent-typing', flag: 'fluentTyping' },
-    { reason: 'b4-grace-filter', flag: 'grace' },
-    { reason: 'd1-warmup', flag: 'warmup' },
-    { reason: 'below-threshold', flag: 'belowThreshold' },
-    { reason: 'cooldown', flag: 'cooldown' },
-    { reason: 'not-rearmed', flag: 'notRearmed' },
-];
 
 /** Session-indicator dot colours (active session vs. idle / no session). */
 const SESSION_ON_COLOR = '#22c55e';
@@ -86,7 +69,7 @@ function useMeasuredWidth(fallback: number): [RefObject<HTMLDivElement>, number]
  * Developer-only live view of the v3 struggle engine. Owns BOTH the message
  * listener AND the subscribe/unsubscribe lifecycle, so the listener is attached
  * before `struggleLiveSubscribe` is posted (no lost backfill). Renders the
- * urgency curve plus a plain-language "what is the engine doing right now" panel.
+ * historical urgency curve; the decision-flow pipeline above explains the latest tick.
  *
  * Every visible symbol is spelled out in full (Self-Explaining UI): no internal
  * codes are shown on screen. The deeper engine detail lives in hover tooltips.
@@ -238,113 +221,7 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
                     </>
                 )}
 
-                <CurrentTickPanel tick={latest} />
-
                 <span data-testid="live-tick-count" style={{ display: 'none' }}>{ticks.length}</span>
-            </div>
-        </Container>
-    );
-}
-
-/**
- * "What is the engine doing right now": the latest tick spelled out in plain
- * language. The decision reason comes from the glossary via `reasonText` (or
- * `discreteText` when a discrete trigger fired). Hover any label for the deeper
- * engine detail; no internal codes are shown on screen.
- */
-function CurrentTickPanel({ tick }: { tick: LiveTick | null }) {
-    if (!tick) {
-        return (
-            <Container variant="muted" padding="default">
-                <p className={styles.muted}>No engine tick has arrived yet for this session.</p>
-            </Container>
-        );
-    }
-
-    const { decisionTrace: trace, urgency, theta, boundariesPreGate } = tick;
-    const fired = trace.outcome === 'fired-edit' || trace.outcome === 'fired-discrete';
-
-    // Headline: spelled-out decision. Discrete path names its trigger explicitly.
-    // Keep the condition inline so TS narrows `discreteTrigger` to non-null here.
-    const headline = trace.outcome === 'fired-discrete' && trace.discreteTrigger
-        ? discreteText(trace.discreteTrigger)
-        : reasonText(trace.reason);
-    const headlineTooltip = trace.outcome === 'fired-discrete' && trace.discreteTrigger
-        ? GLOSSARY[trace.discreteTrigger].tooltip
-        : GLOSSARY[trace.reason].tooltip;
-
-    const aboveTheta = urgency >= theta;
-
-    return (
-        <Container
-            header={<div style={{ fontSize: '14px', fontWeight: 600 }}>What the engine is doing right now</div>}
-            variant="default"
-            padding="default"
-        >
-            <div className={styles.panel}>
-                <div className={styles.headline}>
-                    <Badge variant={fired ? 'error' : 'muted'}>{fired ? 'Alert fired' : 'Holding back'}</Badge>{' '}
-                    <span title={headlineTooltip}>{headline}</span>
-                </div>
-
-                <div className={styles.row}>
-                    <span className={styles.rowLabel} title={GLOSSARY.urgency.tooltip}>{GLOSSARY.urgency.text}</span>
-                    <Badge variant={aboveTheta ? 'error' : 'success'}>{urgency.toFixed(2)}</Badge>
-                </div>
-
-                <div className={styles.row}>
-                    <span className={styles.rowLabel} title={GLOSSARY.theta.tooltip}>{GLOSSARY.theta.text}</span>
-                    <Badge variant="muted">{theta.toFixed(2)}</Badge>
-                </div>
-
-                <div>
-                    <div className={styles.rowLabel} style={{ marginBottom: '6px' }}>Boundary moments present this tick</div>
-                    {boundariesPreGate.length === 0 ? (
-                        <p className={styles.muted}>None. No boundary event is pending, so there is nothing to nudge on.</p>
-                    ) : (
-                        <div className={styles.panel}>
-                            {boundariesPreGate.map((b: BoundaryType) => {
-                                const entry = GLOSSARY[b];
-                                return (
-                                    <div key={b} className={styles.boundaryItem} title={entry.tooltip}>
-                                        <span>{entry.text}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                {/* Live decision gates: each light reflects that gate's standalone
-                    condition this tick (independent of a boundary), so the panel shows
-                    activity even when idle: "Fluent typing" lights up as you type. */}
-                <div>
-                    <div className={styles.rowLabel} style={{ marginBottom: '6px' }}>
-                        Decision gates (lit = currently engaged)
-                    </div>
-                    <ul className={styles.gateList}>
-                        {GATES.map(({ reason, flag }) => {
-                            const active = trace.gates[flag];
-                            return (
-                                <li
-                                    key={flag}
-                                    className={`${styles.gateItem} ${active ? styles.gateActive : styles.gateInactive}`}
-                                    title={GLOSSARY[reason].tooltip}
-                                >
-                                    <span className={styles.gateDot} />
-                                    <span className={styles.gateName}>{GLOSSARY[reason].gate}</span>
-                                    <span className={styles.gateStatusLabel}>{active ? 'engaged' : 'clear'}</span>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                </div>
-
-                {trace.secondsSinceLastAlert !== null && (
-                    <p className={styles.muted}>
-                        Seconds since the previous alert: {trace.secondsSinceLastAlert}s.
-                    </p>
-                )}
             </div>
         </Container>
     );

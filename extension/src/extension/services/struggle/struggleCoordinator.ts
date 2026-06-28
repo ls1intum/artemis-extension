@@ -13,6 +13,8 @@ import type { AlertRecord, EngineClock, StruggleSnapshot, TickRecord } from '@ex
 import type { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 
+import { toLiveDecisionTrace } from './live/traceMap';
+
 /** One-line summary of an alert for the snapshot/debug UI (kind-aware). */
 function summarizeAlert(a: AlertRecord): { t: number; kind: 'edit' | 'discrete'; summary: string } {
     return a.kind === 'edit'
@@ -163,6 +165,12 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
 
     // ── Debug snapshot ─────────────────────────────────────────────────
     getSnapshot(): StruggleSnapshot {
+        // No active session: return a clean inactive state. `_lastTick` persists after
+        // endExerciseSession(), so without this guard the snapshot — and the developer urgency
+        // meter that renders from it — would surface stale data from the previous session.
+        if (this._activeExerciseId === undefined) {
+            return { isStruggling: false, urgency: 0, v: 0, s: 0, primaryBoundary: null, lastAlert: null, sessionSeconds: 0 };
+        }
         const tick = this._lastTick;
         // v3: isStruggling thresholds on urgency = S_base (the live decision
         // signal), NOT the V peak-hold curve. V stays as telemetry below.
@@ -203,7 +211,9 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
             fN2Active: tick ? tick.features.fN2 > 0 : false,
             effectiveWindowS: tick?.features.effectiveWindowS ?? 0,
             longestGapS: tick?.features.longestGapS ?? 0,
-            notRearmed: tick?.decisionTrace.gates.notRearmed ?? false,
+            // Decision trace for the dev pipeline. Null when inactive: `_lastTick` outlives the
+            // session, but the snapshot contract treats all fields as stale when !sessionActive.
+            decisionTrace: (this._activeExerciseId !== undefined && tick) ? toLiveDecisionTrace(tick.decisionTrace) : null,
             caps: {
                 warmupS: SPEC.WARMUP_S,
                 cooldownS: SPEC.COOLDOWN_S,

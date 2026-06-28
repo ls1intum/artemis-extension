@@ -1,11 +1,21 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { StruggleDebugSnapshot } from '@shared/messageContracts';
+import type { LiveDecisionTrace, StruggleDebugSnapshot } from '@shared/messageContracts';
 
 import { TimersPanel } from '@webview/views/StruggleDetection/TimersPanel';
 
 const BASE = 1_700_000_000_000;
+
+function trace(over: Partial<LiveDecisionTrace> = {}): LiveDecisionTrace {
+    return {
+        outcome: 'suppressed', reason: 'no-candidate', discreteTrigger: null,
+        urgency: 0.3, theta: 0.7, typingRate: 30, boundariesPresent: [],
+        secondsSinceLastAlert: null, inWarmup: false, graceActive: false,
+        gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: false, notRearmed: false },
+        ...over,
+    };
+}
 
 function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnapshot {
     return {
@@ -18,7 +28,7 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
         fN2Active: false,
         effectiveWindowS: 60,
         longestGapS: 18,
-        notRearmed: false,
+        decisionTrace: null,
         caps: {
             warmupS: 480,
             cooldownS: 120,
@@ -45,8 +55,8 @@ describe('TimersPanel', () => {
     it('renders the three groups', () => {
         render(<TimersPanel debug={snapshot()} />);
         expect(screen.getByText('Countdowns')).toBeInTheDocument();
-        expect(screen.getByText('Delivery counters')).toBeInTheDocument();
-        expect(screen.getByText('Last-tick metrics')).toBeInTheDocument();
+        expect(screen.getByText('Hints delivered')).toBeInTheDocument();
+        expect(screen.getByText('Signals (last tick)')).toBeInTheDocument();
     });
 
     it('shows a "no active session" empty state instead of bogus timers when inactive', () => {
@@ -82,22 +92,30 @@ describe('TimersPanel', () => {
         expect(screen.getByText('23s')).toBeInTheDocument();
     });
 
-    it('renders the delivery counters from the throttle state', () => {
+    it('renders the delivery counters and last-delivered time from the throttle state', () => {
         render(<TimersPanel debug={snapshot({
             throttle: { deliveredThisSession: 2, deliveredAtMs: [BASE - 5_000], lastDeliveryMs: BASE - 5_000 },
         })} />);
         expect(screen.getByText('2 / 6')).toBeInTheDocument();   // session
         expect(screen.getByText('1 / 2')).toBeInTheDocument();   // last minute (one delivery in window)
+        expect(screen.getByText('at 1:35')).toBeInTheDocument(); // delivered 95 s into the session
     });
 
-    it('shows n/a counters when the sink exposes no throttle state', () => {
+    it('shows n/a counters and "none yet" for last-delivered when the sink exposes no throttle state', () => {
         render(<TimersPanel debug={snapshot({ throttle: null })} />);
         expect(screen.getAllByText('n/a').length).toBeGreaterThanOrEqual(2);
+        expect(screen.getByText('none yet')).toBeInTheDocument();
     });
 
-    it('renders the off-screen-error and re-arm metrics', () => {
-        render(<TimersPanel debug={snapshot({ fN2Active: true, notRearmed: true })} />);
+    it('renders the off-screen-error and re-arm metrics in plain language (no codes)', () => {
+        render(<TimersPanel debug={snapshot({ fN2Active: true, decisionTrace: trace({ gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: false, notRearmed: true } }) })} />);
         expect(screen.getByText('active')).toBeInTheDocument();
-        expect(screen.getByText('gated')).toBeInTheDocument();
+        expect(screen.getByText('waiting')).toBeInTheDocument();   // re-arm pending (was "gated")
+        expect(screen.queryByText('gated')).not.toBeInTheDocument();
+    });
+
+    it('shows "waiting for first tick" for re-arm before the first tick arrives', () => {
+        render(<TimersPanel debug={snapshot({ decisionTrace: null })} />);
+        expect(screen.getByText('waiting for first tick')).toBeInTheDocument();
     });
 });

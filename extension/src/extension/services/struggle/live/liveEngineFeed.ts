@@ -5,6 +5,8 @@ import { ExtensionMsg } from '@shared/messageContracts';
 
 import type { TickRecord } from '@extension/services/struggle/types';
 
+import { toLiveDecisionTrace } from './traceMap';
+
 export class LiveEngineFeed implements vscode.Disposable {
     private readonly _buffer: LiveTick[] = [];
     private _subscribed = false;
@@ -27,21 +29,7 @@ export class LiveEngineFeed implements vscode.Disposable {
             boundariesPreGate: [...rec.boundariesPreGate],
             alertKind: rec.alert ? rec.alert.kind : null,
             alertPrimary: rec.alert && rec.alert.kind === 'edit' ? rec.alert.primary : null,
-            decisionTrace: {
-                outcome: tr.outcome, reason: tr.reason, discreteTrigger: tr.discreteTrigger,
-                urgency: tr.urgency, theta: tr.theta, typingRate: tr.typingRate,
-                boundariesPresent: [...tr.boundariesPresent],
-                secondsSinceLastAlert: Number.isFinite(tr.secondsSinceLastAlert) ? tr.secondsSinceLastAlert : null,
-                inWarmup: tr.inWarmup, graceActive: tr.graceActive,
-                gates: {
-                    fluentTyping: tr.gates.fluentTyping,
-                    grace: tr.gates.grace,
-                    warmup: tr.gates.warmup,
-                    belowThreshold: tr.gates.belowThreshold,
-                    cooldown: tr.gates.cooldown,
-                    notRearmed: tr.gates.notRearmed,
-                },
-            },
+            decisionTrace: toLiveDecisionTrace(tr),
         };
     }
 

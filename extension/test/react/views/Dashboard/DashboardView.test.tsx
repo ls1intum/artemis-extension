@@ -257,4 +257,23 @@ describe('DashboardView', () => {
 			})
 		);
 	});
+
+	it('shows the Struggle Detection entry in developer mode', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<DashboardView vscodeApi={mockApi} />);
+		dispatchExtensionMessage({ type: 'dashboardInit', courses: [], hideDeveloperTools: false });
+		await waitFor(() => {
+			expect(screen.getByText('Struggle Detection')).toBeInTheDocument();
+		});
+	});
+
+	it('hides the Struggle Detection entry when not in developer mode', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<DashboardView vscodeApi={mockApi} />);
+		dispatchExtensionMessage({ type: 'dashboardInit', courses: [], hideDeveloperTools: true });
+		await waitFor(() => {
+			expect(screen.getByText('Service Status')).toBeInTheDocument();
+		});
+		expect(screen.queryByText('Struggle Detection')).not.toBeInTheDocument();
+	});
 });

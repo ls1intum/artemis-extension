@@ -1,0 +1,130 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* Stage flow: filled boxes, only the blocking stage carries red; passed stages green. */
+.pipe {
+    display: flex;
+    align-items: stretch;
+    margin: 2px 0;
+}
+
+.stage {
+    flex: 1;
+    background: #202020;
+    border: 1px solid #2e2e2e;
+    padding: 9px 6px;
+    text-align: center;
+    border-radius: 0;
+}
+
+.stage:first-of-type { border-radius: 7px 0 0 7px; }
+.stage:last-of-type { border-radius: 0 7px 7px 0; }
+
+.pass {
+    background: #1f2e22;
+    border-color: #2f5236;
+}
+
+.block {
+    background: #3a1c1c;
+    border-color: #6a3030;
+}
+
+.stageName {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+}
+
+.stageValue {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--vscode-foreground);
+    margin-top: 4px;
+    line-height: 1.25;
+}
+
+.block .stageValue { color: #f48771; }
+
+.stageSub {
+    font-size: 10px;
+    margin-top: 3px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.pass .stageSub { color: #7ee08a; }
+.block .stageSub { color: #cf8b91; }
+
+.arrow {
+    align-self: center;
+    color: #555;
+    font-size: 13px;
+    padding: 0 3px;
+}
+
+.verdict {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    padding-top: 12px;
+    border-top: 1px solid var(--vscode-widget-border, #2d2d2d);
+}
+
+.verdictText {
+    color: var(--vscode-foreground);
+    font-size: 12px;
+}
+
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.groupTitle {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 2px;
+}
+
+.gate {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 3px 0;
+}
+
+.gateDot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3a3a3a;
+    flex: none;
+}
+
+.gateOn .gateDot { background: #c25b62; }
+
+.gateName {
+    flex: 1;
+    color: var(--vscode-foreground);
+}
+
+.gateStatus {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.gateOn .gateStatus { color: #c9a0a3; }

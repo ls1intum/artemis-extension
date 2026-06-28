@@ -46,3 +46,9 @@
 .muted {
     color: var(--vscode-descriptionForeground);
 }
+
+.sub {
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}

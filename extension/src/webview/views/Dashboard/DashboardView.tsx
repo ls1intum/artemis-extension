@@ -30,6 +30,8 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         loadDashboard,
         setDashboardData,
         setWorkspaceExercise,
+        hideDeveloperTools,
+        setHideDeveloperTools,
     } = useDashboardStore();
 
     const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set([0]));
@@ -38,6 +40,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.DashboardInit) {
             setDashboardData(msg.courses ?? []);
+            setHideDeveloperTools(msg.hideDeveloperTools);
             // Only update workspace state when detection has actually run
             // (field present as null or object). Absent = detection not run yet.
             if (msg.workspaceExercise !== undefined) {
@@ -48,7 +51,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                 );
             }
         }
-    }, [vscodeApi, setDashboardData, setWorkspaceExercise]);
+    }, [vscodeApi, setDashboardData, setWorkspaceExercise, setHideDeveloperTools]);
 
     const handleReloadDashboard = () => {
         loadDashboard(vscodeApi);
@@ -292,7 +295,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     <Button variant="ghost" fullWidth onClick={handleOpenWebsite} icon={<ExternalLink size={16} />}>
                         Open Artemis in browser
                     </Button>
-                    {__IRIS_TELEMETRY__ && (
+                    {__IRIS_TELEMETRY__ && !hideDeveloperTools && (
                         <Button variant="ghost" fullWidth onClick={handleShowStruggleDetection} icon={<HeartPulse size={16} />}>
                             Struggle Detection
                         </Button>

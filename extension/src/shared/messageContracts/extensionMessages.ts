@@ -131,8 +131,11 @@ export interface StruggleDebugSnapshot {
     effectiveWindowS: number;
     /** Longest pause in the last window (s), shown against caps.gapNormS. */
     longestGapS: number;
-    /** E6 re-arm gate: alert legality is gated SEPARATELY from the bare cooldown end. */
-    notRearmed: boolean;
+    /** Latest tick's decision trace (outcome / reason / per-gate booleans / urgency / theta /
+     *  boundaries): the SAME shape the live feed emits, reused here so the developer
+     *  decision-flow pipeline renders from the init snapshot. `null` when no session is active
+     *  or before the first tick (`_lastTick` persists across sessions; do not show it stale). */
+    decisionTrace: LiveDecisionTrace | null;
     caps: StruggleDebugCaps;
 }
 
@@ -228,6 +231,10 @@ interface ExtensionMsgPayloads {
             id: number;
             title: string;
         } | null;
+        /** True when NOT in developer mode. Hides developer-only dashboard entries (the
+         *  struggle-detection page, which is itself developer-only). Required + fail-closed so
+         *  a forgotten producer is a type error, not a silently-shown dev surface. */
+        hideDeveloperTools: boolean;
     };
     courseListInit: {
         courses: CourseDetailData[];

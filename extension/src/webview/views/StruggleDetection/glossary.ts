@@ -41,6 +41,8 @@ export interface GlossaryEntry {
     readonly tooltip?: string;
     /** Short label for the decision-gate pipeline list (set only on the six gate reasons). */
     readonly gate?: string;
+    /** Very short label for compact UI (the decision-flow pipeline stage boxes); boundaries only. */
+    readonly short?: string;
 }
 
 /**
@@ -64,30 +66,35 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     FM: {
         text: 'A build or test run just failed',
         code: 'FM',
+        short: 'Build failed',
         tooltip: 'The canonical moment to offer help. Fires on compile errors, on a first build with failures, or on builds whose failure set is unchanged or larger.',
     },
 
     FM_PLUS: {
         text: 'A build just improved but still has failing tests',
         code: 'FM+',
+        short: 'Build improved',
         tooltip: 'Fewer tests are failing than in the previous run, but at least one test is still failing. The student made progress yet still needs support.',
     },
 
     E4: {
         text: 'A terminal command just finished running',
         code: 'E4',
+        short: 'Terminal finished',
         tooltip: 'For example, a manually started run or script execution outside the Artemis build pipeline.',
     },
 
     N1: {
         text: 'A large or multi-line paste was just detected',
         code: 'N1',
+        short: 'Large paste',
         tooltip: 'A paste of 11 or more characters was inserted at once, which may indicate copying from an external source.',
     },
 
     STATE: {
         text: 'Typing rate is very low right now (fewer than 5 keystrokes per minute)',
         code: 'STATE',
+        short: 'Low typing rate',
         tooltip: 'Present at every tick (after warm-up) where the 1-minute rolling typing rate stays below 5 keystrokes/min. Indicates prolonged low activity, idle, or stuck.',
     },
 

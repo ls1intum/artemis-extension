@@ -2,9 +2,10 @@ import { useState } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
-import { BackLink, Badge, Container, IconButton, PageHeader, SkeletonList } from '@webview/components';
+import { BackLink, Container, IconButton, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
+import { DecisionFlowPipeline } from './DecisionFlowPipeline';
 import { LiveEngineSection } from './LiveEngineSection';
 import styles from './StruggleDetectionView.module.css';
 import { TimersPanel } from './TimersPanel';
@@ -40,6 +41,30 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
         return (
             <div className={styles.struggleDetectionView}>
                 <SkeletonList count={5} />
+            </div>
+        );
+    }
+
+    // The whole page is developer-only (the entry is dev-gated and the route is guarded). This is a
+    // backstop in case the state is reached without developer mode.
+    if (!data.developerMode) {
+        return (
+            <div className={styles.struggleDetectionView}>
+                {!data.embedded && (
+                    <BackLink onClick={handleBackToDashboard}>
+                        Back to Dashboard
+                    </BackLink>
+                )}
+                <Container>
+                    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                        <p style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 8px 0', color: 'var(--vscode-foreground)' }}>
+                            Developer view
+                        </p>
+                        <p style={{ margin: 0, fontSize: '14px', color: 'var(--vscode-descriptionForeground)' }}>
+                            The struggle-detection dashboard is only available in developer mode.
+                        </p>
+                    </div>
+                </Container>
             </div>
         );
     }
@@ -96,6 +121,10 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 title="Struggle Detection"
                 subtitle="Monitors your development patterns to detect when you might need help."
             />
+
+            {/* Decision-flow pipeline (top): how the latest tick decided. Renders only with an
+                active session + a real tick (the component self-guards). */}
+            {data.debug && <DecisionFlowPipeline debug={data.debug} />}
 
             {/* Urgency: the v3 decision signal (S_base) that triggers alerts. */}
             <Container
@@ -172,80 +201,6 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         <span>0.0</span>
                         <span>&theta; 0.70</span>
                         <span>1.0</span>
-                    </div>
-                </div>
-            </Container>
-
-            {/* Status details */}
-            <Container
-                header={
-                    <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                        Status
-                    </div>
-                }
-                variant="default"
-                padding="default"
-            >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Currently struggling
-                        </span>
-                        <Badge variant={data.isStruggling ? 'error' : 'success'}>
-                            {data.isStruggling ? 'Yes' : 'No'}
-                        </Badge>
-                    </div>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Instantaneous score (S, telemetry)
-                        </span>
-                        <Badge variant="muted">
-                            {data.s.toFixed(2)}
-                        </Badge>
-                    </div>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Severity (V, telemetry)
-                        </span>
-                        <Badge variant="muted">
-                            {data.v.toFixed(2)}
-                        </Badge>
-                    </div>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Boundary at last tick
-                        </span>
-                        <Badge variant={data.primaryBoundary ? 'default' : 'muted'}>
-                            {data.primaryBoundary ?? 'none'}
-                        </Badge>
-                    </div>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <span style={{ fontSize: '14px', color: 'var(--vscode-foreground)' }}>
-                            Last alert
-                        </span>
-                        <Badge variant="muted">
-                            {data.lastAlertT !== null ? `at ${data.lastAlertT}s` : 'none yet'}
-                        </Badge>
                     </div>
                 </div>
             </Container>

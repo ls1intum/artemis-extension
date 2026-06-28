@@ -1,41 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-
 import type { StruggleDebugSnapshot } from '@shared/messageContracts';
 
 import { Badge, Container } from '@webview/components';
 
 import styles from './TimersPanel.module.css';
+import { mmss, useEngineCountdowns } from './useEngineCountdowns';
 
 interface TimersPanelProps {
     debug: StruggleDebugSnapshot;
-}
-
-/**
- * Engine clock, offset-corrected and advanced once per second. The snapshot arrives only every
- * ~10 s (one per engine tick), so we re-anchor on each fresh `nowMs` and interpolate with the local
- * wall clock in between — yielding smooth per-second countdowns without drifting from engine time.
- */
-function useEngineNow(anchorNowMs: number): number {
-    const baseRef = useRef({ engine: anchorNowMs, client: Date.now() });
-    const [, setNonce] = useState(0);
-    // Re-anchor whenever a fresh snapshot (new nowMs) arrives.
-    useEffect(() => {
-        baseRef.current = { engine: anchorNowMs, client: Date.now() };
-        setNonce((n) => n + 1);
-    }, [anchorNowMs]);
-    // Advance once per second so the countdowns tick between snapshots.
-    useEffect(() => {
-        const id = window.setInterval(() => setNonce((n) => n + 1), 1000);
-        return () => window.clearInterval(id);
-    }, []);
-    return baseRef.current.engine + (Date.now() - baseRef.current.client);
-}
-
-/** Seconds → "M:SS"; `ceil` for remaining times (stays at 1 until truly elapsed), floor for elapsed. */
-function mmss(totalSeconds: number, mode: 'ceil' | 'floor' = 'ceil'): string {
-    const s = Math.max(0, mode === 'ceil' ? Math.ceil(totalSeconds) : Math.floor(totalSeconds));
-    const m = Math.floor(s / 60);
-    return `${m}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
 function Row({ label, title, children }: { label: string; title: string; children: React.ReactNode }) {
@@ -47,24 +18,33 @@ function Row({ label, title, children }: { label: string; title: string; childre
     );
 }
 
+/** A bold value with an optional muted suffix (e.g. "60s (cap 40s, maxed)"). */
+function Value({ children, sub }: { children: React.ReactNode; sub?: string }) {
+    return (
+        <span className={styles.value}>
+            {children}{sub && <span className={styles.sub}> {sub}</span>}
+        </span>
+    );
+}
+
 /**
- * Developer-only timers/counters dashboard for the v3 struggle engine (spec: dev debug view).
- * Reads the latest {@link StruggleDebugSnapshot} (the SAME source the `[Struggle]` log uses) and
- * derives every "remaining" locally, so the readouts stay live between the 10 s engine ticks.
- *
- * Honest typing: some rows are true countdowns (have an ms anchor), some are counters (state), and
- * some are last-tick metrics (refreshed each tick, not a live timer). Grouped accordingly.
+ * Developer-only timers/counters panel for the v3 struggle engine. Reads the latest
+ * {@link StruggleDebugSnapshot} (the SAME source the `[Struggle]` log and the decision-flow
+ * pipeline use) and derives every "remaining" locally via {@link useEngineCountdowns}, so the
+ * readouts stay live between the 10 s engine ticks. All internal codes are spelled out in plain
+ * language (no B4/E6/fN2 on screen); deeper detail lives in hover tooltips.
  */
 export function TimersPanel({ debug }: TimersPanelProps) {
-    const now = useEngineNow(debug.nowMs);
     const { caps, throttle } = debug;
+    // Hooks must run unconditionally, before the inactive-session early return below.
+    const c = useEngineCountdowns(debug);
 
-    // No active exercise session: every anchor is stale/zero, so show a clear empty state rather than
-    // counting a bogus warm-up from epoch (the struggle view can be opened outside an exercise).
+    // No active exercise session: every anchor is stale/zero, so show a clear empty state rather
+    // than counting a bogus warm-up from epoch (the struggle view can be opened outside an exercise).
     if (!debug.sessionActive) {
         return (
             <Container
-                header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Engine Timers &amp; Counters (developer)</div>}
+                header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Engine timers &amp; delivery</div>}
                 variant="default"
                 padding="default"
             >
@@ -75,21 +55,16 @@ export function TimersPanel({ debug }: TimersPanelProps) {
         );
     }
 
-    const elapsedS = (now - debug.sessionStartMs) / 1000;
-    const warmupLeft = Math.max(0, caps.warmupS - elapsedS);
-    const cooldownLeft = debug.lastAlertMs === null ? null : Math.max(0, caps.cooldownS - (now - debug.lastAlertMs) / 1000);
-    const graceLeft = debug.lastFmBadMs === null ? null : Math.max(0, caps.graceS - (now - debug.lastFmBadMs) / 1000);
-    const minGapLeft = !throttle || throttle.lastDeliveryMs === null
-        ? null
-        : Math.max(0, caps.minDeliveryGapS - (now - throttle.lastDeliveryMs) / 1000);
-
-    const inWindow = throttle ? throttle.deliveredAtMs.filter((t) => now - t < 60_000) : [];
-    const perMinBlocked = inWindow.length >= caps.maxAlertsPerMinute && inWindow.length > 0;
-    const perMinFreesIn = perMinBlocked ? Math.max(0, 60 - (now - Math.min(...inWindow)) / 1000) : null;
+    const lastDeliveredMs = throttle?.lastDeliveryMs ?? null;
+    const lastDeliveredS = lastDeliveredMs === null ? null : (lastDeliveredMs - debug.sessionStartMs) / 1000;
+    // Re-arm state comes from the latest decision trace; null trace = session started, no tick yet.
+    const reArm = debug.decisionTrace === null
+        ? 'waiting for first tick'
+        : debug.decisionTrace.gates.notRearmed ? 'waiting' : 'armed';
 
     return (
         <Container
-            header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Engine Timers &amp; Counters (developer)</div>}
+            header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Engine timers &amp; delivery</div>}
             variant="default"
             padding="default"
         >
@@ -100,53 +75,56 @@ export function TimersPanel({ debug }: TimersPanelProps) {
 
                 <div className={styles.group}>
                     <div className={styles.groupTitle}>Countdowns</div>
-                    <Row label="Warm-up remaining" title="D1 gate: only FM/E4 alerts break through until this elapses (8 min from session start).">
-                        <span className={styles.value}>{warmupLeft > 0 ? mmss(warmupLeft) : 'done'}</span>
+                    <Row label="Warm-up remaining" title="Until the warm-up ends, only a failed build or a finished terminal run can nudge (8 min from session start).">
+                        <Value>{c.warmupLeft > 0 ? mmss(c.warmupLeft) : 'done'}</Value>
                     </Row>
-                    <Row label="Cooldown remaining" title="No new alert may fire within this window after the last one (120 s).">
-                        <span className={styles.value}>{cooldownLeft === null ? <span className={styles.muted}>no alert yet</span> : cooldownLeft > 0 ? mmss(cooldownLeft) : 'clear'}</span>
+                    <Row label="Cooldown remaining" title="No new nudge may fire within this window after the last one (120 s).">
+                        <Value>{c.cooldownLeft === null ? <span className={styles.muted}>no alert yet</span> : c.cooldownLeft > 0 ? mmss(c.cooldownLeft) : 'clear'}</Value>
                     </Row>
-                    <Row label="Grace remaining (B4)" title="After a failing build, non-FM boundaries are suppressed for this grace window (~33 s).">
-                        <span className={styles.value}>{graceLeft === null ? <span className={styles.muted}>inactive</span> : graceLeft > 0 ? `${Math.ceil(graceLeft)}s` : 'clear'}</span>
+                    <Row label="Post-build grace window" title="Just after a failing build, only build-related moments may nudge for a short grace window (~33 s).">
+                        <Value>{c.graceLeft === null ? <span className={styles.muted}>inactive</span> : c.graceLeft > 0 ? `${Math.ceil(c.graceLeft)}s` : 'clear'}</Value>
                     </Row>
-                    <Row label="Delivery min-gap" title="Hard floor between two delivered hints (30 s), independent of the detector cooldown.">
-                        <span className={styles.value}>{minGapLeft === null ? <span className={styles.muted}>no delivery yet</span> : minGapLeft > 0 ? `${Math.ceil(minGapLeft)}s` : 'ready'}</span>
+                    <Row label="Minimum gap between hints" title="Hard floor between two delivered hints (30 s), independent of the detector cooldown.">
+                        <Value>{c.minGapLeft === null ? <span className={styles.muted}>no delivery yet</span> : c.minGapLeft > 0 ? `${Math.ceil(c.minGapLeft)}s` : 'ready'}</Value>
                     </Row>
                     <Row label="Per-minute slot frees in" title="When the rolling 60 s delivery window next drops below its cap.">
-                        <span className={styles.value}>{perMinFreesIn === null ? <span className={styles.muted}>slot open</span> : mmss(perMinFreesIn)}</span>
+                        <Value>{c.perMinFreesIn === null ? <span className={styles.muted}>slot open</span> : mmss(c.perMinFreesIn)}</Value>
                     </Row>
                 </div>
 
                 <div className={styles.group}>
-                    <div className={styles.groupTitle}>Delivery counters</div>
-                    <Row label="Delivered this session" title="Hints delivered so far vs the per-session cap.">
+                    <div className={styles.groupTitle}>Hints delivered</div>
+                    <Row label="This session" title="Hints delivered so far vs the per-session cap.">
                         <Badge variant={throttle && throttle.deliveredThisSession >= caps.maxAlertsPerSession ? 'error' : 'muted'}>
                             {throttle ? `${throttle.deliveredThisSession} / ${caps.maxAlertsPerSession}` : 'n/a'}
                         </Badge>
                     </Row>
-                    <Row label="Delivered in last minute" title="Hints delivered within the rolling 60 s window vs the per-minute cap.">
-                        <Badge variant={perMinBlocked ? 'error' : 'muted'}>
-                            {throttle ? `${inWindow.length} / ${caps.maxAlertsPerMinute}` : 'n/a'}
+                    <Row label="This minute" title="Hints delivered within the rolling 60 s window vs the per-minute cap.">
+                        <Badge variant={c.perMinBlocked ? 'error' : 'muted'}>
+                            {throttle ? `${c.inWindow.length} / ${caps.maxAlertsPerMinute}` : 'n/a'}
                         </Badge>
+                    </Row>
+                    <Row label="Last delivered" title="When the most recent hint was actually delivered to the student.">
+                        <Value>{lastDeliveredS === null ? <span className={styles.muted}>none yet</span> : `at ${mmss(lastDeliveredS, 'floor')}`}</Value>
                     </Row>
                 </div>
 
                 <div className={styles.group}>
-                    <div className={styles.groupTitle}>Last-tick metrics</div>
+                    <div className={styles.groupTitle}>Signals (last tick)</div>
                     <Row label="Session elapsed" title="Time since this exercise session started.">
-                        <span className={styles.value}>{mmss(elapsedS, 'floor')}</span>
+                        <Value>{mmss(c.elapsedS, 'floor')}</Value>
                     </Row>
-                    <Row label="Effective feature window" title="Rolling window the features are computed over: grows max(10, min(60, elapsed)) up to the fixed 60 s window.">
-                        <span className={styles.value}>{debug.effectiveWindowS}s / 60s</span>
+                    <Row label="Analysis window" title="Rolling window the features are computed over: grows up to the fixed 60 s window over the first minute.">
+                        <Value sub={`of 60s${debug.effectiveWindowS >= 60 ? ' (full)' : ''}`}>{debug.effectiveWindowS}s</Value>
                     </Row>
-                    <Row label="Longest pause (window)" title="Longest typing pause in the current window, shown against the 40 s normalisation constant.">
-                        <span className={styles.value}>{Math.round(debug.longestGapS)}s / {caps.gapNormS}s</span>
+                    <Row label="Longest typing pause" title="Longest typing pause in the current window, shown against the 40 s normalisation cap (the gap score maxes out there).">
+                        <Value sub={`(cap ${caps.gapNormS}s${Math.round(debug.longestGapS) >= caps.gapNormS ? ', maxed' : ''})`}>{Math.round(debug.longestGapS)}s</Value>
                     </Row>
-                    <Row label="Off-screen error (fN2)" title="Whether an error sits >3 lines from the cursor and has been active long enough to add the fN2 severity bonus.">
+                    <Row label="Error far from your cursor" title="Whether an error sits more than 3 lines from the cursor and has been active long enough to raise severity.">
                         <Badge variant={debug.fN2Active ? 'default' : 'muted'}>{debug.fN2Active ? 'active' : 'clear'}</Badge>
                     </Row>
-                    <Row label="Re-arm gate (E6)" title="Whether the state machine is re-armed; alert legality is gated separately from the bare cooldown end.">
-                        <Badge variant={debug.notRearmed ? 'error' : 'success'}>{debug.notRearmed ? 'gated' : 'armed'}</Badge>
+                    <Row label="Re-arm after cooldown" title="After the cooldown ends, the engine waits for urgency to stay elevated before it re-arms for a new nudge.">
+                        <Value>{reArm === 'armed' ? 'armed' : <span className={styles.muted}>{reArm}</span>}</Value>
                     </Row>
                 </div>
             </div>

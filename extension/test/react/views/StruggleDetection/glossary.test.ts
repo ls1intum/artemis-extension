@@ -39,3 +39,13 @@ test('GLOSSARY is exhaustive — all keys from ALL_KEYS resolve', () => {
         expect(GLOSSARY[k]).toBeDefined();
     }
 });
+
+test('every boundary has a short pipeline label, no longer than its full text', () => {
+    const boundaries = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+    for (const b of boundaries) {
+        const entry = GLOSSARY[b];
+        expect(entry.short, `${b} short label`).toBeDefined();
+        expect(entry.short!.length).toBeGreaterThan(0);
+        expect(entry.short!.length).toBeLessThanOrEqual(entry.text.length);
+    }
+});

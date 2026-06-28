@@ -80,7 +80,7 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
         fN2Active: false,
         effectiveWindowS: 60,
         longestGapS: 18,
-        notRearmed: false,
+        decisionTrace: null,
         caps: {
             warmupS: SPEC.WARMUP_S,
             cooldownS: SPEC.COOLDOWN_S,
