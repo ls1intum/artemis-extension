@@ -113,6 +113,32 @@ describe('LiveEngineSection', () => {
         expect(screen.getByTestId('live-tick-count')).toHaveTextContent('600');
     });
 
+    it('attaches the resize observer when the chart frame mounts after data, and disconnects on reset', () => {
+        // Locks HIGH-2: the chart frame renders only once ticks arrive, so a mount-only observer
+        // would never attach and the width would stay pinned to the fallback. The callback ref must
+        // observe exactly when the frame mounts and disconnect when it unmounts (reset -> empty).
+        const observe = vi.fn();
+        const disconnect = vi.fn();
+        class MockResizeObserver {
+            observe = observe;
+            disconnect = disconnect;
+            unobserve = vi.fn();
+        }
+        const prev = globalThis.ResizeObserver;
+        globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+        try {
+            const api = createMockVsCodeApi();
+            render(<LiveEngineSection vscodeApi={api} />);
+            expect(observe).not.toHaveBeenCalled();   // no chart frame yet (ticks empty)
+            act(() => dispatchExtensionMessage({ type: 'struggleLiveTick', tick: makeTick(10) }));
+            expect(observe).toHaveBeenCalledTimes(1);  // frame mounted -> observer attached
+            act(() => dispatchExtensionMessage({ type: 'struggleLiveReset' }));
+            expect(disconnect).toHaveBeenCalled();     // frame unmounted -> observer disconnected
+        } finally {
+            globalThis.ResizeObserver = prev;
+        }
+    });
+
     it('posts struggleLiveSubscribe on mount and struggleLiveUnsubscribe on unmount', () => {
         const api = createMockVsCodeApi();
         const { unmount } = render(<LiveEngineSection vscodeApi={api} />);

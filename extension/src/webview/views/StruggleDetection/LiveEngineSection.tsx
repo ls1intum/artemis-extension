@@ -1,5 +1,4 @@
-import type { RefObject } from 'react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     CartesianGrid,
     Line,
@@ -51,12 +50,19 @@ const FALLBACK_CHART_WIDTH = 600;
  * fallback until a real measurement arrives. Used instead of recharts'
  * ResponsiveContainer so the chart never renders at 0×0 (which logs a recharts
  * warning under happy-dom where the container has no layout size).
+ *
+ * Returns a CALLBACK ref, not a ref object: the measured node (.chartFrame) is
+ * absent on first render (it only mounts once ticks arrive), so a mount-only
+ * effect would never see it and the width would stay pinned to the fallback
+ * forever (clipping the chart to 600px in the narrower sidebar). The callback
+ * ref attaches the observer exactly when the node mounts and disconnects on unmount.
  */
-function useMeasuredWidth(fallback: number): [RefObject<HTMLDivElement>, number] {
-    const ref = useRef<HTMLDivElement>(null);
+function useMeasuredWidth(fallback: number): [(el: HTMLDivElement | null) => void, number] {
     const [width, setWidth] = useState(fallback);
-    useLayoutEffect(() => {
-        const el = ref.current;
+    const observerRef = useRef<ResizeObserver | null>(null);
+    const measuredRef = useCallback((el: HTMLDivElement | null) => {
+        observerRef.current?.disconnect();
+        observerRef.current = null;
         if (!el || typeof ResizeObserver === 'undefined') { return; }
         const update = () => {
             const w = el.clientWidth;
@@ -65,9 +71,9 @@ function useMeasuredWidth(fallback: number): [RefObject<HTMLDivElement>, number]
         update();
         const ro = new ResizeObserver(update);
         ro.observe(el);
-        return () => ro.disconnect();
+        observerRef.current = ro;
     }, []);
-    return [ref, width];
+    return [measuredRef, width];
 }
 
 /**
@@ -150,7 +156,9 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
                     <>
                         <div ref={chartRef} className={styles.chartFrame}>
                             <LineChart width={chartWidth} height={CHART_HEIGHT} data={ticks} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                {/* Mid-gray at low opacity stays subtle on both light and dark themes
+                                    (a fixed dark #333 reads as heavy lines on a light editor background). */}
+                                <CartesianGrid strokeDasharray="3 3" stroke="#888" strokeOpacity={0.2} />
                                 <XAxis
                                     dataKey="t"
                                     type="number"
@@ -174,7 +182,8 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
                                     label={{ value: `alert threshold ${theta.toFixed(2)}`, position: 'insideTopRight', fill: THETA_COLOR, fontSize: 11 }}
                                 />
                                 {/* urgency (primary) + optional s / v. */}
-                                <Line type="monotone" dataKey="urgency" stroke={URGENCY_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                {/* A single tick draws no line segment; show a dot so the lone point is visible. */}
+                                <Line type="monotone" dataKey="urgency" stroke={URGENCY_COLOR} strokeWidth={2} dot={ticks.length === 1} isAnimationActive={false} />
                                 {showS && <Line type="monotone" dataKey="s" stroke={S_COLOR} strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} />}
                                 {showV && <Line type="monotone" dataKey="v" stroke={V_COLOR} strokeWidth={1.5} strokeDasharray="2 3" dot={false} isAnimationActive={false} />}
                                 {/* Boundary markers (any tick with a pre-gate boundary). */}

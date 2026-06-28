@@ -39,17 +39,20 @@
     border-color: #6a3030;
 }
 
+/* The stage boxes are always dark (filled chips), so their text is fixed light rather than
+   theme tokens: a token foreground turns dark in a light VS Code theme and would be unreadable
+   on the dark box. The pass/block overrides below stay (already light, on their dark boxes). */
 .stageName {
     font-size: 9px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--vscode-descriptionForeground);
+    color: rgba(255, 255, 255, 0.55);
 }
 
 .stageValue {
     font-size: 13px;
     font-weight: 700;
-    color: var(--vscode-foreground);
+    color: rgba(255, 255, 255, 0.92);
     margin-top: 4px;
     line-height: 1.25;
 }
@@ -59,7 +62,7 @@
 .stageSub {
     font-size: 10px;
     margin-top: 3px;
-    color: var(--vscode-descriptionForeground);
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .pass .stageSub { color: #7ee08a; }
@@ -113,19 +116,22 @@
     padding: 3px 0;
 }
 
+/* Gate rows sit on the card surface (theme-adaptive), so they use VS Code semantic tokens
+   instead of dark-tuned hex, which would wash out on a light theme. Fallbacks keep the old
+   look where a token is missing. */
 .gateDot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #3a3a3a;
+    background: var(--vscode-widget-border, #3a3a3a);
     flex: none;
 }
 
 /* engaged: the gate's live condition holds, but it was NOT the decisive blocker this tick. */
-.gateOn .gateDot { background: #c9a05a; }
+.gateOn .gateDot { background: var(--vscode-editorWarning-foreground, #c9a05a); }
 
 /* blocking: the decisive gate the engine recorded as holding the nudge back this tick. */
-.gateBlocking .gateDot { background: #f48771; }
+.gateBlocking .gateDot { background: var(--vscode-errorForeground, #f48771); }
 
 .gateName {
     flex: 1;
@@ -137,6 +143,6 @@
     color: var(--vscode-descriptionForeground);
 }
 
-.gateOn .gateStatus { color: #c9a05a; }
+.gateOn .gateStatus { color: var(--vscode-editorWarning-foreground, #c9a05a); }
 .gateBlocking .gateName { color: var(--vscode-foreground); }
-.gateBlocking .gateStatus { color: #f48771; font-weight: 600; }
+.gateBlocking .gateStatus { color: var(--vscode-errorForeground, #f48771); font-weight: 600; }
