@@ -68,10 +68,20 @@ describe('DecisionFlowPipeline', () => {
         expect(screen.queryByText('blocking')).not.toBeInTheDocument();
     });
 
-    it('shows the fired outcome when the edit path fired', () => {
-        render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({ outcome: 'fired-edit', reason: 'fired', boundariesPresent: ['FM'] }) })} />);
+    it('shows the fired outcome, clears every gate row, and never claims delivery (FM broke through warm-up + grace)', () => {
+        render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({
+            outcome: 'fired-edit', reason: 'fired', boundariesPresent: ['FM'],
+            // FM/E4 break through warm-up and FM/FM+ survive the grace filter, so these flags can
+            // still be true on a fired tick — but the flow stopped nowhere, so no gate row may read
+            // "engaged" (that would contradict the green "all clear" Gates stage box).
+            gates: { fluentTyping: false, grace: true, warmup: true, belowThreshold: false, cooldown: false, notRearmed: false },
+        }) })} />);
         expect(screen.getAllByText('Alert fired').length).toBeGreaterThanOrEqual(1);
         expect(screen.getByText(/an alert fired this tick/i)).toBeInTheDocument();
+        expect(screen.getByText('alert raised')).toBeInTheDocument();          // decision-level, NOT a delivery claim
+        expect(screen.queryByText('nudge sent')).not.toBeInTheDocument();
+        expect(screen.queryByText('engaged')).not.toBeInTheDocument();         // warm-up/grace flags true but non-blocking on a fire
+        expect(screen.getAllByText('clear')).toHaveLength(5);                  // all five gate rows clear
     });
 
     it('shows a separate discrete verdict (no faked edit flow) for a discrete fire', () => {

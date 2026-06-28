@@ -98,6 +98,21 @@ describe('LiveEngineSection', () => {
         expect(screen.getByTestId('live-tick-count')).toHaveTextContent('3');
     });
 
+    it('caps the in-view tick buffer so a long session does not grow it without bound', () => {
+        const api = createMockVsCodeApi();
+        render(<LiveEngineSection vscodeApi={api} />);
+        // Backfill arrives at the 600-tick server cap; further live appends must stay bounded.
+        act(() => dispatchExtensionMessage({
+            type: 'struggleLiveBackfill',
+            ticks: Array.from({ length: 600 }, (_, i) => makeTick(i)),
+        }));
+        expect(screen.getByTestId('live-tick-count')).toHaveTextContent('600');
+        act(() => dispatchExtensionMessage({ type: 'struggleLiveTick', tick: makeTick(601) }));
+        act(() => dispatchExtensionMessage({ type: 'struggleLiveTick', tick: makeTick(602) }));
+        // Still 600 (oldest dropped), not 602.
+        expect(screen.getByTestId('live-tick-count')).toHaveTextContent('600');
+    });
+
     it('posts struggleLiveSubscribe on mount and struggleLiveUnsubscribe on unmount', () => {
         const api = createMockVsCodeApi();
         const { unmount } = render(<LiveEngineSection vscodeApi={api} />);

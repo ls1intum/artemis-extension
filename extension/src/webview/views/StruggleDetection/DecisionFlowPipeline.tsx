@@ -26,6 +26,9 @@ const GATES: { reason: EditTraceReason; flag: keyof LiveDecisionTrace['gates'] }
     { reason: 'not-rearmed', flag: 'notRearmed' },
 ];
 
+/** The gate reasons that mark a stage-3 (Gates) block, derived from GATES so the two never drift. */
+const GATE_REASONS: EditTraceReason[] = GATES.map((g) => g.reason);
+
 type StageStatus = 'pass' | 'block' | 'neutral';
 
 interface Stage {
@@ -91,7 +94,6 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
     // "not ok" without being the recorded reason — e.g. urgency below θ while the reason is "no
     // boundary". Such a stage is shown neutral (its sub-label still states the true condition),
     // NOT green and NOT the red blocker.
-    const GATE_REASONS: EditTraceReason[] = ['b2-fluent-typing', 'b4-grace-filter', 'd1-warmup', 'cooldown', 'not-rearmed'];
     const sevOk = trace.urgency >= trace.theta;
     const candOk = trace.boundariesPresent.length > 0;
     const sevStatus: StageStatus = reason === 'below-threshold' ? 'block' : sevOk ? 'pass' : 'neutral';
@@ -127,9 +129,11 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
         },
         {
             name: 'Outcome',
+            // The edit path's DECISION; delivery is downstream (coordinator gate, backoff, throttle
+            // caps) and may still drop it, so this never claims the nudge was actually sent.
             status: fired ? 'pass' : 'neutral',
             value: fired ? 'Alert fired' : 'Holding back',
-            sub: fired ? 'nudge sent' : 'no nudge',
+            sub: fired ? 'alert raised' : 'no nudge',
         },
     ];
 
@@ -166,10 +170,12 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
                         its condition holds but the flow already stopped at an earlier stage.
                     </p>
                     {GATES.map(({ reason: r, flag }) => {
-                        const engaged = trace.gates[flag];
                         // A gate only counts as the blocker when it is the engine's recorded decision reason;
                         // otherwise an active condition (e.g. warm-up while there is no boundary) is just "engaged".
+                        // On a FIRED tick the flow stopped nowhere, so a still-true warm-up/grace flag (FM/E4
+                        // broke through warm-up, FM/FM+ survived the grace filter) is NOT "engaged" — it is clear.
                         const blocking = reason === r;
+                        const engaged = trace.gates[flag] && reason !== 'fired';
                         const status = blocking ? 'blocking' : engaged ? 'engaged' : 'clear';
                         return (
                             <div

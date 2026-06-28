@@ -35,6 +35,11 @@ const ALERT_COLOR = '#ef4444';
 const SESSION_ON_COLOR = '#22c55e';
 const SESSION_OFF_COLOR = '#6b7280';
 
+/** Cap the in-view tick buffer, mirroring LiveEngineFeed's 600-tick server-side cap: the backfill
+ *  already arrives capped, but the live appends below must be bounded too so a very long session
+ *  does not grow the array (and the chart's marker count) without limit. */
+const MAX_TICKS = 600;
+
 /** Fixed chart height; width is measured from the container (see useMeasuredWidth). */
 const CHART_HEIGHT = 220;
 /** Fallback width when the container is unmeasured (e.g. a 0-size jsdom/happy-dom
@@ -87,7 +92,10 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
         if (msg.type === ExtensionMsg.StruggleLiveBackfill) {
             setTicks(msg.ticks);
         } else if (msg.type === ExtensionMsg.StruggleLiveTick) {
-            setTicks((prev) => [...prev, msg.tick]);
+            setTicks((prev) => {
+                const next = [...prev, msg.tick];
+                return next.length > MAX_TICKS ? next.slice(-MAX_TICKS) : next;
+            });
         } else if (msg.type === ExtensionMsg.StruggleLiveReset) {
             setTicks([]);
         } else if (msg.type === ExtensionMsg.StruggleLiveSessionState) {
