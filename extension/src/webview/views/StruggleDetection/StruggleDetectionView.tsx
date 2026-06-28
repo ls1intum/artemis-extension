@@ -132,6 +132,13 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 variant="default"
                 padding="default"
             >
+                {!data.debug?.sessionActive ? (
+                    /* No active exercise session: the engine reports urgency 0 here, so show an
+                       explicit empty state instead of a calm green "0.00" that reads as "running". */
+                    <div style={{ fontSize: '13px', color: 'var(--vscode-descriptionForeground)' }}>
+                        No active exercise session. Open an Artemis exercise to start the engine; the score appears once it ticks.
+                    </div>
+                ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {/* Score + status on one line; the long explanation moves to a hover tooltip. */}
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
@@ -174,6 +181,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         }} />
                     </div>
                 </div>
+                )}
             </Container>
 
             {/* Decision-flow pipeline: how the latest tick decided. Renders only with an

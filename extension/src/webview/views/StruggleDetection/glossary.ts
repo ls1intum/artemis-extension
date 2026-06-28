@@ -127,7 +127,7 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     },
 
     'd1-warmup': {
-        text: 'Not nudging: still in the exercise warm-up period, where only a failed build or a finished terminal run may nudge',
+        text: 'Not nudging: still in the exercise warm-up period, where only a build that failed without improving, or a finished terminal run, may nudge',
         code: 'D1',
         gate: 'Exercise warm-up',
         tooltip: 'For the first 8 minutes of a session the engine stays quiet on most signals. FM and E4 boundaries can break through warmup.',
@@ -157,9 +157,9 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     // ── Discrete trigger ────────────────────────────────────────────────────
 
     'test-stagnation': {
-        text: 'Tests are stuck at the same number of passing tests across several builds',
+        text: 'Tests are stuck: no new high in the passing-test count across several builds (staying flat, regressing, or failing the build all count)',
         code: 'test-stagnation',
-        tooltip: 'Fires when the number of passing tests has not increased for N consecutive builds (default N = 3). Bypasses warm-up. Only the cooldown gate applies.',
+        tooltip: 'Fires when N consecutive builds fail to beat the best passing-test count seen so far (default N = 3); staying flat, regressing, or failing the build all count as no progress. Bypasses warm-up; only the cooldown gate applies.',
     },
 
     // ── Metrics ─────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     },
 
     theta: {
-        text: 'Alert threshold: urgency must rise above this before a nudge is considered (currently 0.70)',
+        text: 'Alert threshold: urgency must reach or exceed this before a nudge is considered (currently 0.70)',
         code: 'theta',
         tooltip: 'θ = 0.70, frozen from the v3 grid search. Drawn as a horizontal line on the urgency curve.',
     },

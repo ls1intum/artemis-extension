@@ -43,6 +43,18 @@ describe('StruggleDetectionView', () => {
         expect(screen.getByText('Decision flow')).toBeInTheDocument();
     });
 
+    it('shows a no-session state in the Urgency card instead of a calm green 0.00 when no session is active', () => {
+        const api = createMockVsCodeApi();
+        render(<StruggleDetectionView vscodeApi={api} />);
+        act(() => dispatchExtensionMessage(init({
+            urgency: 0,
+            debug: debugSnapshot({ sessionActive: false, decisionTrace: null }),
+        })));
+        expect(screen.getByText(/the score appears once it ticks/i)).toBeInTheDocument();
+        expect(screen.queryByText('Below alert threshold')).not.toBeInTheDocument();
+        expect(screen.queryByText('At or above alert threshold')).not.toBeInTheDocument();
+    });
+
     it('removes the legacy Status card (struggling / S / V / boundary / last alert)', () => {
         const api = createMockVsCodeApi();
         render(<StruggleDetectionView vscodeApi={api} />);
