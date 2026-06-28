@@ -50,10 +50,16 @@ test('formatAlertBar: armed shows the tick-time warm-up countdown while remainin
     expect(d.tooltip).toContain('7:50 remaining');
 });
 
-test('formatAlertBar: armed shows urgency (no warm-up) once remaining is 0', () => {
-    const d = formatAlertBar({ kind: 'armed', urgency: 0.42, theta: 0.7 }, 0);
+test('formatAlertBar: armed shows urgency (no warm-up) when not in warm-up (null)', () => {
+    const d = formatAlertBar({ kind: 'armed', urgency: 0.42, theta: 0.7 }, null);
     expect(d.text).toBe('$(pulse) Struggle: 0.42');
     expect(d.tooltip).not.toContain('warm-up');
+});
+
+test('formatAlertBar: armed keeps the warm-up readout on the final warm-up tick (remaining 0, still in warm-up)', () => {
+    // Engine gate is t <= warmupS, so the last warm-up tick has remaining 0 but is still in warm-up.
+    const d = formatAlertBar({ kind: 'armed', urgency: 0.42, theta: 0.7 }, 0);
+    expect(d.text).toBe('$(pulse) Struggle: warm-up 0:00');
 });
 
 test('formatAlertBar: firing text is never altered by warm-up, but the tooltip notes it', () => {

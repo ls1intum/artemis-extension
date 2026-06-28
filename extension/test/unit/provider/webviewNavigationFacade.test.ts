@@ -203,6 +203,24 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(stubs.appStateManager.showLogin);
     });
 
+    test('openStruggleFullscreen: delegates to the injected opener', async () => {
+        const { deps } = buildDeps();
+        const opener = sandbox.stub();
+        deps.openStruggleFullscreen = opener;
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();
+
+        sinon.assert.calledOnce(opener);
+    });
+
+    test('openStruggleFullscreen: no-op (no throw) when no opener is injected (clean build)', async () => {
+        const { deps } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();   // must not throw
+    });
+
     test('showLogin: invokes render callback', () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);

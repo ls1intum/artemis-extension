@@ -53,6 +53,9 @@ export interface WebviewNavigationFacadeDeps {
     sendInitData: () => void;
     backgroundRenderProblemStatement: () => void;
     getServerUrl: () => string;
+    /** Open the developer struggle view in its own editor tab. Supplied by the provider (which owns the
+     *  struggle coordinator behind the @telemetry seam); absent in the clean build. */
+    openStruggleFullscreen?: () => void;
 }
 
 /**
@@ -304,6 +307,17 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
 
     public async openCourseFullscreen(courseData: CourseDetailData): Promise<void> {
         this.deps.fullscreenPanelManager.openCourseFullscreen(courseData);
+    }
+
+    public async openStruggleFullscreen(): Promise<void> {
+        if (!this.deps.openStruggleFullscreen) {
+            // Absent by design in the clean (no-engine) build, where the button is never rendered.
+            // If it ever fires there (or a full-build wiring regression drops the opener), surface it
+            // instead of silently doing nothing.
+            logger.warn('openStruggleFullscreen invoked but no opener is wired (struggle detection unavailable in this build).', LogCategory.VIEW);
+            return;
+        }
+        this.deps.openStruggleFullscreen();
     }
 
     public async openCourseListFullscreen(): Promise<void> {

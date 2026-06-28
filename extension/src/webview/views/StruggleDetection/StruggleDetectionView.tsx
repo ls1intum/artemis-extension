@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
-import { BackLink, Badge, Container, PageHeader, SkeletonList } from '@webview/components';
+import { BackLink, Badge, Container, IconButton, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
 import { LiveEngineSection } from './LiveEngineSection';
@@ -29,12 +29,16 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
         postCommand(vscodeApi, 'backToDashboard');
     };
 
+    const handleOpenFullscreen = () => {
+        postCommand(vscodeApi, 'toggleStruggleFullscreen');
+    };
+
     if (!data) {
+        // No back-link here: until the init arrives we cannot know whether this is the embedded
+        // editor-tab copy, and a back-link in that standalone panel would mutate the sidebar's
+        // global app state rather than navigate the panel. The link returns once data loads.
         return (
             <div className={styles.struggleDetectionView}>
-                <BackLink onClick={handleBackToDashboard}>
-                    Back to Dashboard
-                </BackLink>
                 <SkeletonList count={5} />
             </div>
         );
@@ -43,9 +47,11 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
     if (!data.isEnabled) {
         return (
             <div className={styles.struggleDetectionView}>
-                <BackLink onClick={handleBackToDashboard}>
-                    Back to Dashboard
-                </BackLink>
+                {!data.embedded && (
+                    <BackLink onClick={handleBackToDashboard}>
+                        Back to Dashboard
+                    </BackLink>
+                )}
                 <Container>
                     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
                         <p style={{
@@ -75,9 +81,16 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
     return (
         <div className={styles.struggleDetectionView}>
-            <BackLink onClick={handleBackToDashboard}>
-                Back to Dashboard
-            </BackLink>
+            {!data.embedded && (
+                <BackLink
+                    onClick={handleBackToDashboard}
+                    actions={data.developerMode
+                        ? <IconButton.Fullscreen onClick={handleOpenFullscreen} title="Open in Editor" />
+                        : undefined}
+                >
+                    Back to Dashboard
+                </BackLink>
+            )}
 
             <PageHeader
                 title="Struggle Detection"
@@ -243,8 +256,10 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
             {/* Developer-only live engine view (curve + current-tick gate panel).
                 Owns its own subscribe/unsubscribe lifecycle; the parent must NOT
-                post struggleLiveSubscribe (avoids the listener-before-subscribe race). */}
-            {data.developerMode && <LiveEngineSection vscodeApi={vscodeApi} />}
+                post struggleLiveSubscribe (avoids the listener-before-subscribe race).
+                Hidden in the embedded editor-tab copy: that panel has no live feed wired,
+                so the chart would sit empty (user chose dashboard-only for the pop-out). */}
+            {data.developerMode && !data.embedded && <LiveEngineSection vscodeApi={vscodeApi} />}
 
             {/* Developer tools */}
             {__IRIS_RECORDING__ && data.developerMode && (

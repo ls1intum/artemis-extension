@@ -63,9 +63,11 @@ export class StruggleAlertStatusBar implements vscode.Disposable {
             this._item.show();
             return;
         }
-        // Warm-up countdown is driven by TICK time (warmupS − tick.t), not wall-clock, so it never
-        // reads 0:00 before the engine's first post-warm-up tick.
-        const warmupRemainingS = Math.max(0, this._warmupS - this._lastTick.t);
+        // Warm-up readout: null unless the engine itself reports warm-up (inWarmup = t <= warmupS),
+        // so it persists through the final warm-up tick; the remaining is tick-time driven (warmupS − t).
+        const warmupRemainingS = this._lastTick.decisionTrace.inWarmup
+            ? Math.max(0, this._warmupS - this._lastTick.t)
+            : null;
         this._apply(formatAlertBar(computeAlertBarState(this._lastTick), warmupRemainingS));
         this._item.show();
     }

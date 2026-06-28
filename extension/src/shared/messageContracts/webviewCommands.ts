@@ -35,6 +35,9 @@ export const WebviewCmd = {
     ToggleCourseListFullscreen: 'toggleCourseListFullscreen',
     AskIrisAboutCourse: 'askIrisAboutCourse',
 
+    // Struggle detection (developer)
+    ToggleStruggleFullscreen: 'toggleStruggleFullscreen',
+
     // Exercise
     ReloadExerciseDetail: 'reloadExerciseDetail',
     ToggleFullscreen: 'toggleFullscreen',
@@ -137,6 +140,9 @@ interface WebviewCmdPayloads {
     toggleCourseFullscreen: undefined;
     toggleCourseListFullscreen: undefined;
     askIrisAboutCourse: { courseId: number; courseTitle: string; courseShortName?: string };
+
+    // Struggle detection (developer)
+    toggleStruggleFullscreen: undefined;
 
     // Exercise
     reloadExerciseDetail: { exerciseId: number };

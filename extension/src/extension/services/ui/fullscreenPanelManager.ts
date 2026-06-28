@@ -109,11 +109,38 @@ export class FullscreenPanelManager {
         });
     }
 
+    /**
+     * Open the developer struggle view in its own editor tab (which the user can then move to a
+     * separate window via VS Code's native "Move Editor into New Window"). Kept struggle-agnostic:
+     * the caller supplies `buildInit` (the snapshot payload) and `subscribeRefresh` (re-send when
+     * the engine state changes — ticks AND session start/end), so the always-bundled manager never
+     * imports services/struggle and the clean build stays leak-free. The subscription is torn down
+     * when the panel closes.
+     */
+    public openStruggleFullscreen(
+        buildInit: () => ExtensionToWebviewMessage,
+        subscribeRefresh: (refresh: () => void) => vscode.Disposable,
+    ): void {
+        let refreshSub: vscode.Disposable | undefined;
+        this._openFullscreenPanel({
+            viewType: 'artemis.struggleFullscreen',
+            title: 'Struggle Detection',
+            viewName: 'struggleDetection',
+            onReady: (postSafe) => {
+                postSafe(buildInit());
+                // onReady can fire again on a RequestInit; only wire the refresh subscription once.
+                if (!refreshSub) { refreshSub = subscribeRefresh(() => postSafe(buildInit())); }
+            },
+            onDispose: () => { refreshSub?.dispose(); refreshSub = undefined; },
+        });
+    }
+
     private _openFullscreenPanel(options: {
         viewType: string;
         title: string;
         viewName: string;
         onReady: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void;
+        onDispose?: () => void;
     }): void {
         const panel = vscode.window.createWebviewPanel(
             options.viewType,
@@ -185,6 +212,7 @@ export class FullscreenPanelManager {
             disposed = true;
             pendingMessages = [];
             messageListener.dispose();
+            options.onDispose?.();
         });
 
         this._extensionContext.subscriptions.push(panel);

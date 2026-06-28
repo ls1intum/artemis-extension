@@ -70,17 +70,22 @@ function mmss(totalSeconds: number): string {
 /**
  * Build the status-bar text/tooltip/background for a classified tick + the warm-up countdown.
  *
- * firing/gated text is NEVER altered by warm-up: real FM/E4 alerts break through the warm-up gate
- * and must stay visible. Only the 'armed' branch swaps to a "warm-up M:SS" readout while
- * `warmupRemainingS > 0`, and every tooltip notes the warm-up time remaining while it lasts.
- * The countdown is driven by tick time (warmupS − tick.t), not wall-clock, so it never reads 0:00
- * before the engine's first post-warm-up tick.
+ * `warmupRemainingS` is `null` when the engine is NOT in warm-up, and the seconds remaining
+ * (>= 0) while it is — gated on the engine's own `inWarmup` flag, NOT on `remaining > 0`, so the
+ * warm-up state persists through the engine's final warm-up tick (where `remaining` is 0 but
+ * non-FM/E4 alerts are still suppressed) instead of disappearing one tick early.
+ *
+ * firing/gated text is NEVER altered by warm-up: real FM/E4 alerts break through and must stay
+ * visible. Only the 'armed' branch swaps to a "warm-up M:SS" readout; every tooltip notes the
+ * warm-up time remaining while it lasts. The countdown is driven by tick time (warmupS − tick.t),
+ * not wall-clock.
  */
-export function formatAlertBar(state: AlertBarState, warmupRemainingS: number): AlertBarDisplay {
+export function formatAlertBar(state: AlertBarState, warmupRemainingS: number | null): AlertBarDisplay {
     const u = state.urgency.toFixed(2);
     const th = state.theta.toFixed(2);
-    const inWarmup = warmupRemainingS > 0;
-    const warmupNote = inWarmup ? ` Warm-up: ${mmss(warmupRemainingS)} remaining (only FM/E4 alerts break through).` : '';
+    const inWarmup = warmupRemainingS !== null;
+    const warmupText = mmss(warmupRemainingS ?? 0);
+    const warmupNote = inWarmup ? ` Warm-up: ${warmupText} remaining (only FM/E4 alerts break through).` : '';
     const click = ' Click to open the live engine view.';
     switch (state.kind) {
         case 'firing':
@@ -101,9 +106,9 @@ export function formatAlertBar(state: AlertBarState, warmupRemainingS: number): 
         default:
             if (inWarmup) {
                 return {
-                    text: `$(pulse) Struggle: warm-up ${mmss(warmupRemainingS)}`,
+                    text: `$(pulse) Struggle: warm-up ${warmupText}`,
                     background: null,
-                    tooltip: `Struggle engine warming up: ${mmss(warmupRemainingS)} remaining (only FM/E4 alerts break through). Urgency ${u} (alert at θ ${th}).${click}`,
+                    tooltip: `Struggle engine warming up: ${warmupText} remaining (only FM/E4 alerts break through). Urgency ${u} (alert at θ ${th}).${click}`,
                 };
             }
             return {

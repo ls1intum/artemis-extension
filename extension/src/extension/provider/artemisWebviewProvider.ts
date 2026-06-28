@@ -199,6 +199,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             sendInitData: () => this.sendInitData(),
             backgroundRenderProblemStatement: () => void this._ssrCoordinator.scheduleRender(),
             getServerUrl: () => resolveServerUrl(),
+            openStruggleFullscreen: () => this._openStruggleFullscreen(),
         });
 
         // 8b. Live engine-decision feed (developer-mode struggle view). Built via
@@ -515,6 +516,30 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         return vscode.workspace
             .getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION)
             .get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
+    }
+
+    /**
+     * Open the developer struggle view in its own editor tab (which VS Code can move to a separate
+     * window). The panel is fed the SAME per-tick snapshot the sidebar uses, with `embedded` set so
+     * the view drops its back-link, the live chart, and the pop-out button. The coordinator access
+     * stays here (behind the @telemetry seam), so the always-bundled panel manager never imports the
+     * engine; the no-op coordinator's onDidTick never fires, so the clean build shows a static panel.
+     */
+    private _openStruggleFullscreen(): void {
+        this._fullscreenPanelManager.openStruggleFullscreen(
+            () => this._viewInitDataService.buildStruggleDetectionInit({ embedded: true }),
+            // Refresh on every tick AND on session start/end: ticks STOP when a session ends, so
+            // without the edge events the panel would freeze on the last active snapshot and never
+            // flip to "no active session" (mirrors the sidebar's start/end refresh).
+            (refresh) => {
+                const subs = [
+                    this._struggleCoordinator.onDidTick(() => refresh()),
+                    this._struggleCoordinator.onDidStartSession(() => refresh()),
+                    this._struggleCoordinator.onDidEndSession(() => refresh()),
+                ];
+                return new vscode.Disposable(() => { for (const s of subs) { s.dispose(); } });
+            },
+        );
     }
 
     private _currentCourseAccessScope(): CourseAccessScope | null {

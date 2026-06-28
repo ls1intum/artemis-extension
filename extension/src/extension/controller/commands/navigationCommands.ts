@@ -36,6 +36,7 @@ export class NavigationCommandModule {
             [WebviewCmd.ToggleFullscreen]: this.handleToggleFullscreen,
             [WebviewCmd.ToggleCourseFullscreen]: this.handleToggleCourseFullscreen,
             [WebviewCmd.ToggleCourseListFullscreen]: this.handleToggleCourseListFullscreen,
+            [WebviewCmd.ToggleStruggleFullscreen]: this.handleToggleStruggleFullscreen,
         };
     }
 
@@ -358,6 +359,15 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Error opening course list in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open course list in fullscreen mode');
+        }
+    };
+
+    private handleToggleStruggleFullscreen = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            await this.context.actionHandler.openStruggleFullscreen();
+        } catch (error: unknown) {
+            logger.viewError('Error opening struggle detection in fullscreen:', error);
+            vscode.window.showErrorMessage('Failed to open struggle detection in a new tab');
         }
     };
 

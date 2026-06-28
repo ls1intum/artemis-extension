@@ -284,6 +284,9 @@ interface ExtensionMsgPayloads {
         developerMode: boolean;
         /** Latest engine timers/counters for the dev dashboard (developer mode only; omitted otherwise). */
         debug?: StruggleDebugSnapshot;
+        /** True when rendered as a standalone editor-tab copy (hides the back-link, live chart, and
+         *  pop-out button). The sidebar leaves this false. */
+        embedded?: boolean;
     };
     struggleLiveBackfill: { ticks: LiveTick[] };
     struggleLiveTick: { tick: LiveTick };

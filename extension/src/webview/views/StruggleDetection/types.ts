@@ -11,6 +11,8 @@ export interface StruggleData {
     developerMode: boolean;
     /** Latest engine timers/counters for the dev dashboard (developer mode only). */
     debug?: StruggleDebugSnapshot;
+    /** True in the standalone editor-tab copy (hides back-link, live chart, pop-out button). */
+    embedded?: boolean;
 }
 
 export interface StruggleDetectionViewProps {

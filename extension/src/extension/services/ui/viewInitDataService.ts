@@ -238,11 +238,16 @@ export class ViewInitDataService {
         this._postMessage({ type: ExtensionMsg.AiConfigInit, aiExtensions });
     }
 
-    public sendStruggleDetectionInit(): void {
+    /**
+     * Build the struggle-detection init payload. `embedded` marks the standalone editor-tab copy
+     * (the view then hides its back-link, the live chart, and the pop-out button). Exposed so the
+     * fullscreen panel can be fed the SAME snapshot the sidebar renders from.
+     */
+    public buildStruggleDetectionInit(opts: { embedded?: boolean } = {}): ExtensionToWebviewMessage {
         const coordinator = this._struggleCoordinator;
         const snapshot = coordinator?.getSnapshot();
         const developerMode = this._isDeveloperMode();
-        this._postMessage({
+        return {
             type: ExtensionMsg.StruggleDetectionInit,
             isStruggling: snapshot?.isStruggling ?? false,
             urgency: snapshot?.urgency ?? 0,
@@ -254,7 +259,12 @@ export class ViewInitDataService {
             developerMode,
             // Dev dashboard only: the full timers/counters snapshot. Omitted for normal students.
             debug: developerMode ? coordinator?.getDebugSnapshot() : undefined,
-        });
+            embedded: opts.embedded ?? false,
+        };
+    }
+
+    public sendStruggleDetectionInit(): void {
+        this._postMessage(this.buildStruggleDetectionInit());
     }
 
     public sendServiceStatusInit(): void {
