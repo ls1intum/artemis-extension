@@ -280,13 +280,8 @@ interface ExtensionMsgPayloads {
         }>;
     };
     struggleDetectionInit: {
-        isStruggling: boolean;
-        /** v3 decision signal (S_base); isStruggling = urgency >= θ. */
+        /** v3 decision signal (S_base): the value the Urgency card renders and thresholds against θ. */
         urgency: number;
-        v: number;
-        s: number;
-        primaryBoundary: 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | null;
-        lastAlertT: number | null;
         isEnabled: boolean;
         developerMode: boolean;
         /** Latest engine timers/counters for the dev dashboard (developer mode only; omitted otherwise). */

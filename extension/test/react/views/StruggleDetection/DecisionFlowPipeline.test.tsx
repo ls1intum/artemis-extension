@@ -55,10 +55,17 @@ describe('DecisionFlowPipeline', () => {
         expect(screen.getByText(/cooling down/i)).toBeInTheDocument();   // verdict
     });
 
-    it('marks severity as the blocker below threshold', () => {
-        render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({ reason: 'below-threshold', urgency: 0.4 }) })} />);
+    it('marks severity as the blocker below threshold, never as a gate-list "blocking" row', () => {
+        render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({
+            reason: 'below-threshold', urgency: 0.4,
+            gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: true, cooldown: false, notRearmed: false },
+        }) })} />);
         expect(screen.getByText('below threshold')).toBeInTheDocument();
         expect(screen.getByText(/has not reached the alert threshold/i)).toBeInTheDocument();
+        // The threshold is the Severity stage, not a gate: it must NOT appear in the gate list,
+        // and no gate row may be "blocking" (that would contradict the neutral Gates stage box).
+        expect(screen.queryByText('Urgency below threshold')).not.toBeInTheDocument();
+        expect(screen.queryByText('blocking')).not.toBeInTheDocument();
     });
 
     it('shows the fired outcome when the edit path fired', () => {
@@ -112,11 +119,12 @@ describe('DecisionFlowPipeline', () => {
         expect(screen.queryByText('blocking')).not.toBeInTheDocument();  // but the missing boundary was the blocker, not a gate
     });
 
-    it('lists all six gates with their plain-language labels', () => {
+    it('lists the five delivery gates with their plain-language labels (threshold is not a gate)', () => {
         render(<DecisionFlowPipeline debug={snap()} />);
         expect(screen.getByText('Fluent typing')).toBeInTheDocument();
         expect(screen.getByText('Exercise warm-up')).toBeInTheDocument();
         expect(screen.getByText('Re-arm hysteresis')).toBeInTheDocument();
-        expect(screen.getAllByText('clear')).toHaveLength(6);   // none engaged in the default trace
+        expect(screen.queryByText('Urgency below threshold')).not.toBeInTheDocument();   // shown as the Severity stage instead
+        expect(screen.getAllByText('clear')).toHaveLength(5);   // none engaged in the default trace
     });
 });

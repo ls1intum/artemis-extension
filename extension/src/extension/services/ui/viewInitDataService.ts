@@ -252,12 +252,7 @@ export class ViewInitDataService {
         const developerMode = this._isDeveloperMode();
         return {
             type: ExtensionMsg.StruggleDetectionInit,
-            isStruggling: snapshot?.isStruggling ?? false,
             urgency: snapshot?.urgency ?? 0,
-            v: snapshot?.v ?? 0,
-            s: snapshot?.s ?? 0,
-            primaryBoundary: snapshot?.primaryBoundary ?? null,
-            lastAlertT: snapshot?.lastAlert?.t ?? null,
             isEnabled: coordinator?.isEnabled() ?? false,
             developerMode,
             // Dev dashboard only: the full timers/counters snapshot. Omitted for normal students.

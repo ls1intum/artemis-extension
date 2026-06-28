@@ -13,12 +13,15 @@ interface DecisionFlowPipelineProps {
     debug: StruggleDebugSnapshot;
 }
 
-/** The six decision gates in engine evaluation order, paired with their live flag. */
+/**
+ * The five delivery gates in engine evaluation order, paired with their live flag. The urgency
+ * threshold (`below-threshold`) is deliberately NOT listed here: it is the Severity stage above,
+ * so listing it again would double-represent it (and contradict the neutral Gates stage box).
+ */
 const GATES: { reason: EditTraceReason; flag: keyof LiveDecisionTrace['gates'] }[] = [
     { reason: 'b2-fluent-typing', flag: 'fluentTyping' },
     { reason: 'b4-grace-filter', flag: 'grace' },
     { reason: 'd1-warmup', flag: 'warmup' },
-    { reason: 'below-threshold', flag: 'belowThreshold' },
     { reason: 'cooldown', flag: 'cooldown' },
     { reason: 'not-rearmed', flag: 'notRearmed' },
 ];
@@ -82,10 +85,12 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
     const fired = trace.outcome === 'fired-edit';
 
     // Each stage shows its OWN factual condition; the engine's recorded `reason` marks the decisive
-    // blocker (red). The engine short-circuits in the order candidate → severity → gates (see
-    // alertStateMachine), so a stage can be factually "not ok" without being the recorded reason —
-    // e.g. urgency below θ while the reason is "no boundary". Such a stage is shown neutral (its
-    // sub-label still states the true condition), NOT green and NOT the red blocker.
+    // blocker (red). The engine short-circuits in the order candidate → B2 → B4 → D1(warm-up) →
+    // below-threshold → cooldown → re-arm (see alertStateMachine); the four pipeline stages are a
+    // conceptual grouping of that order, not the literal sequence. So a stage can be factually
+    // "not ok" without being the recorded reason — e.g. urgency below θ while the reason is "no
+    // boundary". Such a stage is shown neutral (its sub-label still states the true condition),
+    // NOT green and NOT the red blocker.
     const GATE_REASONS: EditTraceReason[] = ['b2-fluent-typing', 'b4-grace-filter', 'd1-warmup', 'cooldown', 'not-rearmed'];
     const sevOk = trace.urgency >= trace.theta;
     const candOk = trace.boundariesPresent.length > 0;
@@ -154,10 +159,11 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
                 </div>
 
                 <div className={styles.group}>
-                    <div className={styles.groupTitle}>All gates this tick</div>
+                    <div className={styles.groupTitle}>Delivery gates this tick</div>
                     <p className={styles.gatesNote}>
-                        Live condition of each gate. &quot;blocking&quot; is the gate that actually held this tick back;
-                        &quot;engaged&quot; means its condition holds but the flow already stopped at an earlier stage.
+                        Live condition of each delivery gate (the urgency threshold is shown above as Severity).
+                        &quot;blocking&quot; is the gate that actually held this tick back; &quot;engaged&quot; means
+                        its condition holds but the flow already stopped at an earlier stage.
                     </p>
                     {GATES.map(({ reason: r, flag }) => {
                         const engaged = trace.gates[flag];

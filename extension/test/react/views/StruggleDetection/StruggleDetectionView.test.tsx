@@ -29,8 +29,7 @@ function debugSnapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebug
 function init(over: Record<string, unknown> = {}) {
     return {
         type: ExtensionMsg.StruggleDetectionInit,
-        isStruggling: false, urgency: 0.3, v: 0.2, s: 0.3,
-        primaryBoundary: null, lastAlertT: null, isEnabled: true,
+        urgency: 0.3, isEnabled: true,
         developerMode: true, debug: debugSnapshot(), embedded: false,
         ...over,
     };
