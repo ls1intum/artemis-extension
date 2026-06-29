@@ -41,20 +41,40 @@ So: a **Session contains many Episodes** over time; the **Slot** points at the l
 - FREE → a new nudge takes the slot and shows.
 - TAKEN has **two strengths** (Model Y — *the slot protects only what the student has been shown*):
   - **PARKED** = a hidden `ambient` holds the slot, but its content was never delivered (only a
-    pointer is up, §5). **No downgrade protection:** a fresh evaluation may freely **replace** it
-    (quieter, louder, or a different problem). Nothing was shown, so replacing it is not the
-    overwrite bug; a replacement that comes back `active` is a fresh *first delivery*, not an
-    escalation of the ignored hint. **Replacing a PARKED ambient ends that (undelivered, no-trace)
-    episode and starts a NEW `episodeId`** — its frozen text evaporates and does **not** carry into the
-    new episode's `hints[]`. So slot↔episode stays 1:1 (§3) and history never mixes unrelated hints.
+    pointer is up, §5). **No protection:** the **next decision replaces it** unconditionally (quieter,
+    louder, or a different problem). Nothing was shown, so replacing it is not the overwrite bug; a
+    replacement that comes back `active` is a fresh *first delivery*, not an escalation of the ignored
+    hint. (Decisions are produced only on an **event/boundary**, so between events the frozen text just
+    persists — not a protection, simply no new decision to replace it, §5.) **Replacing a PARKED
+    ambient ends that (undelivered, no-trace) episode and starts a NEW `episodeId`** — its frozen text
+    evaporates and does **not** carry into the new episode's `hints[]`. So slot↔episode stays 1:1 (§3)
+    and history never mixes unrelated hints.
   - **DELIVERED** = content reached the student (an `active` push, or an `ambient` the student
     clicked open). Hard-protected: no new interruption, no quieter downgrade, no auto-elaboration.
     The only allowed change is an **escalation** (opened `ambient` + a hard event → `active`, §6).
-- **IN-SESSION** = a sub-state of DELIVERED: the student has the chat open / is replying, actively
-  engaging the current episode there. New content flows **quietly into the open chat** (§16); still
-  no new interruption.
+- **IN-SESSION** = a soft indicator that **the chat view is currently open/focused** (a UI state the
+  client reads directly — **not** inferred from a sent reply, so no send-ordering dependency, and it
+  does **not** bump the slot generation, §6). It affects **only escalation loudness** (an escalation
+  goes quietly into the open chat rather than a toast, §6) — it is **not** a slot-resolution state and
+  **never** frees / closes / keeps the slot. (**Free-text never resolves the slot**; resolution is via
+  progress, dismiss, a stale-ask button, the stale timer, or the hard-cap force-free, §7.) New content
+  still flows **quietly into the open chat**; no new interruption.
 - Frees **only** on **progress**, **dismiss**, or the **stale-episode cleanup** (all §7). **Opening
   / reading / working with the hint does NOT free it** (you are using it).
+
+**PARKED lifecycle (authoritative).** A PARKED hidden ambient (ambient decided, not clicked) exits in
+exactly these ways, nothing else:
+- **click** → becomes **DELIVERED** (text **revealed immediately**; persistence attempted then
+  retried, §12);
+- **next decision** (fires only on an event/boundary): `ambient` / `active` → **replace** (new
+  `episodeId`, §6); `silent` → **discard → FREE** (no row);
+- **progress** confirmed (§7.1) → **FREE**, silent (nothing was shown to close);
+- **stale** → **FREE**, silent (no row). PARKED has **no stale-ask and no per-ask ABANDON
+  timer/buttons** (those are DELIVERED-only), but it **is** governed by the episode-level **stale
+  watchdog** (§7.3) — that watchdog is exactly what frees it on stale.
+
+A PARKED ambient carries **no buttons and no per-ask timer of its own** (only the shared stale
+watchdog, §7.3) and **never leaks**: the watchdog frees it even if no other event fires.
 
 ## 5. Surfaces: ambient = pull, active = push
 
@@ -76,12 +96,15 @@ Iris never auto-elaborates a delivered hint at the same level — if the student
   the no-anchor fallback (active relies on its louder surfaces).
 
 **ambient (pull):** ONLY the pointers above. **No toast, no inline text, no auto chat bubble.** The
-hint text is **hidden and NOT stored**; clicking any pointer **reveals** it as a chat message (and
-only **then** is it saved). If the student never clicks, nothing is persisted. The hidden text is
-held **frozen** (one held text per slot): while it stays hidden, soft re-evaluations do **not**
-refresh it (re-cooking text nobody reads adds nothing); only a hard event (§6) replaces it. A hidden
-`ambient` has **no explicit dismiss** (nothing to wave away but a content-free pointer); it exits
-only via **click** (→ reveal), **progress**, or **stale-free** (§7), all silent if never clicked.
+hint text is **hidden and NOT stored**; clicking any pointer **reveals** it as a chat message
+(persisted then, best-effort retried on failure, §12). If the student never clicks, nothing is persisted. The hidden text is
+held **frozen** (one held text per slot): while it stays hidden it is simply not refreshed — the engine
+produces a new decision only on an **event/boundary**, so during pure soft drift there is no decision
+to replace it. When one does fire, the **next decision replaces it unconditionally** (no protection,
+§4/§6 — just nothing firing in between). A hidden `ambient` has **no explicit dismiss** (nothing to
+wave away but a content-free pointer); its **full exit set is the authoritative PARKED lifecycle
+(§4)** — click (→ reveal), a next decision (replace / `silent`-discard), progress, or stale-free — all
+silent if never clicked.
 
 **active (push):** the content appears automatically — **chat bubble** + **toast (once)** + the same
 pointers (badge, gutter icon) **plus the after-line inline cue text** at the anchored line
@@ -98,8 +121,11 @@ pointers (badge, gutter icon) **plus the after-line inline cue text** at the anc
 | **Status-bar item** | yes (esp. no-anchor) | – (already louder) | slot-durable |
 | **Toast / popup** | – | yes, **once** | transient (seconds → bell) |
 
-- **permanent** = lives forever in chat history (survives reload/days), never auto-deleted.
-- **slot-durable** = stays while the slot is TAKEN (no timer), clears on progress/dismiss.
+- **permanent** = **once persisted**, lives forever in chat history (survives reload/days), never
+  auto-deleted (the first persist is best-effort, §12; until it succeeds, visibility is runtime-only).
+- **slot-durable** = stays while the slot is TAKEN (no timer); clears when the slot **frees**
+  (progress, dismiss, or stale-free, §7). The **badge** additionally clears as soon as the chat is
+  opened (the student has seen there is something).
 - **transient** = a few seconds, then the notification bell.
 
 ambient and active stay **distinct** (pull vs push); they are not merged. **ambient drops the
@@ -128,9 +154,11 @@ On a **DELIVERED** hint the client allows only:
   There is **no separate `escalate` intent** — it is a normal `decide` call whose louder result the
   client applies in place.
 
-On a **PARKED** hidden ambient there is no protection: a fresh decision freely **replaces** the
-frozen held text (§4). A replacement that comes back `active` is a fresh *first delivery*, not an
-escalation of the ignored hint.
+On a **PARKED** hidden ambient there is **no protection**: the next decision **replaces** the frozen
+held text unconditionally (§4). It is not refreshed during pure soft drift only because no decision
+fires then — not a rule. A replacement that comes back `active` is a fresh *first delivery*, not an
+escalation of the ignored hint; one that comes back **`silent`** (Iris now judges nothing is needed)
+**discards** the PARKED ambient → **slot FREE** (no row, no trace).
 
 A genuinely **new, separate** interruption (a *different* problem): if the slot is **DELIVERED** it
 **waits** until the slot frees — a delivered episode is **never preempted** (one focus at a time,
@@ -139,10 +167,38 @@ as a new episode (§4). The "much-worse B" case is handled by the §7.3 stale-as
 interrupting a delivered episode.
 
 - **Within-episode messages are not "new pops".** An escalation, the closing message (§8) and the
-  stale-ask (§7.3) are quiet and about the *current* episode; §2's "never pop something new" forbids
-  a new *interruption for a new issue*, not these.
+  stale-ask (§7.3) are about the *current* episode (not a new *issue*); §2's "never pop something new"
+  forbids a new *interruption for a new issue*, not these. Even when an escalation uses an active push
+  (not IN-SESSION, §6 above), it deepens the **live** episode rather than popping a new one.
 - The gutter icon stays put (it must **not** retire on the first keystroke anymore — too eager
   today).
+
+**Async / generation guard.** Every slot decision is async (a `decide` / `confirmClose` / `staleCheck`
+response, the `~60 s` stale timer, the `~5 s` close timer, a button click), so a late one can arrive
+after the slot already moved on. The client keeps a monotonic **`slot_generation`** — **local,
+off-wire client metadata** — **bumped only on a SEMANTIC slot transition**: take, replace / supersede
+(new `episodeId`), free, `PARKED→DELIVERED`, and an escalation. It is **NOT** bumped for
+**presentation-only** changes — `IN-SESSION` (chat open/focused) and stale-ask visibility — so a valid
+in-flight `decide` / `confirmClose` is **never** dropped just because the chat was opened meanwhile;
+**quiet-vs-push loudness is computed from the *current* UI state at apply time**, not baked into the
+request. The client also keeps the current **`episodeId`** and, while a stale-ask is open, an **`ask_id`**
+(client-local; rides on the rendered stale-ask message + its buttons, §16, **not** persisted). A
+client-local **`stale_check_id`** likewise dedups in-flight `staleCheck` requests (§7.3). Each
+pending request/timer remembers the `episodeId` + `generation` (and `ask_id` / `stale_check_id`) it was
+issued under; on arrival it is **applied only if those still match the live slot** — otherwise
+**dropped as stale**. So no late `decide` / `confirmClose` / timer / button mutates the wrong or
+already-freed episode, nor under rules that have since changed (used by §7 and §16). The stale-ask's
+ABANDON timer additionally carries a monotonic **`deadline`**, advanced on every free-text reset
+(§7.3); an expiry fires the ABANDON **only if it is still the current `deadline`**, so a superseded
+(pre-reset) timer callback is a no-op.
+
+**Single-flight per intent.** Generation/id match is not enough when two requests of the same intent
+overlap, so `decide` and `confirmClose` are **single-flight per episode**: the client tracks the
+**latest** outstanding request per intent and **applies only the newest** response, dropping any older
+same-generation one (an old `decide` cannot overwrite a newer PARKED replacement, and `confirmClose`
+cannot apply twice — e.g. from a progress edge plus a button, or a double-click). Stale-ask **buttons
+disable after the first click** (no double-fire); `staleCheck` is already single-flight via
+`stale_check_id` (§7.3).
 
 ## 7. Resolution (freeing the slot)
 
@@ -153,41 +209,85 @@ The slot frees **only** when:
    ~0.6 for ~30s), and **Iris must then confirm it** (re-reads the code). **Iris confirmation is
    mandatory** — if Iris judges it is not actually resolved, it stays quiet and the slot stays TAKEN.
    **Edge-triggered, exactly one `confirmClose` per progress edge:** `OPEN` → engine flags progress →
-   `CANDIDATE_CLOSE` (fire **one** `confirmClose`) → Iris `resolved=true` → `CLOSED` (close + fold);
+   `CANDIDATE_CLOSE` (fire **one** `confirmClose`) → Iris `resolved=true` → **slot FREED immediately**
+   (persist the close, mark `RECOVERED`); the ~5 s closing timer is **UI-only** folding of the
+   already-freed episode (§8), so a new issue may take the slot during it.
    `resolved=false` → back to `OPEN`, **no immediate re-fire** — only a **fresh** progress edge (a new
-   green test, or `sBase` rising and then dropping under ~0.6 again) re-arms the next `confirmClose`.
-   This prevents a per-tick race and Pyris spam.
-2. **Dismiss** — the student explicitly waves it away.
-3. **Iris asks (stale-episode cleanup)** — fires when the slot is TAKEN on problem A but there is
-   **no progress on A for a sustained while** (a file-switch or a quiet idle are *sufficient* signs,
-   **not required** — a student working a *different task in the same file* counts too). Iris judges
+   green test, or `sBase` rising then dropping under ~0.6 again) re-arms the next `confirmClose`. **No
+   fuzzy "code-delta" predicate** — kept fully deterministic. A *quiet* recovery that produces no such
+   edge is still caught by the **stale-ask (§7.3) backstop** (the student clicks "Yes, solved it" →
+   `confirmClose`), so a delivered slot cannot leak. This prevents a per-tick race and Pyris spam.
+2. **Dismiss** — the student explicitly waves it away. Concrete affordance: a **"Dismiss" action on
+   the delivered hint card** (and on the `active` toast). It dismisses the **whole episode** (frees
+   the slot → `DISMISSED`, then folds, §8). A **PARKED** hidden ambient has **no** dismiss (only
+   click / progress / stale-free, §5) — there is nothing shown to wave away.
+3. **Iris asks (stale-episode cleanup)** — fires only when the slot is **DELIVERED** on problem A but
+   there is **no progress on A for a sustained while** (a file-switch or a quiet idle are *sufficient*
+   signs, **not required** — a student working a *different task in the same file* counts too). A
+   **PARKED** (never-delivered) ambient gets **no** stale-ask — it just frees **silently** on stale
+   (§5): no question, no row, nothing was ever shown to ask about. Iris judges
    task-relevance with the tools it already has (`get_problem_statement` for the Artemis task
    structure + `get_feedbacks` for which task's tests are moving + the current code, §11) — no
    file-switch heuristic, language-agnostic. It then drops **one quiet question** into the chat ("Did
-   you get past X?"), **no toast**. The reply is **interpreted** by the struggle pipeline
-   (`interpretReply`, §16/§17) — not guessed from a click:
-   - **`resolved`** → Iris **re-reads the code to confirm** (the §7.1 two-stage gate; a bare "yes"
-     never frees a still-broken slot) → close (§8).
-   - **`moved_on`** → free the slot **silently** (a soft dismiss; no code-check needed).
-   - **`still_stuck`** → slot stays, IN-SESSION; the reply **falls through to the normal chat**, which
-     answers substantively.
-   - **No reply within ~60 s of the ask** → **free the slot** (`ABANDONED`). The timer is the backstop
-     for the *unanswered* case only: it **starts** when the stale-ask is posted, **any reply cancels**
-     it (the reply routes to `interpretReply`), on expiry the slot frees. ~60 s is tunable.
+   you get past X?") with **explicit quick-reply buttons** and **no toast**. The buttons make the
+   answer **deterministic — no LLM classification, so a real typed question can never be swallowed**
+   (§16):
+   - **"Yes, solved it"** → run `confirmClose` (Iris re-reads the code; a bare "yes" never frees a
+     still-broken slot). If `resolved=true` → close (§8). If `resolved=false` (code still broken — the
+     student misjudged) → the slot **stays TAKEN** and Iris posts **one** gentle offer
+     (its `rationale` line, e.g. *"Looks like the empty-list case still trips — want to look
+     together?"*), never a silent no-op.
+   - **"Still on it"** → slot stays TAKEN.
+   - **"Doing something else"** → free the slot **silently** (`ABANDONED`; no code-check needed).
+   - **Free-text instead of a button** is **never** intercepted — it goes straight to the normal chat
+     (§16) and **never resolves the slot** (resolution is only via progress / dismiss / a button / the
+     timer / the hard-cap, §7); the ask and its buttons stay. It only **resets the ask's ABANDON timer
+     to ~30 s** — the student is active, so don't ABANDON yet, but free-text is a weaker "I'm on A"
+     signal than a button, hence a shorter window than the initial ~60 s. The reset is **provisional on
+     submit** (applied immediately, so a slow send/ack never ABANDONs mid-engagement) and **revoked
+     only on a hard send failure**; it advances the ask's `deadline` so a superseded timer is a no-op
+     (§6).
+   - **No activity until the timer expires** → **free the slot** (`ABANDONED`). The timer **starts at
+     ~60 s**; a **button** resolves the slot immediately; a **free-text** resets it to **~30 s** — **but
+     bounded by an absolute per-ask ceiling (~5 min from the ask, tunable): free-text resets can never
+     push the `deadline` past it, so the slot ABANDONs regardless of chatter once the ceiling is hit.**
+     This **restores guaranteed termination** (so the "max 2 asks" cap and §13's delay bound actually
+     hold). (The student can always click "Still on it" to keep A explicitly.) All windows are
+     **tunable**.
 
-   **Re-arm per stale period, not per episode:** a re-engage resets the ask latch, so a *later* drift
-   can ask again — this closes the slot leak (re-engage → drift → new ask → no reply → free). **Hard
-   cap:** after the **2nd** stale with no progress/dismiss the slot **force-frees silently** (no 3rd
-   ask), guaranteeing termination and bounding nagging. This is how "the student continues elsewhere"
-   is handled, so **no deterministic topic-change detection is built** (§13).
+   **Stale watchdog + counters (the termination guarantee).** A client-side **stale watchdog** drives
+   this (the engine is event-driven, so we do **not** rely on a new event firing): it is **armed** when
+   the slot becomes TAKEN, **reset** on meaningful progress/activity toward A, and **fires** after
+   `STALE_AFTER` of no progress (the "sustained while", tunable). On fire it runs a `staleCheck`
+   (DELIVERED) or frees silently (PARKED, §4). Two per-episode counters bound it:
+   - **`staleWindowCount`** increments on **every** watchdog fire (every `staleCheck`), regardless of
+     `ask=true` / `ask=false`. At an episode **ceiling** (`STALE_WINDOW_MAX`, ~4, tunable) the slot is
+     **force-freed** (`ABANDONED`) — the **hard termination bound**, so even endless `ask=false` noops
+     cannot keep a slot TAKEN forever (this is what makes §13's delay bound real).
+   - **`staleAskCount`** increments only when a question is actually **posted** (`ask=true`); capped at
+     **2** (the nagging bound) — past 2, later windows do **not** post a question even if `ask=true`,
+     they only tick `staleWindowCount` toward the ceiling.
+   Neither counter resets within an episode; the episode ends on a terminal outcome (recovered /
+   abandoned / dismissed). Example: ask#1 → "Still on it" → drift → ask#2 → "Still on it" → drift →
+   further windows are silent until `STALE_WINDOW_MAX` force-frees.
+
+   **One staleCheck at a time (no duplicate asks).** The client fires **at most one `staleCheck` in
+   flight** per episode, stamped with a client-local **`stale_check_id`**. A `staleCheck` response
+   posts the ask **only if** it is the current in-flight `stale_check_id`, the `slot_generation` still
+   matches, **and no ask is already open** — otherwise it is **dropped** (a late / duplicate response
+   can never post a second question). Any **button** on the open ask (including "Still on it") and any
+   **slot free** also **cancel** an in-flight `staleCheck`. This is how "the student continues
+   elsewhere" is handled, so **no deterministic topic-change detection is built** (§13).
 
 On confirmed progress, do **not** silently remove the marker. Iris closes it (§8). The hint text
-**stays** in the chat (permanent). (The stale-cleanup ask in #3 is the gentle counterpart for
+**stays** in the chat (permanent **once persisted**, §12). (The stale-cleanup ask in #3 is the gentle counterpart for
 episodes that fade out rather than getting solved.)
 
 ## 8. Closing UX
 
-This describes the **progress** close (§7.1). On confirmed progress, **both**, but split:
+This describes the **progress** close (§7.1). **The slot is FREE the instant progress is confirmed**
+(outcome marked `RECOVERED`, §7.1); the ~5 s below is **UI-only** (folding the already-closed episode),
+and a **new episode may take the slot during it**. On confirmed progress, **both**, but split:
 - Iris posts a **closing message** with **praise + a problem name**, e.g. *"Nice 👍 — that was the
   wrong index."* It stays visible for a short **~5-second timer**.
 - **Then** the episode **folds** to a one-liner carrying the **problem name** (scannable history):
@@ -207,8 +307,12 @@ Closing/folding applies only to episodes that were actually delivered.
 
 ## 9. Chat presentation
 
-One **episode = one thread**, but normally just **one** proactive hint in it (no deepen pile). At
-most an **escalation** (§6) adds a second message; the latest is open, the earlier one collapses.
+One **episode = one foldable group of its *proactive-origin* messages** (the student's replies and the
+tutor's answers stay **inline** as normal chat, **not** in the fold, §12). Normally just **one**
+proactive hint in the group (no deepen pile); a few proactive-origin messages may join — an
+**escalation** (§6), the **stale-ask** (§7.3), a **confirmClose-`false` offer** (§7.3), and the
+**close** (§8) — all grouped by `proactiveEpisodeId`, latest open, earlier collapsed. On reload the
+group folds; the interaction it sparked stays as normal chat.
 
 ```
 Iris-Chat
@@ -247,20 +351,24 @@ So: short = slot (runtime), long = chat history (server).
 ## 11. What Iris receives (continuity context)
 
 - **Chat history** (existing) = the full conversation, so Iris does not repeat itself.
-- **Structured slot/episode history** (new, in the POST) = the episode's **hints** (history, incl.
-  hidden ambient ones that are not persisted) + its **episode-level `status`** (§17) + an **episode
-  boundary marker** ("new episode" vs "continuation of episode N"). Needed because episode boundaries
-  and the progress-based status are **not derivable from the chat stream alone**. We tell Iris
-  explicitly.
-- Replaces today's naive `(proactive hint, ignored)` tag with a **progress-based** outcome.
+- **Structured slot/episode history** (new, in the POST) = **the live episode's** **hints** — the
+  initial hint **+ any escalation** only (incl. hidden ambient ones that are not persisted); the
+  stale-ask, confirmClose-`false` offer, and close are **not** in this block (Iris sees them via chat
+  history, §17) — plus an **episode boundary marker** (`isNew`: new episode vs continuation). It is scoped to the **current** episode — the boundary is **not derivable
+  from the chat stream alone**, so we tell Iris explicitly. **No** outcome/`status` field rides on the
+  request (the live episode is always open; terminal outcomes are a DB concept, §12). **Prior**
+  episodes are not re-sent structurally; their content is already visible to Iris via the **chat
+  history** (close lines, folded labels) when a past episode is relevant.
+- This replaces today's naive `(proactive hint, ignored)` signal: the outcome is now **progress-based**
+  and **persisted** (`proactiveOutcome`, §12), not a wire tag.
 - **Exercise artifacts (existing Pyris tools, not new wire fields):** `get_problem_statement` (the
   Artemis task structure) + `get_feedbacks` (which task's tests are passing/failing) + the current
   code. These let Iris judge **task-relevance** ("is A still the active task, or did the student move
   to a different task — even in the same file?", §7.3) **language-agnostically**, with no live cursor
   / method field on the wire. Template and solution repos are **deliberately not** exposed (offloading
   risk).
-- **Pyris stays stateless about the slot.** Iris receives episode *history* (the hints + the episode
-  `status` + the boundary marker above) for continuity, but **never the slot mechanics** — PARKED vs DELIVERED,
+- **Pyris stays stateless about the slot.** Iris receives episode *history* (the hints + the boundary
+  marker above) for continuity, but **never the slot mechanics** — PARKED vs DELIVERED,
   IN-SESSION, the stale-ask latch, whether a hidden ambient was revealed. Those live **only** in the
   client (§16). Iris re-decides freely each call; the client enforces the slot. So their absence from
   the request DTO (§17) is **deliberate, not an omission**.
@@ -278,19 +386,44 @@ Checked the Artemis `IrisMessage` schema — most of it exists already:
 episode in history is historical → the client **folds all** of them on load, grouped by
 `proactiveEpisodeId`. The "is this episode still open after reload?" question cannot arise — openness
 is a runtime state that does not survive reload. Within a live session the client tracks the live
-episode in runtime (knows which one is expanded); no DB needed for that either.
+episode in runtime (knows which one is expanded); no DB needed for that either. **Scope cut
+(deliberate):** only *display* folding survives reload; all runtime continuity — the live slot, the
+`slot_generation`, an outstanding stale-ask, its timer, IN-SESSION — is **lost on reload by design**
+(§10). Reload = a clean runtime slate; only the chat history (and the persisted episode rows) carry
+over. We do **not** persist live-state to survive reload.
 
 **Minimal additions:**
 - **One** nullable column **`proactiveEpisodeId`** on `IrisMessage`, so the client can group an
   episode's messages into one foldable thread (across reload). It tags **only proactive-origin
-  messages** (the hint, the stale-ask, the close) — **not** the student's replies or the tutor's
-  answers, which stay normal inline chat. This keeps the column semantically clean and the chat
+  messages** (the hint, an escalation, the stale-ask, a confirmClose-`false` offer, the close) —
+  **not** the student's replies or the tutor's answers, which stay normal inline chat. This keeps the column semantically clean and the chat
   pipeline fully uncoupled (it never sees an episodeId). Tighter visual grouping, if ever wanted, can
   be done client-side later without touching the pipeline.
 - Extend the `proactiveOutcome` enum with **`RECOVERED`** (progress) and **`ABANDONED`** (faded /
   stale-free: moved_on, timeout, hard-cap), alongside the existing `DISMISSED`. Persisted **for the
   thesis outcome analysis**, NOT for folding (string enum → **no migration**). (`ABANDONED` is a
   placeholder name — `STALE` / `FADED` would do.)
+- **Canonical outcome row + scope.** The terminal `proactiveOutcome` is written to **one** canonical
+  row per episode — the **earliest persisted proactive-origin message** for that `proactiveEpisodeId`
+  — so analysis reads the episode outcome from a single well-defined row, not scattered across the
+  thread; **outcome writes are idempotent** (re-writing the same terminal value is a no-op). Outcome
+  analysis is **scoped to delivered episodes** (active, or a clicked-open ambient): a never-delivered /
+  replaced PARKED ambient leaves **no row** by design (next bullet) and is therefore simply **not** in
+  the outcome dataset — it was never shown, so there is nothing to score.
+- **Delivery commit point.** An episode becomes **DELIVERED the moment content is shown** (an `active`
+  push, or an `ambient` clicked open) — **protection is immediate** and it can **never** fall back to
+  PARKED once the student has seen content. Persisting its first proactive message happens then and is
+  **retried on failure** (a pending/failed persist does **not** revert protection); until it succeeds
+  the episode is **incomplete** for outcome analysis (canonical row pending). So "seen" and "protected"
+  coincide; the canonical row is written **best-effort** (idempotent retry). A first-row persist that
+  keeps failing **and** is lost to a reload before it succeeds simply leaves that episode **absent from
+  outcome analysis** (like a never-delivered one) — we do **not** build a durable cross-reload retry
+  queue for this rare edge.
+- **Null-outcome rows are excluded from outcome *rates*, but reported.** A delivered episode left with
+  `proactive_outcome = null` (e.g. a reload mid-episode, or never resolved) is **not imputed**. It is
+  excluded from the recovered/abandoned/dismissed **rate denominators**, but **counted and reported
+  separately** as an attrition/censoring line — never silently dropped — so outcome-rate analysis is
+  not biased. We do not persist live-state on teardown to "complete" it.
 - **Hidden ambient hints are NOT stored** (runtime + the structured slot-history in the POST; saved
   only when a click reveals them, then a normal message). A never-delivered ambient leaves **no row**,
   so there is simply nothing to fold (§8) — consistent.
@@ -305,7 +438,11 @@ values** (no migration). Nothing else.
 **Deterministic** topic-change detection (the "student moved elsewhere" case is instead handled by
 the §7.3 stale-episode ask); **preemption of a *delivered* slot** by a new / different / much-worse
 struggle B — B simply **waits** until A frees via §7.3 (one focus at a time, no preempt rule; a merely
-*parked* ambient is instead replaced as a new episode, §4); a **live cursor /
+*parked* ambient is instead replaced as a new episode, §4). **This is a stated thesis limitation, not
+a free lunch:** a delivered slot is **mechanically bounded** — the stale watchdog fires every
+`STALE_AFTER` and `STALE_WINDOW_MAX` windows force-free it (§7.3), so the **upper bound** on delaying a
+worse B is about `STALE_AFTER × STALE_WINDOW_MAX` (each ask window further capped by the ~5 min ABANDON
+ceiling) — all **tunable** and **guaranteed finite**; we accept the bound rather than build preemption. Also deferred: a **live cursor /
 method location field on the wire** (Iris infers task-relevance from `problem_statement` + `feedbacks`
 instead, §11) and any **deterministic task / phase detection** (that is the roadmap's V2.0
 "Phase-aware Proactivity"); tutor escalation after long stuck; the "break it down?" offer; frequency
@@ -315,19 +452,24 @@ add-ons later.
 ## 14. Resolved decisions
 
 1. **Ambient surface:** gutter Iris icon + status-bar lamp, **no inline text**; the hint becomes
-   visible **and** saved **only on click** (until then runtime-only, not persisted). ✓
+   visible **on click** and **persisted then** (best-effort, retried, §12; until then runtime-only). ✓
 2. **DB:** the `proactiveEpisodeId` column only **groups** an episode's messages; the core slot needs
    **zero** DB, and **folding is reload-safe for free** (slot is runtime → fold-all on reload, §12).
    Total footprint: **one** nullable column `proactive_episode_id` on `iris_message` (one Liquibase
    changelog) **+** `RECOVERED` and `ABANDONED` values on the existing `IrisProactiveOutcome` enum
    (string → no migration), persisted for outcome analysis, not folding. Nothing else. ✓
-3. **Closing timer:** **~5 s** visible, then fold (or on the next chat interaction, whichever first). ✓
+3. **Closing:** the slot is **FREED immediately** on confirmed progress; the **~5 s** is **UI-only**
+   folding of the already-closed episode (§7.1/§8). ✓
 4. **"Student continues elsewhere" + "Iris asks about progress"** are the same issue from two sides,
-   resolved together as the **stale-episode ask (§7.3)**: when the slot is TAKEN on A with no progress
-   and the student has moved on, Iris asks **quietly** (chat message, no toast) — **once per stale
-   period** (re-arms on re-engage), **hard-capped at 2** asks then silent force-free. The reply is
-   **interpreted** (`interpretReply`: `resolved` / `moved_on` / `still_stuck`); the ~60 s timer is only
-   the backstop for an unanswered ask. **No deterministic topic-change detection is built.** ✓
+   resolved together as the **stale-episode ask (§7.3)**: when the slot is **DELIVERED** on A with no
+   progress and the student has moved on, Iris asks **quietly** (chat message, no toast) with
+   **deterministic quick-reply buttons** ("Yes, solved it" → `confirmClose`; "Still on it" → stay;
+   "Doing something else" → free), **capped at 2** posted asks (nagging); a client **stale watchdog**
+   fires every `STALE_AFTER`, and after `STALE_WINDOW_MAX` windows the slot **force-frees** regardless
+   (§7.3). **No LLM reply
+   classification** (no `interpretReply`); free-text always goes to the normal chat and only **resets the
+   ABANDON timer** (~30 s; never resolves the slot). The timer is only the backstop for an unanswered
+   ask. **No deterministic topic-change detection is built.** ✓
 
 ## 15. Literature grounding & honesty (for the thesis)
 
@@ -353,33 +495,41 @@ Everything below rides on that existing seam.
 
 **Who frees / closes the slot — NOT the chat pipeline.** The normal chat pipeline only *converses*;
 it cannot touch slot state. Slot/episode state is owned by the **client (runtime)**:
-- The client observes the student's chat **reply** → counts as **re-engagement** with episode A →
-  the slot stays TAKEN and goes **IN-SESSION**. Normal resolution (progress / dismiss) continues from
-  there.
+- The client observes the student's chat **reply**: if a stale-ask is open it **resets that ask's
+  ABANDON timer** (provisional on submit, §7.3). It does **not** resolve the slot — resolution is via
+  progress / dismiss / a stale-ask button / the stale timer / the hard-cap. **Free-text never resolves
+  the slot.** (**IN-SESSION** tracks the chat view being open/focused, §4 — independent of any reply or
+  send.)
 - Positive **closing** content (praise + `episodeLabel`) is produced by the **struggle pipeline's
   `confirmClose` mode**, triggered by the slot logic **when progress is confirmed** — never by the
   chat pipeline. The **stale-ask** question likewise comes from the struggle pipeline's `staleCheck`
   mode.
 
-**Reply routing — the only place a reply goes to struggle instead of chat.** Every reply passes
-through the client first (`ChatMessageService.sendMessage`, `chatMessageService.ts:44`) **before** it
-is POSTed to Artemis (`:112`), and the client owns the slot state — so the routing is a
-**deterministic client-side branch**, not backend guesswork:
-- **No outstanding stale-ask → straight to the exercise (chat) pipeline, byte-for-byte as today.**
-  This is ~every reply.
-- **A stale-ask is outstanding →** the client sends the reply to the struggle pipeline
-  `interpretReply` (§17) **first**:
-  - `resolved` → close (code-confirmed, §7.1/§8); **the chat pipeline is NOT called.**
-  - `moved_on` → free the slot silently; **no chat turn.**
-  - `still_stuck` → fall through to the normal `sendChatMessage` → the tutor answers.
-- **Fail-open:** if `interpretReply` errors or times out → default `still_stuck` → normal chat. A reply
-  never starves because the struggle pipeline is down.
+**Reply routing — free-text always reaches the chat; a reply can only resolve the slot via buttons.**
+Every reply passes through the client first (`ChatMessageService.sendMessage`,
+`chatMessageService.ts:44`) **before** it is POSTed to Artemis (`:112`), and the client owns the slot
+state. **Free-text replies are NEVER intercepted** — they go straight to the exercise (chat) pipeline,
+byte-for-byte as today, so a real typed question **cannot** be swallowed. **Free-text never resolves
+the slot;** among replies, only the **explicit quick-reply buttons** on a stale-ask do (§7.3), handled
+**deterministically client-side, no LLM**:
+- **"Yes, solved it"** → `confirmClose` (code-confirmed, §7.1/§8). The chat pipeline is not involved.
+- **"Doing something else"** → free the slot silently (`ABANDONED`).
+- **"Still on it"** → slot stays TAKEN; nothing sent.
+- A free-text reply while a stale-ask is open → **chat as normal**; it does **not** change slot state
+  or cancel the ask (free-text never resolves the slot), it only **resets the ask's ABANDON timer**
+  (~30 s, provisional on submit, bounded by the per-ask ~5 min ceiling, §7.3) so the slot is not
+  auto-`ABANDONED` while the student is active. The buttons stay available.
 
-The optimistic echo of the student's own message can render immediately; only the *tutor's* answer
-waits one classify hop, and only in the `still_stuck` case.
+So there is **no `interpretReply` and no reply classification** — the only struggle-pipeline call a
+reply can trigger is `confirmClose` (and only via the "solved" button). The chat **conversation** is
+uncoupled (the client decides *whether* to also free/close the slot, never *whether* the chat answers);
+the **only** coupling is a **provisional, local timer grace** the client applies on submit and revokes
+on a hard send failure (§7.3) — it never gates or alters the chat answer.
 
-**Stale-ask timer = backstop only.** The interpreted reply is the primary exit; **no reply within
-~60 s of the ask** frees the slot (`ABANDONED`), per the precise rule in §7.3. ~60 s is tunable.
+**Stale-ask timer = backstop only.** A **button** resolves the slot immediately; a **free-text** reply
+resets the timer to ~30 s (bounded by the per-ask ~5 min ceiling); with **no activity** until expiry
+the slot frees (`ABANDONED`), per §7.3. The ~60 s initial / ~30 s free-text / ~5 min ceiling windows
+are tunable.
 
 **Client chat UI (rendering only, not the protocol).** The webview already renders
 `PROACTIVE_STRUGGLE` messages; we extend it:
@@ -387,6 +537,12 @@ waits one classify hop, and only in the `still_stuck` case.
 - **Group by `proactiveEpisodeId`**: newest hint expanded, earlier folded ("▸ earlier hints"); a
   resolved episode folds to a one-liner ("✓ Wrong index").
 - **Closing**: show the closing message, then fold after the ~5 s timer (§8).
+- **Stale-ask buttons**: render the three quick-reply buttons ("Yes, solved it" / "Still on it" /
+  "Doing something else") on the stale-ask message; a click drives the slot deterministically (§7.3)
+  and carries the **client-generated `ask_id`** (not persisted) so a late click on a superseded ask is
+  ignored (the async guard, §6). Buttons render **only for the live runtime ask**; a **reloaded /
+  historical** stale-ask row (its `ask_id` and slot are gone, §12) renders as **plain text with no
+  active buttons**.
 - **Hidden ambient**: not a message until the student clicks a pointer; on click the runtime hint is
   **promoted** to a normal chat message (and only then saved).
 - **On reload, fold everything**: the runtime slot is gone, so no proactive episode is "live" — the
@@ -398,13 +554,14 @@ engage with it. We **fold** it (compact but accessible). The **only** thing hidd
 **ambient hint text** (by design, pull). Older/resolved episodes are folded one-liners, always
 expandable.
 
-**Additive vs (almost) unchanged.** Unchanged: the normal exercise-chat pipeline, the shared session,
-the reply path. **Changed (small):** the chat **message DTO** gains episode metadata —
+**Additive — conversation path unchanged, slot logic layered alongside.** The **conversation path** is
+unchanged (the normal exercise-chat pipeline, the shared session, the reply routing). The slot logic is
+**layered alongside** with **minimal DTO/UI additions**: the chat **message DTO** gains episode metadata —
 `proactiveEpisodeId` and the new `proactiveOutcome` values — so the client can group/fold; these do
 **not** flow on the wire today (`extensionMessages.ts:339`, `apiResponses.ts:177`), so "transport
-fully unchanged" would be wrong. Added: struggle-pipeline `confirmClose` / `staleCheck` /
-`interpretReply` modes (Pyris); the `proactiveEpisodeId` column + "observe reply → route + update
-slot" (Artemis/client); the webview rendering above.
+fully unchanged" would be wrong. Added: struggle-pipeline `confirmClose` / `staleCheck` modes (Pyris);
+the `proactiveEpisodeId` column + "stale-ask buttons → free/close the slot" (Artemis/client); the
+webview rendering above.
 
 ## 17. DTOs — what goes to Iris and what comes back
 
@@ -418,16 +575,18 @@ this design adds. Java records on the Artemis side, mirrored as Pydantic on the 
   struggleSignal: PyrisStruggleSignalDTO,            // existing
   uncommittedFiles: Map<String, String>,             // existing — current code
 
-  intent: "decide" | "confirmClose" | "staleCheck" | "interpretReply",  // +NEW — what we want Iris to do
-  replyText: String | null,                           // +NEW — interpretReply only: the student's stale-ask reply
-  episode: {                                          // +NEW — slot/episode continuity (§11)
+  intent: "decide" | "confirmClose" | "staleCheck",  // +NEW — concept names shown; WIRE values are
+                                                     // snake_case: decide / confirm_close / stale_check
+  episode: {                                          // +NEW — ALWAYS sent (never null/omitted); on the
+                                                      // first `decide` of a FREE slot the client preallocates
+                                                      // a fresh episodeId, isNew=true, hints=[] (§11)
     episodeId: String,
-    isNew: boolean,                                   // new episode vs continuation
-    status: "active" | "resolved" | "abandoned" | "dismissed",  // episode-level outcome (NOT per-hint)
-    hints: [                                          // pure history: every hint THIS episode, incl. hidden ambient
-      { level: "ambient" | "active",
-        text: String,
-        atSessionS: double }
+    isNew: boolean,                                   // new episode vs continuation (the live episode
+                                                      // is always open; terminal outcome is a DB concept, §12 — not sent)
+    hints: [                                          // the substantive HINTS only — the initial hint +
+      { level: "ambient" | "active",                  // any escalation; NOT the stale-ask / confirmClose-false
+        text: String,                                 // offer / close (those live in chat history, §11).
+        atSessionS: double }                          // Includes hidden ambient hints (never persisted).
     ]
   }
 }
@@ -442,12 +601,17 @@ PyrisStruggleSignalDTO {
 }
 ```
 
+*(The `intent` / enum literals below are written as concept names for readability; on the wire they
+are the snake_case forms from the casing rule — `decide` / `confirm_close` / `stale_check`.)*
+
 - `intent = decide` → the normal struggle decision (today's flow).
 - `intent = confirmClose` → engine flagged progress; Iris re-reads the code, confirms + closes.
-- `intent = staleCheck` → episode is stale; Iris decides whether/what to ask.
-- `intent = interpretReply` → the student answered an outstanding stale-ask (`replyText`); Iris
-  classifies it as `resolved` / `moved_on` / `still_stuck` (§7.3). On `resolved` it also re-reads the
-  code and may return the close fields in the same call (folding in `confirmClose`).
+- `intent = staleCheck` → episode is stale; Iris decides whether to ask. Returns **`ask=true`** → post
+  the question with **deterministic quick-reply buttons** (§7.3/§16; "solved" later triggers
+  `confirmClose`, the others resolve client-side) — or **`ask=false`** → **noop**: Iris judges A is
+  still the active task, so the slot stays TAKEN, `staleAskCount` is **not** consumed, and the client
+  may staleCheck again at the next sustained-no-progress window. There is **no reply-classification
+  intent**.
 - **Escalation needs no intent of its own:** the one escalation case (opened `ambient` + hard event
   → `active`, §6) is just another `intent = decide` call with the `episode` block as context. Pyris
   stays **stateless** — it re-decides freely; the client enforces the slot (suppress downgrade, no
@@ -469,17 +633,17 @@ PyrisStruggleSignalDTO {
   tokens: LLMRequest[],           // existing
 
   // --- confirmClose mode (+NEW) ---
-  resolved: Boolean | null,       // did Iris confirm progress?
-  closingSentence: String | null, // praise, shown ~5 s (§8)
-  episodeLabel: String | null,    // fold-line problem name (§8)
+  resolved: Boolean | null,       // did Iris confirm progress? true → close; false → slot stays TAKEN
+  closingSentence: String | null, // praise, shown ~5 s (§8) — set only when resolved=true
+  episodeLabel: String | null,    // fold-line problem name (§8) — set only when resolved=true
+  // on resolved=false the existing `rationale` carries one gentle offer line (§7.3); the client posts
+  //   it as a proactive-origin message in the episode (grouped by proactiveEpisodeId, folds with it,
+  //   §9/§12); slot stays TAKEN
 
   // --- staleCheck mode (+NEW) ---
-  ask: Boolean | null,            // surface a question at all?
-  question: String | null,        // the stale-check question
-
-  // --- interpretReply mode (+NEW) ---
-  replyOutcome: "resolved" | "moved_on" | "still_stuck" | null  // client routes the slot on this
-                                  // (resolved may also fill resolved/closingSentence/episodeLabel above)
+  ask: Boolean | null,            // true → post question+buttons; false → noop (stay TAKEN, don't
+                                  //   consume staleAskCount, may re-check later) — §7.3
+  question: String | null         // the stale-check question (rendered with deterministic buttons, §7.3)
 }
 ```
 
@@ -488,11 +652,15 @@ PyrisStruggleSignalDTO {
   (matching the existing `anchor_*` fields and Pyris's `model_dump(by_alias)`). The camelCase shown in
   this section is the Java/TS field name; each maps to its snake_case wire alias via `@JsonProperty`
   (Java) / Pydantic alias (Pyris). New keys → wire: `episodeId`→`episode_id`, `isNew`→`is_new`,
-  `replyText`→`reply_text`, `replyOutcome`→`reply_outcome`, `closingSentence`→`closing_sentence`,
-  `episodeLabel`→`episode_label`, `status` (already snake-safe). Enum strings are snake_case too:
-  `action ∈ {silent, ambient, active}`, `status ∈ {active, resolved, abandoned, dismissed}`,
-  `reply_outcome ∈ {resolved, moved_on, still_stuck}`. A casing mismatch on either side silently drops
-  the field to null.
+  `atSessionS`→`at_session_s`, `closingSentence`→`closing_sentence`, `episodeLabel`→`episode_label`.
+  Enum strings are snake_case too: the `intent` literals `confirmClose`→`confirm_close` and
+  `staleCheck`→`stale_check` (`decide` already snake-safe), and `action ∈ {silent, ambient, active}`.
+  (The DB `proactiveOutcome` — RECOVERED/ABANDONED/DISMISSED, §12 — is a separate persistence enum,
+  **not** on this wire.) A casing mismatch on either side silently drops the field to null. The alias list above is **complete for the `+NEW` fields**; **existing** fields
+  (the `PyrisStruggleSignalDTO` signal, `anchor_*`, `result`, `action`, …) keep their **current** wire
+  contract, unchanged by this design — confirm an existing field's actual wire casing against the live
+  DTO before placing a new field beside it (the camelCase in the examples is the field name, not
+  necessarily the wire key).
 - The hidden-ambient text rides in `episode.hints[]` on the **request** (not stored in the DB), so
   Iris has it for continuity even though it never became a chat message.
 
