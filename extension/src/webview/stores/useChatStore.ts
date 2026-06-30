@@ -180,9 +180,12 @@ export const useChatStore = create<ChatState>()(
             },
 
             addMessage: (message) => {
-                set((state) => ({
-                    messages: [...state.messages, message],
-                }), false, 'addMessage');
+                set((state) => {
+                    if (message.id !== undefined && state.messages.some(m => m.id === message.id)) {
+                        return state; // already present, no-op (dedup the optimistic bubble vs the chat-ws row)
+                    }
+                    return { messages: [...state.messages, message] };
+                }, false, 'addMessage');
             },
 
             setProactiveOutcome: (messageId, outcome) => {

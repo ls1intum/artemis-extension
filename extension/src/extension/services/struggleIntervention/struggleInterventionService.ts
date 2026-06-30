@@ -283,7 +283,7 @@ export class StruggleInterventionService implements AlertSink {
         // Spec §6.1: a localized active nudge ALSO leaves the inline breadcrumb at the live line; otherwise clear
         // any stale inline cue (the active surface supersedes a previous one).
         if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
-            this._deps.showInline(anchorFile, anchorLine, inlineHint, inlineHint);
+            this._deps.showInline(anchorFile, anchorLine, inlineHint, message ?? inlineHint);
         } else {
             this._deps.clearInline();
         }

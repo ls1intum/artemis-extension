@@ -96,6 +96,44 @@ describe('useChatStore', () => {
 		expect(result.current.messages[1].role).toBe('assistant');
 	});
 
+	it('addMessage deduplicates by id: second call with same id is a no-op', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'optimistic-1', id: 42, content: 'Optimistic bubble' }));
+		});
+		act(() => {
+			// Simulate the chat-ws row arriving with the same Artemis id
+			result.current.addMessage(makeMessage({ localId: 'ws-row-1', id: 42, content: 'Server row' }));
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messages[0].localId).toBe('optimistic-1');
+	});
+
+	it('addMessage does NOT dedup when ids are different', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'msg-a', id: 1, content: 'First' }));
+			result.current.addMessage(makeMessage({ localId: 'msg-b', id: 2, content: 'Second' }));
+		});
+
+		expect(result.current.messages).toHaveLength(2);
+	});
+
+	it('addMessage does NOT dedup when id is undefined', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			// Two optimistic messages without a server id both append
+			result.current.addMessage(makeMessage({ localId: 'opt-1', id: undefined, content: 'First optimistic' }));
+			result.current.addMessage(makeMessage({ localId: 'opt-2', id: undefined, content: 'Second optimistic' }));
+		});
+
+		expect(result.current.messages).toHaveLength(2);
+	});
+
 	it('clearMessages resets messages to empty array', () => {
 		const { result } = renderHook(() => useChatStore());
 
