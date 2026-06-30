@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
+import { newEpisode } from '@extension/services/struggleIntervention/slot/episode';
 import { type StruggleInterventionDeps, StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
+import type { IrisChatMessage } from '@extension/types';
 import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
@@ -28,6 +30,16 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         postBubble: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* never auto-clear in-flight in tests */ },
+        // C2 reveal deps
+        generateLocalId: () => 'test-local-id',
+        postRevealBubble: vi.fn(),
+        reconcileOptimisticBubble: vi.fn(),
+        revealAmbient: vi.fn(async () => ({
+            id: 7,
+            sentAt: '2024-01-01T00:00:00Z',
+            proactiveEpisodeId: 'server-ep-id',
+        } as IrisChatMessage)),
+        setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         ...over,
     };
 }
@@ -388,5 +400,234 @@ describe('StruggleInterventionService', () => {
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.clearInline).toHaveBeenCalled();
         expect(deps.openSession).toHaveBeenCalledWith(8);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// C2: hold-frozen ambient + reveal-on-click + episode-outcome API + back-fill
+// ---------------------------------------------------------------------------
+
+describe('StruggleInterventionService C2 reveal', () => {
+    /** Puts the slot in PARKED state and sets the frozen session id. */
+    function setupParked(svc: StruggleInterventionService, sessionId: number, hintText = 'Re-check the loop.', epId = 'ep-uuid'): void {
+        const ep = newEpisode(1000, () => epId);
+        svc._slot.takeParked(1000, ep, { level: 'ambient', text: hintText, atSessionS: 100 });
+        svc._frozenSessionId = sessionId;
+    }
+
+    it('revealParkedHint: slot moves PARKED -> DELIVERED (generation bumps) on click', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        const genBefore = svc._slot.generation();
+        setupParked(svc, 55);
+
+        await svc.revealParkedHint();
+
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+        expect(svc._slot.generation()).toBeGreaterThan(genBefore + 1); // +1 from takeParked, +1 from revealParked
+    });
+
+    it('revealParkedHint: openSession called with the frozen sessionId', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55);
+
+        await svc.revealParkedHint();
+
+        expect(deps.openSession).toHaveBeenCalledWith(55);
+    });
+
+    it('revealParkedHint: postRevealBubble called with the frozen text and generated localId', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.');
+
+        await svc.revealParkedHint();
+
+        expect(deps.postRevealBubble).toHaveBeenCalledWith('Re-check the loop.', 'test-local-id');
+    });
+
+    it('revealParkedHint: revealAmbient called once with correct args incl. clientMessageId=localId', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+
+        await svc.revealParkedHint();
+
+        expect(deps.revealAmbient).toHaveBeenCalledTimes(1);
+        expect(deps.revealAmbient).toHaveBeenCalledWith(42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'test-local-id');
+    });
+
+    it('revealParkedHint: DTO from revealAmbient reconciles the optimistic bubble (id + proactiveEpisodeId + sentAt)', async () => {
+        const deps = fakeDeps({
+            revealAmbient: vi.fn(async () => ({
+                id: 7,
+                sentAt: '2024-01-01T00:00:00Z',
+                proactiveEpisodeId: 'server-ep-id',
+            } as IrisChatMessage)),
+        });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55);
+
+        await svc.revealParkedHint();
+
+        expect(deps.reconcileOptimisticBubble).toHaveBeenCalledWith(
+            'test-local-id', 7, 'server-ep-id', '2024-01-01T00:00:00Z',
+        );
+        // Only one reconcile call: no duplicate row
+        expect(deps.reconcileOptimisticBubble).toHaveBeenCalledTimes(1);
+    });
+
+    it('revealParkedHint: a persist failure keeps the bubble (no reconcile), does NOT revert slot to PARKED, schedules retry with the SAME localId', async () => {
+        let retryFn: (() => void) | undefined;
+        const revealAmbient = vi.fn()
+            .mockRejectedValueOnce(new Error('network'))
+            .mockResolvedValue({ id: 7, sentAt: '2024-01-01T00:00:00Z', proactiveEpisodeId: 'server-ep-id' } as IrisChatMessage);
+        const deps = fakeDeps({
+            revealAmbient,
+            setTimeoutFn: (fn) => { retryFn = fn; },
+        });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+
+        await svc.revealParkedHint();
+
+        // Bubble NOT reconciled yet (persist failed)
+        expect(deps.reconcileOptimisticBubble).not.toHaveBeenCalled();
+        // Slot stays DELIVERED (not reverted to PARKED)
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+        // A retry was scheduled
+        expect(retryFn).toBeDefined();
+
+        // Fire the retry
+        await (retryFn as () => void)();
+
+        // Retry calls revealAmbient with the SAME localId
+        expect(revealAmbient).toHaveBeenCalledTimes(2);
+        expect(revealAmbient).toHaveBeenNthCalledWith(2, 42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'test-local-id');
+        // Reconcile fires after the retry succeeds
+        expect(deps.reconcileOptimisticBubble).toHaveBeenCalledTimes(1);
+    });
+
+    it('revealParkedHint: no-op when slot is not PARKED (prevents double-reveal)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        // Slot is FREE (default)
+
+        await svc.revealParkedHint();
+
+        expect(deps.revealAmbient).not.toHaveBeenCalled();
+        expect(deps.postRevealBubble).not.toHaveBeenCalled();
+    });
+
+    it('revealParkedHint: no-op when exerciseId is missing', async () => {
+        const deps = fakeDeps({ getExerciseId: () => undefined });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55);
+
+        await svc.revealParkedHint();
+
+        expect(deps.revealAmbient).not.toHaveBeenCalled();
+    });
+
+    it('applyEpisodeOutcome: calls setEpisodeOutcome on the episode-scoped endpoint (exerciseId + episodeId)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+
+        expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, 'ep-uuid', 'DISMISSED');
+    });
+
+    it('applyEpisodeOutcome: applied=false records entry in _pendingOutcomes keyed by episodeId', async () => {
+        const deps = fakeDeps({ setEpisodeOutcome: vi.fn(async () => ({ applied: false })) });
+        const svc = new StruggleInterventionService(deps);
+
+        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+
+        expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
+        expect(svc._pendingOutcomes.get('ep-uuid')).toMatchObject({ outcome: 'DISMISSED', sessionId: 55 });
+    });
+
+    it('applyEpisodeOutcome: applied=true does NOT record a pending outcome', async () => {
+        const deps = fakeDeps({ setEpisodeOutcome: vi.fn(async () => ({ applied: true })) });
+        const svc = new StruggleInterventionService(deps);
+
+        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+
+        expect(svc._pendingOutcomes.has('ep-uuid')).toBe(false);
+    });
+
+    it('back-fill: reveal retry success flushes the pending outcome and clears the map entry', async () => {
+        let retryFn: (() => void) | undefined;
+        const revealAmbient = vi.fn()
+            .mockRejectedValueOnce(new Error('network'))
+            .mockResolvedValue({ id: 7, sentAt: '2024-01-01T00:00:00Z', proactiveEpisodeId: 'server-ep-id' } as IrisChatMessage);
+        const setEpisodeOutcome = vi.fn()
+            .mockResolvedValueOnce({ applied: false })  // dismiss before row exists
+            .mockResolvedValue({ applied: true });        // flush after row created
+        const deps = fakeDeps({
+            revealAmbient,
+            setEpisodeOutcome,
+            setTimeoutFn: (fn) => { retryFn = fn; },
+        });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+
+        // Reveal fails -> bubble posted, slot delivered, retry scheduled
+        await svc.revealParkedHint();
+        expect(deps.reconcileOptimisticBubble).not.toHaveBeenCalled();
+
+        // Student dismisses before the row exists
+        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+        expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
+
+        // Slot freed (e.g. C3 teardown) -> map SURVIVES
+        svc._slot.free();
+        expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
+
+        // Retry fires and succeeds
+        await (retryFn as () => void)();
+
+        // Row created -> pending DISMISSED is flushed
+        expect(setEpisodeOutcome).toHaveBeenCalledTimes(2);
+        expect(setEpisodeOutcome).toHaveBeenLastCalledWith(42, 'ep-uuid', 'DISMISSED');
+        expect(svc._pendingOutcomes.has('ep-uuid')).toBe(false);
+    });
+
+    it('back-fill: _pendingOutcomes map survives a slot free (teardown) between dismiss and retry', async () => {
+        const deps = fakeDeps({ setEpisodeOutcome: vi.fn(async () => ({ applied: false })) });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'hint', 'ep-uuid');
+
+        await svc.applyEpisodeOutcome('ep-uuid', 55, 'ABANDONED');
+        expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
+
+        svc._slot.free();
+
+        // Map entry still present after slot teardown
+        expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
+    });
+
+    it('resetSession clears slot, frozenSessionId, and pendingOutcomes (new exercise = clean state)', async () => {
+        const deps = fakeDeps({ setEpisodeOutcome: vi.fn(async () => ({ applied: false })) });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'hint', 'ep-uuid');
+        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+
+        svc.resetSession();
+
+        expect(svc._slot.isFree()).toBe(true);
+        expect(svc._frozenSessionId).toBeUndefined();
+        expect(svc._pendingOutcomes.size).toBe(0);
+    });
+
+    it('onServerAmbient with sessionId stores frozenSessionId for the reveal flow', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        svc.onServerAmbient('hint', undefined, undefined, undefined, undefined, null, 99);
+
+        expect(svc._frozenSessionId).toBe(99);
     });
 });

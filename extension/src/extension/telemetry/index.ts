@@ -90,6 +90,15 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             () => orchestrator.recordOutcome('clicked'),
             () => orchestrator.recordOutcome('dismissed'),
         ),
+        // C2: reveal + episode-outcome (seam-threaded; webview reconcile wired via deps)
+        generateLocalId: () => crypto.randomUUID(),
+        postRevealBubble: (text, localId) => deps.postRevealBubble(text, localId),
+        reconcileOptimisticBubble: (localId, serverId, proactiveEpisodeId, sentAt) =>
+            deps.reconcileOptimisticBubble(localId, serverId, proactiveEpisodeId, sentAt),
+        revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
+            deps.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
+        setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
+            deps.setEpisodeOutcome(exerciseId, episodeId, outcome),
         log,
         devLog,
     });

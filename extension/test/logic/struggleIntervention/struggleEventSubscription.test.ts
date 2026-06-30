@@ -33,6 +33,12 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         postBubble: vi.fn(),
         log: { record: vi.fn().mockResolvedValue(undefined) } as unknown as InterventionEventLog,
         setTimeoutFn: (_fn: () => void, _ms: number) => { /* deterministic noop */ },
+        // C2 reveal deps (no-ops for these tests)
+        generateLocalId: () => 'test-local-id',
+        postRevealBubble: vi.fn(),
+        reconcileOptimisticBubble: vi.fn(),
+        revealAmbient: vi.fn(async () => ({ id: 1, sentAt: 'T' })),
+        setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         ...overrides,
     };
 }
@@ -153,8 +159,8 @@ describe('StruggleInterventionService surface split (C1)', () => {
 
         // Optimistic bubble with messageId for dedup
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556);
-        // Inline breadcrumb at the live anchor
-        expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'off-by-one?');
+        // Inline breadcrumb at the live anchor (4th arg = message ?? inlineHint, so message wins when provided)
+        expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Try checking array bounds.');
         // Toast notification
         expect(deps.showActiveNotification).toHaveBeenCalled();
         // Badge

@@ -2,10 +2,13 @@ import type { Uri } from 'vscode';
 
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
+import type { IrisChatMessage } from '@extension/types';
 
 import { buildStruggleSignal } from './buildStruggleSignal';
 import { decideOutcome } from './decideOutcome';
 import type { InterventionEventLog, InterventionLogEvent } from './interventionEventLog';
+import type { EpisodeHint, Level } from './slot/episode';
+import { SlotManager } from './slot/slotManager';
 import type { StruggleEgressResult, StruggleInterventionRequest, StruggleSignal } from './struggleContract';
 import { templateForSignal } from './struggleTemplates';
 import { TickRingBuffer } from './tickRingBuffer';
@@ -14,6 +17,8 @@ type SurfaceMeta = Pick<InterventionLogEvent, 'action' | 'finalAction' | 'surfac
 
 const MAX_ACTIVE_PER_SESSION = 3;
 const INFLIGHT_TIMEOUT_MS = 30_000;
+/** Delay between reveal-persist retries. The server upsert is idempotent (A10), so retries are safe. */
+const REVEAL_RETRY_MS = 5_000;
 
 export interface StruggleInterventionDeps {
     isEgressEnabled(): boolean;
@@ -53,6 +58,35 @@ export interface StruggleInterventionDeps {
      * null (server persist failed, A9), the bubble is runtime-only and carries no dedup tag.
      */
     postBubble(text: string, messageId: number | null): void;
+    // ---- C2: reveal flow ----
+    /** Generate a unique local id for an optimistic reveal bubble (injectable for deterministic tests). */
+    generateLocalId(): string;
+    /**
+     * Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow). The bubble
+     * appears immediately in the chat with `sending` status; reconcileOptimisticBubble later
+     * promotes it to `sent` with the real server id once the persist confirms.
+     * Named distinctly from postBubble (numeric id) to avoid signature collision with the seam.
+     */
+    postRevealBubble(text: string, localId: string): void;
+    /**
+     * Reconcile the reveal bubble after server persist confirms the canonical row. Updates the bubble
+     * that matched `localId` to the real server `id`, `proactiveEpisodeId`, and `sentAt` in-place
+     * (no duplicate row, no orphan bubble). Mirror of the sendChatMessage optimistic-reconcile pattern.
+     */
+    reconcileOptimisticBubble(localId: string, serverId: number, proactiveEpisodeId: string | undefined, sentAt: string): void;
+    /**
+     * Reveal the hidden ambient hint by persisting it as a chat message in the proactive session (A10).
+     * POST api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/reveal
+     * Returns the persisted IrisChatMessage (id + proactiveEpisodeId + sentAt) for bubble reconcile.
+     */
+    revealAmbient(exerciseId: number, episodeId: string, hintText: string, level: Level, clientMessageId: string): Promise<IrisChatMessage>;
+    /**
+     * Record the student's terminal outcome for an episode-keyed proactive row (A10).
+     * PUT api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/proactive-outcome
+     * Returns { applied: boolean } — applied=false when the canonical row does not yet exist.
+     * The back-fill loop in the orchestrator records pending outcomes and re-applies them once the row lands.
+     */
+    setEpisodeOutcome(exerciseId: number, episodeId: string, outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED'): Promise<{ applied: boolean }>;
     log: InterventionEventLog;
     setTimeoutFn?: (fn: () => void, ms: number) => void;
     /** Developer-mode diagnostic sink (gated upstream); no-op when omitted. Pure string out, no effects. */
@@ -79,6 +113,22 @@ export class StruggleInterventionService implements AlertSink {
     private _annoyance = 0;
     private _dismissStrikes = 0;
     private _softSkipBudget = 0;
+
+    // C2: slot + frozen-hint state. Not marked private so tests can drive the slot and inspect state directly.
+    readonly _slot = new SlotManager();
+    /**
+     * The proactive session id from the last inbound ambient event (spec §5, A9).
+     * Stored here because the SlotManager does not hold session ids. Cleared on resetSession.
+     * Used by revealParkedHint to open the right session and target the reveal endpoint.
+     */
+    _frozenSessionId: number | undefined;
+    /**
+     * Per-exercise pending terminal outcomes. Keyed by episodeId. Lives at the orchestrator level
+     * so it survives a slot free (teardown). Populated when setEpisodeOutcome returns applied=false
+     * (canonical row not yet created). Flushed when the reveal-persist retry creates the row.
+     * Cleared on resetSession (new exercise = fresh state).
+     */
+    _pendingOutcomes = new Map<string, { sessionId: number; outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }>();
 
     constructor(private readonly _deps: StruggleInterventionDeps) {}
 
@@ -222,10 +272,16 @@ export class StruggleInterventionService implements AlertSink {
      * Ambient = PARKED pointer only (spec §5 pull model): badge + status-bar lamp + gutter icon
      * at the live anchor. NO inline text, NO toast, NO bubble. The hint text stays hidden until
      * the student clicks (reveal is C2). `messageId` is forwarded for future slot correlation (C3).
+     * `sessionId` is stored as the frozen session id for the reveal flow (C2 spec §5).
+     * C3 inbound routing (takeParked) is wired here in the next task; C2 only stores the session id.
      */
-    onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null): void {
+    onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number): void {
         this._serverAvailable = true;
         this._setInFlight(false);
+        // Store the frozen session id for the reveal flow (C2) before any early return.
+        if (sessionId !== undefined) {
+            this._frozenSessionId = sessionId;
+        }
         // The student may have toggled proactive off for this exercise while this POST was in flight (spec §12.2):
         // drop the surface. The slot is already released above.
         const exId = this._deps.getExerciseId();
@@ -451,6 +507,7 @@ export class StruggleInterventionService implements AlertSink {
      * deliberately KEEPS all of those so toggling interventions off/on cannot silently lift a pause earned by
      * repeated dismisses (spec §5.2), re-probe a latched-off server (§11), un-latch course-off (§13), or refill
      * the active cap.
+     * Also frees the slot, clears the frozen session id, and clears pending outcomes (C2 — new exercise = clean state).
      */
     resetSession(): void {
         this._annoyance = 0;
@@ -459,7 +516,118 @@ export class StruggleInterventionService implements AlertSink {
         this._activeCount = 0;
         this._serverAvailable = true;        // re-probe the server next session: a 404 latch is per-session (spec §11)
         this._courseProactiveOff = false;    // course-off is also a per-session latch (spec §13): re-probe next exercise
+        // C2: clean up the slot and frozen-hint state for the new exercise.
+        if (!this._slot.isFree()) {
+            this._slot.free();
+        }
+        this._frozenSessionId = undefined;
+        this._pendingOutcomes.clear();
         this.reset();
+    }
+
+    // -------------------------------------------------------------------------
+    // C2: reveal-on-click + episode-outcome back-fill
+    // -------------------------------------------------------------------------
+
+    /**
+     * Reveal the parked ambient hint (spec §5.2 pull reveal). Called when the student clicks the lamp,
+     * gutter icon, or badge. Transitions the slot PARKED -> DELIVERED (generation bump), opens the
+     * proactive session, posts an optimistic bubble with a generated localId, and calls revealAmbient
+     * to persist the canonical row. On persist success the bubble is reconciled (real id + proactiveEpisodeId
+     * + sentAt). On failure the bubble stays runtime-only and a best-effort retry is scheduled with the
+     * SAME localId (the server upsert is idempotent, A10 — the retry returns the same row). The slot is
+     * NEVER reverted to PARKED: reveal is immediate, protection starts at show (spec §5.2).
+     */
+    async revealParkedHint(): Promise<void> {
+        const snap = this._slot.snapshot();
+        if (snap.state.kind !== 'parked') {
+            return;
+        }
+        const { episode, frozenText } = snap.state;
+        const episodeId = episode.episodeId;
+        const sessionId = this._frozenSessionId;
+        const exerciseId = this._deps.getExerciseId();
+        if (sessionId === undefined || exerciseId === undefined) {
+            this._dbg('revealParkedHint: missing sessionId or exerciseId — cannot reveal');
+            return;
+        }
+        const localId = this._deps.generateLocalId();
+        // Transition PARKED -> DELIVERED before the async persist. The reveal is immediate and is
+        // never reverted: if the persist fails, the bubble stays runtime-only and the slot stays DELIVERED.
+        const hint: EpisodeHint = { level: 'ambient', text: frozenText, atSessionS: 0 };
+        this._slot.revealParked(hint);
+        void this._deps.openSession(sessionId);
+        this._deps.postRevealBubble(frozenText, localId);
+        this._dbg(`  ↳ REVEAL click: episodeId=${episodeId} sessionId=${sessionId} localId=${localId}`);
+        await this._persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId);
+    }
+
+    /**
+     * Record the student's terminal outcome for the active episode (spec §7.5, A10 episode-keyed endpoint).
+     * If setEpisodeOutcome returns applied=false (the canonical reveal row does not yet exist), the outcome
+     * is stored in _pendingOutcomes and flushed automatically once the reveal-persist retry creates the row.
+     * This ensures an explicit DISMISSED or ABANDONED is never lost even when the student acts before the
+     * network lag resolves. C5/C8 call this method; the back-fill loop is owned here (C2).
+     */
+    async applyEpisodeOutcome(
+        episodeId: string,
+        sessionId: number,
+        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
+    ): Promise<void> {
+        const exerciseId = this._deps.getExerciseId();
+        if (exerciseId === undefined) {
+            return;
+        }
+        const { applied } = await this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome);
+        if (!applied) {
+            // No canonical row yet: defer until the reveal-persist retry creates it.
+            this._pendingOutcomes.set(episodeId, { sessionId, outcome });
+            this._dbg(`  ↳ back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
+        }
+    }
+
+    /**
+     * Persist the revealed hint as a canonical chat message row. On success, reconciles the optimistic bubble
+     * and flushes any pending terminal outcome recorded while the row did not yet exist. On failure, schedules
+     * a best-effort retry with the SAME localId (server upsert is idempotent, A10).
+     */
+    private async _persistReveal(
+        exerciseId: number,
+        episodeId: string,
+        hintText: string,
+        level: Level,
+        localId: string,
+    ): Promise<void> {
+        try {
+            const dto = await this._deps.revealAmbient(exerciseId, episodeId, hintText, level, localId);
+            if (dto.id === undefined) {
+                throw new Error('revealAmbient returned a DTO with no message id');
+            }
+            const serverId = dto.id;
+            const proactiveEpisodeId = typeof dto['proactiveEpisodeId'] === 'string' ? dto['proactiveEpisodeId'] : undefined;
+            const sentAt = typeof dto['sentAt'] === 'string' ? dto['sentAt'] : new Date().toISOString();
+            this._deps.reconcileOptimisticBubble(localId, serverId, proactiveEpisodeId, sentAt);
+            this._dbg(`  ↳ reveal persisted: serverId=${serverId} proactiveEpisodeId=${proactiveEpisodeId ?? 'none'}`);
+            // Flush any pending terminal outcome that was recorded before the canonical row existed.
+            const pending = this._pendingOutcomes.get(episodeId);
+            if (pending) {
+                this._pendingOutcomes.delete(episodeId);
+                this._dbg(`  ↳ back-fill flush: outcome=${pending.outcome} for episodeId=${episodeId}`);
+                try {
+                    await this._deps.setEpisodeOutcome(exerciseId, episodeId, pending.outcome);
+                } catch (flushErr) {
+                    // Best-effort: the flush failure is logged and swallowed. The outcome is lost only
+                    // in this case (spec §12 attrition — the genuinely unrecoverable scenario).
+                    this._dbg(`  ↳ back-fill flush failed (best-effort): ${flushErr instanceof Error ? flushErr.message : String(flushErr)}`);
+                }
+            }
+        } catch (err) {
+            this._dbg(`  ↳ reveal persist failed, scheduling retry in ${REVEAL_RETRY_MS}ms: ${err instanceof Error ? err.message : String(err)}`);
+            const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
+            schedule(() => {
+                void this._persistReveal(exerciseId, episodeId, hintText, level, localId);
+            }, REVEAL_RETRY_MS);
+        }
     }
 
     private _setInFlight(on: boolean): void {

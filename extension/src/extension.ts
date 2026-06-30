@@ -88,6 +88,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
 		postOptimisticBubble: (text, messageId) => chatWebviewProvider?.postOptimisticBubble(text, messageId),
+		// C2: reveal + episode-outcome API + webview reconcile (webview side stubbed until C3/C5 wires it)
+		revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
+			artemisApiService.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
+		setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
+			artemisApiService.setEpisodeOutcome(exerciseId, episodeId, outcome),
+		postRevealBubble: (text, localId) => chatWebviewProvider?.postOptimisticBubble(text, null) ?? void (localId),
+		reconcileOptimisticBubble: (_localId, _serverId, _proactiveEpisodeId, _sentAt) => {
+			// TODO C3/C5: wire to chatWebviewProvider.reconcileRevealBubble once the webview supports string-localId dedup
+		},
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
 		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
 		subscribeStruggleTopic: (topic, onFrame) => {

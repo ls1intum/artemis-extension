@@ -599,6 +599,79 @@ export class ArtemisApiService {
         );
     }
 
+    /**
+     * Reveal a hidden ambient hint by persisting it as a chat message in the proactive session (A10, spec §5.2).
+     * POST api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/reveal
+     * Body: { hintText, level, clientMessageId }
+     * Returns the persisted IrisChatMessage (id + proactiveEpisodeId + server sentAt) so the client
+     * can reconcile the optimistic bubble without producing a duplicate row.
+     */
+    async revealAmbient(
+        exerciseId: number,
+        episodeId: string,
+        hintText: string,
+        level: 'ambient' | 'active',
+        clientMessageId: string,
+    ): Promise<IrisChatMessage> {
+        const response = await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/episodes/${episodeId}/reveal`,
+            {
+                method: 'POST',
+                body: JSON.stringify({ hintText, level, clientMessageId }),
+            },
+        );
+        return parseApiObject<IrisChatMessage>('IrisChatMessage', await response.json());
+    }
+
+    /**
+     * Record the student's terminal outcome for an episode-keyed proactive row (A10).
+     * PUT api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/proactive-outcome
+     * Returns { applied: boolean } — applied=false when the canonical row does not yet exist
+     * (the reveal persist is still in flight or pending retry). The client back-fill loop in
+     * StruggleInterventionService re-calls this once the row is created.
+     * Note: do NOT confuse with the legacy message-keyed setProactiveOutcome above.
+     */
+    async setEpisodeOutcome(
+        exerciseId: number,
+        episodeId: string,
+        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
+    ): Promise<{ applied: boolean }> {
+        const response = await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/episodes/${episodeId}/proactive-outcome`,
+            {
+                method: 'PUT',
+                body: JSON.stringify(outcome),
+            },
+        );
+        return response.json() as Promise<{ applied: boolean }>;
+    }
+
+    /**
+     * Delete a superseded proactive message row (A10, C4 durable stale-row suppression).
+     * DELETE api/iris/chat/exercises/{exerciseId}/messages/{messageId}/proactive (204)
+     */
+    async deleteSupersededProactiveMessage(exerciseId: number, messageId: number): Promise<void> {
+        await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/messages/${messageId}/proactive`,
+            { method: 'DELETE' },
+        );
+    }
+
+    /**
+     * Cancel an outstanding struggle intervention job by its request token (A10, C3 free-re-opens-the-wire).
+     * POST api/iris/chat/exercises/{exerciseId}/struggle-intervention/cancel
+     * Body: { requestToken } (204)
+     */
+    async cancelOutstandingStruggleJob(exerciseId: number, requestToken: string): Promise<void> {
+        await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/struggle-intervention/cancel`,
+            {
+                method: 'POST',
+                body: JSON.stringify({ requestToken }),
+            },
+        );
+    }
+
     // Unified Iris chat session endpoints (Artemis develop, PR #12504).
     async getCurrentChat(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
         const params = new URLSearchParams({ mode, entityId: String(entityId) });

@@ -87,6 +87,38 @@ export interface StruggleEngineDeps {
     subscribeStruggleTopic(topic: string, onFrame: (data: unknown) => void): { dispose(): void };
     /** Durable per-exercise student opt-out (spec §12.2): false → the orchestrator suppresses proactive for it. */
     isStudentProactiveOn(exerciseId: number): boolean;
+    // ---- C2: reveal + episode-outcome ----
+    /**
+     * Reveal a hidden ambient hint by persisting it (A10). Delegates to ArtemisApiService.revealAmbient.
+     * Passed through the seam so the orchestrator never imports the API service directly.
+     */
+    revealAmbient(
+        exerciseId: number,
+        episodeId: string,
+        hintText: string,
+        level: 'ambient' | 'active',
+        clientMessageId: string,
+    ): Promise<import('@shared/types').IrisChatMessage>;
+    /**
+     * Record the student's terminal outcome for an episode-keyed proactive row (A10).
+     * Delegates to ArtemisApiService.setEpisodeOutcome.
+     */
+    setEpisodeOutcome(
+        exerciseId: number,
+        episodeId: string,
+        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
+    ): Promise<{ applied: boolean }>;
+    /**
+     * Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow).
+     * Distinct from postOptimisticBubble (which uses a numeric message id) — the reveal
+     * flow uses a uuid localId for idempotent reconcile.
+     */
+    postRevealBubble(text: string, localId: string): void;
+    /**
+     * Reconcile the reveal bubble after server persist confirms the canonical row.
+     * Updates the bubble matched by localId to the real server id + proactiveEpisodeId + sentAt.
+     */
+    reconcileOptimisticBubble(localId: string, serverId: number, proactiveEpisodeId: string | undefined, sentAt: string): void;
 }
 
 /**
