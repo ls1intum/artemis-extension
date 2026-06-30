@@ -1,7 +1,7 @@
 /** Monotonic generation counter, bumped on semantic episode transitions only. */
 export type SlotGeneration = number;
 
-/** Intervention level — matches the wire values for `action` (minus 'silent'). */
+/** Intervention level (matches the wire values for `action`, minus 'silent'). */
 export type Level = 'ambient' | 'active';
 
 /** A single proactive hint shown during an episode (initial or escalation). */
