@@ -10,6 +10,13 @@ export interface StaleConfig {
     staleWindowMax: number;
     /** Maximum number of staleCheck asks that may be posted during the episode. */
     staleAskCap: number;
+    // C5: DeadlineLatch abandon-timer knobs (optional; orchestrator DEFAULT_SLOT_CFG provides fallbacks)
+    /** Initial deadline for the per-ask ABANDON timer (ms after ask-post). */
+    abandonInitialMs?: number;
+    /** Sliding reset applied on a free-text reply (ms from now, capped at ceiling). */
+    abandonFreeTextMs?: number;
+    /** Absolute ceiling: ABANDON fires no later than this many ms after the ask-post. */
+    abandonCeilingMs?: number;
 }
 
 /**

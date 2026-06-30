@@ -12,7 +12,8 @@ import type { EpisodeHint, Level } from './slot/episode';
 import type { Episode } from './slot/episode';
 import { markContinuation, newEpisode } from './slot/episode';
 import type { PendingStamp } from './slot/guard';
-import { InFlightGuard } from './slot/guard';
+import { DeadlineLatch, InFlightGuard } from './slot/guard';
+import { routeReply } from './slot/replyRouting';
 import type { ProgressCloseCfg } from './slot/progressClose';
 import { ProgressCloseLatch } from './slot/progressClose';
 import type { ReconcileAction } from './slot/reconcile';
@@ -166,6 +167,10 @@ const DEFAULT_SLOT_CFG: StaleConfig = {
     staleAfterMs: 45_000,
     staleWindowMax: 4,
     staleAskCap: 2,
+    // C5: ABANDON timer defaults (mirrors TUNING.slot; injected so tests can override)
+    abandonInitialMs: 60_000,
+    abandonFreeTextMs: 30_000,
+    abandonCeilingMs: 300_000,
 };
 
 const DEFAULT_PROGRESS_CFG: ProgressCloseCfg = {
@@ -207,6 +212,9 @@ export class StruggleInterventionService implements AlertSink {
 
     // Async/generation guard: validates inbound websocket replies against the live slot state
     readonly _guard = new InFlightGuard();
+
+    // C5: monotonic abandon-timer for the live stale-ask (re-armed per ask, neutralised on clearEpisodeRuntime)
+    readonly _deadlineLatch = new DeadlineLatch();
 
     // Progress-close edge-trigger latch (B8)
     readonly _latch: ProgressCloseLatch;
@@ -656,9 +664,17 @@ export class StruggleInterventionService implements AlertSink {
         if (ask && this._watchdog && messageId !== undefined && question !== undefined) {
             // Mint a runtime askId and bind it to the persisted row
             const askId = this._deps.generateLocalId();
-            this._liveAskBinding = { askId, messageId, episodeId: episodeId! };
+            const latchedEpisodeId = episodeId!;
+            this._liveAskBinding = { askId, messageId, episodeId: latchedEpisodeId };
             this._watchdog.onAskPosted();
-            this._deps.postStaleAsk(episodeId!, askId, messageId, question);
+            this._deps.postStaleAsk(latchedEpisodeId, askId, messageId, question);
+            // C5: arm the ABANDON latch and schedule the initial per-ask timeout
+            const now = Date.now();
+            const cfg = this._deps.slotCfg ?? DEFAULT_SLOT_CFG;
+            const abandonInitialMs = cfg.abandonInitialMs ?? 60_000;
+            const abandonCeilingMs = cfg.abandonCeilingMs ?? 300_000;
+            const deadline = this._deadlineLatch.arm(now, abandonInitialMs, abandonCeilingMs);
+            this._scheduleAbandon(deadline, latchedEpisodeId, now);
         }
         // ask=false: do NOT call onAskPosted (watchdog may re-check)
 
@@ -1117,6 +1133,137 @@ export class StruggleInterventionService implements AlertSink {
         if (snap.state.kind === 'free') { return; }
         this._owedConfirmClose = { confirmReason: 'stale_solved' };
         void this._drainOwed();
+    }
+
+    // ---------------------------------------------------------------------------
+    // C5: stale-ask reply routing (button clicks + free-text grace hook)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Cancel an in-flight staleCheck (guard cancel + scoped server cancel + clear marker).
+     * Called when a button resolves the ask so no second question can post.
+     */
+    private _cancelStaleCheckInFlight(): void {
+        this._guard.cancel('stale_check');
+        this._owedStaleCheck = false;
+        if (this._inFlightMarker?.intent === 'stale_check') {
+            const exerciseId = this._deps.getExerciseId();
+            if (exerciseId !== undefined) {
+                void this._deps.cancelOutstandingStruggleJob(exerciseId, this._inFlightMarker.requestToken).catch(() => { /* best-effort */ });
+            }
+            this._inFlightMarker = undefined;
+        }
+    }
+
+    /**
+     * Schedule an ABANDON timeout for the current stale-ask.
+     * The callback is guarded by `isCurrent(capturedDeadline)` (superseded timers are no-ops)
+     * AND `_liveAskBinding.episodeId === episodeId` (freed slot = no-op).
+     */
+    private _scheduleAbandon(deadline: number, episodeId: string, fromNow: number): void {
+        const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
+        const capturedDeadline = deadline;
+        const delayMs = Math.max(0, deadline - fromNow);
+        schedule(() => {
+            if (!this._deadlineLatch.isCurrent(capturedDeadline)) { return; }
+            if (!this._liveAskBinding || this._liveAskBinding.episodeId !== episodeId) { return; }
+            // ABANDON teardown -- same path as the watchdog force-free
+            const exerciseId = this._deps.getExerciseId();
+            const snap = this._slot.snapshot();
+            const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
+            const epId = deliveredEp?.episodeId ?? episodeId;
+            this._slot.free();
+            this._clearEpisodeRuntime();
+            if (exerciseId !== undefined) {
+                void this._deps.setEpisodeOutcome(exerciseId, epId, 'ABANDONED').catch(() => { /* best-effort */ });
+                this._deps.foldEpisode(epId);
+            }
+        }, delayMs);
+    }
+
+    /**
+     * C5: Route a stale-ask quick-reply button click.
+     * - solved: queues a `stale_solved` confirmClose, cancels any in-flight staleCheck, closes the ask.
+     * - still-on-it: cancels staleCheck, closes the ask, resets watchdog progress window.
+     * - something-else: frees the slot silently (ABANDONED) + `setEpisodeOutcome(ABANDONED)`.
+     * - stale or absent askId: no-op.
+     */
+    public onStaleAskButton(askId: string, button: 'solved' | 'still-on-it' | 'something-else'): void {
+        const askOpen = this._liveAskBinding !== undefined;
+        const liveAskId = this._liveAskBinding?.askId ?? null;
+        const effect = routeReply({ kind: 'button', button, askId }, askOpen, liveAskId);
+        const now = Date.now();
+
+        switch (effect.kind) {
+            case 'confirm-close': {
+                // Queue a stale_solved close (overrides any pending progress close -- one CLOSE total per episode).
+                // Existing drain/clear in onServerClose handles the "already in-flight confirm_close" queuing rule.
+                this._owedConfirmClose = { confirmReason: 'stale_solved' };
+                this._cancelStaleCheckInFlight();
+                // Clear the ask binding so the ABANDON latch neutralises on next fire
+                this._liveAskBinding = undefined;
+                void this._drainOwed();
+                break;
+            }
+            case 'stay': {
+                this._cancelStaleCheckInFlight();
+                this._liveAskBinding = undefined;
+                // Fresh stale window -- the watchdog will re-fire and may post ask#2
+                this._watchdog?.resetProgress(now);
+                break;
+            }
+            case 'free-silent': {
+                // Something-else: abandon silently (student chose a different path)
+                const snap = this._slot.snapshot();
+                const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
+                const episodeId = deliveredEp?.episodeId;
+                const exerciseId = this._deps.getExerciseId();
+                this._slot.free();
+                this._clearEpisodeRuntime();
+                if (episodeId && exerciseId !== undefined) {
+                    void this._deps.setEpisodeOutcome(exerciseId, episodeId, 'ABANDONED').catch(() => { /* best-effort */ });
+                    this._deps.foldEpisode(episodeId);
+                }
+                break;
+            }
+            default:
+                // 'none': stale/absent askId -- no-op
+                // 'reset-abandon-timer': only returned for free-text, not buttons
+                break;
+        }
+    }
+
+    /**
+     * C5: Free-text grace hook. Call immediately before a chat POST when a stale ask is open.
+     * Advances the ABANDON timer (provisional) so a slow network does not fire ABANDON mid-engagement.
+     * On a hard POST failure the caller must call the returned `revoke()` to roll back the advance.
+     * Returns `undefined` when no stale ask is open (no-op path for the caller).
+     */
+    public onFreeTextReply(): { revoke: () => void } | undefined {
+        const askOpen = this._liveAskBinding !== undefined;
+        const liveAskId = this._liveAskBinding?.askId ?? null;
+        const effect = routeReply({ kind: 'free-text', text: '' }, askOpen, liveAskId);
+
+        if (effect.kind !== 'reset-abandon-timer') {
+            return undefined;
+        }
+
+        // Capture current deadline before advance so we can roll back on POST failure
+        const prev = this._deadlineLatch.current();
+        const now = Date.now();
+        const cfg = this._deps.slotCfg ?? DEFAULT_SLOT_CFG;
+        const abandonFreeTextMs = cfg.abandonFreeTextMs ?? 30_000;
+        const newDeadline = this._deadlineLatch.advance(now, abandonFreeTextMs);
+        const liveAskEpisodeId = this._liveAskBinding!.episodeId;
+        this._scheduleAbandon(newDeadline, liveAskEpisodeId, now);
+
+        return {
+            revoke: () => {
+                this._deadlineLatch.restore(prev);
+                // Reschedule for the restored deadline (supersedes the advance timer via isCurrent)
+                this._scheduleAbandon(prev, liveAskEpisodeId, Date.now());
+            },
+        };
     }
 
     /** True while proactive is paused for this exercise (only an explicit dismiss can trigger this, spec §5.2). */

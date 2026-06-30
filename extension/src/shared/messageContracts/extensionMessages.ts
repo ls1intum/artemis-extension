@@ -202,6 +202,7 @@ export const ExtensionMsg = {
     SendRejected: 'sendRejected',
     FoldEpisode: 'foldEpisode',
     RemoveMessage: 'removeMessage',
+    AddStaleAsk: 'addStaleAsk',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -457,6 +458,13 @@ interface ExtensionMsgPayloads {
      * chat-ws row with the same id arriving after the drop is never inserted.
      */
     removeMessage: { id: number };
+    /**
+     * Posted by the extension host when the server confirms a stale-ask row (C4/C5).
+     * The webview attaches quick-reply buttons (Solved / Still on it / Something else)
+     * to the persisted row identified by `messageId`. `askId` is a runtime-local token
+     * minted per ask; a button click echoes it back so the host can verify liveness.
+     */
+    addStaleAsk: { episodeId: string; askId: string; messageId: number; question: string };
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

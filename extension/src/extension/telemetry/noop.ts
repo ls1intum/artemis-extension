@@ -19,6 +19,9 @@ export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineH
         // isProactivePaused / setStudentProactive / resumeProactive / isProactiveDegraded are intentionally OMITTED:
         // the clean build has no proactive engine, so extension.ts builds no proactiveControl capability and the
         // AskIris card stays plain (no switch, no four-state availability — the "hidden" case is "no card sent").
+        // C5: no stale-ask UI in the clean build, but the no-op stubs keep the contract complete.
+        onStaleAskButton: () => { /* no stale-ask in the clean build */ },
+        onFreeTextReply: () => undefined,
     };
 }
 

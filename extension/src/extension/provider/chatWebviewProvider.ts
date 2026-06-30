@@ -110,6 +110,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /** Fires when the student dismisses a proactive bubble (drives the Slice-4a delivery backoff in extension.ts). */
     public readonly onDidDismissProactive = this._onDidDismissProactive.event;
 
+    // C5: struggle callbacks wired by extension.ts after engine creation
+    private _onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
+
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
@@ -493,6 +496,26 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * C5: Post a host->webview addStaleAsk message so the webview attaches quick-reply
+     * buttons (Solved / Still on it / Something else) to the persisted stale-ask row.
+     */
+    postStaleAsk(episodeId: string, askId: string, messageId: number, question: string): void {
+        this._postMessageSafe({ type: ExtensionMsg.AddStaleAsk, episodeId, askId, messageId, question });
+    }
+
+    /**
+     * C5: Wire the struggle-engine callbacks into the provider.
+     * Called by extension.ts after the engine handle is available.
+     */
+    public setStruggleCallbacks(callbacks: {
+        onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
+        onFreeTextReply?: () => { revoke: () => void } | undefined;
+    }): void {
+        this._onStaleAskButton = callbacks.onStaleAskButton;
+        this._chatMessageService.setFreeTextHook(callbacks.onFreeTextReply);
+    }
+
+    /**
      * Open/attach the Iris session carrying a proactive bubble (spec §5.5 `active`). The session is freshly
      * created server-side with a single LLM bubble and no USER reply. The sessions/overview now lists such
      * proactive-only sessions (spec §7.3), but a plain reload is async and may not have run yet, so for an
@@ -643,6 +666,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 case WebviewCmd.OpenHelpPopup:
                     this._handleOpenHelpPopup();
                     break;
+                case WebviewCmd.StaleAskButton: {
+                    const { askId, button } = getPayload<WebCmd<'staleAskButton'>>(message);
+                    this._onStaleAskButton?.(askId, button);
+                    break;
+                }
                 default:
                     void this._handleUtilityCommand(message).then(handled => {
                         if (!handled) {

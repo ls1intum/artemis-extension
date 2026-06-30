@@ -108,7 +108,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         postRemoveMessage: (id) => deps.postRemoveMessage(id),
         deleteSupersededProactiveMessage: (exerciseId, messageId) =>
             deps.deleteSupersededProactiveMessage(exerciseId, messageId),
-        postStaleAsk: (_episodeId, _askId, _messageId, _question) => { /* C5 TODO: post addStaleAsk */ },
+        postStaleAsk: (e, a, m, q) => deps.postStaleAsk(e, a, m, q),
         log,
         devLog,
     });
@@ -219,6 +219,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         resumeProactive: exerciseId => orchestrator.resumeProactive(exerciseId),
         isProactiveDegraded: () => orchestrator.isProactiveDegraded(),
         setInSession: (open: boolean) => orchestrator.setInSession(open),
+        // C5: stale-ask button + free-text grace hook
+        onStaleAskButton: (askId, button) => orchestrator.onStaleAskButton(askId, button),
+        onFreeTextReply: () => orchestrator.onFreeTextReply(),
     };
 }
 
