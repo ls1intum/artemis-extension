@@ -851,4 +851,108 @@ describe('IrisChatView', () => {
 			});
 		});
 	});
+
+	describe('RemoveMessage routing (stale-row suppression, C4)', () => {
+		it('removes a previously-added message row when RemoveMessage arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Add a message via the extension wire.
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				message: { id: 77, role: 'assistant', content: 'Proactive hint', timestamp: Date.now() },
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Proactive hint')).toBeInTheDocument();
+			});
+
+			// The host now drops the stale control frame and posts RemoveMessage.
+			dispatchExtensionMessage({ type: 'removeMessage', id: 77 });
+
+			await waitFor(() => {
+				expect(useChatStore.getState().messages.find((m) => m.id === 77)).toBeUndefined();
+			});
+		});
+
+		it('suppresses a subsequent AddMessage with the same id after RemoveMessage (suppressedIds)', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Add, then remove message id 88.
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				message: { id: 88, role: 'assistant', content: 'Will be removed', timestamp: Date.now() },
+			});
+			await waitFor(() => {
+				expect(useChatStore.getState().messages.find((m) => m.id === 88)).toBeDefined();
+			});
+
+			dispatchExtensionMessage({ type: 'removeMessage', id: 88 });
+			await waitFor(() => {
+				expect(useChatStore.getState().messages.find((m) => m.id === 88)).toBeUndefined();
+			});
+
+			// A late-arriving chat-ws row with the same id must NOT be reinserted.
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				message: { id: 88, role: 'assistant', content: 'Re-inserted (should NOT happen)', timestamp: Date.now() },
+			});
+
+			// Store must still have no row with id 88.
+			expect(useChatStore.getState().messages.find((m) => m.id === 88)).toBeUndefined();
+		});
+	});
+
+	describe('proactiveEpisodeId passthrough (C4)', () => {
+		it('AddMessage with proactiveEpisodeId stores it on the resulting row', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				message: {
+					id: 55,
+					role: 'assistant',
+					content: 'Episode-tagged message',
+					timestamp: Date.now(),
+					proactiveEpisodeId: 'ep-abc-123',
+				},
+			});
+
+			await waitFor(() => {
+				const row = useChatStore.getState().messages.find((m) => m.id === 55);
+				expect(row).toBeDefined();
+				expect(row?.proactiveEpisodeId).toBe('ep-abc-123');
+			});
+		});
+
+		it('LoadMessages with proactiveEpisodeId stores it on the resulting rows', async () => {
+			useChatStore.setState({ activeSessionId: 'local-test' });
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-test',
+				artemisSessionId: 42,
+				messages: [
+					{
+						id: 10,
+						role: 'assistant',
+						content: 'Loaded proactive',
+						timestamp: Date.now(),
+						helpful: null,
+						proactiveEpisodeId: 'ep-xyz-789',
+					},
+				],
+			});
+
+			await waitFor(() => {
+				const row = useChatStore.getState().messages.find((m) => m.id === 10);
+				expect(row).toBeDefined();
+				expect(row?.proactiveEpisodeId).toBe('ep-xyz-789');
+			});
+		});
+	});
 });

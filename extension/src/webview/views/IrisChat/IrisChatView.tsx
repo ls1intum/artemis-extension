@@ -29,7 +29,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
         setIrisStages, resetTransientChatUi,
-        markMessageFailed,
+        markMessageFailed, removeMessageById,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
@@ -103,6 +103,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     helpful: m.helpful ?? null,
                     origin: m.origin,
                     proactiveOutcome: m.proactiveOutcome,
+                    proactiveEpisodeId: m.proactiveEpisodeId,
                     status: 'sent',
                 });
                 if (m.role === 'assistant') {
@@ -134,6 +135,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         helpful: m.helpful ?? null,
                         origin: m.origin,
                         proactiveOutcome: m.proactiveOutcome,
+                        proactiveEpisodeId: m.proactiveEpisodeId,
                         status: 'sent' as const,
                     })),
                 );
@@ -198,6 +200,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
 
+            case ExtensionMsg.RemoveMessage:
+                removeMessageById(msg.id);
+                break;
+
             case ExtensionMsg.SendRejected: {
                 // Ignore stale rejections that arrive after the user already
                 // switched session — the corresponding optimistic message
@@ -219,7 +225,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed, removeMessageById]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
