@@ -403,13 +403,22 @@ over. We do **not** persist live-state to survive reload.
   stale-free: moved_on, timeout, hard-cap), alongside the existing `DISMISSED`. Persisted **for the
   thesis outcome analysis**, NOT for folding (string enum → **no migration**). (`ABANDONED` is a
   placeholder name — `STALE` / `FADED` would do.)
-- **Canonical outcome row + scope.** The terminal `proactiveOutcome` is written to **one** canonical
-  row per episode — the **earliest persisted proactive-origin message** for that `proactiveEpisodeId`
-  — so analysis reads the episode outcome from a single well-defined row, not scattered across the
-  thread; **outcome writes are idempotent** (re-writing the same terminal value is a no-op). Outcome
-  analysis is **scoped to delivered episodes** (active, or a clicked-open ambient): a never-delivered /
-  replaced PARKED ambient leaves **no row** by design (next bullet) and is therefore simply **not** in
-  the outcome dataset — it was never shown, so there is nothing to score.
+- **Canonical outcome row + scope.** The terminal `proactiveOutcome` lives on **exactly one** row per
+  episode — the **write target** is the **earliest-`sentAt` persisted proactive-origin message** for
+  that `proactiveEpisodeId` (in the common case the delivery row), so on the happy path analysis reads
+  it from that single well-defined row. But **existence and read are scoped to the episode, not to one
+  physical row**: an outcome counts as set iff **some** row of the `proactiveEpisodeId` carries a
+  non-null `proactiveOutcome`, and the episode's outcome is that single non-null value (**at most one**,
+  by first-terminal-wins). This **episode-wide** scoping is deliberate: the "earliest persisted row"
+  identity can momentarily shift while the delivery row's persist is still pending behind a
+  later-`sentAt` row (a stale-ask, an offer, the close), and a strictly row-pinned read/write would then
+  scatter or conflict two outcomes across the thread under the client/server write race. Episode-wide
+  **first-terminal-wins** (the first terminal write anywhere on the episode stands; a later write — even
+  to a now-earlier delivery row that just persisted — is a no-op) keeps it to **one** outcome per
+  episode, **idempotent** and **not scattered**, regardless of persist ordering. Outcome analysis is
+  **scoped to delivered episodes** (active, or a clicked-open ambient): a never-delivered / replaced
+  PARKED ambient leaves **no row** by design (next bullet) and is therefore simply **not** in the
+  outcome dataset — it was never shown, so there is nothing to score.
 - **Delivery commit point.** An episode becomes **DELIVERED the moment content is shown** (an `active`
   push, or an `ambient` clicked open) — **protection is immediate** and it can **never** fall back to
   PARKED once the student has seen content. Persisting its first proactive message happens then and is
@@ -430,8 +439,16 @@ over. We do **not** persist live-state to survive reload.
 - **`episodeLabel` (the fold-line name) is NOT persisted:** live folds use Iris's `episodeLabel`,
   reloaded folds fall back to a client-derived gist (§8). Keeps the DB at one column.
 
-So the DB footprint is **one column** `proactive_episode_id` (one Liquibase changelog) **+ two enum
-values** (no migration). Nothing else.
+- **Reveal idempotency key.** A clicked-open ambient hint is persisted by a **client-initiated** reveal
+  call that may be **retried** on a lost response. To make that retry idempotent **deterministically**
+  (independent of host clocks and of message text — a same-episode escalation could share the hint's
+  text, §6), the reveal carries a **client-generated id** (the optimistic bubble's `localId`, a uuid)
+  stored in a second nullable column `proactive_client_message_id`; the reveal is an **upsert** keyed on
+  it (find-or-create), so a retry returns the same row, never a duplicate and never a different
+  same-text row. The column is **null** for all non-reveal rows.
+
+So the DB footprint is **two nullable columns** `proactive_episode_id` + `proactive_client_message_id`
+(one Liquibase changelog each) **+ two enum values** (no data migration). Nothing else.
 
 ## 13. Out of scope (deferred)
 
@@ -590,7 +607,11 @@ this design adds. Java records on the Artemis side, mirrored as Pydantic on the 
     ]
   }
 }
+```
 
+**Two request hops + the `confirmReason` discriminator (ratified).** The block above is the **Artemis → Pyris** request. The **extension → Artemis** request carries the same `intent` + `episode`, **plus one extra field** `confirmReason` (set only on a `confirmClose` POST) — `confirm_reason ∈ { "progress", "stale_solved", "parked_progress" }`. It is **NOT forwarded to Pyris** (Artemis stamps it on the in-flight job and acts on it); Pyris stays slot-stateless (§11). It is the **minimal** discriminator the stateless server needs because a bare `resolved` boolean cannot express three spec-distinct behaviours of one `confirmClose` mode: `progress` = §7.1 quiet-on-`false`; `stale_solved` = §7.3 gentle-offer-on-`false`; `parked_progress` = §4/§8 silent-on-both (a never-delivered PARKED close persists no row and writes no outcome). Without it the server cannot tell a PARKED close (persist nothing) from a delivered one (persist closing row + `RECOVERED`). This is the one slot-derived value on the extension→Artemis hop; everything else slot-related stays client-side.
+
+```
 // existing, unchanged:
 PyrisStruggleSignalDTO {
   alert: { tSessionS, primaryBoundary, boundaryTypes: String[], severity /* = V */, path,
