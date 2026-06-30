@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -1234,6 +1234,13 @@ describe('IrisChatView', () => {
 			// Timer must NOT have started yet (close row absent)
 			expect(useChatStore.getState().foldStates.get('ep-2')?.folded).toBe(false);
 
+			// Order-safety invariant: advance the full 5 s while close row is still absent.
+			// A buggy implementation that ignores the guard would fire the timer here and
+			// flip folded to true; the correct implementation must keep folded=false.
+			act(() => { vi.advanceTimersByTime(5000); });
+			expect(useChatStore.getState().foldStates.get('ep-2')?.folded).toBe(false);
+			expect(screen.queryByRole('button', { name: /✓ Wrong index/i })).not.toBeInTheDocument();
+
 			// Close row arrives
 			await act(async () => {
 				dispatchExtensionMessage({
@@ -1312,18 +1319,20 @@ describe('IrisChatView', () => {
 
 			// Earlier hint visible
 			expect(screen.getByText('Earlier hint')).toBeInTheDocument();
-			// Earlier message should NOT have a Dismiss button
-			// (isLatest=false in renderBubble call for earlier members)
-			const allDismissButtons = screen.queryAllByRole('button', { name: 'Dismiss this suggestion' });
-			// Only latest (if any) may have Dismiss; count of buttons for "Earlier hint" context = 0
-			// Verify by checking the latest has Dismiss (if rendered) but earlier does NOT
-			// We check that hovering "Earlier hint" does not produce a Dismiss. Since CSS hover
-			// can't be tested easily, we trust the isLatest=false gate: Dismiss prop is undefined.
-			// The simplest assertion: there is at most 1 Dismiss button (for the latest), none for earlier.
-			expect(allDismissButtons.length).toBeLessThanOrEqual(1);
 
-			// Explicitly: hovering the earlier message's bubble wrapper does not produce Dismiss
-			// We can assert on the store state directly: liveEpisodeIds has 'ep-g'
+			// Exactly one Dismiss button in the entire view
+			const allDismissButtons = screen.queryAllByRole('button', { name: 'Dismiss this suggestion' });
+			expect(allDismissButtons.length).toBe(1);
+
+			// The single Dismiss button is scoped to the Latest hint bubble, not the Earlier hint bubble.
+			// data-origin="proactive" is the attribute on the bubble div inside MessageBubble.
+			const earlierBubble = screen.getByText('Earlier hint').closest('[data-origin="proactive"]') as HTMLElement | null;
+			const latestBubble = screen.getByText('Latest hint').closest('[data-origin="proactive"]') as HTMLElement | null;
+			expect(earlierBubble).not.toBeNull();
+			expect(latestBubble).not.toBeNull();
+			expect(within(earlierBubble!).queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
+			expect(within(latestBubble!).getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
+
 			expect(useChatStore.getState().liveEpisodeIds.has('ep-g')).toBe(true);
 		});
 
@@ -1351,6 +1360,52 @@ describe('IrisChatView', () => {
 			expect(screen.getByText('Great progress!')).toBeInTheDocument();
 			// The close row is the latest but isClosingRow=true, so canDismiss=false
 			expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
+		});
+
+		it('fold timer is cancelled when the component unmounts (cleanup guard)', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			const { unmount } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			// First live message
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-unmount', content: 'Hint', timestamp: Date.now() },
+				});
+			});
+
+			// Close row arrives (id=20, matching closeMessageId below)
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 20, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-unmount', content: 'Progress confirmed', timestamp: Date.now() },
+				});
+			});
+
+			// foldEpisode with praise: close row IS present, so the 5 s timer starts
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'foldEpisode',
+					episodeId: 'ep-unmount',
+					praise: { episodeLabel: 'Fixed it', closeMessageId: 20 },
+				});
+			});
+
+			// Timer is pending; episode not yet folded
+			expect(useChatStore.getState().foldStates.get('ep-unmount')?.folded).toBe(false);
+
+			// Unmount BEFORE the 5 s deadline (cleanup effect must cancel the timer)
+			unmount();
+
+			// Advance past the deadline; the cancelled timer must not fire
+			act(() => { vi.advanceTimersByTime(5000); });
+
+			// Fold must NOT have happened (a missing cleanup would flip this to true)
+			expect(useChatStore.getState().foldStates.get('ep-unmount')?.folded).toBe(false);
 		});
 
 		it('live latest hint card (not closing row) renders Dismiss button', async () => {
