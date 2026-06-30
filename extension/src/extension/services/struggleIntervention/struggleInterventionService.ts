@@ -132,6 +132,22 @@ export interface StruggleInterventionDeps {
      * praise is present for progress-close terminals; absent for dismiss/stale/force-free.
      */
     foldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void;
+    // ---- C4: stale-row suppression + stale-ask ----
+    /**
+     * Post a host->webview removeMessage{id} so the webview removes the stale row (if present)
+     * and suppresses any later chat-ws arrival of the same id (C4 stale-row suppression).
+     */
+    postRemoveMessage(id: number): void;
+    /**
+     * Durable delete of a superseded proactive row (A10). Server-guarded (null-outcome +
+     * proactive-origin only) so this cannot remove a canonical outcome row.
+     */
+    deleteSupersededProactiveMessage(exerciseId: number, messageId: number): Promise<void>;
+    /**
+     * Post host->webview addStaleAsk{episodeId, askId, messageId, question} (C5 renders the
+     * quick-reply buttons; C4 mints the askId and binds it to the event's messageId).
+     */
+    postStaleAsk(episodeId: string, askId: string, messageId: number, question: string): void;
     log: InterventionEventLog;
     setTimeoutFn?: (fn: () => void, ms: number) => void;
     /** Developer-mode diagnostic sink (gated upstream); no-op when omitted. Pure string out, no effects. */
@@ -509,12 +525,26 @@ export class StruggleInterventionService implements AlertSink {
     /**
      * Inbound silent event: server decided no intervention is needed.
      * Frees PARKED (discard-free), suppresses for DELIVERED (no-op).
+     * C4: accepts `episodeId` echo (stale-drop if mismatch) and `messageId` for stale-row suppression.
      */
-    onServerSilent(): void {
+    onServerSilent(episodeId: string | undefined, messageId: number | undefined): void {
         this._serverAvailable = true;
 
+        // C4 echo check: verify the wire's episodeId matches what was requested.
+        // Do this BEFORE _acceptDecide so a mismatch does NOT consume the in-flight marker
+        // (the real reply for this episode may still arrive).
+        const expectedEpisodeId = this._inFlightMarker?.episodeId;
+        if (expectedEpisodeId === undefined || episodeId !== expectedEpisodeId) {
+            if (messageId !== undefined) { this._dropStaleRow(messageId); }
+            return;
+        }
+
         const accepted = this._acceptDecide();
-        if (accepted === null) { return; }
+        if (accepted === null) {
+            // Generation/token mismatch: stale. The marker was already cleared by _acceptDecide.
+            if (messageId !== undefined) { this._dropStaleRow(messageId); }
+            return;
+        }
 
         const snap = this._slot.snapshot();
         const decision = { action: 'silent' as const, text: null, hardEvent: false };
@@ -523,24 +553,39 @@ export class StruggleInterventionService implements AlertSink {
         if (action.kind === 'discard-free') {
             this._slot.discardParkedToFree();
             this._clearEpisodeRuntime();
+        } else {
+            // 'suppress': DELIVERED + silent -> no-op (keep the live episode).
+            // FREE + silent -> suppress -> discard the pending candidate.
+            this._candidate = undefined;
         }
-        // 'suppress': DELIVERED + silent -> no-op (keep the live episode)
-        // 'suppress' from FREE: was already free, no-op
     }
 
     /**
-     * Inbound confirmClose response from the server (C4 will parse and dispatch).
-     * `resolved=true`: Pyris agreed to close -> free the slot.
+     * Inbound confirmClose response from the server (C4 dispatch).
+     * `resolved=true`: Pyris agreed to close -> free the slot (DELIVERED) or discard-free (PARKED).
      * `resolved=false`: Pyris declined -> latch re-arms, slot stays.
+     * C4: accepts `episodeId` echo, `closeMessageId`/`episodeLabel` for praise, stale-row suppression.
      */
-    onServerClose(resolved: boolean, _closeMessageId?: number, _episodeLabel?: string): void {
+    onServerClose(
+        episodeId: string | undefined,
+        resolved: boolean,
+        closeMessageId: number | undefined,
+        _closingSentence: string | undefined,
+        episodeLabel: string | undefined,
+        _offer: boolean | undefined,
+    ): void {
         this._serverAvailable = true;
 
-        // Clear the in-flight marker for the confirmClose intent
-        const wasDedicated = this._inFlightMarker?.intent === 'confirm_close';
-        if (wasDedicated) {
-            this._inFlightMarker = undefined;
+        // C4 echo check: must be a confirm_close in-flight for the right episode.
+        // Echo mismatch -> drop without consuming the marker (real reply may still arrive).
+        const expectedEpisodeId = this._inFlightMarker?.episodeId;
+        if (this._inFlightMarker?.intent !== 'confirm_close' || expectedEpisodeId === undefined || episodeId !== expectedEpisodeId) {
+            if (closeMessageId !== undefined) { this._dropStaleRow(closeMessageId); }
+            return;
         }
+
+        // Clear the in-flight marker for the confirmClose intent
+        this._inFlightMarker = undefined;
 
         // Notify the latch
         this._latch.onConfirmResult(resolved);
@@ -549,43 +594,73 @@ export class StruggleInterventionService implements AlertSink {
             const snap = this._slot.snapshot();
             const snapState = snap.state;
             const wasDelivered = snapState.kind === 'delivered';
-            const episodeId = wasDelivered ? snapState.episode.episodeId : undefined;
+            const wasParked = snapState.kind === 'parked';
+            const liveEpisodeId = (wasDelivered || wasParked) ? snapState.episode.episodeId : undefined;
 
             // Handle queued stale_solved that arrived while this confirmClose was in flight:
-            // slot-free clears it (one CLOSE total -- spec §6 "cannot apply twice")
+            // slot-free clears it (one CLOSE total)
             this._owedConfirmClose = undefined;
 
-            // Free the slot and tear down per-episode runtime
-            this._slot.free();
-            this._clearEpisodeRuntime();
-
-            // Fold signal for DELIVERED terminals (PARKED terminals have no visible artifact)
-            if (wasDelivered && episodeId) {
-                // C4 will pass episodeLabel/closeMessageId for praise; for now emit without
-                this._deps.foldEpisode(episodeId);
+            if (wasDelivered) {
+                // DELIVERED resolved=true: free + RECOVERED outcome + fold with praise
+                const exerciseId = this._deps.getExerciseId();
+                this._slot.free();
+                this._clearEpisodeRuntime();
+                if (liveEpisodeId) {
+                    if (exerciseId !== undefined) {
+                        void this._deps.setEpisodeOutcome(exerciseId, liveEpisodeId, 'RECOVERED').catch(() => { /* best-effort */ });
+                    }
+                    const praise = (episodeLabel && closeMessageId !== undefined)
+                        ? { episodeLabel, closeMessageId }
+                        : undefined;
+                    this._deps.foldEpisode(liveEpisodeId, praise);
+                }
+            } else if (wasParked) {
+                // PARKED resolved=true: discard silently (no row, no fold, no outcome)
+                this._slot.discardParkedToFree();
+                this._clearEpisodeRuntime();
+            } else {
+                // Already free (race): just clear runtime
+                this._clearEpisodeRuntime();
             }
         } else {
-            // Not resolved: if there is a queued stale_solved, drain it now (spec §7.3)
-            // The wire is free now -- drain on next _drainOwed() call
+            // Not resolved: drain any queued work
             void this._drainOwed();
         }
     }
 
     /**
-     * Inbound staleCheck response from the server (C4 will parse and dispatch).
-     * Stub for C3: handles watchdog ask-count bookkeeping when an ask was shown.
+     * Inbound staleCheck response from the server (C4 dispatch).
+     * `ask=true`: a question row was persisted -- mint a runtime askId, bind it to messageId,
+     * and post addStaleAsk so the webview attaches buttons to the row.
+     * `ask=false`: noop (do NOT consume staleAskCount; watchdog may re-check).
      */
-    onServerStale(_askShown: boolean): void {
+    onServerStale(
+        episodeId: string | undefined,
+        ask: boolean,
+        messageId: number | undefined,
+        question: string | undefined,
+    ): void {
         this._serverAvailable = true;
 
-        // Clear the in-flight staleCheck marker
-        if (this._inFlightMarker?.intent === 'stale_check') {
-            this._inFlightMarker = undefined;
+        // C4 echo check: must be a stale_check in-flight for the right episode.
+        const expectedEpisodeId = this._inFlightMarker?.episodeId;
+        if (this._inFlightMarker?.intent !== 'stale_check' || expectedEpisodeId === undefined || episodeId !== expectedEpisodeId) {
+            if (messageId !== undefined) { this._dropStaleRow(messageId); }
+            return;
         }
 
-        if (_askShown && this._watchdog) {
+        // Clear the in-flight staleCheck marker
+        this._inFlightMarker = undefined;
+
+        if (ask && this._watchdog && messageId !== undefined && question !== undefined) {
+            // Mint a runtime askId and bind it to the persisted row
+            const askId = this._deps.generateLocalId();
+            this._liveAskBinding = { askId, messageId, episodeId: episodeId! };
             this._watchdog.onAskPosted();
+            this._deps.postStaleAsk(episodeId!, askId, messageId, question);
         }
+        // ask=false: do NOT call onAskPosted (watchdog may re-check)
 
         // Wire now free -- drain any owed work
         void this._drainOwed();
@@ -788,6 +863,20 @@ export class StruggleInterventionService implements AlertSink {
     private _clearInFlight(): void {
         this._inFlightMarker = undefined;
         this._candidate = undefined;
+    }
+
+    /**
+     * Stale-row suppression (C4): called when a control frame is dropped as stale and
+     * carries a `messageId` for its persisted chat row. Posts a live removeMessage to the
+     * webview (removes any existing row AND suppresses future chat-ws arrivals of that id)
+     * and enqueues a durable server-side delete so the row does not survive a reload.
+     */
+    private _dropStaleRow(messageId: number): void {
+        this._deps.postRemoveMessage(messageId);
+        const exerciseId = this._deps.getExerciseId();
+        if (exerciseId !== undefined) {
+            void this._deps.deleteSupersededProactiveMessage(exerciseId, messageId).catch(() => { /* best-effort */ });
+        }
     }
 
     // ---------------------------------------------------------------------------

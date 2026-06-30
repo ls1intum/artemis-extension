@@ -130,6 +130,17 @@ export interface StruggleEngineDeps {
      * praise is present for progress-close terminals; absent for dismiss/stale/force-free.
      */
     foldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void;
+    // C4: stale-row suppression
+    /**
+     * Post a host->webview removeMessage{id} (C4 stale-row suppression).
+     * The webview removes the row if present and suppresses future chat-ws arrivals of that id.
+     */
+    postRemoveMessage(id: number): void;
+    /**
+     * Durable delete of a superseded proactive row (A10 server-guarded).
+     * Delegates to ArtemisApiService.deleteSupersededProactiveMessage.
+     */
+    deleteSupersededProactiveMessage(exerciseId: number, messageId: number): Promise<void>;
 }
 
 /**

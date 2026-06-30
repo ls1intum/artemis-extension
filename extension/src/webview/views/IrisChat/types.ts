@@ -28,11 +28,17 @@ export interface ChatMessage {
     origin?: 'proactive';
     /**
      * Durable reaction to a proactive message. `'DISMISSED'` means the student
-     * collapsed the bubble; the bubble is kept (never deleted, spec §6.3) and
-     * re-renders collapsed after a history reload (the server round-trips it on
-     * `IrisMessageResponseDTO`).
+     * collapsed the bubble; `'RECOVERED'` means progress confirmed; `'ABANDONED'`
+     * means the watchdog timed out. Survives a history reload (server round-trips
+     * it on `IrisMessageResponseDTO`).
      */
-    proactiveOutcome?: 'DISMISSED';
+    proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
+    /**
+     * Client-allocated uuid grouping proactive messages by episode (C4/C6).
+     * Present on both live ws rows (via chat-ws AddMessage) and reloaded history.
+     * Used by C6 to render episode groups and by C7 for fold animation targeting.
+     */
+    proactiveEpisodeId?: string;
 }
 
 // Chat session summary (from extension)

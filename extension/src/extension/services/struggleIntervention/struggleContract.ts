@@ -61,11 +61,17 @@ export type StruggleEgressResult = 'accepted' | 'course-off' | 'unavailable' | '
 /** Per-user struggle event on /user/topic/iris/struggle-intervention (Plan 2 StruggleInterventionEventDTO). */
 export interface StruggleInterventionEvent {
     exerciseId: number;
-    action: 'ambient' | 'active';
+    /** Frame kind discriminator (C4). Absent on old servers -> backwards-compat ambient/active path. */
+    kind?: 'decide' | 'confirm_close' | 'stale_check';
+    /** Episode id echoed back by the server; present for all new-style frames (C4). */
+    episodeId?: string;
+    /** Decide-frame action. Required for kind='decide'; absent for confirm_close/stale_check. */
+    action?: 'silent' | 'ambient' | 'active';
     message?: string;
     sessionId?: number;
     /** Saved IrisMessage id for the persisted proactive message (spec §7.2/§8). Set for ambient and active after
-     *  unify-persistence; lets a later slice target the exact message (open/reveal/dismiss). */
+     *  unify-persistence; lets a later slice target the exact message (open/reveal/dismiss).
+     *  Also present on confirm_close (close/offer row) and stale_check ask=true (ask row). */
     messageId?: number;
     /** Server-computed Pyris confidence, forwarded by Plan 2 (Task 4b 5-component DTO) for the client eval log (§12). */
     confidence?: number;
@@ -73,4 +79,18 @@ export interface StruggleInterventionEvent {
     anchorFile?: string;
     anchorLine?: number;
     inlineHint?: string;
+    // confirm_close fields (C4):
+    /** True when Pyris agreed to close the episode (DELIVERED resolved -> free + fold; PARKED resolved -> discard). */
+    resolved?: boolean;
+    /** Closing sentence text (persisted via chat-ws; present when resolved=true + closing row was written). */
+    closingSentence?: string;
+    /** Human-readable episode label for the fold praise line (NOT persisted; only in this control message). */
+    episodeLabel?: string;
+    /** True when a stale_solved offer row was persisted (resolved=false path). */
+    offer?: boolean;
+    // stale_check fields (C4):
+    /** True when the server posted a stale-ask question row. */
+    ask?: boolean;
+    /** Stale-ask question text (sent with ask=true). */
+    question?: string;
 }

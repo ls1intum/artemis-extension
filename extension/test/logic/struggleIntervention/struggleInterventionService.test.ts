@@ -63,6 +63,10 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         // C3 slot-continuity deps
         cancelOutstandingStruggleJob: vi.fn(async () => undefined),
         foldEpisode: vi.fn(),
+        // C4: stale-row suppression
+        postRemoveMessage: vi.fn(),
+        deleteSupersededProactiveMessage: vi.fn(async () => undefined),
+        postStaleAsk: vi.fn(),
         ...over,
     };
 }
@@ -983,7 +987,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(typeof body.requestToken).toBe('string');
 
         // Receive 'silent' -> candidate discarded, slot stays FREE
-        svc.onServerSilent();
+        svc.onServerSilent(svc._inFlightMarker!.episodeId, undefined);
         expect(svc._slot.isFree()).toBe(true);
     });
 
@@ -1098,7 +1102,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(body.confirmReason).toBe('parked_progress');
 
         // Reply resolved=true: slot frees silently (no fold, no outcome)
-        svc.onServerClose(true);
+        svc.onServerClose(svc._inFlightMarker!.episodeId, true, undefined, undefined, undefined, undefined);
         expect(svc._slot.isFree()).toBe(true);
         expect(deps.foldEpisode).not.toHaveBeenCalled();
         expect(deps.setEpisodeOutcome).not.toHaveBeenCalled();
@@ -1121,7 +1125,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(postSpy).toHaveBeenCalledTimes(1);
 
         // Reply resolved=false: slot stays PARKED, no fold
-        svc.onServerClose(false);
+        svc.onServerClose(svc._inFlightMarker!.episodeId, false, undefined, undefined, undefined, undefined);
         expect(svc._slot.snapshot().state.kind).toBe('parked');
         expect(deps.foldEpisode).not.toHaveBeenCalled();
         // Latch re-opened (back to 'open', _armed=false): a second green test fires but sBase
@@ -1289,10 +1293,10 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const stamp = { episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: tok };
         svc._guard.issue('confirm_close', stamp);
         svc._inFlightMarker = { requestToken: tok, episodeId, generation: svc._slot.generation(), intent: 'confirm_close', localToken: 999 };
-        svc.onServerClose(true);
+        svc.onServerClose(episodeId, true, undefined, undefined, undefined, undefined);
 
         expect(svc._slot.isFree()).toBe(true);
-        expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId);
+        expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId, undefined);
     });
 
     it('foldEpisode NOT emitted for PARKED terminal (silent discard, no visible artifact)', () => {
@@ -1306,7 +1310,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Silent response -> discard-free
         simulateDecidePending(svc, 'ep-discard', false);
-        svc.onServerSilent();
+        svc.onServerSilent('ep-discard', undefined);
         expect(svc._slot.isFree()).toBe(true);
         expect(deps.foldEpisode).not.toHaveBeenCalled();
     });
@@ -1457,7 +1461,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._owedConfirmClose = { confirmReason: 'stale_solved' };
 
         // Reply: resolved=false -> latch re-arms, slot stays; owed stale_solved should post next
-        svc.onServerClose(false);
+        svc.onServerClose(ep.episodeId, false, undefined, undefined, undefined, undefined);
 
         // _drainOwed is called by onServerClose -> wait for it
         await new Promise(r => setTimeout(r, 0));
@@ -1483,7 +1487,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._owedConfirmClose = { confirmReason: 'stale_solved' };
 
         // Reply: resolved=true -> slot frees, queued entry cleared
-        svc.onServerClose(true);
+        svc.onServerClose(ep.episodeId, true, undefined, undefined, undefined, undefined);
 
         expect(svc._slot.isFree()).toBe(true);
         expect(svc._owedConfirmClose).toBeUndefined(); // cleared by slot-free

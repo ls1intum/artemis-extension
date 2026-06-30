@@ -104,6 +104,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             deps.cancelOutstandingStruggleJob(exerciseId, requestToken),
         // C6/C7 fold signal stub; will be replaced when the webview fold is implemented
         foldEpisode: (_episodeId, _praise) => { /* C6/C7 TODO: post host->webview foldEpisode */ },
+        // C4: stale-row suppression
+        postRemoveMessage: (id) => deps.postRemoveMessage(id),
+        deleteSupersededProactiveMessage: (exerciseId, messageId) =>
+            deps.deleteSupersededProactiveMessage(exerciseId, messageId),
+        postStaleAsk: (_episodeId, _askId, _messageId, _question) => { /* C5 TODO: post addStaleAsk */ },
         log,
         devLog,
     });
@@ -161,6 +166,18 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             devLog(`◀ Iris ACTIVE exercise=${exerciseId} session=${sid} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
             if (active) { orchestrator.onServerActive(sid, anchorFile, anchorLine, inlineHint, c, message, messageId); }
+        },
+        onServerSilent: (episodeId, messageId) => {
+            devLog(`◀ Iris SILENT episodeId=${episodeId ?? '–'}`);
+            orchestrator.onServerSilent(episodeId, messageId);
+        },
+        onServerClose: (episodeId, resolved, messageId, closingSentence, episodeLabel, offer) => {
+            devLog(`◀ Iris CLOSE episodeId=${episodeId ?? '–'} resolved=${resolved}`);
+            orchestrator.onServerClose(episodeId, resolved, messageId, closingSentence, episodeLabel, offer);
+        },
+        onServerStale: (episodeId, ask, messageId, question) => {
+            devLog(`◀ Iris STALE episodeId=${episodeId ?? '–'} ask=${ask}`);
+            orchestrator.onServerStale(episodeId, ask, messageId, question);
         },
     }));
 

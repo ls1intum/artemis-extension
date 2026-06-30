@@ -484,6 +484,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * Post a host->webview removeMessage{id} for stale-row suppression (C4).
+     * The webview removes the row if present AND records the id in suppressedIds
+     * so a chat-ws arrival of the same row after the drop is never inserted.
+     */
+    postRemoveMessage(id: number): void {
+        this._postMessageSafe({ type: ExtensionMsg.RemoveMessage, id });
+    }
+
+    /**
      * Open/attach the Iris session carrying a proactive bubble (spec §5.5 `active`). The session is freshly
      * created server-side with a single LLM bubble and no USER reply. The sessions/overview now lists such
      * proactive-only sessions (spec §7.3), but a plain reload is async and may not have run yet, so for an

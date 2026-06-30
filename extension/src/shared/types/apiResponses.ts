@@ -180,7 +180,9 @@ export interface IrisChatMessage {
     sentAt?: string;
     content?: IrisChatMessageContent[];
     origin?: string;
-    proactiveOutcome?: string;
+    proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
+    /** Client-allocated uuid grouping proactive messages by episode (C4/A9). */
+    proactiveEpisodeId?: string;
     [key: string]: unknown;
 }
 

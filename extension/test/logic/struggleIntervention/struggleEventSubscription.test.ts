@@ -57,8 +57,56 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         // C3 slot-continuity deps (no-ops for these tests)
         cancelOutstandingStruggleJob: vi.fn(async () => undefined),
         foldEpisode: vi.fn(),
+        // C4: stale-row suppression + stale-ask (no-ops for most tests)
+        postRemoveMessage: vi.fn(),
+        deleteSupersededProactiveMessage: vi.fn(async () => undefined),
+        postStaleAsk: vi.fn(),
         ...overrides,
     };
+}
+
+/**
+ * Set up a synthetic in-flight 'confirm_close' and put the slot in DELIVERED state.
+ * Simulates the state after the student triggered a progress-close.
+ */
+function simulateDeliveredWithClosePending(svc: StruggleInterventionService, episodeId = 'ep-close'): void {
+    // First put slot in DELIVERED via the decide path
+    simulateDecidePending(svc, episodeId);
+    svc.onServerActive(42, undefined, undefined, undefined, undefined, 'Iris has a hint.', 100);
+    // Now set up the confirm_close in-flight
+    const gen = svc._slot.generation();
+    const requestToken = 'close-request-token';
+    const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken };
+    const localToken = svc._guard.issue('confirm_close', stamp);
+    svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'confirm_close', localToken };
+}
+
+/**
+ * Set up a synthetic in-flight 'confirm_close' with slot in PARKED state.
+ */
+function simulateParkedWithClosePending(svc: StruggleInterventionService, episodeId = 'ep-parked'): void {
+    // Put slot in PARKED via ambient decide path
+    simulateDecidePending(svc, episodeId);
+    svc.onServerAmbient('Ambient hint', undefined, undefined, undefined, undefined, null);
+    // Now set up the confirm_close in-flight
+    const gen = svc._slot.generation();
+    const requestToken = 'close-parked-token';
+    const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken };
+    const localToken = svc._guard.issue('confirm_close', stamp);
+    svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'confirm_close', localToken };
+}
+
+/**
+ * Set up a synthetic in-flight 'stale_check' with slot in DELIVERED state.
+ */
+function simulateDeliveredWithStalePending(svc: StruggleInterventionService, episodeId = 'ep-stale'): void {
+    simulateDecidePending(svc, episodeId);
+    svc.onServerActive(42, undefined, undefined, undefined, undefined, 'Iris has a hint.', 100);
+    const gen = svc._slot.generation();
+    const requestToken = 'stale-request-token';
+    const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken };
+    const localToken = svc._guard.issue('stale_check', stamp);
+    svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'stale_check', localToken };
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +164,7 @@ describe('subscribeStruggleEvents dispatch', () => {
         const subscribe = (_topic: string, f: (d: unknown) => void) => { onFrame = f; return { dispose() { /* noop */ } }; };
         const onServerAmbient = vi.fn();
         const onServerActive = vi.fn();
-        subscribeStruggleEvents(subscribe, { onServerAmbient, onServerActive });
+        subscribeStruggleEvents(subscribe, { onServerAmbient, onServerActive, onServerSilent: vi.fn(), onServerClose: vi.fn(), onServerStale: vi.fn() });
 
         // Ambient: messageId absent -> null
         onFrame!({ exerciseId: 42, action: 'ambient', message: 'Re-check the logic.', anchorFile: 'src/A.java', anchorLine: 42, inlineHint: 'off-by-one?' });
@@ -251,5 +299,269 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', null);
         expect(deps.showActiveNotification).toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// C4: classifyStruggleEvent -- new frame kinds
+// ---------------------------------------------------------------------------
+
+describe('classifyStruggleEvent -- C4 new frame kinds', () => {
+    it('round-trips kind=decide action=silent with episodeId and messageId', () => {
+        const e = classifyStruggleEvent({ exerciseId: 5, kind: 'decide', action: 'silent', episodeId: 'ep-1', messageId: 42 });
+        expect(e).toMatchObject({ exerciseId: 5, kind: 'decide', action: 'silent', episodeId: 'ep-1', messageId: 42 });
+    });
+
+    it('round-trips kind=confirm_close with all fields', () => {
+        const e = classifyStruggleEvent({
+            exerciseId: 5, kind: 'confirm_close', episodeId: 'ep-1', resolved: true,
+            closingSentence: 'Great job!', episodeLabel: 'Sort fixed', offer: false, messageId: 99,
+        });
+        expect(e).toMatchObject({ kind: 'confirm_close', episodeId: 'ep-1', resolved: true, closingSentence: 'Great job!', episodeLabel: 'Sort fixed', offer: false, messageId: 99 });
+    });
+
+    it('round-trips kind=stale_check with ask=true and question', () => {
+        const e = classifyStruggleEvent({ exerciseId: 5, kind: 'stale_check', episodeId: 'ep-1', ask: true, question: 'What have you tried?', messageId: 77 });
+        expect(e).toMatchObject({ kind: 'stale_check', episodeId: 'ep-1', ask: true, question: 'What have you tried?', messageId: 77 });
+    });
+
+    it('round-trips kind=stale_check with ask=false', () => {
+        const e = classifyStruggleEvent({ exerciseId: 5, kind: 'stale_check', episodeId: 'ep-1', ask: false });
+        expect(e).toMatchObject({ kind: 'stale_check', ask: false });
+    });
+
+    it('returns undefined for kind=confirm_close missing resolved', () => {
+        expect(classifyStruggleEvent({ exerciseId: 5, kind: 'confirm_close', episodeId: 'ep-1' })).toBeUndefined();
+    });
+
+    it('returns undefined for kind=stale_check missing ask', () => {
+        expect(classifyStruggleEvent({ exerciseId: 5, kind: 'stale_check', episodeId: 'ep-1' })).toBeUndefined();
+    });
+
+    it('parses kind=decide action=ambient with episodeId (new-style)', () => {
+        const e = classifyStruggleEvent({ exerciseId: 5, kind: 'decide', action: 'ambient', episodeId: 'ep-2', message: 'Check bounds.', messageId: 88 });
+        expect(e).toMatchObject({ kind: 'decide', action: 'ambient', episodeId: 'ep-2', message: 'Check bounds.', messageId: 88 });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// C4: subscribeStruggleEvents -- dispatch to new handlers
+// ---------------------------------------------------------------------------
+
+describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
+    function makeSubscribe() {
+        let onFrame: ((d: unknown) => void) | undefined;
+        const subscribe = (_topic: string, f: (d: unknown) => void) => { onFrame = f; return { dispose() { /* noop */ } }; };
+        return { subscribe, emit: (d: unknown) => onFrame!(d) };
+    }
+
+    it('dispatches kind=decide action=silent to onServerSilent with episodeId and messageId', () => {
+        const { subscribe, emit } = makeSubscribe();
+        const onServerSilent = vi.fn();
+        subscribeStruggleEvents(subscribe, {
+            onServerAmbient: vi.fn(), onServerActive: vi.fn(),
+            onServerSilent, onServerClose: vi.fn(), onServerStale: vi.fn(),
+        });
+        emit({ exerciseId: 7, kind: 'decide', action: 'silent', episodeId: 'ep-silent', messageId: 11 });
+        expect(onServerSilent).toHaveBeenCalledWith('ep-silent', 11);
+    });
+
+    it('dispatches kind=confirm_close to onServerClose', () => {
+        const { subscribe, emit } = makeSubscribe();
+        const onServerClose = vi.fn();
+        subscribeStruggleEvents(subscribe, {
+            onServerAmbient: vi.fn(), onServerActive: vi.fn(),
+            onServerSilent: vi.fn(), onServerClose, onServerStale: vi.fn(),
+        });
+        emit({ exerciseId: 7, kind: 'confirm_close', episodeId: 'ep-close', resolved: true, episodeLabel: 'Sort done', messageId: 22 });
+        expect(onServerClose).toHaveBeenCalledWith('ep-close', true, 22, undefined, 'Sort done', undefined);
+    });
+
+    it('dispatches kind=stale_check to onServerStale', () => {
+        const { subscribe, emit } = makeSubscribe();
+        const onServerStale = vi.fn();
+        subscribeStruggleEvents(subscribe, {
+            onServerAmbient: vi.fn(), onServerActive: vi.fn(),
+            onServerSilent: vi.fn(), onServerClose: vi.fn(), onServerStale,
+        });
+        emit({ exerciseId: 7, kind: 'stale_check', episodeId: 'ep-stale', ask: true, question: 'Any progress?', messageId: 33 });
+        expect(onServerStale).toHaveBeenCalledWith('ep-stale', true, 33, 'Any progress?');
+    });
+
+    it('still dispatches backwards-compat ambient/active frames', () => {
+        const { subscribe, emit } = makeSubscribe();
+        const onServerAmbient = vi.fn();
+        const onServerActive = vi.fn();
+        subscribeStruggleEvents(subscribe, {
+            onServerAmbient, onServerActive,
+            onServerSilent: vi.fn(), onServerClose: vi.fn(), onServerStale: vi.fn(),
+        });
+        emit({ exerciseId: 3, action: 'ambient', message: 'Try X.' });
+        expect(onServerAmbient).toHaveBeenCalled();
+        emit({ exerciseId: 3, action: 'active', sessionId: 9 });
+        expect(onServerActive).toHaveBeenCalled();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// C4: orchestrator handler integration -- silent / confirmClose / staleCheck
+// ---------------------------------------------------------------------------
+
+describe('StruggleInterventionService -- C4 silent dispatch', () => {
+    it('kind=decide action=silent with matching episodeId on FREE slot stays FREE and clears candidate', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-test');
+
+        svc.onServerSilent('ep-test', undefined);
+
+        expect(svc._slot.snapshot().state.kind).toBe('free');
+        expect(svc._candidate).toBeUndefined();
+        expect(svc._inFlightMarker).toBeUndefined();
+    });
+
+    it('kind=decide action=silent with mismatched episodeId is dropped (no slot change)', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-test');
+
+        svc.onServerSilent('ep-OTHER', undefined);
+
+        // in-flight marker must NOT be consumed (real reply may still arrive)
+        expect(svc._inFlightMarker).toBeDefined();
+        // slot stays FREE (was already free; no change)
+        expect(svc._slot.snapshot().state.kind).toBe('free');
+    });
+
+    it('mismatched episodeId with messageId triggers postRemoveMessage', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-test');
+
+        svc.onServerSilent('ep-OTHER', 42);
+
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(42);
+    });
+
+    it('kind=decide action=silent with PARKED slot calls discardParkedToFree', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-parked');
+        // Put slot in PARKED via ambient
+        svc.onServerAmbient('Ambient hint.', undefined, undefined, undefined, undefined, null);
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
+
+        // Now set up a new decide in-flight for the parked episode
+        const gen2 = svc._slot.generation();
+        const stamp2: PendingStamp = { episodeId: 'ep-parked-2', generation: gen2, hardEvent: false, requestToken: 'tok2' };
+        const lt2 = svc._guard.issue('decide', stamp2);
+        svc._inFlightMarker = { requestToken: 'tok2', episodeId: 'ep-parked-2', generation: gen2, intent: 'decide', localToken: lt2 };
+        svc._candidate = { episodeId: 'ep-parked-2', isNew: true, hints: [], createdAtMs: 0 };
+
+        svc.onServerSilent('ep-parked-2', undefined);
+
+        expect(svc._slot.snapshot().state.kind).toBe('free');
+    });
+});
+
+describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
+    it('DELIVERED resolved=true frees slot + calls setEpisodeOutcome(RECOVERED) + foldEpisode with praise', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDeliveredWithClosePending(svc, 'ep-close');
+
+        svc.onServerClose('ep-close', true, 55, undefined, 'Well done!', false);
+
+        expect(svc._slot.snapshot().state.kind).toBe('free');
+        expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(1, 'ep-close', 'RECOVERED');
+        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', { episodeLabel: 'Well done!', closeMessageId: 55 });
+    });
+
+    it('DELIVERED resolved=true with no episodeLabel emits fold without praise', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDeliveredWithClosePending(svc, 'ep-close');
+
+        svc.onServerClose('ep-close', true, undefined, undefined, undefined, false);
+
+        // praise=undefined because both closeMessageId and episodeLabel are undefined
+        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', undefined);
+    });
+
+    it('PARKED resolved=true calls discardParkedToFree: no message, no fold, no outcome', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateParkedWithClosePending(svc, 'ep-parked');
+
+        svc.onServerClose('ep-parked', true, undefined, undefined, undefined, false);
+
+        expect(svc._slot.snapshot().state.kind).toBe('free');
+        expect(deps.foldEpisode).not.toHaveBeenCalled();
+        // PARKED resolved=true: no outcome (discardParkedToFree, no RECOVERED)
+        expect(deps.setEpisodeOutcome).not.toHaveBeenCalled();
+    });
+
+    it('PARKED resolved=false stays PARKED', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateParkedWithClosePending(svc, 'ep-parked');
+
+        svc.onServerClose('ep-parked', false, undefined, undefined, undefined, false);
+
+        expect(svc._slot.snapshot().state.kind).toBe('parked'); // stays PARKED
+        expect(deps.foldEpisode).not.toHaveBeenCalled();
+    });
+
+    it('confirmClose with mismatched episodeId is dropped + triggers postRemoveMessage', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDeliveredWithClosePending(svc, 'ep-close');
+
+        svc.onServerClose('ep-WRONG', true, 77, undefined, 'Close sentence', false);
+
+        // Slot stays DELIVERED
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(77);
+        // Marker NOT consumed (real reply may still arrive)
+        expect(svc._inFlightMarker).toBeDefined();
+    });
+});
+
+describe('StruggleInterventionService -- C4 staleCheck dispatch', () => {
+    it('ask=true mints an askId, binds it, calls onAskPosted, posts addStaleAsk', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDeliveredWithStalePending(svc, 'ep-stale');
+
+        svc.onServerStale('ep-stale', true, 44, 'What have you tried?');
+
+        expect(svc._liveAskBinding).toBeDefined();
+        expect(svc._liveAskBinding!.askId).toBe('test-local-id');
+        expect(svc._liveAskBinding!.messageId).toBe(44);
+        expect(svc._liveAskBinding!.episodeId).toBe('ep-stale');
+        expect(deps.postStaleAsk).toHaveBeenCalledWith('ep-stale', 'test-local-id', 44, 'What have you tried?');
+    });
+
+    it('ask=false is a noop: no askId minted, no staleAsk posted, no onAskPosted', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDeliveredWithStalePending(svc, 'ep-stale');
+
+        svc.onServerStale('ep-stale', false, undefined, undefined);
+
+        expect(svc._liveAskBinding).toBeUndefined();
+        expect(deps.postStaleAsk).not.toHaveBeenCalled();
+    });
+
+    it('staleCheck with mismatched episodeId is dropped + triggers postRemoveMessage', () => {
+        const deps = makeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDeliveredWithStalePending(svc, 'ep-stale');
+
+        svc.onServerStale('ep-WRONG', true, 55, 'Question');
+
+        expect(svc._liveAskBinding).toBeUndefined();
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(55);
+        expect(svc._inFlightMarker).toBeDefined();
     });
 });

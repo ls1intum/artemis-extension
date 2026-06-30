@@ -102,6 +102,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			artemisApiService.cancelOutstandingStruggleJob(exerciseId, requestToken),
 		// C6/C7 fold signal stub
 		foldEpisode: (_episodeId, _praise) => { /* C6/C7 TODO */ },
+		// C4: stale-row suppression
+		postRemoveMessage: (id) => chatWebviewProvider?.postRemoveMessage(id),
+		deleteSupersededProactiveMessage: (exerciseId, messageId) =>
+			artemisApiService.deleteSupersededProactiveMessage(exerciseId, messageId),
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
 		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
 		subscribeStruggleTopic: (topic, onFrame) => {

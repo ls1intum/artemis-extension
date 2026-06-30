@@ -200,6 +200,8 @@ export const ExtensionMsg = {
     UpdateProactiveControl: 'updateProactiveControl',
     UpdateIrisStages: 'updateIrisStages',
     SendRejected: 'sendRejected',
+    FoldEpisode: 'foldEpisode',
+    RemoveMessage: 'removeMessage',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -344,7 +346,8 @@ interface ExtensionMsgPayloads {
             timestamp: number;
             helpful?: boolean | null;
             origin?: 'proactive';
-            proactiveOutcome?: 'DISMISSED';
+            proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
+            proactiveEpisodeId?: string;
         };
     };
     loadMessages: {
@@ -360,7 +363,8 @@ interface ExtensionMsgPayloads {
             timestamp: number;
             helpful?: boolean | null;
             origin?: 'proactive';
-            proactiveOutcome?: 'DISMISSED';
+            proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
+            proactiveEpisodeId?: string;
         }>;
     };
     loadMessagesError: { localSessionId: string };
@@ -434,6 +438,25 @@ interface ExtensionMsgPayloads {
 
     // Server-side problem statement rendering
     problemStatementRendered: RenderedProblemStatementPayload;
+
+    /**
+     * Emitted by the extension host on every DELIVERED terminal (dismiss / progress-close /
+     * stale-free / force-free). The webview folds the episode group to a single summary line.
+     * `praise` is present only on a progress-close terminal and carries the non-persisted
+     * `episodeLabel` (fold copy) and `closeMessageId` (order-safe: C7 waits for the closing
+     * row with that id before starting the ~5 s timer).
+     */
+    foldEpisode: {
+        episodeId: string;
+        praise?: { episodeLabel: string; closeMessageId: number };
+    };
+    /**
+     * Posted by the extension host when a stale control frame is dropped and the frame's
+     * persisted chat row must be removed from the webview (stale-row suppression, C4).
+     * The store removes the row if present AND records `id` in `suppressedIds` so a
+     * chat-ws row with the same id arriving after the drop is never inserted.
+     */
+    removeMessage: { id: number };
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

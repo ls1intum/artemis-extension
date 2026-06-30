@@ -357,6 +357,10 @@ export class IrisChatSessionService {
             const formattedMessages = (messages ?? []).map((msg: IrisChatMessage) => {
                 const content = extractIrisMessageContent(msg.content);
 
+                const proactiveOutcome = msg.proactiveOutcome === 'DISMISSED' || msg.proactiveOutcome === 'RECOVERED' || msg.proactiveOutcome === 'ABANDONED'
+                    ? msg.proactiveOutcome
+                    : undefined;
+
                 return {
                     id: msg.id,
                     role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
@@ -364,7 +368,8 @@ export class IrisChatSessionService {
                     timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
                     helpful: (msg as { helpful?: boolean | null }).helpful,
                     origin: (msg.origin === 'PROACTIVE_STRUGGLE' ? 'proactive' : undefined) as 'proactive' | undefined,
-                    proactiveOutcome: (msg.proactiveOutcome === 'DISMISSED' ? 'DISMISSED' : undefined) as 'DISMISSED' | undefined
+                    proactiveOutcome,
+                    proactiveEpisodeId: typeof msg.proactiveEpisodeId === 'string' ? msg.proactiveEpisodeId : undefined,
                 };
             });
 

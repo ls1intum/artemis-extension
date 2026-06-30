@@ -665,4 +665,104 @@ describe('useChatStore', () => {
 		expect(result.current.messages).toEqual([]);
 		expect(result.current.irisStages).toEqual([]);
 	});
+
+	// ---------------------------------------------------------------------------
+	// C4: suppressedIds + removeMessageById (stale-row suppression)
+	// ---------------------------------------------------------------------------
+
+	describe('suppressedIds', () => {
+		it('starts empty', () => {
+			const { result } = renderHook(() => useChatStore());
+			expect(result.current.suppressedIds.size).toBe(0);
+		});
+
+		it('addMessage skips a row whose id is in suppressedIds', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.removeMessageById(42); });
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'ws-1', id: 42, content: 'Stale row' }));
+			});
+
+			expect(result.current.messages).toHaveLength(0);
+		});
+
+		it('clearMessages resets suppressedIds', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.removeMessageById(99); });
+			act(() => { result.current.clearMessages(); });
+
+			expect(result.current.suppressedIds.size).toBe(0);
+			// After clear, a message with that id can be inserted again
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'fresh-1', id: 99, content: 'Fresh row' }));
+			});
+			expect(result.current.messages).toHaveLength(1);
+		});
+	});
+
+	describe('removeMessageById', () => {
+		it('removes the row if present by numeric id', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'a', id: 10 }));
+				result.current.addMessage(makeMessage({ localId: 'b', id: 20 }));
+			});
+
+			act(() => { result.current.removeMessageById(10); });
+
+			expect(result.current.messages).toHaveLength(1);
+			expect(result.current.messages[0].localId).toBe('b');
+		});
+
+		it('is a no-op on the messages array when id is not present', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.addMessage(makeMessage({ localId: 'a', id: 5 })); });
+			act(() => { result.current.removeMessageById(999); });
+
+			expect(result.current.messages).toHaveLength(1);
+		});
+
+		it('records the id in suppressedIds even when no matching row is present', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.removeMessageById(77); });
+
+			expect(result.current.suppressedIds.has(77)).toBe(true);
+		});
+
+		it('STALE-ROW SUPPRESSION arrival order 1: row first, then removeMessageById -> zero rows', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			// Row arrives via chat-ws before the control frame drop
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'ws-1', id: 55, content: 'Stale hint' }));
+			});
+			expect(result.current.messages).toHaveLength(1);
+
+			// Control frame is dropped -> remove + suppress
+			act(() => { result.current.removeMessageById(55); });
+
+			expect(result.current.messages).toHaveLength(0);
+			expect(result.current.suppressedIds.has(55)).toBe(true);
+		});
+
+		it('STALE-ROW SUPPRESSION arrival order 2: removeMessageById first, then chat-ws row -> zero rows', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			// Control frame drop arrives before the chat-ws row
+			act(() => { result.current.removeMessageById(66); });
+
+			// Chat-ws row arrives later
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'ws-2', id: 66, content: 'Stale hint' }));
+			});
+
+			expect(result.current.messages).toHaveLength(0);
+			expect(result.current.suppressedIds.has(66)).toBe(true);
+		});
+	});
 });

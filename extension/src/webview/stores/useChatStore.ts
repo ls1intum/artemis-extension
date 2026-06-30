@@ -49,6 +49,13 @@ interface ChatState {
      * the loader until this matches the active session.
      */
     messageLoad: MessageLoadResult | null;
+    /**
+     * Artemis message ids that have been explicitly suppressed by a stale-row drop
+     * (C4). `addMessage` skips any row whose numeric `id` is in this set so a
+     * chat-ws row arriving AFTER a `removeMessageById` call is never inserted
+     * (guards both arrival orders).
+     */
+    suppressedIds: Set<number>;
 
     // Streaming
     streaming: StreamingState;
@@ -93,6 +100,12 @@ interface ChatState {
         errorReason: NonNullable<ChatMessage['errorReason']>,
     ) => boolean;
     removeMessage: (localId: string) => void;
+    /**
+     * Remove the message with the given Artemis numeric id (if present) AND record
+     * that id in `suppressedIds` so a chat-ws row with the same id arriving later
+     * is never inserted. Drives the C4 stale-row suppression on both arrival orders.
+     */
+    removeMessageById: (id: number) => void;
     clearMessages: () => void;
 
     // Streaming actions
@@ -128,6 +141,7 @@ export const useChatStore = create<ChatState>()(
             courses: [],
             messages: [],
             messageLoad: null,
+            suppressedIds: new Set<number>(),
             streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
@@ -181,8 +195,15 @@ export const useChatStore = create<ChatState>()(
 
             addMessage: (message) => {
                 set((state) => {
-                    if (message.id !== undefined && state.messages.some(m => m.id === message.id)) {
-                        return state; // already present, no-op (dedup the optimistic bubble vs the chat-ws row)
+                    if (message.id !== undefined) {
+                        // Dedup: already present (optimistic bubble vs chat-ws row)
+                        if (state.messages.some(m => m.id === message.id)) {
+                            return state;
+                        }
+                        // Stale-row suppression (C4): id was flagged by removeMessageById
+                        if (state.suppressedIds.has(message.id)) {
+                            return state;
+                        }
                     }
                     return { messages: [...state.messages, message] };
                 }, false, 'addMessage');
@@ -218,10 +239,22 @@ export const useChatStore = create<ChatState>()(
                 }), false, 'removeMessage');
             },
 
+            removeMessageById: (id) => {
+                set((state) => {
+                    const next = new Set(state.suppressedIds);
+                    next.add(id);
+                    return {
+                        messages: state.messages.filter((m) => m.id !== id),
+                        suppressedIds: next,
+                    };
+                }, false, 'removeMessageById');
+            },
+
             clearMessages: () => {
                 set({
                     messages: [],
                     messageLoad: null,
+                    suppressedIds: new Set<number>(),
                     irisStages: [],
                     streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');
