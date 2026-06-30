@@ -178,6 +178,32 @@ describe('StaleWatchdog', () => {
     });
 
     // -----------------------------------------------------------------------
+    // Read accessors (diagnostic)
+    // -----------------------------------------------------------------------
+
+    describe('read accessors', () => {
+        it('isArmed reflects arm/disarm', () => {
+            const wd = new StaleWatchdog({ staleAfterMs: 1000, staleWindowMax: 4, staleAskCap: 2 });
+            expect(wd.isArmed()).toBe(false);
+            wd.arm(0, false);
+            expect(wd.isArmed()).toBe(true);
+            wd.disarm();
+            expect(wd.isArmed()).toBe(false);
+        });
+
+        it('staleDeadlineMs is lastReset + staleAfterMs while armed, null otherwise', () => {
+            const wd = new StaleWatchdog({ staleAfterMs: 1000, staleWindowMax: 4, staleAskCap: 2 });
+            expect(wd.staleDeadlineMs()).toBeNull();
+            wd.arm(500, false);
+            expect(wd.staleDeadlineMs()).toBe(1500);
+            wd.resetProgress(2000);
+            expect(wd.staleDeadlineMs()).toBe(3000);
+            wd.disarm();
+            expect(wd.staleDeadlineMs()).toBeNull();
+        });
+    });
+
+    // -----------------------------------------------------------------------
     // disarm
     // -----------------------------------------------------------------------
 

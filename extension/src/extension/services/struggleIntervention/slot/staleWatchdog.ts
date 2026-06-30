@@ -157,4 +157,14 @@ export class StaleWatchdog {
     windowCount(): number {
         return this._staleWindowCount;
     }
+
+    /** True while the watchdog is armed (diagnostic read; does not affect counters). */
+    isArmed(): boolean {
+        return this._armed;
+    }
+
+    /** Absolute ms of the next due fire while armed, else null (diagnostic read). */
+    staleDeadlineMs(): number | null {
+        return this._armed ? this._lastResetMs + this._cfg.staleAfterMs : null;
+    }
 }
