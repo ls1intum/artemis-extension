@@ -159,7 +159,7 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
  * called conditionally. The SlotPanel/SlotPanelBody split ensures SlotPanelBody
  * (which calls the hook) only renders once snapshot is non-null.
  */
-export function SlotPanel({ vscodeApi }: { vscodeApi: VsCodeApi }) {
+export function SlotPanel({ vscodeApi, collapsible, defaultCollapsed }: { vscodeApi: VsCodeApi; collapsible?: boolean; defaultCollapsed?: boolean }) {
     const [snapshot, setSnapshot] = useState<SlotDebugSnapshot | null>(null);
 
     // 1) Register the message listener FIRST so it is live before we subscribe.
@@ -181,6 +181,8 @@ export function SlotPanel({ vscodeApi }: { vscodeApi: VsCodeApi }) {
             header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Slot (live)</div>}
             variant="default"
             padding="default"
+            collapsible={collapsible}
+            defaultCollapsed={defaultCollapsed}
         >
             {snapshot === null ? (
                 <p className={styles.waiting}>Waiting for slot data.</p>

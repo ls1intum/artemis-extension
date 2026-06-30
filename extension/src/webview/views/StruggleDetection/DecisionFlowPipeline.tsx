@@ -11,6 +11,8 @@ import { mmss, useEngineCountdowns } from './useEngineCountdowns';
 
 interface DecisionFlowPipelineProps {
     debug: StruggleDebugSnapshot;
+    collapsible?: boolean;
+    defaultCollapsed?: boolean;
 }
 
 /**
@@ -55,7 +57,7 @@ const header = <div style={{ fontSize: '15px', fontWeight: 600 }}>Decision flow<
  * highlighted. The discrete add-on (test-stagnation) fires on its own path and is shown as a
  * separate verdict, never as a faked all-pass flow.
  */
-export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
+export function DecisionFlowPipeline({ debug, collapsible, defaultCollapsed }: DecisionFlowPipelineProps) {
     const { cooldownLeft, warmupLeft, graceLeft } = useEngineCountdowns(debug);
     const trace = debug.decisionTrace;
 
@@ -69,7 +71,7 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
     // is subject only to the cooldown. Show a distinct verdict instead of a fake edit-path flow.
     if (trace.outcome === 'fired-discrete' && trace.discreteTrigger) {
         return (
-            <Container header={header} variant="default" padding="default">
+            <Container header={header} variant="default" padding="default" collapsible={collapsible} defaultCollapsed={defaultCollapsed}>
                 <div className={styles.panel}>
                     <div className={styles.verdict} style={{ borderTop: 'none', paddingTop: 0 }}>
                         <Badge variant="error">Alert fired</Badge>
@@ -138,7 +140,7 @@ export function DecisionFlowPipeline({ debug }: DecisionFlowPipelineProps) {
     ];
 
     return (
-        <Container header={header} variant="default" padding="default">
+        <Container header={header} variant="default" padding="default" collapsible={collapsible} defaultCollapsed={defaultCollapsed}>
             <div className={styles.panel}>
                 <p className={styles.note}>
                     How the latest 10&nbsp;s tick got from severity to &quot;nudge or not&quot; (edit path).

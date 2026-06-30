@@ -20,6 +20,8 @@ import styles from './LiveEngineSection.module.css';
 
 interface LiveEngineSectionProps {
     vscodeApi: VsCodeApi;
+    collapsible?: boolean;
+    defaultCollapsed?: boolean;
 }
 
 /** Line colours for the three curves (urgency primary, s/v secondary). */
@@ -85,7 +87,7 @@ function useMeasuredWidth(fallback: number): [(el: HTMLDivElement | null) => voi
  * Every visible symbol is spelled out in full (Self-Explaining UI): no internal
  * codes are shown on screen. The deeper engine detail lives in hover tooltips.
  */
-export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
+export function LiveEngineSection({ vscodeApi, collapsible, defaultCollapsed }: LiveEngineSectionProps) {
     const [ticks, setTicks] = useState<LiveTick[]>([]);
     // null until the first session-state message arrives (subscribe posts it).
     const [sessionActive, setSessionActive] = useState<boolean | null>(null);
@@ -126,6 +128,8 @@ export function LiveEngineSection({ vscodeApi }: LiveEngineSectionProps) {
             header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Live Engine View (developer)</div>}
             variant="default"
             padding="default"
+            collapsible={collapsible}
+            defaultCollapsed={defaultCollapsed}
         >
             <div className={styles.section}>
                 <p className={styles.note}>

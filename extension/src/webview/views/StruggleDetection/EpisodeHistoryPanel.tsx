@@ -20,12 +20,14 @@ const CHIP_CLASS: Record<EpisodeHistoryEntry['outcome'], string> = {
  * No subscription: the parent reads `msg.episodes` from the struggleSlotUpdate
  * message and passes the array down as a prop.
  */
-export function EpisodeHistoryPanel({ episodes }: { episodes: EpisodeHistoryEntry[] }) {
+export function EpisodeHistoryPanel({ episodes, collapsible, defaultCollapsed }: { episodes: EpisodeHistoryEntry[]; collapsible?: boolean; defaultCollapsed?: boolean }) {
     return (
         <Container
             header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Episodes (this session)</div>}
             variant="default"
             padding="default"
+            collapsible={collapsible}
+            defaultCollapsed={defaultCollapsed}
         >
             {episodes.length === 0 ? (
                 <p className={styles.emptyState}>No episodes yet this session.</p>

@@ -7,6 +7,8 @@ import { mmss, useEngineCountdowns } from './useEngineCountdowns';
 
 interface TimersPanelProps {
     debug: StruggleDebugSnapshot;
+    collapsible?: boolean;
+    defaultCollapsed?: boolean;
 }
 
 function Row({ label, title, children }: { label: string; title: string; children: React.ReactNode }) {
@@ -34,7 +36,7 @@ function Value({ children, sub }: { children: React.ReactNode; sub?: string }) {
  * readouts stay live between the 10 s engine ticks. All internal codes are spelled out in plain
  * language (no B4/E6/fN2 on screen); deeper detail lives in hover tooltips.
  */
-export function TimersPanel({ debug }: TimersPanelProps) {
+export function TimersPanel({ debug, collapsible, defaultCollapsed }: TimersPanelProps) {
     const { caps, throttle } = debug;
     // Hooks must run unconditionally, before the inactive-session early return below.
     const c = useEngineCountdowns(debug);
@@ -47,6 +49,8 @@ export function TimersPanel({ debug }: TimersPanelProps) {
                 header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Engine timers &amp; delivery</div>}
                 variant="default"
                 padding="default"
+                collapsible={collapsible}
+                defaultCollapsed={defaultCollapsed}
             >
                 <p className={styles.note}>
                     No active exercise session. Open an Artemis exercise to start the engine; the timers appear once it ticks.
@@ -67,6 +71,8 @@ export function TimersPanel({ debug }: TimersPanelProps) {
             header={<div style={{ fontSize: '15px', fontWeight: 600 }}>Engine timers &amp; delivery</div>}
             variant="default"
             padding="default"
+            collapsible={collapsible}
+            defaultCollapsed={defaultCollapsed}
         >
             <div className={styles.panel}>
                 <p className={styles.note}>

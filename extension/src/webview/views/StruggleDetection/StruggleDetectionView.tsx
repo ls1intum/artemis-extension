@@ -1,12 +1,15 @@
 import { useState } from 'react';
 
+import type { EpisodeHistoryEntry } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 import { BackLink, Container, IconButton, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
 import { DecisionFlowPipeline } from './DecisionFlowPipeline';
+import { EpisodeHistoryPanel } from './EpisodeHistoryPanel';
 import { LiveEngineSection } from './LiveEngineSection';
+import { SlotPanel } from './SlotPanel';
 import styles from './StruggleDetectionView.module.css';
 import { TimersPanel } from './TimersPanel';
 import type { StruggleData, StruggleDetectionViewProps } from './types';
@@ -18,13 +21,16 @@ function getUrgencyColor(u: number): string {
 
 export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps) {
     const [data, setData] = useState<StruggleData | null>(null);
+    const [episodes, setEpisodes] = useState<EpisodeHistoryEntry[]>([]);
 
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.StruggleDetectionInit) {
             const { type: _type, ...struggleData } = msg;
             setData(struggleData);
+        } else if (msg.type === ExtensionMsg.StruggleSlotUpdate) {
+            setEpisodes(msg.episodes);
         }
-    }, [setData]);
+    }, [setData, setEpisodes]);
 
     const handleBackToDashboard = () => {
         postCommand(vscodeApi, 'backToDashboard');
@@ -131,6 +137,8 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 }
                 variant="default"
                 padding="default"
+                collapsible
+                defaultCollapsed={false}
             >
                 {!data.debug?.sessionActive ? (
                     /* No active exercise session: the engine reports urgency 0 here, so show an
@@ -186,18 +194,28 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
             {/* Decision-flow pipeline: how the latest tick decided. Renders only with an
                 active session + a real tick (the component self-guards). */}
-            {data.debug && <DecisionFlowPipeline debug={data.debug} />}
+            {data.debug && <DecisionFlowPipeline debug={data.debug} collapsible defaultCollapsed />}
 
             {/* Developer-only timers/counters dashboard (warm-up, cooldown, grace, throttle, metrics).
                 Fed by the per-tick struggleDetectionInit snapshot; interpolates its own 1 s clock. */}
-            {data.developerMode && data.debug && <TimersPanel debug={data.debug} />}
+            {data.developerMode && data.debug && <TimersPanel debug={data.debug} collapsible defaultCollapsed />}
+
+            {/* Developer-only slot state panel: live intervention slot view.
+                Owns its own subscribe/unsubscribe lifecycle (ref-counted alongside LiveEngineSection).
+                Hidden in the embedded editor-tab copy. */}
+            {data.developerMode && !data.embedded && <SlotPanel vscodeApi={vscodeApi} collapsible defaultCollapsed={false} />}
+
+            {/* Developer-only episode history panel: terminated episodes for this session.
+                Pure presentational; the View fans msg.episodes from the slot broadcast down as a prop.
+                Hidden in the embedded editor-tab copy. */}
+            {data.developerMode && !data.embedded && <EpisodeHistoryPanel episodes={episodes} collapsible defaultCollapsed />}
 
             {/* Developer-only live engine view (curve + current-tick gate panel).
                 Owns its own subscribe/unsubscribe lifecycle; the parent must NOT
                 post struggleLiveSubscribe (avoids the listener-before-subscribe race).
                 Hidden in the embedded editor-tab copy: that panel has no live feed wired,
                 so the chart would sit empty (user chose dashboard-only for the pop-out). */}
-            {data.developerMode && !data.embedded && <LiveEngineSection vscodeApi={vscodeApi} />}
+            {data.developerMode && !data.embedded && <LiveEngineSection vscodeApi={vscodeApi} collapsible defaultCollapsed />}
 
             {/* Developer tools */}
             {__IRIS_RECORDING__ && data.developerMode && (
@@ -209,6 +227,8 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                     }
                     variant="default"
                     padding="default"
+                    collapsible
+                    defaultCollapsed
                 >
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <button
