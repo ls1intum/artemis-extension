@@ -305,6 +305,7 @@ export class StruggleInterventionService implements AlertSink {
      */
     setInSession(open: boolean): void {
         this._slot.setInSession(open);
+        this._dbg(`  -> IN-SESSION ${open ? 'open' : 'closed'} (slot=${this._slot.snapshot().state.kind})`);
     }
 
     /** AlertSink.deliver -- the coordinator calls this ONLY when `enabled && showInterventions`. */
@@ -561,6 +562,7 @@ export class StruggleInterventionService implements AlertSink {
         const action = reconcile(snap.state, decision);
 
         if (action.kind === 'discard-free') {
+            this._dbg('  -> SILENT: discard PARKED -> FREE');
             this._slot.discardParkedToFree();
             this._clearEpisodeRuntime();
         } else {
@@ -612,6 +614,7 @@ export class StruggleInterventionService implements AlertSink {
 
             if (wasDelivered) {
                 // DELIVERED resolved=true: free + RECOVERED outcome + fold with praise
+                this._dbg(`  -> CLOSE resolved: DELIVERED -> FREE (RECOVERED) episodeId=${liveEpisodeId ?? 'n/a'}`);
                 const exerciseId = this._deps.getExerciseId();
                 this._slot.free();
                 this._clearEpisodeRuntime();
@@ -626,6 +629,7 @@ export class StruggleInterventionService implements AlertSink {
                 }
             } else if (wasParked) {
                 // PARKED resolved=true: discard silently (no row, no fold, no outcome)
+                this._dbg('  -> CLOSE resolved: PARKED -> FREE (silent discard)');
                 this._slot.discardParkedToFree();
                 this._clearEpisodeRuntime();
             } else {
@@ -634,6 +638,7 @@ export class StruggleInterventionService implements AlertSink {
             }
         } else {
             // Not resolved: drain any queued work
+            this._dbg('  -> CLOSE not resolved: latch re-arms, slot stays');
             void this._drainOwed();
         }
     }
@@ -663,6 +668,7 @@ export class StruggleInterventionService implements AlertSink {
         this._inFlightMarker = undefined;
 
         if (ask && this._watchdog && messageId !== undefined && question !== undefined) {
+            this._dbg(`  -> STALE ask=true: post question + arm ABANDON (episodeId=${episodeId ?? 'n/a'})`);
             // Mint a runtime askId and bind it to the persisted row
             const askId = this._deps.generateLocalId();
             const latchedEpisodeId = episodeId!;
@@ -724,6 +730,7 @@ export class StruggleInterventionService implements AlertSink {
             case 'take-delivered': {
                 const ep = this._candidate!;
                 this._slot.takeDelivered(now, ep, hint);
+                this._dbg(`  -> TAKE-DELIVERED bubble hint="${text}"`);
                 this._candidate = undefined;
                 this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
                 this._watchdog.arm(now, false /* delivered */);
@@ -758,6 +765,7 @@ export class StruggleInterventionService implements AlertSink {
             case 'replace-delivered': {
                 const ep = this._candidate!;
                 this._slot.replaceWithDelivered(now, ep, hint);
+                this._dbg(`  -> REPLACE-DELIVERED bubble hint="${text}"`);
                 this._candidate = undefined;
                 // Watchdog: fresh instance for the replacement episode
                 this._watchdog?.disarm();
@@ -772,6 +780,7 @@ export class StruggleInterventionService implements AlertSink {
             case 'escalate': {
                 // DELIVERED ambient + hardEvent: escalate to active (same episode)
                 this._slot.escalate(hint);
+                this._dbg(`  -> ESCALATE ambient->active hint="${text}"`);
                 const inSession = this._slot.snapshot().inSession;
                 this._applyEscalation(inSession, text, anchorFile, anchorLine, inlineHint, messageId);
                 // Watchdog: resetProgress is NOT called here (escalation is not "hard progress")
@@ -923,6 +932,7 @@ export class StruggleInterventionService implements AlertSink {
             case 'force-free': {
                 // DELIVERED terminal: free + ABANDONED + clearEpisodeRuntime + foldEpisode (no praise)
                 // Scoped cancel is now hoisted into _clearEpisodeRuntime.
+                this._dbg('  -> WATCHDOG force-free: DELIVERED -> FREE (ABANDONED)');
                 const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
                 const episodeId = deliveredEp?.episodeId;
 
@@ -938,6 +948,7 @@ export class StruggleInterventionService implements AlertSink {
             case 'free-silent': {
                 // PARKED terminal: free silently (no row, no foldEpisode)
                 // Scoped cancel is now hoisted into _clearEpisodeRuntime.
+                this._dbg('  -> WATCHDOG free-silent: PARKED -> FREE (silent)');
                 this._slot.free();
                 this._clearEpisodeRuntime();
                 break;
@@ -1147,6 +1158,7 @@ export class StruggleInterventionService implements AlertSink {
         const snapState = this._slot.snapshot().state;
         const liveEpisodeId = snapState.kind === 'delivered' ? snapState.episode.episodeId : undefined;
         const exerciseId = this._deps.getExerciseId();
+        this._dbg(`  -> DISMISS episode=${episodeId ?? liveEpisodeId ?? 'n/a'} (slot=${snapState.kind})`);
 
         // Determine the target for the outcome write (passed arg wins; fall back to live)
         const targetEpisodeId = episodeId ?? liveEpisodeId;
@@ -1178,6 +1190,7 @@ export class StruggleInterventionService implements AlertSink {
     recordSolvedClick(): void {
         const snap = this._slot.snapshot();
         if (snap.state.kind === 'free') { return; }
+        this._dbg('  -> SOLVED click: queue stale_solved close');
         this._owedConfirmClose = { confirmReason: 'stale_solved' };
         void this._drainOwed();
     }
@@ -1215,6 +1228,7 @@ export class StruggleInterventionService implements AlertSink {
             if (!this._deadlineLatch.isCurrent(capturedDeadline)) { return; }
             if (!this._liveAskBinding || this._liveAskBinding.episodeId !== episodeId) { return; }
             // ABANDON teardown -- same path as the watchdog force-free
+            this._dbg(`  -> ABANDON fired (episodeId=${episodeId}) -> FREE + ABANDONED`);
             const exerciseId = this._deps.getExerciseId();
             const snap = this._slot.snapshot();
             const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
@@ -1240,6 +1254,7 @@ export class StruggleInterventionService implements AlertSink {
         const liveAskId = this._liveAskBinding?.askId ?? null;
         const effect = routeReply({ kind: 'button', button, askId }, askOpen, liveAskId);
         const now = Date.now();
+        this._dbg(`  -> STALE-ASK button="${button}" -> ${effect.kind}`);
 
         switch (effect.kind) {
             case 'confirm-close': {
@@ -1303,6 +1318,7 @@ export class StruggleInterventionService implements AlertSink {
         const newDeadline = this._deadlineLatch.advance(now, abandonFreeTextMs);
         const liveAskEpisodeId = this._liveAskBinding!.episodeId;
         this._scheduleAbandon(newDeadline, liveAskEpisodeId, now);
+        this._dbg(`  -> FREE-TEXT grace: ABANDON advanced (episodeId=${liveAskEpisodeId})`);
 
         return {
             revoke: () => {
@@ -1391,6 +1407,7 @@ export class StruggleInterventionService implements AlertSink {
         this._revealRetryGen++;
         // C3: clear all slot + episode runtime state
         if (!this._slot.isFree()) {
+            this._dbg('  -> RESET (new exercise): slot -> FREE');
             this._slot.free();
         }
         this._clearEpisodeRuntime();
@@ -1491,6 +1508,7 @@ export class StruggleInterventionService implements AlertSink {
         episodeId: string,
         outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
     ): void {
+        this._dbg(`  -> OUTCOME ${outcome} write (episodeId=${episodeId})`);
         void this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome)
             .then(({ applied }) => {
                 if (!applied) {
