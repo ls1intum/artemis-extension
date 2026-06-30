@@ -14,8 +14,10 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         postIntervention: vi.fn(async () => 'accepted' as const),
         openSession: vi.fn(async () => undefined),
         showAmbient: vi.fn(),
+        showLamp: vi.fn(),
         clearLamp: vi.fn(),
         showInline: vi.fn(),
+        showGutterOnly: vi.fn(),
         clearInline: vi.fn(),
         isAnchorLive: () => false,
         isStudentProactiveOn: () => true,
@@ -23,6 +25,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         pauseStrikes: 5,
         setBadge: vi.fn(),
         showActiveNotification: vi.fn(),
+        postBubble: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* never auto-clear in-flight in tests */ },
         ...over,
@@ -249,30 +252,43 @@ describe('StruggleInterventionService', () => {
         expect(svc.isProactivePaused(42)).toBe(false);
     });
 
-    it('inbound ambient event (no anchor) → lamp hint (opensChat=true) + clears in-flight', () => {
+    // C1: ambient = PARKED pointer only (badge + lamp always; gutter icon if anchor live). No inline text, no toast.
+    it('inbound ambient event (no anchor) → badge + lamp (PARKED pointer); no showAmbient, no inline', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc.onServerAmbient('Re-check the logic.', undefined, undefined, undefined);
-        expect(deps.showAmbient).toHaveBeenCalledWith('Re-check the logic.', true);
+        expect(deps.showLamp).toHaveBeenCalled();
+        expect(deps.setBadge).toHaveBeenCalledWith(true);
+        expect(deps.showAmbient).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.postBubble).not.toHaveBeenCalled();
+        expect(deps.showActiveNotification).not.toHaveBeenCalled();
     });
 
-    it('inbound ambient event WITH a live anchor → inline cue, not the lamp, and clears any standing lamp (spec §4)', () => {
+    it('inbound ambient event WITH a live anchor → badge + lamp + gutter icon; no inline text (spec §5 pull model)', () => {
         const deps = fakeDeps({ isAnchorLive: () => true });
         const svc = new StruggleInterventionService(deps);
         svc.onServerAmbient('Re-check the logic.', 'src/A.java', 42, 'off-by-one?');
-        expect(deps.showInline).toHaveBeenCalledWith('src/A.java', 42, 'off-by-one?', 'Re-check the logic.');
+        expect(deps.showGutterOnly).toHaveBeenCalledWith('src/A.java', 42);
+        expect(deps.showLamp).toHaveBeenCalled();
+        expect(deps.setBadge).toHaveBeenCalledWith(true);
+        // Ambient must NOT render the inline after-line text or toast or bubble:
+        expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.showAmbient).not.toHaveBeenCalled();
-        expect(deps.clearLamp).toHaveBeenCalled();   // exclusive surface
+        expect(deps.postBubble).not.toHaveBeenCalled();
+        expect(deps.showActiveNotification).not.toHaveBeenCalled();
     });
 
-    it('inbound ambient event with an anchor that is NOT live → falls back to the lamp, and clears any standing inline cue', () => {
+    it('inbound ambient event with an anchor NOT live → badge + lamp only; clears any stale inline cue', () => {
         const deps = fakeDeps({ isAnchorLive: () => false });
         const svc = new StruggleInterventionService(deps);
         svc.onServerAmbient('Re-check the logic.', 'src/A.java', 42, 'off-by-one?');
+        expect(deps.showLamp).toHaveBeenCalled();
+        expect(deps.setBadge).toHaveBeenCalledWith(true);
+        expect(deps.clearInline).toHaveBeenCalled();   // clears any stale cue from a previous active
+        expect(deps.showGutterOnly).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
-        expect(deps.showAmbient).toHaveBeenCalledWith('Re-check the logic.', true);
-        expect(deps.clearInline).toHaveBeenCalled();   // exclusive surface
+        expect(deps.showAmbient).not.toHaveBeenCalled();
     });
 
     it('hard-pauses after pauseStrikes dismisses; clicked + resetSession clear it; reset() (UI-only) does NOT', () => {

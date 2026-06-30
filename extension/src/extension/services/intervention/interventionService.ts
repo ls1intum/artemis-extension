@@ -74,6 +74,29 @@ export class InterventionService implements vscode.Disposable, AlertSink, Sessio
         this._statusBarItem.show();
     }
 
+    /**
+     * Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model).
+     * Always shows "Iris has a hint" and clicking opens the chat (no per-hint tooltip text,
+     * since the hint is hidden until the student pulls it). Distinct from {@link showAmbient}
+     * which is used for the no-AI local-template fallback path.
+     */
+    showLamp(): void {
+        this._ambientVisible = true;
+        this._ambientOpensChat = true;
+        this._statusBarItem.text = '$(lightbulb) Iris has a hint';
+        this._statusBarItem.tooltip = 'Iris noticed something - click to open the chat.';
+        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        this._statusBarItem.show();
+    }
+
+    /**
+     * Hide the ambient lamp (called when the active surface takes over, or on context reset).
+     * Clears all lamp and hint state; mirrors {@link reset} at the lamp-specific level.
+     */
+    hideLamp(): void {
+        this._hide();
+    }
+
     async handleClick(): Promise<void> {
         const hint = this._ambientHint;
         const opensChat = this._ambientOpensChat;

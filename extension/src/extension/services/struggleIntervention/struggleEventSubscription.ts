@@ -39,11 +39,12 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
 export interface StruggleEventHandlers {
     /** `exerciseId` lets the consumer drop frames that belong to a now-inactive
      *  exercise (the per-user topic is NOT exercise-filtered server-side, so a
-     *  late frame for a previous exercise can arrive after a fast switch). */
-    onServerAmbient(exerciseId: number, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void;
-    /** Active also carries the optional anchor: per spec §6.1 a localized active nudge ALSO drops the inline
-     *  breadcrumb at the line, so a missed toast still leaves a contextual pointer. */
-    onServerActive(exerciseId: number, sessionId: number, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void;
+     *  late frame for a previous exercise can arrive after a fast switch).
+     *  `messageId` is forwarded for future slot correlation (C3); null when absent. */
+    onServerAmbient(exerciseId: number, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, messageId: number | null): void;
+    /** Active also carries the optional anchor (spec §6.1) and the hint `message` text for the
+     *  optimistic bubble. `messageId` enables webview-side dedup; null when server persist failed (A9). */
+    onServerActive(exerciseId: number, sessionId: number, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, message: string | undefined, messageId: number | null): void;
 }
 
 /**
@@ -60,11 +61,12 @@ export function subscribeStruggleEvents(
         if (!e) {
             return;
         }
+        const messageId = e.messageId ?? null;
         if (e.action === 'ambient') {
-            handlers.onServerAmbient(e.exerciseId, e.message ?? '', e.anchorFile, e.anchorLine, e.inlineHint, e.confidence);
+            handlers.onServerAmbient(e.exerciseId, e.message ?? '', e.anchorFile, e.anchorLine, e.inlineHint, e.confidence, messageId);
         }
         else {
-            handlers.onServerActive(e.exerciseId, e.sessionId as number, e.anchorFile, e.anchorLine, e.inlineHint, e.confidence);
+            handlers.onServerActive(e.exerciseId, e.sessionId as number, e.anchorFile, e.anchorLine, e.inlineHint, e.confidence, e.message, messageId);
         }
     });
 }

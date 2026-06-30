@@ -456,11 +456,31 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatSessionService.switchToSession(sessionId);
     }
 
-    /** Show/clear a badge on the Iris view to flag a proactive suggestion (spec §8 active surface). */
+    /** Show/clear a badge on the Iris view to flag a proactive suggestion (spec §8 active/ambient surface). */
     setProactiveBadge(on: boolean): void {
         if (this._view) {
             this._view.badge = on ? { value: 1, tooltip: 'Iris has a suggestion for you' } : undefined;
         }
+    }
+
+    /**
+     * Post an optimistic proactive bubble to the chat immediately (before the server-persisted
+     * message arrives via the chat WebSocket). When `messageId` is set, the webview can
+     * deduplicate against a later `loadMessages` response that contains the same id (one bubble).
+     * When `messageId` is null (server persist failed, A9), the bubble is runtime-only and has
+     * no dedup tag. The badge-clears-on-chat-open behaviour (onDidChangeVisibility) is unaffected.
+     */
+    postOptimisticBubble(text: string, messageId: number | null): void {
+        this._postMessageSafe({
+            type: ExtensionMsg.AddMessage,
+            message: {
+                ...(messageId !== null ? { id: messageId } : {}),
+                role: 'assistant',
+                content: text,
+                timestamp: Date.now(),
+                origin: 'proactive',
+            }
+        });
     }
 
     /**

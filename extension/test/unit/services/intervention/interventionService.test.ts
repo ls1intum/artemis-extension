@@ -57,4 +57,26 @@ suite('InterventionService (AlertSink, single-level)', () => {
         assert.strictEqual(seen.length, 1);
         assert.strictEqual(seen[0].v, 0.85);
     });
+
+    // C1: showLamp / hideLamp
+    test('showLamp makes the hint visible', () => {
+        svc = new InterventionService();
+        svc.showLamp();
+        assert.strictEqual(svc.isHintVisible, true);
+    });
+
+    test('hideLamp clears the visible lamp', () => {
+        svc = new InterventionService();
+        svc.showLamp();
+        svc.hideLamp();
+        assert.strictEqual(svc.isHintVisible, false);
+    });
+
+    test('showLamp clicking it opens the Iris chat view', async () => {
+        const exec = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+        svc = new InterventionService();
+        svc.showLamp();
+        await svc.handleClick();
+        assert.ok(exec.calledWith('iris.chatView.focus'));
+    });
 });

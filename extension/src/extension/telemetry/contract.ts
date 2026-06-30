@@ -75,6 +75,12 @@ export interface StruggleEngineDeps {
     openProactiveSession(sessionId: number): Promise<void>;
     /** Set/clear the proactive badge on the Iris view. Lazy (see above). */
     setProactiveBadge(on: boolean): void;
+    /**
+     * Post an optimistic proactive bubble to the open chat. `messageId` enables webview-side
+     * dedup against a later server-pushed message with the same id (one bubble). Null = runtime-only.
+     * Lazy: the chat provider is constructed after the engine.
+     */
+    postOptimisticBubble(text: string, messageId: number | null): void;
     /** Reconnect-aware websocket subscribe primitive for the per-user struggle
      *  topic. The seam calls `subscribeStruggleEvents` with this internally, so
      *  `extension.ts` never imports anything from `struggleIntervention/`. */

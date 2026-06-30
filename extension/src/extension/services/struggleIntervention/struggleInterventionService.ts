@@ -27,10 +27,14 @@ export interface StruggleInterventionDeps {
     openSession(sessionId: number): Promise<void>;
     /** opensChat: true → click focuses Iris chat (server hint); false → click shows the local template (no AI bounce). */
     showAmbient(hint: string, opensChat: boolean): void;
+    /** Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). No per-hint tooltip. */
+    showLamp(): void;
     /** Hide the status-bar lamp (called on session/context reset so stale hints do not survive). */
     clearLamp(): void;
     /** Render the inline in-editor cue (gutter logo + after-line hint + hover) at the live anchor (spec §4.1). */
     showInline(anchorFile: string, anchorLine: number, inlineHint: string, message: string): void;
+    /** Render the ambient gutter-only decoration (gutter icon, NO after-line text) at the live anchor (spec §5). */
+    showGutterOnly(anchorFile: string, anchorLine: number): void;
     /** Remove any inline cue (session/context reset). */
     clearInline(): void;
     /** True iff the anchored file is a visible editor AND the (1-based) line is in a visible range (spec §4). */
@@ -43,6 +47,12 @@ export interface StruggleInterventionDeps {
     pauseStrikes: number;
     setBadge(on: boolean): void;
     showActiveNotification(): void;
+    /**
+     * Post an optimistic proactive bubble to the open chat. When `messageId` is set, a later server
+     * message with the same id deduplicates on the webview side (one bubble). When `messageId` is
+     * null (server persist failed, A9), the bubble is runtime-only and carries no dedup tag.
+     */
+    postBubble(text: string, messageId: number | null): void;
     log: InterventionEventLog;
     setTimeoutFn?: (fn: () => void, ms: number) => void;
     /** Developer-mode diagnostic sink (gated upstream); no-op when omitted. Pure string out, no effects. */
@@ -208,10 +218,12 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * Inbound ambient event from the server (ambient is NOT capped — spec §10). Renders the inline in-editor cue
-     * when the gate localized the nudge to a line that is currently live on screen (spec §4); otherwise the lamp.
+     * Inbound ambient event from the server (ambient is NOT capped, spec §10).
+     * Ambient = PARKED pointer only (spec §5 pull model): badge + status-bar lamp + gutter icon
+     * at the live anchor. NO inline text, NO toast, NO bubble. The hint text stays hidden until
+     * the student clicks (reveal is C2). `messageId` is forwarded for future slot correlation (C3).
      */
-    onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number): void {
+    onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null): void {
         this._serverAvailable = true;
         this._setInFlight(false);
         // The student may have toggled proactive off for this exercise while this POST was in flight (spec §12.2):
@@ -220,24 +232,28 @@ export class StruggleInterventionService implements AlertSink {
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             return;
         }
+        // Always show the badge and lamp (the two universal ambient pointers).
+        this._deps.setBadge(true);
+        this._deps.showLamp();
+        // Also show the gutter icon when the anchor is live (an additional, anchor-specific pointer).
         if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
-            this._deps.clearLamp();   // exclusive surface: an inline cue supersedes any standing lamp
-            this._deps.showInline(anchorFile, anchorLine, inlineHint, hint);
-            this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'inline', source: 'server', confidence }, this._pendingSignal);
-            return;
+            this._deps.showGutterOnly(anchorFile, anchorLine);
+        } else {
+            this._deps.clearInline(); // clear any stale inline cue from a previous active episode
         }
-        this._deps.clearInline();     // exclusive surface: the lamp supersedes any standing inline cue
-        this._deps.showAmbient(hint, true);
+        this._dbg(`  ↳ AMBIENT (PARKED) badge+lamp${anchorFile ? '+gutter' : ''} hint="${hint}" messageId=${messageId ?? 'none'}`);
         this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', confidence }, this._pendingSignal);
     }
 
     /**
-     * Inbound `active` struggle event (per-user topic). Open/attach + fetch the session so the persisted bubble
-     * shows regardless of websocket timing; add the intrusive notification + badge, CAPPED at MAX active/session.
-     * Per spec §6.1, when the gate localized the nudge to a live line the active path ALSO drops the inline
-     * breadcrumb there, so a missed (auto-dismissing) toast still leaves a contextual pointer at the code.
+     * Inbound `active` struggle event (per-user topic). Posts an optimistic bubble from the event
+     * `message` text (tagged with `messageId` for webview-side dedup against the later chat-ws row;
+     * null `messageId` = server persist failed (A9) = runtime-only fallback bubble). Then opens the
+     * session, fires the toast notification + badge, and drops the inline breadcrumb at the live anchor
+     * (spec §6.1). Hides the ambient lamp (the louder active surface supersedes it). CAPPED at
+     * MAX active/session.
      */
-    onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number): void {
+    onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
         this._serverAvailable = true;
         this._setInFlight(false);
         // Student opted out mid-flight (spec §12.2): drop the surface (slot already released).
@@ -253,19 +269,52 @@ export class StruggleInterventionService implements AlertSink {
             return;
         }
         this._activeCount += 1;
-        this._dbg(`  ↳ ACTIVE → opening proactive session=${sessionId} (#${this._activeCount}/${MAX_ACTIVE_PER_SESSION})`);
+        this._dbg(`  ↳ ACTIVE → opening proactive session=${sessionId} (#${this._activeCount}/${MAX_ACTIVE_PER_SESSION}) messageId=${messageId ?? 'null'}`);
+        // Post the optimistic bubble before opening the session so it appears immediately.
+        // messageId=null means server persist failed (A9): still post a runtime-only fallback bubble.
+        const bubbleText = message ?? 'Iris has a suggestion for you.';
+        const bubbleId = messageId ?? null;
+        this._deps.postBubble(bubbleText, bubbleId);
         void this._deps.openSession(sessionId);
         this._deps.setBadge(true);
         this._deps.showActiveNotification();
+        // Active hides the parked ambient lamp (the louder active surface takes over).
+        this._deps.clearLamp();
         // Spec §6.1: a localized active nudge ALSO leaves the inline breadcrumb at the live line; otherwise clear
         // any stale inline cue (the active surface supersedes a previous one).
         if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
-            this._deps.clearLamp();   // exclusive surface: the inline breadcrumb supersedes any standing lamp (mirrors onServerAmbient)
             this._deps.showInline(anchorFile, anchorLine, inlineHint, inlineHint);
         } else {
             this._deps.clearInline();
         }
         this._surface({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', confidence }, this._pendingSignal);
+    }
+
+    /**
+     * Apply an escalation (PARKED -> DELIVERED transition, driven by C3 slot reconcile).
+     * Computes loudness from `inSession`: when the chat view is open (in-session), the escalation
+     * drops quietly as a bubble with no toast or inline push; otherwise it fires the full active
+     * surface (toast + inline). In both cases the optimistic bubble is posted with `messageId` for
+     * webview-side dedup. This method does NOT touch the slot state (C3 owns that).
+     */
+    applyEscalation(
+        inSession: boolean,
+        hint: string,
+        anchorFile: string | undefined,
+        anchorLine: number | undefined,
+        inlineHint: string | undefined,
+        messageId: number | null,
+    ): void {
+        this._deps.postBubble(hint, messageId);
+        if (inSession) {
+            // Quiet: in-session bubble only (chat is open, no interruption needed).
+            return;
+        }
+        // Out-of-session: full active push.
+        this._deps.showActiveNotification();
+        if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+            this._deps.showInline(anchorFile, anchorLine, inlineHint, hint);
+        }
     }
 
     /**

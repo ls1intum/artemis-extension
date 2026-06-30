@@ -75,9 +75,12 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         postIntervention: (exId, body) => deps.postIntervention(exId, body),
         openSession: async id => { await deps.openProactiveSession(id); },
         showAmbient: (hint, opensChat) => lamp.showAmbient(hint, opensChat),
+        showLamp: () => lamp.showLamp(),
         clearLamp: () => lamp.reset(),
         showInline: (f, l, h, m) => inline.show(f, l, h, m),
+        showGutterOnly: (f, l) => inline.showGutterOnly(f, l),
         clearInline: () => inline.clear(),
+        postBubble: (text, id) => deps.postOptimisticBubble(text, id),
         isAnchorLive: (f, l) => isAnchorLive(f, l, vscode.window.visibleTextEditors, coordinator.activeExerciseRoot),
         isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
         softThreshold: TUNING.softThreshold,
@@ -133,17 +136,17 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // exerciseId is not the one currently active: a late frame for a previous exercise
     // must never surface in (or consume the per-session budget of) the new session.
     deps.context.subscriptions.push(subscribeStruggleEvents(deps.subscribeStruggleTopic, {
-        onServerAmbient: (exerciseId, hint, anchorFile, anchorLine, inlineHint, c) => {
+        onServerAmbient: (exerciseId, hint, anchorFile, anchorLine, inlineHint, c, messageId) => {
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris AMBIENT exercise=${exerciseId} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}: "${hint}"`);
-            if (active) { orchestrator.onServerAmbient(hint, anchorFile, anchorLine, inlineHint, c); }
+            if (active) { orchestrator.onServerAmbient(hint, anchorFile, anchorLine, inlineHint, c, messageId); }
         },
-        onServerActive: (exerciseId, sid, anchorFile, anchorLine, inlineHint, c) => {
+        onServerActive: (exerciseId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId) => {
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris ACTIVE exercise=${exerciseId} session=${sid} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
-            if (active) { orchestrator.onServerActive(sid, anchorFile, anchorLine, inlineHint, c); }
+            if (active) { orchestrator.onServerActive(sid, anchorFile, anchorLine, inlineHint, c, message, messageId); }
         },
     }));
 
