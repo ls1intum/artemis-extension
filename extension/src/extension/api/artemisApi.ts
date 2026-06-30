@@ -626,7 +626,7 @@ export class ArtemisApiService {
     /**
      * Record the student's terminal outcome for an episode-keyed proactive row (A10).
      * PUT api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/proactive-outcome
-     * Returns { applied: boolean } — applied=false when the canonical row does not yet exist
+     * Returns { applied: boolean }; applied=false when the canonical row does not yet exist
      * (the reveal persist is still in flight or pending retry). The client back-fill loop in
      * StruggleInterventionService re-calls this once the row is created.
      * Note: do NOT confuse with the legacy message-keyed setProactiveOutcome above.
