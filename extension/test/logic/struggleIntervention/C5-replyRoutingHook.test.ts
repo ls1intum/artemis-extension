@@ -6,7 +6,7 @@
  * something-else). Uses a fake timer injected via `setTimeoutFn` so no real
  * timers fire.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { newEpisode } from '@extension/services/struggleIntervention/slot/episode';
 import type { PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
@@ -135,6 +135,9 @@ function buildDeliveredService(scheduler: ReturnType<typeof makeFakeScheduler>):
 // ---------------------------------------------------------------------------
 
 describe('C5: ABANDON latch + free-text grace + button routing', () => {
+    // Restore real timers after any test that may have called vi.useFakeTimers()
+    afterEach(() => vi.useRealTimers());
+
     // -----------------------------------------------------------------------
     // ABANDON timer basics
     // -----------------------------------------------------------------------
@@ -203,26 +206,31 @@ describe('C5: ABANDON latch + free-text grace + button routing', () => {
             expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, episodeId, 'ABANDONED');
         });
 
-        it('ceiling is respected: advance cannot push deadline past ceiling', () => {
+        it('ceiling is respected: advance cannot push the latch deadline past the ceiling', () => {
+            // Use fake timers so Date.now() is controllable and the ceiling clamp is
+            // actually exercised (without this, Date.now() never advances between
+            // advance() calls and the assertion is tautological).
+            vi.useFakeTimers();
+            vi.setSystemTime(1_000_000);
+            const T0 = 1_000_000;
             const sched = makeFakeScheduler();
             const { svc, episodeId } = buildDeliveredService(sched);
-
             simulateStaleAsk(svc, episodeId, 'ask-1', 99);
 
-            // Advance many times -- deadline must not exceed ceiling (arm(now, 60s, 300s))
-            // Each advance = now + 30s; because now grows, we keep pushing forward
-            // Simulate time by calling onFreeTextReply repeatedly
-            for (let i = 0; i < 20; i++) {
-                svc.onFreeTextReply();
-            }
+            // C5_SLOT_CFG.abandonCeilingMs is defined (300_000) -- non-null assertion is safe.
+            const ceiling = T0 + C5_SLOT_CFG.abandonCeilingMs!; // T0 + 300_000
 
-            // The latch current() should never exceed ceilingMs from the original arm time
-            // ceiling was set at arm time = Date.now() + 300_000
-            // Since tests run fast, ceiling = ~Date.now() + 300_000
-            // Each advance = Math.min(now + 30_000, ceiling)
-            // All should be <= ceiling
-            const latches = sched.timers.map(t => t.ms);
-            expect(latches.every(ms => ms <= 300_000)).toBe(true);
+            // Advance Date.now() to 5 s before the ceiling -- onFreeTextReply should
+            // clamp the new deadline to exactly the ceiling, not to now+30 s.
+            vi.setSystemTime(T0 + 295_000);
+            svc.onFreeTextReply();
+            expect(svc._deadlineLatch.current()).toBe(ceiling);
+
+            // Advance Date.now() PAST the ceiling -- the latch must not grow beyond it.
+            // Without the Math.min(..., ceiling) clamp this would return T0+340_000.
+            vi.setSystemTime(T0 + 310_000);
+            svc.onFreeTextReply();
+            expect(svc._deadlineLatch.current()).toBe(ceiling);
         });
     });
 
@@ -464,27 +472,34 @@ describe('C5: ABANDON latch + free-text grace + button routing', () => {
             expect(sched.timers.length).toBeGreaterThan(initialTimerCount);
         });
 
-        it('ABANDON still fires after ceiling if student keeps typing', async () => {
+        it('ABANDON still fires after the ceiling even if the student keeps typing', async () => {
+            // Use fake timers so Date.now() advances past the ceiling.
+            // Without this, now+abandonFreeTextMs is always below the ceiling and the
+            // timer delay is never 0 -- so this test can never verify the bounded-delay property.
+            vi.useFakeTimers();
+            vi.setSystemTime(1_000_000);
+            const T0 = 1_000_000;
             const sched = makeFakeScheduler();
             const { svc, deps, episodeId } = buildDeliveredService(sched);
             simulateStaleAsk(svc, episodeId, 'ask-1', 99);
 
-            // Advance many times -- eventually the ceiling timer fires
-            for (let i = 0; i < 30; i++) {
-                svc.onFreeTextReply();
-            }
+            // Advance well past the ceiling (310 s > 300 s ceiling).
+            vi.setSystemTime(T0 + 310_000);
 
-            // Find the last scheduled timer (should be at the ceiling or close to it)
-            // Fire each timer in order to ensure the ceiling one eventually fires
-            for (const timer of sched.timers) {
-                timer.fn();
-            }
+            // Student sends a free-text reply -- the new timer must fire immediately
+            // (delayMs=0) because the ceiling deadline is already in the past.
+            // Without the Math.min(..., ceiling) clamp the deadline would be
+            // T0+340_000 and delayMs would be 30_000, not 0.
+            svc.onFreeTextReply();
+            const lastTimer = sched.timers.at(-1)!;
+            expect(lastTimer.ms).toBe(0);
+
+            // Fire the timer -- ABANDON teardown must complete.
+            lastTimer.fn();
             await Promise.resolve();
 
-            // After ceiling fires, the slot should be free
-            // (depends on which timer was "current" when fired)
-            // At least one fired correctly
-            expect(svc._slot.isFree() || (deps.setEpisodeOutcome as ReturnType<typeof vi.fn>).mock.calls.length > 0).toBe(true);
+            expect(svc._slot.isFree()).toBe(true);
+            expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, episodeId, 'ABANDONED');
         });
     });
 });
