@@ -14,7 +14,7 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
         sessionId?: unknown; messageId?: unknown; confidence?: unknown; episodeId?: unknown;
         anchorFile?: unknown; anchorLine?: unknown; inlineHint?: unknown;
         resolved?: unknown; closingSentence?: unknown; episodeLabel?: unknown;
-        offer?: unknown; ask?: unknown; question?: unknown;
+        ask?: unknown; question?: unknown;
     };
     if (typeof f.exerciseId !== 'number') {
         return undefined;
@@ -35,7 +35,6 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
             resolved: f.resolved,
             closingSentence: typeof f.closingSentence === 'string' ? f.closingSentence : undefined,
             episodeLabel: typeof f.episodeLabel === 'string' ? f.episodeLabel : undefined,
-            offer: typeof f.offer === 'boolean' ? f.offer : undefined,
             messageId,
         };
     }
@@ -111,7 +110,7 @@ export interface StruggleEventHandlers {
      *  `episodeId` is echoed from the request; used by the orchestrator for stale-drop validation (C4). */
     onServerSilent(episodeId: string | undefined, messageId: number | undefined): void;
     /** Server confirms or denies the close request (C4). Routes by the client's current slot state. */
-    onServerClose(episodeId: string | undefined, resolved: boolean, messageId: number | undefined, closingSentence: string | undefined, episodeLabel: string | undefined, offer: boolean | undefined): void;
+    onServerClose(episodeId: string | undefined, resolved: boolean, messageId: number | undefined, closingSentence: string | undefined, episodeLabel: string | undefined): void;
     /** Server returns the stale-check result (C4). `ask=true` means a question row was persisted. */
     onServerStale(episodeId: string | undefined, ask: boolean, messageId: number | undefined, question: string | undefined): void;
 }
@@ -132,7 +131,7 @@ export function subscribeStruggleEvents(
         }
 
         if (e.kind === 'confirm_close') {
-            handlers.onServerClose(e.episodeId, e.resolved as boolean, e.messageId, e.closingSentence, e.episodeLabel, e.offer);
+            handlers.onServerClose(e.episodeId, e.resolved as boolean, e.messageId, e.closingSentence, e.episodeLabel);
             return;
         }
 

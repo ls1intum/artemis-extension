@@ -125,6 +125,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             orchestrator.recordOutcome('clicked');
+            // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
+            // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
+            void orchestrator.revealParkedHint();
             inline.clear();
             void vscode.commands.executeCommand('iris.chatView.focus');
         }),
@@ -155,7 +158,12 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         if (isDevMode()) { devLog(formatTick(t, coordinator.getDebugSnapshot())); }
     }));
     // A lamp click on a surfaced hint is an engagement signal for the local eval log.
-    deps.context.subscriptions.push(lamp.onDidClick(() => orchestrator.recordOutcome('clicked')));
+    // C2 spec §5.2 pull reveal: also reveal the parked ambient hint. Safe unconditional call --
+    // revealParkedHint is a no-op when the slot is not PARKED.
+    deps.context.subscriptions.push(lamp.onDidClick(() => {
+        orchestrator.recordOutcome('clicked');
+        void orchestrator.revealParkedHint();
+    }));
     // Inbound per-user struggle events (ambient/active) from the server -> orchestrator.
     // Wired here (behind the seam) so extension.ts never imports struggleIntervention/.
     // The per-user topic is NOT exercise-filtered server-side, so drop any frame whose
@@ -178,9 +186,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             devLog(`◀ Iris SILENT episodeId=${episodeId ?? '–'}`);
             orchestrator.onServerSilent(episodeId, messageId);
         },
-        onServerClose: (episodeId, resolved, messageId, closingSentence, episodeLabel, offer) => {
+        onServerClose: (episodeId, resolved, messageId, closingSentence, episodeLabel) => {
             devLog(`◀ Iris CLOSE episodeId=${episodeId ?? '–'} resolved=${resolved}`);
-            orchestrator.onServerClose(episodeId, resolved, messageId, closingSentence, episodeLabel, offer);
+            orchestrator.onServerClose(episodeId, resolved, messageId, closingSentence, episodeLabel);
         },
         onServerStale: (episodeId, ask, messageId, question) => {
             devLog(`◀ Iris STALE episodeId=${episodeId ?? '–'} ask=${ask}`);

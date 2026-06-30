@@ -593,7 +593,7 @@ describe('StruggleInterventionService C2 reveal', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
-        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+        await svc.applyEpisodeOutcome('ep-uuid', 'DISMISSED');
 
         expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, 'ep-uuid', 'DISMISSED');
     });
@@ -602,19 +602,56 @@ describe('StruggleInterventionService C2 reveal', () => {
         const deps = fakeDeps({ setEpisodeOutcome: vi.fn(async () => ({ applied: false })) });
         const svc = new StruggleInterventionService(deps);
 
-        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+        await svc.applyEpisodeOutcome('ep-uuid', 'DISMISSED');
 
         expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
-        expect(svc._pendingOutcomes.get('ep-uuid')).toMatchObject({ outcome: 'DISMISSED', sessionId: 55 });
+        expect(svc._pendingOutcomes.get('ep-uuid')).toMatchObject({ outcome: 'DISMISSED' });
     });
 
     it('applyEpisodeOutcome: applied=true does NOT record a pending outcome', async () => {
         const deps = fakeDeps({ setEpisodeOutcome: vi.fn(async () => ({ applied: true })) });
         const svc = new StruggleInterventionService(deps);
 
-        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+        await svc.applyEpisodeOutcome('ep-uuid', 'DISMISSED');
 
         expect(svc._pendingOutcomes.has('ep-uuid')).toBe(false);
+    });
+
+    it('I1 click trigger: revealParkedHint is a safe no-op from FREE and transitions PARKED->DELIVERED when parked (unconditional click semantics)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        // FREE slot: unconditional call on click is a no-op
+        await svc.revealParkedHint();
+        expect(deps.revealAmbient).not.toHaveBeenCalled();
+        expect(deps.postRevealBubble).not.toHaveBeenCalled();
+
+        // PARKED slot: click trigger causes PARKED->DELIVERED reveal
+        setupParked(svc, 55, 'look at this line', 'ep-c1');
+        await svc.revealParkedHint();
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+        expect(deps.revealAmbient).toHaveBeenCalledOnce();
+        expect(deps.postRevealBubble).toHaveBeenCalledWith('look at this line', 'test-local-id');
+    });
+
+    it('I2 back-fill: dismissEpisode (terminal write) records pending outcome when setEpisodeOutcome returns applied=false', async () => {
+        const setEpisodeOutcome = vi.fn(async () => ({ applied: false }));
+        const deps = fakeDeps({ setEpisodeOutcome });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-bf');
+        svc.onServerActive(55);
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+
+        svc.dismissEpisode('ep-bf');
+
+        // Settle the async outcome write
+        await Promise.resolve();
+        await Promise.resolve();
+
+        // Back-fill entry recorded -- outcome NOT silently dropped
+        expect(setEpisodeOutcome).toHaveBeenCalledWith(42, 'ep-bf', 'DISMISSED');
+        expect(svc._pendingOutcomes.has('ep-bf')).toBe(true);
+        expect(svc._pendingOutcomes.get('ep-bf')).toMatchObject({ outcome: 'DISMISSED' });
     });
 
     it('back-fill: reveal retry success flushes the pending outcome and clears the map entry', async () => {
@@ -638,7 +675,7 @@ describe('StruggleInterventionService C2 reveal', () => {
         expect(deps.reconcileOptimisticBubble).not.toHaveBeenCalled();
 
         // Student dismisses before the row exists
-        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+        await svc.applyEpisodeOutcome('ep-uuid', 'DISMISSED');
         expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
 
         // Slot freed (e.g. C3 teardown) -> map SURVIVES
@@ -659,7 +696,7 @@ describe('StruggleInterventionService C2 reveal', () => {
         const svc = new StruggleInterventionService(deps);
         setupParked(svc, 55, 'hint', 'ep-uuid');
 
-        await svc.applyEpisodeOutcome('ep-uuid', 55, 'ABANDONED');
+        await svc.applyEpisodeOutcome('ep-uuid', 'ABANDONED');
         expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
 
         svc._slot.free();
@@ -736,7 +773,7 @@ describe('StruggleInterventionService C2 reveal', () => {
         const deps = fakeDeps({ setEpisodeOutcome: vi.fn(async () => ({ applied: false })) });
         const svc = new StruggleInterventionService(deps);
         setupParked(svc, 55, 'hint', 'ep-uuid');
-        await svc.applyEpisodeOutcome('ep-uuid', 55, 'DISMISSED');
+        await svc.applyEpisodeOutcome('ep-uuid', 'DISMISSED');
 
         svc.resetSession();
 
@@ -1102,7 +1139,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(body.confirmReason).toBe('parked_progress');
 
         // Reply resolved=true: slot frees silently (no fold, no outcome)
-        svc.onServerClose(svc._inFlightMarker!.episodeId, true, undefined, undefined, undefined, undefined);
+        svc.onServerClose(svc._inFlightMarker!.episodeId, true, undefined, undefined, undefined);
         expect(svc._slot.isFree()).toBe(true);
         expect(deps.foldEpisode).not.toHaveBeenCalled();
         expect(deps.setEpisodeOutcome).not.toHaveBeenCalled();
@@ -1125,7 +1162,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(postSpy).toHaveBeenCalledTimes(1);
 
         // Reply resolved=false: slot stays PARKED, no fold
-        svc.onServerClose(svc._inFlightMarker!.episodeId, false, undefined, undefined, undefined, undefined);
+        svc.onServerClose(svc._inFlightMarker!.episodeId, false, undefined, undefined, undefined);
         expect(svc._slot.snapshot().state.kind).toBe('parked');
         expect(deps.foldEpisode).not.toHaveBeenCalled();
         // Latch re-opened (back to 'open', _armed=false): a second green test fires but sBase
@@ -1293,7 +1330,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const stamp = { episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: tok };
         svc._guard.issue('confirm_close', stamp);
         svc._inFlightMarker = { requestToken: tok, episodeId, generation: svc._slot.generation(), intent: 'confirm_close', localToken: 999 };
-        svc.onServerClose(episodeId, true, undefined, undefined, undefined, undefined);
+        svc.onServerClose(episodeId, true, undefined, undefined, undefined);
 
         expect(svc._slot.isFree()).toBe(true);
         expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId, undefined);
@@ -1461,7 +1498,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._owedConfirmClose = { confirmReason: 'stale_solved' };
 
         // Reply: resolved=false -> latch re-arms, slot stays; owed stale_solved should post next
-        svc.onServerClose(ep.episodeId, false, undefined, undefined, undefined, undefined);
+        svc.onServerClose(ep.episodeId, false, undefined, undefined, undefined);
 
         // _drainOwed is called by onServerClose -> wait for it
         await new Promise(r => setTimeout(r, 0));
@@ -1487,7 +1524,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._owedConfirmClose = { confirmReason: 'stale_solved' };
 
         // Reply: resolved=true -> slot frees, queued entry cleared
-        svc.onServerClose(ep.episodeId, true, undefined, undefined, undefined, undefined);
+        svc.onServerClose(ep.episodeId, true, undefined, undefined, undefined);
 
         expect(svc._slot.isFree()).toBe(true);
         expect(svc._owedConfirmClose).toBeUndefined(); // cleared by slot-free

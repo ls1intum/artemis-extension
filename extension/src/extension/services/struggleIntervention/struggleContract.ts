@@ -86,8 +86,6 @@ export interface StruggleInterventionEvent {
     closingSentence?: string;
     /** Human-readable episode label for the fold praise line (NOT persisted; only in this control message). */
     episodeLabel?: string;
-    /** True when a stale_solved offer row was persisted (resolved=false path). */
-    offer?: boolean;
     // stale_check fields (C4):
     /** True when the server posted a stale-ask question row. */
     ask?: boolean;

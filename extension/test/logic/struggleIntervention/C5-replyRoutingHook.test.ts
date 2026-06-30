@@ -352,7 +352,7 @@ describe('C5: ABANDON latch + free-text grace + button routing', () => {
             const callCount = (deps.postIntervention as ReturnType<typeof vi.fn>).mock.calls.length;
 
             // Simulate the in-flight confirm_close returning resolved=true
-            svc.onServerClose(episodeId, true, 20, undefined, 'episode label', false);
+            svc.onServerClose(episodeId, true, 20, undefined, 'episode label');
             await Promise.resolve();
 
             // _owedConfirmClose was cleared on resolved=true -- no second POST
@@ -375,7 +375,7 @@ describe('C5: ABANDON latch + free-text grace + button routing', () => {
             await Promise.resolve();
 
             // Simulate resolved=false: slot stays, drain should pick up stale_solved
-            svc.onServerClose(episodeId, false, undefined, undefined, undefined, true);
+            svc.onServerClose(episodeId, false, undefined, undefined, undefined);
             await Promise.resolve();
             await Promise.resolve(); // let _drainOwed run
 

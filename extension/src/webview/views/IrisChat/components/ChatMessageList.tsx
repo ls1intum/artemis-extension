@@ -21,10 +21,9 @@ function deriveEpisodeLabel(content: string): string {
 }
 
 /**
- * Renders a group of proactive Iris messages (either a consecutive run or an
- * episode keyed by `proactiveEpisodeId`): the latest suggestion shows in full,
- * the earlier ones hide behind a toggle so repeated re-alerts do not clutter
- * the chat. Used for both `{kind:'proactive-run'}` and `{kind:'episode'}` items.
+ * Renders a group of proactive Iris messages keyed by `proactiveEpisodeId`:
+ * the latest suggestion shows in full, the earlier ones hide behind a toggle
+ * so distinct help messages within one episode do not clutter the chat.
  */
 function ProactiveRunGroup({
     earlier,
@@ -202,7 +201,6 @@ export function ChatMessageList({
                         retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
                     />
                     <StaleAskButtons
-                        askId={binding.askId}
                         question={binding.question}
                         onButton={(button) => onStaleAskButton?.(binding.askId, button)}
                     />
@@ -265,7 +263,8 @@ export function ChatMessageList({
                                 }
                                 return renderBubble(item.message, true);
                             }
-                            if (item.kind === 'episode') {
+                            // item.kind === 'episode' (exhaustive: only 'single' and 'episode' exist)
+                            {
                                 const foldState = foldStates.get(item.episodeId);
                                 // Fold: either explicitly folded or not a live episode (reloaded).
                                 if (foldState?.folded || !liveEpisodeIds.has(item.episodeId)) {
@@ -293,15 +292,6 @@ export function ChatMessageList({
                                     />
                                 );
                             }
-                            // kind === 'proactive-run'
-                            return (
-                                <ProactiveRunGroup
-                                    key={item.latest.localId}
-                                    earlier={item.earlier}
-                                    latest={item.latest}
-                                    renderBubble={renderBubble}
-                                />
-                            );
                         })}
 
                         {/* Show thinking indicator while waiting for the assistant

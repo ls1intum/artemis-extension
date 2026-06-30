@@ -5,7 +5,6 @@ import styles from './StaleAskButtons.module.css';
 type StaleAskButtonValue = 'solved' | 'still-on-it' | 'something-else';
 
 interface StaleAskButtonsProps {
-    askId: string;
     question: string;
     /** Called once (buttons disable after first click). */
     onButton: (button: StaleAskButtonValue) => void;

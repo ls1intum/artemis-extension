@@ -315,9 +315,9 @@ describe('classifyStruggleEvent -- C4 new frame kinds', () => {
     it('round-trips kind=confirm_close with all fields', () => {
         const e = classifyStruggleEvent({
             exerciseId: 5, kind: 'confirm_close', episodeId: 'ep-1', resolved: true,
-            closingSentence: 'Great job!', episodeLabel: 'Sort fixed', offer: false, messageId: 99,
+            closingSentence: 'Great job!', episodeLabel: 'Sort fixed', messageId: 99,
         });
-        expect(e).toMatchObject({ kind: 'confirm_close', episodeId: 'ep-1', resolved: true, closingSentence: 'Great job!', episodeLabel: 'Sort fixed', offer: false, messageId: 99 });
+        expect(e).toMatchObject({ kind: 'confirm_close', episodeId: 'ep-1', resolved: true, closingSentence: 'Great job!', episodeLabel: 'Sort fixed', messageId: 99 });
     });
 
     it('round-trips kind=stale_check with ask=true and question', () => {
@@ -374,7 +374,7 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
             onServerSilent: vi.fn(), onServerClose, onServerStale: vi.fn(),
         });
         emit({ exerciseId: 7, kind: 'confirm_close', episodeId: 'ep-close', resolved: true, episodeLabel: 'Sort done', messageId: 22 });
-        expect(onServerClose).toHaveBeenCalledWith('ep-close', true, 22, undefined, 'Sort done', undefined);
+        expect(onServerClose).toHaveBeenCalledWith('ep-close', true, 22, undefined, 'Sort done');
     });
 
     it('dispatches kind=stale_check to onServerStale', () => {
@@ -470,7 +470,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDeliveredWithClosePending(svc, 'ep-close');
 
-        svc.onServerClose('ep-close', true, 55, undefined, 'Well done!', false);
+        svc.onServerClose('ep-close', true, 55, undefined, 'Well done!');
 
         expect(svc._slot.snapshot().state.kind).toBe('free');
         expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(1, 'ep-close', 'RECOVERED');
@@ -482,7 +482,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDeliveredWithClosePending(svc, 'ep-close');
 
-        svc.onServerClose('ep-close', true, undefined, undefined, undefined, false);
+        svc.onServerClose('ep-close', true, undefined, undefined, undefined);
 
         // praise=undefined because both closeMessageId and episodeLabel are undefined
         expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', undefined);
@@ -493,7 +493,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         const svc = new StruggleInterventionService(deps);
         simulateParkedWithClosePending(svc, 'ep-parked');
 
-        svc.onServerClose('ep-parked', true, undefined, undefined, undefined, false);
+        svc.onServerClose('ep-parked', true, undefined, undefined, undefined);
 
         expect(svc._slot.snapshot().state.kind).toBe('free');
         expect(deps.foldEpisode).not.toHaveBeenCalled();
@@ -506,7 +506,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         const svc = new StruggleInterventionService(deps);
         simulateParkedWithClosePending(svc, 'ep-parked');
 
-        svc.onServerClose('ep-parked', false, undefined, undefined, undefined, false);
+        svc.onServerClose('ep-parked', false, undefined, undefined, undefined);
 
         expect(svc._slot.snapshot().state.kind).toBe('parked'); // stays PARKED
         expect(deps.foldEpisode).not.toHaveBeenCalled();
@@ -517,7 +517,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDeliveredWithClosePending(svc, 'ep-close');
 
-        svc.onServerClose('ep-WRONG', true, 77, undefined, 'Close sentence', false);
+        svc.onServerClose('ep-WRONG', true, 77, undefined, 'Close sentence');
 
         // Slot stays DELIVERED
         expect(svc._slot.snapshot().state.kind).toBe('delivered');

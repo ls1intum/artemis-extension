@@ -135,8 +135,7 @@ describe('groupByEpisode', () => {
         // episode at position of ep-p1 (index 1 in output after u1)
         expect(items.map((i) => {
             if (i.kind === 'episode') { return `ep:${i.episodeId}`; }
-            if (i.kind === 'single') { return `single:${i.message.localId}`; }
-            return `run:${i.latest.localId}`;
+            return `single:${i.message.localId}`;
         })).toEqual(['single:u1', 'ep:ep-X', 'single:u2', 'single:a1', 'single:u3']);
     });
 });

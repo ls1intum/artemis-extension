@@ -60,7 +60,7 @@ const REVEAL_RETRY_MS = 5_000;
 /** Maximum number of reveal-persist retry attempts (~1 min at 5s). After this the bubble stays runtime-only. */
 const MAX_REVEAL_RETRIES = 12;
 /** Permanent server-side rejection codes. These must not be retried; only transient/5xx/network errors are retried. */
-const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404]);
+const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404, 422]);
 
 /** Boundary types that constitute a hard event (drive the escalation path). */
 const HARD_BOUNDARIES = new Set<string>(['FM', 'FM_PLUS', 'E4', 'N1']);
@@ -255,7 +255,7 @@ export class StruggleInterventionService implements AlertSink {
      * (canonical row not yet created). Flushed when the reveal-persist retry creates the row.
      * Cleared on resetSession (new exercise = fresh state).
      */
-    _pendingOutcomes = new Map<string, { sessionId: number; outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }>();
+    _pendingOutcomes = new Map<string, { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }>();
 
     constructor(private readonly _deps: StruggleInterventionDeps) {
         this._latch = new ProgressCloseLatch(
@@ -274,12 +274,14 @@ export class StruggleInterventionService implements AlertSink {
         this._latch.observe(tick.ts, tick.sBase, false);
         this._propagateLatchToOwed();
         // Sustained sBase drop (student recovering): defer the stale watchdog.
-        // Only on anchor-local edits (Iris judges task-relevance); NOT on new green tests
-        // (those go through onNewBuildResult which uses Date.now()).
+        // Fires on every tick whose sBase is below the re-arm threshold, regardless of edit
+        // locality; NOT on new green tests (those go through onNewBuildResult which uses Date.now()).
+        // Note: spec §13 force-free bound is conditional on sBase >= 0.6; an engaged student
+        // with moderate-low severity (returning resolved=false) can hold the DELIVERED slot.
         if (tick.sBase < (this._deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG).reArmSBase) {
             this._watchdog?.resetProgress(tick.ts);
         }
-        // C3: tick the watchdog (uses session-relative ms, staleAfterMs is comparable)
+        // C3: tick the watchdog with the coordinator timestamp (wall-clock ms in live; replay-injected in tests)
         this._handleWatchdogTick(tick.ts);
         // C3: drain any owed confirmClose / staleCheck (wire may now be free)
         void this._drainOwed();
@@ -580,7 +582,6 @@ export class StruggleInterventionService implements AlertSink {
         closeMessageId: number | undefined,
         _closingSentence: string | undefined,
         episodeLabel: string | undefined,
-        _offer: boolean | undefined,
     ): void {
         this._serverAvailable = true;
 
@@ -616,7 +617,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._clearEpisodeRuntime();
                 if (liveEpisodeId) {
                     if (exerciseId !== undefined) {
-                        void this._deps.setEpisodeOutcome(exerciseId, liveEpisodeId, 'RECOVERED').catch(() => { /* best-effort */ });
+                        this._writeOutcomeWithBackfill(exerciseId, liveEpisodeId, 'RECOVERED');
                     }
                     const praise = (episodeLabel && closeMessageId !== undefined)
                         ? { episodeLabel, closeMessageId }
@@ -929,7 +930,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._clearEpisodeRuntime();
 
                 if (episodeId && exerciseId !== undefined) {
-                    void this._deps.setEpisodeOutcome(exerciseId, episodeId, 'ABANDONED').catch(() => { /* best-effort */ });
+                    this._writeOutcomeWithBackfill(exerciseId, episodeId, 'ABANDONED');
                     this._deps.foldEpisode(episodeId);
                 }
                 break;
@@ -1087,6 +1088,8 @@ export class StruggleInterventionService implements AlertSink {
         }
         // Clear the in-flight marker (slot is terminal, nothing to reply to)
         this._inFlightMarker = undefined;
+        // Null the candidate (always overwritten before next use, but cleaner to be explicit)
+        this._candidate = undefined;
     }
 
     // ---------------------------------------------------------------------------
@@ -1157,12 +1160,12 @@ export class StruggleInterventionService implements AlertSink {
             this._slot.free();
             this._clearEpisodeRuntime();
             if (targetEpisodeId && exerciseId !== undefined) {
-                void this._deps.setEpisodeOutcome(exerciseId, targetEpisodeId, 'DISMISSED').catch(() => { /* best-effort */ });
+                this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, 'DISMISSED');
                 this._deps.foldEpisode(targetEpisodeId);
             }
         } else if (targetEpisodeId && exerciseId !== undefined) {
             // Slot already FREE, PARKED, or episodeId mismatch: idempotent outcome write only.
-            void this._deps.setEpisodeOutcome(exerciseId, targetEpisodeId, 'DISMISSED').catch(() => { /* best-effort */ });
+            this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, 'DISMISSED');
         }
     }
 
@@ -1219,7 +1222,7 @@ export class StruggleInterventionService implements AlertSink {
             this._slot.free();
             this._clearEpisodeRuntime();
             if (exerciseId !== undefined) {
-                void this._deps.setEpisodeOutcome(exerciseId, epId, 'ABANDONED').catch(() => { /* best-effort */ });
+                this._writeOutcomeWithBackfill(exerciseId, epId, 'ABANDONED');
                 this._deps.foldEpisode(epId);
             }
         }, delayMs);
@@ -1265,7 +1268,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._slot.free();
                 this._clearEpisodeRuntime();
                 if (episodeId && exerciseId !== undefined) {
-                    void this._deps.setEpisodeOutcome(exerciseId, episodeId, 'ABANDONED').catch(() => { /* best-effort */ });
+                    this._writeOutcomeWithBackfill(exerciseId, episodeId, 'ABANDONED');
                     this._deps.foldEpisode(episodeId);
                 }
                 break;
@@ -1462,19 +1465,40 @@ export class StruggleInterventionService implements AlertSink {
 
     /**
      * Record the student's terminal outcome for the active episode (spec §7.5, A10 episode-keyed endpoint).
+     * Used in test harnesses to directly drive outcome writes with back-fill semantics.
      */
     async applyEpisodeOutcome(
         episodeId: string,
-        sessionId: number,
         outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
     ): Promise<void> {
         const exerciseId = this._deps.getExerciseId();
         if (exerciseId === undefined) { return; }
         const { applied } = await this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome);
         if (!applied) {
-            this._pendingOutcomes.set(episodeId, { sessionId, outcome });
+            this._pendingOutcomes.set(episodeId, { outcome });
             this._dbg(`  -> back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
         }
+    }
+
+    /**
+     * Write a terminal episode outcome and record a pending back-fill entry when the canonical
+     * row does not yet exist (setEpisodeOutcome returns applied=false). The flush fires in
+     * _persistReveal once the reveal-persist retry creates the row (spec §12 back-fill contract).
+     * Best-effort: errors are swallowed so callers never throw into a terminal teardown path.
+     */
+    private _writeOutcomeWithBackfill(
+        exerciseId: number,
+        episodeId: string,
+        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
+    ): void {
+        void this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome)
+            .then(({ applied }) => {
+                if (!applied) {
+                    this._pendingOutcomes.set(episodeId, { outcome });
+                    this._dbg(`  -> back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
+                }
+            })
+            .catch(() => { /* best-effort */ });
     }
 
     /**
