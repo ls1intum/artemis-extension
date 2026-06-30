@@ -7,7 +7,7 @@ import type { StruggleDebugSnapshot } from '@shared/messageContracts';
  * ~10 s (one per engine tick), so we re-anchor on each fresh `nowMs` and interpolate with the local
  * wall clock in between — yielding smooth per-second countdowns without drifting from engine time.
  */
-function useEngineNow(anchorNowMs: number): number {
+export function useEngineNow(anchorNowMs: number): number {
     const baseRef = useRef({ engine: anchorNowMs, client: Date.now() });
     const [, setNonce] = useState(0);
     // Re-anchor whenever a fresh snapshot (new nowMs) arrives.
