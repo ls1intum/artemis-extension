@@ -100,8 +100,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		// C3: slot-continuity seam
 		cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
 			artemisApiService.cancelOutstandingStruggleJob(exerciseId, requestToken),
-		// C6/C7 fold signal stub
-		foldEpisode: (_episodeId, _praise) => { /* C6/C7 TODO */ },
+		// C7: fold episode host->webview
+		foldEpisode: (episodeId, praise) => chatWebviewProvider?.postFoldEpisode(episodeId, praise),
 		// C4: stale-row suppression
 		postRemoveMessage: (id) => chatWebviewProvider?.postRemoveMessage(id),
 		deleteSupersededProactiveMessage: (exerciseId, messageId) =>

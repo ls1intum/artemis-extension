@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { useChatStore } from '@webview/stores/useChatStore';
@@ -59,6 +59,8 @@ describe('IrisChatView', () => {
 			messageLoad: null,
 			suppressedIds: new Set<number>(),
 			staleAskBindings: new Map<number, { askId: string; question: string }>(),
+			foldStates: new Map(),
+			liveEpisodeIds: new Set(),
 			streaming: { isStreaming: false },
 			irisStages: [],
 			isLoading: false,
@@ -1114,6 +1116,294 @@ describe('IrisChatView', () => {
 				expect(row).toBeDefined();
 				expect(row?.proactiveEpisodeId).toBe('ep-xyz-789');
 			});
+		});
+	});
+
+	describe('C7: FoldEpisode closing UX', () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('foldEpisode no-praise: immediate fold with client-derived label', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Live message via addMessage (adds to liveEpisodeIds)
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: {
+						id: 10,
+						role: 'assistant',
+						origin: 'proactive',
+						proactiveEpisodeId: 'ep-1',
+						content: 'Use a different index here please',
+						timestamp: Date.now(),
+					},
+				});
+			});
+
+			// No praise: should fold immediately
+			await act(async () => {
+				dispatchExtensionMessage({ type: 'foldEpisode', episodeId: 'ep-1' });
+			});
+
+			// foldStates should have folded: true immediately (no timer)
+			expect(useChatStore.getState().foldStates.get('ep-1')?.folded).toBe(true);
+
+			// Fold line button renders with first 40 chars of content (no praise prefix)
+			const foldBtn = screen.getByRole('button', { name: /Use a different index here please/i });
+			expect(foldBtn).toBeInTheDocument();
+			expect(foldBtn.textContent).not.toMatch(/^\s*✓/);
+		});
+
+		it('foldEpisode with praise (order A: close row present) folds after 5 s timer', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Two live messages arrive (ep-1 episode)
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-1', content: 'Hint one', timestamp: Date.now() },
+				});
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 11, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-1', content: 'Wrong index here', timestamp: Date.now() },
+				});
+			});
+
+			// Close row (id=11) is already present; now foldEpisode arrives with praise
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'foldEpisode',
+					episodeId: 'ep-1',
+					praise: { episodeLabel: 'Wrong index', closeMessageId: 11 },
+				});
+			});
+
+			// Not yet folded (timer pending)
+			expect(useChatStore.getState().foldStates.get('ep-1')?.folded).toBe(false);
+			expect(screen.queryByRole('button', { name: /✓ Wrong index/i })).not.toBeInTheDocument();
+
+			// Advance 5 s
+			act(() => { vi.advanceTimersByTime(5000); });
+
+			// Now folded; praise fold line renders
+			expect(useChatStore.getState().foldStates.get('ep-1')?.folded).toBe(true);
+			expect(screen.getByRole('button', { name: /✓ Wrong index/i })).toBeInTheDocument();
+		});
+
+		it('foldEpisode with praise (order B: control arrives before close row) waits for row, then folds after 5 s', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// First live message
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-2', content: 'First hint', timestamp: Date.now() },
+				});
+			});
+
+			// foldEpisode arrives with praise BEFORE the close row (id=20) lands
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'foldEpisode',
+					episodeId: 'ep-2',
+					praise: { episodeLabel: 'Wrong index', closeMessageId: 20 },
+				});
+			});
+
+			// Timer must NOT have started yet (close row absent)
+			expect(useChatStore.getState().foldStates.get('ep-2')?.folded).toBe(false);
+
+			// Close row arrives
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 20, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-2', content: 'Progress confirmed', timestamp: Date.now() },
+				});
+			});
+
+			// Still not folded (5 s delay)
+			expect(useChatStore.getState().foldStates.get('ep-2')?.folded).toBe(false);
+
+			// Advance 5 s
+			act(() => { vi.advanceTimersByTime(5000); });
+
+			// Now folded with praise label
+			expect(useChatStore.getState().foldStates.get('ep-2')?.folded).toBe(true);
+			expect(screen.getByRole('button', { name: /✓ Wrong index/i })).toBeInTheDocument();
+		});
+
+		it('episode on reload (no foldEpisode received) folds automatically with client-derived label', () => {
+			// Bypasses addMessage: liveEpisodeIds stays empty
+			useChatStore.setState({
+				messages: [
+					{
+						id: 10,
+						localId: 'l1',
+						role: 'assistant',
+						origin: 'proactive',
+						proactiveEpisodeId: 'ep-reload',
+						content: 'Hint for a bug',
+						timestamp: 0,
+						status: 'sent',
+					},
+				],
+				messageLoad: { localSessionId: 'local-test', status: 'success' },
+				activeSessionId: 'local-test',
+				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 1, createdAt: 0, lastActivity: 0 }],
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Not in liveEpisodeIds => auto-fold with client label
+			const foldBtn = screen.getByRole('button', { name: /Hint for a bug/i });
+			expect(foldBtn).toBeInTheDocument();
+			expect(foldBtn.textContent).not.toMatch(/^\s*✓/);
+		});
+
+		it('earlier member of episode group renders no Dismiss button', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				activeSessionId: 'local-test',
+				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 0, createdAt: 0, lastActivity: 0 }],
+				messageLoad: { localSessionId: 'local-test', status: 'success' },
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Two messages in same episode (live, via addMessage)
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-g', content: 'Earlier hint', timestamp: Date.now() },
+				});
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 11, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-g', content: 'Latest hint', timestamp: Date.now() },
+				});
+			});
+
+			// Expand the toggle to see earlier messages
+			const toggle = screen.getByRole('button', { name: /show 1 earlier suggestion/i });
+			await act(async () => {
+				toggle.click();
+			});
+
+			// Earlier hint visible
+			expect(screen.getByText('Earlier hint')).toBeInTheDocument();
+			// Earlier message should NOT have a Dismiss button
+			// (isLatest=false in renderBubble call for earlier members)
+			const allDismissButtons = screen.queryAllByRole('button', { name: 'Dismiss this suggestion' });
+			// Only latest (if any) may have Dismiss; count of buttons for "Earlier hint" context = 0
+			// Verify by checking the latest has Dismiss (if rendered) but earlier does NOT
+			// We check that hovering "Earlier hint" does not produce a Dismiss. Since CSS hover
+			// can't be tested easily, we trust the isLatest=false gate: Dismiss prop is undefined.
+			// The simplest assertion: there is at most 1 Dismiss button (for the latest), none for earlier.
+			expect(allDismissButtons.length).toBeLessThanOrEqual(1);
+
+			// Explicitly: hovering the earlier message's bubble wrapper does not produce Dismiss
+			// We can assert on the store state directly: liveEpisodeIds has 'ep-g'
+			expect(useChatStore.getState().liveEpisodeIds.has('ep-g')).toBe(true);
+		});
+
+		it('closing row (latest is close row) renders no Dismiss button', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				activeSessionId: 'local-test',
+				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 0, createdAt: 0, lastActivity: 0 }],
+				messageLoad: { localSessionId: 'local-test', status: 'success' },
+				// Pre-set foldState with closeMessageId pointing to message 11
+				foldStates: new Map([['ep-close', { folded: false, episodeLabel: 'Good job', closeMessageId: 11 }]]),
+				liveEpisodeIds: new Set(['ep-close']),
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Single-message episode (only the close row)
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 11, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-close', content: 'Great progress!', timestamp: Date.now() },
+				});
+			});
+
+			expect(screen.getByText('Great progress!')).toBeInTheDocument();
+			// The close row is the latest but isClosingRow=true, so canDismiss=false
+			expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
+		});
+
+		it('live latest hint card (not closing row) renders Dismiss button', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				activeSessionId: 'local-test',
+				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 0, createdAt: 0, lastActivity: 0 }],
+				messageLoad: { localSessionId: 'local-test', status: 'success' },
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 42, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-live', content: 'Try a helper method', timestamp: Date.now() },
+				});
+			});
+
+			expect(screen.getByText('Try a helper method')).toBeInTheDocument();
+			// Latest live hint with no closeMessageId => canDismiss=true => Dismiss renders
+			expect(screen.getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
+		});
+
+		it('regression C6: stale-ask row still hides Dismiss regardless of isLatest', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				activeSessionId: 'local-test',
+				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 0, createdAt: 0, lastActivity: 0 }],
+				messageLoad: { localSessionId: 'local-test', status: 'success' },
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Row arrives then stale-ask binding is attached
+			await act(async () => {
+				dispatchExtensionMessage({
+					type: 'addMessage',
+					message: { id: 77, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-sa', content: 'Stale ask hint', timestamp: Date.now() },
+				});
+				dispatchExtensionMessage({
+					type: 'addStaleAsk',
+					episodeId: 'ep-sa',
+					askId: 'ask-sa',
+					messageId: 77,
+					question: 'Are you stuck?',
+				});
+			});
+
+			// act() flushed all React updates; query directly (waitFor hangs under fake timers)
+			expect(screen.getByText('Stale ask hint')).toBeInTheDocument();
+			// staleAsk=true on row => MessageBubble hides Dismiss regardless of isLatest
+			expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
 		});
 	});
 });

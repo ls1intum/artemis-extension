@@ -43,3 +43,32 @@
 .runToggleIcon {
     flex-shrink: 0;
 }
+
+/* Folded episode container (C7). Wraps the fold-line toggle and any expanded
+   message bubbles beneath it. */
+.episodeFold {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Pill-style toggle button that summarises a folded episode (C7). A bordered
+   chip distinguishes it from the borderless runToggle at a glance. */
+.episodeFoldLine {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin: 8px 16px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: 1px solid var(--vscode-widget-border, transparent);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.episodeFoldLine:hover {
+    color: var(--vscode-foreground);
+    background: var(--vscode-list-hoverBackground);
+}

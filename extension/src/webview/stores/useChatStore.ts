@@ -63,6 +63,22 @@ interface ChatState {
      * rows have no live askId, so their buttons do not render).
      */
     staleAskBindings: Map<number, { askId: string; question: string }>;
+    /**
+     * Runtime-only fold state per proactive episode (C7). Keyed by
+     * `proactiveEpisodeId`. `folded: true` collapses the group to a summary
+     * fold-line. When `closeMessageId` is set (praise path), the group stays
+     * expanded until the close row arrives and a ~5 s timer fires.
+     * Reset in `clearMessages`; NOT populated in `applyLoadedMessages` (reloaded
+     * episodes fold automatically via the `liveEpisodeIds` gate).
+     */
+    foldStates: Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number }>;
+    /**
+     * Set of `proactiveEpisodeId` values that arrived via `addMessage` in this
+     * session (C7). Episodes absent from this set are reloaded episodes and fold
+     * automatically without a `foldEpisode` control frame. Reset in
+     * `clearMessages`; NOT populated in `applyLoadedMessages`.
+     */
+    liveEpisodeIds: Set<string>;
 
     // Streaming
     streaming: StreamingState;
@@ -123,6 +139,18 @@ interface ChatState {
      * `staleAsk: true` when the row eventually arrives.
      */
     attachStaleAsk: (messageId: number, askId: string, question: string) => void;
+    /**
+     * Record a fold instruction for an episode (C7). Called when the host sends
+     * `FoldEpisode`. Without praise: folds immediately (`folded: true`). With
+     * praise: stores `episodeLabel` + `closeMessageId` and waits for the
+     * `ChatMessageList` timer to fire after the close row arrives.
+     */
+    foldEpisode: (episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }) => void;
+    /**
+     * Mark an episode as folded after the ~5 s timer fires (C7). Called by
+     * `ChatMessageList` when the close row is present and the delay has elapsed.
+     */
+    setEpisodeFolded: (episodeId: string) => void;
 
     // Streaming actions
     startStreaming: () => void;
@@ -159,6 +187,8 @@ export const useChatStore = create<ChatState>()(
             messageLoad: null,
             suppressedIds: new Set<number>(),
             staleAskBindings: new Map<number, { askId: string; question: string }>(),
+            foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number }>(),
+            liveEpisodeIds: new Set<string>(),
             streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
@@ -226,7 +256,15 @@ export const useChatStore = create<ChatState>()(
                     // before this message, mark the row immediately so Dismiss is hidden.
                     const hasBinding = message.id !== undefined && state.staleAskBindings.has(message.id);
                     const finalMessage = hasBinding ? { ...message, staleAsk: true as const } : message;
-                    return { messages: [...state.messages, finalMessage] };
+                    // Track live episodes (C7): episodes that arrive via addMessage are "live"
+                    // (not reloaded). The liveEpisodeIds gate controls auto-fold for reloaded rows.
+                    const nextLiveEpisodeIds =
+                        message.role === 'assistant' &&
+                        message.origin === 'proactive' &&
+                        message.proactiveEpisodeId
+                            ? new Set([...state.liveEpisodeIds, message.proactiveEpisodeId])
+                            : state.liveEpisodeIds;
+                    return { messages: [...state.messages, finalMessage], liveEpisodeIds: nextLiveEpisodeIds };
                 }, false, 'addMessage');
             },
 
@@ -285,12 +323,40 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'attachStaleAsk');
             },
 
+            foldEpisode: (episodeId, praise) => {
+                set((state) => {
+                    const nextFoldStates = new Map(state.foldStates);
+                    if (praise) {
+                        nextFoldStates.set(episodeId, {
+                            folded: false,
+                            episodeLabel: praise.episodeLabel,
+                            closeMessageId: praise.closeMessageId,
+                        });
+                    } else {
+                        nextFoldStates.set(episodeId, { folded: true });
+                    }
+                    return { foldStates: nextFoldStates };
+                }, false, 'foldEpisode');
+            },
+
+            setEpisodeFolded: (episodeId) => {
+                set((state) => {
+                    const existing = state.foldStates.get(episodeId);
+                    if (!existing) { return state; }
+                    const nextFoldStates = new Map(state.foldStates);
+                    nextFoldStates.set(episodeId, { ...existing, folded: true });
+                    return { foldStates: nextFoldStates };
+                }, false, 'setEpisodeFolded');
+            },
+
             clearMessages: () => {
                 set({
                     messages: [],
                     messageLoad: null,
                     suppressedIds: new Set<number>(),
                     staleAskBindings: new Map<number, { askId: string; question: string }>(),
+                    foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number }>(),
+                    liveEpisodeIds: new Set<string>(),
                     irisStages: [],
                     streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');

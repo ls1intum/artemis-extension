@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
 // Mock use-stick-to-bottom (ESM package used via useAutoScroll)
@@ -56,6 +57,14 @@ function makeMessage(overrides: Partial<ChatMessage> = {}, index = 0): ChatMessa
 }
 
 describe('ChatMessageList', () => {
+	// ChatMessageList reads liveEpisodeIds from the store. Seed it with the
+	// episode id used across the episode-grouping tests so they see live episodes
+	// (rather than auto-folded reloaded ones). The global resetTestState beforeEach
+	// clears the store first; this runs after it.
+	beforeEach(() => {
+		useChatStore.setState({ liveEpisodeIds: new Set(['ep-A']) });
+	});
+
 	it('renders welcome state when no messages', () => {
 		render(
 			<ChatMessageList
@@ -339,7 +348,7 @@ describe('ChatMessageList', () => {
 		expect(screen.getByText(/show 1 earlier suggestion/i)).toBeInTheDocument();
 		expect(screen.queryByText('Earlier repeat')).not.toBeInTheDocument();
 		// The dismissed latest renders collapsed: caption + "Show suggestion", body hidden.
-		expect(screen.getByText('Iris thought this might help')).toBeInTheDocument();
+		expect(screen.getByText("Iris reached out (you didn't ask)")).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: /show suggestion/i })).toBeInTheDocument();
 		expect(screen.queryByText('Latest secret body')).not.toBeInTheDocument();
 	});

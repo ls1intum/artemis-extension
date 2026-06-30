@@ -102,8 +102,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         // C3: slot-continuity seam
         cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
             deps.cancelOutstandingStruggleJob(exerciseId, requestToken),
-        // C6/C7 fold signal stub; will be replaced when the webview fold is implemented
-        foldEpisode: (_episodeId, _praise) => { /* C6/C7 TODO: post host->webview foldEpisode */ },
+        // C7: fold episode host->webview
+        foldEpisode: (episodeId, praise) => deps.foldEpisode(episodeId, praise),
         // C4: stale-row suppression
         postRemoveMessage: (id) => deps.postRemoveMessage(id),
         deleteSupersededProactiveMessage: (exerciseId, messageId) =>

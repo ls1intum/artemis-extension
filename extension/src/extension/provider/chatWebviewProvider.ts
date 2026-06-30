@@ -504,6 +504,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * C7: Post a host->webview foldEpisode control frame so the webview collapses
+     * the episode group to a summary fold-line. Without praise: folds immediately.
+     * With praise: waits for the close row identified by `closeMessageId` to
+     * arrive, then starts a ~5 s timer before collapsing.
+     */
+    postFoldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void {
+        this._postMessageSafe({ type: ExtensionMsg.FoldEpisode, episodeId, praise });
+    }
+
+    /**
      * C5: Wire the struggle-engine callbacks into the provider.
      * Called by extension.ts after the engine handle is available.
      */

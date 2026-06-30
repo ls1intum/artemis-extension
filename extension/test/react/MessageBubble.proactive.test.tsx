@@ -20,7 +20,7 @@ describe('MessageBubble proactive', () => {
     it('marks a proactive assistant bubble distinctly', () => {
         const { container } = render(<MessageBubble message={proactive()} onFeedback={() => {}} />);
         expect(container.querySelector('[data-origin="proactive"]')).not.toBeNull();
-        expect(container.textContent).toContain('Iris thought this might help');
+        expect(container.textContent).toContain("Iris reached out (you didn't ask)");
     });
 
     it('shows a Dismiss control on an un-dismissed proactive bubble', () => {
@@ -46,7 +46,7 @@ describe('MessageBubble proactive', () => {
         const { container } = render(
             <MessageBubble message={proactive({ id: 7, proactiveOutcome: 'DISMISSED', content: 'secret body' })} onFeedback={() => {}} />,
         );
-        expect(container.textContent).toContain('Iris thought this might help');
+        expect(container.textContent).toContain("Iris reached out (you didn't ask)");
         expect(container.textContent).not.toContain('secret body');
         // The dismissed bubble offers an expand toggle, NOT the Dismiss action (the toggle's label avoids "dismiss").
         expect(screen.queryByRole('button', { name: /dismiss/i })).toBeNull();

@@ -29,7 +29,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
         setIrisStages, resetTransientChatUi,
-        markMessageFailed, removeMessageById, attachStaleAsk,
+        markMessageFailed, removeMessageById, attachStaleAsk, foldEpisode,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
@@ -208,6 +208,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 attachStaleAsk(msg.messageId, msg.askId, msg.question);
                 break;
 
+            case ExtensionMsg.FoldEpisode:
+                foldEpisode(msg.episodeId, msg.praise);
+                break;
+
             case ExtensionMsg.SendRejected: {
                 // Ignore stale rejections that arrive after the user already
                 // switched session — the corresponding optimistic message
@@ -229,7 +233,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed, removeMessageById, attachStaleAsk]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed, removeMessageById, attachStaleAsk, foldEpisode]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();

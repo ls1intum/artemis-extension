@@ -75,7 +75,7 @@ function MessageBubbleComponent({
                 >
                     {isProactive && (
                         <div className={styles.proactiveCaption}>
-                            Iris thought this might help
+                            Iris reached out (you didn&apos;t ask)
                         </div>
                     )}
                     {/* A dismissed proactive bubble collapses (caption stays, body hidden behind a toggle);
