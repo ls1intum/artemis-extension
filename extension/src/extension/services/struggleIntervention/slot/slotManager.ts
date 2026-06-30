@@ -112,7 +112,7 @@ export class SlotManager {
      */
     escalate(hint: EpisodeHint): SlotSnapshot {
         if (this._state.kind !== 'delivered') {
-            throw new Error(`escalate: illegal in state '${this._state.kind}' — requires delivered`);
+            throw new Error(`escalate: illegal in state '${this._state.kind}' (requires delivered)`);
         }
         if (this._state.level !== 'ambient') {
             throw new Error(`escalate: can only escalate from ambient level (current: '${this._state.level}')`);
