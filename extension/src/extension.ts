@@ -79,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, onStaleAskButton, onFreeTextReply } = createStruggleEngine({
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, onStaleAskButton, onFreeTextReply, dismissEpisode } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
@@ -228,7 +228,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
 	// C5: wire stale-ask button command + free-text grace hook into the chat provider
-	chatWebviewProvider.setStruggleCallbacks({ onStaleAskButton, onFreeTextReply });
+	chatWebviewProvider.setStruggleCallbacks({ onStaleAskButton, onFreeTextReply, onEpisodeDismiss: dismissEpisode });
 	context.subscriptions.push(chatWebviewProvider.onDidDismissProactive(() => recordProactiveDismiss()));
 	// C3: in-session flag: toggle the slot's quiet/loud escalation branch as the chat view opens/closes.
 	if (setInSession) {

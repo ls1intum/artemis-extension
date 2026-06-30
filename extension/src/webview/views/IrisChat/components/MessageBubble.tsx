@@ -24,7 +24,7 @@ interface MessageBubbleProps {
      */
     retryDisabled?: boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes, spec §6.3). */
-    onDismiss?: (messageId: number) => void;
+    onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
 }
 
 function MessageBubbleComponent({
@@ -149,7 +149,7 @@ function MessageBubbleComponent({
                                 <button
                                     type="button"
                                     className={styles.dismissButton}
-                                    onClick={() => onDismiss(message.id as number)}
+                                    onClick={() => onDismiss(message.id as number, message.proactiveEpisodeId)}
                                     aria-label="Dismiss this suggestion"
                                 >
                                     Dismiss

@@ -298,7 +298,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'staleAskButton', { askId, button });
     };
 
-    const handleDismissProactive = (messageId: number) => {
+    const handleDismissProactive = (messageId: number, proactiveEpisodeId?: string) => {
         const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
         if (typeof activeSession?.artemisSessionId !== 'number') { return; }
         store.setProactiveOutcome(messageId, 'DISMISSED');
@@ -306,6 +306,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             sessionId: activeSession.artemisSessionId,
             messageId,
             outcome: 'DISMISSED',
+            proactiveEpisodeId,
         });
     };
 

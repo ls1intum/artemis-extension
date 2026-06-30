@@ -109,7 +109,7 @@ interface ChatMessageListProps {
      */
     isRetryDisabled?: (message: ChatMessage) => boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes). */
-    onDismiss?: (messageId: number) => void;
+    onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
     /**
      * Invoked when the student clicks one of the three stale-ask quick-reply
      * buttons on a row that has a live `askId` binding (C6).

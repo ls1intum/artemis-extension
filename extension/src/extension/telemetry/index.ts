@@ -88,7 +88,14 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         setBadge: on => deps.setProactiveBadge(on),
         showActiveNotification: () => showActiveNotification(
             () => orchestrator.recordOutcome('clicked'),
-            () => orchestrator.recordOutcome('dismissed'),
+            () => {
+                // C8: keep the existing backoff bump, and also perform the episode-scoped
+                // resolution (free the slot, write DISMISSED outcome, fold the episode).
+                // recordOutcome is NOT inside dismissEpisode to avoid double-counting
+                // with the card path (which bumps the backoff via _onDidDismissProactive).
+                orchestrator.recordOutcome('dismissed');
+                orchestrator.dismissEpisode();
+            },
         ),
         // C2: reveal + episode-outcome (seam-threaded; webview reconcile wired via deps)
         generateLocalId: () => crypto.randomUUID(),
@@ -222,6 +229,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         // C5: stale-ask button + free-text grace hook
         onStaleAskButton: (askId, button) => orchestrator.onStaleAskButton(askId, button),
         onFreeTextReply: () => orchestrator.onFreeTextReply(),
+        // C8: episode-scoped dismiss (seam callback threaded to setStruggleCallbacks.onEpisodeDismiss)
+        dismissEpisode: (episodeId?: string) => orchestrator.dismissEpisode(episodeId),
     };
 }
 

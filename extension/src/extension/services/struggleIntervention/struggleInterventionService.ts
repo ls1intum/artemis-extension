@@ -1123,6 +1123,50 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
+     * C8: Episode-scoped dismiss. Called by the card Dismiss button (via the provider callback
+     * seam) and by the active-toast "Not now" action (via the telemetry closure).
+     *
+     * For the live DELIVERED episode: frees the slot, tears down episode runtime, writes the
+     * DISMISSED outcome (best-effort, A10 first-terminal-wins), and folds the episode without
+     * praise.
+     *
+     * If `episodeId` is passed and does not match the live slot episode (mismatch guard): writes
+     * the DISMISSED outcome only - no slot free, no fold, no runtime teardown.
+     *
+     * If the slot is already FREE (double-dismiss) or PARKED: idempotent outcome write only for
+     * the passed `episodeId` (A10 first-terminal-wins rejects any duplicate write).
+     *
+     * Backoff is NOT bumped here. Callers handle it to avoid double-counting:
+     *   Card: _onDidDismissProactive.fire() -> recordProactiveDismiss() -> recordChatDismiss()
+     *   Toast: recordOutcome('dismissed') kept alongside in the telemetry seam closure.
+     */
+    public dismissEpisode(episodeId?: string): void {
+        const snapState = this._slot.snapshot().state;
+        const liveEpisodeId = snapState.kind === 'delivered' ? snapState.episode.episodeId : undefined;
+        const exerciseId = this._deps.getExerciseId();
+
+        // Determine the target for the outcome write (passed arg wins; fall back to live)
+        const targetEpisodeId = episodeId ?? liveEpisodeId;
+
+        // Free the slot only if DELIVERED and the passed id matches (or none passed)
+        const matchesLive = episodeId === undefined || episodeId === liveEpisodeId;
+        const shouldFreeSlot = snapState.kind === 'delivered' && matchesLive;
+
+        if (shouldFreeSlot) {
+            // Full DELIVERED resolution: free + runtime teardown + outcome + fold (no praise)
+            this._slot.free();
+            this._clearEpisodeRuntime();
+            if (targetEpisodeId && exerciseId !== undefined) {
+                void this._deps.setEpisodeOutcome(exerciseId, targetEpisodeId, 'DISMISSED').catch(() => { /* best-effort */ });
+                this._deps.foldEpisode(targetEpisodeId);
+            }
+        } else if (targetEpisodeId && exerciseId !== undefined) {
+            // Slot already FREE, PARKED, or episodeId mismatch: idempotent outcome write only.
+            void this._deps.setEpisodeOutcome(exerciseId, targetEpisodeId, 'DISMISSED').catch(() => { /* best-effort */ });
+        }
+    }
+
+    /**
      * C8 stub: the student clicked "I solved this" on a stale-ask or a delivered hint.
      * Queues a `stale_solved` confirmClose (overrides any pending progress close -- one CLOSE
      * total per episode). NON-terminal on its own; a server confirmClose reply frees the slot.

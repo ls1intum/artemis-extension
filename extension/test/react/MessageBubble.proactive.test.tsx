@@ -27,7 +27,8 @@ describe('MessageBubble proactive', () => {
         const onDismiss = vi.fn();
         render(<MessageBubble message={proactive({ id: 7 })} onFeedback={() => {}} onDismiss={onDismiss} />);
         fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
-        expect(onDismiss).toHaveBeenCalledWith(7);
+        // C8: dismiss now passes (messageId, proactiveEpisodeId); undefined when message has none.
+        expect(onDismiss).toHaveBeenCalledWith(7, undefined);
     });
 
     it('renders the thumbs and Dismiss in one action bar, thumbs left and Dismiss right', () => {

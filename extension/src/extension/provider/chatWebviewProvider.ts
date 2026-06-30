@@ -110,8 +110,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /** Fires when the student dismisses a proactive bubble (drives the Slice-4a delivery backoff in extension.ts). */
     public readonly onDidDismissProactive = this._onDidDismissProactive.event;
 
-    // C5: struggle callbacks wired by extension.ts after engine creation
+    // C5/C8: struggle callbacks wired by extension.ts after engine creation
     private _onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
+    /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode). */
+    private _onEpisodeDismiss?: (episodeId?: string) => void;
 
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
@@ -520,9 +522,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public setStruggleCallbacks(callbacks: {
         onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
         onFreeTextReply?: () => { revoke: () => void } | undefined;
+        /** C8: episode-scoped dismiss; routes to orchestrator.dismissEpisode. */
+        onEpisodeDismiss?: (episodeId?: string) => void;
     }): void {
         this._onStaleAskButton = callbacks.onStaleAskButton;
         this._chatMessageService.setFreeTextHook(callbacks.onFreeTextReply);
+        this._onEpisodeDismiss = callbacks.onEpisodeDismiss;
     }
 
     /**
@@ -669,8 +674,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     break;
                 }
                 case WebviewCmd.MessageProactiveOutcome: {
-                    const { sessionId, messageId } = getPayload<WebCmd<'messageProactiveOutcome'>>(message);
-                    void this._handleProactiveOutcome(sessionId, messageId);
+                    const { sessionId, messageId, proactiveEpisodeId } = getPayload<WebCmd<'messageProactiveOutcome'>>(message);
+                    this._handleProactiveOutcome(sessionId, messageId, proactiveEpisodeId);
                     break;
                 }
                 case WebviewCmd.OpenHelpPopup:
@@ -997,18 +1002,30 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
-    private async _handleProactiveOutcome(sessionId: number, messageId: number): Promise<void> {
-        // Signal the dismiss to the delivery backoff first (fire-and-forget), then persist.
+    private _handleProactiveOutcome(
+        sessionId: number,
+        messageId: number,
+        proactiveEpisodeId?: string,
+    ): void {
+        // Signal the dismiss to the delivery backoff first (drives Slice-4a via onDidDismissProactive).
         this._onDidDismissProactive.fire();
+
+        if (proactiveEpisodeId) {
+            // C8 episode-scoped path: route to the orchestrator via the seam callback.
+            // The orchestrator frees the slot, tears down runtime, writes DISMISSED, and folds.
+            this._onEpisodeDismiss?.(proactiveEpisodeId);
+            return;
+        }
+
+        // Legacy fallback: message-scoped write for rows that pre-date the episode model
+        // (no proactiveEpisodeId attached to the persisted row).
         if (!this._artemisApiService) {
             logger.warn('Artemis API service not available for proactive outcome', LogCategory.IRIS_CHAT);
             return;
         }
-        try {
-            await this._artemisApiService.setProactiveOutcome(sessionId, messageId, 'DISMISSED');
-        } catch (error) {
+        void this._artemisApiService.setProactiveOutcome(sessionId, messageId, 'DISMISSED').catch(error => {
             logger.error('Failed to persist proactive outcome', LogCategory.IRIS_CHAT, error);
-        }
+        });
     }
 
     private async _handleOpenDiagnostics(): Promise<void> {

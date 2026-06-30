@@ -197,4 +197,12 @@ export interface StruggleEngineHandle {
      * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
      */
     onFreeTextReply?(): { revoke: () => void } | undefined;
+    /**
+     * C8: Episode-scoped dismiss. Frees the slot, tears down episode runtime, writes
+     * the DISMISSED outcome (best-effort), and folds the episode without praise.
+     * Called by the chat-card Dismiss (via setStruggleCallbacks.onEpisodeDismiss) and by
+     * the active-toast "Not now" action (directly in the telemetry seam closure).
+     * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
+     */
+    dismissEpisode?(episodeId?: string): void;
 }
