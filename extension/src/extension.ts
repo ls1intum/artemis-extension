@@ -97,6 +97,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		reconcileOptimisticBubble: (_localId, _serverId, _proactiveEpisodeId, _sentAt) => {
 			// TODO C3/C5: wire to chatWebviewProvider.reconcileRevealBubble once the webview supports string-localId dedup
 		},
+		// C3: slot-continuity seam
+		cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
+			artemisApiService.cancelOutstandingStruggleJob(exerciseId, requestToken),
+		// C6/C7 fold signal stub
+		foldEpisode: (_episodeId, _praise) => { /* C6/C7 TODO */ },
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
 		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
 		subscribeStruggleTopic: (topic, onFrame) => {

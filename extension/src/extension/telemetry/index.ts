@@ -99,6 +99,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             deps.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
         setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
             deps.setEpisodeOutcome(exerciseId, episodeId, outcome),
+        // C3: slot-continuity seam
+        cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
+            deps.cancelOutstandingStruggleJob(exerciseId, requestToken),
+        // C6/C7 fold signal stub; will be replaced when the webview fold is implemented
+        foldEpisode: (_episodeId, _praise) => { /* C6/C7 TODO: post host->webview foldEpisode */ },
         log,
         devLog,
     });

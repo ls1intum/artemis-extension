@@ -7,17 +7,53 @@ import type { IrisChatMessage } from '@extension/types';
 
 import { buildStruggleSignal } from './buildStruggleSignal';
 import { decideOutcome } from './decideOutcome';
-import type { InterventionEventLog, InterventionLogEvent } from './interventionEventLog';
+import type { InterventionEventLog } from './interventionEventLog';
 import type { EpisodeHint, Level } from './slot/episode';
+import type { Episode } from './slot/episode';
+import { markContinuation, newEpisode } from './slot/episode';
+import type { PendingStamp } from './slot/guard';
+import { InFlightGuard } from './slot/guard';
+import type { ProgressCloseCfg } from './slot/progressClose';
+import { ProgressCloseLatch } from './slot/progressClose';
+import type { ReconcileAction } from './slot/reconcile';
+import { reconcile } from './slot/reconcile';
 import { SlotManager } from './slot/slotManager';
+import type { StaleConfig } from './slot/staleWatchdog';
+import { StaleWatchdog } from './slot/staleWatchdog';
 import type { StruggleEgressResult, StruggleInterventionRequest, StruggleSignal } from './struggleContract';
 import { templateForSignal } from './struggleTemplates';
 import { TickRingBuffer } from './tickRingBuffer';
 
-type SurfaceMeta = Pick<InterventionLogEvent, 'action' | 'finalAction' | 'surface' | 'source' | 'confidence'>;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-const MAX_ACTIVE_PER_SESSION = 3;
-const INFLIGHT_TIMEOUT_MS = 30_000;
+/** The in-flight marker tracks the outstanding struggle POST (single-outstanding). */
+interface InFlightMarker {
+    requestToken: string;
+    episodeId: string;
+    generation: number;
+    intent: 'decide' | 'confirm_close' | 'stale_check';
+    /** Local token from InFlightGuard.issue() for accept() call. */
+    localToken: number;
+}
+
+/** A queued confirmClose reason waiting to be POSTed. */
+interface OwedConfirmClose {
+    confirmReason: 'progress' | 'stale_solved' | 'parked_progress';
+}
+
+/** A live stale-ask binding -- cleared by clearEpisodeRuntime(). */
+interface LiveAskBinding {
+    askId: string;
+    messageId: number;
+    episodeId: string;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 /** Delay between reveal-persist retries. The server upsert is idempotent (A10), so retries are safe. */
 const REVEAL_RETRY_MS = 5_000;
 /** Maximum number of reveal-persist retry attempts (~1 min at 5s). After this the bubble stays runtime-only. */
@@ -25,9 +61,16 @@ const MAX_REVEAL_RETRIES = 12;
 /** Permanent server-side rejection codes. These must not be retried; only transient/5xx/network errors are retried. */
 const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404]);
 
+/** Boundary types that constitute a hard event (drive the escalation path). */
+const HARD_BOUNDARIES = new Set<string>(['FM', 'FM_PLUS', 'E4', 'N1']);
+
+// ---------------------------------------------------------------------------
+// Deps interface
+// ---------------------------------------------------------------------------
+
 export interface StruggleInterventionDeps {
     isEgressEnabled(): boolean;
-    /** True when a `.noai` marker file is present in the workspace → forces the deterministic no-AI path (spec §9). */
+    /** True when a `.noai` marker file is present in the workspace (spec §9). */
     hasNoaiMarker(): boolean;
     getExerciseId(): number | undefined;
     getExerciseRoot(): Uri | undefined;
@@ -35,7 +78,7 @@ export interface StruggleInterventionDeps {
     postIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult>;
     /** Open/attach the proactive session by id + reload its history so the bubble shows (spec §5.5 active). */
     openSession(sessionId: number): Promise<void>;
-    /** opensChat: true → click focuses Iris chat (server hint); false → click shows the local template (no AI bounce). */
+    /** opensChat: true -> click focuses Iris chat; false -> click shows the local template. */
     showAmbient(hint: string, opensChat: boolean): void;
     /** Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). No per-hint tooltip. */
     showLamp(): void;
@@ -49,71 +92,85 @@ export interface StruggleInterventionDeps {
     clearInline(): void;
     /** True iff the anchored file is a visible editor AND the (1-based) line is in a visible range (spec §4). */
     isAnchorLive(anchorFile: string, anchorLine: number): boolean;
-    /** Durable per-exercise student opt-out (spec §12.2): false → the orchestrator suppresses proactive for it. */
+    /** Durable per-exercise student opt-out (spec §12.2): false -> the orchestrator suppresses proactive for it. */
     isStudentProactiveOn(exerciseId: number): boolean;
-    /** Reject-backoff thresholds (spec §5.2): annoyance owes a soft skip past `softThreshold`; `pauseStrikes`
-     *  consecutive dismisses hard-pause proactive for the exercise. */
+    /** Reject-backoff thresholds (spec §5.2). */
     softThreshold: number;
     pauseStrikes: number;
     setBadge(on: boolean): void;
     showActiveNotification(): void;
     /**
      * Post an optimistic proactive bubble to the open chat. When `messageId` is set, a later server
-     * message with the same id deduplicates on the webview side (one bubble). When `messageId` is
-     * null (server persist failed, A9), the bubble is runtime-only and carries no dedup tag.
+     * message with the same id deduplicates on the webview side. When `messageId` is null
+     * (server persist failed, A9), the bubble is runtime-only and carries no dedup tag.
      */
     postBubble(text: string, messageId: number | null): void;
     // ---- C2: reveal flow ----
-    /** Generate a unique local id for an optimistic reveal bubble (injectable for deterministic tests). */
+    /** Generate a unique local id for an optimistic reveal bubble. */
     generateLocalId(): string;
-    /**
-     * Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow). The bubble
-     * appears immediately in the chat with `sending` status; reconcileOptimisticBubble later
-     * promotes it to `sent` with the real server id once the persist confirms.
-     * Named distinctly from postBubble (numeric id) to avoid signature collision with the seam.
-     */
+    /** Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow). */
     postRevealBubble(text: string, localId: string): void;
     /**
-     * Reconcile the reveal bubble after server persist confirms the canonical row. Updates the bubble
-     * that matched `localId` to the real server `id`, `proactiveEpisodeId`, and `sentAt` in-place
-     * (no duplicate row, no orphan bubble). Mirror of the sendChatMessage optimistic-reconcile pattern.
+     * Reconcile the reveal bubble after server persist confirms the canonical row.
      */
     reconcileOptimisticBubble(localId: string, serverId: number, proactiveEpisodeId: string | undefined, sentAt: string): void;
     /**
      * Reveal the hidden ambient hint by persisting it as a chat message in the proactive session (A10).
-     * POST api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/reveal
-     * Returns the persisted IrisChatMessage (id + proactiveEpisodeId + sentAt) for bubble reconcile.
      */
     revealAmbient(exerciseId: number, episodeId: string, hintText: string, level: Level, clientMessageId: string): Promise<IrisChatMessage>;
     /**
      * Record the student's terminal outcome for an episode-keyed proactive row (A10).
-     * PUT api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/proactive-outcome
-     * Returns { applied: boolean }. applied=false means the canonical row does not yet exist.
-     * The back-fill loop in the orchestrator records pending outcomes and re-applies them once the row lands.
      */
     setEpisodeOutcome(exerciseId: number, episodeId: string, outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED'): Promise<{ applied: boolean }>;
+    // ---- C3: slot-continuity ----
+    /**
+     * Cancel an outstanding struggle job by its per-POST requestToken (A10 scoped cancel).
+     */
+    cancelOutstandingStruggleJob(exerciseId: number, requestToken: string): Promise<void>;
+    /**
+     * Emit the host-to-webview fold signal for a terminal DELIVERED episode (C6/C7 renders).
+     * praise is present for progress-close terminals; absent for dismiss/stale/force-free.
+     */
+    foldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void;
     log: InterventionEventLog;
     setTimeoutFn?: (fn: () => void, ms: number) => void;
     /** Developer-mode diagnostic sink (gated upstream); no-op when omitted. Pure string out, no effects. */
     devLog?(msg: string): void;
+    /** Slot config (staleAfterMs, staleWindowMax, staleAskCap). Consumed from TUNING.slot. */
+    slotCfg?: StaleConfig;
+    /** Progress-close latch config. Consumed from TUNING.slot. */
+    progressCloseCfg?: ProgressCloseCfg;
 }
+
+// ---------------------------------------------------------------------------
+// Default slot config (mirrors TUNING.slot; injected so tests can override)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_SLOT_CFG: StaleConfig = {
+    staleAfterMs: 45_000,
+    staleWindowMax: 4,
+    staleAskCap: 2,
+};
+
+const DEFAULT_PROGRESS_CFG: ProgressCloseCfg = {
+    reArmSBase: 0.6,
+    reArmHoldMs: 30_000,
+};
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
 
 /**
  * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}, so
  * the coordinator's `enabled`/`showInterventions` gating AND its `reset()` on session change stay authoritative
  * (we do NOT subscribe the raw, ungated engine event). Ticks are fed via {@link onTick} (wired in extension.ts
- * from `coordinator.onDidTick`). vscode-free at runtime — only type imports; all effects injected.
+ * from `coordinator.onDidTick`). vscode-free at runtime -- only type imports; all effects injected.
  */
 export class StruggleInterventionService implements AlertSink {
     private readonly _buffer = new TickRingBuffer(12);
-    private _inFlight = false;
-    private _inFlightGen = 0;
-    private _activeCount = 0;
     private _serverAvailable = true;
     private _courseProactiveOff = false;
-    private _pendingSignal: StruggleSignal | undefined;
-    private _lastSurface: SurfaceMeta | undefined;
-    private _lastSurfaceSignal: StruggleSignal | undefined;
     // Reject backoff (delivery-layer, spec §5.2). Only an explicit dismiss moves these; engagement/new exercise clear them.
     private _annoyance = 0;
     private _dismissStrikes = 0;
@@ -121,19 +178,53 @@ export class StruggleInterventionService implements AlertSink {
 
     /**
      * Generation counter for reveal-persist retries. Incremented by resetSession (exercise switch) to
-     * invalidate any in-flight retry closure that captured a stale generation. Retry closures bail out
-     * when their captured generation no longer matches the current one.
+     * invalidate any in-flight retry closure that captured a stale generation.
      */
     private _revealRetryGen = 0;
 
-    // C2: slot + frozen-hint state. Not marked private so tests can drive the slot and inspect state directly.
+    // ---------------------------------------------------------------------------
+    // C3: slot-core state (package-internal for test access -- underscore prefix)
+    // ---------------------------------------------------------------------------
+
+    // Slot state machine (C2 introduced; C3 routes all decisions through it)
     readonly _slot = new SlotManager();
+
+    // Async/generation guard: validates inbound websocket replies against the live slot state
+    readonly _guard = new InFlightGuard();
+
+    // Progress-close edge-trigger latch (B8)
+    readonly _latch: ProgressCloseLatch;
+
+    // Per-episode stale watchdog (minted fresh on every TAKE; undefined when slot is FREE)
+    _watchdog: StaleWatchdog | undefined;
+
+    // Preallocated candidate episode for FREE/PARKED-slot decide (cleared on slot take or reject)
+    _candidate: Episode | undefined;
+
+    // Outstanding struggle POST marker (undefined = wire is free)
+    _inFlightMarker: InFlightMarker | undefined;
+
+    // Most recent StruggleSignal from deliver(); reused for confirmClose/staleCheck POSTs
+    _lastSignal: StruggleSignal | undefined;
+
+    // Owed confirmClose (at most one; queued while the wire is busy)
+    _owedConfirmClose: OwedConfirmClose | undefined;
+
+    // Owed staleCheck POST (set on fire-stale-check if wire busy; drained when wire frees)
+    _owedStaleCheck = false;
+
+    // Episode ids that have had at least one accepted POST (isNew flipped to false for future POSTs)
+    private _continuedEpisodeIds = new Set<string>();
+
+    // Live stale-ask binding; cleared by clearEpisodeRuntime() to neutralise pending ABANDON timers
+    _liveAskBinding: LiveAskBinding | undefined;
+
     /**
      * The proactive session id from the last inbound ambient event (spec §5, A9).
      * Stored here because the SlotManager does not hold session ids. Cleared on resetSession.
-     * Used by revealParkedHint to open the right session and target the reveal endpoint.
      */
     _frozenSessionId: number | undefined;
+
     /**
      * Per-exercise pending terminal outcomes. Keyed by episodeId. Lives at the orchestrator level
      * so it survives a slot free (teardown). Populated when setEpisodeOutcome returns applied=false
@@ -142,20 +233,39 @@ export class StruggleInterventionService implements AlertSink {
      */
     _pendingOutcomes = new Map<string, { sessionId: number; outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }>();
 
-    constructor(private readonly _deps: StruggleInterventionDeps) {}
-
-    private _surface(meta: SurfaceMeta, signal: StruggleSignal | undefined): void {
-        this._lastSurface = meta;
-        this._lastSurfaceSignal = signal;
-        void this._deps.log.record({ ...meta, signal, studentOutcome: 'shown' });
+    constructor(private readonly _deps: StruggleInterventionDeps) {
+        this._latch = new ProgressCloseLatch(
+            _deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG,
+        );
     }
+
+    // ---------------------------------------------------------------------------
+    // AlertSink
+    // ---------------------------------------------------------------------------
 
     /** Fed every engine tick (ungated buffer fill). Wired externally so we don't bypass coordinator gating. */
     onTick(tick: TickRecord): void {
         this._buffer.push(tick);
+        // C3: feed progress latch with sBase from tick (newGreenTest path goes through onNewBuildResult)
+        this._latch.observe(tick.ts, tick.sBase, false);
+        this._propagateLatchToOwed();
+        // C3: tick the watchdog (uses session-relative ms, staleAfterMs is comparable)
+        this._handleWatchdogTick(tick.ts);
+        // C3: drain any owed confirmClose / staleCheck (wire may now be free)
+        void this._drainOwed();
     }
 
-    /** AlertSink.deliver — the coordinator calls this ONLY when `enabled && showInterventions`. */
+    /** Called by the build-result watcher when a build produces a strict new high in passed tests. */
+    onNewBuildResult(newGreenTest: boolean): void {
+        if (!newGreenTest) { return; }
+        // Feed the latch: newGreenTest=true triggers a progress edge
+        // Use Date.now() for the latch since it cares about real time, not session time
+        this._latch.observe(Date.now(), 1.0 /* above any threshold, won't fire sBase path */, true);
+        this._propagateLatchToOwed();
+        void this._drainOwed();
+    }
+
+    /** AlertSink.deliver -- the coordinator calls this ONLY when `enabled && showInterventions`. */
     deliver(alert: AlertRecord): void {
         void this._handleAlert(alert);
     }
@@ -168,17 +278,12 @@ export class StruggleInterventionService implements AlertSink {
     /** No-AI path: deterministic signal-keyed local template on the lamp, ZERO egress; click shows the template. */
     private _fallback(signal: StruggleSignal): void {
         const template = templateForSignal(signal);
-        this._dbg(`  ↳ FALLBACK (no egress): local lamp template "${template}"`);
+        this._dbg(`  -> FALLBACK (no egress): local lamp template "${template}"`);
         this._deps.showAmbient(template, false);
-        this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'template' }, signal);
     }
 
     /**
-     * Pre-throttle suppression (the BackoffSource predicate {@link shouldSuppress} wraps this). An alert that will
-     * NEVER surface, dropped ABOVE the throttle so it does not burn delivery budget. Three cases:
-     *  - a non-edit (discrete, e.g. test-stagnation) alert — Phase 0: never produces a proactive surface;
-     *  - the course-off latch (§13) — proactive disabled for this course this session;
-     *  - the per-exercise student opt-out (§12.2; default-on, so an unset exercise is unaffected).
+     * Pre-throttle suppression (the BackoffSource predicate {@link shouldSuppress} wraps this).
      * Returns the dev-log reason, or null when the alert may proceed.
      */
     private _suppressReason(alert: AlertRecord): string | null {
@@ -186,11 +291,11 @@ export class StruggleInterventionService implements AlertSink {
             return `alert kind=${alert.kind} skipped (only edit-path alerts intervene)`;
         }
         if (this._courseProactiveOff) {
-            return '  ↳ SKIP (course proactive disabled for this session)';
+            return '  -> SKIP (course proactive disabled for this session)';
         }
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
-            return '  ↳ SKIP (student turned proactive off for this exercise)';
+            return '  -> SKIP (student turned proactive off for this exercise)';
         }
         return null;
     }
@@ -200,170 +305,412 @@ export class StruggleInterventionService implements AlertSink {
         return this._suppressReason(alert) !== null;
     }
 
+    // ---------------------------------------------------------------------------
+    // Core alert handler (C3: preallocation + slot routing)
+    // ---------------------------------------------------------------------------
+
     private async _handleAlert(alert: AlertRecord): Promise<void> {
-        // Pre-throttle suppression (also enforced by BackoffGate above the throttle, so a suppressed alert never
-        // burns delivery budget): non-edit / course-off / student-opt-out drop with no POST and no surface. Kept
-        // here too as the backstop for the direct dev-force path, which calls deliver() and bypasses the gate.
         const suppressed = this._suppressReason(alert);
         if (suppressed !== null) {
             this._dbg(suppressed);
             return;
         }
-        // Narrowing for the type system only: _suppressReason already dropped every non-edit alert above, so this
-        // is unreachable at runtime — it tells TS that `alert` is the edit variant for buildStruggleSignal below.
-        if (alert.kind !== 'edit') {
-            return;
-        }
+        if (alert.kind !== 'edit') { return; }
+
         try {
             const signal = buildStruggleSignal(alert, this._buffer.snapshot());
-            const optedIn = this._deps.isEgressEnabled();
-            const hasExercise = this._deps.getExerciseId() !== undefined;
-            const noaiMarker = this._deps.hasNoaiMarker();
+            const snap = this._slot.snapshot();
+
             const outcome = decideOutcome({
-                optedIn,
-                inFlight: this._inFlight,
-                hasExercise,
-                noaiMarker,
+                optedIn: this._deps.isEgressEnabled(),
+                inFlight: this._inFlightMarker !== undefined,
+                hasExercise: this._deps.getExerciseId() !== undefined,
+                noaiMarker: this._deps.hasNoaiMarker(),
                 serverAvailable: this._serverAvailable,
             });
-            this._dbg(`▶ ALERT t=${signal.alert.tSessionS}s boundary=${signal.alert.primaryBoundary} `
-                + `severity=${signal.alert.severity.toFixed(2)} `
-                + `top=[${signal.dominantComponents.map(c => `${c.name}=${c.value.toFixed(2)}`).join(', ')}] `
-                + `→ decision=${outcome} `
-                + `(egressOptIn=${optedIn}, hasExercise=${hasExercise}, noai=${noaiMarker}, serverUp=${this._serverAvailable}, inFlight=${this._inFlight})`);
+
+            this._dbg(`> ALERT t=${signal.alert.tSessionS}s boundary=${signal.alert.primaryBoundary} `
+                + `severity=${signal.alert.severity.toFixed(2)} -> decision=${outcome} `
+                + `(slot=${snap.state.kind}, gen=${snap.generation}, inFlight=${this._inFlightMarker !== undefined})`);
+
             if (outcome === 'fallback') {
                 this._fallback(signal);
                 return;
             }
             if (outcome === 'skip') {
-                this._dbg('  ↳ SKIP (no POST, no surface)');
+                this._dbg('  -> SKIP (no POST, no surface)');
                 return;
             }
+
             const exerciseId = this._deps.getExerciseId() as number;
-            // Claim the in-flight slot BEFORE the async file collection: a second alert arriving while
-            // collectFiles() is still pending must see _inFlight=true and skip (close the TOCTOU race so the
-            // client guard, like the server's authoritative single-flight, never double-POSTs).
-            this._pendingSignal = signal;
-            this._setInFlight(true);
+            const hardEvent = alert.types.some(t => HARD_BOUNDARIES.has(t));
+
+            // Episode preallocation: candidate for FREE/PARKED, live episode for DELIVERED
+            let requestEpisode: { episodeId: string; isNew: boolean; hints: EpisodeHint[] };
+
+            if (snap.state.kind === 'free') {
+                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID());
+                requestEpisode = {
+                    episodeId: this._candidate.episodeId,
+                    isNew: !this._continuedEpisodeIds.has(this._candidate.episodeId),
+                    hints: this._candidate.hints,
+                };
+            } else if (snap.state.kind === 'parked') {
+                // A new candidate for the possible replacement; the PARKED episode is never sent back
+                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID());
+                requestEpisode = {
+                    episodeId: this._candidate.episodeId,
+                    isNew: !this._continuedEpisodeIds.has(this._candidate.episodeId),
+                    hints: this._candidate.hints,
+                };
+            } else {
+                // DELIVERED: continue the live episode
+                this._candidate = undefined;
+                const liveEp = snap.state.episode;
+                requestEpisode = {
+                    episodeId: liveEp.episodeId,
+                    isNew: !this._continuedEpisodeIds.has(liveEp.episodeId),
+                    hints: liveEp.hints,
+                };
+            }
+
+            this._lastSignal = signal;
+            const requestToken = crypto.randomUUID();
+
+            // Stamp the guard BEFORE async collection (TOCTOU: a second alert must see in-flight)
+            const stamp: PendingStamp = {
+                episodeId: requestEpisode.episodeId,
+                generation: snap.generation,
+                hardEvent,
+                requestToken,
+            };
+            const localToken = this._guard.issue('decide', stamp);
+            this._inFlightMarker = { requestToken, episodeId: requestEpisode.episodeId, generation: snap.generation, intent: 'decide', localToken };
+
             const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
-            const paths = Object.keys(uncommittedFiles);
-            const bytes = paths.reduce((n, p) => n + uncommittedFiles[p].length, 0);
-            this._dbg(`  ↳ POST exercise=${exerciseId} → ${paths.length} file(s), ${bytes}B egress`
-                + (paths.length ? `: [${paths.map(p => `${p} (${uncommittedFiles[p].length}B)`).join(', ')}]` : ''));
             await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'server', signal });
-            const result = await this._deps.postIntervention(exerciseId, { struggleSignal: signal, uncommittedFiles });
-            this._dbg(`  ↳ POST result: ${result}`);
-            if (result === 'course-off') {
-                // Deliberate instructor opt-out (§13): pause proactive for the session with NO fallback lamp, and
-                // release the slot (there is no pending job). The latch keeps it paused even if the in-flight
-                // watchdog later fires, and survives a settings-toggle reset(); resetSession() re-probes next exercise.
-                this._dbg('  ↳ COURSE-OFF: proactive disabled for this course → pause session, no lamp');
+
+            const result = await this._deps.postIntervention(exerciseId, {
+                struggleSignal: signal,
+                uncommittedFiles,
+                intent: 'decide',
+                episode: requestEpisode,
+                requestToken,
+            });
+
+            this._dbg(`  -> POST result: ${result}`);
+
+            if (result === 'accepted') {
+                // Flip isNew: this episode has now been seen by Pyris
+                this._continuedEpisodeIds.add(requestEpisode.episodeId);
+                if (this._candidate) {
+                    this._candidate = markContinuation(this._candidate);
+                }
+                // _inFlightMarker stays set until the websocket reply arrives (onServerAmbient/Active/Silent)
+            } else if (result === 'course-off') {
                 this._courseProactiveOff = true;
-                this._setInFlight(false);
-                return;
-            }
-            if (result === 'unavailable') {
+                this._inFlightMarker = undefined;
+                this._candidate = undefined;
+            } else if (result === 'unavailable') {
                 this._serverAvailable = false;
-                this._setInFlight(false);
+                this._inFlightMarker = undefined;
+                this._candidate = undefined;
                 this._fallback(signal);
+            } else {
+                // 'failed': transient error -- release wire so next alert retries
+                this._inFlightMarker = undefined;
+                this._candidate = undefined;
             }
-            if (result === 'failed') {
-                // Transient 4xx/5xx/network (contract: treat as silent — no fallback lamp), but RELEASE the
-                // in-flight slot now so the next alert can retry, instead of being skipped until the 30s watchdog.
-                this._setInFlight(false);
-            }
-        }
-        catch (err) {
-            this._dbg(`  ↳ ERROR during intervention: ${err instanceof Error ? err.message : String(err)}`);
-            this._setInFlight(false);
+        } catch (err) {
+            this._dbg(`  -> ERROR during intervention: ${err instanceof Error ? err.message : String(err)}`);
+            this._inFlightMarker = undefined;
+            this._candidate = undefined;
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Inbound decision handlers (C3 slot-reaction logic; C4 dispatches to these)
+    // ---------------------------------------------------------------------------
+
     /**
-     * Inbound ambient event from the server (ambient is NOT capped, spec §10).
-     * Ambient = PARKED pointer only (spec §5 pull model): badge + status-bar lamp + gutter icon
-     * at the live anchor. NO inline text, NO toast, NO bubble. The hint text stays hidden until
-     * the student clicks (reveal is C2). `messageId` is forwarded for future slot correlation (C3).
-     * `sessionId` is stored as the frozen session id for the reveal flow (C2 spec §5).
-     * C3 inbound routing (takeParked) is wired here in the next task; C2 only stores the session id.
+     * Inbound ambient event from the server (PARKED pointer only: spec §5 pull model).
+     * Routes through reconcile; may take-parked (FREE), replace-parked (PARKED), or suppress (DELIVERED).
+     * sessionId is stored for the reveal flow (C2).
      */
     onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number): void {
         this._serverAvailable = true;
-        this._setInFlight(false);
-        // Store the frozen session id for the reveal flow (C2) before any early return.
+
         if (sessionId !== undefined) {
             this._frozenSessionId = sessionId;
         }
-        // The student may have toggled proactive off for this exercise while this POST was in flight (spec §12.2):
-        // drop the surface. The slot is already released above.
+
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
+            this._clearInFlight();
             return;
         }
-        // Always show the badge and lamp (the two universal ambient pointers).
-        this._deps.setBadge(true);
-        this._deps.showLamp();
-        // Also show the gutter icon when the anchor is live (an additional, anchor-specific pointer).
-        if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
-            this._deps.showGutterOnly(anchorFile, anchorLine);
-        } else {
-            this._deps.clearInline(); // clear any stale inline cue from a previous active episode
+
+        // Validate against the pending decide stamp (drop stale replies)
+        const accepted = this._acceptDecide();
+        if (accepted === null) {
+            return; // stale: slot moved since POST, or no decide was outstanding
         }
-        this._dbg(`  ↳ AMBIENT (PARKED) badge+lamp${anchorFile ? '+gutter' : ''} hint="${hint}" messageId=${messageId ?? 'none'}`);
-        this._surface({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', confidence }, this._pendingSignal);
+
+        const snap = this._slot.snapshot();
+        const decision = { action: 'ambient' as const, text: hint, hardEvent: accepted.hardEvent };
+        const action = reconcile(snap.state, decision);
+
+        this._applyDecideAction(action, hint, { level: 'ambient', text: hint, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence);
     }
 
     /**
-     * Inbound `active` struggle event (per-user topic). Posts an optimistic bubble from the event
-     * `message` text (tagged with `messageId` for webview-side dedup against the later chat-ws row;
-     * null `messageId` = server persist failed (A9) = runtime-only fallback bubble). Then opens the
-     * session, fires the toast notification + badge, and drops the inline breadcrumb at the live anchor
-     * (spec §6.1). Hides the ambient lamp (the louder active surface supersedes it). CAPPED at
-     * MAX active/session.
+     * Inbound active event from the server (delivered, bubble+notification). Routes through reconcile;
+     * may take-delivered (FREE), replace-delivered (PARKED), escalate (revealed-ambient DELIVERED +
+     * hardEvent), or suppress (already-active DELIVERED, no hardEvent, etc.).
      */
     onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
         this._serverAvailable = true;
-        this._setInFlight(false);
-        // Student opted out mid-flight (spec §12.2): drop the surface (slot already released).
+
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
+            this._clearInFlight();
             return;
         }
-        if (this._activeCount >= MAX_ACTIVE_PER_SESSION) {
-            this._deps.clearInline();   // capped → lamp only; no breadcrumb either
-            this._dbg(`  ↳ ACTIVE session=${sessionId} CAPPED (${this._activeCount}/${MAX_ACTIVE_PER_SESSION} this session) → lamp only`);
-            this._deps.showAmbient('Iris added a suggestion to the chat.', true);
-            this._surface({ action: 'active', finalAction: 'ambient', surface: 'lamp', source: 'server', confidence }, this._pendingSignal);
+
+        const accepted = this._acceptDecide();
+        if (accepted === null) {
             return;
         }
-        this._activeCount += 1;
-        this._dbg(`  ↳ ACTIVE → opening proactive session=${sessionId} (#${this._activeCount}/${MAX_ACTIVE_PER_SESSION}) messageId=${messageId ?? 'null'}`);
-        // Post the optimistic bubble before opening the session so it appears immediately.
-        // messageId=null means server persist failed (A9): still post a runtime-only fallback bubble.
-        const bubbleText = message ?? 'Iris has a suggestion for you.';
-        const bubbleId = messageId ?? null;
-        this._deps.postBubble(bubbleText, bubbleId);
-        void this._deps.openSession(sessionId);
+
+        const snap = this._slot.snapshot();
+        const text = message ?? 'Iris has a suggestion for you.';
+        const decision = { action: 'active' as const, text, hardEvent: accepted.hardEvent };
+        const action = reconcile(snap.state, decision);
+
+        this._applyDecideAction(action, text, { level: 'active', text, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, sessionId);
+    }
+
+    /**
+     * Inbound silent event: server decided no intervention is needed.
+     * Frees PARKED (discard-free), suppresses for DELIVERED (no-op).
+     */
+    onServerSilent(): void {
+        this._serverAvailable = true;
+
+        const accepted = this._acceptDecide();
+        if (accepted === null) { return; }
+
+        const snap = this._slot.snapshot();
+        const decision = { action: 'silent' as const, text: null, hardEvent: false };
+        const action = reconcile(snap.state, decision);
+
+        if (action.kind === 'discard-free') {
+            this._slot.discardParkedToFree();
+            this._clearEpisodeRuntime();
+        }
+        // 'suppress': DELIVERED + silent -> no-op (keep the live episode)
+        // 'suppress' from FREE: was already free, no-op
+    }
+
+    /**
+     * Inbound confirmClose response from the server (C4 will parse and dispatch).
+     * `resolved=true`: Pyris agreed to close -> free the slot.
+     * `resolved=false`: Pyris declined -> latch re-arms, slot stays.
+     */
+    onServerClose(resolved: boolean, _closeMessageId?: number, _episodeLabel?: string): void {
+        this._serverAvailable = true;
+
+        // Clear the in-flight marker for the confirmClose intent
+        const wasDedicated = this._inFlightMarker?.intent === 'confirm_close';
+        if (wasDedicated) {
+            this._inFlightMarker = undefined;
+        }
+
+        // Notify the latch
+        this._latch.onConfirmResult(resolved);
+
+        if (resolved) {
+            const snap = this._slot.snapshot();
+            const snapState = snap.state;
+            const wasDelivered = snapState.kind === 'delivered';
+            const episodeId = wasDelivered ? snapState.episode.episodeId : undefined;
+
+            // Handle queued stale_solved that arrived while this confirmClose was in flight:
+            // slot-free clears it (one CLOSE total -- spec §6 "cannot apply twice")
+            this._owedConfirmClose = undefined;
+
+            // Free the slot and tear down per-episode runtime
+            this._slot.free();
+            this._clearEpisodeRuntime();
+
+            // Fold signal for DELIVERED terminals (PARKED terminals have no visible artifact)
+            if (wasDelivered && episodeId) {
+                // C4 will pass episodeLabel/closeMessageId for praise; for now emit without
+                this._deps.foldEpisode(episodeId);
+            }
+        } else {
+            // Not resolved: if there is a queued stale_solved, drain it now (spec §7.3)
+            // The wire is free now -- drain on next _drainOwed() call
+            void this._drainOwed();
+        }
+    }
+
+    /**
+     * Inbound staleCheck response from the server (C4 will parse and dispatch).
+     * Stub for C3: handles watchdog ask-count bookkeeping when an ask was shown.
+     */
+    onServerStale(_askShown: boolean): void {
+        this._serverAvailable = true;
+
+        // Clear the in-flight staleCheck marker
+        if (this._inFlightMarker?.intent === 'stale_check') {
+            this._inFlightMarker = undefined;
+        }
+
+        if (_askShown && this._watchdog) {
+            this._watchdog.onAskPosted();
+        }
+
+        // Wire now free -- drain any owed work
+        void this._drainOwed();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Reconcile-action applier (shared by onServerAmbient / onServerActive)
+    // ---------------------------------------------------------------------------
+
+    private _applyDecideAction(
+        action: ReconcileAction,
+        text: string,
+        hint: EpisodeHint,
+        messageId: number | null,
+        anchorFile: string | undefined,
+        anchorLine: number | undefined,
+        inlineHint: string | undefined,
+        confidence: number | undefined,
+        sessionId?: number,
+    ): void {
+        const now = Date.now();
+
+        switch (action.kind) {
+            case 'take-parked': {
+                const ep = this._candidate!;
+                this._slot.takeParked(now, ep, hint);
+                this._candidate = undefined;
+                this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
+                this._watchdog.arm(now, true /* parked */);
+                this._latch.reset();
+                // Parked surface: badge + lamp (+ gutter if anchor live)
+                this._deps.setBadge(true);
+                this._deps.showLamp();
+                if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+                    this._deps.showGutterOnly(anchorFile, anchorLine);
+                } else {
+                    this._deps.clearInline();
+                }
+                this._dbg(`  -> TAKE-PARKED badge+lamp${anchorFile ? '+gutter' : ''} hint="${text}"`);
+                void this._deps.log.record({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', signal: this._lastSignal, confidence });
+                break;
+            }
+
+            case 'take-delivered': {
+                const ep = this._candidate!;
+                this._slot.takeDelivered(now, ep, hint);
+                this._candidate = undefined;
+                this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
+                this._watchdog.arm(now, false /* delivered */);
+                this._latch.reset();
+                this._applyActiveSurface(text, messageId, anchorFile, anchorLine, inlineHint, sessionId);
+                void this._deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._lastSignal, confidence });
+                break;
+            }
+
+            case 'replace-parked': {
+                const ep = this._candidate!;
+                this._slot.replaceParked(now, ep, hint);
+                this._candidate = undefined;
+                // Watchdog: fresh instance for the new episode
+                this._watchdog?.disarm();
+                this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
+                this._watchdog.arm(now, true /* parked */);
+                this._latch.reset();
+                // Surface: same parked pointers (badge + lamp + maybe gutter)
+                this._deps.setBadge(true);
+                this._deps.showLamp();
+                if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+                    this._deps.showGutterOnly(anchorFile, anchorLine);
+                } else {
+                    this._deps.clearInline();
+                }
+                this._dbg(`  -> REPLACE-PARKED new hint="${text}"`);
+                void this._deps.log.record({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', signal: this._lastSignal, confidence });
+                break;
+            }
+
+            case 'replace-delivered': {
+                const ep = this._candidate!;
+                this._slot.replaceWithDelivered(now, ep, hint);
+                this._candidate = undefined;
+                // Watchdog: fresh instance for the replacement episode
+                this._watchdog?.disarm();
+                this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
+                this._watchdog.arm(now, false /* delivered */);
+                this._latch.reset();
+                this._applyActiveSurface(text, messageId, anchorFile, anchorLine, inlineHint, sessionId);
+                void this._deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._lastSignal, confidence });
+                break;
+            }
+
+            case 'escalate': {
+                // DELIVERED ambient + hardEvent: escalate to active (same episode)
+                this._slot.escalate(hint);
+                const inSession = this._slot.snapshot().inSession;
+                this._applyEscalation(inSession, text, anchorFile, anchorLine, inlineHint, messageId);
+                // Watchdog: resetProgress is NOT called here (escalation is not "hard progress")
+                void this._deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._lastSignal, confidence });
+                break;
+            }
+
+            case 'suppress':
+            case 'discard-free':
+                // Suppress: server decided no surface change for this slot state
+                this._dbg(`  -> SUPPRESS (slot=${this._slot.snapshot().state.kind})`);
+                break;
+        }
+    }
+
+    /**
+     * Apply the full active push surface (bubble + session open + notification + badge + inline).
+     * Called from take-delivered, replace-delivered; NOT for escalation (which uses applyEscalation).
+     */
+    private _applyActiveSurface(
+        text: string,
+        messageId: number | null,
+        anchorFile: string | undefined,
+        anchorLine: number | undefined,
+        inlineHint: string | undefined,
+        sessionId?: number,
+    ): void {
+        const bubbleText = text;
+        this._deps.postBubble(bubbleText, messageId);
+        if (sessionId !== undefined) {
+            void this._deps.openSession(sessionId);
+        }
         this._deps.setBadge(true);
         this._deps.showActiveNotification();
-        // Active hides the parked ambient lamp (the louder active surface takes over).
         this._deps.clearLamp();
-        // Spec §6.1: a localized active nudge ALSO leaves the inline breadcrumb at the live line; otherwise clear
-        // any stale inline cue (the active surface supersedes a previous one).
         if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
-            this._deps.showInline(anchorFile, anchorLine, inlineHint, message ?? inlineHint);
+            this._deps.showInline(anchorFile, anchorLine, inlineHint, bubbleText);
         } else {
             this._deps.clearInline();
         }
-        this._surface({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', confidence }, this._pendingSignal);
     }
 
     /**
      * Apply an escalation (PARKED -> DELIVERED transition, driven by C3 slot reconcile).
      * Computes loudness from `inSession`: when the chat view is open (in-session), the escalation
      * drops quietly as a bubble with no toast or inline push; otherwise it fires the full active
-     * surface (toast + inline). In both cases the optimistic bubble is posted with `messageId` for
-     * webview-side dedup. This method does NOT touch the slot state (C3 owns that).
+     * surface (toast + inline). This method does NOT touch the slot state (C3 owns that).
      */
     applyEscalation(
         inSession: boolean,
@@ -373,63 +720,279 @@ export class StruggleInterventionService implements AlertSink {
         inlineHint: string | undefined,
         messageId: number | null,
     ): void {
-        this._deps.postBubble(hint, messageId);
-        if (inSession) {
-            // Quiet: in-session bubble only (chat is open, no interruption needed).
-            return;
-        }
-        // Out-of-session: full active push.
+        this._applyEscalation(inSession, hint, anchorFile, anchorLine, inlineHint, messageId);
+    }
+
+    private _applyEscalation(
+        inSession: boolean,
+        text: string,
+        anchorFile: string | undefined,
+        anchorLine: number | undefined,
+        inlineHint: string | undefined,
+        messageId: number | null,
+    ): void {
+        this._deps.postBubble(text, messageId);
+        if (inSession) { return; }
+        // Out-of-session: full active push
         this._deps.showActiveNotification();
         if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
-            this._deps.showInline(anchorFile, anchorLine, inlineHint, hint);
+            this._deps.showInline(anchorFile, anchorLine, inlineHint, text);
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Guard validation helpers
+    // ---------------------------------------------------------------------------
+
     /**
-     * A surfaced intervention was engaged (lamp click / toast action / inline command). Replays the LAST surfaced
-     * metadata and feeds the reject backoff (dismiss escalates, click clears). Single-shot: the surface is
-     * snapshotted and cleared synchronously up front, so a surface yields exactly one outcome and any
-     * retriggered command or duplicate/stale callback on an already-consumed surface is a no-op (functional
-     * backoff state, not just telemetry, now rides on this). NOTE (Slice 4b): the FIRST stale callback that
-     * arrives after a later surface has overwritten `_lastSurface` is still misattributed to that newer surface;
-     * closing that needs per-surface identity tokens, which Slice 4b introduces.
+     * Validate an inbound decide reply against the current in-flight marker + slot generation.
+     * Returns the PendingStamp on match, null on stale/no-marker (stale drop).
+     * Side effect: clears _inFlightMarker when accepted or when stale.
      */
-    recordOutcome(outcome: 'clicked' | 'dismissed'): void {
-        const surface = this._lastSurface;
-        if (!surface) {
+    private _acceptDecide(): PendingStamp | null {
+        if (!this._inFlightMarker || this._inFlightMarker.intent !== 'decide') {
+            return null;
+        }
+        const snap = this._slot.snapshot();
+        const stamp = this._guard.accept(
+            'decide',
+            this._inFlightMarker.localToken,
+            this._inFlightMarker.episodeId,
+            snap.generation,
+        );
+        // Clear the in-flight marker regardless of result (the reply has landed)
+        this._inFlightMarker = undefined;
+        return stamp;
+    }
+
+    /**
+     * Clear in-flight marker without running guard validation (used on mid-flight drops
+     * where we don't have a decide reply, e.g. student opt-out mid-flight).
+     */
+    private _clearInFlight(): void {
+        this._inFlightMarker = undefined;
+        this._candidate = undefined;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Watchdog event handling
+    // ---------------------------------------------------------------------------
+
+    private _handleWatchdogTick(nowMs: number): void {
+        if (!this._watchdog) { return; }
+        const snap = this._slot.snapshot();
+        // Only tick when slot is PARKED or DELIVERED
+        if (snap.state.kind === 'free') { return; }
+
+        const event = this._watchdog.tick(nowMs);
+        if (event === null) { return; }
+
+        const exerciseId = this._deps.getExerciseId();
+
+        switch (event.kind) {
+            case 'fire-stale-check': {
+                // Window already incremented inside tick() (wire-independent)
+                if (this._watchdog.canPostAsk() && !this._liveAskBinding) {
+                    this._owedStaleCheck = true;
+                }
+                // _drainOwed() is called after onTick returns
+                break;
+            }
+            case 'force-free': {
+                // DELIVERED terminal: free + ABANDONED + clearEpisodeRuntime + foldEpisode (no praise)
+                const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
+                const episodeId = deliveredEp?.episodeId;
+
+                // Scoped-cancel any in-flight request
+                if (this._inFlightMarker && exerciseId !== undefined) {
+                    const token = this._inFlightMarker.requestToken;
+                    this._deps.cancelOutstandingStruggleJob(exerciseId, token).catch(() => { /* best-effort */ });
+                }
+
+                this._slot.free();
+                this._clearEpisodeRuntime();
+
+                if (episodeId && exerciseId !== undefined) {
+                    void this._deps.setEpisodeOutcome(exerciseId, episodeId, 'ABANDONED').catch(() => { /* best-effort */ });
+                    this._deps.foldEpisode(episodeId);
+                }
+                break;
+            }
+            case 'free-silent': {
+                // PARKED terminal: free silently (no row, no foldEpisode)
+                if (this._inFlightMarker && exerciseId !== undefined) {
+                    const token = this._inFlightMarker.requestToken;
+                    this._deps.cancelOutstandingStruggleJob(exerciseId, token).catch(() => { /* best-effort */ });
+                }
+                this._slot.free();
+                this._clearEpisodeRuntime();
+                break;
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Owed-request drain (confirmClose / staleCheck)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Propagate latch pending-post state -> _owedConfirmClose queue.
+     * Called immediately after every latch.observe() call so the owed entry is always set
+     * BEFORE _drainOwed -- even when the wire is busy (owed survives until wire frees).
+     */
+    private _propagateLatchToOwed(): void {
+        if (!this._latch.shouldPost() || this._owedConfirmClose) { return; }
+        const kind = this._slot.snapshot().state.kind;
+        if (kind === 'delivered') {
+            this._owedConfirmClose = { confirmReason: 'progress' };
+        } else if (kind === 'parked') {
+            this._owedConfirmClose = { confirmReason: 'parked_progress' };
+        }
+    }
+
+    private async _drainOwed(): Promise<void> {
+        // Wire must be free to drain
+        if (this._inFlightMarker !== undefined) { return; }
+
+        const snap = this._slot.snapshot();
+        if (snap.state.kind === 'free') { return; }
+
+        const exerciseId = this._deps.getExerciseId();
+        if (exerciseId === undefined) { return; }
+        if (!this._lastSignal) { return; }
+
+        // Priority 1: owed confirmClose
+        if (this._owedConfirmClose) {
+            const { confirmReason } = this._owedConfirmClose;
+            // Determine episode block based on current slot state
+            // Get episode from whichever taken state we're in (DELIVERED or PARKED)
+            const epState = snap.state;
+            const ep = (epState.kind === 'delivered' || epState.kind === 'parked') ? epState.episode : null;
+            if (!ep) { return; }
+
+            const requestToken = crypto.randomUUID();
+            const requestEpisode = {
+                episodeId: ep.episodeId,
+                isNew: !this._continuedEpisodeIds.has(ep.episodeId),
+                hints: ep.hints,
+            };
+            const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
+            const localToken = this._guard.issue('confirm_close', stamp);
+            this._inFlightMarker = { requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken };
+
+            try {
+                const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
+                const result = await this._deps.postIntervention(exerciseId, {
+                    struggleSignal: this._lastSignal,
+                    uncommittedFiles,
+                    intent: 'confirm_close',
+                    episode: requestEpisode,
+                    confirmReason,
+                    requestToken,
+                });
+                if (result === 'accepted') {
+                    this._continuedEpisodeIds.add(ep.episodeId);
+                    this._owedConfirmClose = undefined;
+                    this._latch.onPosted();
+                } else {
+                    // Not accepted (job pending, course-off, etc.) -- retry next tick
+                    this._inFlightMarker = undefined;
+                }
+            } catch {
+                this._inFlightMarker = undefined;
+            }
             return;
         }
-        const signal = this._lastSurfaceSignal;
-        this._lastSurface = undefined;
-        this._lastSurfaceSignal = undefined;
+
+        // Priority 2: owed staleCheck
+        if (this._owedStaleCheck && !this._liveAskBinding) {
+            const epState2 = snap.state;
+            const ep = epState2.kind === 'delivered' ? epState2.episode : null;
+            if (!ep) { this._owedStaleCheck = false; return; }
+
+            const requestToken = crypto.randomUUID();
+            const requestEpisode = {
+                episodeId: ep.episodeId,
+                isNew: !this._continuedEpisodeIds.has(ep.episodeId),
+                hints: ep.hints,
+            };
+            const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
+            const localToken = this._guard.issue('stale_check', stamp);
+            this._inFlightMarker = { requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'stale_check', localToken };
+
+            try {
+                const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
+                const result = await this._deps.postIntervention(exerciseId, {
+                    struggleSignal: this._lastSignal,
+                    uncommittedFiles,
+                    intent: 'stale_check',
+                    episode: requestEpisode,
+                    requestToken,
+                });
+                if (result === 'accepted') {
+                    this._continuedEpisodeIds.add(ep.episodeId);
+                    this._owedStaleCheck = false;
+                } else {
+                    this._inFlightMarker = undefined;
+                }
+            } catch {
+                this._inFlightMarker = undefined;
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // clearEpisodeRuntime: tears down ALL per-episode runtime state
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Called on EVERY terminal transition (slot free). Tears down the progress latch, watchdog,
+     * owed requests, and the live-ask binding (which neutralises any pending ABANDON timers).
+     */
+    private _clearEpisodeRuntime(): void {
+        this._latch.reset();
+        this._watchdog?.disarm();
+        this._watchdog = undefined;
+        this._owedConfirmClose = undefined;
+        this._owedStaleCheck = false;
+        // Cancel any in-flight staleCheck (guard cancel, not scoped-cancel -- the job was cleared on guard)
+        this._guard.cancel('stale_check');
+        // Clear the live-ask binding: neutralises any pending ABANDON setTimeout
+        this._liveAskBinding = undefined;
+        // Clear the in-flight marker (slot is terminal, nothing to reply to)
+        this._inFlightMarker = undefined;
+    }
+
+    // ---------------------------------------------------------------------------
+    // recordOutcome / backoff (C3: _lastSurface removed; backoff latches kept)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * A surfaced intervention was engaged (lamp click / toast action / inline command).
+     * Feeds the reject backoff (dismiss escalates, click clears).
+     */
+    recordOutcome(outcome: 'clicked' | 'dismissed'): void {
         if (outcome === 'clicked') {
             this._annoyance = 0;
             this._dismissStrikes = 0;
             this._softSkipBudget = 0;
-        }
-        else {
+        } else {
             this._dismissStrikes += 1;
             this._annoyance += 2;
             if (this._annoyance >= this._deps.softThreshold) {
-                this._softSkipBudget += 1;   // escalating: one more owed per dismiss past the threshold
+                this._softSkipBudget += 1;
             }
         }
-        void this._deps.log.record({ ...surface, signal, studentOutcome: outcome });
     }
 
     /**
-     * An explicit chat-bubble dismiss (spec §6.3). Unlike {@link recordOutcome}, this is NOT gated on a live
-     * surface: a persisted bubble can be dismissed after a reload when `_lastSurface` is already cleared, and the
-     * delivery backoff must still register it. Bumps the Slice-4a counters directly; eval-logs best-effort.
+     * An explicit chat-bubble dismiss (spec §6.3). Bumps the Slice-4a counters directly.
      */
     recordChatDismiss(): void {
         this._dismissStrikes += 1;
         this._annoyance += 2;
         if (this._annoyance >= this._deps.softThreshold) {
             this._softSkipBudget += 1;
-        }
-        if (this._lastSurface) {
-            void this._deps.log.record({ ...this._lastSurface, signal: this._lastSurfaceSignal, studentOutcome: 'dismissed' });
         }
     }
 
@@ -438,56 +1001,41 @@ export class StruggleInterventionService implements AlertSink {
         return this._dismissStrikes >= this._deps.pauseStrikes;
     }
 
-    /** True iff the delivery backoff is currently paused for the active exercise (drives the AskIris "Auto-paused" badge, §12.2). */
+    /** True iff the delivery backoff is currently paused for the active exercise. */
     isProactivePaused(exerciseId: number): boolean {
         return this._deps.getExerciseId() === exerciseId && this.isPaused();
     }
 
     /**
-     * True iff proactive is running in a *degraded* mode (spec §14 cases 4-5): no proactive-egress consent
-     * (local-template-only) OR a 404-latched server (no-AI lamp fallback). Drives the AskIris "Degraded" card.
-     * Session-global (not exercise-scoped): both signals are per-session, like the course-off / 404 latches.
-     * Distinct from "paused" (§5.2 backoff) and from the student/course "off" states.
+     * True iff proactive is running in a degraded mode (spec §14 cases 4-5): no proactive-egress consent
+     * OR a 404-latched server.
      */
     isProactiveDegraded(): boolean {
         return !this._deps.isEgressEnabled() || !this._serverAvailable;
     }
 
-    /** Clear the Slice-4a session backoff counters. Private: the public methods add the active-exercise guard. */
     private _clearBackoff(): void {
         this._dismissStrikes = 0;
         this._annoyance = 0;
         this._softSkipBudget = 0;
     }
 
-    /** "Resume" action: clear the auto-pause backoff — but ONLY when the active session is the one being resumed. The
-     *  backoff is session-scoped, so resuming exercise A while B is active must not clear B's backoff (codex review). */
     resumeProactive(exerciseId: number): void {
-        if (this._deps.getExerciseId() !== exerciseId) {
-            return;
-        }
+        if (this._deps.getExerciseId() !== exerciseId) { return; }
         this._clearBackoff();
     }
 
-    /** Immediate effect of the AskIris On/Off switch. The durable preference is persisted by the caller; here we only
-     *  touch the LIVE surfaces, and ONLY when the toggled exercise is the active one — a toggle on exercise A must not
-     *  clear exercise B's lamp/inline/badge/backoff (codex review). Off clears the lamp, the inline cue (a proactive
-     *  ambient can be an inline decoration) AND the badge; On clears any auto-pause. */
     setStudentProactive(exerciseId: number, on: boolean): void {
-        if (this._deps.getExerciseId() !== exerciseId) {
-            return;
-        }
+        if (this._deps.getExerciseId() !== exerciseId) { return; }
         if (on) {
             this._clearBackoff();
-        }
-        else {
+        } else {
             this._deps.clearLamp();
             this._deps.clearInline();
             this._deps.setBadge(false);
         }
     }
 
-    /** Consume one owed soft skip; returns true if a skip was owed (caller drops the alert). */
     tryConsumeSoftSkip(): boolean {
         if (this._softSkipBudget > 0) {
             this._softSkipBudget -= 1;
@@ -497,43 +1045,39 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * AlertSink.reset — the coordinator's settings-toggle / context-clear path. Clears ALL surfaces (incl. the
-     * lamp) + the in-flight slot, but DELIBERATELY KEEPS the per-session latches (404 / course-off) and the active
-     * cap: a config-off→on toggle mid-session must not silently lift a latch or refill the cap. Those clear only on
-     * {@link resetSession} (a new exercise).
+     * AlertSink.reset -- the coordinator's settings-toggle / context-clear path. Clears ALL surfaces
+     * (incl. the lamp) + the in-flight slot, but DELIBERATELY KEEPS the per-session latches (404 /
+     * course-off) and the active cap: a config-off->on toggle mid-session must not silently lift a latch.
      */
     reset(): void {
         this._buffer.clear();
-        this._setInFlight(false);            // also invalidates any pending in-flight timeout (gen bump)
-        this._pendingSignal = undefined;
-        this._lastSurface = undefined;
-        this._lastSurfaceSignal = undefined;
+        this._inFlightMarker = undefined;
+        this._candidate = undefined;
+        this._lastSignal = undefined;
         this._deps.setBadge(false);
         this._deps.clearLamp();
         this._deps.clearInline();
     }
 
     /**
-     * New-exercise reset: clear the per-exercise backoff AND the per-session latches (404 / course-off) + the
-     * active cap, then the UI/session state. The plain {@link reset} (the coordinator's settings-toggle path)
-     * deliberately KEEPS all of those so toggling interventions off/on cannot silently lift a pause earned by
-     * repeated dismisses (spec §5.2), re-probe a latched-off server (§11), un-latch course-off (§13), or refill
-     * the active cap.
-     * Also frees the slot, clears the frozen session id, and clears pending outcomes (C2: new exercise = clean state).
+     * New-exercise reset: clear the per-exercise backoff AND the per-session latches (404 / course-off),
+     * then the UI/session state. Also frees the slot, clears the frozen session id, and clears pending
+     * outcomes (C2: new exercise = clean state).
      */
     resetSession(): void {
         this._annoyance = 0;
         this._dismissStrikes = 0;
         this._softSkipBudget = 0;
-        this._activeCount = 0;
-        this._serverAvailable = true;        // re-probe the server next session: a 404 latch is per-session (spec §11)
-        this._courseProactiveOff = false;    // course-off is also a per-session latch (spec §13): re-probe next exercise
-        // C2: cancel any in-flight reveal-persist retry (generation bump invalidates stale closures).
+        this._serverAvailable = true;
+        this._courseProactiveOff = false;
+        // C2: cancel any in-flight reveal-persist retry (generation bump invalidates stale closures)
         this._revealRetryGen++;
-        // C2: clean up the slot and frozen-hint state for the new exercise.
+        // C3: clear all slot + episode runtime state
         if (!this._slot.isFree()) {
             this._slot.free();
         }
+        this._clearEpisodeRuntime();
+        this._continuedEpisodeIds.clear();
         this._frozenSessionId = undefined;
         this._pendingOutcomes.clear();
         this.reset();
@@ -544,19 +1088,15 @@ export class StruggleInterventionService implements AlertSink {
     // -------------------------------------------------------------------------
 
     /**
-     * Reveal the parked ambient hint (spec §5.2 pull reveal). Called when the student clicks the lamp,
-     * gutter icon, or badge. Transitions the slot PARKED -> DELIVERED (generation bump), opens the
-     * proactive session, posts an optimistic bubble with a generated localId, and calls revealAmbient
-     * to persist the canonical row. On persist success the bubble is reconciled (real id + proactiveEpisodeId
-     * + sentAt). On failure the bubble stays runtime-only and a best-effort retry is scheduled with the
-     * SAME localId (the server upsert is idempotent per A10, so the retry returns the same row). The slot is
-     * NEVER reverted to PARKED: reveal is immediate, protection starts at show (spec §5.2).
+     * Reveal the parked ambient hint (spec §5.2 pull reveal). Transitions the slot PARKED -> DELIVERED,
+     * opens the proactive session, posts an optimistic bubble, and persists the canonical row.
+     * On reveal: scoped-cancel any in-flight parked_progress confirmClose or decide, and re-owe the
+     * work under DELIVERED (C3 reveal re-evaluation).
      */
     async revealParkedHint(): Promise<void> {
         const snap = this._slot.snapshot();
-        if (snap.state.kind !== 'parked') {
-            return;
-        }
+        if (snap.state.kind !== 'parked') { return; }
+
         const { episode, frozenText } = snap.state;
         const episodeId = episode.episodeId;
         const sessionId = this._frozenSessionId;
@@ -565,23 +1105,49 @@ export class StruggleInterventionService implements AlertSink {
             this._dbg('revealParkedHint: missing sessionId or exerciseId, cannot reveal');
             return;
         }
+
         const localId = this._deps.generateLocalId();
-        // Transition PARKED -> DELIVERED before the async persist. The reveal is immediate and is
-        // never reverted: if the persist fails, the bubble stays runtime-only and the slot stays DELIVERED.
+
+        // C3: scoped-cancel any in-flight request (the generation bump on reveal makes it stale)
+        const inflight = this._inFlightMarker;
+        if (inflight) {
+            // Scoped cancel: send server cancel to free the job slot
+            this._deps.cancelOutstandingStruggleJob(exerciseId, inflight.requestToken).catch(() => { /* best-effort */ });
+            // Re-owe the work that was in-flight under DELIVERED semantics
+            if (inflight.intent === 'confirm_close') {
+                // Re-owe as a DELIVERED progress close (not parked_progress)
+                this._owedConfirmClose = { confirmReason: 'progress' };
+            }
+            // Clear the in-flight marker so the wire re-opens
+            this._inFlightMarker = undefined;
+        }
+
+        // Also reset the latch so it does not remain stuck in candidate-close
+        this._latch.reset();
+        // Clear any owed confirmClose (the re-owe above replaces it with the DELIVERED variant)
+        // We set it above if needed; otherwise clear stale parked_progress
+        if (this._owedConfirmClose?.confirmReason === 'parked_progress') {
+            // Convert to delivered progress (same physical edge, new slot state)
+            this._owedConfirmClose = { confirmReason: 'progress' };
+        }
+
+        // Transition PARKED -> DELIVERED (generation bump -- invalidates any accept() for old gen)
         const hint: EpisodeHint = { level: 'ambient', text: frozenText, atSessionS: 0 };
         this._slot.revealParked(hint);
+
+        // Watchdog: continue running (episode is still the same, re-arm for delivered)
+        if (this._watchdog) {
+            this._watchdog.arm(Date.now(), false /* now delivered */);
+        }
+
         void this._deps.openSession(sessionId);
         this._deps.postRevealBubble(frozenText, localId);
-        this._dbg(`  ↳ REVEAL click: episodeId=${episodeId} sessionId=${sessionId} localId=${localId}`);
+        this._dbg(`  -> REVEAL click: episodeId=${episodeId} sessionId=${sessionId} localId=${localId}`);
         await this._persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId);
     }
 
     /**
      * Record the student's terminal outcome for the active episode (spec §7.5, A10 episode-keyed endpoint).
-     * If setEpisodeOutcome returns applied=false (the canonical reveal row does not yet exist), the outcome
-     * is stored in _pendingOutcomes and flushed automatically once the reveal-persist retry creates the row.
-     * This ensures an explicit DISMISSED or ABANDONED is never lost even when the student acts before the
-     * network lag resolves. C5/C8 call this method; the back-fill loop is owned here (C2).
      */
     async applyEpisodeOutcome(
         episodeId: string,
@@ -589,24 +1155,17 @@ export class StruggleInterventionService implements AlertSink {
         outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
     ): Promise<void> {
         const exerciseId = this._deps.getExerciseId();
-        if (exerciseId === undefined) {
-            return;
-        }
+        if (exerciseId === undefined) { return; }
         const { applied } = await this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome);
         if (!applied) {
-            // No canonical row yet: defer until the reveal-persist retry creates it.
             this._pendingOutcomes.set(episodeId, { sessionId, outcome });
-            this._dbg(`  ↳ back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
+            this._dbg(`  -> back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
         }
     }
 
     /**
-     * Persist the revealed hint as a canonical chat message row. On success, reconciles the optimistic bubble
-     * and flushes any pending terminal outcome recorded while the row did not yet exist. On transient failure,
-     * schedules a best-effort retry with the SAME localId (server upsert is idempotent per A10). Retries stop
-     * after MAX_REVEAL_RETRIES attempts or immediately on a permanent 4xx (400/403/404). Retries are also
-     * cancelled on exercise switch: each retry closure captures the current _revealRetryGen and bails out if
-     * resetSession has incremented it (meaning the student moved to a new exercise).
+     * Persist the revealed hint as a canonical chat message row. On success, reconciles the optimistic
+     * bubble and flushes any pending terminal outcome. On transient failure, schedules a best-effort retry.
      */
     private async _persistReveal(
         exerciseId: number,
@@ -625,53 +1184,34 @@ export class StruggleInterventionService implements AlertSink {
             const proactiveEpisodeId = typeof dto['proactiveEpisodeId'] === 'string' ? dto['proactiveEpisodeId'] : undefined;
             const sentAt = typeof dto['sentAt'] === 'string' ? dto['sentAt'] : new Date().toISOString();
             this._deps.reconcileOptimisticBubble(localId, serverId, proactiveEpisodeId, sentAt);
-            this._dbg(`  ↳ reveal persisted: serverId=${serverId} proactiveEpisodeId=${proactiveEpisodeId ?? 'none'}`);
-            // Flush any pending terminal outcome that was recorded before the canonical row existed.
+            this._dbg(`  -> reveal persisted: serverId=${serverId} proactiveEpisodeId=${proactiveEpisodeId ?? 'none'}`);
+            // Flush any pending terminal outcome recorded before the canonical row existed
             const pending = this._pendingOutcomes.get(episodeId);
             if (pending) {
                 this._pendingOutcomes.delete(episodeId);
-                this._dbg(`  ↳ back-fill flush: outcome=${pending.outcome} for episodeId=${episodeId}`);
+                this._dbg(`  -> back-fill flush: outcome=${pending.outcome} for episodeId=${episodeId}`);
                 try {
                     await this._deps.setEpisodeOutcome(exerciseId, episodeId, pending.outcome);
                 } catch (flushErr) {
-                    // Best-effort: the flush failure is logged and swallowed. The outcome is lost only
-                    // in this case (spec §12 attrition, the genuinely unrecoverable scenario).
-                    this._dbg(`  ↳ back-fill flush failed (best-effort): ${flushErr instanceof Error ? flushErr.message : String(flushErr)}`);
+                    this._dbg(`  -> back-fill flush failed (best-effort): ${flushErr instanceof Error ? flushErr.message : String(flushErr)}`);
                 }
             }
         } catch (err) {
-            // Permanent server-side rejection: retrying is pointless; leave the bubble runtime-only.
             if (err instanceof ApiError && NON_RETRIABLE_REVEAL_STATUSES.has(err.status)) {
-                this._dbg(`  ↳ reveal persist: permanent ${err.status}, not retrying (spec §12 attrition)`);
+                this._dbg(`  -> reveal persist: permanent ${err.status}, not retrying (spec §12 attrition)`);
                 return;
             }
-            // Cap reached: stop and leave the bubble runtime-only (spec §12 attrition).
             if (attempt >= MAX_REVEAL_RETRIES) {
-                this._dbg(`  ↳ reveal persist: max retries (${MAX_REVEAL_RETRIES}) reached, giving up`);
+                this._dbg(`  -> reveal persist: max retries (${MAX_REVEAL_RETRIES}) reached, giving up`);
                 return;
             }
-            this._dbg(`  ↳ reveal persist failed (attempt ${attempt + 1}/${MAX_REVEAL_RETRIES}), scheduling retry in ${REVEAL_RETRY_MS}ms: ${err instanceof Error ? err.message : String(err)}`);
-            // Capture the generation so an exercise switch (resetSession) can cancel this retry.
+            this._dbg(`  -> reveal persist failed (attempt ${attempt + 1}/${MAX_REVEAL_RETRIES}), scheduling retry in ${REVEAL_RETRY_MS}ms`);
             const myGen = this._revealRetryGen;
             const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
             schedule(() => {
-                if (this._revealRetryGen !== myGen) {
-                    return; // cancelled: student moved to a new exercise
-                }
+                if (this._revealRetryGen !== myGen) { return; }
                 void this._persistReveal(exerciseId, episodeId, hintText, level, localId, attempt + 1);
             }, REVEAL_RETRY_MS);
-        }
-    }
-
-    private _setInFlight(on: boolean): void {
-        this._inFlight = on;
-        // Version the in-flight window so a stale 30s timeout from a PRIOR request cannot clear the flag of a
-        // newer one (the same marker-release race fixed server-side). Any transition bumps the generation;
-        // a scheduled timeout only clears if its generation is still current.
-        const gen = ++this._inFlightGen;
-        if (on) {
-            const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
-            schedule(() => { if (this._inFlightGen === gen) { this._inFlight = false; } }, INFLIGHT_TIMEOUT_MS);
         }
     }
 }

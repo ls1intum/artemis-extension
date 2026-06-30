@@ -10,7 +10,13 @@ describe('struggle contract', () => {
             dominantComponents: [{ name: 'feedbackViewing', value: 1 }],
             sessionSeconds: 540,
         };
-        const req: StruggleInterventionRequest = { struggleSignal: signal, uncommittedFiles: { 'src/A.java': 'class A {}' } };
+        const req: StruggleInterventionRequest = {
+            struggleSignal: signal,
+            uncommittedFiles: { 'src/A.java': 'class A {}' },
+            intent: 'decide',
+            episode: { episodeId: 'ep-uuid', isNew: true, hints: [] },
+            requestToken: 'token-uuid',
+        };
         expect(req.struggleSignal.alert.primaryBoundary).toBe('FM');
         expect(req.uncommittedFiles['src/A.java']).toContain('class A');
 

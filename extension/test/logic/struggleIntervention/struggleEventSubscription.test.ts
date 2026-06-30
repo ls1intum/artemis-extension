@@ -4,10 +4,25 @@ import { classifyStruggleEvent, subscribeStruggleEvents } from '@extension/servi
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 import type { StruggleInterventionDeps } from '@extension/services/struggleIntervention/struggleInterventionService';
 import type { InterventionEventLog } from '@extension/services/struggleIntervention/interventionEventLog';
+import type { PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Set up a synthetic in-flight 'decide' for testing inbound handlers.
+ * In production these are set by _handleAlert before the async POST;
+ * tests call them directly, so this synthetic setup is required.
+ */
+function simulateDecidePending(svc: StruggleInterventionService, episodeId = 'ep-test', hardEvent = false): void {
+    const gen = svc._slot.generation();
+    const requestToken = 'test-request-token';
+    const stamp: PendingStamp = { episodeId, generation: gen, hardEvent, requestToken };
+    const localToken = svc._guard.issue('decide', stamp);
+    svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
+    svc._candidate = { episodeId, isNew: true, hints: [], createdAtMs: 0 };
+}
 
 function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
@@ -39,6 +54,9 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         reconcileOptimisticBubble: vi.fn(),
         revealAmbient: vi.fn(async () => ({ id: 1, sentAt: 'T' })),
         setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
+        // C3 slot-continuity deps (no-ops for these tests)
+        cancelOutstandingStruggleJob: vi.fn(async () => undefined),
+        foldEpisode: vi.fn(),
         ...overrides,
     };
 }
@@ -126,6 +144,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     it('onServerAmbient with live anchor: showGutterOnly + badge + lamp; never showInline, never toast, never bubble', () => {
         const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(true) });
         const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
 
         svc.onServerAmbient('Try checking bounds.', 'Sort.java', 10, 'off-by-one?');
 
@@ -141,6 +160,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     it('onServerAmbient without live anchor: badge + lamp only; no gutter-only, no inline', () => {
         const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(false) });
         const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
 
         svc.onServerAmbient('Try checking bounds.', undefined, undefined, undefined);
 
@@ -154,6 +174,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     it('onServerActive posts optimistic bubble tagged with messageId + inline + toast + badge + hides lamp', () => {
         const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(true) });
         const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
 
         svc.onServerActive(42, 'Sort.java', 10, 'off-by-one?', undefined, 'Try checking array bounds.', 556);
 
@@ -174,6 +195,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     it('onServerActive with messageId=null posts runtime-only fallback bubble and still proceeds', () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
 
         svc.onServerActive(42, undefined, undefined, undefined, undefined, 'Try checking bounds.', null);
 
@@ -186,6 +208,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     it('onServerActive with undefined message falls back to a default bubble text', () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
 
         svc.onServerActive(42, undefined, undefined, undefined, undefined, undefined, 123);
 

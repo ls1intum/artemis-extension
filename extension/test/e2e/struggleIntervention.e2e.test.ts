@@ -77,6 +77,9 @@ function buildStuckRequest(): StruggleInterventionRequest {
         uncommittedFiles: {
             'src/Sum.java': 'class Sum {\n    int sum(int[] a) {\n        // TODO: still returns a constant, tests keep failing\n        return 0;\n    }\n}\n',
         },
+        intent: 'decide',
+        episode: { episodeId: 'e2e-ep-uuid', isNew: true, hints: [] },
+        requestToken: 'e2e-request-token',
     };
 }
 

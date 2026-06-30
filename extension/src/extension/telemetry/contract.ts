@@ -119,6 +119,17 @@ export interface StruggleEngineDeps {
      * Updates the bubble matched by localId to the real server id + proactiveEpisodeId + sentAt.
      */
     reconcileOptimisticBubble(localId: string, serverId: number, proactiveEpisodeId: string | undefined, sentAt: string): void;
+    // C3: slot-continuity seam
+    /**
+     * Cancel an outstanding struggle job by its per-POST requestToken (A10 scoped cancel).
+     * Delegates to ArtemisApiService.cancelOutstandingStruggleJob.
+     */
+    cancelOutstandingStruggleJob(exerciseId: number, requestToken: string): Promise<void>;
+    /**
+     * Emit the host-to-webview fold signal for a terminal DELIVERED episode (C6/C7 renders).
+     * praise is present for progress-close terminals; absent for dismiss/stale/force-free.
+     */
+    foldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void;
 }
 
 /**

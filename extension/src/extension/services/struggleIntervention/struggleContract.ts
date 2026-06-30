@@ -26,6 +26,19 @@ export interface StruggleSignal {
 export interface StruggleInterventionRequest {
     struggleSignal: StruggleSignal;
     uncommittedFiles: Record<string, string>;
+    // C3: slot-continuity fields (camelCase keys, snake enum values per Global Constraints)
+    /** Discriminator for the Pyris pipeline mode. */
+    intent: 'decide' | 'confirm_close' | 'stale_check';
+    /** Client-tracked episode, always present (never null). isNew=true until the first accepted POST. */
+    episode: {
+        episodeId: string;
+        isNew: boolean;
+        hints: Array<{ level: string; text: string; atSessionS: number }>;
+    };
+    /** Required for confirm_close; absent for decide/stale_check. */
+    confirmReason?: 'progress' | 'stale_solved' | 'parked_progress';
+    /** Per-POST scoped-cancel uuid; forwarded to Artemis so the exact job can be cancelled by token. */
+    requestToken: string;
 }
 
 /** 202 response body of the trigger (Plan 2 StruggleInterventionAcceptedDTO). */
