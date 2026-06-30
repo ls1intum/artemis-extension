@@ -140,6 +140,54 @@ export interface StruggleDebugSnapshot {
 }
 
 /**
+ * In-flight request state for a slot (decision, confirm-close, or stale-check).
+ */
+export interface SlotInFlightDebug {
+    intent: 'decide' | 'confirm_close' | 'stale_check';
+    localToken: number;
+    episodeId: string;
+    generation: number;
+    requestToken: string;
+}
+
+/**
+ * Snapshot of a slot's current state (assignment, deliverables, inflight requests).
+ */
+export interface SlotDebugSnapshot {
+    nowMs: number;
+    state: 'free' | 'parked' | 'delivered';
+    level: 'ambient' | 'active' | null;
+    episodeId: string | null;
+    generation: number;
+    episodeAgeMs: number | null;
+    hintCount: number;
+    isNew: boolean;
+    inSession: boolean;
+    watchdog: { armed: boolean; staleDeadlineMs: number | null };
+    abandon: { armed: boolean; deadlineMs: number | null };
+    inFlight: SlotInFlightDebug | null;
+    owed: { confirmClose: boolean; staleCheck: boolean };
+    pendingOutcomes: number;
+}
+
+/**
+ * Label describing how an episode completed.
+ */
+export type EpisodeOutcomeLabel = 'DISMISSED' | 'RECOVERED' | 'ABANDONED' | 'DISCARDED' | 'INTERRUPTED';
+
+/**
+ * History entry for a completed episode within a session.
+ */
+export interface EpisodeHistoryEntry {
+    episodeId: string;
+    peakLevel: 'ambient' | 'active';
+    outcome: EpisodeOutcomeLabel;
+    hintCount: number;
+    durationMs: number;
+    startedAtMs: number;
+}
+
+/**
  * Display-facing projection of the websocket connection state. Both the chat
  * webview and the status bar render off this. The webview store also has an
  * additional 'unknown' state for its first render, before any extension push
@@ -166,6 +214,7 @@ export const ExtensionMsg = {
     StruggleLiveTick: 'struggleLiveTick',
     StruggleLiveReset: 'struggleLiveReset',
     StruggleLiveSessionState: 'struggleLiveSessionState',
+    StruggleSlotUpdate: 'struggleSlotUpdate',
     ViewInitError: 'viewInitError',
 
     // Auth
@@ -299,6 +348,7 @@ interface ExtensionMsgPayloads {
     /** Whether an exercise struggle-session is currently active (drives the live
      *  view's session indicator + empty-state wording). */
     struggleLiveSessionState: { active: boolean };
+    struggleSlotUpdate: { snapshot: SlotDebugSnapshot; episodes: EpisodeHistoryEntry[] };
     viewInitError: { error: string };
 
     // Auth
