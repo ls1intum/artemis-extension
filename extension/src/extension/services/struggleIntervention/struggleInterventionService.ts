@@ -370,8 +370,13 @@ export class StruggleInterventionService implements AlertSink {
         // Note: spec §13 force-free bound is conditional on sBase >= 0.6; an engaged student
         // with moderate-low severity (returning resolved=false) can hold the DELIVERED slot.
         if (tick.sBase < (this._deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG).reArmSBase) {
-            this._watchdog?.resetProgress(tick.ts);
-            this.notifySlotDebugChanged();
+            // Only a live watchdog has a stale deadline that this can move; on a FREE slot
+            // resetProgress is a no-op, so notifying here would republish an unchanged FREE
+            // snapshot every tick (the spec's "not a per-tick refresh" intent). Guard on it.
+            if (this._watchdog) {
+                this._watchdog.resetProgress(tick.ts);
+                this.notifySlotDebugChanged();
+            }
         }
         // C3: tick the watchdog with the coordinator timestamp (wall-clock ms in live; replay-injected in tests)
         this._handleWatchdogTick(tick.ts);
@@ -838,6 +843,11 @@ export class StruggleInterventionService implements AlertSink {
             }
 
             case 'replace-parked': {
+                // KNOWN GAP (debug history): replace swaps the slot's episode without a
+                // recordTerminalEpisode for the outgoing one (replace is not an enumerated terminal
+                // site). Today replace reuses the same episodeId, so nothing is lost; only if a
+                // replace ever carried a DISTINCT outgoing episodeId would that episode be absent
+                // from the session history. Acceptable for a best-effort debug surface.
                 const ep = this._candidate!;
                 this._slot.replaceParked(now, ep, hint);
                 this._candidate = undefined;
@@ -860,6 +870,8 @@ export class StruggleInterventionService implements AlertSink {
             }
 
             case 'replace-delivered': {
+                // KNOWN GAP (debug history): see replace-parked above; the outgoing episode is not
+                // recorded to history (same-episodeId reuse means nothing is lost in practice).
                 const ep = this._candidate!;
                 this._slot.replaceWithDelivered(now, ep, hint);
                 this._dbg(`  -> REPLACE-DELIVERED bubble hint="${text}"`);

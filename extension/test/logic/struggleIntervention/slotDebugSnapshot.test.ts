@@ -71,6 +71,11 @@ function tickRecord(): TickRecord {
     return { t: 530, ts: 530_000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
+// NOTE: the simulate*/arm* helpers below set `_inFlightMarker` by DIRECT field write for fast
+// state setup. That bypasses the notifying `_setInFlightMarker` setter, so do NOT use these
+// helpers in an onSlotChange call-count assertion (you would get a false zero). The notify-coverage
+// tests drive the real production path (deliver()/applyEpisodeOutcome()) instead, on purpose.
+
 /** Drive the service into DELIVERED state via onServerActive (take-delivered path). */
 function simulateDelivered(svc: StruggleInterventionService, _level: 'active' | 'ambient', episodeId = 'ep-test'): void {
     const gen = svc._slot.generation();
@@ -201,6 +206,17 @@ describe('StruggleInterventionService - slot debug snapshot + episode history', 
 
         const { svc: svc2 } = makeService(); // no onSlotChange
         expect(() => svc2.setInSession(true)).not.toThrow();
+    });
+
+    it('onTick on a FREE slot does not notify (no watchdog deadline to move)', async () => {
+        // Minor-fix lock: the onTick re-arm branch only notifies when a live watchdog exists.
+        // On a free slot resetProgress is a no-op, so a calm low-sBase tick must NOT republish
+        // an unchanged FREE snapshot every tick. tickRecord().sBase (0.5) is below reArmSBase (0.6).
+        const onSlotChange = vi.fn();
+        const { svc } = makeService({ onSlotChange });
+        svc.onTick(tickRecord());
+        await Promise.resolve();
+        expect(onSlotChange).not.toHaveBeenCalled();
     });
 
     it('notify covers in-flight + pending-outcome mutations (not just public exits)', async () => {
