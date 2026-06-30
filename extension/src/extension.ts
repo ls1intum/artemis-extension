@@ -93,7 +93,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			artemisApiService.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
 		setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
 			artemisApiService.setEpisodeOutcome(exerciseId, episodeId, outcome),
-		postRevealBubble: (text, localId) => chatWebviewProvider?.postOptimisticBubble(text, null) ?? void (localId),
+		postRevealBubble: (text, _localId) => chatWebviewProvider?.postOptimisticBubble(text, null),
 		reconcileOptimisticBubble: (_localId, _serverId, _proactiveEpisodeId, _sentAt) => {
 			// TODO C3/C5: wire to chatWebviewProvider.reconcileRevealBubble once the webview supports string-localId dedup
 		},

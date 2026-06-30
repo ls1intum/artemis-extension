@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@extension/domain';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import { newEpisode } from '@extension/services/struggleIntervention/slot/episode';
 import { type StruggleInterventionDeps, StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
@@ -607,6 +608,70 @@ describe('StruggleInterventionService C2 reveal', () => {
 
         // Map entry still present after slot teardown
         expect(svc._pendingOutcomes.has('ep-uuid')).toBe(true);
+    });
+
+    it('reveal retry: stops after MAX_REVEAL_RETRIES transient failures (does not loop forever)', async () => {
+        const firedFns: Array<() => void> = [];
+        const revealAmbient = vi.fn(async () => { throw new Error('transient'); });
+        const deps = fakeDeps({
+            revealAmbient,
+            setTimeoutFn: (fn) => { firedFns.push(fn); },
+        });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+
+        await svc.revealParkedHint();   // attempt 0 fails, schedules attempt 1
+
+        // Fire all 12 retries (attempts 1..12); each fires, fails, schedules the next
+        for (let i = 0; i < 12; i++) {
+            const fn = firedFns[i];
+            expect(fn, `retry fn ${i} should have been scheduled`).toBeDefined();
+            await fn();
+        }
+
+        // After MAX_REVEAL_RETRIES (12) retries the cap is hit; no 13th timer is scheduled
+        expect(firedFns.length).toBe(12);                  // only 12 retries were scheduled
+        expect(revealAmbient).toHaveBeenCalledTimes(13);   // initial + 12 retries
+    });
+
+    it('reveal retry: a permanent 4xx is NOT retried', async () => {
+        let retryFn: (() => void) | undefined;
+        const revealAmbient = vi.fn(async () => { throw new ApiError('Not found', 404); });
+        const deps = fakeDeps({
+            revealAmbient,
+            setTimeoutFn: (fn) => { retryFn = fn; },
+        });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+
+        await svc.revealParkedHint();
+
+        expect(revealAmbient).toHaveBeenCalledTimes(1);
+        expect(retryFn).toBeUndefined();   // no retry was scheduled
+    });
+
+    it('reveal retry: resetSession cancels an in-flight retry (no further revealAmbient after reset)', async () => {
+        let retryFn: (() => void) | undefined;
+        const revealAmbient = vi.fn()
+            .mockRejectedValueOnce(new Error('network'))
+            .mockResolvedValue({ id: 7, sentAt: '2024-01-01T00:00:00Z', proactiveEpisodeId: 'server-ep-id' } as IrisChatMessage);
+        const deps = fakeDeps({
+            revealAmbient,
+            setTimeoutFn: (fn) => { retryFn = fn; },
+        });
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+
+        await svc.revealParkedHint();   // fails, schedules retry
+        expect(retryFn).toBeDefined();
+        expect(revealAmbient).toHaveBeenCalledTimes(1);
+
+        svc.resetSession();             // student switches exercise: increments generation
+
+        // Fire the stale retry closure; it should bail out without calling revealAmbient again
+        await (retryFn as () => void)();
+
+        expect(revealAmbient).toHaveBeenCalledTimes(1);   // no second call
     });
 
     it('resetSession clears slot, frozenSessionId, and pendingOutcomes (new exercise = clean state)', async () => {

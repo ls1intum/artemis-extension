@@ -110,7 +110,7 @@ export interface StruggleEngineDeps {
     ): Promise<{ applied: boolean }>;
     /**
      * Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow).
-     * Distinct from postOptimisticBubble (which uses a numeric message id) — the reveal
+     * Distinct from postOptimisticBubble (which uses a numeric message id). The reveal
      * flow uses a uuid localId for idempotent reconcile.
      */
     postRevealBubble(text: string, localId: string): void;

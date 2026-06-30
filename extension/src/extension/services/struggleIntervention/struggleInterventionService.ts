@@ -1,5 +1,6 @@
 import type { Uri } from 'vscode';
 
+import { ApiError } from '@extension/domain';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { IrisChatMessage } from '@extension/types';
@@ -19,6 +20,10 @@ const MAX_ACTIVE_PER_SESSION = 3;
 const INFLIGHT_TIMEOUT_MS = 30_000;
 /** Delay between reveal-persist retries. The server upsert is idempotent (A10), so retries are safe. */
 const REVEAL_RETRY_MS = 5_000;
+/** Maximum number of reveal-persist retry attempts (~1 min at 5s). After this the bubble stays runtime-only. */
+const MAX_REVEAL_RETRIES = 12;
+/** Permanent server-side rejection codes. These must not be retried; only transient/5xx/network errors are retried. */
+const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404]);
 
 export interface StruggleInterventionDeps {
     isEgressEnabled(): boolean;
@@ -83,7 +88,7 @@ export interface StruggleInterventionDeps {
     /**
      * Record the student's terminal outcome for an episode-keyed proactive row (A10).
      * PUT api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/proactive-outcome
-     * Returns { applied: boolean } — applied=false when the canonical row does not yet exist.
+     * Returns { applied: boolean }. applied=false means the canonical row does not yet exist.
      * The back-fill loop in the orchestrator records pending outcomes and re-applies them once the row lands.
      */
     setEpisodeOutcome(exerciseId: number, episodeId: string, outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED'): Promise<{ applied: boolean }>;
@@ -113,6 +118,13 @@ export class StruggleInterventionService implements AlertSink {
     private _annoyance = 0;
     private _dismissStrikes = 0;
     private _softSkipBudget = 0;
+
+    /**
+     * Generation counter for reveal-persist retries. Incremented by resetSession (exercise switch) to
+     * invalidate any in-flight retry closure that captured a stale generation. Retry closures bail out
+     * when their captured generation no longer matches the current one.
+     */
+    private _revealRetryGen = 0;
 
     // C2: slot + frozen-hint state. Not marked private so tests can drive the slot and inspect state directly.
     readonly _slot = new SlotManager();
@@ -507,7 +519,7 @@ export class StruggleInterventionService implements AlertSink {
      * deliberately KEEPS all of those so toggling interventions off/on cannot silently lift a pause earned by
      * repeated dismisses (spec §5.2), re-probe a latched-off server (§11), un-latch course-off (§13), or refill
      * the active cap.
-     * Also frees the slot, clears the frozen session id, and clears pending outcomes (C2 — new exercise = clean state).
+     * Also frees the slot, clears the frozen session id, and clears pending outcomes (C2: new exercise = clean state).
      */
     resetSession(): void {
         this._annoyance = 0;
@@ -516,6 +528,8 @@ export class StruggleInterventionService implements AlertSink {
         this._activeCount = 0;
         this._serverAvailable = true;        // re-probe the server next session: a 404 latch is per-session (spec §11)
         this._courseProactiveOff = false;    // course-off is also a per-session latch (spec §13): re-probe next exercise
+        // C2: cancel any in-flight reveal-persist retry (generation bump invalidates stale closures).
+        this._revealRetryGen++;
         // C2: clean up the slot and frozen-hint state for the new exercise.
         if (!this._slot.isFree()) {
             this._slot.free();
@@ -535,7 +549,7 @@ export class StruggleInterventionService implements AlertSink {
      * proactive session, posts an optimistic bubble with a generated localId, and calls revealAmbient
      * to persist the canonical row. On persist success the bubble is reconciled (real id + proactiveEpisodeId
      * + sentAt). On failure the bubble stays runtime-only and a best-effort retry is scheduled with the
-     * SAME localId (the server upsert is idempotent, A10 — the retry returns the same row). The slot is
+     * SAME localId (the server upsert is idempotent per A10, so the retry returns the same row). The slot is
      * NEVER reverted to PARKED: reveal is immediate, protection starts at show (spec §5.2).
      */
     async revealParkedHint(): Promise<void> {
@@ -548,7 +562,7 @@ export class StruggleInterventionService implements AlertSink {
         const sessionId = this._frozenSessionId;
         const exerciseId = this._deps.getExerciseId();
         if (sessionId === undefined || exerciseId === undefined) {
-            this._dbg('revealParkedHint: missing sessionId or exerciseId — cannot reveal');
+            this._dbg('revealParkedHint: missing sessionId or exerciseId, cannot reveal');
             return;
         }
         const localId = this._deps.generateLocalId();
@@ -588,8 +602,11 @@ export class StruggleInterventionService implements AlertSink {
 
     /**
      * Persist the revealed hint as a canonical chat message row. On success, reconciles the optimistic bubble
-     * and flushes any pending terminal outcome recorded while the row did not yet exist. On failure, schedules
-     * a best-effort retry with the SAME localId (server upsert is idempotent, A10).
+     * and flushes any pending terminal outcome recorded while the row did not yet exist. On transient failure,
+     * schedules a best-effort retry with the SAME localId (server upsert is idempotent per A10). Retries stop
+     * after MAX_REVEAL_RETRIES attempts or immediately on a permanent 4xx (400/403/404). Retries are also
+     * cancelled on exercise switch: each retry closure captures the current _revealRetryGen and bails out if
+     * resetSession has incremented it (meaning the student moved to a new exercise).
      */
     private async _persistReveal(
         exerciseId: number,
@@ -597,6 +614,7 @@ export class StruggleInterventionService implements AlertSink {
         hintText: string,
         level: Level,
         localId: string,
+        attempt = 0,
     ): Promise<void> {
         try {
             const dto = await this._deps.revealAmbient(exerciseId, episodeId, hintText, level, localId);
@@ -617,15 +635,30 @@ export class StruggleInterventionService implements AlertSink {
                     await this._deps.setEpisodeOutcome(exerciseId, episodeId, pending.outcome);
                 } catch (flushErr) {
                     // Best-effort: the flush failure is logged and swallowed. The outcome is lost only
-                    // in this case (spec §12 attrition — the genuinely unrecoverable scenario).
+                    // in this case (spec §12 attrition, the genuinely unrecoverable scenario).
                     this._dbg(`  ↳ back-fill flush failed (best-effort): ${flushErr instanceof Error ? flushErr.message : String(flushErr)}`);
                 }
             }
         } catch (err) {
-            this._dbg(`  ↳ reveal persist failed, scheduling retry in ${REVEAL_RETRY_MS}ms: ${err instanceof Error ? err.message : String(err)}`);
+            // Permanent server-side rejection: retrying is pointless; leave the bubble runtime-only.
+            if (err instanceof ApiError && NON_RETRIABLE_REVEAL_STATUSES.has(err.status)) {
+                this._dbg(`  ↳ reveal persist: permanent ${err.status}, not retrying (spec §12 attrition)`);
+                return;
+            }
+            // Cap reached: stop and leave the bubble runtime-only (spec §12 attrition).
+            if (attempt >= MAX_REVEAL_RETRIES) {
+                this._dbg(`  ↳ reveal persist: max retries (${MAX_REVEAL_RETRIES}) reached, giving up`);
+                return;
+            }
+            this._dbg(`  ↳ reveal persist failed (attempt ${attempt + 1}/${MAX_REVEAL_RETRIES}), scheduling retry in ${REVEAL_RETRY_MS}ms: ${err instanceof Error ? err.message : String(err)}`);
+            // Capture the generation so an exercise switch (resetSession) can cancel this retry.
+            const myGen = this._revealRetryGen;
             const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
             schedule(() => {
-                void this._persistReveal(exerciseId, episodeId, hintText, level, localId);
+                if (this._revealRetryGen !== myGen) {
+                    return; // cancelled: student moved to a new exercise
+                }
+                void this._persistReveal(exerciseId, episodeId, hintText, level, localId, attempt + 1);
             }, REVEAL_RETRY_MS);
         }
     }
