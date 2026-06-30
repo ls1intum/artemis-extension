@@ -56,6 +56,13 @@ interface ChatState {
      * (guards both arrival orders).
      */
     suppressedIds: Set<number>;
+    /**
+     * Runtime-only map from Artemis message id to the live stale-ask binding
+     * (C6). Set by `attachStaleAsk` when the host sends `AddStaleAsk`. Reset
+     * in `clearMessages`; NOT repopulated in `applyLoadedMessages` (reloaded
+     * rows have no live askId, so their buttons do not render).
+     */
+    staleAskBindings: Map<number, { askId: string; question: string }>;
 
     // Streaming
     streaming: StreamingState;
@@ -107,6 +114,15 @@ interface ChatState {
      */
     removeMessageById: (id: number) => void;
     clearMessages: () => void;
+    /**
+     * Attach a live stale-ask binding to the message identified by `messageId`
+     * (C6). Adds an entry to `staleAskBindings` AND patches the message row with
+     * `staleAsk: true` so the Dismiss button is hidden. Handles both arrival
+     * orders: if the binding arrives before the message row (row not yet in
+     * `messages`), the patch is a no-op for now and `addMessage` applies
+     * `staleAsk: true` when the row eventually arrives.
+     */
+    attachStaleAsk: (messageId: number, askId: string, question: string) => void;
 
     // Streaming actions
     startStreaming: () => void;
@@ -142,6 +158,7 @@ export const useChatStore = create<ChatState>()(
             messages: [],
             messageLoad: null,
             suppressedIds: new Set<number>(),
+            staleAskBindings: new Map<number, { askId: string; question: string }>(),
             streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
@@ -205,7 +222,11 @@ export const useChatStore = create<ChatState>()(
                             return state;
                         }
                     }
-                    return { messages: [...state.messages, message] };
+                    // Stale-ask binding-before-row (C6): if `attachStaleAsk` arrived
+                    // before this message, mark the row immediately so Dismiss is hidden.
+                    const hasBinding = message.id !== undefined && state.staleAskBindings.has(message.id);
+                    const finalMessage = hasBinding ? { ...message, staleAsk: true as const } : message;
+                    return { messages: [...state.messages, finalMessage] };
                 }, false, 'addMessage');
             },
 
@@ -250,11 +271,26 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'removeMessageById');
             },
 
+            attachStaleAsk: (messageId, askId, question) => {
+                set((state) => {
+                    const nextBindings = new Map(state.staleAskBindings);
+                    nextBindings.set(messageId, { askId, question });
+                    // Patch the message with staleAsk: true if it already exists.
+                    // If the row has not arrived yet, addMessage will apply the flag
+                    // when it detects the pre-existing binding (row-after-binding path).
+                    const messages = state.messages.map((m) =>
+                        m.id === messageId ? { ...m, staleAsk: true as const } : m,
+                    );
+                    return { staleAskBindings: nextBindings, messages };
+                }, false, 'attachStaleAsk');
+            },
+
             clearMessages: () => {
                 set({
                     messages: [],
                     messageLoad: null,
                     suppressedIds: new Set<number>(),
+                    staleAskBindings: new Map<number, { askId: string; question: string }>(),
                     irisStages: [],
                     streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');

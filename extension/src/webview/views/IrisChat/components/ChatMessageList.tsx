@@ -1,21 +1,24 @@
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { useAutoScroll } from '@webview/hooks/useAutoScroll';
+import { useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
 import styles from './ChatMessageList.module.css';
-import { groupProactiveMessages } from './groupProactiveMessages';
+import { groupByEpisode } from './groupProactiveMessages';
 import { MessageBubble } from './MessageBubble';
+import { StaleAskButtons } from './StaleAskButtons';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
 
 /**
- * Renders a collapsed run of consecutive proactive Iris messages: the latest
- * suggestion shows in full, the earlier repeats hide behind a toggle so the
- * chat is not flooded when Iris re-alerts about the same situation.
+ * Renders a group of proactive Iris messages (either a consecutive run or an
+ * episode keyed by `proactiveEpisodeId`): the latest suggestion shows in full,
+ * the earlier ones hide behind a toggle so repeated re-alerts do not clutter
+ * the chat. Used for both `{kind:'proactive-run'}` and `{kind:'episode'}` items.
  */
 function ProactiveRunGroup({
     earlier,
@@ -71,6 +74,11 @@ interface ChatMessageListProps {
     isRetryDisabled?: (message: ChatMessage) => boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes). */
     onDismiss?: (messageId: number) => void;
+    /**
+     * Invoked when the student clicks one of the three stale-ask quick-reply
+     * buttons on a row that has a live `askId` binding (C6).
+     */
+    onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
 }
 
 export function ChatMessageList({
@@ -84,23 +92,49 @@ export function ChatMessageList({
     onRetry,
     isRetryDisabled,
     onDismiss,
+    onStaleAskButton,
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
 
-    // Collapse runs of consecutive proactive messages into one card so repeated
-    // re-alerts about the same situation do not clutter the chat (display only).
-    const renderItems = useMemo(() => groupProactiveMessages(messages), [messages]);
+    // Read the live stale-ask bindings from the store directly (C6). The map is
+    // runtime-only (absent after reload), so bindings never render on historical rows.
+    const staleAskBindings = useChatStore((s) => s.staleAskBindings);
 
-    const renderBubble = (message: ChatMessage): ReactNode => (
-        <MessageBubble
-            key={message.localId}
-            message={message}
-            onFeedback={onFeedback}
-            onRetry={onRetry}
-            onDismiss={onDismiss}
-            retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
-        />
-    );
+    // Group proactive messages by episodeId so all messages sharing an episode
+    // collapse into one foldable group regardless of non-proactive turns between them.
+    const renderItems = useMemo(() => groupByEpisode(messages), [messages]);
+
+    const renderBubble = (message: ChatMessage): ReactNode => {
+        const binding = message.id !== undefined ? staleAskBindings.get(message.id) : undefined;
+        if (binding) {
+            return (
+                <Fragment key={message.localId}>
+                    <MessageBubble
+                        message={message}
+                        onFeedback={onFeedback}
+                        onRetry={onRetry}
+                        onDismiss={onDismiss}
+                        retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
+                    />
+                    <StaleAskButtons
+                        askId={binding.askId}
+                        question={binding.question}
+                        onButton={(button) => onStaleAskButton?.(binding.askId, button)}
+                    />
+                </Fragment>
+            );
+        }
+        return (
+            <MessageBubble
+                key={message.localId}
+                message={message}
+                onFeedback={onFeedback}
+                onRetry={onRetry}
+                onDismiss={onDismiss}
+                retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
+            />
+        );
+    };
 
     // Auto-scroll when new messages arrive
     useEffect(() => {
@@ -124,18 +158,32 @@ export function ChatMessageList({
                     <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
                 ) : (
                     <>
-                        {renderItems.map((item) =>
-                            item.kind === 'single' ? (
-                                renderBubble(item.message)
-                            ) : (
+                        {renderItems.map((item) => {
+                            if (item.kind === 'single') {
+                                return renderBubble(item.message);
+                            }
+                            if (item.kind === 'episode') {
+                                const earlier = item.messages.slice(0, -1);
+                                const latest = item.messages[item.messages.length - 1];
+                                return (
+                                    <ProactiveRunGroup
+                                        key={item.episodeId}
+                                        earlier={earlier}
+                                        latest={latest}
+                                        renderBubble={renderBubble}
+                                    />
+                                );
+                            }
+                            // kind === 'proactive-run'
+                            return (
                                 <ProactiveRunGroup
                                     key={item.latest.localId}
                                     earlier={item.earlier}
                                     latest={item.latest}
                                     renderBubble={renderBubble}
                                 />
-                            ),
-                        )}
+                            );
+                        })}
 
                         {/* Show thinking indicator while waiting for the assistant
                             response (cleared by resetTransientChatUi once

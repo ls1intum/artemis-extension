@@ -142,8 +142,10 @@ function MessageBubbleComponent({
                                     />
                                 </button>
                             </div>
-                            {/* Dismiss sits to the right of the thumbs in the same bar. */}
-                            {isProactive && !isDismissed && message.id !== undefined && onDismiss && (
+                            {/* Dismiss sits to the right of the thumbs in the same bar.
+                                Hidden on stale-ask rows (those have their own quick-reply
+                                buttons instead, spec §7.2/C6) and on dismissed rows. */}
+                            {isProactive && !isDismissed && !message.staleAsk && message.id !== undefined && onDismiss && (
                                 <button
                                     type="button"
                                     className={styles.dismissButton}
@@ -166,7 +168,10 @@ function MessageBubbleComponent({
                         <span className={styles.errorText}>
                             {message.errorMessage || 'Failed to send message'}
                         </span>
-                        {onRetry && (
+                        {/* Retry is meaningful only on non-proactive failed sends.
+                            Proactive rows have no "retry the hint" affordance in
+                            the slot model (spec §5/§7). */}
+                        {!isProactive && onRetry && (
                             <button
                                 type="button"
                                 className={styles.retryButton}
@@ -201,6 +206,7 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.status === next.message.status &&
         prev.message.origin === next.message.origin &&
         prev.message.proactiveOutcome === next.message.proactiveOutcome &&
+        prev.message.staleAsk === next.message.staleAsk &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
         prev.retryDisabled === next.retryDisabled &&

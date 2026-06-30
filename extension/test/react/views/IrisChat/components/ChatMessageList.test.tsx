@@ -228,11 +228,11 @@ describe('ChatMessageList', () => {
 		expect(screen.getByText('Answer')).toBeInTheDocument();
 	});
 
-	it('collapses a run of consecutive proactive messages, hiding earlier repeats behind a toggle', () => {
+	it('collapses proactive messages sharing a proactiveEpisodeId into one group, hiding earlier behind a toggle', () => {
 		const messages = [
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 1' }, 0),
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 2' }, 1),
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 3 latest' }, 2),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 2' }, 1),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 3 latest' }, 2),
 		];
 		render(
 			<ChatMessageList
@@ -252,10 +252,33 @@ describe('ChatMessageList', () => {
 		expect(screen.getByText(/show 2 earlier suggestions/i)).toBeInTheDocument();
 	});
 
+	it('collapses an episode even when a chat turn sits between the proactive messages', () => {
+		const messages = [
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
+			makeMessage({ role: 'user', content: 'thanks' }, 1),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 2 latest' }, 2),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		// Repeat 2 latest shows; Repeat 1 is folded away; user turn renders inline.
+		expect(screen.getByText('Repeat 2 latest')).toBeInTheDocument();
+		expect(screen.queryByText('Repeat 1')).not.toBeInTheDocument();
+		expect(screen.getByText('thanks')).toBeInTheDocument();
+		expect(screen.getByText(/show 1 earlier suggestion/i)).toBeInTheDocument();
+	});
+
 	it('expands the folded proactive repeats when the toggle is clicked', async () => {
 		const messages = [
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 1' }, 0),
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 2 latest' }, 1),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 2 latest' }, 1),
 		];
 		render(
 			<ChatMessageList
@@ -274,8 +297,8 @@ describe('ChatMessageList', () => {
 
 	it('flips the toggle label and aria-expanded between Show and Hide', async () => {
 		const messages = [
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 1' }, 0),
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Repeat 2 latest' }, 1),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 2 latest' }, 1),
 		];
 		render(
 			<ChatMessageList
@@ -294,11 +317,11 @@ describe('ChatMessageList', () => {
 		expect(collapse).toHaveAttribute('aria-expanded', 'true');
 	});
 
-	it('collapses a run even when the latest proactive message is already dismissed', () => {
+	it('collapses an episode even when the latest proactive message is already dismissed', () => {
 		const messages = [
-			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Earlier repeat' }, 0),
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Earlier repeat' }, 0),
 			makeMessage(
-				{ role: 'assistant', origin: 'proactive', content: 'Latest secret body', proactiveOutcome: 'DISMISSED', id: 9 },
+				{ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Latest secret body', proactiveOutcome: 'DISMISSED', id: 9 },
 				1,
 			),
 		];
@@ -312,7 +335,7 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// The run still folds the earlier repeat behind the toggle.
+		// The episode still folds the earlier repeat behind the toggle.
 		expect(screen.getByText(/show 1 earlier suggestion/i)).toBeInTheDocument();
 		expect(screen.queryByText('Earlier repeat')).not.toBeInTheDocument();
 		// The dismissed latest renders collapsed: caption + "Show suggestion", body hidden.
@@ -321,7 +344,7 @@ describe('ChatMessageList', () => {
 		expect(screen.queryByText('Latest secret body')).not.toBeInTheDocument();
 	});
 
-	it('does not collapse proactive messages that are separated by a student turn', () => {
+	it('does not collapse proactive messages that have no episodeId (renders each as a separate bubble)', () => {
 		const messages = [
 			makeMessage({ role: 'assistant', origin: 'proactive', content: 'Hint A' }, 0),
 			makeMessage({ role: 'user', content: 'thanks' }, 1),
@@ -337,7 +360,7 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// Both proactive hints render in full; nothing is folded.
+		// Without episodeId, both proactive hints render in full; nothing is folded.
 		expect(screen.getByText('Hint A')).toBeInTheDocument();
 		expect(screen.getByText('Hint B')).toBeInTheDocument();
 		expect(screen.queryByText(/earlier suggestion/i)).not.toBeInTheDocument();

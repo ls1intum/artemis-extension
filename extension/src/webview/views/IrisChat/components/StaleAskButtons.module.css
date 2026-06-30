@@ -1,0 +1,39 @@
+.staleAskContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 0 4px 16px;
+}
+
+.question {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+    margin: 0;
+}
+
+.buttonGroup {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.replyButton {
+    padding: 3px 10px;
+    font-size: 12px;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border, transparent);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity 120ms ease;
+}
+
+.replyButton:hover:not(:disabled) {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.replyButton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

@@ -174,4 +174,56 @@ describe('MessageBubble', () => {
 		const streamdown = screen.getByTestId('streamdown');
 		expect(streamdown).toHaveAttribute('data-mode', 'static');
 	});
+
+	describe('button scoping (C6)', () => {
+		it('Dismiss renders on a live proactive hint card (not stale-ask, not dismissed)', () => {
+			const onDismiss = vi.fn();
+			const message = makeMessage({
+				id: 5,
+				role: 'assistant',
+				origin: 'proactive',
+				content: 'Here is a hint.',
+			});
+			render(<MessageBubble message={message} onFeedback={vi.fn()} onDismiss={onDismiss} />);
+			expect(screen.getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
+		});
+
+		it('Dismiss does NOT render on a stale-ask proactive row (message.staleAsk === true)', () => {
+			const onDismiss = vi.fn();
+			const message = makeMessage({
+				id: 5,
+				role: 'assistant',
+				origin: 'proactive',
+				staleAsk: true,
+				content: 'Are you still stuck?',
+			});
+			render(<MessageBubble message={message} onFeedback={vi.fn()} onDismiss={onDismiss} />);
+			expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
+		});
+
+		it('Retry does NOT render on a proactive assistant message even when it has error status', () => {
+			const onRetry = vi.fn();
+			const message = makeMessage({
+				role: 'assistant',
+				origin: 'proactive',
+				status: 'error',
+				errorMessage: 'Something went wrong',
+				content: 'Proactive hint content',
+			});
+			render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={onRetry} />);
+			expect(screen.queryByRole('button', { name: 'Retry sending this message' })).not.toBeInTheDocument();
+		});
+
+		it('Retry renders on a non-proactive failed user message', () => {
+			const onRetry = vi.fn();
+			const message = makeMessage({
+				role: 'user',
+				status: 'error',
+				errorMessage: 'Failed to send',
+				content: 'User message',
+			});
+			render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={onRetry} />);
+			expect(screen.getByRole('button', { name: 'Retry sending this message' })).toBeInTheDocument();
+		});
+	});
 });

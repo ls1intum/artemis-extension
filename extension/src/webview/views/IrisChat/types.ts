@@ -39,6 +39,13 @@ export interface ChatMessage {
      * Used by C6 to render episode groups and by C7 for fold animation targeting.
      */
     proactiveEpisodeId?: string;
+    /**
+     * Runtime marker set by `attachStaleAsk` when the host attaches a live
+     * stale-ask ask-id binding to this row (C6). Used to gate the Dismiss
+     * button (hidden on stale-ask rows) and to distinguish stale-ask rows
+     * from plain hint cards. NOT persisted to the server; absent on reload.
+     */
+    staleAsk?: boolean;
 }
 
 // Chat session summary (from extension)
