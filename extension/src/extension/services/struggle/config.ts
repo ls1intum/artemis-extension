@@ -112,4 +112,42 @@ export const TUNING = {
      *  skip; dismissStrikes >= pauseStrikes hard-pauses proactive for the exercise. ENG. */
     softThreshold: 3,
     pauseStrikes: 5,
+    /**
+     * Slot continuity knobs (spec §5 / §9 "stale watchdog + re-arm"). All ENG
+     * (provisional engineering defaults; no study sweep exists for these values yet).
+     *
+     * staleAfterMs    [ENG] provisional -- how long the slot must sit in DELIVERED
+     *                 without a free-text reply before the watchdog considers it stale
+     *                 ("sustained while"); ~45 s is a reasonable first guess (two
+     *                 conversational turns worth of silence).
+     * staleWindowMax  [ENG] max stale-ask rounds before the watchdog force-closes the
+     *                 slot without waiting for a student reply.
+     * staleAskCap     [ENG] max number of stale-ask pings sent within one stale window.
+     * abandonInitialMs [ENG] initial abandon window: a slot older than this with no
+     *                 student free-text is eligible for abandon (does NOT fire
+     *                 immediately -- still subject to stale window logic).
+     * abandonFreeTextMs [ENG] shorter abandon window applied only when the student has
+     *                 already sent at least one free-text reply (post-reply inactivity
+     *                 threshold). MUST be < abandonInitialMs.
+     * abandonCeilingMs [ENG] absolute ceiling: a slot surviving longer than this is
+     *                 abandoned unconditionally regardless of stale-ask state. MUST be
+     *                 > abandonInitialMs.
+     * reArmSBase      [ENG] sBase threshold the new severity must exceed for the slot to
+     *                 re-arm after a resolve (prevents immediate re-trigger on low-grade
+     *                 signals post-intervention).
+     * reArmHoldMs     [ENG] minimum hold time after slot resolution before a re-arm can
+     *                 fire (prevents sub-second re-trigger race on fast build cycles).
+     *
+     * Ordering invariant (enforced by test): abandonFreeTextMs < abandonInitialMs < abandonCeilingMs.
+     */
+    slot: {
+        staleAfterMs: 45_000,       // [ENG] provisional "sustained while"
+        staleWindowMax: 4,          // [ENG]
+        staleAskCap: 2,             // [ENG]
+        abandonInitialMs: 60_000,   // [ENG]
+        abandonFreeTextMs: 30_000,  // [ENG] < abandonInitialMs
+        abandonCeilingMs: 300_000,  // [ENG] > abandonInitialMs
+        reArmSBase: 0.6,            // [ENG]
+        reArmHoldMs: 30_000,        // [ENG]
+    },
 };
