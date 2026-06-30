@@ -873,6 +873,45 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.postBubble).toHaveBeenCalledTimes(1);
     });
 
+    it('setInSession(true): escalation is quiet (bubble only, no toast/inline); setInSession(false): loud (toast+inline)', () => {
+        // Helper to set up a DELIVERED-ambient slot and run an escalating decide
+        function runEscalation(inSession: boolean): StruggleInterventionDeps {
+            const deps = fakeDeps({ isAnchorLive: () => true });
+            const svc = new StruggleInterventionService(deps);
+
+            // Set slot to DELIVERED ambient (parked then revealed)
+            const ep = { episodeId: 'ep-esc', isNew: false, hints: [], createdAtMs: 0 };
+            svc._slot.takeParked(0, ep, { level: 'ambient', text: 'h', atSessionS: 0 });
+            svc._slot.revealParked({ level: 'ambient', text: 'h', atSessionS: 0 });
+            const gen = svc._slot.generation();
+
+            // Toggle in-session BEFORE the decide reply
+            svc.setInSession(inSession);
+            expect(svc._slot.snapshot().inSession).toBe(inSession);
+
+            // Simulate a hardEvent decide
+            const tok = `tok-esc-${inSession}`;
+            const stamp = { episodeId: 'ep-esc', generation: gen, hardEvent: true, requestToken: tok };
+            const localToken = svc._guard.issue('decide', stamp);
+            svc._inFlightMarker = { requestToken: tok, episodeId: 'ep-esc', generation: gen, intent: 'decide', localToken };
+
+            svc.onServerActive(9, 'src/A.java', 10, 'tip', 0.9, 'Hint text');
+            return deps;
+        }
+
+        // In-session: bubble only, no notification or inline push
+        const inSessionDeps = runEscalation(true);
+        expect(inSessionDeps.postBubble).toHaveBeenCalledTimes(1);
+        expect(inSessionDeps.showActiveNotification).not.toHaveBeenCalled();
+        expect(inSessionDeps.showInline).not.toHaveBeenCalled();
+
+        // Out-of-session (default): bubble + notification + inline
+        const outSessionDeps = runEscalation(false);
+        expect(outSessionDeps.postBubble).toHaveBeenCalledTimes(1);
+        expect(outSessionDeps.showActiveNotification).toHaveBeenCalledTimes(1);
+        expect(outSessionDeps.showInline).toHaveBeenCalledTimes(1);
+    });
+
     it('escalation gated by hardEvent: delivered-ambient + active WITHOUT hardEvent -> suppress', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -897,27 +936,32 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // isNew flip on first accepted request
     // -------------------------------------------------------------------------
-    it('isNew flips after first ACCEPTED POST (any intent) and stays false for subsequent requests', async () => {
-        const postSpy = vi.fn()
-            .mockResolvedValueOnce('failed' as const)   // first attempt rejected (not accepted)
-            .mockResolvedValue('accepted' as const);     // second attempt accepted
+    it('isNew=true on first POST; flips to false on the next POST to the same episode (after first accepted)', async () => {
+        const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
         const svc = new StruggleInterventionService(deps);
-
-        // Deliver an alert (first POST - will fail, isNew stays true on retry)
         svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+
+        // First decide: FREE slot, preallocates a candidate, isNew=true
         svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
         expect(postSpy).toHaveBeenCalledTimes(1);
-        // First POST failed -> episode NOT in continuedEpisodeIds yet
-        expect(svc._inFlightMarker).toBeUndefined(); // cleared on failed
         const firstBody = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
         expect(firstBody.episode.isNew).toBe(true);
+        const episodeId = firstBody.episode.episodeId;
 
-        // Second POST (different alert, same episode would be a new candidate; but let's verify isNew=true stayed)
-        // Actually on failed, _candidate is cleared, so a second alert creates a new candidate
-        // Let's just verify the continuation set is empty (no id was added)
-        // The internal _continuedEpisodeIds set tracks the accepted ids
+        // Server replies: active -> DELIVERED. The episode is now in _continuedEpisodeIds.
+        svc.onServerActive(7);
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+        postSpy.mockClear();
+
+        // Second decide from the DELIVERED slot: same episodeId, isNew MUST be false now.
+        svc.deliver({ kind: 'edit', t: 540, ts: 540000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
+        await new Promise(r => setTimeout(r, 0));
+        expect(postSpy).toHaveBeenCalledTimes(1);
+        const secondBody = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
+        expect(secondBody.episode.episodeId).toBe(episodeId); // same episode
+        expect(secondBody.episode.isNew).toBe(false);         // flipped after first accepted POST
     });
 
     it('FREE-slot decide carries preallocated candidate (non-null episode, isNew=true); silent discards it', async () => {
@@ -1031,26 +1075,114 @@ describe('StruggleInterventionService C3 slot routing', () => {
     });
 
     // -------------------------------------------------------------------------
-    // Scoped cancel: tokenA cancel does not affect tokenB job
+    // PARKED confirmClose-reply (required test)
     // -------------------------------------------------------------------------
-    it('scoped-cancel with tokenA while tokenB is pending is a NOOP (B survives)', () => {
-        // This is really a guard property, but verify via the cancel integration in clearEpisodeRuntime
+    it('PARKED: newGreenTest issues confirmClose with parked_progress; resolved=true frees silently (no fold, no outcome)', async () => {
+        const postSpy = vi.fn(async () => 'accepted' as const);
+        const deps = fakeDeps({ postIntervention: postSpy });
+        const svc = new StruggleInterventionService(deps);
+
+        // Set up PARKED slot + lastSignal
+        simulateDecidePending(svc, 'ep-pcc', false);
+        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
+        svc.onServerAmbient('Hint', undefined, undefined, undefined);
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
+        postSpy.mockClear();
+
+        // New green test while PARKED -> parked_progress confirmClose
+        svc.onNewBuildResult(true);
+        await new Promise(r => setTimeout(r, 0));
+        expect(postSpy).toHaveBeenCalledTimes(1);
+        const body = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
+        expect(body.intent).toBe('confirm_close');
+        expect(body.confirmReason).toBe('parked_progress');
+
+        // Reply resolved=true: slot frees silently (no fold, no outcome)
+        svc.onServerClose(true);
+        expect(svc._slot.isFree()).toBe(true);
+        expect(deps.foldEpisode).not.toHaveBeenCalled();
+        expect(deps.setEpisodeOutcome).not.toHaveBeenCalled();
+    });
+
+    it('PARKED: confirmClose resolved=false -> slot stays PARKED, fresh edge required to re-arm latch', async () => {
+        const postSpy = vi.fn(async () => 'accepted' as const);
+        const deps = fakeDeps({ postIntervention: postSpy });
+        const svc = new StruggleInterventionService(deps);
+
+        // Set up PARKED slot + lastSignal
+        simulateDecidePending(svc, 'ep-pcc2', false);
+        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
+        svc.onServerAmbient('Hint', undefined, undefined, undefined);
+        postSpy.mockClear();
+
+        // Trigger parked_progress confirmClose
+        svc.onNewBuildResult(true);
+        await new Promise(r => setTimeout(r, 0));
+        expect(postSpy).toHaveBeenCalledTimes(1);
+
+        // Reply resolved=false: slot stays PARKED, no fold
+        svc.onServerClose(false);
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
+        expect(deps.foldEpisode).not.toHaveBeenCalled();
+        // Latch re-opened (back to 'open', _armed=false): a second green test fires but sBase
+        // path requires a rise then re-drop before it can re-arm (spec §7.3).
+        postSpy.mockClear();
+        svc.onNewBuildResult(true);
+        await new Promise(r => setTimeout(r, 0));
+        // latch state was 'candidate-close' after onPosted; onConfirmResult(false) sets it back to 'open'.
+        // A fresh newGreenTest fires a new pending-post -> parked_progress owed again.
+        expect(postSpy).toHaveBeenCalledTimes(1);
+        expect((postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1].confirmReason).toBe('parked_progress');
+    });
+
+    // -------------------------------------------------------------------------
+    // Scoped cancel: terminal via _clearEpisodeRuntime uses the LIVE in-flight token
+    // -------------------------------------------------------------------------
+    it('scoped-cancel: terminal via _clearEpisodeRuntime cancels with the LIVE in-flight token', () => {
         const cancelSpy = vi.fn(async () => undefined);
         const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy });
         const svc = new StruggleInterventionService(deps);
 
-        // Set up an in-flight with tokenB
-        simulateDecidePending(svc, 'ep-1', false);
-        const tokenB = svc._inFlightMarker!.requestToken;
+        // Set up DELIVERED slot
+        simulateDecidePending(svc, 'ep-sc', false);
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svc.onServerActive(7); // wire cleared by _acceptDecide
 
-        // Pretend tokenA was the previous one and was already gone from the guard
-        // The scoped cancel sends `cancelOutstandingStruggleJob(exerciseId, requestToken)` to the server.
-        // In the test, we just verify that the cancel is called with the CURRENT marker's token.
-        // Force free with the current in-flight marker (should cancel tokenB, not tokenA)
-        const exerciseId = deps.getExerciseId()!;
-        deps.cancelOutstandingStruggleJob(exerciseId, tokenB);
-        // Only the specific token is sent; the server ignores a cancel for an unknown token (no side effect)
+        // A fresh request B is now in flight (e.g. a queued confirmClose)
+        const tokenB = 'token-B';
+        const ep = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode;
+        const stamp = { episodeId: ep.episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: tokenB };
+        const lt = svc._guard.issue('confirm_close', stamp);
+        svc._inFlightMarker = { requestToken: tokenB, episodeId: ep.episodeId, generation: svc._slot.generation(), intent: 'confirm_close', localToken: lt };
+
+        // resetSession is a terminal: calls _slot.free() + _clearEpisodeRuntime
+        svc.resetSession();
+
+        // The live B token was cancelled, not some stale one
         expect(cancelSpy).toHaveBeenCalledWith(42, tokenB);
+        expect(cancelSpy).toHaveBeenCalledTimes(1);
+        expect(svc._inFlightMarker).toBeUndefined();
+    });
+
+    it('replace-parked does NOT cancel: the in-flight decide is completing into the replacement', () => {
+        const cancelSpy = vi.fn(async () => undefined);
+        const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy });
+        const svc = new StruggleInterventionService(deps);
+
+        // First decide: FREE -> ambient -> PARKED
+        simulateDecidePending(svc, 'ep-r1', false);
+        svc.onServerAmbient('First hint', undefined, undefined, undefined);
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
+
+        // Second decide in-flight (for replace-parked)
+        simulateDecidePending(svc, 'ep-r2', false);
+
+        // Reply: ambient on PARKED -> replace-parked (non-terminal, does NOT call _clearEpisodeRuntime)
+        svc.onServerAmbient('Second hint', undefined, undefined, undefined);
+
+        // No cancel (replace is non-terminal)
+        expect(cancelSpy).not.toHaveBeenCalled();
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
     // -------------------------------------------------------------------------
@@ -1208,31 +1340,96 @@ describe('StruggleInterventionService C3 slot routing', () => {
     });
 
     // -------------------------------------------------------------------------
+    // watchdog.resetProgress: defers stale fire on hard progress
+    // -------------------------------------------------------------------------
+    it('onNewBuildResult(true) calls watchdog.resetProgress (defers next stale fire)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        // Set up DELIVERED slot + watchdog
+        simulateDecidePending(svc, 'ep-wp', false);
+        svc.onServerActive(7);
+        expect(svc._watchdog).toBeDefined();
+        const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
+
+        svc.onNewBuildResult(true);
+
+        expect(resetSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('tick with sBase below reArmSBase calls watchdog.resetProgress (sustained sBase drop)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        // Set up DELIVERED slot + watchdog
+        simulateDecidePending(svc, 'ep-wp2', false);
+        svc.onServerActive(7);
+        expect(svc._watchdog).toBeDefined();
+        const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
+
+        // DEFAULT_PROGRESS_CFG.reArmSBase = 0.6; feed sBase = 0.3 (below threshold)
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.3, s: 0.3, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+
+        expect(resetSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('tick with sBase above reArmSBase does NOT call watchdog.resetProgress (no reset on high stress)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-wp3', false);
+        svc.onServerActive(7);
+        expect(svc._watchdog).toBeDefined();
+        const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
+
+        // sBase = 0.8 (above reArmSBase threshold of 0.6)
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.8, s: 0.8, v: 0.8, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+
+        expect(resetSpy).not.toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------------------
     // Coalescing: stale_solved supersedes progress when both owed
     // -------------------------------------------------------------------------
-    it('coalescing: stale_solved overwrites an already-owed progress close (one POST, latch still called)', async () => {
+    it('coalescing: solved-click over an owed progress close -> ONE POST with stale_solved, latch.onPosted() called', async () => {
         const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
         const svc = new StruggleInterventionService(deps);
 
-        // Set up DELIVERED slot + lastSignal + owed progress close
+        // Set up DELIVERED slot + lastSignal
         simulateDecidePending(svc, 'ep-coal', false);
         svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
         svc.onServerActive(7);
         postSpy.mockClear();
 
-        // Owe a progress close
-        svc._owedConfirmClose = { confirmReason: 'progress' };
+        // Busy the wire so the progress owed is queued (not yet posted)
+        const fakeToken = 'busy-tok';
+        const ep = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode;
+        const fakeStamp = { episodeId: ep.episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: fakeToken };
+        const lt = svc._guard.issue('decide', fakeStamp);
+        svc._inFlightMarker = { requestToken: fakeToken, episodeId: ep.episodeId, generation: svc._slot.generation(), intent: 'decide', localToken: lt };
 
-        // Now a stale_solved button click arrives -> should supersede progress
-        svc._owedConfirmClose = { confirmReason: 'stale_solved' }; // coalescing: stale_solved wins
+        // Drive progress owed through the REAL code path (onNewBuildResult -> latch -> _propagateLatchToOwed)
+        svc.onNewBuildResult(true);
+        expect(svc._owedConfirmClose).toEqual({ confirmReason: 'progress' });
+        expect(postSpy).not.toHaveBeenCalled(); // wire still busy
 
-        // Drain: only ONE confirmClose should POST with stale_solved
+        // Solved-click arrives (C8 stub) -> supersedes the owed progress close with stale_solved
+        svc.recordSolvedClick();
+        expect(svc._owedConfirmClose).toEqual({ confirmReason: 'stale_solved' });
+
+        // Wire frees; spy on latch.onPosted before drain
+        svc._inFlightMarker = undefined;
+        const latchPostSpy = vi.spyOn(svc._latch, 'onPosted');
+
+        // Drain: exactly ONE POST with stale_solved
         await svc['_drainOwed']();
         expect(postSpy).toHaveBeenCalledTimes(1);
         expect((postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1].confirmReason).toBe('stale_solved');
         // Owed entry consumed
         expect(svc._owedConfirmClose).toBeUndefined();
+        // latch.onPosted() was called on successful drain
+        expect(latchPostSpy).toHaveBeenCalledTimes(1);
     });
 
     // -------------------------------------------------------------------------

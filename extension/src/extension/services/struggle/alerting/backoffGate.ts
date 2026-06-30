@@ -52,4 +52,9 @@ export class BackoffGate implements AlertSink {
     getThrottleState(): StruggleThrottleState | undefined {
         return this.inner.getThrottleState?.();
     }
+
+    /** Forward the build-result signal (not suppressed; the latch lives in the orchestrator). */
+    onNewBuildResult(hasNewGreenTest: boolean): void {
+        this.inner.onNewBuildResult?.(hasNewGreenTest);
+    }
 }

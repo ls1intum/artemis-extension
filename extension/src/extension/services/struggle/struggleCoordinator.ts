@@ -63,6 +63,8 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private _lastAlert: AlertRecord | undefined;
     private _isEnabled = true;
     private _showInterventions = true;
+    /** Maximum passed-test count seen in the active session (-1 = no build yet). Reset on each new session. */
+    private _maxPassedTestCount = -1;
 
     constructor(deps: StruggleCoordinatorDeps) {
         this._hub = deps.hub;
@@ -96,6 +98,12 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (!this._isEnabled) { return; }
         if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) { return; }
         this._hub.emitBuildResult(result);          // engine (FM/FM+/improved + fast decay)
+        // Detect a strict new high in passed tests and notify the alert sink so the
+        // orchestrator's progress-close latch can observe the green-test path.
+        const passed = result.passedTestCaseCount;
+        const isNewGreen = typeof passed === 'number' && passed > this._maxPassedTestCount;
+        if (isNewGreen) { this._maxPassedTestCount = passed; }
+        this._alertSink.onNewBuildResult?.(isNewGreen);
     }
 
     private _websocketService: ArtemisWebsocketService | undefined;
@@ -125,6 +133,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._activeExerciseId = exerciseId;
         this._activeExerciseRoot = exerciseRoot;
         this._sessionStartMs = this._clock.now();
+        this._maxPassedTestCount = -1;  // reset per-exercise baseline
         // New session: reset the sink's per-session throttle budget AND clear any
         // stale intervention (resetSession falls back to reset when unsupported).
         if (this._alertSink.resetSession) {

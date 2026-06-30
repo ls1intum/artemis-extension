@@ -41,6 +41,33 @@ suite('StruggleCoordinator', () => {
         sub.dispose();
     });
 
+    test('onNewResult calls onNewBuildResult(true) on sink for a strict new high in passed tests; false for a drop', () => {
+        const calls: boolean[] = [];
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1);
+            // First build: 3 passed -> new high (prev was -1)
+            c.onNewResult({ id: 1, passedTestCaseCount: 3 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true], 'first build with 3 passed is a new high');
+            // Second build: 2 passed -> not a new high
+            c.onNewResult({ id: 2, passedTestCaseCount: 2 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false], 'lower count is not a new high');
+            // Third build: 5 passed -> new high
+            c.onNewResult({ id: 3, passedTestCaseCount: 5 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false, true], '5 > 3 is a new high');
+            // New session: max resets; 2 passed on fresh session is a new high again
+            c.startExerciseSession(2);
+            c.onNewResult({ id: 4, passedTestCaseCount: 2 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false, true, true], 'new session resets the baseline');
+        } finally {
+            c.dispose();
+        }
+    });
+
     test('an idle session drives the engine to an alert and the sink receives it', () => {
         coord.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
         coord.advanceTo(coord.sessionStartMs + 520_000);   // test-only passthrough to engine.advanceTo

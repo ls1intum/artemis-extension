@@ -16,4 +16,10 @@ export interface AlertSink {
     /** Latest delivery-throttle state for the dev debug snapshot (telemetry only).
      *  A decorator sink forwards to its inner throttle; non-throttle sinks omit it. */
     getThrottleState?(): StruggleThrottleState | undefined;
+    /**
+     * Called by the coordinator when a build result arrives. `hasNewGreenTest=true`
+     * means the result carries a strict new high in passed tests (progress-close latch
+     * trigger). Decorator sinks forward; non-participating sinks omit the method.
+     */
+    onNewBuildResult?(hasNewGreenTest: boolean): void;
 }

@@ -249,6 +249,12 @@ export class StruggleInterventionService implements AlertSink {
         // C3: feed progress latch with sBase from tick (newGreenTest path goes through onNewBuildResult)
         this._latch.observe(tick.ts, tick.sBase, false);
         this._propagateLatchToOwed();
+        // Sustained sBase drop (student recovering): defer the stale watchdog.
+        // Only on anchor-local edits (Iris judges task-relevance); NOT on new green tests
+        // (those go through onNewBuildResult which uses Date.now()).
+        if (tick.sBase < (this._deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG).reArmSBase) {
+            this._watchdog?.resetProgress(tick.ts);
+        }
         // C3: tick the watchdog (uses session-relative ms, staleAfterMs is comparable)
         this._handleWatchdogTick(tick.ts);
         // C3: drain any owed confirmClose / staleCheck (wire may now be free)
@@ -262,7 +268,17 @@ export class StruggleInterventionService implements AlertSink {
         // Use Date.now() for the latch since it cares about real time, not session time
         this._latch.observe(Date.now(), 1.0 /* above any threshold, won't fire sBase path */, true);
         this._propagateLatchToOwed();
+        // Hard progress: defer the stale watchdog so it does not fire while the student advances
+        this._watchdog?.resetProgress(Date.now());
         void this._drainOwed();
+    }
+
+    /**
+     * C3: called by extension.ts when the chat-view visibility changes.
+     * NON-semantic: does not bump the slot generation.
+     */
+    setInSession(open: boolean): void {
+        this._slot.setInSession(open);
     }
 
     /** AlertSink.deliver -- the coordinator calls this ONLY when `enabled && showInterventions`. */
@@ -800,14 +816,9 @@ export class StruggleInterventionService implements AlertSink {
             }
             case 'force-free': {
                 // DELIVERED terminal: free + ABANDONED + clearEpisodeRuntime + foldEpisode (no praise)
+                // Scoped cancel is now hoisted into _clearEpisodeRuntime.
                 const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
                 const episodeId = deliveredEp?.episodeId;
-
-                // Scoped-cancel any in-flight request
-                if (this._inFlightMarker && exerciseId !== undefined) {
-                    const token = this._inFlightMarker.requestToken;
-                    this._deps.cancelOutstandingStruggleJob(exerciseId, token).catch(() => { /* best-effort */ });
-                }
 
                 this._slot.free();
                 this._clearEpisodeRuntime();
@@ -820,10 +831,7 @@ export class StruggleInterventionService implements AlertSink {
             }
             case 'free-silent': {
                 // PARKED terminal: free silently (no row, no foldEpisode)
-                if (this._inFlightMarker && exerciseId !== undefined) {
-                    const token = this._inFlightMarker.requestToken;
-                    this._deps.cancelOutstandingStruggleJob(exerciseId, token).catch(() => { /* best-effort */ });
-                }
+                // Scoped cancel is now hoisted into _clearEpisodeRuntime.
                 this._slot.free();
                 this._clearEpisodeRuntime();
                 break;
@@ -948,6 +956,8 @@ export class StruggleInterventionService implements AlertSink {
     /**
      * Called on EVERY terminal transition (slot free). Tears down the progress latch, watchdog,
      * owed requests, and the live-ask binding (which neutralises any pending ABANDON timers).
+     * Also performs a scoped server-side cancel for any in-flight request so the job slot is
+     * freed. revealParkedHint is NOT terminal and cancels its own in-flight separately.
      */
     private _clearEpisodeRuntime(): void {
         this._latch.reset();
@@ -959,6 +969,17 @@ export class StruggleInterventionService implements AlertSink {
         this._guard.cancel('stale_check');
         // Clear the live-ask binding: neutralises any pending ABANDON setTimeout
         this._liveAskBinding = undefined;
+        // Scoped server-side cancel: free the outstanding job before nulling the marker.
+        // revealParkedHint (non-terminal) cancels its own in-flight and does NOT call here.
+        // replace-parked / replace-delivered (non-terminal) do NOT call here either, so
+        // the in-flight decide completing into the replacement is NOT cancelled.
+        if (this._inFlightMarker) {
+            const exerciseId = this._deps.getExerciseId();
+            if (exerciseId !== undefined) {
+                const token = this._inFlightMarker.requestToken;
+                this._deps.cancelOutstandingStruggleJob(exerciseId, token).catch(() => { /* best-effort */ });
+            }
+        }
         // Clear the in-flight marker (slot is terminal, nothing to reply to)
         this._inFlightMarker = undefined;
     }
@@ -994,6 +1015,19 @@ export class StruggleInterventionService implements AlertSink {
         if (this._annoyance >= this._deps.softThreshold) {
             this._softSkipBudget += 1;
         }
+    }
+
+    /**
+     * C8 stub: the student clicked "I solved this" on a stale-ask or a delivered hint.
+     * Queues a `stale_solved` confirmClose (overrides any pending progress close -- one CLOSE
+     * total per episode). NON-terminal on its own; a server confirmClose reply frees the slot.
+     * C8 will wire this to the webview "solved" command; callable directly in tests.
+     */
+    recordSolvedClick(): void {
+        const snap = this._slot.snapshot();
+        if (snap.state.kind === 'free') { return; }
+        this._owedConfirmClose = { confirmReason: 'stale_solved' };
+        void this._drainOwed();
     }
 
     /** True while proactive is paused for this exercise (only an explicit dismiss can trigger this, spec §5.2). */

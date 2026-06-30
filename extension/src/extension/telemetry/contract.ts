@@ -161,4 +161,11 @@ export interface StruggleEngineHandle {
      * three above), so extension.ts assembles no `proactiveControl` capability there.
      */
     isProactiveDegraded?(): boolean;
+    /**
+     * C3: toggle the in-session flag on the slot (NON-semantic, no generation bump).
+     * Called by extension.ts when the chat-view visibility changes so escalation can
+     * choose quiet (bubble-only) vs loud (toast + inline) rendering. ABSENT in the
+     * clean (no-engine) build, so extension.ts guards with `if (setInSession)`.
+     */
+    setInSession?(open: boolean): void;
 }

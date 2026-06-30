@@ -91,4 +91,9 @@ export class ThrottledAlertSink implements AlertSink {
             this._inner.reset?.();
         }
     }
+
+    /** Forward the build-result signal straight through (not throttled). */
+    onNewBuildResult(hasNewGreenTest: boolean): void {
+        this._inner.onNewBuildResult?.(hasNewGreenTest);
+    }
 }
