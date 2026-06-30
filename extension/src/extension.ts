@@ -79,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, onStaleAskButton, onFreeTextReply, dismissEpisode } = createStruggleEngine({
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, onStaleAskButton, onFreeTextReply, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
@@ -198,6 +198,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 	// Wire the engine's lazy preference read to the provider's preference service (built in its constructor above).
 	proactivePreferenceRef = artemisWebviewProvider.proactivePreference;
+	// Slot debug wiring (Task 4): connect the orchestrator's slot snapshot to the live feed.
+	// The provider forwards both calls into its private _liveEngineFeed.
+	artemisWebviewProvider.wireSlotDebug(
+		() => getSlotDebugSnapshot && getEpisodeHistory
+			? { snapshot: getSlotDebugSnapshot(), episodes: [...getEpisodeHistory()] }
+			: null,
+	);
+	setSlotChangeSink?.(() => artemisWebviewProvider.pushSlotUpdate());
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);

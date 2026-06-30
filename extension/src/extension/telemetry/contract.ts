@@ -3,6 +3,7 @@ import type * as vscode from 'vscode';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
 import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
+import type { EpisodeHistoryEntry, SlotDebugSnapshot } from '@shared/messageContracts';
 
 /**
  * Public contract of the struggle-detection engine (Schicht 2/3 owner).
@@ -42,10 +43,14 @@ export interface ILiveEngineFeed {
     subscribe(): void;
     /** Stop streaming live ticks (the buffer keeps filling). */
     unsubscribe(): void;
-    /** Report whether an exercise session is active. A fresh session (false→true)
+    /** Report whether an exercise session is active. A fresh session (false->true)
      *  resets the chart buffer; either transition updates the webview's session
      *  indicator (when subscribed in developer mode). */
     setSessionActive(active: boolean): void;
+    /** Register the slot debug snapshot provider; called once after the engine handle is wired. */
+    setSlotProvider(provider: () => { snapshot: SlotDebugSnapshot; episodes: EpisodeHistoryEntry[] } | null): void;
+    /** Push the current slot debug snapshot to all subscribed webviews (no-op when none subscribed or devMode off). */
+    pushSlotUpdate(): void;
     dispose(): void;
 }
 
@@ -205,4 +210,20 @@ export interface StruggleEngineHandle {
      * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
      */
     dismissEpisode?(episodeId?: string): void;
+    /**
+     * Slot debug: return the current slot state snapshot (Task 3 orchestrator). ABSENT in the
+     * clean (no-engine) build; callers guard with optional chaining or presence checks.
+     */
+    getSlotDebugSnapshot?(): SlotDebugSnapshot;
+    /**
+     * Slot debug: return the ordered episode history (Task 3 orchestrator). ABSENT in the
+     * clean (no-engine) build; callers guard with optional chaining or presence checks.
+     */
+    getEpisodeHistory?(): readonly EpisodeHistoryEntry[];
+    /**
+     * Register the sink that the orchestrator calls (coalesced) on every slot state change.
+     * The extension entry point uses this to route slot updates to the webview feed.
+     * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
+     */
+    setSlotChangeSink?(fn: () => void): void;
 }

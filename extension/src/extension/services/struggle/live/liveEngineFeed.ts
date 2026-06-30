@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import type { LiveTick } from '@shared/messageContracts';
+import type { EpisodeHistoryEntry, LiveTick, SlotDebugSnapshot } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 
 import type { TickRecord } from '@extension/services/struggle/types';
@@ -9,8 +9,9 @@ import { toLiveDecisionTrace } from './traceMap';
 
 export class LiveEngineFeed implements vscode.Disposable {
     private readonly _buffer: LiveTick[] = [];
-    private _subscribed = false;
+    private _subscriberCount = 0;
     private _sessionActive = false;
+    private _slotProvider: (() => { snapshot: SlotDebugSnapshot; episodes: EpisodeHistoryEntry[] } | null) | null = null;
     private readonly _sub: vscode.Disposable;
 
     constructor(
@@ -37,20 +38,37 @@ export class LiveEngineFeed implements vscode.Disposable {
         const live = LiveEngineFeed.toLiveTick(rec);
         this._buffer.push(live);
         if (this._buffer.length > this._cap) { this._buffer.shift(); }
-        if (this._subscribed && this._isDeveloperMode()) {
+        if (this._subscriberCount > 0 && this._isDeveloperMode()) {
             this._post({ type: ExtensionMsg.StruggleLiveTick, tick: live });
         }
     }
 
     subscribe(): void {
         if (!this._isDeveloperMode()) { return; }
-        this._subscribed = true;
+        this._subscriberCount++;
+        // Replay on EVERY subscribe (preserves the current behavior the existing liveEngineFeed
+        // tests expect + paints a late-mounting panel). The ref-count governs only DEACTIVATION:
+        // the live tick stream stops posting once the count returns to 0.
         this._post({ type: ExtensionMsg.StruggleLiveReset });
         this._post({ type: ExtensionMsg.StruggleLiveBackfill, ticks: [...this._buffer] });
         this._post({ type: ExtensionMsg.StruggleLiveSessionState, active: this._sessionActive });
+        this.pushSlotUpdate();
     }
 
-    unsubscribe(): void { this._subscribed = false; }
+    unsubscribe(): void {
+        if (this._subscriberCount > 0) { this._subscriberCount--; }
+    }
+
+    setSlotProvider(provider: () => { snapshot: SlotDebugSnapshot; episodes: EpisodeHistoryEntry[] } | null): void {
+        this._slotProvider = provider;
+    }
+
+    pushSlotUpdate(): void {
+        if (this._subscriberCount === 0 || !this._isDeveloperMode() || !this._slotProvider) { return; }
+        const payload = this._slotProvider();
+        if (!payload) { return; }
+        this._post({ type: ExtensionMsg.StruggleSlotUpdate, snapshot: payload.snapshot, episodes: payload.episodes });
+    }
 
     setSessionActive(active: boolean): void {
         const wasActive = this._sessionActive;
@@ -59,11 +77,11 @@ export class LiveEngineFeed implements vscode.Disposable {
         // previous session's curve so the new run starts clean.
         if (active && !wasActive) {
             this._buffer.length = 0;
-            if (this._subscribed && this._isDeveloperMode()) {
+            if (this._subscriberCount > 0 && this._isDeveloperMode()) {
                 this._post({ type: ExtensionMsg.StruggleLiveReset });
             }
         }
-        if (this._subscribed && this._isDeveloperMode()) {
+        if (this._subscriberCount > 0 && this._isDeveloperMode()) {
             this._post({ type: ExtensionMsg.StruggleLiveSessionState, active });
         }
     }

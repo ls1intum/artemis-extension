@@ -59,6 +59,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // Forward ref: the orchestrator's deps read the coordinator lazily (only when
     // an alert fires, well after construction), so the cycle resolves by order.
     let coordinator: StruggleCoordinator;
+    // Forward ref: the slot-change sink is registered after the orchestrator is built
+    // (via handle.setSlotChangeSink), so we close over a mutable binding.
+    let slotChangeSink: () => void = () => {};
     // Inline in-editor cue surface (spec §4.1). The getExerciseRoot thunk reads the coordinator lazily (it is
     // assigned below; the thunk only fires on later editor events), so constructing this before it is safe.
     const inline = new InlineHintDecoration(deps.context.extensionUri, () => coordinator.activeExerciseRoot);
@@ -118,6 +121,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         postStaleAsk: (e, a, m, q) => deps.postStaleAsk(e, a, m, q),
         log,
         devLog,
+        onSlotChange: () => slotChangeSink(),
     });
 
     // Inline-hover action links (spec §4.1, §5.2): Open chat engages (clears backoff), Dismiss → backoff; both
@@ -239,6 +243,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         onFreeTextReply: () => orchestrator.onFreeTextReply(),
         // C8: episode-scoped dismiss (seam callback threaded to setStruggleCallbacks.onEpisodeDismiss)
         dismissEpisode: (episodeId?: string) => orchestrator.dismissEpisode(episodeId),
+        // Slot debug (Task 4): expose orchestrator snapshot/history + register the change sink.
+        getSlotDebugSnapshot: () => orchestrator.getSlotDebugSnapshot(),
+        getEpisodeHistory: () => orchestrator.getEpisodeHistory(),
+        setSlotChangeSink: (fn: () => void) => { slotChangeSink = fn; },
     };
 }
 

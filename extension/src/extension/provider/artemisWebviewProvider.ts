@@ -490,6 +490,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._navigationFacade.showStruggleDetection();
     }
 
+    /** Register the slot debug snapshot provider on the live engine feed. */
+    public wireSlotDebug(provider: Parameters<ILiveEngineFeed['setSlotProvider']>[0]): void {
+        this._liveEngineFeed.setSlotProvider(provider);
+    }
+
+    /** Push the current slot debug snapshot to any subscribed webview. */
+    public pushSlotUpdate(): void {
+        this._liveEngineFeed.pushSlotUpdate();
+    }
+
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
 
     protected _onReady(): void {
