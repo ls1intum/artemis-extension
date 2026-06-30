@@ -1,6 +1,7 @@
 import type { Uri } from 'vscode';
 
 import { ApiError } from '@extension/domain';
+import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, SlotDebugSnapshot } from '@shared/messageContracts';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { IrisChatMessage } from '@extension/types';
@@ -153,6 +154,8 @@ export interface StruggleInterventionDeps {
     setTimeoutFn?: (fn: () => void, ms: number) => void;
     /** Developer-mode diagnostic sink (gated upstream); no-op when omitted. Pure string out, no effects. */
     devLog?(msg: string): void;
+    /** Debug-only slot-state change sink (gated upstream); no-op when omitted. Best-effort, must not throw into a slot path. */
+    onSlotChange?(): void;
     /** Slot config (staleAfterMs, staleWindowMax, staleAskCap). Consumed from TUNING.slot. */
     slotCfg?: StaleConfig;
     /** Progress-close latch config. Consumed from TUNING.slot. */
@@ -257,11 +260,99 @@ export class StruggleInterventionService implements AlertSink {
      */
     _pendingOutcomes = new Map<string, { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }>();
 
+    // ---------------------------------------------------------------------------
+    // Task 3: episode history ring buffer + slot-change notify
+    // ---------------------------------------------------------------------------
+
+    private _episodeHistory: EpisodeHistoryEntry[] = [];
+    private static readonly HISTORY_CAP = 20;
+    private _slotChangeScheduled = false;
+
     constructor(private readonly _deps: StruggleInterventionDeps) {
         this._latch = new ProgressCloseLatch(
             _deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG,
         );
     }
+
+    // ---------------------------------------------------------------------------
+    // Slot debug snapshot + episode history (read-only, never throw)
+    // ---------------------------------------------------------------------------
+
+    /** Snapshot of the slot/intervention runtime for the dev dashboard. Pure read, never throws. */
+    getSlotDebugSnapshot(): SlotDebugSnapshot {
+        const snap = this._slot.snapshot();
+        const st = snap.state;
+        const episode = st.kind === 'free' ? undefined : st.episode;
+        const now = Date.now();
+        const m = this._inFlightMarker;
+        return {
+            nowMs: now,
+            state: st.kind,
+            level: st.kind === 'parked' ? 'ambient' : st.kind === 'delivered' ? st.level : null,
+            episodeId: episode?.episodeId ?? null,
+            generation: snap.generation,
+            episodeAgeMs: episode ? now - episode.createdAtMs : null,
+            hintCount: episode?.hints.length ?? 0,
+            isNew: episode?.isNew ?? false,
+            inSession: snap.inSession,
+            watchdog: {
+                armed: this._watchdog?.isArmed() ?? false,
+                staleDeadlineMs: this._watchdog?.staleDeadlineMs() ?? null,
+            },
+            abandon: {
+                armed: this._liveAskBinding !== undefined,
+                deadlineMs: this._liveAskBinding !== undefined ? this._deadlineLatch.current() : null,
+            },
+            inFlight: m
+                ? { intent: m.intent, localToken: m.localToken, episodeId: m.episodeId, generation: m.generation, requestToken: m.requestToken }
+                : null,
+            owed: { confirmClose: this._owedConfirmClose !== undefined, staleCheck: this._owedStaleCheck },
+            pendingOutcomes: this._pendingOutcomes.size,
+        };
+    }
+
+    /** The in-memory, session-only episode history (newest last). */
+    getEpisodeHistory(): readonly EpisodeHistoryEntry[] {
+        return this._episodeHistory;
+    }
+
+    /** Append a terminal episode to the ring buffer; derives peakLevel + duration from the episode. */
+    private recordTerminalEpisode(episode: Episode, outcome: EpisodeOutcomeLabel): void {
+        const peakLevel: 'ambient' | 'active' = episode.hints.some(h => h.level === 'active') ? 'active' : 'ambient';
+        this._episodeHistory.push({
+            episodeId: episode.episodeId,
+            peakLevel,
+            outcome,
+            hintCount: episode.hints.length,
+            durationMs: Date.now() - episode.createdAtMs,
+            startedAtMs: episode.createdAtMs,
+        });
+        if (this._episodeHistory.length > StruggleInterventionService.HISTORY_CAP) {
+            this._episodeHistory.shift();
+        }
+    }
+
+    /** Coalesced, best-effort debug notification (one push per sync mutation branch). */
+    private notifySlotDebugChanged(): void {
+        if (!this._deps.onSlotChange || this._slotChangeScheduled) { return; }
+        this._slotChangeScheduled = true;
+        queueMicrotask(() => {
+            this._slotChangeScheduled = false;
+            try { this._deps.onSlotChange?.(); } catch { /* best-effort: debug push must never break the feature */ }
+        });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Notifying setters (complete-by-construction notify coverage)
+    // ---------------------------------------------------------------------------
+
+    private _setInFlightMarker(v: InFlightMarker | undefined): void { this._inFlightMarker = v; this.notifySlotDebugChanged(); }
+    private _setOwedConfirmClose(v: OwedConfirmClose | undefined): void { this._owedConfirmClose = v; this.notifySlotDebugChanged(); }
+    private _setOwedStaleCheck(v: boolean): void { this._owedStaleCheck = v; this.notifySlotDebugChanged(); }
+    private _setLiveAskBinding(v: LiveAskBinding | undefined): void { this._liveAskBinding = v; this.notifySlotDebugChanged(); }
+    private _setPendingOutcome(episodeId: string, outcome: { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }): void { this._pendingOutcomes.set(episodeId, outcome); this.notifySlotDebugChanged(); }
+    private _deletePendingOutcome(episodeId: string): void { this._pendingOutcomes.delete(episodeId); this.notifySlotDebugChanged(); }
+    private _clearPendingOutcomes(): void { this._pendingOutcomes.clear(); this.notifySlotDebugChanged(); }
 
     // ---------------------------------------------------------------------------
     // AlertSink
@@ -280,6 +371,7 @@ export class StruggleInterventionService implements AlertSink {
         // with moderate-low severity (returning resolved=false) can hold the DELIVERED slot.
         if (tick.sBase < (this._deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG).reArmSBase) {
             this._watchdog?.resetProgress(tick.ts);
+            this.notifySlotDebugChanged();
         }
         // C3: tick the watchdog with the coordinator timestamp (wall-clock ms in live; replay-injected in tests)
         this._handleWatchdogTick(tick.ts);
@@ -296,6 +388,7 @@ export class StruggleInterventionService implements AlertSink {
         this._propagateLatchToOwed();
         // Hard progress: defer the stale watchdog so it does not fire while the student advances
         this._watchdog?.resetProgress(Date.now());
+        this.notifySlotDebugChanged();
         void this._drainOwed();
     }
 
@@ -306,6 +399,7 @@ export class StruggleInterventionService implements AlertSink {
     setInSession(open: boolean): void {
         this._slot.setInSession(open);
         this._dbg(`  -> IN-SESSION ${open ? 'open' : 'closed'} (slot=${this._slot.snapshot().state.kind})`);
+        this.notifySlotDebugChanged();
     }
 
     /** AlertSink.deliver -- the coordinator calls this ONLY when `enabled && showInterventions`. */
@@ -428,7 +522,7 @@ export class StruggleInterventionService implements AlertSink {
                 requestToken,
             };
             const localToken = this._guard.issue('decide', stamp);
-            this._inFlightMarker = { requestToken, episodeId: requestEpisode.episodeId, generation: snap.generation, intent: 'decide', localToken };
+            this._setInFlightMarker({ requestToken, episodeId: requestEpisode.episodeId, generation: snap.generation, intent: 'decide', localToken });
 
             const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
             await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'server', signal });
@@ -452,21 +546,21 @@ export class StruggleInterventionService implements AlertSink {
                 // _inFlightMarker stays set until the websocket reply arrives (onServerAmbient/Active/Silent)
             } else if (result === 'course-off') {
                 this._courseProactiveOff = true;
-                this._inFlightMarker = undefined;
+                this._setInFlightMarker(undefined);
                 this._candidate = undefined;
             } else if (result === 'unavailable') {
                 this._serverAvailable = false;
-                this._inFlightMarker = undefined;
+                this._setInFlightMarker(undefined);
                 this._candidate = undefined;
                 this._fallback(signal);
             } else {
                 // 'failed': transient error -- release wire so next alert retries
-                this._inFlightMarker = undefined;
+                this._setInFlightMarker(undefined);
                 this._candidate = undefined;
             }
         } catch (err) {
             this._dbg(`  -> ERROR during intervention: ${err instanceof Error ? err.message : String(err)}`);
-            this._inFlightMarker = undefined;
+            this._setInFlightMarker(undefined);
             this._candidate = undefined;
         }
     }
@@ -563,6 +657,7 @@ export class StruggleInterventionService implements AlertSink {
 
         if (action.kind === 'discard-free') {
             this._dbg('  -> SILENT: discard PARKED -> FREE');
+            if (snap.state.kind === 'parked') { this.recordTerminalEpisode(snap.state.episode, 'DISCARDED'); }
             this._slot.discardParkedToFree();
             this._clearEpisodeRuntime();
         } else {
@@ -596,7 +691,7 @@ export class StruggleInterventionService implements AlertSink {
         }
 
         // Clear the in-flight marker for the confirmClose intent
-        this._inFlightMarker = undefined;
+        this._setInFlightMarker(undefined);
 
         // Notify the latch
         this._latch.onConfirmResult(resolved);
@@ -610,12 +705,13 @@ export class StruggleInterventionService implements AlertSink {
 
             // Handle queued stale_solved that arrived while this confirmClose was in flight:
             // slot-free clears it (one CLOSE total)
-            this._owedConfirmClose = undefined;
+            this._setOwedConfirmClose(undefined);
 
             if (wasDelivered) {
                 // DELIVERED resolved=true: free + RECOVERED outcome + fold with praise
                 this._dbg(`  -> CLOSE resolved: DELIVERED -> FREE (RECOVERED) episodeId=${liveEpisodeId ?? 'n/a'}`);
                 const exerciseId = this._deps.getExerciseId();
+                this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'delivered' }>).episode, 'RECOVERED');
                 this._slot.free();
                 this._clearEpisodeRuntime();
                 if (liveEpisodeId) {
@@ -630,6 +726,7 @@ export class StruggleInterventionService implements AlertSink {
             } else if (wasParked) {
                 // PARKED resolved=true: discard silently (no row, no fold, no outcome)
                 this._dbg('  -> CLOSE resolved: PARKED -> FREE (silent discard)');
+                this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'parked' }>).episode, 'DISCARDED');
                 this._slot.discardParkedToFree();
                 this._clearEpisodeRuntime();
             } else {
@@ -665,14 +762,14 @@ export class StruggleInterventionService implements AlertSink {
         }
 
         // Clear the in-flight staleCheck marker
-        this._inFlightMarker = undefined;
+        this._setInFlightMarker(undefined);
 
         if (ask && this._watchdog && messageId !== undefined && question !== undefined) {
             this._dbg(`  -> STALE ask=true: post question + arm ABANDON (episodeId=${episodeId ?? 'n/a'})`);
             // Mint a runtime askId and bind it to the persisted row
             const askId = this._deps.generateLocalId();
             const latchedEpisodeId = episodeId!;
-            this._liveAskBinding = { askId, messageId, episodeId: latchedEpisodeId };
+            this._setLiveAskBinding({ askId, messageId, episodeId: latchedEpisodeId });
             this._watchdog.onAskPosted();
             this._deps.postStaleAsk(latchedEpisodeId, askId, messageId, question);
             // C5: arm the ABANDON latch and schedule the initial per-ask timeout
@@ -794,6 +891,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._dbg(`  -> SUPPRESS (slot=${this._slot.snapshot().state.kind})`);
                 break;
         }
+        this.notifySlotDebugChanged();
     }
 
     /**
@@ -878,7 +976,7 @@ export class StruggleInterventionService implements AlertSink {
             snap.generation,
         );
         // Clear the in-flight marker regardless of result (the reply has landed)
-        this._inFlightMarker = undefined;
+        this._setInFlightMarker(undefined);
         return stamp;
     }
 
@@ -887,7 +985,7 @@ export class StruggleInterventionService implements AlertSink {
      * where we don't have a decide reply, e.g. student opt-out mid-flight).
      */
     private _clearInFlight(): void {
-        this._inFlightMarker = undefined;
+        this._setInFlightMarker(undefined);
         this._candidate = undefined;
     }
 
@@ -924,7 +1022,7 @@ export class StruggleInterventionService implements AlertSink {
             case 'fire-stale-check': {
                 // Window already incremented inside tick() (wire-independent)
                 if (this._watchdog.canPostAsk() && !this._liveAskBinding) {
-                    this._owedStaleCheck = true;
+                    this._setOwedStaleCheck(true);
                 }
                 // _drainOwed() is called after onTick returns
                 break;
@@ -936,6 +1034,7 @@ export class StruggleInterventionService implements AlertSink {
                 const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
                 const episodeId = deliveredEp?.episodeId;
 
+                if (deliveredEp) { this.recordTerminalEpisode(deliveredEp, 'ABANDONED'); }
                 this._slot.free();
                 this._clearEpisodeRuntime();
 
@@ -949,6 +1048,8 @@ export class StruggleInterventionService implements AlertSink {
                 // PARKED terminal: free silently (no row, no foldEpisode)
                 // Scoped cancel is now hoisted into _clearEpisodeRuntime.
                 this._dbg('  -> WATCHDOG free-silent: PARKED -> FREE (silent)');
+                const parkedEp = snap.state.kind === 'parked' ? snap.state.episode : undefined;
+                if (parkedEp) { this.recordTerminalEpisode(parkedEp, 'DISCARDED'); }
                 this._slot.free();
                 this._clearEpisodeRuntime();
                 break;
@@ -969,9 +1070,9 @@ export class StruggleInterventionService implements AlertSink {
         if (!this._latch.shouldPost() || this._owedConfirmClose) { return; }
         const kind = this._slot.snapshot().state.kind;
         if (kind === 'delivered') {
-            this._owedConfirmClose = { confirmReason: 'progress' };
+            this._setOwedConfirmClose({ confirmReason: 'progress' });
         } else if (kind === 'parked') {
-            this._owedConfirmClose = { confirmReason: 'parked_progress' };
+            this._setOwedConfirmClose({ confirmReason: 'parked_progress' });
         }
     }
 
@@ -1003,7 +1104,7 @@ export class StruggleInterventionService implements AlertSink {
             };
             const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
             const localToken = this._guard.issue('confirm_close', stamp);
-            this._inFlightMarker = { requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken };
+            this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken });
 
             try {
                 const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
@@ -1017,14 +1118,14 @@ export class StruggleInterventionService implements AlertSink {
                 });
                 if (result === 'accepted') {
                     this._continuedEpisodeIds.add(ep.episodeId);
-                    this._owedConfirmClose = undefined;
+                    this._setOwedConfirmClose(undefined);
                     this._latch.onPosted();
                 } else {
                     // Not accepted (job pending, course-off, etc.) -- retry next tick
-                    this._inFlightMarker = undefined;
+                    this._setInFlightMarker(undefined);
                 }
             } catch {
-                this._inFlightMarker = undefined;
+                this._setInFlightMarker(undefined);
             }
             return;
         }
@@ -1033,7 +1134,7 @@ export class StruggleInterventionService implements AlertSink {
         if (this._owedStaleCheck && !this._liveAskBinding) {
             const epState2 = snap.state;
             const ep = epState2.kind === 'delivered' ? epState2.episode : null;
-            if (!ep) { this._owedStaleCheck = false; return; }
+            if (!ep) { this._setOwedStaleCheck(false); return; }
 
             const requestToken = crypto.randomUUID();
             const requestEpisode = {
@@ -1043,7 +1144,7 @@ export class StruggleInterventionService implements AlertSink {
             };
             const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
             const localToken = this._guard.issue('stale_check', stamp);
-            this._inFlightMarker = { requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'stale_check', localToken };
+            this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'stale_check', localToken });
 
             try {
                 const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
@@ -1056,12 +1157,12 @@ export class StruggleInterventionService implements AlertSink {
                 });
                 if (result === 'accepted') {
                     this._continuedEpisodeIds.add(ep.episodeId);
-                    this._owedStaleCheck = false;
+                    this._setOwedStaleCheck(false);
                 } else {
-                    this._inFlightMarker = undefined;
+                    this._setInFlightMarker(undefined);
                 }
             } catch {
-                this._inFlightMarker = undefined;
+                this._setInFlightMarker(undefined);
             }
         }
     }
@@ -1080,12 +1181,12 @@ export class StruggleInterventionService implements AlertSink {
         this._latch.reset();
         this._watchdog?.disarm();
         this._watchdog = undefined;
-        this._owedConfirmClose = undefined;
-        this._owedStaleCheck = false;
+        this._setOwedConfirmClose(undefined);
+        this._setOwedStaleCheck(false);
         // Cancel any in-flight staleCheck (guard cancel, not scoped-cancel -- the job was cleared on guard)
         this._guard.cancel('stale_check');
         // Clear the live-ask binding: neutralises any pending ABANDON setTimeout
-        this._liveAskBinding = undefined;
+        this._setLiveAskBinding(undefined);
         // Scoped server-side cancel: free the outstanding job before nulling the marker.
         // revealParkedHint (non-terminal) cancels its own in-flight and does NOT call here.
         // replace-parked / replace-delivered (non-terminal) do NOT call here either, so
@@ -1098,9 +1199,10 @@ export class StruggleInterventionService implements AlertSink {
             }
         }
         // Clear the in-flight marker (slot is terminal, nothing to reply to)
-        this._inFlightMarker = undefined;
+        this._setInFlightMarker(undefined);
         // Null the candidate (always overwritten before next use, but cleaner to be explicit)
         this._candidate = undefined;
+        this.notifySlotDebugChanged();
     }
 
     // ---------------------------------------------------------------------------
@@ -1169,6 +1271,7 @@ export class StruggleInterventionService implements AlertSink {
 
         if (shouldFreeSlot) {
             // Full DELIVERED resolution: free + runtime teardown + outcome + fold (no praise)
+            this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'delivered' }>).episode, 'DISMISSED');
             this._slot.free();
             this._clearEpisodeRuntime();
             if (targetEpisodeId && exerciseId !== undefined) {
@@ -1191,7 +1294,7 @@ export class StruggleInterventionService implements AlertSink {
         const snap = this._slot.snapshot();
         if (snap.state.kind === 'free') { return; }
         this._dbg('  -> SOLVED click: queue stale_solved close');
-        this._owedConfirmClose = { confirmReason: 'stale_solved' };
+        this._setOwedConfirmClose({ confirmReason: 'stale_solved' });
         void this._drainOwed();
     }
 
@@ -1205,13 +1308,13 @@ export class StruggleInterventionService implements AlertSink {
      */
     private _cancelStaleCheckInFlight(): void {
         this._guard.cancel('stale_check');
-        this._owedStaleCheck = false;
+        this._setOwedStaleCheck(false);
         if (this._inFlightMarker?.intent === 'stale_check') {
             const exerciseId = this._deps.getExerciseId();
             if (exerciseId !== undefined) {
                 void this._deps.cancelOutstandingStruggleJob(exerciseId, this._inFlightMarker.requestToken).catch(() => { /* best-effort */ });
             }
-            this._inFlightMarker = undefined;
+            this._setInFlightMarker(undefined);
         }
     }
 
@@ -1233,6 +1336,7 @@ export class StruggleInterventionService implements AlertSink {
             const snap = this._slot.snapshot();
             const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
             const epId = deliveredEp?.episodeId ?? episodeId;
+            if (deliveredEp) { this.recordTerminalEpisode(deliveredEp, 'ABANDONED'); }
             this._slot.free();
             this._clearEpisodeRuntime();
             if (exerciseId !== undefined) {
@@ -1260,16 +1364,16 @@ export class StruggleInterventionService implements AlertSink {
             case 'confirm-close': {
                 // Queue a stale_solved close (overrides any pending progress close -- one CLOSE total per episode).
                 // Existing drain/clear in onServerClose handles the "already in-flight confirm_close" queuing rule.
-                this._owedConfirmClose = { confirmReason: 'stale_solved' };
+                this._setOwedConfirmClose({ confirmReason: 'stale_solved' });
                 this._cancelStaleCheckInFlight();
                 // Clear the ask binding so the ABANDON latch neutralises on next fire
-                this._liveAskBinding = undefined;
+                this._setLiveAskBinding(undefined);
                 void this._drainOwed();
                 break;
             }
             case 'stay': {
                 this._cancelStaleCheckInFlight();
-                this._liveAskBinding = undefined;
+                this._setLiveAskBinding(undefined);
                 // Fresh stale window -- the watchdog will re-fire and may post ask#2
                 this._watchdog?.resetProgress(now);
                 break;
@@ -1280,6 +1384,7 @@ export class StruggleInterventionService implements AlertSink {
                 const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
                 const episodeId = deliveredEp?.episodeId;
                 const exerciseId = this._deps.getExerciseId();
+                if (deliveredEp) { this.recordTerminalEpisode(deliveredEp, 'ABANDONED'); }
                 this._slot.free();
                 this._clearEpisodeRuntime();
                 if (episodeId && exerciseId !== undefined) {
@@ -1319,12 +1424,14 @@ export class StruggleInterventionService implements AlertSink {
         const liveAskEpisodeId = this._liveAskBinding!.episodeId;
         this._scheduleAbandon(newDeadline, liveAskEpisodeId, now);
         this._dbg(`  -> FREE-TEXT grace: ABANDON advanced (episodeId=${liveAskEpisodeId})`);
+        this.notifySlotDebugChanged();
 
         return {
             revoke: () => {
                 this._deadlineLatch.restore(prev);
                 // Reschedule for the restored deadline (supersedes the advance timer via isCurrent)
                 this._scheduleAbandon(prev, liveAskEpisodeId, Date.now());
+                this.notifySlotDebugChanged();
             },
         };
     }
@@ -1384,7 +1491,7 @@ export class StruggleInterventionService implements AlertSink {
      */
     reset(): void {
         this._buffer.clear();
-        this._inFlightMarker = undefined;
+        this._setInFlightMarker(undefined);
         this._candidate = undefined;
         this._lastSignal = undefined;
         this._deps.setBadge(false);
@@ -1407,14 +1514,18 @@ export class StruggleInterventionService implements AlertSink {
         this._revealRetryGen++;
         // C3: clear all slot + episode runtime state
         if (!this._slot.isFree()) {
+            const st = this._slot.snapshot().state;
+            if (st.kind === 'delivered') { this.recordTerminalEpisode(st.episode, 'INTERRUPTED'); }
+            else if (st.kind === 'parked') { this.recordTerminalEpisode(st.episode, 'DISCARDED'); }
             this._dbg('  -> RESET (new exercise): slot -> FREE');
             this._slot.free();
         }
         this._clearEpisodeRuntime();
         this._continuedEpisodeIds.clear();
         this._frozenSessionId = undefined;
-        this._pendingOutcomes.clear();
+        this._clearPendingOutcomes();
         this.reset();
+        this.notifySlotDebugChanged();
     }
 
     // -------------------------------------------------------------------------
@@ -1450,10 +1561,10 @@ export class StruggleInterventionService implements AlertSink {
             // Re-owe the work that was in-flight under DELIVERED semantics
             if (inflight.intent === 'confirm_close') {
                 // Re-owe as a DELIVERED progress close (not parked_progress)
-                this._owedConfirmClose = { confirmReason: 'progress' };
+                this._setOwedConfirmClose({ confirmReason: 'progress' });
             }
             // Clear the in-flight marker so the wire re-opens
-            this._inFlightMarker = undefined;
+            this._setInFlightMarker(undefined);
         }
 
         // Also reset the latch so it does not remain stuck in candidate-close
@@ -1462,7 +1573,7 @@ export class StruggleInterventionService implements AlertSink {
         // We set it above if needed; otherwise clear stale parked_progress
         if (this._owedConfirmClose?.confirmReason === 'parked_progress') {
             // Convert to delivered progress (same physical edge, new slot state)
-            this._owedConfirmClose = { confirmReason: 'progress' };
+            this._setOwedConfirmClose({ confirmReason: 'progress' });
         }
 
         // Transition PARKED -> DELIVERED (generation bump -- invalidates any accept() for old gen)
@@ -1473,6 +1584,7 @@ export class StruggleInterventionService implements AlertSink {
         if (this._watchdog) {
             this._watchdog.arm(Date.now(), false /* now delivered */);
         }
+        this.notifySlotDebugChanged();
 
         void this._deps.openSession(sessionId);
         this._deps.postRevealBubble(frozenText, localId);
@@ -1492,7 +1604,7 @@ export class StruggleInterventionService implements AlertSink {
         if (exerciseId === undefined) { return; }
         const { applied } = await this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome);
         if (!applied) {
-            this._pendingOutcomes.set(episodeId, { outcome });
+            this._setPendingOutcome(episodeId, { outcome });
             this._dbg(`  -> back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
         }
     }
@@ -1512,7 +1624,7 @@ export class StruggleInterventionService implements AlertSink {
         void this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome)
             .then(({ applied }) => {
                 if (!applied) {
-                    this._pendingOutcomes.set(episodeId, { outcome });
+                    this._setPendingOutcome(episodeId, { outcome });
                     this._dbg(`  -> back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
                 }
             })
@@ -1544,7 +1656,7 @@ export class StruggleInterventionService implements AlertSink {
             // Flush any pending terminal outcome recorded before the canonical row existed
             const pending = this._pendingOutcomes.get(episodeId);
             if (pending) {
-                this._pendingOutcomes.delete(episodeId);
+                this._deletePendingOutcome(episodeId);
                 this._dbg(`  -> back-fill flush: outcome=${pending.outcome} for episodeId=${episodeId}`);
                 try {
                     await this._deps.setEpisodeOutcome(exerciseId, episodeId, pending.outcome);
