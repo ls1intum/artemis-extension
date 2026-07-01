@@ -9,8 +9,8 @@ import { useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
 import styles from './ChatMessageList.module.css';
-import { EpisodeTimeline } from './EpisodeTimeline';
 import { type EpisodeOutcome, episodeTopic, outcomeMeta, rowOutcome } from './episodeSummary';
+import { EpisodeTimeline } from './EpisodeTimeline';
 import { groupByEpisode } from './groupProactiveMessages';
 import { MessageBubble } from './MessageBubble';
 import { StaleAskButtons } from './StaleAskButtons';
@@ -262,6 +262,7 @@ export function ChatMessageList({
                                             messages={[item.message]}
                                             episodeId={episodeId}
                                             dismissable
+                                            onDismiss={onDismiss}
                                             renderRowBody={timelineRowBody(renderBubble)}
                                         />
                                     );
@@ -290,6 +291,7 @@ export function ChatMessageList({
                                         messages={item.messages}
                                         episodeId={item.episodeId}
                                         dismissable
+                                        onDismiss={onDismiss}
                                         renderRowBody={timelineRowBody(renderBubble)}
                                     />
                                 );

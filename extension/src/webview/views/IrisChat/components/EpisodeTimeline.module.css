@@ -78,3 +78,49 @@
     padding-bottom: 14px;
     border-radius: 6px;
 }
+
+/* Hover/focus chrome: collapsed at rest, expands the row open with a short animation. The transition
+   DELAY lives on the resting state so collapse LINGERS ~0.4s (a grace window to reach Dismiss); the
+   hover/focus rule zeroes it so opening is immediate. `:focus-within` keeps it keyboard-reachable. */
+.foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-top: 0;
+    transition: max-height .16s ease .4s, opacity .16s ease .4s, margin-top .16s ease .4s;
+}
+
+.row:hover .foot,
+.row:focus-within .foot {
+    max-height: 28px;
+    opacity: 1;
+    margin-top: 6px;
+    transition: max-height .16s ease 0s, opacity .16s ease 0s, margin-top .16s ease 0s;
+}
+
+.row:hover .body,
+.row:focus-within .body {
+    background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+}
+
+.time {
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.dismiss {
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    padding: 2px 8px;
+    border: 1px solid var(--vscode-widget-border, transparent);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.dismiss:hover {
+    color: var(--vscode-foreground);
+}

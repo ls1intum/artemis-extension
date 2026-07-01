@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useChatStore } from '@webview/stores/useChatStore';
 import { EpisodeTimeline } from '@webview/views/IrisChat/components/EpisodeTimeline';
@@ -44,5 +44,26 @@ describe('EpisodeTimeline', () => {
         const messages = [msg(1), msg(2, { proactiveKind: 'stale-check' })];
         render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
         expect(document.querySelector('[data-node-state="pending"]')).not.toBeNull();
+    });
+});
+
+describe('EpisodeTimeline hover chrome', () => {
+    it('renders a timestamp on every row', () => {
+        render(<EpisodeTimeline messages={[msg(1), msg(2)]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
+        expect(screen.getAllByTestId('row-time').length).toBe(2);
+    });
+
+    it('shows exactly one Dismiss, on the latest row, only when dismissable', () => {
+        const onDismiss = vi.fn();
+        const messages = [msg(1), msg(2)];
+        const { rerender } = render(
+            <EpisodeTimeline messages={messages} episodeId="ep" dismissable onDismiss={onDismiss} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.getAllByRole('button', { name: 'Dismiss this suggestion' }).length).toBe(1);
+
+        rerender(
+            <EpisodeTimeline messages={messages} episodeId="ep" dismissable={false} onDismiss={onDismiss} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).toBeNull();
     });
 });

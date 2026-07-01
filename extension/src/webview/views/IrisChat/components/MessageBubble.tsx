@@ -61,6 +61,13 @@ function MessageBubbleComponent({
     const isDismissed = isProactive && message.proactiveOutcome === 'DISMISSED';
     // Grouped rows never collapse individually — the episode-level fold is the only collapse.
     const collapsible = isDismissed && !grouped;
+    const bodyVisible = !(collapsible && !expanded);
+    // Thumbs are removed from ALL proactive rows (spec: feedback off proactive; normal replies keep it).
+    const showThumbs = isAssistant && !isFailed && bodyVisible && !isProactive;
+    // A grouped (timeline) row never renders its own Dismiss — the EpisodeTimeline footer owns it. A
+    // non-grouped proactive bubble (proactive without an episode) still shows its Dismiss.
+    const showDismiss = isProactive && !grouped && !isDismissed && !message.staleAsk
+        && message.id !== undefined && !!onDismiss && bodyVisible && !isFailed;
 
     return (
         <div
@@ -121,45 +128,46 @@ function MessageBubbleComponent({
                         </>
                     )}
 
-                    {isAssistant && !isFailed && !(collapsible && !expanded) && (
+                    {(showThumbs || showDismiss) && (
                         <div className={clsx(styles.actionRow, { [styles.actionRowCard]: isProactive })}>
                             {/* Hover-revealed floating bar: absolutely positioned so it reserves no
                                 space in the resting state (no empty gap) and overhangs the bubble's
-                                bottom edge on hover. Thumbs on the left. */}
-                            <div className={styles.feedbackContainer}>
-                                <button
-                                    className={clsx(styles.feedbackButton, {
-                                        [styles.selected]: message.helpful === true,
-                                    })}
-                                    onClick={() => handleFeedback('positive')}
-                                    aria-label="Helpful"
-                                >
-                                    <ThumbsUp
-                                        size={16}
-                                        fill={message.helpful === true ? 'currentColor' : 'none'}
-                                    />
-                                </button>
-                                <button
-                                    className={clsx(styles.feedbackButton, {
-                                        [styles.selected]: message.helpful === false,
-                                    })}
-                                    onClick={() => handleFeedback('negative')}
-                                    aria-label="Not helpful"
-                                >
-                                    <ThumbsDown
-                                        size={16}
-                                        fill={message.helpful === false ? 'currentColor' : 'none'}
-                                    />
-                                </button>
-                            </div>
-                            {/* Dismiss sits to the right of the thumbs in the same bar.
-                                Hidden on stale-ask rows (those have their own quick-reply
-                                buttons instead, spec §7.2/C6) and on dismissed rows. */}
-                            {isProactive && !isDismissed && !message.staleAsk && message.id !== undefined && onDismiss && (
+                                bottom edge on hover. */}
+                            {showThumbs && (
+                                <div className={styles.feedbackContainer}>
+                                    <button
+                                        className={clsx(styles.feedbackButton, {
+                                            [styles.selected]: message.helpful === true,
+                                        })}
+                                        onClick={() => handleFeedback('positive')}
+                                        aria-label="Helpful"
+                                    >
+                                        <ThumbsUp
+                                            size={16}
+                                            fill={message.helpful === true ? 'currentColor' : 'none'}
+                                        />
+                                    </button>
+                                    <button
+                                        className={clsx(styles.feedbackButton, {
+                                            [styles.selected]: message.helpful === false,
+                                        })}
+                                        onClick={() => handleFeedback('negative')}
+                                        aria-label="Not helpful"
+                                    >
+                                        <ThumbsDown
+                                            size={16}
+                                            fill={message.helpful === false ? 'currentColor' : 'none'}
+                                        />
+                                    </button>
+                                </div>
+                            )}
+                            {/* Dismiss on a non-grouped proactive bubble (a grouped/timeline row's Dismiss lives
+                                in the EpisodeTimeline footer instead). */}
+                            {showDismiss && (
                                 <button
                                     type="button"
                                     className={styles.dismissButton}
-                                    onClick={() => onDismiss(message.id as number, message.proactiveEpisodeId)}
+                                    onClick={() => onDismiss?.(message.id as number, message.proactiveEpisodeId)}
                                     aria-label="Dismiss this suggestion"
                                 >
                                     Dismiss
@@ -196,7 +204,9 @@ function MessageBubbleComponent({
                 )}
             </div>
 
-            {hovering && (
+            {/* Per-message timestamps are suppressed inside an episode block: the bubbles are tight, so an
+                absolute-positioned time would overlap the neighbouring row. The block reads as one session. */}
+            {hovering && !grouped && (
                 <span className={styles.timestamp}>{relativeTime}</span>
             )}
         </div>

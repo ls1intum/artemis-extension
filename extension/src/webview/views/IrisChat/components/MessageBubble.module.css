@@ -60,8 +60,8 @@
     opacity: 0.85;
 }
 
-/* A proactive message rendered INSIDE an episode group (EpisodeBlock): flat, no nested tint or
-   rounded card — the block owns the tint, left rail and the single caption. */
+/* A proactive message rendered INSIDE an episode timeline: flat, no nested tint or rounded card
+   (the timeline owns the tint and the single caption; the row/node owns the layout). */
 .groupedBubble {
     background: transparent;
     padding: 4px 0;

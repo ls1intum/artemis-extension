@@ -31,16 +31,24 @@ describe('MessageBubble proactive', () => {
         expect(onDismiss).toHaveBeenCalledWith(7, undefined);
     });
 
-    it('renders the thumbs and Dismiss in one action bar, thumbs left and Dismiss right', () => {
+    it('removes thumbs from a proactive bubble but keeps Dismiss', () => {
         render(<MessageBubble message={proactive({ id: 7 })} onFeedback={() => {}} onDismiss={() => {}} />);
-        const thumbUp = screen.getByRole('button', { name: 'Helpful' });
-        const dismiss = screen.getByRole('button', { name: /dismiss/i });
+        expect(screen.queryByRole('button', { name: 'Helpful' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Not helpful' })).toBeNull();
+        expect(screen.getByRole('button', { name: /dismiss/i })).toBeInTheDocument();
+    });
 
-        // Thumbs and Dismiss share the action bar (visually revealed on hover via CSS),
-        // with Dismiss after the thumbs in document order.
-        const actionRow = thumbUp.parentElement?.parentElement;
-        expect(actionRow).toContainElement(dismiss);
-        expect(thumbUp.compareDocumentPosition(dismiss) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    it('in grouped mode renders NO bubble-level Dismiss (the timeline footer owns it)', () => {
+        render(<MessageBubble message={proactive({ id: 7 })} onFeedback={() => {}} onDismiss={() => {}} grouped />);
+        expect(screen.queryByRole('button', { name: /dismiss/i })).toBeNull();
+    });
+
+    it('keeps thumbs on a normal (non-proactive) assistant reply', () => {
+        const normal: ChatMessage = {
+            localId: 'n1', role: 'assistant', content: 'Here is the answer.', timestamp: 0, status: 'sent',
+        };
+        render(<MessageBubble message={normal} onFeedback={() => {}} />);
+        expect(screen.getByRole('button', { name: 'Helpful' })).toBeInTheDocument();
     });
 
     it('renders a dismissed proactive bubble collapsed but keeps the caption (never deleted)', () => {
