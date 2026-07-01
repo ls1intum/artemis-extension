@@ -303,13 +303,17 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// Closed: outcome word + a topic from the first hint; the messages stay hidden, no block caption yet.
-		expect(screen.getByText(/Dismissed/)).toBeInTheDocument();
+		// Closed: an icon-only outcome (its aria-label names it, no visible word) + a topic from the first
+		// hint; the messages stay hidden, no block caption yet.
+		expect(screen.getByRole('img', { name: 'Dismissed' })).toBeInTheDocument();
+		expect(screen.queryByText('Dismissed')).not.toBeInTheDocument();
 		expect(screen.getByText('In isValidSelection, fix the loop bound')).toBeInTheDocument();
 		expect(screen.queryByText('later stale-check')).not.toBeInTheDocument();
 		expect(screen.queryByText('Iris reached out')).not.toBeInTheDocument();
-		// Expand -> the shared block reveals the single caption and every message, but stays non-dismissable.
+		// Expand -> the outcome word now spells the icon out (visible text), and the shared block reveals
+		// the single caption and every message, but stays non-dismissable.
 		await userEvent.click(screen.getByRole('button', { name: /Dismissed/ }));
+		expect(screen.getByText('Dismissed')).toBeInTheDocument();
 		expect(screen.getByText('Iris reached out')).toBeInTheDocument();
 		expect(screen.getByText('later stale-check')).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
@@ -329,8 +333,8 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// A RECOVERED closed episode reads "Resolved".
-		expect(screen.getByText(/Resolved/)).toBeInTheDocument();
+		// A RECOVERED closed episode reads "Resolved" (icon-only while collapsed: named via aria-label).
+		expect(screen.getByRole('img', { name: 'Resolved' })).toBeInTheDocument();
 		const toggle = screen.getByRole('button');
 		expect(toggle).toHaveAttribute('aria-expanded', 'false');
 		await userEvent.click(toggle);

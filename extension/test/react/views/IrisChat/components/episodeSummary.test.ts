@@ -1,3 +1,7 @@
+import CircleCheck from 'lucide-react/dist/esm/icons/circle-check';
+import Hourglass from 'lucide-react/dist/esm/icons/hourglass';
+import Lightbulb from 'lucide-react/dist/esm/icons/lightbulb';
+import X from 'lucide-react/dist/esm/icons/x';
 import { describe, expect, it } from 'vitest';
 
 import { cleanTopic, episodeTopic, outcomeMeta, rowOutcome } from '@webview/views/IrisChat/components/episodeSummary';
@@ -29,13 +33,13 @@ describe('rowOutcome', () => {
 });
 
 describe('outcomeMeta', () => {
-    it('maps each outcome to glyph + word + tone', () => {
-        expect(outcomeMeta('RECOVERED')).toEqual({ glyph: '✓', word: 'Resolved', tone: 'success' });
-        expect(outcomeMeta('DISMISSED')).toEqual({ glyph: '✕', word: 'Dismissed', tone: 'muted' });
-        expect(outcomeMeta('ABANDONED')).toEqual({ glyph: '⧗', word: 'Timed out', tone: 'muted' });
+    it('maps each outcome to a lucide icon + word + tone', () => {
+        expect(outcomeMeta('RECOVERED')).toEqual({ Icon: CircleCheck, word: 'Resolved', tone: 'success' });
+        expect(outcomeMeta('DISMISSED')).toEqual({ Icon: X, word: 'Dismissed', tone: 'muted' });
+        expect(outcomeMeta('ABANDONED')).toEqual({ Icon: Hourglass, word: 'Timed out', tone: 'muted' });
     });
     it('maps undefined to a neutral "Earlier hint"', () => {
-        expect(outcomeMeta(undefined)).toEqual({ glyph: '·', word: 'Earlier hint', tone: 'neutral' });
+        expect(outcomeMeta(undefined)).toEqual({ Icon: Lightbulb, word: 'Earlier hint', tone: 'neutral' });
     });
 });
 

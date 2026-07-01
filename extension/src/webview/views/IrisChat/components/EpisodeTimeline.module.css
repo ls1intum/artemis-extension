@@ -1,0 +1,80 @@
+/* Open episode as a vertical timeline inside a faint tinted card (the "session" unit). No left
+   "AI line", no logo; a rail with per-message nodes carries the structure. */
+.timeline {
+    display: flex;
+    flex-direction: column;
+    margin: 8px 16px;
+    padding: 12px 14px 16px;
+    background: color-mix(in srgb, var(--vscode-charts-blue) 7%, transparent);
+    border-radius: 8px;
+}
+
+.caption {
+    color: var(--vscode-charts-blue);
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.85;
+    margin-bottom: 10px;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    column-gap: 11px;
+}
+
+/* The rail runs the full row height; it is capped at the first node (starts there) and the last node
+   (ends there) so the line does not overshoot the timeline ends. */
+.rail {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+.rail::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+}
+
+.row:first-of-type .rail::before { top: 8px; }
+.rowLast .rail::before { bottom: calc(100% - 8px); }
+
+.node {
+    position: relative;
+    z-index: 1;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-top: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nodeHint { background: var(--vscode-charts-blue); }
+.nodeSolved { background: var(--vscode-charts-green); }
+.nodeStill { background: var(--vscode-charts-blue); }
+
+.nodePending {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+    border: 1.5px solid var(--vscode-descriptionForeground);
+}
+
+.nodeIgnored {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+    border: 1.5px dashed var(--vscode-descriptionForeground);
+    opacity: 0.7;
+}
+
+.body {
+    padding-bottom: 14px;
+    border-radius: 6px;
+}

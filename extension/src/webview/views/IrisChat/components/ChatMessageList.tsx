@@ -9,6 +9,7 @@ import { useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
 import styles from './ChatMessageList.module.css';
+import { EpisodeTimeline } from './EpisodeTimeline';
 import { type EpisodeOutcome, episodeTopic, outcomeMeta, rowOutcome } from './episodeSummary';
 import { groupByEpisode } from './groupProactiveMessages';
 import { MessageBubble } from './MessageBubble';
@@ -16,34 +17,15 @@ import { StaleAskButtons } from './StaleAskButtons';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
 
-/**
- * The shared OPEN renderer for a proactive episode: ONE "Iris reached out" caption header plus
- * ALL the episode's messages under a subtle left rail (the "session" unit). Used both for a live
- * episode and when a folded episode is expanded. `dismissable` is true only for a live episode;
- * a re-opened closed episode passes false so no row exposes a Dismiss action.
- */
-function EpisodeBlock({
-    messages,
-    dismissable,
-    renderBubble,
-}: {
-    messages: ChatMessage[];
-    dismissable: boolean;
-    renderBubble: (message: ChatMessage, isLatest: boolean, grouped: boolean) => ReactNode;
-}) {
-    const latest = messages[messages.length - 1];
-    return (
-        <div className={styles.episodeBlock}>
-            <div className={styles.episodeCaption}>Iris reached out</div>
-            {messages.map((m) => renderBubble(m, dismissable && m === latest, true))}
-        </div>
-    );
-}
+/** Adapter: the timeline supplies (message, node, isLatest); the bubble is always rendered grouped. */
+type RenderBubble = (message: ChatMessage, isLatest: boolean, grouped: boolean) => ReactNode;
+const timelineRowBody = (renderBubble: RenderBubble) =>
+    (m: ChatMessage, _node: unknown, isLatest: boolean): ReactNode => renderBubble(m, isLatest, true);
 
 /**
  * Borderless summary line for a CLOSED (folded) episode (C7): a chevron plus the outcome
- * (Resolved / Dismissed / Timed out / Earlier hint) and a real topic. Expands into the shared
- * {@link EpisodeBlock} with Dismiss disabled (a closed episode is not re-dismissable).
+ * (Resolved / Dismissed / Timed out / Earlier hint) and a real topic. Expands into the
+ * {@link EpisodeTimeline} with Dismiss disabled (a closed episode is not re-dismissable).
  */
 function EpisodeFoldLine({
     messages,
@@ -62,6 +44,12 @@ function EpisodeFoldLine({
             ? styles.toneMuted
             : styles.toneNeutral;
     const topic = episodeTopic(messages, foldState?.episodeLabel);
+    const OutcomeIcon = meta.Icon;
+    // Collapsed: the icon IS the outcome, so it must name itself for AT. Expanded: the word is visible
+    // beside it and carries the meaning, so the icon becomes decorative (avoids a double announce).
+    const outcomeAria = expanded
+        ? ({ 'aria-hidden': true } as const)
+        : ({ role: 'img', 'aria-label': meta.word } as const);
     return (
         <div className={styles.episodeFold}>
             <button
@@ -73,11 +61,27 @@ function EpisodeFoldLine({
                 {expanded
                     ? <ChevronDown size={12} aria-hidden="true" />
                     : <ChevronRight size={12} aria-hidden="true" />}
-                <span className={clsx(styles.foldOutcome, toneClass)}>{meta.glyph} {meta.word}</span>
-                <span className={styles.foldSep}>·</span>
+                <span className={clsx(styles.foldOutcome, toneClass)} title={meta.word} {...outcomeAria}>
+                    <OutcomeIcon size={13} aria-hidden="true" />
+                </span>
+                {/* The word + separator only appear once expanded (they spell the icon out). Collapsed the
+                    icon sits right next to the topic, no floating dot. */}
+                {expanded && (
+                    <>
+                        <span className={clsx(styles.foldWord, toneClass)}>{meta.word}</span>
+                        <span className={styles.foldSep}>·</span>
+                    </>
+                )}
                 <span className={styles.foldTopic}>{topic}</span>
             </button>
-            {expanded && <EpisodeBlock messages={messages} dismissable={false} renderBubble={renderBubble} />}
+            {expanded && (
+                <EpisodeTimeline
+                    messages={messages}
+                    episodeId={messages[0]?.proactiveEpisodeId ?? ''}
+                    dismissable={false}
+                    renderRowBody={timelineRowBody(renderBubble)}
+                />
+            )}
         </div>
     );
 }
@@ -251,13 +255,14 @@ export function ChatMessageList({
                                             />
                                         );
                                     }
-                                    // Open live single-message episode: the grouped block (one message).
+                                    // Open live single-message episode: the timeline (one node).
                                     return (
-                                        <EpisodeBlock
+                                        <EpisodeTimeline
                                             key={`ep-${episodeId}`}
                                             messages={[item.message]}
+                                            episodeId={episodeId}
                                             dismissable
-                                            renderBubble={renderBubble}
+                                            renderRowBody={timelineRowBody(renderBubble)}
                                         />
                                     );
                                 }
@@ -278,13 +283,14 @@ export function ChatMessageList({
                                         />
                                     );
                                 }
-                                // Open live multi-message episode: one grouped block, all messages.
+                                // Open live multi-message episode: one timeline, all messages.
                                 return (
-                                    <EpisodeBlock
+                                    <EpisodeTimeline
                                         key={`ep-${item.episodeId}`}
                                         messages={item.messages}
+                                        episodeId={item.episodeId}
                                         dismissable
-                                        renderBubble={renderBubble}
+                                        renderRowBody={timelineRowBody(renderBubble)}
                                     />
                                 );
                             }

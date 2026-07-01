@@ -1,11 +1,21 @@
+import type { LucideIcon } from 'lucide-react';
+import CircleCheck from 'lucide-react/dist/esm/icons/circle-check';
+import Hourglass from 'lucide-react/dist/esm/icons/hourglass';
+import Lightbulb from 'lucide-react/dist/esm/icons/lightbulb';
+import X from 'lucide-react/dist/esm/icons/x';
+
 import type { ChatMessage } from '@webview/views/IrisChat/types';
 
 /** A proactive episode's terminal reaction (mirrors {@link ChatMessage.proactiveOutcome}). */
 export type EpisodeOutcome = NonNullable<ChatMessage['proactiveOutcome']>;
 
-/** Display metadata for a folded episode's outcome: a leading glyph, a short word, and a colour tone. */
+/**
+ * Display metadata for a folded episode's outcome: a Lucide icon (the only thing shown while collapsed),
+ * a short word (rendered as the icon's aria-label, and as visible text once the episode is expanded), and
+ * a colour tone.
+ */
 export interface OutcomeMeta {
-    glyph: string;
+    Icon: LucideIcon;
     word: string;
     tone: 'success' | 'muted' | 'neutral';
 }
@@ -25,13 +35,13 @@ export function rowOutcome(messages: ChatMessage[]): EpisodeOutcome | undefined 
     return out;
 }
 
-/** Glyph + word + tone for a folded episode's outcome (undefined = an old/neutral hint). */
+/** Icon + word + tone for a folded episode's outcome (undefined = an old/neutral hint). */
 export function outcomeMeta(outcome: EpisodeOutcome | undefined): OutcomeMeta {
     switch (outcome) {
-        case 'RECOVERED': return { glyph: '✓', word: 'Resolved', tone: 'success' };
-        case 'DISMISSED': return { glyph: '✕', word: 'Dismissed', tone: 'muted' };
-        case 'ABANDONED': return { glyph: '⧗', word: 'Timed out', tone: 'muted' };
-        default: return { glyph: '·', word: 'Earlier hint', tone: 'neutral' };
+        case 'RECOVERED': return { Icon: CircleCheck, word: 'Resolved', tone: 'success' };
+        case 'DISMISSED': return { Icon: X, word: 'Dismissed', tone: 'muted' };
+        case 'ABANDONED': return { Icon: Hourglass, word: 'Timed out', tone: 'muted' };
+        default: return { Icon: Lightbulb, word: 'Earlier hint', tone: 'neutral' };
     }
 }
 
