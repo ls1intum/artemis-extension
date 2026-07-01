@@ -25,6 +25,12 @@ interface MessageBubbleProps {
     retryDisabled?: boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes, spec §6.3). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
+    /**
+     * True when this bubble is rendered inside an episode group (EpisodeBlock): suppresses the
+     * per-message "Iris reached out" caption and the tinted card (the block owns both) and never
+     * collapses a DISMISSED row (the episode-level fold is the only collapse).
+     */
+    grouped?: boolean;
 }
 
 function MessageBubbleComponent({
@@ -33,6 +39,7 @@ function MessageBubbleComponent({
     onRetry,
     retryDisabled,
     onDismiss,
+    grouped,
 }: MessageBubbleProps) {
     const [hovering, setHovering] = useState(false);
     const [expanded, setExpanded] = useState(false);
@@ -52,6 +59,8 @@ function MessageBubbleComponent({
     const isFailed = message.status === 'error';
     const isProactive = isAssistant && message.origin === 'proactive';
     const isDismissed = isProactive && message.proactiveOutcome === 'DISMISSED';
+    // Grouped rows never collapse individually — the episode-level fold is the only collapse.
+    const collapsible = isDismissed && !grouped;
 
     return (
         <div
@@ -68,20 +77,21 @@ function MessageBubbleComponent({
                         [styles.userBubble]: isUser,
                         [styles.assistantBubble]: isAssistant,
                         [styles.error]: isFailed,
-                        [styles.proactiveBubble]: isProactive,
-                        [styles.proactiveDismissed]: isDismissed,
+                        [styles.proactiveBubble]: isProactive && !grouped,
+                        [styles.groupedBubble]: isProactive && grouped,
+                        [styles.proactiveDismissed]: collapsible,
                     })}
                     data-origin={isProactive ? 'proactive' : undefined}
                 >
-                    {isProactive && (
+                    {isProactive && !grouped && (
                         <div className={styles.proactiveCaption}>
-                            Iris reached out (you didn&apos;t ask)
+                            Iris reached out
                         </div>
                     )}
                     {/* A dismissed proactive bubble collapses (caption stays, body hidden behind a toggle);
                         every other message renders its content directly. The error footer below augments
                         the content instead of replacing it, so the user can see what they tried to send. */}
-                    {isDismissed && !expanded ? (
+                    {collapsible && !expanded ? (
                         <button
                             type="button"
                             className={styles.dismissedToggle}
@@ -99,7 +109,7 @@ function MessageBubbleComponent({
                                     {message.content}
                                 </Streamdown>
                             </div>
-                            {isDismissed && expanded && (
+                            {collapsible && expanded && (
                                 <button
                                     type="button"
                                     className={styles.dismissedToggle}
@@ -111,7 +121,7 @@ function MessageBubbleComponent({
                         </>
                     )}
 
-                    {isAssistant && !isFailed && !(isDismissed && !expanded) && (
+                    {isAssistant && !isFailed && !(collapsible && !expanded) && (
                         <div className={clsx(styles.actionRow, { [styles.actionRowCard]: isProactive })}>
                             {/* Hover-revealed floating bar: absolutely positioned so it reserves no
                                 space in the resting state (no empty gap) and overhangs the bubble's
@@ -209,6 +219,7 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.staleAsk === next.message.staleAsk &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
+        prev.grouped === next.grouped &&
         prev.retryDisabled === next.retryDisabled &&
         prev.onRetry === next.onRetry &&
         prev.onDismiss === next.onDismiss &&

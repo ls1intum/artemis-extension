@@ -113,7 +113,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
             deps.cancelOutstandingStruggleJob(exerciseId, requestToken),
         // C7: fold episode host->webview
-        foldEpisode: (episodeId, praise) => deps.foldEpisode(episodeId, praise),
+        foldEpisode: (episodeId, outcome, praise) => deps.foldEpisode(episodeId, outcome, praise),
         // C4: stale-row suppression
         postRemoveMessage: (id) => deps.postRemoveMessage(id),
         deleteSupersededProactiveMessage: (exerciseId, messageId) =>

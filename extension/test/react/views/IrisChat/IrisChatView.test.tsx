@@ -1153,15 +1153,16 @@ describe('IrisChatView', () => {
 
 			// No praise: should fold immediately
 			await act(async () => {
-				dispatchExtensionMessage({ type: 'foldEpisode', episodeId: 'ep-1' });
+				dispatchExtensionMessage({ type: 'foldEpisode', episodeId: 'ep-1', outcome: 'DISMISSED' });
 			});
 
 			// foldStates should have folded: true immediately (no timer)
 			expect(useChatStore.getState().foldStates.get('ep-1')?.folded).toBe(true);
 
-			// Fold line button renders with first 40 chars of content (no praise prefix)
+			// Fold line renders the threaded outcome (Dismissed) + a client-derived topic (no praise ✓ prefix).
 			const foldBtn = screen.getByRole('button', { name: /Use a different index here please/i });
 			expect(foldBtn).toBeInTheDocument();
+			expect(foldBtn.textContent).toContain('Dismissed');
 			expect(foldBtn.textContent).not.toMatch(/^\s*✓/);
 		});
 
@@ -1190,20 +1191,21 @@ describe('IrisChatView', () => {
 				dispatchExtensionMessage({
 					type: 'foldEpisode',
 					episodeId: 'ep-1',
+					outcome: 'RECOVERED',
 					praise: { episodeLabel: 'Wrong index', closeMessageId: 11 },
 				});
 			});
 
 			// Not yet folded (timer pending)
 			expect(useChatStore.getState().foldStates.get('ep-1')?.folded).toBe(false);
-			expect(screen.queryByRole('button', { name: /✓ Wrong index/i })).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: /Resolved.*Wrong index/i })).not.toBeInTheDocument();
 
 			// Advance 5 s
 			act(() => { vi.advanceTimersByTime(5000); });
 
 			// Now folded; praise fold line renders
 			expect(useChatStore.getState().foldStates.get('ep-1')?.folded).toBe(true);
-			expect(screen.getByRole('button', { name: /✓ Wrong index/i })).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: /Resolved.*Wrong index/i })).toBeInTheDocument();
 		});
 
 		it('foldEpisode with praise (order B: control arrives before close row) waits for row, then folds after 5 s', async () => {
@@ -1227,6 +1229,7 @@ describe('IrisChatView', () => {
 				dispatchExtensionMessage({
 					type: 'foldEpisode',
 					episodeId: 'ep-2',
+					outcome: 'RECOVERED',
 					praise: { episodeLabel: 'Wrong index', closeMessageId: 20 },
 				});
 			});
@@ -1239,7 +1242,7 @@ describe('IrisChatView', () => {
 			// flip folded to true; the correct implementation must keep folded=false.
 			act(() => { vi.advanceTimersByTime(5000); });
 			expect(useChatStore.getState().foldStates.get('ep-2')?.folded).toBe(false);
-			expect(screen.queryByRole('button', { name: /✓ Wrong index/i })).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: /Resolved.*Wrong index/i })).not.toBeInTheDocument();
 
 			// Close row arrives
 			await act(async () => {
@@ -1257,7 +1260,7 @@ describe('IrisChatView', () => {
 
 			// Now folded with praise label
 			expect(useChatStore.getState().foldStates.get('ep-2')?.folded).toBe(true);
-			expect(screen.getByRole('button', { name: /✓ Wrong index/i })).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: /Resolved.*Wrong index/i })).toBeInTheDocument();
 		});
 
 		it('episode on reload (no foldEpisode received) folds automatically with client-derived label', () => {
@@ -1311,13 +1314,7 @@ describe('IrisChatView', () => {
 				});
 			});
 
-			// Expand the toggle to see earlier messages
-			const toggle = screen.getByRole('button', { name: /show 1 earlier suggestion/i });
-			await act(async () => {
-				toggle.click();
-			});
-
-			// Earlier hint visible
+			// In the episode block every message is visible directly (no expand toggle).
 			expect(screen.getByText('Earlier hint')).toBeInTheDocument();
 
 			// Exactly one Dismiss button in the entire view
@@ -1391,6 +1388,7 @@ describe('IrisChatView', () => {
 				dispatchExtensionMessage({
 					type: 'foldEpisode',
 					episodeId: 'ep-unmount',
+					outcome: 'RECOVERED',
 					praise: { episodeLabel: 'Fixed it', closeMessageId: 20 },
 				});
 			});

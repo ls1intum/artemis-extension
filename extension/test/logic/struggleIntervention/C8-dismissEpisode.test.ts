@@ -3,10 +3,10 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import type { PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
 import type { StruggleInterventionDeps } from '@extension/services/struggleIntervention/struggleInterventionService';
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 import type { IrisChatMessage } from '@extension/types';
-import type { PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
 
 // ---------------------------------------------------------------------------
 // Fake-scheduler harness (mirrors C5: captures callback + delay for manual firing)
@@ -116,10 +116,10 @@ describe('C8: dismissEpisode', () => {
         await Promise.resolve();
         expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, 'ep-dismiss', 'DISMISSED');
         // Fold posted without praise
-        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-dismiss');
-        // NO praise (second arg absent or undefined)
+        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-dismiss', 'DISMISSED');
+        // NO praise (third arg absent or undefined; the second arg is now the outcome)
         const foldCall = (deps.foldEpisode as ReturnType<typeof vi.fn>).mock.calls[0];
-        expect(foldCall[1]).toBeUndefined();
+        expect(foldCall[2]).toBeUndefined();
     });
 
     it('_clearEpisodeRuntime: watchdog disarmed, owed-close cleared, live-ask binding cleared', async () => {
@@ -153,7 +153,7 @@ describe('C8: dismissEpisode', () => {
         expect(svc._slot.snapshot().state.kind).toBe('free');
         await Promise.resolve();
         expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, 'ep-noid', 'DISMISSED');
-        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-noid');
+        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-noid', 'DISMISSED');
     });
 
     it('double-dismiss (slot already free): safe no-op for slot, outcome write still fires (idempotent)', async () => {

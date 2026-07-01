@@ -5,8 +5,8 @@ import type { ChatMessage } from '@webview/views/IrisChat/types';
  *
  * `single` is any message rendered as its own bubble. `episode` groups ALL
  * proactive messages sharing the same `proactiveEpisodeId` regardless of
- * whether non-proactive turns sit between them (C6). The latest message is
- * visible; earlier ones hide behind the same expand toggle.
+ * whether non-proactive turns sit between them (C6). An open episode renders all
+ * its messages as one block; a folded episode collapses to a single summary line.
  */
 export type ChatRenderItem =
     | { kind: 'single'; message: ChatMessage }

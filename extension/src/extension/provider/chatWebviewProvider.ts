@@ -511,8 +511,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * With praise: waits for the close row identified by `closeMessageId` to
      * arrive, then starts a ~5 s timer before collapsing.
      */
-    postFoldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void {
-        this._postMessageSafe({ type: ExtensionMsg.FoldEpisode, episodeId, praise });
+    postFoldEpisode(
+        episodeId: string,
+        outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED',
+        praise?: { episodeLabel: string; closeMessageId: number },
+    ): void {
+        this._postMessageSafe({ type: ExtensionMsg.FoldEpisode, episodeId, outcome, praise });
     }
 
     /**

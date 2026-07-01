@@ -60,6 +60,14 @@
     opacity: 0.85;
 }
 
+/* A proactive message rendered INSIDE an episode group (EpisodeBlock): flat, no nested tint or
+   rounded card — the block owns the tint, left rail and the single caption. */
+.groupedBubble {
+    background: transparent;
+    padding: 4px 0;
+    border-radius: 0;
+}
+
 .content {
     composes: richContent from '../../../styles/richContent.module.css';
 }

@@ -237,7 +237,7 @@ describe('ChatMessageList', () => {
 		expect(screen.getByText('Answer')).toBeInTheDocument();
 	});
 
-	it('collapses proactive messages sharing a proactiveEpisodeId into one group, hiding earlier behind a toggle', () => {
+	it('renders a live multi-message episode as one block: all messages, one caption, no earlier-toggle', () => {
 		const messages = [
 			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
 			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 2' }, 1),
@@ -253,15 +253,16 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// Only the latest suggestion shows; earlier repeats are folded away.
+		// The whole episode is one block: every message is visible, nothing hidden behind a toggle.
+		expect(screen.getByText('Repeat 1')).toBeInTheDocument();
+		expect(screen.getByText('Repeat 2')).toBeInTheDocument();
 		expect(screen.getByText('Repeat 3 latest')).toBeInTheDocument();
-		expect(screen.queryByText('Repeat 1')).not.toBeInTheDocument();
-		expect(screen.queryByText('Repeat 2')).not.toBeInTheDocument();
-		// The toggle advertises how many earlier suggestions are folded.
-		expect(screen.getByText(/show 2 earlier suggestions/i)).toBeInTheDocument();
+		// Exactly one caption for the whole block, and no "show earlier" toggle.
+		expect(screen.getAllByText('Iris reached out')).toHaveLength(1);
+		expect(screen.queryByText(/earlier suggestion/i)).not.toBeInTheDocument();
 	});
 
-	it('collapses an episode even when a chat turn sits between the proactive messages', () => {
+	it('groups an episode into one block even when a chat turn sits between the proactive messages', () => {
 		const messages = [
 			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
 			makeMessage({ role: 'user', content: 'thanks' }, 1),
@@ -277,37 +278,46 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// Repeat 2 latest shows; Repeat 1 is folded away; user turn renders inline.
-		expect(screen.getByText('Repeat 2 latest')).toBeInTheDocument();
-		expect(screen.queryByText('Repeat 1')).not.toBeInTheDocument();
-		expect(screen.getByText('thanks')).toBeInTheDocument();
-		expect(screen.getByText(/show 1 earlier suggestion/i)).toBeInTheDocument();
-	});
-
-	it('expands the folded proactive repeats when the toggle is clicked', async () => {
-		const messages = [
-			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
-			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 2 latest' }, 1),
-		];
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
-		expect(screen.queryByText('Repeat 1')).not.toBeInTheDocument();
-		await userEvent.click(screen.getByRole('button', { name: /show 1 earlier suggestion/i }));
+		// Both proactive messages render inside one block; the user turn stays inline.
 		expect(screen.getByText('Repeat 1')).toBeInTheDocument();
+		expect(screen.getByText('Repeat 2 latest')).toBeInTheDocument();
+		expect(screen.getByText('thanks')).toBeInTheDocument();
+		expect(screen.getAllByText('Iris reached out')).toHaveLength(1);
 	});
 
-	it('flips the toggle label and aria-expanded between Show and Hide', async () => {
+	it('a closed (non-live) episode shows a borderless summary line and expands into the full block with NO Dismiss', async () => {
+		// ep-B is not in liveEpisodeIds -> it renders folded (closed). ids are set so a Dismiss button
+		// WOULD render if the block were dismissable; a reopened closed block must keep it off.
 		const messages = [
-			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 1' }, 0),
-			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Repeat 2 latest' }, 1),
+			makeMessage({ id: 50, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-B', content: 'In isValidSelection, fix the loop bound', proactiveOutcome: 'DISMISSED' }, 0),
+			makeMessage({ id: 51, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-B', content: 'later stale-check' }, 1),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				onDismiss={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		// Closed: outcome word + a topic from the first hint; the messages stay hidden, no block caption yet.
+		expect(screen.getByText(/Dismissed/)).toBeInTheDocument();
+		expect(screen.getByText('In isValidSelection, fix the loop bound')).toBeInTheDocument();
+		expect(screen.queryByText('later stale-check')).not.toBeInTheDocument();
+		expect(screen.queryByText('Iris reached out')).not.toBeInTheDocument();
+		// Expand -> the shared block reveals the single caption and every message, but stays non-dismissable.
+		await userEvent.click(screen.getByRole('button', { name: /Dismissed/ }));
+		expect(screen.getByText('Iris reached out')).toBeInTheDocument();
+		expect(screen.getByText('later stale-check')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
+	});
+
+	it('the closed fold-line chevron toggles aria-expanded and reads the outcome word', async () => {
+		const messages = [
+			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-B', content: 'A single closed hint', proactiveOutcome: 'RECOVERED' }, 0),
 		];
 		render(
 			<ChatMessageList
@@ -319,14 +329,15 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		const toggle = screen.getByRole('button', { name: /show 1 earlier suggestion/i });
+		// A RECOVERED closed episode reads "Resolved".
+		expect(screen.getByText(/Resolved/)).toBeInTheDocument();
+		const toggle = screen.getByRole('button');
 		expect(toggle).toHaveAttribute('aria-expanded', 'false');
 		await userEvent.click(toggle);
-		const collapse = screen.getByRole('button', { name: /hide earlier suggestions/i });
-		expect(collapse).toHaveAttribute('aria-expanded', 'true');
+		expect(toggle).toHaveAttribute('aria-expanded', 'true');
 	});
 
-	it('collapses an episode even when the latest proactive message is already dismissed', () => {
+	it('a live episode with a DISMISSED latest still shows all content in the block (no per-row collapse)', () => {
 		const messages = [
 			makeMessage({ role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-A', content: 'Earlier repeat' }, 0),
 			makeMessage(
@@ -344,13 +355,12 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// The episode still folds the earlier repeat behind the toggle.
-		expect(screen.getByText(/show 1 earlier suggestion/i)).toBeInTheDocument();
-		expect(screen.queryByText('Earlier repeat')).not.toBeInTheDocument();
-		// The dismissed latest renders collapsed: caption + "Show suggestion", body hidden.
-		expect(screen.getByText("Iris reached out (you didn't ask)")).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /show suggestion/i })).toBeInTheDocument();
-		expect(screen.queryByText('Latest secret body')).not.toBeInTheDocument();
+		// One block: the earlier repeat AND the dismissed latest are both visible (grouped = no per-row collapse).
+		expect(screen.getByText('Earlier repeat')).toBeInTheDocument();
+		expect(screen.getByText('Latest secret body')).toBeInTheDocument();
+		expect(screen.queryByText('Show suggestion')).not.toBeInTheDocument();
+		// One caption for the whole block.
+		expect(screen.getAllByText('Iris reached out')).toHaveLength(1);
 	});
 
 	it('does not collapse proactive messages that have no episodeId (renders each as a separate bubble)', () => {

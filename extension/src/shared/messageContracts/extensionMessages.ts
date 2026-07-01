@@ -499,6 +499,7 @@ interface ExtensionMsgPayloads {
      */
     foldEpisode: {
         episodeId: string;
+        outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED';
         praise?: { episodeLabel: string; closeMessageId: number };
     };
     /**

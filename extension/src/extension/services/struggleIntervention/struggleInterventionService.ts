@@ -134,7 +134,11 @@ export interface StruggleInterventionDeps {
      * Emit the host-to-webview fold signal for a terminal DELIVERED episode (C6/C7 renders).
      * praise is present for progress-close terminals; absent for dismiss/stale/force-free.
      */
-    foldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void;
+    foldEpisode(
+        episodeId: string,
+        outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED',
+        praise?: { episodeLabel: string; closeMessageId: number },
+    ): void;
     // ---- C4: stale-row suppression + stale-ask ----
     /**
      * Post a host->webview removeMessage{id} so the webview removes the stale row (if present)
@@ -727,7 +731,7 @@ export class StruggleInterventionService implements AlertSink {
                     const praise = (episodeLabel && closeMessageId !== undefined)
                         ? { episodeLabel, closeMessageId }
                         : undefined;
-                    this._deps.foldEpisode(liveEpisodeId, praise);
+                    this._deps.foldEpisode(liveEpisodeId, 'RECOVERED', praise);
                 }
             } else if (wasParked) {
                 // PARKED resolved=true: discard silently (no row, no fold, no outcome)
@@ -1053,7 +1057,7 @@ export class StruggleInterventionService implements AlertSink {
 
                 if (episodeId && exerciseId !== undefined) {
                     this._writeOutcomeWithBackfill(exerciseId, episodeId, 'ABANDONED');
-                    this._deps.foldEpisode(episodeId);
+                    this._deps.foldEpisode(episodeId, 'ABANDONED');
                 }
                 break;
             }
@@ -1296,7 +1300,7 @@ export class StruggleInterventionService implements AlertSink {
             this._clearEpisodeRuntime();
             if (targetEpisodeId && exerciseId !== undefined) {
                 this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, 'DISMISSED');
-                this._deps.foldEpisode(targetEpisodeId);
+                this._deps.foldEpisode(targetEpisodeId, 'DISMISSED');
             }
         } else if (targetEpisodeId && exerciseId !== undefined) {
             // Slot already FREE, PARKED, or episodeId mismatch: idempotent outcome write only.
@@ -1361,7 +1365,7 @@ export class StruggleInterventionService implements AlertSink {
             this._clearEpisodeRuntime();
             if (exerciseId !== undefined) {
                 this._writeOutcomeWithBackfill(exerciseId, epId, 'ABANDONED');
-                this._deps.foldEpisode(epId);
+                this._deps.foldEpisode(epId, 'ABANDONED');
             }
         }, delayMs);
     }
@@ -1409,7 +1413,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._clearEpisodeRuntime();
                 if (episodeId && exerciseId !== undefined) {
                     this._writeOutcomeWithBackfill(exerciseId, episodeId, 'ABANDONED');
-                    this._deps.foldEpisode(episodeId);
+                    this._deps.foldEpisode(episodeId, 'ABANDONED');
                 }
                 break;
             }

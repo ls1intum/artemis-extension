@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import type { ReactNode } from 'react';
@@ -8,84 +9,75 @@ import { useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
 import styles from './ChatMessageList.module.css';
+import { type EpisodeOutcome, episodeTopic, outcomeMeta, rowOutcome } from './episodeSummary';
 import { groupByEpisode } from './groupProactiveMessages';
 import { MessageBubble } from './MessageBubble';
 import { StaleAskButtons } from './StaleAskButtons';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
 
-/** Truncate message content to at most 40 chars for use as a fold-line label. */
-function deriveEpisodeLabel(content: string): string {
-    const t = content.trim().slice(0, 40);
-    return t.length > 0 ? t : 'Proactive hint';
-}
-
 /**
- * Renders a group of proactive Iris messages keyed by `proactiveEpisodeId`:
- * the latest suggestion shows in full, the earlier ones hide behind a toggle
- * so distinct help messages within one episode do not clutter the chat.
+ * The shared OPEN renderer for a proactive episode: ONE "Iris reached out" caption header plus
+ * ALL the episode's messages under a subtle left rail (the "session" unit). Used both for a live
+ * episode and when a folded episode is expanded. `dismissable` is true only for a live episode;
+ * a re-opened closed episode passes false so no row exposes a Dismiss action.
  */
-function ProactiveRunGroup({
-    earlier,
-    latest,
+function EpisodeBlock({
+    messages,
+    dismissable,
     renderBubble,
 }: {
-    earlier: ChatMessage[];
-    latest: ChatMessage;
-    renderBubble: (message: ChatMessage, isLatest: boolean) => ReactNode;
+    messages: ChatMessage[];
+    dismissable: boolean;
+    renderBubble: (message: ChatMessage, isLatest: boolean, grouped: boolean) => ReactNode;
 }) {
-    const [expanded, setExpanded] = useState(false);
-    const count = earlier.length;
-
+    const latest = messages[messages.length - 1];
     return (
-        <div className={styles.proactiveRun}>
-            <button
-                type="button"
-                className={styles.runToggle}
-                onClick={() => setExpanded((v) => !v)}
-                aria-expanded={expanded}
-            >
-                {expanded ? (
-                    <ChevronDown size={12} className={styles.runToggleIcon} aria-hidden="true" />
-                ) : (
-                    <ChevronRight size={12} className={styles.runToggleIcon} aria-hidden="true" />
-                )}
-                {expanded
-                    ? 'Hide earlier suggestions'
-                    : `Show ${count} earlier suggestion${count === 1 ? '' : 's'}`}
-            </button>
-            {expanded && earlier.map((m) => renderBubble(m, false))}
-            {renderBubble(latest, true)}
+        <div className={styles.episodeBlock}>
+            <div className={styles.episodeCaption}>Iris reached out</div>
+            {messages.map((m) => renderBubble(m, dismissable && m === latest, true))}
         </div>
     );
 }
 
 /**
- * Collapsible fold-line for a folded episode (C7). Shows a chevron toggle and
- * the episode summary label; expands to reveal the episode's messages.
+ * Borderless summary line for a CLOSED (folded) episode (C7): a chevron plus the outcome
+ * (Resolved / Dismissed / Timed out / Earlier hint) and a real topic. Expands into the shared
+ * {@link EpisodeBlock} with Dismiss disabled (a closed episode is not re-dismissable).
  */
 function EpisodeFoldLine({
-    label,
-    isPraise,
     messages,
+    foldState,
     renderBubble,
 }: {
-    label: string;
-    isPraise: boolean;
     messages: ChatMessage[];
-    renderBubble: (message: ChatMessage, isLatest: boolean) => ReactNode;
+    foldState: { folded: boolean; episodeLabel?: string; outcome?: EpisodeOutcome } | undefined;
+    renderBubble: (message: ChatMessage, isLatest: boolean, grouped: boolean) => ReactNode;
 }) {
     const [expanded, setExpanded] = useState(false);
-    const displayLabel = isPraise ? `✓ ${label}` : label;
+    const meta = outcomeMeta(foldState?.outcome ?? rowOutcome(messages));
+    const toneClass = meta.tone === 'success'
+        ? styles.toneSuccess
+        : meta.tone === 'muted'
+            ? styles.toneMuted
+            : styles.toneNeutral;
+    const topic = episodeTopic(messages, foldState?.episodeLabel);
     return (
         <div className={styles.episodeFold}>
-            <button type="button" className={styles.episodeFoldLine} onClick={() => setExpanded((v) => !v)}>
+            <button
+                type="button"
+                className={styles.episodeFoldLine}
+                onClick={() => setExpanded((v) => !v)}
+                aria-expanded={expanded}
+            >
                 {expanded
                     ? <ChevronDown size={12} aria-hidden="true" />
                     : <ChevronRight size={12} aria-hidden="true" />}
-                {displayLabel}
+                <span className={clsx(styles.foldOutcome, toneClass)}>{meta.glyph} {meta.word}</span>
+                <span className={styles.foldSep}>·</span>
+                <span className={styles.foldTopic}>{topic}</span>
             </button>
-            {expanded && messages.map((m) => renderBubble(m, false))}
+            {expanded && <EpisodeBlock messages={messages} dismissable={false} renderBubble={renderBubble} />}
         </div>
     );
 }
@@ -180,7 +172,7 @@ export function ChatMessageList({
         };
     }, []);
 
-    const renderBubble = (message: ChatMessage, isLatest = false): ReactNode => {
+    const renderBubble = (message: ChatMessage, isLatest = false, grouped = false): ReactNode => {
         // Dismiss gate (C7): suppress Dismiss on earlier group members and on the
         // closing row of a praise episode (the close row is a confirmation, not a hint).
         const isClosingRow =
@@ -199,6 +191,7 @@ export function ChatMessageList({
                         onRetry={onRetry}
                         onDismiss={canDismiss ? onDismiss : undefined}
                         retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
+                        grouped={grouped}
                     />
                     <StaleAskButtons
                         question={binding.question}
@@ -215,6 +208,7 @@ export function ChatMessageList({
                 onRetry={onRetry}
                 onDismiss={canDismiss ? onDismiss : undefined}
                 retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
+                grouped={grouped}
             />
         );
     };
@@ -246,48 +240,50 @@ export function ChatMessageList({
                                 const episodeId = item.message.proactiveEpisodeId;
                                 if (episodeId) {
                                     const foldState = foldStates.get(episodeId);
-                                    // Fold: either explicitly folded or not a live episode (reloaded).
+                                    // Closed: explicitly folded, or a reloaded (non-live) episode.
                                     if (foldState?.folded || !liveEpisodeIds.has(episodeId)) {
-                                        const label = foldState?.episodeLabel ?? deriveEpisodeLabel(item.message.content);
-                                        const isPraise = !!foldState?.episodeLabel;
                                         return (
                                             <EpisodeFoldLine
                                                 key={`fold-${episodeId}`}
-                                                label={label}
-                                                isPraise={isPraise}
                                                 messages={[item.message]}
+                                                foldState={foldState}
                                                 renderBubble={renderBubble}
                                             />
                                         );
                                     }
-                                }
-                                return renderBubble(item.message, true);
-                            }
-                            // item.kind === 'episode' (exhaustive: only 'single' and 'episode' exist)
-                            {
-                                const foldState = foldStates.get(item.episodeId);
-                                // Fold: either explicitly folded or not a live episode (reloaded).
-                                if (foldState?.folded || !liveEpisodeIds.has(item.episodeId)) {
-                                    const latest = item.messages[item.messages.length - 1];
-                                    const label = foldState?.episodeLabel ?? deriveEpisodeLabel(latest.content);
-                                    const isPraise = !!foldState?.episodeLabel;
+                                    // Open live single-message episode: the grouped block (one message).
                                     return (
-                                        <EpisodeFoldLine
-                                            key={`fold-${item.episodeId}`}
-                                            label={label}
-                                            isPraise={isPraise}
-                                            messages={item.messages}
+                                        <EpisodeBlock
+                                            key={`ep-${episodeId}`}
+                                            messages={[item.message]}
+                                            dismissable
                                             renderBubble={renderBubble}
                                         />
                                     );
                                 }
-                                const earlier = item.messages.slice(0, -1);
-                                const latest = item.messages[item.messages.length - 1];
+                                // Proactive without an episodeId, or a non-proactive turn: a plain bubble.
+                                return renderBubble(item.message, true, false);
+                            }
+                            // item.kind === 'episode' (exhaustive: only 'single' and 'episode' exist)
+                            {
+                                const foldState = foldStates.get(item.episodeId);
+                                // Closed: explicitly folded, or a reloaded (non-live) episode.
+                                if (foldState?.folded || !liveEpisodeIds.has(item.episodeId)) {
+                                    return (
+                                        <EpisodeFoldLine
+                                            key={`fold-${item.episodeId}`}
+                                            messages={item.messages}
+                                            foldState={foldState}
+                                            renderBubble={renderBubble}
+                                        />
+                                    );
+                                }
+                                // Open live multi-message episode: one grouped block, all messages.
                                 return (
-                                    <ProactiveRunGroup
-                                        key={item.episodeId}
-                                        earlier={earlier}
-                                        latest={latest}
+                                    <EpisodeBlock
+                                        key={`ep-${item.episodeId}`}
+                                        messages={item.messages}
+                                        dismissable
                                         renderBubble={renderBubble}
                                     />
                                 );

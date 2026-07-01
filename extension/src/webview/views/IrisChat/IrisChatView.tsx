@@ -209,7 +209,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
 
             case ExtensionMsg.FoldEpisode:
-                foldEpisode(msg.episodeId, msg.praise);
+                foldEpisode(msg.episodeId, msg.outcome, msg.praise);
                 break;
 
             case ExtensionMsg.SendRejected: {

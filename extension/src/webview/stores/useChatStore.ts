@@ -71,7 +71,7 @@ interface ChatState {
      * Reset in `clearMessages`; NOT populated in `applyLoadedMessages` (reloaded
      * episodes fold automatically via the `liveEpisodeIds` gate).
      */
-    foldStates: Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number }>;
+    foldStates: Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>;
     /**
      * Set of `proactiveEpisodeId` values that arrived via `addMessage` in this
      * session (C7). Episodes absent from this set are reloaded episodes and fold
@@ -145,7 +145,7 @@ interface ChatState {
      * praise: stores `episodeLabel` + `closeMessageId` and waits for the
      * `ChatMessageList` timer to fire after the close row arrives.
      */
-    foldEpisode: (episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }) => void;
+    foldEpisode: (episodeId: string, outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED', praise?: { episodeLabel: string; closeMessageId: number }) => void;
     /**
      * Mark an episode as folded after the ~5 s timer fires (C7). Called by
      * `ChatMessageList` when the close row is present and the delay has elapsed.
@@ -187,7 +187,7 @@ export const useChatStore = create<ChatState>()(
             messageLoad: null,
             suppressedIds: new Set<number>(),
             staleAskBindings: new Map<number, { askId: string; question: string }>(),
-            foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number }>(),
+            foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
             liveEpisodeIds: new Set<string>(),
             streaming: IDLE_STREAMING,
             irisStages: [],
@@ -323,17 +323,18 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'attachStaleAsk');
             },
 
-            foldEpisode: (episodeId, praise) => {
+            foldEpisode: (episodeId, outcome, praise) => {
                 set((state) => {
                     const nextFoldStates = new Map(state.foldStates);
                     if (praise) {
                         nextFoldStates.set(episodeId, {
                             folded: false,
+                            outcome,
                             episodeLabel: praise.episodeLabel,
                             closeMessageId: praise.closeMessageId,
                         });
                     } else {
-                        nextFoldStates.set(episodeId, { folded: true });
+                        nextFoldStates.set(episodeId, { folded: true, outcome });
                     }
                     return { foldStates: nextFoldStates };
                 }, false, 'foldEpisode');
@@ -355,7 +356,7 @@ export const useChatStore = create<ChatState>()(
                     messageLoad: null,
                     suppressedIds: new Set<number>(),
                     staleAskBindings: new Map<number, { askId: string; question: string }>(),
-                    foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number }>(),
+                    foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
                     liveEpisodeIds: new Set<string>(),
                     irisStages: [],
                     streaming: IDLE_STREAMING,

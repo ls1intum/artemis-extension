@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { classifyStruggleEvent, subscribeStruggleEvents } from '@extension/services/struggleIntervention/struggleEventSubscription';
-import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
-import type { StruggleInterventionDeps } from '@extension/services/struggleIntervention/struggleInterventionService';
 import type { InterventionEventLog } from '@extension/services/struggleIntervention/interventionEventLog';
 import type { PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
+import { classifyStruggleEvent, subscribeStruggleEvents } from '@extension/services/struggleIntervention/struggleEventSubscription';
+import type { StruggleInterventionDeps } from '@extension/services/struggleIntervention/struggleInterventionService';
+import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -474,7 +474,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
 
         expect(svc._slot.snapshot().state.kind).toBe('free');
         expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(1, 'ep-close', 'RECOVERED');
-        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', { episodeLabel: 'Well done!', closeMessageId: 55 });
+        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', 'RECOVERED', { episodeLabel: 'Well done!', closeMessageId: 55 });
     });
 
     it('DELIVERED resolved=true with no episodeLabel emits fold without praise', () => {
@@ -485,7 +485,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         svc.onServerClose('ep-close', true, undefined, undefined, undefined);
 
         // praise=undefined because both closeMessageId and episodeLabel are undefined
-        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', undefined);
+        expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', 'RECOVERED', undefined);
     });
 
     it('PARKED resolved=true calls discardParkedToFree: no message, no fold, no outcome', () => {

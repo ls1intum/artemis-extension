@@ -162,7 +162,7 @@ describe('C5: ABANDON latch + free-text grace + button routing', () => {
             // Slot should be free, outcome ABANDONED
             expect(svc._slot.isFree()).toBe(true);
             expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, episodeId, 'ABANDONED');
-            expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId);
+            expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId, 'ABANDONED');
         });
 
         it('is a no-op if the ask was already closed (stale timer)', () => {
@@ -410,7 +410,7 @@ describe('C5: ABANDON latch + free-text grace + button routing', () => {
 
             expect(svc._slot.isFree()).toBe(true);
             expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, episodeId, 'ABANDONED');
-            expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId);
+            expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId, 'ABANDONED');
         });
 
         it('stale askId is a no-op', async () => {

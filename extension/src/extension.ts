@@ -101,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
 			artemisApiService.cancelOutstandingStruggleJob(exerciseId, requestToken),
 		// C7: fold episode host->webview
-		foldEpisode: (episodeId, praise) => chatWebviewProvider?.postFoldEpisode(episodeId, praise),
+		foldEpisode: (episodeId, outcome, praise) => chatWebviewProvider?.postFoldEpisode(episodeId, outcome, praise),
 		// C4: stale-row suppression
 		postRemoveMessage: (id) => chatWebviewProvider?.postRemoveMessage(id),
 		deleteSupersededProactiveMessage: (exerciseId, messageId) =>

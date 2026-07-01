@@ -20,7 +20,7 @@ describe('MessageBubble proactive', () => {
     it('marks a proactive assistant bubble distinctly', () => {
         const { container } = render(<MessageBubble message={proactive()} onFeedback={() => {}} />);
         expect(container.querySelector('[data-origin="proactive"]')).not.toBeNull();
-        expect(container.textContent).toContain("Iris reached out (you didn't ask)");
+        expect(container.textContent).toContain('Iris reached out');
     });
 
     it('shows a Dismiss control on an un-dismissed proactive bubble', () => {
@@ -47,9 +47,23 @@ describe('MessageBubble proactive', () => {
         const { container } = render(
             <MessageBubble message={proactive({ id: 7, proactiveOutcome: 'DISMISSED', content: 'secret body' })} onFeedback={() => {}} />,
         );
-        expect(container.textContent).toContain("Iris reached out (you didn't ask)");
+        expect(container.textContent).toContain('Iris reached out');
         expect(container.textContent).not.toContain('secret body');
         // The dismissed bubble offers an expand toggle, NOT the Dismiss action (the toggle's label avoids "dismiss").
         expect(screen.queryByRole('button', { name: /dismiss/i })).toBeNull();
+    });
+
+    it('in grouped mode renders NO caption (the episode block owns the single header)', () => {
+        const { container } = render(<MessageBubble message={proactive()} onFeedback={() => {}} grouped />);
+        expect(container.textContent).not.toContain('Iris reached out');
+        expect(container.textContent).toContain('Have you checked the empty-list case?');
+    });
+
+    it('in grouped mode a DISMISSED row shows its content (no per-row collapse; the fold is the collapse)', () => {
+        const { container } = render(
+            <MessageBubble message={proactive({ id: 7, proactiveOutcome: 'DISMISSED', content: 'secret body' })} onFeedback={() => {}} grouped />,
+        );
+        expect(container.textContent).toContain('secret body');
+        expect(screen.queryByText('Show suggestion')).toBeNull();
     });
 });

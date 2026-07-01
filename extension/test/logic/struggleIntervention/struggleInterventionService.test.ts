@@ -1351,7 +1351,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc.onServerClose(episodeId, true, undefined, undefined, undefined);
 
         expect(svc._slot.isFree()).toBe(true);
-        expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId, undefined);
+        expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId, 'RECOVERED', undefined);
     });
 
     it('foldEpisode NOT emitted for PARKED terminal (silent discard, no visible artifact)', () => {

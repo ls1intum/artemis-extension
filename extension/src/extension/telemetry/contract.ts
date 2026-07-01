@@ -1,9 +1,10 @@
 import type * as vscode from 'vscode';
 
+import type { EpisodeHistoryEntry, ExtensionToWebviewMessage, SlotDebugSnapshot } from '@shared/messageContracts';
+
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
 import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
-import type { EpisodeHistoryEntry, ExtensionToWebviewMessage, SlotDebugSnapshot } from '@shared/messageContracts';
 
 /**
  * Public contract of the struggle-detection engine (Schicht 2/3 owner).
@@ -146,7 +147,11 @@ export interface StruggleEngineDeps {
      * Emit the host-to-webview fold signal for a terminal DELIVERED episode (C6/C7 renders).
      * praise is present for progress-close terminals; absent for dismiss/stale/force-free.
      */
-    foldEpisode(episodeId: string, praise?: { episodeLabel: string; closeMessageId: number }): void;
+    foldEpisode(
+        episodeId: string,
+        outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED',
+        praise?: { episodeLabel: string; closeMessageId: number },
+    ): void;
     // C4: stale-row suppression
     /**
      * Post a host->webview removeMessage{id} (C4 stale-row suppression).
