@@ -74,12 +74,13 @@ describe('StruggleDetectionView - slot and episode panels', () => {
         expect(screen.getByText('Episodes (this session)')).toBeInTheDocument();
     });
 
-    it('hides both panels when embedded:true', () => {
+    it('renders the live panels when embedded:true (sender-aware feed)', () => {
         const api = createMockVsCodeApi();
         render(<StruggleDetectionView vscodeApi={api} />);
         act(() => dispatchExtensionMessage(init({ embedded: true })));
-        expect(screen.queryByText('Slot (live)')).not.toBeInTheDocument();
-        expect(screen.queryByText('Episodes (this session)')).not.toBeInTheDocument();
+        expect(screen.getByText('Slot (live)')).toBeInTheDocument();
+        expect(screen.getByText('Episodes (this session)')).toBeInTheDocument();
+        expect(screen.getByText(/Live Engine View/i)).toBeInTheDocument();
     });
 
     it('hides both panels when developerMode:false', () => {

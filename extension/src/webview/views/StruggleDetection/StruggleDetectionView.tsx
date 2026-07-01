@@ -202,20 +202,19 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
             {/* Developer-only slot state panel: live intervention slot view.
                 Owns its own subscribe/unsubscribe lifecycle (ref-counted alongside LiveEngineSection).
-                Hidden in the embedded editor-tab copy. */}
-            {data.developerMode && !data.embedded && <SlotPanel vscodeApi={vscodeApi} collapsible defaultCollapsed={false} />}
+                Renders in both the sidebar and the fullscreen editor-tab copy (feed is sender-aware). */}
+            {data.developerMode && <SlotPanel vscodeApi={vscodeApi} collapsible defaultCollapsed={false} />}
 
             {/* Developer-only episode history panel: terminated episodes for this session.
                 Pure presentational; the View fans msg.episodes from the slot broadcast down as a prop.
-                Hidden in the embedded editor-tab copy. */}
-            {data.developerMode && !data.embedded && <EpisodeHistoryPanel episodes={episodes} collapsible defaultCollapsed />}
+                Renders in both the sidebar and the fullscreen editor-tab copy (feed is sender-aware). */}
+            {data.developerMode && <EpisodeHistoryPanel episodes={episodes} collapsible defaultCollapsed />}
 
             {/* Developer-only live engine view (curve + current-tick gate panel).
                 Owns its own subscribe/unsubscribe lifecycle; the parent must NOT
                 post struggleLiveSubscribe (avoids the listener-before-subscribe race).
-                Hidden in the embedded editor-tab copy: that panel has no live feed wired,
-                so the chart would sit empty (user chose dashboard-only for the pop-out). */}
-            {data.developerMode && !data.embedded && <LiveEngineSection vscodeApi={vscodeApi} collapsible defaultCollapsed />}
+                Renders in both the sidebar and the fullscreen editor-tab copy (feed is sender-aware). */}
+            {data.developerMode && <LiveEngineSection vscodeApi={vscodeApi} collapsible defaultCollapsed />}
 
             {/* Developer tools */}
             {__IRIS_RECORDING__ && data.developerMode && (

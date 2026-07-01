@@ -88,13 +88,13 @@ describe('StruggleDetectionView', () => {
         expect(screen.queryByTitle('Open in Editor')).not.toBeInTheDocument();
     });
 
-    it('embedded copy hides the back-link, pop-out button and live chart but keeps the pipeline and timers', () => {
+    it('embedded copy hides the back-link and pop-out button but now shows the live sections (sender-aware feed)', () => {
         const api = createMockVsCodeApi();
         render(<StruggleDetectionView vscodeApi={api} />);
         act(() => dispatchExtensionMessage(init({ embedded: true })));
         expect(screen.queryByText('Back to Dashboard')).not.toBeInTheDocument();
         expect(screen.queryByTitle('Open in Editor')).not.toBeInTheDocument();
-        expect(screen.queryByText(/Live Engine View/i)).not.toBeInTheDocument();
+        expect(screen.getByText(/Live Engine View/i)).toBeInTheDocument();
         expect(screen.getByText('Decision flow')).toBeInTheDocument();   // pipeline fed by init data
         expect(screen.getByText(/Engine timers/i)).toBeInTheDocument();
     });
