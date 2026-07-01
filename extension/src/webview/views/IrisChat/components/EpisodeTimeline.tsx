@@ -51,8 +51,13 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
                     })
                     : undefined;
                 const kind: NodeKind = stale ? 'checkin' : 'hint';
+                // Dismiss shows only on the latest live row, and never on: the close/praise row, an
+                // already-dismissed row, or a stale-ask row (which has its own quick-reply buttons).
+                const isClosingRow = m.id !== undefined && fold?.closeMessageId === m.id;
+                const showDismiss = dismissable && isLatest && m.id !== undefined && !!onDismiss
+                    && !isClosingRow && m.proactiveOutcome !== 'DISMISSED' && !m.staleAsk;
                 return (
-                    <div key={m.localId} className={clsx(styles.row, isLatest && styles.rowLast)}>
+                    <div key={m.localId} data-episode-row className={clsx(styles.row, isLatest && styles.rowLast)}>
                         <div className={styles.rail}>
                             <span
                                 className={clsx(styles.node, nodeClass(kind, state))}
@@ -74,12 +79,12 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
                                 Collapsed at rest; the row expands it open with a short animation (see CSS). */}
                             <div className={styles.foot}>
                                 <span className={styles.time} data-testid="row-time">{formatRelativeTime(m.timestamp)}</span>
-                                {dismissable && isLatest && m.id !== undefined && onDismiss && (
+                                {showDismiss && (
                                     <button
                                         type="button"
                                         className={styles.dismiss}
                                         aria-label="Dismiss this suggestion"
-                                        onClick={() => onDismiss(m.id as number, m.proactiveEpisodeId)}
+                                        onClick={() => onDismiss?.(m.id as number, m.proactiveEpisodeId)}
                                     >
                                         Dismiss
                                     </button>

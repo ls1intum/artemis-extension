@@ -1159,10 +1159,13 @@ describe('IrisChatView', () => {
 			// foldStates should have folded: true immediately (no timer)
 			expect(useChatStore.getState().foldStates.get('ep-1')?.folded).toBe(true);
 
-			// Fold line renders the threaded outcome (Dismissed) + a client-derived topic (no praise ✓ prefix).
+			// Fold line renders the threaded outcome (Dismissed) as an icon-only affordance while collapsed,
+			// so "Dismissed" is the accessible name (aria-label), not visible text, plus a client-derived topic.
 			const foldBtn = screen.getByRole('button', { name: /Use a different index here please/i });
 			expect(foldBtn).toBeInTheDocument();
-			expect(foldBtn.textContent).toContain('Dismissed');
+			expect(foldBtn).toHaveAccessibleName(/Dismissed/);
+			// Collapsed shows no outcome word and no praise glyph in the visible text.
+			expect(foldBtn.textContent).not.toMatch(/Dismissed/);
 			expect(foldBtn.textContent).not.toMatch(/^\s*✓/);
 		});
 
@@ -1321,14 +1324,14 @@ describe('IrisChatView', () => {
 			const allDismissButtons = screen.queryAllByRole('button', { name: 'Dismiss this suggestion' });
 			expect(allDismissButtons.length).toBe(1);
 
-			// The single Dismiss button is scoped to the Latest hint bubble, not the Earlier hint bubble.
-			// data-origin="proactive" is the attribute on the bubble div inside MessageBubble.
-			const earlierBubble = screen.getByText('Earlier hint').closest('[data-origin="proactive"]') as HTMLElement | null;
-			const latestBubble = screen.getByText('Latest hint').closest('[data-origin="proactive"]') as HTMLElement | null;
-			expect(earlierBubble).not.toBeNull();
-			expect(latestBubble).not.toBeNull();
-			expect(within(earlierBubble!).queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
-			expect(within(latestBubble!).getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
+			// The single Dismiss lives in the latest row's timeline footer (a sibling of the bubble), not the
+			// earlier row. Each timeline row is marked with data-episode-row.
+			const earlierRow = screen.getByText('Earlier hint').closest('[data-episode-row]') as HTMLElement | null;
+			const latestRow = screen.getByText('Latest hint').closest('[data-episode-row]') as HTMLElement | null;
+			expect(earlierRow).not.toBeNull();
+			expect(latestRow).not.toBeNull();
+			expect(within(earlierRow!).queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
+			expect(within(latestRow!).getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
 
 			expect(useChatStore.getState().liveEpisodeIds.has('ep-g')).toBe(true);
 		});
