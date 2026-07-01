@@ -92,6 +92,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
         softThreshold: TUNING.softThreshold,
         pauseStrikes: TUNING.pauseStrikes,
+        // Slot + progress-close tuning live in config.ts (TUNING.slot). TUNING.slot is a superset that
+        // satisfies both StaleConfig and ProgressCloseCfg, so it feeds both deps; the orchestrator's
+        // DEFAULT_SLOT_CFG / DEFAULT_PROGRESS_CFG remain fallbacks for test stubs that omit these.
+        slotCfg: TUNING.slot,
+        progressCloseCfg: TUNING.slot,
         setBadge: on => deps.setProactiveBadge(on),
         showActiveNotification: () => showActiveNotification(
             () => orchestrator.recordOutcome('clicked'),

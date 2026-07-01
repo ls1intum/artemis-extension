@@ -118,8 +118,11 @@ export const TUNING = {
      *
      * staleAfterMs    [ENG] provisional -- how long the slot must sit in DELIVERED
      *                 without a free-text reply before the watchdog considers it stale
-     *                 ("sustained while"); ~45 s is a reasonable first guess (two
-     *                 conversational turns worth of silence).
+     *                 ("sustained while"). 90 s: a dense Socratic hint takes real time to
+     *                 READ and make a first attempt, and a reading pause is indistinguishable
+     *                 from being stuck (both are high f_gap -> high sBase), so a shorter
+     *                 window nagged students mid-reading. The ~10 s tick grid adds up to that,
+     *                 so the effective first check-in lands near 100 s.
      * staleWindowMax  [ENG] max stale-ask rounds before the watchdog force-closes the
      *                 slot without waiting for a student reply.
      * staleAskCap     [ENG] max number of stale-ask pings sent within one stale window.
@@ -141,7 +144,7 @@ export const TUNING = {
      * Ordering invariant (enforced by test): abandonFreeTextMs < abandonInitialMs < abandonCeilingMs.
      */
     slot: {
-        staleAfterMs: 45_000,       // [ENG] provisional "sustained while"
+        staleAfterMs: 90_000,       // [ENG] provisional "sustained while" (read + first attempt window)
         staleWindowMax: 4,          // [ENG]
         staleAskCap: 2,             // [ENG]
         abandonInitialMs: 60_000,   // [ENG]

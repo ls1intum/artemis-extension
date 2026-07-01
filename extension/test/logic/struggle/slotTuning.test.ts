@@ -24,7 +24,7 @@ describe('TUNING.slot knobs', () => {
 
     it('matches the provisional default values', () => {
         expect(TUNING.slot).toMatchObject({
-            staleAfterMs: 45_000,
+            staleAfterMs: 90_000,
             staleWindowMax: 4,
             staleAskCap: 2,
             abandonInitialMs: 60_000,

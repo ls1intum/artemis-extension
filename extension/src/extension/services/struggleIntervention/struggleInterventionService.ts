@@ -176,7 +176,7 @@ export interface StruggleInterventionDeps {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_SLOT_CFG: StaleConfig = {
-    staleAfterMs: 45_000,
+    staleAfterMs: 90_000,
     staleWindowMax: 4,
     staleAskCap: 2,
     // C5: ABANDON timer defaults (mirrors TUNING.slot; injected so tests can override)
