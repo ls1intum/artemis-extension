@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { newEpisode } from '@extension/services/struggleIntervention/slot/episode';
-import type { SlotState } from '@extension/services/struggleIntervention/slot/slotManager';
 import type { Decision } from '@extension/services/struggleIntervention/slot/reconcile';
 import { reconcile } from '@extension/services/struggleIntervention/slot/reconcile';
+import type { SlotState } from '@extension/services/struggleIntervention/slot/slotManager';
 
 // ---------------------------------------------------------------------------
 // Fixtures

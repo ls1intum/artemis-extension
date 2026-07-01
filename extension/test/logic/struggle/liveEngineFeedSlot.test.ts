@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
+
 import { ExtensionMsg } from '@shared/messageContracts';
+
+import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
 
 function makeFeed() {
     const posts: any[] = [];

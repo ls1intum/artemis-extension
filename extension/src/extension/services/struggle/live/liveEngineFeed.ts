@@ -3,8 +3,8 @@ import * as vscode from 'vscode';
 import type { EpisodeHistoryEntry, LiveTick, SlotDebugSnapshot } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 
-import type { Sink } from '@extension/telemetry/contract';
 import type { TickRecord } from '@extension/services/struggle/types';
+import type { Sink } from '@extension/telemetry/contract';
 
 import { toLiveDecisionTrace } from './traceMap';
 

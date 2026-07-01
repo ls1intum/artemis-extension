@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { ProgressCloseLatch } from '@extension/services/struggleIntervention/slot/progressClose';
 import type { ProgressCloseCfg } from '@extension/services/struggleIntervention/slot/progressClose';
+import { ProgressCloseLatch } from '@extension/services/struggleIntervention/slot/progressClose';
 
 const BASE_CFG: ProgressCloseCfg = { reArmSBase: 0.4, reArmHoldMs: 5_000 };
 

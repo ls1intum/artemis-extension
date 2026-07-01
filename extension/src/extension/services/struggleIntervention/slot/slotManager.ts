@@ -1,5 +1,5 @@
-import { addHint } from './episode';
 import type { Episode, EpisodeHint, Level, SlotGeneration } from './episode';
+import { addHint } from './episode';
 
 // ---------------------------------------------------------------------------
 // Public types

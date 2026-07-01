@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { addHint, markContinuation, newEpisode, toRequestEpisode } from '@extension/services/struggleIntervention/slot/episode';
 import type { EpisodeHint } from '@extension/services/struggleIntervention/slot/episode';
+import { addHint, markContinuation, newEpisode, toRequestEpisode } from '@extension/services/struggleIntervention/slot/episode';
 
 describe('episode model', () => {
     const idgen = () => 'ep-1';

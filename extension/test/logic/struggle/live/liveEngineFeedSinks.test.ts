@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import * as vscode from 'vscode';
+import { describe, expect, it } from 'vitest';
 
 import { ExtensionMsg } from '@shared/messageContracts';
 
