@@ -295,6 +295,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     };
 
     const handleStaleAskButton = (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => {
+        // Optimistically record the answer so the live check-in node differentiates immediately
+        // (the host also persists it via Route B for reload). Match the askId to its bound row.
+        for (const [messageId, binding] of store.staleAskBindings) {
+            if (binding.askId === askId) { store.setStaleAnswer(messageId, button); break; }
+        }
         postCommand(vscodeApi, 'staleAskButton', { askId, button });
     };
 

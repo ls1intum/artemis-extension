@@ -46,6 +46,17 @@ export interface ChatMessage {
      * from plain hint cards. NOT persisted to the server; absent on reload.
      */
     staleAsk?: boolean;
+    /**
+     * Durable-on-this-machine proactive sub-kind. `'stale-check'` marks the "still there?"
+     * check-in row; absence (or `'hint'`) means a hint. Re-attached on history load from the
+     * extension-local staleCheckStore (Route B); NOT persisted server-side.
+     */
+    proactiveKind?: 'hint' | 'stale-check';
+    /**
+     * The student's quick-reply to a stale-check row, if answered. Re-attached on reload from
+     * the staleCheckStore. Live, the answer instead comes from the store's runtime `staleAnswers`.
+     */
+    staleAnswer?: 'solved' | 'still-on-it' | 'something-else';
 }
 
 // Chat session summary (from extension)

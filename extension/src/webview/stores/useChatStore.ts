@@ -64,6 +64,12 @@ interface ChatState {
      */
     staleAskBindings: Map<number, { askId: string; question: string }>;
     /**
+     * Runtime-only map from Artemis message id to the student's stale-check quick-reply, captured
+     * optimistically on click so the live check-in node flips immediately. Reset with the other
+     * runtime maps; on reload the answer instead comes from the message's `staleAnswer` field.
+     */
+    staleAnswers: Map<number, 'solved' | 'still-on-it' | 'something-else'>;
+    /**
      * Runtime-only fold state per proactive episode (C7). Keyed by
      * `proactiveEpisodeId`. `folded: true` collapses the group to a summary
      * fold-line. When `closeMessageId` is set (praise path), the group stays
@@ -139,6 +145,8 @@ interface ChatState {
      * `staleAsk: true` when the row eventually arrives.
      */
     attachStaleAsk: (messageId: number, askId: string, question: string) => void;
+    /** Record the student's stale-check quick-reply optimistically (live node differentiation). */
+    setStaleAnswer: (messageId: number, answer: 'solved' | 'still-on-it' | 'something-else') => void;
     /**
      * Record a fold instruction for an episode (C7). Called when the host sends
      * `FoldEpisode`. Without praise: folds immediately (`folded: true`). With
@@ -187,6 +195,7 @@ export const useChatStore = create<ChatState>()(
             messageLoad: null,
             suppressedIds: new Set<number>(),
             staleAskBindings: new Map<number, { askId: string; question: string }>(),
+            staleAnswers: new Map<number, 'solved' | 'still-on-it' | 'something-else'>(),
             foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
             liveEpisodeIds: new Set<string>(),
             streaming: IDLE_STREAMING,
@@ -323,6 +332,13 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'attachStaleAsk');
             },
 
+            setStaleAnswer: (messageId, answer) =>
+                set((state) => {
+                    const next = new Map(state.staleAnswers);
+                    next.set(messageId, answer);
+                    return { staleAnswers: next };
+                }, false, 'setStaleAnswer'),
+
             foldEpisode: (episodeId, outcome, praise) => {
                 set((state) => {
                     const nextFoldStates = new Map(state.foldStates);
@@ -356,6 +372,7 @@ export const useChatStore = create<ChatState>()(
                     messageLoad: null,
                     suppressedIds: new Set<number>(),
                     staleAskBindings: new Map<number, { askId: string; question: string }>(),
+                    staleAnswers: new Map<number, 'solved' | 'still-on-it' | 'something-else'>(),
                     foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
                     liveEpisodeIds: new Set<string>(),
                     irisStages: [],
