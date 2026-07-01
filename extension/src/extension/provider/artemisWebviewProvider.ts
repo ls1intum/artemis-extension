@@ -515,7 +515,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
-        this._messageHandler.handleMessage(message);
+        // Route through the same serialized sender queue as the fullscreen path, binding the sidebar's
+        // stable sender. This keeps getCurrentSender() correct: with all command processing serialized on
+        // one queue, a sidebar command can never observe a fullscreen handleMessageWithSender override
+        // (which persists across its await), so the struggle-live sink is always captured per-host correctly.
+        void this._messageHandler.handleMessageWithSender(message, this._sidebarSender);
     }
 
     // ── Private: Helpers ───────────────────────────────────────────────
