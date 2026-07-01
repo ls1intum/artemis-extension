@@ -124,3 +124,34 @@
 .dismiss:hover {
     color: var(--vscode-foreground);
 }
+
+/* Pending check-in affordance (Timer style B): a thin bar that quietly depletes over the abandon
+   window, plus a muted caption. No numeric countdown (that would pressure a learner). */
+.timerbar {
+    height: 2px;
+    border-radius: 2px;
+    margin-top: 9px;
+    max-width: 240px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--vscode-descriptionForeground) 25%, transparent);
+}
+
+.timerbar > i {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: color-mix(in srgb, var(--vscode-descriptionForeground) 60%, transparent);
+    transform-origin: left;
+    animation: checkinDeplete 60s linear forwards;
+}
+
+@keyframes checkinDeplete {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+.timerhint {
+    color: var(--vscode-descriptionForeground);
+    font-size: 10.5px;
+    margin-top: 4px;
+}

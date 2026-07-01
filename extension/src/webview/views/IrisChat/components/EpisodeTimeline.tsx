@@ -62,6 +62,14 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
                         </div>
                         <div className={styles.body}>
                             {renderRowBody(m, { kind, state }, dismissable && isLatest)}
+                            {/* Pending check-in: a subtle depleting bar + caption (Timer style B). The quick-reply
+                                buttons come from renderRowBody (the live StaleAskButtons). */}
+                            {state === 'pending' && (
+                                <>
+                                    <div className={styles.timerbar} data-testid="checkin-timer" aria-hidden="true"><i /></div>
+                                    <div className={styles.timerhint}>closes silently after ~60s</div>
+                                </>
+                            )}
                             {/* Hover/focus chrome: per-message timestamp, plus Dismiss only on the latest live row.
                                 Collapsed at rest; the row expands it open with a short animation (see CSS). */}
                             <div className={styles.foot}>

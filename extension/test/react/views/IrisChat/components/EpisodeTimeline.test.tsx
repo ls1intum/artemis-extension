@@ -53,6 +53,18 @@ describe('EpisodeTimeline hover chrome', () => {
         expect(screen.getAllByTestId('row-time').length).toBe(2);
     });
 
+    it('a pending check-in shows the timer bar and the "closes silently" caption', () => {
+        render(<EpisodeTimeline messages={[msg(1), msg(2, { proactiveKind: 'stale-check' })]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
+        expect(screen.getByTestId('checkin-timer')).toBeInTheDocument();
+        expect(screen.getByText(/closes silently/i)).toBeInTheDocument();
+    });
+
+    it('a resolved check-in shows neither the timer bar nor the caption', () => {
+        render(<EpisodeTimeline messages={[msg(1), msg(2, { proactiveKind: 'stale-check', staleAnswer: 'solved' })]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
+        expect(screen.queryByTestId('checkin-timer')).toBeNull();
+        expect(screen.queryByText(/closes silently/i)).toBeNull();
+    });
+
     it('shows exactly one Dismiss, on the latest row, only when dismissable', () => {
         const onDismiss = vi.fn();
         const messages = [msg(1), msg(2)];
