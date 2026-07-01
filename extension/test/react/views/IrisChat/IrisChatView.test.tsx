@@ -198,6 +198,27 @@ describe('IrisChatView', () => {
 		});
 	});
 
+	it('preserves proactiveKind/staleAnswer through history-load hydration (Route B round-trip)', async () => {
+		useChatStore.setState({ activeSessionId: 'local-test' });
+		const mockApi = createMockVsCodeApi();
+		render(<IrisChatView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'loadMessages',
+			localSessionId: 'local-test',
+			artemisSessionId: 42,
+			messages: [
+				{ id: 55, role: 'assistant', content: 'still there?', timestamp: Date.now(), origin: 'proactive', proactiveEpisodeId: 'ep-r', proactiveKind: 'stale-check', staleAnswer: 'solved' },
+			],
+		});
+
+		await waitFor(() => {
+			const stored = useChatStore.getState().messages.find((m) => m.id === 55);
+			expect(stored?.proactiveKind).toBe('stale-check');
+			expect(stored?.staleAnswer).toBe('solved');
+		});
+	});
+
 	it('adds a single message from addMessage extension event', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);

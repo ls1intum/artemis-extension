@@ -79,6 +79,16 @@
     border-radius: 6px;
 }
 
+/* Small uppercase kind tag at the top of each row: "Hint" for a hint node, "Check-in" for a stale-check. */
+.rowLabel {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 4px;
+}
+
 /* Hover/focus chrome: collapsed at rest, expands the row open with a short animation. The transition
    DELAY lives on the resting state so collapse LINGERS ~0.4s (a grace window to reach Dismiss); the
    hover/focus rule zeroes it so opening is immediate. `:focus-within` keeps it keyboard-reachable. */

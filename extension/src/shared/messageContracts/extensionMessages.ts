@@ -416,6 +416,9 @@ interface ExtensionMsgPayloads {
             origin?: 'proactive';
             proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
             proactiveEpisodeId?: string;
+            /** Route B: re-attached on history load so a reloaded stale-check keeps its differentiated node. */
+            proactiveKind?: 'hint' | 'stale-check';
+            staleAnswer?: 'solved' | 'still-on-it' | 'something-else';
         }>;
     };
     loadMessagesError: { localSessionId: string };

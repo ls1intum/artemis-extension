@@ -66,6 +66,7 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
                             />
                         </div>
                         <div className={styles.body}>
+                            <div className={styles.rowLabel}>{kind === 'checkin' ? 'Check-in' : 'Hint'}</div>
                             {renderRowBody(m, { kind, state }, dismissable && isLatest)}
                             {/* Pending check-in: a subtle depleting bar + caption (Timer style B). The quick-reply
                                 buttons come from renderRowBody (the live StaleAskButtons). */}

@@ -133,6 +133,9 @@ export function ChatMessageList({
     // Read the live stale-ask bindings from the store directly (C6). The map is
     // runtime-only (absent after reload), so bindings never render on historical rows.
     const staleAskBindings = useChatStore((s) => s.staleAskBindings);
+    // Live quick-reply answers: once a check-in is answered its buttons retire (the binding stays so the
+    // timeline node still reads as a differentiated check-in).
+    const staleAnswers = useChatStore((s) => s.staleAnswers);
 
     // Read fold states and live episode tracking (C7).
     const foldStates = useChatStore((s) => s.foldStates);
@@ -186,7 +189,10 @@ export function ChatMessageList({
         const canDismiss = isLatest && !isClosingRow;
 
         const binding = message.id !== undefined ? staleAskBindings.get(message.id) : undefined;
-        if (binding) {
+        // Retire the quick replies once answered (live via staleAnswers, or on a reloaded answered row):
+        // the row keeps its binding so it still reads as a check-in, but the buttons no longer render.
+        const answered = (message.id !== undefined && staleAnswers.has(message.id)) || message.staleAnswer !== undefined;
+        if (binding && !answered) {
             return (
                 <Fragment key={message.localId}>
                     <MessageBubble

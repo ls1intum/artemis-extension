@@ -136,6 +136,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         origin: m.origin,
                         proactiveOutcome: m.proactiveOutcome,
                         proactiveEpisodeId: m.proactiveEpisodeId,
+                        // Route B: keep the re-attached stale-check kind/answer so a reloaded episode stays differentiated.
+                        proactiveKind: m.proactiveKind,
+                        staleAnswer: m.staleAnswer,
                         status: 'sent' as const,
                     })),
                 );
