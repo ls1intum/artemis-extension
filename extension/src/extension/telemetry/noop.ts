@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, StruggleEngineHandle } from './contract';
+import type { ILiveEngineFeed, IStruggleCoordinator, Sink, StruggleEngineDeps, StruggleEngineHandle } from './contract';
 import { NoopStruggleCoordinator } from './noopStruggleCoordinator';
 
 /**
@@ -28,12 +28,12 @@ export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineH
 /** No-op live feed in the clean build: no engine, so nothing ever streams. */
 export function createLiveEngineFeed(
     _coordinator: IStruggleCoordinator,
-    _post: (msg: unknown) => void,
     _isDeveloperMode: () => boolean,
 ): ILiveEngineFeed {
     return {
-        subscribe() { /* no engine in the clean build */ },
-        unsubscribe() { /* no engine in the clean build */ },
+        subscribe(_sink: Sink) { /* no engine in the clean build */ },
+        unsubscribe(_sink: Sink) { /* no engine in the clean build */ },
+        dropSink(_sink: Sink) { /* no engine in the clean build */ },
         setSessionActive(_active: boolean) { /* no engine in the clean build */ },
         setSlotProvider() { /* no engine in the clean build */ },
         pushSlotUpdate() { /* no engine in the clean build */ },

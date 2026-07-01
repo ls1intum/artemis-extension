@@ -3,7 +3,7 @@ import type * as vscode from 'vscode';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
 import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
-import type { EpisodeHistoryEntry, SlotDebugSnapshot } from '@shared/messageContracts';
+import type { EpisodeHistoryEntry, ExtensionToWebviewMessage, SlotDebugSnapshot } from '@shared/messageContracts';
 
 /**
  * Public contract of the struggle-detection engine (Schicht 2/3 owner).
@@ -32,6 +32,16 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
 >;
 
 /**
+ * A function that receives a live-feed message. Used as the unit of subscription
+ * identity in the Map<Sink, refcount> model: each webview registers its own
+ * stable send function as a sink so the feed can fan out to multiple panels.
+ * Typed as ExtensionToWebviewMessage because the feed only ever posts protocol
+ * messages; this matches the actual sender signatures and avoids contravariance
+ * issues under strict TypeScript.
+ */
+export type Sink = (msg: ExtensionToWebviewMessage) => void;
+
+/**
  * Live engine-decision feed for the developer-mode struggle view, behind the
  * `@telemetry` seam so the clean build never imports the real
  * {@link LiveEngineFeed} (it lives under the build-excluded
@@ -39,10 +49,12 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
  * no-op factory returns an inert stub.
  */
 export interface ILiveEngineFeed {
-    /** Reset the webview chart and stream the buffered + live ticks. */
-    subscribe(): void;
-    /** Stop streaming live ticks (the buffer keeps filling). */
-    unsubscribe(): void;
+    /** Reset the webview chart and stream the buffered + live ticks to this sink. */
+    subscribe(sink: Sink): void;
+    /** Decrement the ref-count for this sink; remove it when the count reaches zero. */
+    unsubscribe(sink: Sink): void;
+    /** Remove this sink unconditionally (host-teardown backstop). Silent no-op if absent. */
+    dropSink(sink: Sink): void;
     /** Report whether an exercise session is active. A fresh session (false->true)
      *  resets the chart buffer; either transition updates the webview's session
      *  indicator (when subscribed in developer mode). */

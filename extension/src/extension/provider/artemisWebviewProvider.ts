@@ -91,6 +91,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;
 
+    /**
+     * Stable sender reference for the sidebar webview. Created once in the ctor
+     * and reused on every re-resolve so the feed's Map<Sink, refcount> always
+     * sees the same key for the sidebar.
+     */
+    private readonly _sidebarSender: (m: ExtensionToWebviewMessage) => void;
+
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
 
@@ -116,6 +123,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Constructor ────────────────────────────────────────────────────
     constructor(deps: ArtemisWebviewProviderDeps) {
         super();
+        // One stable closure created immediately so the feed's Map<Sink,refcount>
+        // always sees the same key for this sidebar host across re-resolves.
+        this._sidebarSender = (m) => this._postMessageSafe(m);
         this._extensionUri = deps.extensionUri;
         this._extensionContext = deps.extensionContext;
         this._authManager = deps.authManager;
@@ -210,7 +220,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         //     buffer so the chart restarts with the session.
         this._liveEngineFeed = createLiveEngineFeed(
             this._struggleCoordinator,
-            (msg) => this._postMessageSafe(msg as ExtensionToWebviewMessage),
             () => this._isDeveloperMode(),
         );
         this._disposables.push(
@@ -353,10 +362,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         webviewView.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, webviewView.webview);
 
-        // Set up message sender for the message handler (using safe posting)
-        this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
-            this._postMessageSafe(message);
-        });
+        // Reuse the stable sidebar sender so the feed's Map<Sink,refcount>
+        // always sees the same function reference for this host.
+        this._messageHandler.setMessageSender(this._sidebarSender);
 
         // Check for existing authentication and auto-login if valid
         this._authFlowHandler.checkExistingAuthentication();
@@ -549,6 +557,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 ];
                 return new vscode.Disposable(() => { for (const s of subs) { s.dispose(); } });
             },
+            // Drop the panel's postSafe from the feed on panel close so the Map entry
+            // is cleaned up even if the React side did not send an unsubscribe command.
+            (postSafe) => this._liveEngineFeed.dropSink(postSafe),
         );
     }
 

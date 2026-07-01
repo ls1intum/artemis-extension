@@ -31,12 +31,23 @@ export interface CommandContext {
     courseDataCache?: CourseDataCache;
     courseAccessStorage?: CourseAccessStorageService;
     /**
-     * Live engine-decision feed for the developer-mode struggle view. Subscribe
-     * streams buffered + live ticks to the webview; unsubscribe stops the stream.
-     * Optional: absent in the clean (no-engine) build and in tests that don't
-     * exercise the live view.
+     * Live engine-decision feed for the developer-mode struggle view. Each
+     * subscriber registers a stable sender function as a sink; the feed fans
+     * out to all registered sinks. Optional: absent in the clean (no-engine)
+     * build and in tests that don't exercise the live view.
      */
-    struggleLiveFeed?: { subscribe(): void; unsubscribe(): void };
+    struggleLiveFeed?: {
+        subscribe(sink: (msg: ExtensionToWebviewMessage) => void): void;
+        unsubscribe(sink: (msg: ExtensionToWebviewMessage) => void): void;
+        dropSink(sink: (msg: ExtensionToWebviewMessage) => void): void;
+    };
+    /**
+     * Returns the sender function that is currently active for this host
+     * (i.e. the function that will be used to post the next message to the
+     * webview). Used by subscribe/unsubscribe handlers to register a stable
+     * per-panel identity rather than a transient closure.
+     */
+    getCurrentSender(): (m: ExtensionToWebviewMessage) => void;
     /** Durable per-exercise proactive on/off preference (client-side, spec §12.2). Absent in tests that don't need it. */
     proactivePreference?: ProactivePreferenceService;
     /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. */

@@ -120,6 +120,7 @@ export class FullscreenPanelManager {
     public openStruggleFullscreen(
         buildInit: () => ExtensionToWebviewMessage,
         subscribeRefresh: (refresh: () => void) => vscode.Disposable,
+        onPanelDispose?: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void,
     ): void {
         let refreshSub: vscode.Disposable | undefined;
         this._openFullscreenPanel({
@@ -131,7 +132,7 @@ export class FullscreenPanelManager {
                 // onReady can fire again on a RequestInit; only wire the refresh subscription once.
                 if (!refreshSub) { refreshSub = subscribeRefresh(() => postSafe(buildInit())); }
             },
-            onDispose: () => { refreshSub?.dispose(); refreshSub = undefined; },
+            onDispose: (postSafe) => { refreshSub?.dispose(); refreshSub = undefined; onPanelDispose?.(postSafe); },
         });
     }
 
@@ -140,7 +141,7 @@ export class FullscreenPanelManager {
         title: string;
         viewName: string;
         onReady: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void;
-        onDispose?: () => void;
+        onDispose?: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void;
     }): void {
         const panel = vscode.window.createWebviewPanel(
             options.viewType,
@@ -201,10 +202,7 @@ export class FullscreenPanelManager {
             }
 
             if (message.type === 'command') {
-                this._getMessageHandler().handleMessageWithSender(
-                    message,
-                    (resp: ExtensionToWebviewMessage) => postSafe(resp)
-                );
+                this._getMessageHandler().handleMessageWithSender(message, postSafe, () => !disposed);
             }
         });
 
@@ -212,7 +210,7 @@ export class FullscreenPanelManager {
             disposed = true;
             pendingMessages = [];
             messageListener.dispose();
-            options.onDispose?.();
+            options.onDispose?.(postSafe);
         });
 
         this._extensionContext.subscriptions.push(panel);

@@ -155,11 +155,13 @@ export class NavigationCommandModule {
     };
 
     private handleStruggleLiveSubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        this.context.struggleLiveFeed?.subscribe();
+        const sink = this.context.getCurrentSender();
+        this.context.struggleLiveFeed?.subscribe(sink);
     };
 
     private handleStruggleLiveUnsubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        this.context.struggleLiveFeed?.unsubscribe();
+        const sink = this.context.getCurrentSender();
+        this.context.struggleLiveFeed?.unsubscribe(sink);
     };
 
     private handleShowRecommendedExtensions = async (_message: WebviewToExtensionMessage): Promise<void> => {

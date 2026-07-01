@@ -257,10 +257,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
  */
 export function createLiveEngineFeed(
     coordinator: IStruggleCoordinator,
-    post: (msg: unknown) => void,
     isDeveloperMode: () => boolean,
 ): ILiveEngineFeed {
-    return new LiveEngineFeed(coordinator, post, isDeveloperMode);
+    return new LiveEngineFeed(coordinator, isDeveloperMode);
 }
 
 /** Registers the struggle-score debug command (full build only). */

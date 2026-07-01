@@ -25,9 +25,10 @@ function fakeTick(t: number, over: any = {}): any {
 function makeLiveWiringHarness() {
     const emitter = new vscode.EventEmitter<any>();
     const posted: any[] = [];
-    const feed = new LiveEngineFeed({ onDidTick: emitter.event }, m => posted.push(m), () => true, 600);
-    // Minimal context: only struggleLiveFeed is touched by the two routes.
-    const ctx = { struggleLiveFeed: feed } as unknown as CommandContext;
+    const sink = (m: any) => posted.push(m);
+    const feed = new LiveEngineFeed({ onDidTick: emitter.event }, () => true, 600);
+    // Minimal context: only struggleLiveFeed + getCurrentSender are touched by the two routes.
+    const ctx = { struggleLiveFeed: feed, getCurrentSender: () => sink } as unknown as CommandContext;
     const handlers = new NavigationCommandModule(ctx).getHandlers();
     const handleCommand = (command: WebviewCmd): Promise<void> =>
         handlers[command]({ type: 'command', command } as WebviewToExtensionMessage);
