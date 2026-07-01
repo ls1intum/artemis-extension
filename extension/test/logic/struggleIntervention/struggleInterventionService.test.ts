@@ -460,6 +460,24 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearInline).toHaveBeenCalled();
         expect(deps.openSession).toHaveBeenCalledWith(8);
     });
+
+    // Terminal-cleanup: the inline cue is episode-scoped, so every terminal exit must retire it.
+    // All terminal exits (RECOVERED close, watchdog/ABANDON force-free, dismiss, stale-ask
+    // "something-else", new-exercise) funnel through _clearEpisodeRuntime(), so one representative
+    // path (dismissEpisode) proves the shared seam clears the standing cue.
+    it('a terminal episode exit retires the standing inline cue (no reliance on a later file edit)', () => {
+        const deps = fakeDeps({ isAnchorLive: () => true });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
+        expect(deps.showInline).toHaveBeenCalled();     // an inline cue is standing on the DELIVERED slot
+        vi.mocked(deps.clearInline).mockClear();        // ignore any setup stale-cue clear
+
+        svc.dismissEpisode();                           // terminal exit -> _clearEpisodeRuntime()
+
+        expect(deps.clearInline).toHaveBeenCalled();    // the standing cue is retired at the episode end
+        expect(svc._slot.isFree()).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------

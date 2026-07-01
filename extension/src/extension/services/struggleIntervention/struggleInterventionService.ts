@@ -1,7 +1,8 @@
 import type { Uri } from 'vscode';
 
-import { ApiError } from '@extension/domain';
 import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, SlotDebugSnapshot } from '@shared/messageContracts';
+
+import { ApiError } from '@extension/domain';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { IrisChatMessage } from '@extension/types';
@@ -14,11 +15,11 @@ import type { Episode } from './slot/episode';
 import { markContinuation, newEpisode } from './slot/episode';
 import type { PendingStamp } from './slot/guard';
 import { DeadlineLatch, InFlightGuard } from './slot/guard';
-import { routeReply } from './slot/replyRouting';
 import type { ProgressCloseCfg } from './slot/progressClose';
 import { ProgressCloseLatch } from './slot/progressClose';
 import type { ReconcileAction } from './slot/reconcile';
 import { reconcile } from './slot/reconcile';
+import { routeReply } from './slot/replyRouting';
 import { SlotManager } from './slot/slotManager';
 import type { StaleConfig } from './slot/staleWatchdog';
 import { StaleWatchdog } from './slot/staleWatchdog';
@@ -1188,8 +1189,15 @@ export class StruggleInterventionService implements AlertSink {
      * owed requests, and the live-ask binding (which neutralises any pending ABANDON timers).
      * Also performs a scoped server-side cancel for any in-flight request so the job slot is
      * freed. revealParkedHint is NOT terminal and cancels its own in-flight separately.
+     *
+     * Clears the episode-scoped inline cue too: the after-line hint (DELIVERED) or gutter pointer
+     * (PARKED) belongs to the episode, so every terminal exit (RECOVERED close, watchdog/ABANDON
+     * force-free, dismiss, stale-ask "something-else", new-exercise) retires it here in one place.
+     * Previously this relied on the student's next file edit firing the decoration's own edit
+     * listener, which left a stale cue when the episode resolved without an edit (e.g. solved in chat).
      */
     private _clearEpisodeRuntime(): void {
+        this._deps.clearInline();
         this._latch.reset();
         this._watchdog?.disarm();
         this._watchdog = undefined;

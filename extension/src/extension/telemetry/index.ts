@@ -124,15 +124,16 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         onSlotChange: () => slotChangeSink(),
     });
 
-    // Inline-hover action links (spec §4.1, §5.2): Open chat engages (clears backoff), Dismiss → backoff; both
-    // remove the cue. Registered behind the seam so extension.ts never imports the intervention surface.
+    // Inline-hover action links (spec §4.1, §5.2): Open chat engages (clears backoff) and KEEPS the cue as a
+    // standing reference; only Dismiss (→ backoff) removes it here. The cue still retires on its other
+    // lifecycle events (student edit, new episode, terminal episode exit). Registered behind the seam so
+    // extension.ts never imports the intervention surface.
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             orchestrator.recordOutcome('clicked');
             // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
             // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
             void orchestrator.revealParkedHint();
-            inline.clear();
             void vscode.commands.executeCommand('iris.chatView.focus');
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
