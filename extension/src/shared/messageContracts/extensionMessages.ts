@@ -140,10 +140,10 @@ export interface StruggleDebugSnapshot {
 }
 
 /**
- * In-flight request state for a slot (decision, confirm-close, or stale-check).
+ * In-flight request state for a slot (decision or confirm-close).
  */
 export interface SlotInFlightDebug {
-    intent: 'decide' | 'confirm_close' | 'stale_check';
+    intent: 'decide' | 'confirm_close';
     localToken: number;
     episodeId: string;
     generation: number;
@@ -164,9 +164,8 @@ export interface SlotDebugSnapshot {
     isNew: boolean;
     inSession: boolean;
     watchdog: { armed: boolean; staleDeadlineMs: number | null };
-    abandon: { armed: boolean; deadlineMs: number | null };
     inFlight: SlotInFlightDebug | null;
-    owed: { confirmClose: boolean; staleCheck: boolean };
+    owed: { confirmClose: boolean };
     pendingOutcomes: number;
 }
 
@@ -251,7 +250,6 @@ export const ExtensionMsg = {
     SendRejected: 'sendRejected',
     FoldEpisode: 'foldEpisode',
     RemoveMessage: 'removeMessage',
-    AddStaleAsk: 'addStaleAsk',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -416,9 +414,6 @@ interface ExtensionMsgPayloads {
             origin?: 'proactive';
             proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
             proactiveEpisodeId?: string;
-            /** Route B: re-attached on history load so a reloaded stale-check keeps its differentiated node. */
-            proactiveKind?: 'hint' | 'stale-check';
-            staleAnswer?: 'solved' | 'still-on-it' | 'something-else';
         }>;
     };
     loadMessagesError: { localSessionId: string };
@@ -512,13 +507,6 @@ interface ExtensionMsgPayloads {
      * chat-ws row with the same id arriving after the drop is never inserted.
      */
     removeMessage: { id: number };
-    /**
-     * Posted by the extension host when the server confirms a stale-ask row (C4/C5).
-     * The webview attaches quick-reply buttons (Solved / Still on it / Something else)
-     * to the persisted row identified by `messageId`. `askId` is a runtime-local token
-     * minted per ask; a button click echoes it back so the host can verify liveness.
-     */
-    addStaleAsk: { episodeId: string; askId: string; messageId: number; question: string };
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

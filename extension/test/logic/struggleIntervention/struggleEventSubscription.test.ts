@@ -57,10 +57,9 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         // C3 slot-continuity deps (no-ops for these tests)
         cancelOutstandingStruggleJob: vi.fn(async () => undefined),
         foldEpisode: vi.fn(),
-        // C4: stale-row suppression + stale-ask (no-ops for most tests)
+        // C4: stale-row suppression (no-op for most tests)
         postRemoveMessage: vi.fn(),
         deleteSupersededProactiveMessage: vi.fn(async () => undefined),
-        postStaleAsk: vi.fn(),
         ...overrides,
     };
 }
@@ -96,18 +95,6 @@ function simulateParkedWithClosePending(svc: StruggleInterventionService, episod
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'confirm_close', localToken };
 }
 
-/**
- * Set up a synthetic in-flight 'stale_check' with slot in DELIVERED state.
- */
-function simulateDeliveredWithStalePending(svc: StruggleInterventionService, episodeId = 'ep-stale'): void {
-    simulateDecidePending(svc, episodeId);
-    svc.onServerActive(42, undefined, undefined, undefined, undefined, 'Iris has a hint.', 100);
-    const gen = svc._slot.generation();
-    const requestToken = 'stale-request-token';
-    const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken };
-    const localToken = svc._guard.issue('stale_check', stamp);
-    svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'stale_check', localToken };
-}
 
 // ---------------------------------------------------------------------------
 // classifyStruggleEvent
@@ -164,7 +151,7 @@ describe('subscribeStruggleEvents dispatch', () => {
         const subscribe = (_topic: string, f: (d: unknown) => void) => { onFrame = f; return { dispose() { /* noop */ } }; };
         const onServerAmbient = vi.fn();
         const onServerActive = vi.fn();
-        subscribeStruggleEvents(subscribe, { onServerAmbient, onServerActive, onServerSilent: vi.fn(), onServerClose: vi.fn(), onServerStale: vi.fn() });
+        subscribeStruggleEvents(subscribe, { onServerAmbient, onServerActive, onServerSilent: vi.fn(), onServerClose: vi.fn() });
 
         // Ambient: messageId absent -> null
         onFrame!({ exerciseId: 42, action: 'ambient', message: 'Re-check the logic.', anchorFile: 'src/A.java', anchorLine: 42, inlineHint: 'off-by-one?' });
@@ -320,22 +307,8 @@ describe('classifyStruggleEvent -- C4 new frame kinds', () => {
         expect(e).toMatchObject({ kind: 'confirm_close', episodeId: 'ep-1', resolved: true, closingSentence: 'Great job!', episodeLabel: 'Sort fixed', messageId: 99 });
     });
 
-    it('round-trips kind=stale_check with ask=true and question', () => {
-        const e = classifyStruggleEvent({ exerciseId: 5, kind: 'stale_check', episodeId: 'ep-1', ask: true, question: 'What have you tried?', messageId: 77 });
-        expect(e).toMatchObject({ kind: 'stale_check', episodeId: 'ep-1', ask: true, question: 'What have you tried?', messageId: 77 });
-    });
-
-    it('round-trips kind=stale_check with ask=false', () => {
-        const e = classifyStruggleEvent({ exerciseId: 5, kind: 'stale_check', episodeId: 'ep-1', ask: false });
-        expect(e).toMatchObject({ kind: 'stale_check', ask: false });
-    });
-
     it('returns undefined for kind=confirm_close missing resolved', () => {
         expect(classifyStruggleEvent({ exerciseId: 5, kind: 'confirm_close', episodeId: 'ep-1' })).toBeUndefined();
-    });
-
-    it('returns undefined for kind=stale_check missing ask', () => {
-        expect(classifyStruggleEvent({ exerciseId: 5, kind: 'stale_check', episodeId: 'ep-1' })).toBeUndefined();
     });
 
     it('parses kind=decide action=ambient with episodeId (new-style)', () => {
@@ -360,7 +333,7 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
         const onServerSilent = vi.fn();
         subscribeStruggleEvents(subscribe, {
             onServerAmbient: vi.fn(), onServerActive: vi.fn(),
-            onServerSilent, onServerClose: vi.fn(), onServerStale: vi.fn(),
+            onServerSilent, onServerClose: vi.fn(),
         });
         emit({ exerciseId: 7, kind: 'decide', action: 'silent', episodeId: 'ep-silent', messageId: 11 });
         expect(onServerSilent).toHaveBeenCalledWith('ep-silent', 11);
@@ -371,21 +344,10 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
         const onServerClose = vi.fn();
         subscribeStruggleEvents(subscribe, {
             onServerAmbient: vi.fn(), onServerActive: vi.fn(),
-            onServerSilent: vi.fn(), onServerClose, onServerStale: vi.fn(),
+            onServerSilent: vi.fn(), onServerClose,
         });
         emit({ exerciseId: 7, kind: 'confirm_close', episodeId: 'ep-close', resolved: true, episodeLabel: 'Sort done', messageId: 22 });
         expect(onServerClose).toHaveBeenCalledWith('ep-close', true, 22, undefined, 'Sort done');
-    });
-
-    it('dispatches kind=stale_check to onServerStale', () => {
-        const { subscribe, emit } = makeSubscribe();
-        const onServerStale = vi.fn();
-        subscribeStruggleEvents(subscribe, {
-            onServerAmbient: vi.fn(), onServerActive: vi.fn(),
-            onServerSilent: vi.fn(), onServerClose: vi.fn(), onServerStale,
-        });
-        emit({ exerciseId: 7, kind: 'stale_check', episodeId: 'ep-stale', ask: true, question: 'Any progress?', messageId: 33 });
-        expect(onServerStale).toHaveBeenCalledWith('ep-stale', true, 33, 'Any progress?');
     });
 
     it('still dispatches backwards-compat ambient/active frames', () => {
@@ -394,7 +356,7 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
         const onServerActive = vi.fn();
         subscribeStruggleEvents(subscribe, {
             onServerAmbient, onServerActive,
-            onServerSilent: vi.fn(), onServerClose: vi.fn(), onServerStale: vi.fn(),
+            onServerSilent: vi.fn(), onServerClose: vi.fn(),
         });
         emit({ exerciseId: 3, action: 'ambient', message: 'Try X.' });
         expect(onServerAmbient).toHaveBeenCalled();
@@ -523,45 +485,6 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
         expect(deps.postRemoveMessage).toHaveBeenCalledWith(77);
         // Marker NOT consumed (real reply may still arrive)
-        expect(svc._inFlightMarker).toBeDefined();
-    });
-});
-
-describe('StruggleInterventionService -- C4 staleCheck dispatch', () => {
-    it('ask=true mints an askId, binds it, calls onAskPosted, posts addStaleAsk', () => {
-        const deps = makeDeps();
-        const svc = new StruggleInterventionService(deps);
-        simulateDeliveredWithStalePending(svc, 'ep-stale');
-
-        svc.onServerStale('ep-stale', true, 44, 'What have you tried?');
-
-        expect(svc._liveAskBinding).toBeDefined();
-        expect(svc._liveAskBinding!.askId).toBe('test-local-id');
-        expect(svc._liveAskBinding!.messageId).toBe(44);
-        expect(svc._liveAskBinding!.episodeId).toBe('ep-stale');
-        expect(deps.postStaleAsk).toHaveBeenCalledWith('ep-stale', 'test-local-id', 44, 'What have you tried?');
-    });
-
-    it('ask=false is a noop: no askId minted, no staleAsk posted, no onAskPosted', () => {
-        const deps = makeDeps();
-        const svc = new StruggleInterventionService(deps);
-        simulateDeliveredWithStalePending(svc, 'ep-stale');
-
-        svc.onServerStale('ep-stale', false, undefined, undefined);
-
-        expect(svc._liveAskBinding).toBeUndefined();
-        expect(deps.postStaleAsk).not.toHaveBeenCalled();
-    });
-
-    it('staleCheck with mismatched episodeId is dropped + triggers postRemoveMessage', () => {
-        const deps = makeDeps();
-        const svc = new StruggleInterventionService(deps);
-        simulateDeliveredWithStalePending(svc, 'ep-stale');
-
-        svc.onServerStale('ep-WRONG', true, 55, 'Question');
-
-        expect(svc._liveAskBinding).toBeUndefined();
-        expect(deps.postRemoveMessage).toHaveBeenCalledWith(55);
         expect(svc._inFlightMarker).toBeDefined();
     });
 });

@@ -48,7 +48,6 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
             messages: [],
             messageLoad: null,
             suppressedIds: new Set(),
-            staleAskBindings: new Map(),
             foldStates: new Map(),
             liveEpisodeIds: new Set(),
             streaming: { isStreaming: false },

@@ -112,9 +112,6 @@ export const WebviewCmd = {
     // Problem-statement tracking
     ProblemStatementScroll: 'problemStatementScroll',
     ProblemStatementSelection: 'problemStatementSelection',
-
-    // C5: stale-ask quick-reply button (webview -> host)
-    StaleAskButton: 'staleAskButton',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -268,9 +265,6 @@ interface WebviewCmdPayloads {
         selectionWidth: number;
         selectionHeight: number;
     };
-
-    // C5: stale-ask quick-reply button (webview -> host)
-    staleAskButton: { askId: string; button: 'solved' | 'still-on-it' | 'something-else' };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -316,7 +310,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.TaskFeedbackClosed,
     WebviewCmd.ProblemStatementScroll,
     WebviewCmd.ProblemStatementSelection,
-    WebviewCmd.StaleAskButton,
 ]);
 
 /** Auto-generated command messages */

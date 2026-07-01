@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+
+import type { EpisodeHistoryEntry, SlotDebugSnapshot } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
-import type { SlotDebugSnapshot, EpisodeHistoryEntry } from '@shared/messageContracts';
 
 describe('StruggleSlotUpdate contract', () => {
     it('exposes the enum value', () => {
@@ -11,9 +12,8 @@ describe('StruggleSlotUpdate contract', () => {
             nowMs: 1000, state: 'delivered', level: 'active', episodeId: 'ep-1', generation: 3,
             episodeAgeMs: 500, hintCount: 2, isNew: false, inSession: true,
             watchdog: { armed: true, staleDeadlineMs: 2000 },
-            abandon: { armed: false, deadlineMs: null },
             inFlight: { intent: 'confirm_close', localToken: 7, episodeId: 'ep-1', generation: 3, requestToken: 'rt-abc' },
-            owed: { confirmClose: false, staleCheck: false }, pendingOutcomes: 0,
+            owed: { confirmClose: false }, pendingOutcomes: 0,
         };
         const episodes: EpisodeHistoryEntry[] = [
             { episodeId: 'ep-0', peakLevel: 'ambient', outcome: 'DISCARDED', hintCount: 1, durationMs: 20_000, startedAtMs: 0 },

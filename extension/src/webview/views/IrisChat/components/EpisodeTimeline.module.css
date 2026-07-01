@@ -56,37 +56,10 @@
 }
 
 .nodeHint { background: var(--vscode-charts-blue); }
-.nodeSolved { background: var(--vscode-charts-green); }
-.nodeStill { background: var(--vscode-charts-blue); }
-
-.nodePending {
-    width: 8px;
-    height: 8px;
-    background: transparent;
-    border: 1.5px solid var(--vscode-descriptionForeground);
-}
-
-.nodeIgnored {
-    width: 8px;
-    height: 8px;
-    background: transparent;
-    border: 1.5px dashed var(--vscode-descriptionForeground);
-    opacity: 0.7;
-}
 
 .body {
     padding-bottom: 14px;
     border-radius: 6px;
-}
-
-/* Small uppercase kind tag at the top of each row: "Hint" for a hint node, "Check-in" for a stale-check. */
-.rowLabel {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: var(--vscode-descriptionForeground);
-    margin-bottom: 4px;
 }
 
 /* Hover/focus chrome: collapsed at rest, expands the row open with a short animation. The transition
@@ -133,35 +106,4 @@
 
 .dismiss:hover {
     color: var(--vscode-foreground);
-}
-
-/* Pending check-in affordance (Timer style B): a thin bar that quietly depletes over the abandon
-   window, plus a muted caption. No numeric countdown (that would pressure a learner). */
-.timerbar {
-    height: 2px;
-    border-radius: 2px;
-    margin-top: 9px;
-    max-width: 240px;
-    overflow: hidden;
-    background: color-mix(in srgb, var(--vscode-descriptionForeground) 25%, transparent);
-}
-
-.timerbar > i {
-    display: block;
-    height: 100%;
-    width: 100%;
-    background: color-mix(in srgb, var(--vscode-descriptionForeground) 60%, transparent);
-    transform-origin: left;
-    animation: checkinDeplete 60s linear forwards;
-}
-
-@keyframes checkinDeplete {
-    from { transform: scaleX(1); }
-    to { transform: scaleX(0); }
-}
-
-.timerhint {
-    color: var(--vscode-descriptionForeground);
-    font-size: 10.5px;
-    margin-top: 4px;
 }

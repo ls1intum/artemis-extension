@@ -28,15 +28,15 @@ export interface StruggleInterventionRequest {
     uncommittedFiles: Record<string, string>;
     // C3: slot-continuity fields (camelCase keys, snake enum values per Global Constraints)
     /** Discriminator for the Pyris pipeline mode. */
-    intent: 'decide' | 'confirm_close' | 'stale_check';
+    intent: 'decide' | 'confirm_close';
     /** Client-tracked episode, always present (never null). isNew=true until the first accepted POST. */
     episode: {
         episodeId: string;
         isNew: boolean;
         hints: Array<{ level: string; text: string; atSessionS: number }>;
     };
-    /** Required for confirm_close; absent for decide/stale_check. */
-    confirmReason?: 'progress' | 'stale_solved' | 'parked_progress';
+    /** Required for confirm_close; absent for decide. */
+    confirmReason?: 'progress' | 'parked_progress';
     /** Per-POST scoped-cancel uuid; forwarded to Artemis so the exact job can be cancelled by token. */
     requestToken: string;
 }
@@ -62,16 +62,16 @@ export type StruggleEgressResult = 'accepted' | 'course-off' | 'unavailable' | '
 export interface StruggleInterventionEvent {
     exerciseId: number;
     /** Frame kind discriminator (C4). Absent on old servers -> backwards-compat ambient/active path. */
-    kind?: 'decide' | 'confirm_close' | 'stale_check';
+    kind?: 'decide' | 'confirm_close';
     /** Episode id echoed back by the server; present for all new-style frames (C4). */
     episodeId?: string;
-    /** Decide-frame action. Required for kind='decide'; absent for confirm_close/stale_check. */
+    /** Decide-frame action. Required for kind='decide'; absent for confirm_close. */
     action?: 'silent' | 'ambient' | 'active';
     message?: string;
     sessionId?: number;
     /** Saved IrisMessage id for the persisted proactive message (spec §7.2/§8). Set for ambient and active after
      *  unify-persistence; lets a later slice target the exact message (open/reveal/dismiss).
-     *  Also present on confirm_close (close/offer row) and stale_check ask=true (ask row). */
+     *  Also present on confirm_close (close/offer row). */
     messageId?: number;
     /** Server-computed Pyris confidence, forwarded by Plan 2 (Task 4b 5-component DTO) for the client eval log (§12). */
     confidence?: number;
@@ -86,9 +86,4 @@ export interface StruggleInterventionEvent {
     closingSentence?: string;
     /** Human-readable episode label for the fold praise line (NOT persisted; only in this control message). */
     episodeLabel?: string;
-    // stale_check fields (C4):
-    /** True when the server posted a stale-ask question row. */
-    ask?: boolean;
-    /** Stale-ask question text (sent with ask=true). */
-    question?: string;
 }

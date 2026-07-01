@@ -39,24 +39,6 @@ export interface ChatMessage {
      * Used by C6 to render episode groups and by C7 for fold animation targeting.
      */
     proactiveEpisodeId?: string;
-    /**
-     * Runtime marker set by `attachStaleAsk` when the host attaches a live
-     * stale-ask ask-id binding to this row (C6). Used to gate the Dismiss
-     * button (hidden on stale-ask rows) and to distinguish stale-ask rows
-     * from plain hint cards. NOT persisted to the server; absent on reload.
-     */
-    staleAsk?: boolean;
-    /**
-     * Durable-on-this-machine proactive sub-kind. `'stale-check'` marks the "still there?"
-     * check-in row; absence (or `'hint'`) means a hint. Re-attached on history load from the
-     * extension-local staleCheckStore (Route B); NOT persisted server-side.
-     */
-    proactiveKind?: 'hint' | 'stale-check';
-    /**
-     * The student's quick-reply to a stale-check row, if answered. Re-attached on reload from
-     * the staleCheckStore. Live, the answer instead comes from the store's runtime `staleAnswers`.
-     */
-    staleAnswer?: 'solved' | 'still-on-it' | 'something-else';
 }
 
 // Chat session summary (from extension)

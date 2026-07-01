@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import type { ReactNode } from 'react';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAutoScroll } from '@webview/hooks/useAutoScroll';
 import { useChatStore } from '@webview/stores/useChatStore';
@@ -15,14 +15,13 @@ import { type EpisodeOutcome, episodeTopic, outcomeMeta, rowOutcome } from './ep
 import { EpisodeTimeline } from './EpisodeTimeline';
 import { type ChatRenderItem, groupByEpisode } from './groupProactiveMessages';
 import { MessageBubble } from './MessageBubble';
-import { StaleAskButtons } from './StaleAskButtons';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
 
-/** Adapter: the timeline supplies (message, node, isLatest); the bubble is always rendered grouped. */
+/** Adapter: the timeline supplies (message, isLatest); the bubble is always rendered grouped. */
 type RenderBubble = (message: ChatMessage, isLatest: boolean, grouped: boolean) => ReactNode;
 const timelineRowBody = (renderBubble: RenderBubble) =>
-    (m: ChatMessage, _node: unknown, isLatest: boolean): ReactNode => renderBubble(m, isLatest, true);
+    (m: ChatMessage, isLatest: boolean): ReactNode => renderBubble(m, isLatest, true);
 
 /**
  * Borderless summary line for a CLOSED (folded) episode (C7): a chevron plus the outcome
@@ -107,11 +106,6 @@ interface ChatMessageListProps {
     isRetryDisabled?: (message: ChatMessage) => boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
-    /**
-     * Invoked when the student clicks one of the three stale-ask quick-reply
-     * buttons on a row that has a live `askId` binding (C6).
-     */
-    onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
 }
 
 /** Delay (ms) between the close row arriving and the episode folding (C7). */
@@ -128,16 +122,8 @@ export function ChatMessageList({
     onRetry,
     isRetryDisabled,
     onDismiss,
-    onStaleAskButton,
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
-
-    // Read the live stale-ask bindings from the store directly (C6). The map is
-    // runtime-only (absent after reload), so bindings never render on historical rows.
-    const staleAskBindings = useChatStore((s) => s.staleAskBindings);
-    // Live quick-reply answers: once a check-in is answered its buttons retire (the binding stays so the
-    // timeline node still reads as a differentiated check-in).
-    const staleAnswers = useChatStore((s) => s.staleAnswers);
 
     // Read fold states and live episode tracking (C7).
     const foldStates = useChatStore((s) => s.foldStates);
@@ -190,28 +176,6 @@ export function ChatMessageList({
             foldStates.get(message.proactiveEpisodeId)?.closeMessageId === message.id;
         const canDismiss = isLatest && !isClosingRow;
 
-        const binding = message.id !== undefined ? staleAskBindings.get(message.id) : undefined;
-        // Retire the quick replies once answered (live via staleAnswers, or on a reloaded answered row):
-        // the row keeps its binding so it still reads as a check-in, but the buttons no longer render.
-        const answered = (message.id !== undefined && staleAnswers.has(message.id)) || message.staleAnswer !== undefined;
-        if (binding && !answered) {
-            return (
-                <Fragment key={message.localId}>
-                    <MessageBubble
-                        message={message}
-                        onFeedback={onFeedback}
-                        onRetry={onRetry}
-                        onDismiss={canDismiss ? onDismiss : undefined}
-                        retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
-                        grouped={grouped}
-                    />
-                    <StaleAskButtons
-                        question={binding.question}
-                        onButton={(button) => onStaleAskButton?.(binding.askId, button)}
-                    />
-                </Fragment>
-            );
-        }
         return (
             <MessageBubble
                 key={message.localId}

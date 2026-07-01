@@ -188,19 +188,6 @@ describe('MessageBubble', () => {
 			expect(screen.getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
 		});
 
-		it('Dismiss does NOT render on a stale-ask proactive row (message.staleAsk === true)', () => {
-			const onDismiss = vi.fn();
-			const message = makeMessage({
-				id: 5,
-				role: 'assistant',
-				origin: 'proactive',
-				staleAsk: true,
-				content: 'Are you still stuck?',
-			});
-			render(<MessageBubble message={message} onFeedback={vi.fn()} onDismiss={onDismiss} />);
-			expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
-		});
-
 		it('Retry does NOT render on a proactive assistant message even when it has error status', () => {
 			const onRetry = vi.fn();
 			const message = makeMessage({

@@ -24,7 +24,6 @@ function makeDeliveredSnapshot(overrides: Partial<SlotDebugSnapshot> = {}): Slot
         isNew: false,
         inSession: true,
         watchdog: { armed: true, staleDeadlineMs: NOW_MS + 2000 },
-        abandon: { armed: true, deadlineMs: NOW_MS + 30000 },
         inFlight: {
             intent: 'confirm_close',
             localToken: 7,
@@ -32,7 +31,7 @@ function makeDeliveredSnapshot(overrides: Partial<SlotDebugSnapshot> = {}): Slot
             generation: 3,
             requestToken: 'rt-abcdef12',
         },
-        owed: { confirmClose: false, staleCheck: false },
+        owed: { confirmClose: false },
         pendingOutcomes: 0,
         ...overrides,
     };
@@ -50,9 +49,8 @@ function makeFreeSnapshot(): SlotDebugSnapshot {
         isNew: false,
         inSession: false,
         watchdog: { armed: false, staleDeadlineMs: null },
-        abandon: { armed: false, deadlineMs: null },
         inFlight: null,
-        owed: { confirmClose: false, staleCheck: false },
+        owed: { confirmClose: false },
         pendingOutcomes: 0,
     };
 }
@@ -71,7 +69,7 @@ function postedCommands(api: VsCodeApi): string[] {
 // ---------------------------------------------------------------------------
 
 describe('SlotPanel', () => {
-    it('renders state badge, episode id, in-flight intent, and abandon countdown when delivered', () => {
+    it('renders state badge, episode id, in-flight intent, and idle-free countdown when delivered', () => {
         const api = createMockVsCodeApi();
         render(<SlotPanel vscodeApi={api} />);
 
@@ -84,7 +82,7 @@ describe('SlotPanel', () => {
         expect(screen.getByText(/DELIVERED/)).toBeInTheDocument();
         expect(screen.getByText('ep-1')).toBeInTheDocument();
         expect(screen.getByText(/confirm_close/)).toBeInTheDocument();
-        // Abandon is armed, so at least one countdown in M:SS format must be visible.
+        // The watchdog is armed, so the idle-free countdown in M:SS format must be visible.
         expect(screen.getAllByText(/\d:\d{2}/).length).toBeGreaterThanOrEqual(1);
     });
 

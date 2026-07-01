@@ -57,19 +57,6 @@ interface ChatState {
      */
     suppressedIds: Set<number>;
     /**
-     * Runtime-only map from Artemis message id to the live stale-ask binding
-     * (C6). Set by `attachStaleAsk` when the host sends `AddStaleAsk`. Reset
-     * in `clearMessages`; NOT repopulated in `applyLoadedMessages` (reloaded
-     * rows have no live askId, so their buttons do not render).
-     */
-    staleAskBindings: Map<number, { askId: string; question: string }>;
-    /**
-     * Runtime-only map from Artemis message id to the student's stale-check quick-reply, captured
-     * optimistically on click so the live check-in node flips immediately. Reset with the other
-     * runtime maps; on reload the answer instead comes from the message's `staleAnswer` field.
-     */
-    staleAnswers: Map<number, 'solved' | 'still-on-it' | 'something-else'>;
-    /**
      * Runtime-only fold state per proactive episode (C7). Keyed by
      * `proactiveEpisodeId`. `folded: true` collapses the group to a summary
      * fold-line. When `closeMessageId` is set (praise path), the group stays
@@ -137,17 +124,6 @@ interface ChatState {
     removeMessageById: (id: number) => void;
     clearMessages: () => void;
     /**
-     * Attach a live stale-ask binding to the message identified by `messageId`
-     * (C6). Adds an entry to `staleAskBindings` AND patches the message row with
-     * `staleAsk: true` so the Dismiss button is hidden. Handles both arrival
-     * orders: if the binding arrives before the message row (row not yet in
-     * `messages`), the patch is a no-op for now and `addMessage` applies
-     * `staleAsk: true` when the row eventually arrives.
-     */
-    attachStaleAsk: (messageId: number, askId: string, question: string) => void;
-    /** Record the student's stale-check quick-reply optimistically (live node differentiation). */
-    setStaleAnswer: (messageId: number, answer: 'solved' | 'still-on-it' | 'something-else') => void;
-    /**
      * Record a fold instruction for an episode (C7). Called when the host sends
      * `FoldEpisode`. Without praise: folds immediately (`folded: true`). With
      * praise: stores `episodeLabel` + `closeMessageId` and waits for the
@@ -194,8 +170,6 @@ export const useChatStore = create<ChatState>()(
             messages: [],
             messageLoad: null,
             suppressedIds: new Set<number>(),
-            staleAskBindings: new Map<number, { askId: string; question: string }>(),
-            staleAnswers: new Map<number, 'solved' | 'still-on-it' | 'something-else'>(),
             foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
             liveEpisodeIds: new Set<string>(),
             streaming: IDLE_STREAMING,
@@ -261,10 +235,7 @@ export const useChatStore = create<ChatState>()(
                             return state;
                         }
                     }
-                    // Stale-ask binding-before-row (C6): if `attachStaleAsk` arrived
-                    // before this message, mark the row immediately so Dismiss is hidden.
-                    const hasBinding = message.id !== undefined && state.staleAskBindings.has(message.id);
-                    const finalMessage = hasBinding ? { ...message, staleAsk: true as const } : message;
+                    const finalMessage = message;
                     // Track live episodes (C7): episodes that arrive via addMessage are "live"
                     // (not reloaded). The liveEpisodeIds gate controls auto-fold for reloaded rows.
                     const nextLiveEpisodeIds =
@@ -318,27 +289,6 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'removeMessageById');
             },
 
-            attachStaleAsk: (messageId, askId, question) => {
-                set((state) => {
-                    const nextBindings = new Map(state.staleAskBindings);
-                    nextBindings.set(messageId, { askId, question });
-                    // Patch the message with staleAsk: true if it already exists.
-                    // If the row has not arrived yet, addMessage will apply the flag
-                    // when it detects the pre-existing binding (row-after-binding path).
-                    const messages = state.messages.map((m) =>
-                        m.id === messageId ? { ...m, staleAsk: true as const } : m,
-                    );
-                    return { staleAskBindings: nextBindings, messages };
-                }, false, 'attachStaleAsk');
-            },
-
-            setStaleAnswer: (messageId, answer) =>
-                set((state) => {
-                    const next = new Map(state.staleAnswers);
-                    next.set(messageId, answer);
-                    return { staleAnswers: next };
-                }, false, 'setStaleAnswer'),
-
             foldEpisode: (episodeId, outcome, praise) => {
                 set((state) => {
                     const nextFoldStates = new Map(state.foldStates);
@@ -371,8 +321,6 @@ export const useChatStore = create<ChatState>()(
                     messages: [],
                     messageLoad: null,
                     suppressedIds: new Set<number>(),
-                    staleAskBindings: new Map<number, { askId: string; question: string }>(),
-                    staleAnswers: new Map<number, 'solved' | 'still-on-it' | 'something-else'>(),
                     foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
                     liveEpisodeIds: new Set<string>(),
                     irisStages: [],

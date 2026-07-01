@@ -29,7 +29,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
         setIrisStages, resetTransientChatUi,
-        markMessageFailed, removeMessageById, attachStaleAsk, foldEpisode,
+        markMessageFailed, removeMessageById, foldEpisode,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
@@ -136,9 +136,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         origin: m.origin,
                         proactiveOutcome: m.proactiveOutcome,
                         proactiveEpisodeId: m.proactiveEpisodeId,
-                        // Route B: keep the re-attached stale-check kind/answer so a reloaded episode stays differentiated.
-                        proactiveKind: m.proactiveKind,
-                        staleAnswer: m.staleAnswer,
                         status: 'sent' as const,
                     })),
                 );
@@ -207,10 +204,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 removeMessageById(msg.id);
                 break;
 
-            case ExtensionMsg.AddStaleAsk:
-                attachStaleAsk(msg.messageId, msg.askId, msg.question);
-                break;
-
             case ExtensionMsg.FoldEpisode:
                 foldEpisode(msg.episodeId, msg.outcome, msg.praise);
                 break;
@@ -236,7 +229,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed, removeMessageById, attachStaleAsk, foldEpisode]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed, removeMessageById, foldEpisode]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
@@ -295,15 +288,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             messageId,
             feedback,
         });
-    };
-
-    const handleStaleAskButton = (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => {
-        // Optimistically record the answer so the live check-in node differentiates immediately
-        // (the host also persists it via Route B for reload). Match the askId to its bound row.
-        for (const [messageId, binding] of store.staleAskBindings) {
-            if (binding.askId === askId) { store.setStaleAnswer(messageId, button); break; }
-        }
-        postCommand(vscodeApi, 'staleAskButton', { askId, button });
     };
 
     const handleDismissProactive = (messageId: number, proactiveEpisodeId?: string) => {
@@ -637,7 +621,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         isChatDisabled={isChatDisabled}
                         onRetry={handleRetry}
                         isRetryDisabled={isRetryDisabled}
-                        onStaleAskButton={handleStaleAskButton}
                     />
                 )}
             </div>

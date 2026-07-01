@@ -10,59 +10,22 @@ function msg(id: number, extra: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 beforeEach(() => {
-    useChatStore.setState({
-        staleAskBindings: new Map(), staleAnswers: new Map(),
-        foldStates: new Map(), liveEpisodeIds: new Set(['ep']),
-    });
+    useChatStore.setState({ foldStates: new Map(), liveEpisodeIds: new Set(['ep']) });
 });
 
 describe('EpisodeTimeline', () => {
-    it('renders a node per message and reflects a solved check-in', () => {
-        const messages = [msg(1), msg(2, { proactiveKind: 'stale-check', staleAnswer: 'solved' }), msg(3)];
+    it('renders the caption and one hint node per message', () => {
+        const messages = [msg(1), msg(2), msg(3)];
         render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
-        expect(screen.getByText('m1')).toBeInTheDocument();
         expect(screen.getByText('Iris reached out')).toBeInTheDocument();
-        expect(document.querySelector('[data-node-state="solved"]')).not.toBeNull();
-        expect(document.querySelectorAll('[data-node-kind="hint"]').length).toBe(2);
+        expect(screen.getByText('m1')).toBeInTheDocument();
+        expect(screen.getByText('m3')).toBeInTheDocument();
+        expect(document.querySelectorAll('[data-episode-row]').length).toBe(3);
     });
 
-    it('resolves multiple stale-checks in one episode independently (staleAskCap=2)', () => {
-        // ep with: hint(1), check-in(2) UNANSWERED and not latest -> ignored, check-in(4) answered solved -> solved.
-        const messages = [
-            msg(1),
-            msg(2, { proactiveKind: 'stale-check' }),
-            msg(3),
-            msg(4, { proactiveKind: 'stale-check', staleAnswer: 'solved' }),
-        ];
-        render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
-        // The unanswered, superseded earlier check-in is ignored; the later answered one is solved.
-        expect(document.querySelector('[data-node-state="ignored"]')).not.toBeNull();
-        expect(document.querySelector('[data-node-state="solved"]')).not.toBeNull();
-    });
-
-    it('shows a pending check-in when it is the latest of a live, unfolded episode', () => {
-        const messages = [msg(1), msg(2, { proactiveKind: 'stale-check' })];
-        render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
-        expect(document.querySelector('[data-node-state="pending"]')).not.toBeNull();
-    });
-});
-
-describe('EpisodeTimeline hover chrome', () => {
     it('renders a timestamp on every row', () => {
         render(<EpisodeTimeline messages={[msg(1), msg(2)]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
         expect(screen.getAllByTestId('row-time').length).toBe(2);
-    });
-
-    it('a pending check-in shows the timer bar and the "closes silently" caption', () => {
-        render(<EpisodeTimeline messages={[msg(1), msg(2, { proactiveKind: 'stale-check' })]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
-        expect(screen.getByTestId('checkin-timer')).toBeInTheDocument();
-        expect(screen.getByText(/closes silently/i)).toBeInTheDocument();
-    });
-
-    it('a resolved check-in shows neither the timer bar nor the caption', () => {
-        render(<EpisodeTimeline messages={[msg(1), msg(2, { proactiveKind: 'stale-check', staleAnswer: 'solved' })]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
-        expect(screen.queryByTestId('checkin-timer')).toBeNull();
-        expect(screen.queryByText(/closes silently/i)).toBeNull();
     });
 
     it('shows exactly one Dismiss, on the latest row, only when dismissable', () => {

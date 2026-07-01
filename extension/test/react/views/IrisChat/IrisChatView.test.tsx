@@ -58,7 +58,6 @@ describe('IrisChatView', () => {
 			messages: [],
 			messageLoad: null,
 			suppressedIds: new Set<number>(),
-			staleAskBindings: new Map<number, { askId: string; question: string }>(),
 			foldStates: new Map(),
 			liveEpisodeIds: new Set(),
 			streaming: { isStreaming: false },
@@ -198,26 +197,6 @@ describe('IrisChatView', () => {
 		});
 	});
 
-	it('preserves proactiveKind/staleAnswer through history-load hydration (Route B round-trip)', async () => {
-		useChatStore.setState({ activeSessionId: 'local-test' });
-		const mockApi = createMockVsCodeApi();
-		render(<IrisChatView vscodeApi={mockApi} />);
-
-		dispatchExtensionMessage({
-			type: 'loadMessages',
-			localSessionId: 'local-test',
-			artemisSessionId: 42,
-			messages: [
-				{ id: 55, role: 'assistant', content: 'still there?', timestamp: Date.now(), origin: 'proactive', proactiveEpisodeId: 'ep-r', proactiveKind: 'stale-check', staleAnswer: 'solved' },
-			],
-		});
-
-		await waitFor(() => {
-			const stored = useChatStore.getState().messages.find((m) => m.id === 55);
-			expect(stored?.proactiveKind).toBe('stale-check');
-			expect(stored?.staleAnswer).toBe('solved');
-		});
-	});
 
 	it('adds a single message from addMessage extension event', async () => {
 		const mockApi = createMockVsCodeApi();
@@ -929,165 +908,6 @@ describe('IrisChatView', () => {
 		});
 	});
 
-	describe('AddStaleAsk routing and stale-ask UI (C6)', () => {
-		it('attachStaleAsk is called when AddStaleAsk message arrives', async () => {
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			dispatchExtensionMessage({
-				type: 'addStaleAsk',
-				episodeId: 'ep-1',
-				askId: 'ask-abc',
-				messageId: 77,
-				question: 'Are you still stuck?',
-			});
-
-			await waitFor(() => {
-				expect(useChatStore.getState().staleAskBindings.get(77)).toEqual({
-					askId: 'ask-abc',
-					question: 'Are you still stuck?',
-				});
-			});
-		});
-
-		it('StaleAskButtons render on the row whose id matches the binding', async () => {
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			// Message arrives first.
-			dispatchExtensionMessage({
-				type: 'addMessage',
-				message: { id: 77, role: 'assistant', origin: 'proactive', content: 'I can help!', timestamp: Date.now() },
-			});
-			await waitFor(() => expect(screen.getByText('I can help!')).toBeInTheDocument());
-
-			// Binding arrives after.
-			dispatchExtensionMessage({
-				type: 'addStaleAsk',
-				episodeId: 'ep-1',
-				askId: 'ask-abc',
-				messageId: 77,
-				question: 'Are you still stuck?',
-			});
-
-			await waitFor(() => {
-				expect(screen.getByRole('button', { name: 'Got it, solved!' })).toBeInTheDocument();
-				expect(screen.getByRole('button', { name: 'Still working on it' })).toBeInTheDocument();
-				expect(screen.getByRole('button', { name: 'Something else' })).toBeInTheDocument();
-			});
-		});
-
-		it('clicking a stale-ask button posts staleAskButton command with the correct askId', async () => {
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			dispatchExtensionMessage({
-				type: 'addMessage',
-				message: { id: 88, role: 'assistant', origin: 'proactive', content: 'Need help?', timestamp: Date.now() },
-			});
-			dispatchExtensionMessage({
-				type: 'addStaleAsk',
-				episodeId: 'ep-2',
-				askId: 'ask-xyz',
-				messageId: 88,
-				question: 'Are you stuck?',
-			});
-
-			await waitFor(() =>
-				expect(screen.getByRole('button', { name: 'Got it, solved!' })).toBeInTheDocument()
-			);
-
-			await userEvent.click(screen.getByRole('button', { name: 'Got it, solved!' }));
-
-			expect(mockApi.postMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: 'command',
-					command: 'staleAskButton',
-					payload: { askId: 'ask-xyz', button: 'solved' },
-				}),
-			);
-		});
-
-		it('binding before row: StaleAskButtons render once the message row arrives', async () => {
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			// Binding arrives BEFORE the row.
-			dispatchExtensionMessage({
-				type: 'addStaleAsk',
-				episodeId: 'ep-3',
-				askId: 'ask-early',
-				messageId: 99,
-				question: 'Still need help?',
-			});
-
-			// Row arrives after.
-			dispatchExtensionMessage({
-				type: 'addMessage',
-				message: { id: 99, role: 'assistant', origin: 'proactive', content: 'Late row', timestamp: Date.now() },
-			});
-
-			await waitFor(() => {
-				expect(screen.getByText('Late row')).toBeInTheDocument();
-				expect(screen.getByRole('button', { name: 'Got it, solved!' })).toBeInTheDocument();
-			});
-		});
-
-		it('a stale-ask row WITHOUT a live binding (simulating reload) renders no quick-reply buttons', async () => {
-			// On reload staleAskBindings is empty; the row has no staleAsk flag (not in payload).
-			useChatStore.setState({
-				messages: [
-					{
-						localId: 'loaded-1',
-						id: 55,
-						role: 'assistant',
-						origin: 'proactive',
-						content: 'Persisted stale-ask',
-						timestamp: Date.now(),
-						status: 'sent',
-					},
-				],
-				messageLoad: { localSessionId: 'local-test', status: 'success' },
-				activeSessionId: 'local-test',
-				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 1, createdAt: 0, lastActivity: 0 }],
-				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
-				// staleAskBindings is empty (default from beforeEach reset)
-			});
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			await waitFor(() => expect(screen.getByText('Persisted stale-ask')).toBeInTheDocument());
-			expect(screen.queryByRole('button', { name: 'Got it, solved!' })).not.toBeInTheDocument();
-			expect(screen.queryByRole('button', { name: 'Still working on it' })).not.toBeInTheDocument();
-			expect(screen.queryByRole('button', { name: 'Something else' })).not.toBeInTheDocument();
-		});
-
-		it('Dismiss does NOT render on a stale-ask proactive row', async () => {
-			const mockApi = createMockVsCodeApi();
-			useChatStore.setState({
-				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
-				...HYDRATED,
-			});
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			dispatchExtensionMessage({
-				type: 'addMessage',
-				message: { id: 33, role: 'assistant', origin: 'proactive', content: 'Stale ask hint', timestamp: Date.now() },
-			});
-			dispatchExtensionMessage({
-				type: 'addStaleAsk',
-				episodeId: 'ep-sa',
-				askId: 'ask-sa',
-				messageId: 33,
-				question: 'Question?',
-			});
-
-			await waitFor(() => expect(screen.getByText('Stale ask hint')).toBeInTheDocument());
-			// The stale-ask row has staleAsk: true, so Dismiss must NOT appear.
-			expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
-		});
-	});
-
 	describe('proactiveEpisodeId passthrough (C4)', () => {
 		it('AddMessage with proactiveEpisodeId stores it on the resulting row', async () => {
 			const mockApi = createMockVsCodeApi();
@@ -1450,37 +1270,6 @@ describe('IrisChatView', () => {
 			expect(screen.getByText('Try a helper method')).toBeInTheDocument();
 			// Latest live hint with no closeMessageId => canDismiss=true => Dismiss renders
 			expect(screen.getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
-		});
-
-		it('regression C6: stale-ask row still hides Dismiss regardless of isLatest', async () => {
-			useChatStore.setState({
-				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
-				activeSessionId: 'local-test',
-				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 0, createdAt: 0, lastActivity: 0 }],
-				messageLoad: { localSessionId: 'local-test', status: 'success' },
-			});
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			// Row arrives then stale-ask binding is attached
-			await act(async () => {
-				dispatchExtensionMessage({
-					type: 'addMessage',
-					message: { id: 77, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-sa', content: 'Stale ask hint', timestamp: Date.now() },
-				});
-				dispatchExtensionMessage({
-					type: 'addStaleAsk',
-					episodeId: 'ep-sa',
-					askId: 'ask-sa',
-					messageId: 77,
-					question: 'Are you stuck?',
-				});
-			});
-
-			// act() flushed all React updates; query directly (waitFor hangs under fake timers)
-			expect(screen.getByText('Stale ask hint')).toBeInTheDocument();
-			// staleAsk=true on row => MessageBubble hides Dismiss regardless of isLatest
-			expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).not.toBeInTheDocument();
 		});
 	});
 });

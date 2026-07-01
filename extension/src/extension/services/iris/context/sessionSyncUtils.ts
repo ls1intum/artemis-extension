@@ -18,8 +18,6 @@ export interface IrisServiceDeps {
     artemisApiService: ArtemisApiService | undefined;
     postMessage: (message: ExtensionToWebviewMessage) => void;
     postSnapshot: () => void;
-    /** Route B: look up a stale-check row's kind/answer by messageId for history-load re-attach. */
-    staleCheckLookup?: (messageId: number) => { isStaleCheck: true; answer?: 'solved' | 'still-on-it' | 'something-else' } | undefined;
 }
 
 /**

@@ -66,7 +66,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         // C4: stale-row suppression
         postRemoveMessage: vi.fn(),
         deleteSupersededProactiveMessage: vi.fn(async () => undefined),
-        postStaleAsk: vi.fn(),
         ...over,
     };
 }
@@ -848,6 +847,42 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.showLamp).not.toHaveBeenCalled();
     });
 
+    it('suppressed decide that carries a persisted messageId drops the orphan row (no duplicate hint via history)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        // First decide: active -> takes slot as DELIVERED
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(7);
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+
+        // Second decide on the DELIVERED slot: ambient reply carries a persisted messageId (555).
+        // reconcile(DELIVERED, ambient) -> suppress. The persisted row would otherwise linger on the
+        // server and reappear as a chat row on the next history/chat-ws load (the duplicate-hint the
+        // stale-check removal is meant to prevent), so suppress MUST drop it.
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerAmbient('New hint', undefined, undefined, undefined, undefined, 555);
+
+        // Slot untouched (still the original delivered episode)
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+        // The orphaned persisted row is removed from the webview and best-effort deleted server-side
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(555);
+        expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 555);
+    });
+
+    it('suppressed decide WITHOUT a messageId does not attempt a row drop', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(7);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerAmbient('New hint', undefined, undefined, undefined); // no messageId
+
+        expect(deps.postRemoveMessage).not.toHaveBeenCalled();
+        expect(deps.deleteSupersededProactiveMessage).not.toHaveBeenCalled();
+    });
+
     // -------------------------------------------------------------------------
     // Preallocated candidate: replace-parked uses the REQUEST's candidate id
     // -------------------------------------------------------------------------
@@ -1316,17 +1351,15 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // clearEpisodeRuntime: comprehensive teardown
     // -------------------------------------------------------------------------
-    it('clearEpisodeRuntime teardown: latch reset, watchdog disarmed, owed cleared, ask-binding cleared', () => {
+    it('clearEpisodeRuntime teardown: latch reset, watchdog disarmed, owed cleared', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         // Set up some state
         simulateDecidePending(svc, 'ep-tear', false);
         svc._owedConfirmClose = { confirmReason: 'progress' };
-        svc._owedStaleCheck = true;
-        svc._liveAskBinding = { askId: 'ask-1', messageId: 42, episodeId: 'ep-tear' };
         // Arm watchdog
-        svc._watchdog = new StaleWatchdog({ staleAfterMs: 45_000, staleWindowMax: 4, staleAskCap: 2 });
+        svc._watchdog = new StaleWatchdog({ idleAbandonMs: 360_000 });
         svc._watchdog!.arm(Date.now(), false);
 
         // Free the slot to trigger clearEpisodeRuntime
@@ -1335,8 +1368,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc['_clearEpisodeRuntime']();
 
         expect(svc._owedConfirmClose).toBeUndefined();
-        expect(svc._owedStaleCheck).toBe(false);
-        expect(svc._liveAskBinding).toBeUndefined();
+        expect(svc._watchdog).toBeUndefined();
         expect(svc._inFlightMarker).toBeUndefined();
     });
 
@@ -1384,7 +1416,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Window count is wire-independent (§13 force-free bound)
     // -------------------------------------------------------------------------
-    it('watchdog window increments on every tick fire (wire-independent): force-free fires after staleWindowMax', () => {
+    it('watchdog force-frees a DELIVERED slot after continuous idle (ABANDONED + fold)', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1393,17 +1425,10 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
         svc.onServerActive(7);
 
-        // Set up a watchdog with staleWindowMax=2 and staleAfterMs=0 (fires immediately)
-        svc._watchdog = new StaleWatchdog({ staleAfterMs: 0, staleWindowMax: 2, staleAskCap: 0 });
+        // Watchdog with a tiny idle window, armed in the past so the next tick is past the deadline.
+        svc._watchdog = new StaleWatchdog({ idleAbandonMs: 0 });
         svc._watchdog!.arm(Date.now() - 1000, false);
 
-        // Tick 1: fires -> windowCount=1 (< max=2), _owedStaleCheck not set (canPostAsk=false, cap=0)
-        svc['_handleWatchdogTick'](Date.now());
-        expect(svc._slot.snapshot().state.kind).toBe('delivered'); // not yet freed
-        expect(svc._watchdog?.windowCount()).toBe(1);
-
-        // Tick 2: fires -> windowCount=2 (>= max=2), force-free
-        svc._watchdog!.arm(Date.now() - 1000, false); // re-arm clock so it fires again
         svc['_handleWatchdogTick'](Date.now());
         expect(svc._slot.isFree()).toBe(true);
         expect(deps.foldEpisode).toHaveBeenCalled();
@@ -1458,105 +1483,4 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(resetSpy).not.toHaveBeenCalled();
     });
 
-    // -------------------------------------------------------------------------
-    // Coalescing: stale_solved supersedes progress when both owed
-    // -------------------------------------------------------------------------
-    it('coalescing: solved-click over an owed progress close -> ONE POST with stale_solved, latch.onPosted() called', async () => {
-        const postSpy = vi.fn(async () => 'accepted' as const);
-        const deps = fakeDeps({ postIntervention: postSpy });
-        const svc = new StruggleInterventionService(deps);
-
-        // Set up DELIVERED slot + lastSignal
-        simulateDecidePending(svc, 'ep-coal', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
-        svc.onServerActive(7);
-        postSpy.mockClear();
-
-        // Busy the wire so the progress owed is queued (not yet posted)
-        const fakeToken = 'busy-tok';
-        const ep = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode;
-        const fakeStamp = { episodeId: ep.episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: fakeToken };
-        const lt = svc._guard.issue('decide', fakeStamp);
-        svc._inFlightMarker = { requestToken: fakeToken, episodeId: ep.episodeId, generation: svc._slot.generation(), intent: 'decide', localToken: lt };
-
-        // Drive progress owed through the REAL code path (onNewBuildResult -> latch -> _propagateLatchToOwed)
-        svc.onNewBuildResult(true);
-        expect(svc._owedConfirmClose).toEqual({ confirmReason: 'progress' });
-        expect(postSpy).not.toHaveBeenCalled(); // wire still busy
-
-        // Solved-click arrives (C8 stub) -> supersedes the owed progress close with stale_solved
-        svc.recordSolvedClick();
-        expect(svc._owedConfirmClose).toEqual({ confirmReason: 'stale_solved' });
-
-        // Wire frees; spy on latch.onPosted before drain
-        svc._inFlightMarker = undefined;
-        const latchPostSpy = vi.spyOn(svc._latch, 'onPosted');
-
-        // Drain: exactly ONE POST with stale_solved
-        await svc['_drainOwed']();
-        expect(postSpy).toHaveBeenCalledTimes(1);
-        expect((postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1].confirmReason).toBe('stale_solved');
-        // Owed entry consumed
-        expect(svc._owedConfirmClose).toBeUndefined();
-        // latch.onPosted() was called on successful drain
-        expect(latchPostSpy).toHaveBeenCalledTimes(1);
-    });
-
-    // -------------------------------------------------------------------------
-    // Solved while confirmClose in flight: queue + drain correctly
-    // -------------------------------------------------------------------------
-    it('solved click while confirmClose in flight: queued as stale_solved; drains if resolved=false', async () => {
-        const postSpy = vi.fn(async () => 'accepted' as const);
-        const deps = fakeDeps({ postIntervention: postSpy });
-        const svc = new StruggleInterventionService(deps);
-
-        // DELIVERED slot with lastSignal
-        simulateDecidePending(svc, 'ep-sol', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
-        svc.onServerActive(7);
-        postSpy.mockClear();
-
-        // Simulate a confirmClose in flight
-        const ep = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode;
-        const tok = 'close-tok';
-        const stamp = { episodeId: ep.episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: tok };
-        svc._guard.issue('confirm_close', stamp);
-        svc._inFlightMarker = { requestToken: tok, episodeId: ep.episodeId, generation: svc._slot.generation(), intent: 'confirm_close', localToken: 99 };
-
-        // 'solved' click arrives while in-flight -> queue as stale_solved
-        svc._owedConfirmClose = { confirmReason: 'stale_solved' };
-
-        // Reply: resolved=false -> latch re-arms, slot stays; owed stale_solved should post next
-        svc.onServerClose(ep.episodeId, false, undefined, undefined, undefined);
-
-        // _drainOwed is called by onServerClose -> wait for it
-        await new Promise(r => setTimeout(r, 0));
-        expect(postSpy).toHaveBeenCalledTimes(1);
-        expect((postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1].confirmReason).toBe('stale_solved');
-    });
-
-    it('solved click while confirmClose in flight: if resolved=true slot frees and queued entry is cleared (one CLOSE total)', () => {
-        const deps = fakeDeps();
-        const svc = new StruggleInterventionService(deps);
-
-        simulateDecidePending(svc, 'ep-sol2', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
-        svc.onServerActive(7);
-
-        const ep = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode;
-        const tok = 'close-tok2';
-        const stamp = { episodeId: ep.episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: tok };
-        svc._guard.issue('confirm_close', stamp);
-        svc._inFlightMarker = { requestToken: tok, episodeId: ep.episodeId, generation: svc._slot.generation(), intent: 'confirm_close', localToken: 100 };
-
-        // Queue a stale_solved
-        svc._owedConfirmClose = { confirmReason: 'stale_solved' };
-
-        // Reply: resolved=true -> slot frees, queued entry cleared
-        svc.onServerClose(ep.episodeId, true, undefined, undefined, undefined);
-
-        expect(svc._slot.isFree()).toBe(true);
-        expect(svc._owedConfirmClose).toBeUndefined(); // cleared by slot-free
-        // Only one close applied (the in-flight one)
-    });
 });

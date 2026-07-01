@@ -54,7 +54,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         foldEpisode: vi.fn(),
         postRemoveMessage: vi.fn(),
         deleteSupersededProactiveMessage: vi.fn(async () => undefined),
-        postStaleAsk: vi.fn(),
         ...over,
     };
 }
@@ -98,16 +97,6 @@ function simulateParked(svc: StruggleInterventionService, episodeId = 'ep-parked
     svc.onServerAmbient('ambient hint', undefined, undefined, undefined, 0.9, 99);
 }
 
-/** Simulate onServerStale(ask=true): binds _liveAskBinding and arms the deadline latch. Slot must be DELIVERED. */
-function simulateStaleAsk(svc: StruggleInterventionService): void {
-    const snap = svc._slot.snapshot();
-    const episodeId = snap.state.kind === 'delivered' ? snap.state.episode.episodeId : 'ep-test';
-    const gen = svc._slot.generation();
-    const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken: 'rt-stale' };
-    const localToken = svc._guard.issue('stale_check', stamp);
-    svc._inFlightMarker = { requestToken: 'rt-stale', episodeId, generation: gen, intent: 'stale_check', localToken };
-    svc.onServerStale(episodeId, true, 10, 'Are you stuck?');
-}
 
 /** Set up an in-flight confirm_close marker against the current slot episode. */
 function armConfirmCloseInFlight(svc: StruggleInterventionService): void {
@@ -167,15 +156,6 @@ describe('StruggleInterventionService - slot debug snapshot + episode history', 
         expect(s.inFlight?.requestToken).toBeTypeOf('string');
     });
 
-    it('abandon.armed derives from the live ask binding, not the latch', () => {
-        const { svc } = makeService();
-        simulateDelivered(svc, 'active');
-        expect(svc.getSlotDebugSnapshot().abandon.armed).toBe(false);
-        simulateStaleAsk(svc);
-        const s = svc.getSlotDebugSnapshot();
-        expect(s.abandon.armed).toBe(true);
-        expect(s.abandon.deadlineMs).toBeTypeOf('number');
-    });
 
     it('recordTerminalEpisode caps at 20 and derives peakLevel/duration', () => {
         const { svc } = makeService();

@@ -17,7 +17,6 @@ import { showActiveNotification } from '@extension/services/struggleIntervention
 import { collectExerciseScopedFiles } from '@extension/services/struggleIntervention/exerciseScopedCollector';
 import { InterventionEventLog } from '@extension/services/struggleIntervention/interventionEventLog';
 import { ProactiveEgressConsent } from '@extension/services/struggleIntervention/proactiveEgressConsent';
-import { StaleCheckStore } from '@extension/services/struggleIntervention/staleCheckStore';
 import { subscribeStruggleEvents } from '@extension/services/struggleIntervention/struggleEventSubscription';
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 
@@ -67,9 +66,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // assigned below; the thunk only fires on later editor events), so constructing this before it is safe.
     const inline = new InlineHintDecoration(deps.context.extensionUri, () => coordinator.activeExerciseRoot);
     deps.context.subscriptions.push(inline);
-    // Route B: extension-local stale-check store (behind the @telemetry seam, full build only). The
-    // orchestrator writes kind/answer here; the chat provider reads it on history load via the handle.
-    const staleCheckStore = new StaleCheckStore(deps.context.globalState, deps.courseAccessScope ?? (() => null));
     const orchestrator = new StruggleInterventionService({
         isEgressEnabled: () => consent.isEnabled,
         hasNoaiMarker: () => {
@@ -127,9 +123,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         postRemoveMessage: (id) => deps.postRemoveMessage(id),
         deleteSupersededProactiveMessage: (exerciseId, messageId) =>
             deps.deleteSupersededProactiveMessage(exerciseId, messageId),
-        postStaleAsk: (e, a, m, q) => deps.postStaleAsk(e, a, m, q),
-        recordStaleCheckKind: (id) => staleCheckStore.recordKind(id),
-        recordStaleCheckAnswer: (id, answer) => staleCheckStore.recordAnswer(id, answer),
         log,
         devLog,
         onSlotChange: () => slotChangeSink(),
@@ -211,10 +204,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             devLog(`◀ Iris CLOSE episodeId=${episodeId ?? '–'} resolved=${resolved}`);
             orchestrator.onServerClose(episodeId, resolved, messageId, closingSentence, episodeLabel);
         },
-        onServerStale: (episodeId, ask, messageId, question) => {
-            devLog(`◀ Iris STALE episodeId=${episodeId ?? '–'} ask=${ask}`);
-            orchestrator.onServerStale(episodeId, ask, messageId, question);
-        },
     }));
 
     // Developer-only: force a synthetic edit-path alert straight into the orchestrator,
@@ -255,11 +244,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         resumeProactive: exerciseId => orchestrator.resumeProactive(exerciseId),
         isProactiveDegraded: () => orchestrator.isProactiveDegraded(),
         setInSession: (open: boolean) => orchestrator.setInSession(open),
-        // C5: stale-ask button + free-text grace hook
-        onStaleAskButton: (askId, button) => orchestrator.onStaleAskButton(askId, button),
-        // Route B: history-load re-attach reads the extension-local stale-check store.
-        staleCheckLookup: (messageId) => staleCheckStore.lookup(messageId),
-        onFreeTextReply: () => orchestrator.onFreeTextReply(),
         // C8: episode-scoped dismiss (seam callback threaded to setStruggleCallbacks.onEpisodeDismiss)
         dismissEpisode: (episodeId?: string) => orchestrator.dismissEpisode(episodeId),
         // Slot debug (Task 4): expose orchestrator snapshot/history + register the change sink.

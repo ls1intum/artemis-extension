@@ -5,7 +5,7 @@ import type { SlotGeneration } from './episode';
 // ---------------------------------------------------------------------------
 
 /** Wire values for the intent field (spec §17, snake_case on the wire). */
-export type Intent = 'decide' | 'confirm_close' | 'stale_check';
+export type Intent = 'decide' | 'confirm_close';
 
 /**
  * Snapshot captured at issue time.
@@ -95,71 +95,3 @@ export class InFlightGuard {
     }
 }
 
-// ---------------------------------------------------------------------------
-// DeadlineLatch
-// ---------------------------------------------------------------------------
-
-/**
- * Monotonic deadline for the stale-ask ABANDON timer (spec §6/§7.3).
- *
- * Pure -- no timers, no Date.now. The host (Phase C) schedules setTimeout on
- * every arm/advance and guards each expiry with `isCurrent(capturedDeadline)`.
- *
- * Ceiling contract: `arm` sets an absolute ceiling (`askStart + ceilingMs`).
- * `advance` may push the deadline forward but NEVER past the ceiling, so
- * termination is guaranteed even if free-text resets arrive without bound.
- *
- * Rollback: capture `current()` before a free-text `advance`; on a hard send
- * failure call `restore(prev)` to revoke the provisional advance, then
- * reschedule the expiry for the restored deadline.
- */
-export class DeadlineLatch {
-    private _ceiling = 0;
-    private _deadline = 0;
-
-    /**
-     * Initialise the latch for a new ask.
-     * - askStart = nowMs (stored internally via ceiling calculation)
-     * - ceiling  = nowMs + ceilingMs
-     * - deadline = nowMs + initialMs
-     *
-     * Returns the initial deadline.
-     */
-    arm(nowMs: number, initialMs: number, ceilingMs: number): number {
-        this._ceiling = nowMs + ceilingMs;
-        this._deadline = nowMs + initialMs;
-        return this._deadline;
-    }
-
-    /**
-     * Free-text reset: `deadline = min(now + resetMs, ceiling)`.
-     * Never advances past the absolute ceiling. Returns the new deadline.
-     */
-    advance(nowMs: number, resetMs: number): number {
-        this._deadline = Math.min(nowMs + resetMs, this._ceiling);
-        return this._deadline;
-    }
-
-    /** The active deadline (snapshot; use before a provisional advance for rollback). */
-    current(): number {
-        return this._deadline;
-    }
-
-    /**
-     * Set the deadline back to a previously captured value.
-     * Used to revoke a provisional `advance` when the outbound send fails.
-     */
-    restore(deadlineMs: number): void {
-        this._deadline = deadlineMs;
-    }
-
-    /**
-     * True iff the given deadline equals the currently active deadline.
-     * A setTimeout callback should call this with the deadline it captured at
-     * schedule time; if it returns false the timer was superseded and the
-     * callback is a no-op.
-     */
-    isCurrent(deadlineMs: number): boolean {
-        return this._deadline === deadlineMs;
-    }
-}

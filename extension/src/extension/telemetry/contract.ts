@@ -83,11 +83,6 @@ export interface StruggleEngineDeps {
     exerciseRegistry: ExerciseRegistry;
     /** Registers the lifetime of the intervention service + delivery sink. */
     context: vscode.ExtensionContext;
-    /**
-     * Route B: current server+principal scope for the extension-local stale-check store, or null when
-     * unresolved (store then no-ops). Wired lazily from the AskIris provider in extension.ts.
-     */
-    courseAccessScope?(): import('@extension/services/courseAccessStorageService').CourseAccessScope | null;
     /** POST the proactive struggle signal to Artemis (egress); returns the egress result. */
     postIntervention(
         exerciseId: number,
@@ -168,12 +163,6 @@ export interface StruggleEngineDeps {
      * Delegates to ArtemisApiService.deleteSupersededProactiveMessage.
      */
     deleteSupersededProactiveMessage(exerciseId: number, messageId: number): Promise<void>;
-    // C5: stale-ask host->webview
-    /**
-     * Post host->webview addStaleAsk{episodeId, askId, messageId, question} (C5).
-     * The webview attaches quick-reply buttons to the persisted stale-ask row.
-     */
-    postStaleAsk(episodeId: string, askId: string, messageId: number, question: string): void;
 }
 
 /**
@@ -212,24 +201,6 @@ export interface StruggleEngineHandle {
      * clean (no-engine) build, so extension.ts guards with `if (setInSession)`.
      */
     setInSession?(open: boolean): void;
-    /**
-     * C5: Route a stale-ask quick-reply button click from the webview.
-     * ABSENT in the clean (no-engine) build; extension.ts guards with optional chaining.
-     */
-    onStaleAskButton?(askId: string, button: 'solved' | 'still-on-it' | 'something-else'): void;
-    /**
-     * Route B: look up a proactive row's stale-check kind/answer by messageId for history-load
-     * re-attach. Backed by the extension-local stale-check store (full build only). ABSENT in the
-     * clean (no-engine) build; the chat provider's optional deps.staleCheckLookup stays undefined there.
-     */
-    staleCheckLookup?(messageId: number): { isStaleCheck: true; answer?: 'solved' | 'still-on-it' | 'something-else' } | undefined;
-    /**
-     * C5: Free-text grace hook. Call immediately before a chat POST when a stale ask
-     * is open; on a hard POST failure call the returned revoke() to roll back the
-     * provisional advance. Returns undefined when no ask is open (no-op path).
-     * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
-     */
-    onFreeTextReply?(): { revoke: () => void } | undefined;
     /**
      * C8: Episode-scoped dismiss. Frees the slot, tears down episode runtime, writes
      * the DISMISSED outcome (best-effort), and folds the episode without praise.

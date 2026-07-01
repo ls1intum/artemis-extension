@@ -34,24 +34,12 @@ type SendMessageResult =
     };
 
 export class ChatMessageService {
-    /** C5: optional free-text grace hook; injected by chatWebviewProvider.setStruggleCallbacks. */
-    private _onFreeTextReply?: () => { revoke: () => void } | undefined;
-
     constructor(
         private readonly deps: IrisServiceDeps,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
         private readonly _chatSessionService: IrisChatSessionService,
     ) { }
-
-    /**
-     * C5: Wire the free-text grace hook. When a stale ask is open, calling this hook
-     * immediately before a POST advances the ABANDON timer provisionally; on hard POST
-     * failure the returned revoke() rolls back the advance.
-     */
-    public setFreeTextHook(fn: (() => { revoke: () => void } | undefined) | undefined): void {
-        this._onFreeTextReply = fn;
-    }
 
     public async sendMessage(input: SendMessageInput): Promise<SendMessageResult> {
         if (input.isNoAiEnabled) {
@@ -100,11 +88,6 @@ export class ChatMessageService {
             throw new Error('Artemis API service not available');
         }
 
-        // C5: capture revoke handle before the POST so we can roll back on hard failure.
-        // `sent` flips to true as soon as sendChatMessage resolves; the catch only revokes
-        // when the POST itself failed (not when a subsequent bookkeeping call throws).
-        let revokeGrace: (() => void) | undefined;
-        let sent = false;
         try {
             // Check WebSocket connection before sending
             await this._ensureWebSocketConnection();
@@ -120,10 +103,6 @@ export class ChatMessageService {
             // Collect uncommitted files from the current workspace
             const uncommittedFiles = await this._collectUncommittedFiles();
 
-            // C5: advance the free-text abandon grace immediately before the POST so a slow
-            // network never fires ABANDON mid-engagement. Revoked below on hard failure.
-            revokeGrace = this._onFreeTextReply?.()?.revoke;
-
             // Send message to Iris
             logger.websocket(`🚀 Sending message to Artemis API... ${JSON.stringify({
                 sessionId: irisSessionManager.currentSessionId,
@@ -135,8 +114,6 @@ export class ChatMessageService {
                 messageText,
                 uncommittedFiles
             );
-            // POST committed -- post-send bookkeeping errors must NOT revoke the grace
-            sent = true;
 
             logger.websocket('✅ Message sent to Iris, waiting for WebSocket response...');
 
@@ -145,9 +122,6 @@ export class ChatMessageService {
             this.deps.postSnapshot();
 
         } catch (error: unknown) {
-            // C5: only revoke when the POST itself failed; if sent=true the commit happened
-            // and rolling back the grace would be wrong (post-send bookkeeping errors don't count).
-            if (!sent) { revokeGrace?.(); }
             logger.error('Error sending chat message', LogCategory.IRIS_CHAT, error);
             throw error;
         }

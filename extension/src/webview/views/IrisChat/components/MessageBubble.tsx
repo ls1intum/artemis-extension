@@ -66,7 +66,7 @@ function MessageBubbleComponent({
     const showThumbs = isAssistant && !isFailed && bodyVisible && !isProactive;
     // A grouped (timeline) row never renders its own Dismiss — the EpisodeTimeline footer owns it. A
     // non-grouped proactive bubble (proactive without an episode) still shows its Dismiss.
-    const showDismiss = isProactive && !grouped && !isDismissed && !message.staleAsk
+    const showDismiss = isProactive && !grouped && !isDismissed
         && message.id !== undefined && !!onDismiss && bodyVisible && !isFailed;
 
     return (
@@ -226,7 +226,6 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.status === next.message.status &&
         prev.message.origin === next.message.origin &&
         prev.message.proactiveOutcome === next.message.proactiveOutcome &&
-        prev.message.staleAsk === next.message.staleAsk &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
         prev.grouped === next.grouped &&

@@ -305,56 +305,6 @@ suite('ChatMessageService', () => {
         });
     });
 
-    suite('C5 free-text grace hook', () => {
-        test('revoke is called once when sendChatMessage rejects (hard POST failure)', async () => {
-            mockApiService.sendChatMessage.rejects(new Error('network error'));
-            createService();
-            const revokeSpy = sandbox.spy();
-            service.setFreeTextHook(() => ({ revoke: revokeSpy }));
-            await assert.rejects(
-                () => service.sendMessage({ text: 'Hello', isNoAiEnabled: false }),
-                /network error/,
-            );
-            assert.strictEqual(revokeSpy.callCount, 1, 'revoke must be called once on hard POST failure');
-        });
-
-        test('revoke is NOT called when sendChatMessage resolves (success)', async () => {
-            // mockApiService.sendChatMessage.resolves() is the default set in setup()
-            createService();
-            const revokeSpy = sandbox.spy();
-            service.setFreeTextHook(() => ({ revoke: revokeSpy }));
-            await sendHello();
-            assert.strictEqual(revokeSpy.callCount, 0, 'revoke must not be called on success');
-        });
-
-        test('revoke is NOT called when POST succeeds but a post-send call throws', async () => {
-            // postSnapshot throws after sendChatMessage resolves -- Fix 1 guarantees no revoke
-            const throwingSnapshot = sandbox.stub().throws(new Error('post-send failure'));
-            const svcWithThrow = new ChatMessageService(
-                {
-                    contextStore,
-                    artemisApiService: mockApiService as any,
-                    postMessage: postMessageSpy,
-                    postSnapshot: throwingSnapshot,
-                },
-                { isConnected: () => true, connect: sandbox.stub().resolves() } as any,
-                () => mockSessionManager as any,
-                mockChatSessionService as any,
-            );
-            const revokeSpy = sandbox.spy();
-            svcWithThrow.setFreeTextHook(() => ({ revoke: revokeSpy }));
-            await assert.rejects(
-                () => svcWithThrow.sendMessage({ text: 'Hello', isNoAiEnabled: false }),
-                /post-send failure/,
-            );
-            assert.strictEqual(
-                revokeSpy.callCount,
-                0,
-                'revoke must NOT be called when POST committed but a post-send step threw',
-            );
-        });
-    });
-
     suite('Error Handling', () => {
         test('should continue without files on file collection error', async () => {
             checkWorkspaceFilesStub.rejects(new Error('Git command failed'));

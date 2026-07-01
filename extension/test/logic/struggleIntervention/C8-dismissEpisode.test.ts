@@ -8,21 +8,6 @@ import type { StruggleInterventionDeps } from '@extension/services/struggleInter
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 import type { IrisChatMessage } from '@extension/types';
 
-// ---------------------------------------------------------------------------
-// Fake-scheduler harness (mirrors C5: captures callback + delay for manual firing)
-// ---------------------------------------------------------------------------
-
-interface FakeTimer {
-    fn: () => void;
-    ms: number;
-}
-
-function makeFakeScheduler(): { timers: FakeTimer[]; setTimeoutFn: (fn: () => void, ms: number) => void } {
-    const timers: FakeTimer[] = [];
-    const setTimeoutFn = (fn: () => void, ms: number) => { timers.push({ fn, ms }); };
-    return { timers, setTimeoutFn };
-}
-
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
         isEgressEnabled: () => true,
@@ -60,7 +45,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         foldEpisode: vi.fn(),
         postRemoveMessage: vi.fn(),
         deleteSupersededProactiveMessage: vi.fn(async () => undefined),
-        postStaleAsk: vi.fn(),
         ...over,
     };
 }
@@ -77,26 +61,6 @@ function simulateDelivered(svc: StruggleInterventionService, episodeId = 'ep-1')
     svc.onServerActive(1, undefined, undefined, undefined, 0.9, 'hint text', 99);
 }
 
-/**
- * Arm the REAL ABANDON timer via the production path.
- *
- * Mirrors the simulateStaleAsk helper from C5: sets an in-flight stale_check marker,
- * then calls the real onServerStale(ask=true), which calls _scheduleAbandon and
- * registers a callback via the injected setTimeoutFn. Requires the slot to be
- * DELIVERED (so _watchdog is armed) and the service to have an injected setTimeoutFn
- * that captures the callback (e.g. from makeFakeScheduler).
- */
-function armRealAbandonTimer(
-    svc: StruggleInterventionService,
-    episodeId: string,
-    messageId: number,
-): void {
-    const gen = svc._slot.generation();
-    const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken: 'rt-stale-arm' };
-    const localToken = svc._guard.issue('stale_check', stamp);
-    svc._inFlightMarker = { requestToken: 'rt-stale-arm', episodeId, generation: gen, intent: 'stale_check', localToken };
-    svc.onServerStale(episodeId, true, messageId, 'Are you stuck?');
-}
 
 describe('C8: dismissEpisode', () => {
     it('frees the slot (generation bumps), writes DISMISSED, tears down runtime, folds without praise', async () => {
@@ -122,13 +86,11 @@ describe('C8: dismissEpisode', () => {
         expect(foldCall[2]).toBeUndefined();
     });
 
-    it('_clearEpisodeRuntime: watchdog disarmed, owed-close cleared, live-ask binding cleared', async () => {
+    it('_clearEpisodeRuntime: watchdog disarmed and owed-close cleared', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDelivered(svc, 'ep-clear');
 
-        // Manually plant a live-ask binding to verify it is cleared
-        svc._liveAskBinding = { askId: 'ask-1', messageId: 99, episodeId: 'ep-clear' };
         // Plant an owed confirmClose
         svc._owedConfirmClose = { confirmReason: 'progress' };
         // Watchdog was armed by simulateDelivered (via onServerActive take-delivered path)
@@ -136,7 +98,6 @@ describe('C8: dismissEpisode', () => {
 
         svc.dismissEpisode('ep-clear');
 
-        expect(svc._liveAskBinding).toBeUndefined();
         expect(svc._owedConfirmClose).toBeUndefined();
         // Watchdog is disarmed and set to undefined by _clearEpisodeRuntime
         expect(svc._watchdog).toBeUndefined();
@@ -205,60 +166,4 @@ describe('C8: dismissEpisode', () => {
         expect(deps.foldEpisode).not.toHaveBeenCalled();
     });
 
-    it('CRITICAL: Dismiss while stale-ask open - pending ABANDON timer fires after dismiss but is NO-OP (real _scheduleAbandon guard)', async () => {
-        // Build the service with an injected fake scheduler (same pattern as C5).
-        // The fake captures the callback + delay that _scheduleAbandon registers via
-        // setTimeoutFn, so we can fire the timer manually without vi.useFakeTimers().
-        const sched = makeFakeScheduler();
-        const deps = fakeDeps({
-            setTimeoutFn: sched.setTimeoutFn,
-            slotCfg: {
-                staleAfterMs: 10_000,
-                staleWindowMax: 3,
-                staleAskCap: 2,
-                abandonInitialMs: 60_000,
-                abandonFreeTextMs: 30_000,
-                abandonCeilingMs: 300_000,
-            },
-            setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
-        });
-        const svc = new StruggleInterventionService(deps);
-        const episodeId = 'ep-abandon-real';
-        simulateDelivered(svc, episodeId);
-
-        // Arm the REAL ABANDON timer via the production path (NOT a hand-rolled setTimeout).
-        // armRealAbandonTimer calls onServerStale(ask=true) which calls _scheduleAbandon,
-        // which registers a callback via the injected setTimeoutFn captured by sched.
-        armRealAbandonTimer(svc, episodeId, 77);
-
-        // The production _scheduleAbandon must have been called and the timer captured.
-        expect(sched.timers.length).toBeGreaterThan(0);
-        const abandonTimer = sched.timers.at(-1)!;
-        expect(abandonTimer.ms).toBe(60_000);
-        // _liveAskBinding must be set - this is the guard the production code checks.
-        expect(svc._liveAskBinding).toBeDefined();
-        expect(svc._liveAskBinding!.episodeId).toBe(episodeId);
-
-        // Dismiss the episode. _clearEpisodeRuntime clears _liveAskBinding.
-        svc.dismissEpisode(episodeId);
-        expect(svc._slot.snapshot().state.kind).toBe('free');
-        expect(svc._liveAskBinding).toBeUndefined();
-        // Record the generation after the dismiss's slot.free() call.
-        const genAfterDismiss = svc._slot.generation();
-
-        // Fire the REAL callback that _scheduleAbandon registered.
-        // The production guard at this point: `if (!_liveAskBinding ...) { return; }`
-        // This guard must neutralise the timer (binding was cleared by dismissEpisode).
-        abandonTimer.fn();
-        await Promise.resolve();
-
-        // ABANDON must be a complete NO-OP.
-        // If the guard were removed, slot.free() would be called again (bumping the
-        // generation) and setEpisodeOutcome would be called with 'ABANDONED'.
-        expect(svc._slot.generation()).toBe(genAfterDismiss); // no second free()
-        const calls = (deps.setEpisodeOutcome as ReturnType<typeof vi.fn>).mock.calls;
-        const outcomes = calls.map((c: unknown[]) => c[2]);
-        expect(outcomes).toContain('DISMISSED');
-        expect(outcomes).not.toContain('ABANDONED');
-    });
 });

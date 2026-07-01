@@ -39,19 +39,6 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
         };
     }
 
-    // stale_check frame
-    if (kind === 'stale_check') {
-        if (typeof f.ask !== 'boolean') { return undefined; }
-        return {
-            exerciseId,
-            kind: 'stale_check',
-            episodeId,
-            ask: f.ask,
-            question: typeof f.question === 'string' ? f.question : undefined,
-            messageId,
-        };
-    }
-
     // decide frame (kind='decide' OR backwards-compat without kind for ambient/active)
     const action = typeof f.action === 'string' ? f.action : undefined;
 
@@ -111,8 +98,6 @@ export interface StruggleEventHandlers {
     onServerSilent(episodeId: string | undefined, messageId: number | undefined): void;
     /** Server confirms or denies the close request (C4). Routes by the client's current slot state. */
     onServerClose(episodeId: string | undefined, resolved: boolean, messageId: number | undefined, closingSentence: string | undefined, episodeLabel: string | undefined): void;
-    /** Server returns the stale-check result (C4). `ask=true` means a question row was persisted. */
-    onServerStale(episodeId: string | undefined, ask: boolean, messageId: number | undefined, question: string | undefined): void;
 }
 
 /**
@@ -132,11 +117,6 @@ export function subscribeStruggleEvents(
 
         if (e.kind === 'confirm_close') {
             handlers.onServerClose(e.episodeId, e.resolved as boolean, e.messageId, e.closingSentence, e.episodeLabel);
-            return;
-        }
-
-        if (e.kind === 'stale_check') {
-            handlers.onServerStale(e.episodeId, e.ask as boolean, e.messageId, e.question);
             return;
         }
 

@@ -79,14 +79,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
-	// Forward-ref to the AskIris provider's server+principal scope: the engine's Route B store reads it lazily
-	// at write/read time (long after the provider below is built), so it resolves by the time proactive fires.
-	let courseAccessScopeRef: (() => import('@extension/services/courseAccessStorageService').CourseAccessScope | null) | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, onStaleAskButton, onFreeTextReply, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink, staleCheckLookup } = createStruggleEngine({
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
-		courseAccessScope: () => courseAccessScopeRef?.() ?? null,
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
 		isStudentProactiveOn: exerciseId => proactivePreferenceRef?.isProactiveOn(exerciseId) ?? true,
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
@@ -110,8 +106,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		postRemoveMessage: (id) => chatWebviewProvider?.postRemoveMessage(id),
 		deleteSupersededProactiveMessage: (exerciseId, messageId) =>
 			artemisApiService.deleteSupersededProactiveMessage(exerciseId, messageId),
-		// C5: stale-ask host->webview
-		postStaleAsk: (e, a, m, q) => chatWebviewProvider?.postStaleAsk(e, a, m, q),
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
 		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
 		subscribeStruggleTopic: (topic, onFrame) => {
@@ -202,8 +196,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 	// Wire the engine's lazy preference read to the provider's preference service (built in its constructor above).
 	proactivePreferenceRef = artemisWebviewProvider.proactivePreference;
-	// Route B: give the engine's stale-check store the same server+principal scope as course access.
-	courseAccessScopeRef = () => artemisWebviewProvider.currentCourseAccessScope();
 	// Slot debug wiring (Task 4): connect the orchestrator's slot snapshot to the live feed.
 	// The provider forwards both calls into its private _liveEngineFeed.
 	artemisWebviewProvider.wireSlotDebug(
@@ -241,8 +233,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
-	// C5: wire stale-ask button command + free-text grace hook into the chat provider
-	chatWebviewProvider.setStruggleCallbacks({ onStaleAskButton, onFreeTextReply, onEpisodeDismiss: dismissEpisode, staleCheckLookup });
+	chatWebviewProvider.setStruggleCallbacks({ onEpisodeDismiss: dismissEpisode });
 	context.subscriptions.push(chatWebviewProvider.onDidDismissProactive(() => recordProactiveDismiss()));
 	// C3: in-session flag: toggle the slot's quiet/loud escalation branch as the chat view opens/closes.
 	if (setInSession) {

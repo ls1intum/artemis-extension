@@ -110,12 +110,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /** Fires when the student dismisses a proactive bubble (drives the Slice-4a delivery backoff in extension.ts). */
     public readonly onDidDismissProactive = this._onDidDismissProactive.event;
 
-    // C5/C8: struggle callbacks wired by extension.ts after engine creation
-    private _onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
-    /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode). */
+    /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode), wired by extension.ts. */
     private _onEpisodeDismiss?: (episodeId?: string) => void;
-    /** Route B: history-load stale-check lookup, wired by extension.ts from the engine handle (undefined in the clean build). */
-    private _staleCheckLookup?: (messageId: number) => { isStaleCheck: true; answer?: 'solved' | 'still-on-it' | 'something-else' } | undefined;
 
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
@@ -171,8 +167,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             artemisApiService: this._artemisApiService,
             postMessage: (msg) => this._postMessageSafe(msg),
             postSnapshot: () => this._viewStatePresenter.postSnapshot(),
-            // Route B: read lazily via the mutable field so it can be wired after construction (clean build: stays undefined).
-            staleCheckLookup: (messageId) => this._staleCheckLookup?.(messageId),
         };
 
         this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService, this._exerciseRegistry);
@@ -506,14 +500,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
-     * C5: Post a host->webview addStaleAsk message so the webview attaches quick-reply
-     * buttons (Solved / Still on it / Something else) to the persisted stale-ask row.
-     */
-    postStaleAsk(episodeId: string, askId: string, messageId: number, question: string): void {
-        this._postMessageSafe({ type: ExtensionMsg.AddStaleAsk, episodeId, askId, messageId, question });
-    }
-
-    /**
      * C7: Post a host->webview foldEpisode control frame so the webview collapses
      * the episode group to a summary fold-line. Without praise: folds immediately.
      * With praise: waits for the close row identified by `closeMessageId` to
@@ -528,21 +514,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
-     * C5: Wire the struggle-engine callbacks into the provider.
+     * C8: Wire the struggle-engine callbacks into the provider.
      * Called by extension.ts after the engine handle is available.
      */
     public setStruggleCallbacks(callbacks: {
-        onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
-        onFreeTextReply?: () => { revoke: () => void } | undefined;
         /** C8: episode-scoped dismiss; routes to orchestrator.dismissEpisode. */
         onEpisodeDismiss?: (episodeId?: string) => void;
-        /** Route B: history-load stale-check lookup (undefined in the clean build). */
-        staleCheckLookup?: (messageId: number) => { isStaleCheck: true; answer?: 'solved' | 'still-on-it' | 'something-else' } | undefined;
     }): void {
-        this._onStaleAskButton = callbacks.onStaleAskButton;
-        this._chatMessageService.setFreeTextHook(callbacks.onFreeTextReply);
         this._onEpisodeDismiss = callbacks.onEpisodeDismiss;
-        this._staleCheckLookup = callbacks.staleCheckLookup;
     }
 
     /**
@@ -696,11 +675,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 case WebviewCmd.OpenHelpPopup:
                     this._handleOpenHelpPopup();
                     break;
-                case WebviewCmd.StaleAskButton: {
-                    const { askId, button } = getPayload<WebCmd<'staleAskButton'>>(message);
-                    this._onStaleAskButton?.(askId, button);
-                    break;
-                }
                 default:
                     void this._handleUtilityCommand(message).then(handled => {
                         if (!handled) {

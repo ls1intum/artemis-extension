@@ -6,9 +6,9 @@ import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 import { Container } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
+import styles from './SlotPanel.module.css';
 import { mmss } from './useEngineCountdowns';
 import { useSlotCountdowns } from './useSlotCountdowns';
-import styles from './SlotPanel.module.css';
 
 // ---------------------------------------------------------------------------
 // Inner component - always receives a non-null snapshot, so hooks are called
@@ -16,7 +16,7 @@ import styles from './SlotPanel.module.css';
 // ---------------------------------------------------------------------------
 
 function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
-    const { staleLeft, abandonLeft } = useSlotCountdowns(snapshot);
+    const { staleLeft } = useSlotCountdowns(snapshot);
 
     const badgeClass =
         snapshot.state === 'free'
@@ -83,22 +83,8 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
                         </div>
                         {snapshot.watchdog.armed && (
                             <div className={styles.row}>
-                                <span className={styles.label}>Stale countdown</span>
+                                <span className={styles.label}>Idle-free in</span>
                                 <span className={styles.value}>{mmss(staleLeft ?? 0)}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className={styles.group}>
-                        <div className={styles.groupTitle}>Abandon timer</div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Armed</span>
-                            <span className={styles.value}>{snapshot.abandon.armed ? 'yes' : 'no'}</span>
-                        </div>
-                        {snapshot.abandon.armed && (
-                            <div className={styles.row}>
-                                <span className={styles.label}>Abandon countdown</span>
-                                <span className={styles.value}>{mmss(abandonLeft ?? 0)}</span>
                             </div>
                         )}
                     </div>
@@ -130,10 +116,6 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
                         <div className={styles.row}>
                             <span className={styles.label}>Confirm close owed</span>
                             <span className={styles.value}>{snapshot.owed.confirmClose ? 'yes' : 'no'}</span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Stale check owed</span>
-                            <span className={styles.value}>{snapshot.owed.staleCheck ? 'yes' : 'no'}</span>
                         </div>
                         <div className={styles.row}>
                             <span className={styles.label}>Pending outcomes</span>

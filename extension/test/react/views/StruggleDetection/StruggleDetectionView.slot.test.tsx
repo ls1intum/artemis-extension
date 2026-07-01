@@ -50,9 +50,8 @@ const FREE_SNAPSHOT: SlotDebugSnapshot = {
     isNew: false,
     inSession: false,
     watchdog: { armed: false, staleDeadlineMs: null },
-    abandon: { armed: false, deadlineMs: null },
     inFlight: null,
-    owed: { confirmClose: false, staleCheck: false },
+    owed: { confirmClose: false },
     pendingOutcomes: 0,
 };
 
