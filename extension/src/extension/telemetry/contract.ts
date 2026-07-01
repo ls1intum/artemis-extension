@@ -83,6 +83,11 @@ export interface StruggleEngineDeps {
     exerciseRegistry: ExerciseRegistry;
     /** Registers the lifetime of the intervention service + delivery sink. */
     context: vscode.ExtensionContext;
+    /**
+     * Route B: current server+principal scope for the extension-local stale-check store, or null when
+     * unresolved (store then no-ops). Wired lazily from the AskIris provider in extension.ts.
+     */
+    courseAccessScope?(): import('@extension/services/courseAccessStorageService').CourseAccessScope | null;
     /** POST the proactive struggle signal to Artemis (egress); returns the egress result. */
     postIntervention(
         exerciseId: number,
@@ -212,6 +217,12 @@ export interface StruggleEngineHandle {
      * ABSENT in the clean (no-engine) build; extension.ts guards with optional chaining.
      */
     onStaleAskButton?(askId: string, button: 'solved' | 'still-on-it' | 'something-else'): void;
+    /**
+     * Route B: look up a proactive row's stale-check kind/answer by messageId for history-load
+     * re-attach. Backed by the extension-local stale-check store (full build only). ABSENT in the
+     * clean (no-engine) build; the chat provider's optional deps.staleCheckLookup stays undefined there.
+     */
+    staleCheckLookup?(messageId: number): { isStaleCheck: true; answer?: 'solved' | 'still-on-it' | 'something-else' } | undefined;
     /**
      * C5: Free-text grace hook. Call immediately before a chat POST when a stale ask
      * is open; on a hard POST failure call the returned revoke() to roll back the

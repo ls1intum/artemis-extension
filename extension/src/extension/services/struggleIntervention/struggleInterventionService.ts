@@ -165,6 +165,10 @@ export interface StruggleInterventionDeps {
     slotCfg?: StaleConfig;
     /** Progress-close latch config. Consumed from TUNING.slot. */
     progressCloseCfg?: ProgressCloseCfg;
+    /** Route B: mark a persisted stale-check row (by messageId) in the extension-local store. Optional: absent in test stubs. */
+    recordStaleCheckKind?(messageId: number): void;
+    /** Route B: record the student's quick-reply on a stale-check row. Optional: absent in test stubs. */
+    recordStaleCheckAnswer?(messageId: number, answer: 'solved' | 'still-on-it' | 'something-else'): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -782,6 +786,8 @@ export class StruggleInterventionService implements AlertSink {
             this._setLiveAskBinding({ askId, messageId, episodeId: latchedEpisodeId });
             this._watchdog.onAskPosted();
             this._deps.postStaleAsk(latchedEpisodeId, askId, messageId, question);
+            // Route B: remember this persisted row is a stale-check so a reloaded episode differentiates it.
+            this._deps.recordStaleCheckKind?.(messageId);
             // C5: arm the ABANDON latch and schedule the initial per-ask timeout
             const now = Date.now();
             const cfg = this._deps.slotCfg ?? DEFAULT_SLOT_CFG;
@@ -1387,6 +1393,13 @@ export class StruggleInterventionService implements AlertSink {
         const effect = routeReply({ kind: 'button', button, askId }, askOpen, liveAskId);
         const now = Date.now();
         this._dbg(`  -> STALE-ASK button="${button}" -> ${effect.kind}`);
+
+        // Route B: record the answer for reload differentiation, but only for a VALID reply. A stale/absent
+        // askId routes to `none` and must NOT write an answer onto the current live row.
+        const answeredMessageId = this._liveAskBinding?.messageId;
+        if (answeredMessageId !== undefined && effect.kind !== 'none') {
+            this._deps.recordStaleCheckAnswer?.(answeredMessageId, button);
+        }
 
         switch (effect.kind) {
             case 'confirm-close': {

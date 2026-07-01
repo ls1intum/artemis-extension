@@ -114,6 +114,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _onStaleAskButton?: (askId: string, button: 'solved' | 'still-on-it' | 'something-else') => void;
     /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode). */
     private _onEpisodeDismiss?: (episodeId?: string) => void;
+    /** Route B: history-load stale-check lookup, wired by extension.ts from the engine handle (undefined in the clean build). */
+    private _staleCheckLookup?: (messageId: number) => { isStaleCheck: true; answer?: 'solved' | 'still-on-it' | 'something-else' } | undefined;
 
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
@@ -169,6 +171,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             artemisApiService: this._artemisApiService,
             postMessage: (msg) => this._postMessageSafe(msg),
             postSnapshot: () => this._viewStatePresenter.postSnapshot(),
+            // Route B: read lazily via the mutable field so it can be wired after construction (clean build: stays undefined).
+            staleCheckLookup: (messageId) => this._staleCheckLookup?.(messageId),
         };
 
         this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService, this._exerciseRegistry);
@@ -532,10 +536,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         onFreeTextReply?: () => { revoke: () => void } | undefined;
         /** C8: episode-scoped dismiss; routes to orchestrator.dismissEpisode. */
         onEpisodeDismiss?: (episodeId?: string) => void;
+        /** Route B: history-load stale-check lookup (undefined in the clean build). */
+        staleCheckLookup?: (messageId: number) => { isStaleCheck: true; answer?: 'solved' | 'still-on-it' | 'something-else' } | undefined;
     }): void {
         this._onStaleAskButton = callbacks.onStaleAskButton;
         this._chatMessageService.setFreeTextHook(callbacks.onFreeTextReply);
         this._onEpisodeDismiss = callbacks.onEpisodeDismiss;
+        this._staleCheckLookup = callbacks.staleCheckLookup;
     }
 
     /**

@@ -954,6 +954,47 @@ suite('IrisChatSessionService Test Suite', () => {
             );
         });
 
+        test('re-attaches proactiveKind/staleAnswer from the stale-check lookup on history load (Route B)', async () => {
+            const staleCheckLookup = sinon.stub();
+            staleCheckLookup.withArgs(55).returns({ isStaleCheck: true, answer: 'solved' });
+            staleCheckLookup.returns(undefined);
+            const service = new IrisChatSessionService(
+                {
+                    contextStore,
+                    artemisApiService: mockApiService as any,
+                    postMessage: postMessageSpy,
+                    postSnapshot: onPostSnapshotSpy,
+                    staleCheckLookup,
+                },
+                () => mockIrisWebSocketSessionClient as any,
+            );
+
+            const context: ActiveContext = {
+                type: 'course', id: 101, title: 'Test Course', source: 'user-selected', locked: false, selectedAt: Date.now(),
+            };
+            contextStore.setActiveContext(context);
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 7, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-02-01T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(7).resolves([
+                { id: 55, sender: 'LLM', origin: 'PROACTIVE_STRUGGLE', proactiveEpisodeId: 'ep-9', content: [{ textContent: 'still there?' }] },
+                { id: 56, sender: 'LLM', origin: 'PROACTIVE_STRUGGLE', proactiveEpisodeId: 'ep-9', content: [{ textContent: 'a hint' }] },
+            ]);
+            mockIrisWebSocketSessionClient.initializeSession.resolves(7);
+
+            await service.loadAllSessionsForContext();
+
+            const loadMessagesCall = postMessageSpy.getCalls().find(c => c.args[0]?.type === 'loadMessages');
+            assert.ok(loadMessagesCall, 'Should emit loadMessages');
+            const msgs = (loadMessagesCall.args[0] as { messages: Array<{ id?: number; proactiveKind?: string; staleAnswer?: string }> }).messages;
+            const stale = msgs.find(m => m.id === 55);
+            const hint = msgs.find(m => m.id === 56);
+            assert.strictEqual(stale?.proactiveKind, 'stale-check', 'the looked-up row is tagged stale-check');
+            assert.strictEqual(stale?.staleAnswer, 'solved', 'the stored answer is re-attached');
+            assert.strictEqual(hint?.proactiveKind, undefined, 'a row absent from the store stays a hint');
+        });
+
         test('falls back to createNewSession when all server sessions are empty', async () => {
             // importSessionsToStore returns the actually-imported count,
             // not sessions.length. With all empty server sessions, count

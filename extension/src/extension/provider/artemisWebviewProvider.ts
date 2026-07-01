@@ -567,6 +567,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
     }
 
+    /** Public accessor for the current server+principal scope (used to scope the Route B stale-check store). */
+    public currentCourseAccessScope(): CourseAccessScope | null {
+        return this._currentCourseAccessScope();
+    }
+
     private _currentCourseAccessScope(): CourseAccessScope | null {
         const info = this._appStateManager.userInfo;
         if (!info) { return null; }

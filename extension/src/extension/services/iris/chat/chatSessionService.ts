@@ -361,15 +361,24 @@ export class IrisChatSessionService {
                     ? msg.proactiveOutcome
                     : undefined;
 
+                // Route B: re-attach the extension-local stale-check kind/answer so a reloaded episode
+                // keeps its differentiated check-in node (a proactive row absent from the store is a hint).
+                const isProactive = msg.origin === 'PROACTIVE_STRUGGLE';
+                const staleRec = isProactive && typeof msg.id === 'number'
+                    ? this.deps.staleCheckLookup?.(msg.id)
+                    : undefined;
+
                 return {
                     id: msg.id,
                     role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
                     content: content,
                     timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
                     helpful: (msg as { helpful?: boolean | null }).helpful,
-                    origin: (msg.origin === 'PROACTIVE_STRUGGLE' ? 'proactive' : undefined) as 'proactive' | undefined,
+                    origin: (isProactive ? 'proactive' : undefined) as 'proactive' | undefined,
                     proactiveOutcome,
                     proactiveEpisodeId: typeof msg.proactiveEpisodeId === 'string' ? msg.proactiveEpisodeId : undefined,
+                    proactiveKind: staleRec ? ('stale-check' as const) : undefined,
+                    staleAnswer: staleRec?.answer,
                 };
             });
 

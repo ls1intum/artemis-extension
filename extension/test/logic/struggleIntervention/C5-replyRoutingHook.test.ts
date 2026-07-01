@@ -69,6 +69,8 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         postRemoveMessage: vi.fn(),
         deleteSupersededProactiveMessage: vi.fn(async () => undefined),
         postStaleAsk: vi.fn(),
+        recordStaleCheckKind: vi.fn(),
+        recordStaleCheckAnswer: vi.fn(),
         ...over,
     };
 }
@@ -452,6 +454,35 @@ describe('C5: ABANDON latch + free-text grace + button routing', () => {
             expect(deps.cancelOutstandingStruggleJob).toHaveBeenCalledWith(42, 'rt-sc2');
             // The drain should have run a confirm_close (wire now free)
             expect(drainIntent).toBe('confirm_close');
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // Route B: extension-local stale-check store writes
+    // -----------------------------------------------------------------------
+
+    describe('Route B store writes', () => {
+        it('records the stale-check kind by messageId when the ask row is posted', () => {
+            const sched = makeFakeScheduler();
+            const { svc, deps, episodeId } = buildDeliveredService(sched);
+            simulateStaleAsk(svc, episodeId, 'ask-1', 99);
+            expect(deps.recordStaleCheckKind).toHaveBeenCalledWith(99);
+        });
+
+        it('records the answer for a VALID quick-reply, keyed by the bound messageId', () => {
+            const sched = makeFakeScheduler();
+            const { svc, deps, episodeId } = buildDeliveredService(sched);
+            simulateStaleAsk(svc, episodeId, 'ask-1', 99);
+            svc.onStaleAskButton('ask-1', 'solved');
+            expect(deps.recordStaleCheckAnswer).toHaveBeenCalledWith(99, 'solved');
+        });
+
+        it('does NOT record an answer for a stale/wrong askId (routes to none)', () => {
+            const sched = makeFakeScheduler();
+            const { svc, deps, episodeId } = buildDeliveredService(sched);
+            simulateStaleAsk(svc, episodeId, 'ask-1', 99);
+            svc.onStaleAskButton('ask-WRONG', 'solved');
+            expect(deps.recordStaleCheckAnswer).not.toHaveBeenCalled();
         });
     });
 
