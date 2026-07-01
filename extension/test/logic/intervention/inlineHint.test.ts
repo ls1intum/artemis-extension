@@ -50,11 +50,12 @@ describe('inlineHint helpers', () => {
     });
 
     describe('buildHoverMarkdown', () => {
-        it('hover carries Open chat + Dismiss links, trusting ONLY those two commands (not the server hint)', () => {
+        it('hover carries Open chat + Hide inline + Dismiss links, trusting ONLY those three commands (not the server hint)', () => {
             const md = buildHoverMarkdown('Look at the loop bound.');
             // Scoped trust: a malicious/injected hint cannot smuggle an executable command: link.
-            expect(md.isTrusted).toEqual({ enabledCommands: ['iris.intervention.inlineOpen', 'iris.intervention.inlineDismiss'] });
+            expect(md.isTrusted).toEqual({ enabledCommands: ['iris.intervention.inlineOpen', 'iris.intervention.inlineHide', 'iris.intervention.inlineDismiss'] });
             expect(md.value).toContain('command:iris.intervention.inlineOpen');
+            expect(md.value).toContain('command:iris.intervention.inlineHide');
             expect(md.value).toContain('command:iris.intervention.inlineDismiss');
         });
     });

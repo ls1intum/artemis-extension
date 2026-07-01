@@ -929,7 +929,11 @@ export class StruggleInterventionService implements AlertSink {
             void this._deps.openSession(sessionId);
         }
         this._deps.setBadge(true);
-        this._deps.showActiveNotification();
+        // The bubble already lands in the open chat, so the toast is redundant (and noisy) when the
+        // chat view is open. Mirror the escalation path, which already suppresses the toast in-session.
+        if (!this._slot.snapshot().inSession) {
+            this._deps.showActiveNotification();
+        }
         this._deps.clearLamp();
         if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
             this._deps.showInline(anchorFile, anchorLine, inlineHint, bubbleText);

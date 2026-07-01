@@ -125,9 +125,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     });
 
     // Inline-hover action links (spec §4.1, §5.2): Open chat engages (clears backoff) and KEEPS the cue as a
-    // standing reference; only Dismiss (→ backoff) removes it here. The cue still retires on its other
-    // lifecycle events (student edit, new episode, terminal episode exit). Registered behind the seam so
-    // extension.ts never imports the intervention surface.
+    // standing reference; Hide inline removes the cue with NO backoff (pure visual); Dismiss (→ backoff)
+    // removes it. The cue also retires on its other lifecycle events (student edit, new episode, terminal
+    // episode exit). Registered behind the seam so extension.ts never imports the intervention surface.
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             orchestrator.recordOutcome('clicked');
@@ -135,6 +135,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
             void orchestrator.revealParkedHint();
             void vscode.commands.executeCommand('iris.chatView.focus');
+        }),
+        vscode.commands.registerCommand('iris.intervention.inlineHide', () => {
+            // Pure visual hide: remove the in-editor cue only. Unlike Dismiss it records NO outcome
+            // (no reject-backoff) and does not touch the episode -- the hint stays in the chat.
+            inline.clear();
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
             orchestrator.recordOutcome('dismissed');

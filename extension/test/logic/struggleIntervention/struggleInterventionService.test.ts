@@ -403,6 +403,17 @@ describe('StruggleInterventionService', () => {
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
+    it('active delivery suppresses the toast when the chat is already open (in-session); the bubble still posts', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc._slot.setInSession(true);                              // chat view open
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(7);
+        expect(deps.postBubble).toHaveBeenCalled();                // bubble still lands in the open chat
+        expect(deps.showActiveNotification).not.toHaveBeenCalled(); // ...but no redundant toast
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+    });
+
     it('second active decide on an already-DELIVERED slot is suppressed by the slot (C3 blind-overwrite fix)', () => {
         // First active takes the slot (DELIVERED). A second decide from a different alert
         // returns 'suppress' (DELIVERED + active without hardEvent). The slot stays DELIVERED.

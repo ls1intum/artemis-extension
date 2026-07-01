@@ -352,6 +352,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             }
         });
         this._viewDisposables.push(visibilityListener);
+        // Seed the current visibility once: a view that resolves already-visible fires no
+        // onDidChangeVisibility change event, so consumers (the in-session toast gate) would
+        // otherwise stay stale-false until the first visibility toggle.
+        this._onDidChangePanelVisibility.fire(webviewView.visible);
 
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
