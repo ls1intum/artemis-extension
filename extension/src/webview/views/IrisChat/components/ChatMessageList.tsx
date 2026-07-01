@@ -9,9 +9,11 @@ import { useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
 
 import styles from './ChatMessageList.module.css';
+import { groupEarlierHints } from './earlierHints';
+import { EarlierHintsGroup } from './EarlierHintsGroup';
 import { type EpisodeOutcome, episodeTopic, outcomeMeta, rowOutcome } from './episodeSummary';
 import { EpisodeTimeline } from './EpisodeTimeline';
-import { groupByEpisode } from './groupProactiveMessages';
+import { type ChatRenderItem, groupByEpisode } from './groupProactiveMessages';
 import { MessageBubble } from './MessageBubble';
 import { StaleAskButtons } from './StaleAskButtons';
 import { ThinkingIndicator } from './ThinkingIndicator';
@@ -238,6 +240,76 @@ export function ChatMessageList({
     const showLegacyThinking = !showStageIndicator && streaming.isStreaming;
     const showThinking = showStageIndicator || showLegacyThinking;
 
+    // Renders one grouped render item: a closed proactive episode as a fold line, an open one as the
+    // timeline, anything else as a plain bubble. Also reused as the child renderer inside a collapsed
+    // "earlier hints" group (which only ever hands it closed episodes, i.e. the fold-line branch).
+    const renderItem = (item: ChatRenderItem): ReactNode => {
+        if (item.kind === 'single') {
+            const episodeId = item.message.proactiveEpisodeId;
+            if (episodeId) {
+                const foldState = foldStates.get(episodeId);
+                // Closed: explicitly folded, or a reloaded (non-live) episode.
+                if (foldState?.folded || !liveEpisodeIds.has(episodeId)) {
+                    return (
+                        <EpisodeFoldLine
+                            key={`fold-${episodeId}`}
+                            messages={[item.message]}
+                            foldState={foldState}
+                            renderBubble={renderBubble}
+                        />
+                    );
+                }
+                // Open live single-message episode: the timeline (one node).
+                return (
+                    <EpisodeTimeline
+                        key={`ep-${episodeId}`}
+                        messages={[item.message]}
+                        episodeId={episodeId}
+                        dismissable
+                        onDismiss={onDismiss}
+                        renderRowBody={timelineRowBody(renderBubble)}
+                    />
+                );
+            }
+            // Proactive without an episodeId, or a non-proactive turn: a plain bubble.
+            return renderBubble(item.message, true, false);
+        }
+        const foldState = foldStates.get(item.episodeId);
+        // Closed: explicitly folded, or a reloaded (non-live) episode.
+        if (foldState?.folded || !liveEpisodeIds.has(item.episodeId)) {
+            return (
+                <EpisodeFoldLine
+                    key={`fold-${item.episodeId}`}
+                    messages={item.messages}
+                    foldState={foldState}
+                    renderBubble={renderBubble}
+                />
+            );
+        }
+        // Open live multi-message episode: one timeline, all messages.
+        return (
+            <EpisodeTimeline
+                key={`ep-${item.episodeId}`}
+                messages={item.messages}
+                episodeId={item.episodeId}
+                dismissable
+                onDismiss={onDismiss}
+                renderRowBody={timelineRowBody(renderBubble)}
+            />
+        );
+    };
+
+    // Second grouping pass: collapse runs of >= 2 consecutive CLOSED proactive episodes behind one
+    // "N earlier hints" line so a long session stops stacking near-identical fold lines. Closed-ness
+    // is runtime store state, so it's resolved here rather than in the pure groupByEpisode.
+    const closedEpisodeId = (item: ChatRenderItem): string | undefined => {
+        const episodeId = item.kind === 'episode' ? item.episodeId : item.message.proactiveEpisodeId;
+        if (!episodeId) { return undefined; }
+        const foldState = foldStates.get(episodeId);
+        return (foldState?.folded || !liveEpisodeIds.has(episodeId)) ? episodeId : undefined;
+    };
+    const groupedRows = groupEarlierHints(renderItems, closedEpisodeId);
+
     return (
         <div ref={scrollRef} className={styles.scrollContainer}>
             <div ref={contentRef} className={styles.content}>
@@ -245,64 +317,17 @@ export function ChatMessageList({
                     <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
                 ) : (
                     <>
-                        {renderItems.map((item) => {
-                            if (item.kind === 'single') {
-                                const episodeId = item.message.proactiveEpisodeId;
-                                if (episodeId) {
-                                    const foldState = foldStates.get(episodeId);
-                                    // Closed: explicitly folded, or a reloaded (non-live) episode.
-                                    if (foldState?.folded || !liveEpisodeIds.has(episodeId)) {
-                                        return (
-                                            <EpisodeFoldLine
-                                                key={`fold-${episodeId}`}
-                                                messages={[item.message]}
-                                                foldState={foldState}
-                                                renderBubble={renderBubble}
-                                            />
-                                        );
-                                    }
-                                    // Open live single-message episode: the timeline (one node).
-                                    return (
-                                        <EpisodeTimeline
-                                            key={`ep-${episodeId}`}
-                                            messages={[item.message]}
-                                            episodeId={episodeId}
-                                            dismissable
-                                            onDismiss={onDismiss}
-                                            renderRowBody={timelineRowBody(renderBubble)}
-                                        />
-                                    );
-                                }
-                                // Proactive without an episodeId, or a non-proactive turn: a plain bubble.
-                                return renderBubble(item.message, true, false);
-                            }
-                            // item.kind === 'episode' (exhaustive: only 'single' and 'episode' exist)
-                            {
-                                const foldState = foldStates.get(item.episodeId);
-                                // Closed: explicitly folded, or a reloaded (non-live) episode.
-                                if (foldState?.folded || !liveEpisodeIds.has(item.episodeId)) {
-                                    return (
-                                        <EpisodeFoldLine
-                                            key={`fold-${item.episodeId}`}
-                                            messages={item.messages}
-                                            foldState={foldState}
-                                            renderBubble={renderBubble}
-                                        />
-                                    );
-                                }
-                                // Open live multi-message episode: one timeline, all messages.
-                                return (
-                                    <EpisodeTimeline
-                                        key={`ep-${item.episodeId}`}
-                                        messages={item.messages}
-                                        episodeId={item.episodeId}
-                                        dismissable
-                                        onDismiss={onDismiss}
-                                        renderRowBody={timelineRowBody(renderBubble)}
+                        {groupedRows.map((row) =>
+                            row.kind === 'earlier-hints'
+                                ? (
+                                    <EarlierHintsGroup
+                                        key={`earlier-${row.key}`}
+                                        items={row.items}
+                                        renderFoldLine={renderItem}
                                     />
-                                );
-                            }
-                        })}
+                                )
+                                : renderItem(row.item),
+                        )}
 
                         {/* Show thinking indicator while waiting for the assistant
                             response (cleared by resetTransientChatUi once
