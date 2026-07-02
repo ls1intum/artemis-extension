@@ -85,10 +85,10 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     },
 
     N1: {
-        text: 'A large or multi-line paste was just detected',
+        text: 'A multi-line paste was just detected',
         code: 'N1',
-        short: 'Large paste',
-        tooltip: 'A paste of 11 or more characters was inserted at once, which may indicate copying from an external source.',
+        short: 'Multi-line paste',
+        tooltip: 'A clipboard-confirmed paste spanning two or more lines was inserted at once, which may indicate copying from an external source.',
     },
 
     STATE: {

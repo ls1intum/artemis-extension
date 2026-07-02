@@ -45,14 +45,34 @@ describe('DecisionFlowPipeline', () => {
         expect(container).toBeEmptyDOMElement();
     });
 
-    it('marks the gate stage as the blocker for a cooldown suppression, with a live countdown', () => {
-        render(<DecisionFlowPipeline debug={snap({
-            decisionTrace: trace({ reason: 'cooldown', gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: true, notRearmed: true } }),
+    it('marks the cooldown stage as the blocker for a cooldown suppression, with a live countdown, and all earlier stages as passed', () => {
+        const { container } = render(<DecisionFlowPipeline debug={snap({
+            decisionTrace: trace({ reason: 'cooldown', boundariesPresent: ['STATE'], gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: true, notRearmed: true } }),
             lastAlertMs: BASE - 30_000,   // 120 − 30 = 1:30 left
         })} />);
         expect(screen.getByText('Decision flow')).toBeInTheDocument();
         expect(screen.getByText(/blocking · 1:30 left/)).toBeInTheDocument();
         expect(screen.getByText(/cooling down/i)).toBeInTheDocument();   // verdict
+        // The engine reached the cooldown check, so candidate, gates, and severity were PASSED.
+        const statuses = Array.from(container.querySelectorAll('[data-status]')).map((e) => e.getAttribute('data-status'));
+        expect(statuses).toEqual(['pass', 'pass', 'pass', 'block', 'neutral']);
+    });
+
+    it('renders the five stages in the engine evaluation order (candidate first, severity after the moment gates)', () => {
+        render(<DecisionFlowPipeline debug={snap()} />);
+        const names = screen.getAllByText(/^\d · /).map((e) => e.textContent);
+        expect(names).toEqual(['1 · Candidate', '2 · Gates', '3 · Severity', '4 · Cooldown', '5 · Outcome']);
+    });
+
+    it('does not mark severity as passed when the flow stopped earlier (no boundary, urgency over θ) (regression)', () => {
+        const { container } = render(<DecisionFlowPipeline debug={snap({
+            decisionTrace: trace({ reason: 'no-candidate', urgency: 0.75, boundariesPresent: [] }),
+        })} />);
+        const stages = Array.from(container.querySelectorAll('[data-status]'));
+        expect(stages).toHaveLength(5);
+        expect(stages[0].getAttribute('data-status')).toBe('block');    // candidate is the blocker
+        expect(stages[2].getAttribute('data-status')).toBe('neutral');  // severity NOT reached — must not read as passed
+        expect(screen.getByText('over threshold')).toBeInTheDocument(); // its live condition is still stated
     });
 
     it('marks severity as the blocker below threshold, never as a gate-list "blocking" row', () => {
@@ -63,9 +83,10 @@ describe('DecisionFlowPipeline', () => {
         expect(screen.getByText('below threshold')).toBeInTheDocument();
         expect(screen.getByText(/has not reached the alert threshold/i)).toBeInTheDocument();
         // The threshold is the Severity stage, not a gate: it must NOT appear in the gate list,
-        // and no gate row may be "blocking" (that would contradict the neutral Gates stage box).
+        // and no gate row may be "blocking". The moment gates were passed on the way to it.
         expect(screen.queryByText('Urgency below threshold')).not.toBeInTheDocument();
         expect(screen.queryByText('blocking')).not.toBeInTheDocument();
+        expect(screen.getByText('passed')).toBeInTheDocument();   // stage 2 (gates) was actually passed
     });
 
     it('shows the fired outcome, clears every gate row, and never claims delivery (FM broke through warm-up + grace)', () => {
@@ -129,12 +150,14 @@ describe('DecisionFlowPipeline', () => {
         expect(screen.queryByText('blocking')).not.toBeInTheDocument();  // but the missing boundary was the blocker, not a gate
     });
 
-    it('lists the five delivery gates with their plain-language labels (threshold is not a gate)', () => {
+    it('lists the five detector gates with their plain-language labels, split into moment and history groups', () => {
         render(<DecisionFlowPipeline debug={snap()} />);
         expect(screen.getByText('Fluent typing')).toBeInTheDocument();
         expect(screen.getByText('Exercise warm-up')).toBeInTheDocument();
         expect(screen.getByText('Re-arm hysteresis')).toBeInTheDocument();
         expect(screen.queryByText('Urgency below threshold')).not.toBeInTheDocument();   // shown as the Severity stage instead
         expect(screen.getAllByText('clear')).toHaveLength(5);   // none engaged in the default trace
+        expect(screen.getByText(/reads the student's moment/i)).toBeInTheDocument();
+        expect(screen.getByText(/reads the engine's history/i)).toBeInTheDocument();
     });
 });

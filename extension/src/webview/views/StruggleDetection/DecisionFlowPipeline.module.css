@@ -109,6 +109,14 @@
     color: var(--vscode-descriptionForeground);
 }
 
+/* Sub-heading splitting the gate list into the moment gates (stage 2) and history gates (stage 4). */
+.gateGroupTitle {
+    font-size: 10px;
+    font-style: italic;
+    color: var(--vscode-descriptionForeground);
+    margin: 6px 0 2px;
+}
+
 .gate {
     display: flex;
     align-items: center;
