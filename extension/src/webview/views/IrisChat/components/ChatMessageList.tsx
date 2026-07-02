@@ -204,6 +204,15 @@ export function ChatMessageList({
     const showLegacyThinking = !showStageIndicator && streaming.isStreaming;
     const showThinking = showStageIndicator || showLegacyThinking;
 
+    // Closed-ness of a proactive episode: an explicit host fold frame (foldStates entry) decides
+    // alone when present -- folded=false is the praise window (stays open until the ~5 s timer
+    // fires), folded=true is collapsed. Without a fold frame, the liveness gate is the reload
+    // default: only the episode the host marks live (SetLiveEpisode / live addMessage) stays open.
+    const isEpisodeClosed = (episodeId: string): boolean => {
+        const foldState = foldStates.get(episodeId);
+        return foldState ? foldState.folded : !liveEpisodeIds.has(episodeId);
+    };
+
     // Renders one grouped render item: a closed proactive episode as a fold line, an open one as the
     // timeline, anything else as a plain bubble. Also reused as the child renderer inside a collapsed
     // "earlier hints" group (which only ever hands it closed episodes, i.e. the fold-line branch).
@@ -211,14 +220,12 @@ export function ChatMessageList({
         if (item.kind === 'single') {
             const episodeId = item.message.proactiveEpisodeId;
             if (episodeId) {
-                const foldState = foldStates.get(episodeId);
-                // Closed: explicitly folded, or a reloaded (non-live) episode.
-                if (foldState?.folded || !liveEpisodeIds.has(episodeId)) {
+                if (isEpisodeClosed(episodeId)) {
                     return (
                         <EpisodeFoldLine
                             key={`fold-${episodeId}`}
                             messages={[item.message]}
-                            foldState={foldState}
+                            foldState={foldStates.get(episodeId)}
                             renderBubble={renderBubble}
                         />
                     );
@@ -238,14 +245,12 @@ export function ChatMessageList({
             // Proactive without an episodeId, or a non-proactive turn: a plain bubble.
             return renderBubble(item.message, true, false);
         }
-        const foldState = foldStates.get(item.episodeId);
-        // Closed: explicitly folded, or a reloaded (non-live) episode.
-        if (foldState?.folded || !liveEpisodeIds.has(item.episodeId)) {
+        if (isEpisodeClosed(item.episodeId)) {
             return (
                 <EpisodeFoldLine
                     key={`fold-${item.episodeId}`}
                     messages={item.messages}
-                    foldState={foldState}
+                    foldState={foldStates.get(item.episodeId)}
                     renderBubble={renderBubble}
                 />
             );
@@ -269,8 +274,7 @@ export function ChatMessageList({
     const closedEpisodeId = (item: ChatRenderItem): string | undefined => {
         const episodeId = item.kind === 'episode' ? item.episodeId : item.message.proactiveEpisodeId;
         if (!episodeId) { return undefined; }
-        const foldState = foldStates.get(episodeId);
-        return (foldState?.folded || !liveEpisodeIds.has(episodeId)) ? episodeId : undefined;
+        return isEpisodeClosed(episodeId) ? episodeId : undefined;
     };
     const groupedRows = groupEarlierHints(renderItems, closedEpisodeId);
 

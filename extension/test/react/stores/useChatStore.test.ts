@@ -765,4 +765,49 @@ describe('useChatStore', () => {
 			expect(result.current.suppressedIds.has(66)).toBe(true);
 		});
 	});
+
+	describe('setLiveEpisode (host-authoritative live-episode frame)', () => {
+		it('replaces the live set with the given episode id', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			// A previously registered live episode (via addMessage) is superseded wholesale
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'p-1', id: 1, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-old',
+				}));
+			});
+			expect(result.current.liveEpisodeIds.has('ep-old')).toBe(true);
+
+			act(() => { result.current.setLiveEpisode('ep-new'); });
+
+			expect(result.current.liveEpisodeIds.has('ep-new')).toBe(true);
+			expect(result.current.liveEpisodeIds.has('ep-old')).toBe(false);
+
+			act(() => { result.current.clearMessages(); });
+			act(() => { result.current.setLiveEpisode(null); });
+		});
+
+		it('setLiveEpisode(null) clears the live set', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.setLiveEpisode('ep-live'); });
+			expect(result.current.liveEpisodeIds.has('ep-live')).toBe(true);
+
+			act(() => { result.current.setLiveEpisode(null); });
+			expect(result.current.liveEpisodeIds.size).toBe(0);
+		});
+
+		it('clearMessages preserves liveEpisodeIds (liveness is slot state, not session state)', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.setLiveEpisode('ep-live'); });
+			act(() => { result.current.clearMessages(); });
+
+			// Switching sessions (clearMessages) must not forget which episode is live,
+			// otherwise switching back re-folds the live episode as "Earlier hint".
+			expect(result.current.liveEpisodeIds.has('ep-live')).toBe(true);
+
+			act(() => { result.current.setLiveEpisode(null); });
+		});
+	});
 });

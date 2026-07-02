@@ -1136,6 +1136,58 @@ describe('IrisChatView', () => {
 			expect(foldBtn.textContent).not.toMatch(/^\s*✓/);
 		});
 
+		it('setLiveEpisode host frame updates the store live set (and null clears it)', async () => {
+			useChatStore.setState({
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await act(async () => {
+				dispatchExtensionMessage({ type: 'setLiveEpisode', episodeId: 'ep-frame' });
+			});
+			expect(useChatStore.getState().liveEpisodeIds.has('ep-frame')).toBe(true);
+
+			await act(async () => {
+				dispatchExtensionMessage({ type: 'setLiveEpisode', episodeId: null });
+			});
+			expect(useChatStore.getState().liveEpisodeIds.size).toBe(0);
+		});
+
+		it('a reloaded live episode renders OPEN when the init-time setLiveEpisode frame arrives', async () => {
+			// Reload path: rows hydrated (liveEpisodeIds untouched), then the host's init frame lands.
+			useChatStore.setState({
+				messages: [
+					{
+						id: 10,
+						localId: 'l1',
+						role: 'assistant',
+						origin: 'proactive',
+						proactiveEpisodeId: 'ep-reload-live',
+						content: 'Still-live hint',
+						timestamp: 0,
+						status: 'sent',
+					},
+				],
+				messageLoad: { localSessionId: 'local-test', status: 'success' },
+				activeSessionId: 'local-test',
+				sessions: [{ id: 'local-test', artemisSessionId: 1, preview: '', title: '', messageCount: 1, createdAt: 0, lastActivity: 0 }],
+				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await act(async () => {
+				dispatchExtensionMessage({ type: 'setLiveEpisode', episodeId: 'ep-reload-live' });
+			});
+
+			// Open timeline, not an "Earlier hint" fold line.
+			expect(screen.getByText('Iris reached out')).toBeInTheDocument();
+			expect(screen.getByText('Still-live hint')).toBeInTheDocument();
+			expect(screen.queryByRole('img', { name: 'Earlier hint' })).not.toBeInTheDocument();
+		});
+
 		it('earlier member of episode group renders no Dismiss button', async () => {
 			useChatStore.setState({
 				context: { type: 'exercise', id: 1, title: 'Ex', locked: false, source: 'user-selected' },

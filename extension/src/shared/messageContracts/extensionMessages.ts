@@ -249,6 +249,7 @@ export const ExtensionMsg = {
     UpdateIrisStages: 'updateIrisStages',
     SendRejected: 'sendRejected',
     FoldEpisode: 'foldEpisode',
+    SetLiveEpisode: 'setLiveEpisode',
     RemoveMessage: 'removeMessage',
 
     // Exercise/Repo responses
@@ -500,6 +501,13 @@ interface ExtensionMsgPayloads {
         outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED';
         praise?: { episodeLabel: string; closeMessageId: number };
     };
+    /**
+     * Host-authoritative live-episode snapshot (state frame, latest wins): the episodeId of
+     * the currently DELIVERED slot episode, or null when no episode is live. Sent on every
+     * slot transition and re-sent on webview init, so a freshly created webview renders the
+     * live episode as the open timeline instead of auto-folding it as an earlier hint.
+     */
+    setLiveEpisode: { episodeId: string | null };
     /**
      * Posted by the extension host when a stale control frame is dropped and the frame's
      * persisted chat row must be removed from the webview (stale-row suppression, C4).

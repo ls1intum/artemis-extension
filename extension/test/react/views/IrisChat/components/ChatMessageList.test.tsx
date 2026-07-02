@@ -285,6 +285,80 @@ describe('ChatMessageList', () => {
 		expect(screen.getAllByText('Iris reached out')).toHaveLength(1);
 	});
 
+	it('an explicit foldState wins over liveness: praise-pending (folded=false) episode stays OPEN even when not live', () => {
+		// RECOVERED close with praise: the host posts FoldEpisode(praise) -> foldState { folded: false }
+		// (waiting for the close row + ~5 s timer) AND SetLiveEpisode(null) -> episode leaves the live set.
+		// The explicit foldState must decide alone, or the praise window collapses instantly.
+		useChatStore.setState({
+			liveEpisodeIds: new Set<string>(),
+			foldStates: new Map([
+				['ep-C', { folded: false, outcome: 'RECOVERED' as const, episodeLabel: 'Loop bound fixed', closeMessageId: 90 }],
+			]),
+		});
+		const messages = [
+			makeMessage({ id: 89, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-C', content: 'Check the loop bound' }, 0),
+			makeMessage({ id: 90, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-C', content: 'Nice, that fixed it!' }, 1),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		// Open block visible (praise window), not a collapsed fold line.
+		expect(screen.getByText('Iris reached out')).toBeInTheDocument();
+		expect(screen.getByText('Nice, that fixed it!')).toBeInTheDocument();
+	});
+
+	it('a hydrated episode marked live via setLiveEpisode renders as the OPEN timeline, not an "Earlier hint" fold', () => {
+		// Reload path: rows come from LoadMessages (no addMessage registration), the host's
+		// init-time SetLiveEpisode frame is the only liveness source.
+		useChatStore.setState({ liveEpisodeIds: new Set<string>() });
+		useChatStore.getState().setLiveEpisode('ep-D');
+		const messages = [
+			makeMessage({ id: 70, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-D', content: 'Hydrated live hint' }, 0),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		expect(screen.getByText('Iris reached out')).toBeInTheDocument();
+		expect(screen.getByText('Hydrated live hint')).toBeInTheDocument();
+		expect(screen.queryByRole('img', { name: 'Earlier hint' })).not.toBeInTheDocument();
+	});
+
+	it('an explicit folded=true foldState folds the episode even while it is still in the live set', () => {
+		useChatStore.setState({
+			liveEpisodeIds: new Set(['ep-E']),
+			foldStates: new Map([['ep-E', { folded: true, outcome: 'DISMISSED' as const }]]),
+		});
+		const messages = [
+			makeMessage({ id: 80, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-E', content: 'Dismissed hint' }, 0),
+		];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		expect(screen.getByRole('img', { name: 'Dismissed' })).toBeInTheDocument();
+		expect(screen.queryByText('Iris reached out')).not.toBeInTheDocument();
+	});
+
 	it('a closed (non-live) episode shows a borderless summary line and expands into the full block with NO Dismiss', async () => {
 		// ep-B is not in liveEpisodeIds -> it renders folded (closed). ids are set so a Dismiss button
 		// WOULD render if the block were dismissable; a reopened closed block must keep it off.

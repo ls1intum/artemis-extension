@@ -48,6 +48,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         setBadge: vi.fn(),
         showActiveNotification: vi.fn(),
         postBubble: vi.fn(),
+        setChatLiveEpisode: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* never auto-clear in-flight in tests */ },
         // C2 reveal deps
@@ -1483,4 +1484,107 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(resetSpy).not.toHaveBeenCalled();
     });
 
+});
+
+// ---------------------------------------------------------------------------
+// Live-episode chat frame (SetLiveEpisode seam): the engine pushes which episode
+// is DELIVERED so the chat webview never folds the live episode as an earlier hint.
+// ---------------------------------------------------------------------------
+
+describe('StruggleInterventionService live-episode chat frame', () => {
+    const flushSlotChange = () => new Promise(r => setTimeout(r, 0));
+
+    it('active delivery pushes the delivered episodeId to the chat', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-live', false);
+        svc.onServerActive(7);
+        await flushSlotChange();
+
+        expect(deps.setChatLiveEpisode).toHaveBeenCalledWith('ep-live');
+    });
+
+    it('active delivery threads the episodeId into the bubble', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-live', false);
+        svc.onServerActive(7);
+
+        expect(deps.postBubble).toHaveBeenCalledWith(expect.any(String), null, 'ep-live');
+    });
+
+    it('dismissEpisode pushes null (slot freed)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-live', false);
+        svc.onServerActive(7);
+        await flushSlotChange();
+        svc.dismissEpisode('ep-live');
+        await flushSlotChange();
+
+        expect(deps.setChatLiveEpisode).toHaveBeenLastCalledWith(null);
+    });
+
+    it('an unchanged live value is not re-pushed (suppressed decide on the delivered slot)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-live', false);
+        svc.onServerActive(7);
+        await flushSlotChange();
+        expect(deps.setChatLiveEpisode).toHaveBeenCalledTimes(1);
+
+        // Suppressed follow-up (DELIVERED + ambient -> suppress) notifies the slot seam,
+        // but the live episode is unchanged -> no duplicate frame.
+        simulateDecidePending(svc, 'ep-live', false);
+        svc.onServerAmbient('New hint', undefined, undefined, undefined);
+        await flushSlotChange();
+
+        expect(deps.setChatLiveEpisode).toHaveBeenCalledTimes(1);
+    });
+
+    it('watchdog force-free pushes null (ABANDONED terminal)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-live', false);
+        svc.onServerActive(7);
+        await flushSlotChange();
+        expect(deps.setChatLiveEpisode).toHaveBeenCalledWith('ep-live');
+
+        // Watchdog past its idle deadline -> force-free (DELIVERED -> ABANDONED)
+        svc._watchdog = new StaleWatchdog({ idleAbandonMs: 0 });
+        svc._watchdog!.arm(Date.now() - 1000, false);
+        svc['_handleWatchdogTick'](Date.now());
+        await flushSlotChange();
+
+        expect(svc._slot.isFree()).toBe(true);
+        expect(deps.setChatLiveEpisode).toHaveBeenLastCalledWith(null);
+    });
+
+    it('confirm-close resolved pushes null (RECOVERED terminal)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        simulateDecidePending(svc, 'ep-live', false);
+        svc.onServerActive(7);
+        await flushSlotChange();
+        expect(deps.setChatLiveEpisode).toHaveBeenCalledWith('ep-live');
+
+        // Synthetic confirm_close in-flight for the delivered episode
+        const gen = svc._slot.generation();
+        const requestToken = 'close-request-token';
+        const stamp: PendingStamp = { episodeId: 'ep-live', generation: gen, hardEvent: false, requestToken };
+        const localToken = svc._guard.issue('confirm_close', stamp);
+        svc._inFlightMarker = { requestToken, episodeId: 'ep-live', generation: gen, intent: 'confirm_close', localToken };
+
+        svc.onServerClose('ep-live', true, undefined, undefined, undefined);
+        await flushSlotChange();
+
+        expect(svc._slot.isFree()).toBe(true);
+        expect(deps.setChatLiveEpisode).toHaveBeenLastCalledWith(null);
+    });
 });

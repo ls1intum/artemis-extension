@@ -39,6 +39,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         setBadge: vi.fn(),
         showActiveNotification: vi.fn(),
         postBubble: vi.fn(),
+        setChatLiveEpisode: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* no real timers in tests */ },
         generateLocalId: () => 'test-local-id',

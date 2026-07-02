@@ -87,7 +87,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		isStudentProactiveOn: exerciseId => proactivePreferenceRef?.isProactiveOn(exerciseId) ?? true,
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
-		postOptimisticBubble: (text, messageId) => chatWebviewProvider?.postOptimisticBubble(text, messageId),
+		postOptimisticBubble: (text, messageId, episodeId) => chatWebviewProvider?.postOptimisticBubble(text, messageId, episodeId),
+		// State frame (not an event): the engine dedups by value, so a frame swallowed by the
+		// optional chain would never be re-sent. Safe only because the provider is constructed
+		// below before any slot transition can fire (alerts need the warmup; server events need
+		// the WS subscribe, which no-ops until connected).
+		postLiveEpisode: episodeId => chatWebviewProvider?.postLiveEpisode(episodeId),
 		// C2: reveal + episode-outcome API + webview reconcile (webview side stubbed until C3/C5 wires it)
 		revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
 			artemisApiService.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),

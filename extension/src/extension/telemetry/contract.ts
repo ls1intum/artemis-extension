@@ -96,9 +96,17 @@ export interface StruggleEngineDeps {
     /**
      * Post an optimistic proactive bubble to the open chat. `messageId` enables webview-side
      * dedup against a later server-pushed message with the same id (one bubble). Null = runtime-only.
-     * Lazy: the chat provider is constructed after the engine.
+     * `episodeId` threads the row into its episode group (live deliveries only; the reveal path
+     * stays episode-less). Lazy: the chat provider is constructed after the engine.
      */
-    postOptimisticBubble(text: string, messageId: number | null): void;
+    postOptimisticBubble(text: string, messageId: number | null, episodeId?: string): void;
+    /**
+     * Push the host-authoritative live-episode snapshot to the chat webview (SetLiveEpisode
+     * state frame): the DELIVERED episode's id, or null when no episode is live. The provider
+     * caches the value and replays it on webview init, so a re-created webview renders the
+     * live episode open instead of auto-folding it. Lazy (see above).
+     */
+    postLiveEpisode(episodeId: string | null): void;
     /** Reconnect-aware websocket subscribe primitive for the per-user struggle
      *  topic. The seam calls `subscribeStruggleEvents` with this internally, so
      *  `extension.ts` never imports anything from `struggleIntervention/`. */

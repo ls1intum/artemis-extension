@@ -113,6 +113,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode), wired by extension.ts. */
     private _onEpisodeDismiss?: (episodeId?: string) => void;
 
+    /** Last live-episode snapshot posted (SetLiveEpisode); replayed to re-created webviews on init. */
+    private _liveEpisodeId: string | null = null;
+
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
@@ -381,6 +384,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
+        // A re-created webview starts with an empty live-episode set; replay the last
+        // snapshot BEFORE messages hydrate so the live episode never renders folded.
+        this.resendLiveEpisode();
         await this._populateAvailableContexts();
         void this._loadIrisMessagesIfNeeded().catch((err: unknown) => {
             logger.error('Failed to load Iris messages during init', LogCategory.IRIS_CHAT, err);
@@ -475,9 +481,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * message arrives via the chat WebSocket). When `messageId` is set, the webview can
      * deduplicate against a later `loadMessages` response that contains the same id (one bubble).
      * When `messageId` is null (server persist failed, A9), the bubble is runtime-only and has
-     * no dedup tag. The badge-clears-on-chat-open behaviour (onDidChangeVisibility) is unaffected.
+     * no dedup tag. When `episodeId` is set, the row is threaded into its episode group so a
+     * live delivery renders as the open episode timeline (and registers the episode as live);
+     * the ambient reveal path passes none on purpose (a PARKED episode is not live in the chat).
+     * The badge-clears-on-chat-open behaviour (onDidChangeVisibility) is unaffected.
      */
-    postOptimisticBubble(text: string, messageId: number | null): void {
+    postOptimisticBubble(text: string, messageId: number | null, episodeId?: string): void {
         this._postMessageSafe({
             type: ExtensionMsg.AddMessage,
             message: {
@@ -486,8 +495,30 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 content: text,
                 timestamp: Date.now(),
                 origin: 'proactive',
+                ...(episodeId !== undefined ? { proactiveEpisodeId: episodeId } : {}),
             }
         });
+    }
+
+    /**
+     * Post the host-authoritative live-episode snapshot (SetLiveEpisode state frame) and cache
+     * it, so `resendLiveEpisode` can replay it to a freshly created webview. Sent by the
+     * struggle engine on every slot transition: the DELIVERED episode's id, or null when no
+     * episode is live.
+     */
+    postLiveEpisode(episodeId: string | null): void {
+        this._liveEpisodeId = episodeId;
+        this._postMessageSafe({ type: ExtensionMsg.SetLiveEpisode, episodeId });
+    }
+
+    /**
+     * Re-post the cached live-episode frame. Called on webview init (`_sendInitData`): a
+     * re-created webview starts with an empty live set and would otherwise fold the still-live
+     * episode as an "Earlier hint" after hydration. An explicit null is sent too, so a stale
+     * live set from a previous session cannot survive.
+     */
+    resendLiveEpisode(): void {
+        this._postMessageSafe({ type: ExtensionMsg.SetLiveEpisode, episodeId: this._liveEpisodeId });
     }
 
     /**

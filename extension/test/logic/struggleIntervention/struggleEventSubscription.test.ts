@@ -46,6 +46,7 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         showLamp: vi.fn(),
         showGutterOnly: vi.fn(),
         postBubble: vi.fn(),
+        setChatLiveEpisode: vi.fn(),
         log: { record: vi.fn().mockResolvedValue(undefined) } as unknown as InterventionEventLog,
         setTimeoutFn: (_fn: () => void, _ms: number) => { /* deterministic noop */ },
         // C2 reveal deps (no-ops for these tests)
@@ -214,7 +215,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         svc.onServerActive(42, 'Sort.java', 10, 'off-by-one?', undefined, 'Try checking array bounds.', 556);
 
         // Optimistic bubble with messageId for dedup
-        expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556);
+        expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556, 'ep-test');
         // Inline breadcrumb at the live anchor (4th arg = message ?? inlineHint, so message wins when provided)
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Try checking array bounds.');
         // Toast notification
@@ -235,7 +236,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         svc.onServerActive(42, undefined, undefined, undefined, undefined, 'Try checking bounds.', null);
 
         // Fallback bubble with null id (runtime-only, no dedup tag)
-        expect(deps.postBubble).toHaveBeenCalledWith('Try checking bounds.', null);
+        expect(deps.postBubble).toHaveBeenCalledWith('Try checking bounds.', null, 'ep-test');
         expect(deps.showActiveNotification).toHaveBeenCalled();
         expect(deps.clearLamp).toHaveBeenCalled();
     });
@@ -261,7 +262,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
 
         svc.applyEscalation(true, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', 789);
 
-        expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', 789);
+        expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', 789, undefined);
         expect(deps.showActiveNotification).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
     });
@@ -272,7 +273,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
 
         svc.applyEscalation(false, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', 789);
 
-        expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', 789);
+        expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', 789, undefined);
         expect(deps.showActiveNotification).toHaveBeenCalled();
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Check the loop bounds.');
     });
@@ -283,7 +284,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
 
         svc.applyEscalation(false, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', null);
 
-        expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', null);
+        expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', null, undefined);
         expect(deps.showActiveNotification).toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
     });

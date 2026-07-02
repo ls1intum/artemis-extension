@@ -66,10 +66,13 @@ interface ChatState {
      */
     foldStates: Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>;
     /**
-     * Set of `proactiveEpisodeId` values that arrived via `addMessage` in this
-     * session (C7). Episodes absent from this set are reloaded episodes and fold
-     * automatically without a `foldEpisode` control frame. Reset in
-     * `clearMessages`; NOT populated in `applyLoadedMessages`.
+     * The episode ids currently considered live (C7). Two writers that agree:
+     * the host's `setLiveEpisode` state frame (authoritative, re-sent on webview
+     * init) and `addMessage` for proactive rows arriving live (covers the window
+     * before the frame lands). Episodes absent from this set and without a
+     * `foldStates` entry are reloaded episodes and fold automatically. NOT reset
+     * in `clearMessages` (liveness is slot state, not session state) and NOT
+     * populated in `applyLoadedMessages`.
      */
     liveEpisodeIds: Set<string>;
 
@@ -135,6 +138,13 @@ interface ChatState {
      * `ChatMessageList` when the close row is present and the delay has elapsed.
      */
     setEpisodeFolded: (episodeId: string) => void;
+    /**
+     * Host-authoritative live-episode snapshot: replaces `liveEpisodeIds`
+     * wholesale (single slot => at most one live episode). Sent by the host on
+     * every slot transition and re-sent on webview init, so a freshly created
+     * webview renders the live episode open instead of folding it.
+     */
+    setLiveEpisode: (episodeId: string | null) => void;
 
     // Streaming actions
     startStreaming: () => void;
@@ -316,13 +326,20 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'setEpisodeFolded');
             },
 
+            setLiveEpisode: (episodeId) => {
+                set({
+                    liveEpisodeIds: new Set<string>(episodeId !== null ? [episodeId] : []),
+                }, false, 'setLiveEpisode');
+            },
+
             clearMessages: () => {
+                // liveEpisodeIds deliberately survives: it mirrors the host's slot state,
+                // which does not change when the user switches sessions.
                 set({
                     messages: [],
                     messageLoad: null,
                     suppressedIds: new Set<number>(),
                     foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
-                    liveEpisodeIds: new Set<string>(),
                     irisStages: [],
                     streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');

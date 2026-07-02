@@ -98,8 +98,17 @@ export interface StruggleInterventionDeps {
      * Post an optimistic proactive bubble to the open chat. When `messageId` is set, a later server
      * message with the same id deduplicates on the webview side. When `messageId` is null
      * (server persist failed, A9), the bubble is runtime-only and carries no dedup tag.
+     * `episodeId` threads the row into its episode group (live deliveries pass it; the reveal
+     * path stays episode-less).
      */
-    postBubble(text: string, messageId: number | null): void;
+    postBubble(text: string, messageId: number | null, episodeId?: string): void;
+    /**
+     * Push the host-authoritative live-episode snapshot to the chat webview: the DELIVERED
+     * episode's id, or null when no episode is live. Called on every slot transition (coalesced
+     * with the slot-change microtask, deduplicated by value). The provider caches the value and
+     * replays it on webview init, so a re-created webview never folds the live episode.
+     */
+    setChatLiveEpisode(episodeId: string | null): void;
     // ---- C2: reveal flow ----
     /** Generate a unique local id for an optimistic reveal bubble. */
     generateLocalId(): string;
@@ -245,6 +254,9 @@ export class StruggleInterventionService implements AlertSink {
     private static readonly HISTORY_CAP = 20;
     private _slotChangeScheduled = false;
 
+    /** Last live-episode value pushed to the chat (SetLiveEpisode frame); dedups by value. */
+    private _lastChatLiveEpisodeId: string | null = null;
+
     constructor(private readonly _deps: StruggleInterventionDeps) {
         this._latch = new ProgressCloseLatch(
             _deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG,
@@ -305,14 +317,39 @@ export class StruggleInterventionService implements AlertSink {
         }
     }
 
-    /** Coalesced, best-effort debug notification (one push per sync mutation branch). */
+    /**
+     * Coalesced slot-change notification (one push per sync mutation branch). Serves two sinks:
+     * the live-episode chat frame (product: keeps the webview's fold gate in sync with the slot)
+     * and the optional debug push. Always scheduled - the chat frame must fire even when the
+     * debug seam (onSlotChange) is not wired.
+     */
     private notifySlotDebugChanged(): void {
-        if (!this._deps.onSlotChange || this._slotChangeScheduled) { return; }
+        if (this._slotChangeScheduled) { return; }
         this._slotChangeScheduled = true;
         queueMicrotask(() => {
             this._slotChangeScheduled = false;
-            try { this._deps.onSlotChange?.(); } catch { /* best-effort: debug push must never break the feature */ }
+            this._pushChatLiveEpisode();
+            if (this._deps.onSlotChange) {
+                try { this._deps.onSlotChange(); } catch { /* best-effort: debug push must never break the feature */ }
+            }
         });
+    }
+
+    /** The DELIVERED episode's id, or undefined when the slot is not delivered. */
+    private _deliveredEpisodeId(): string | undefined {
+        const state = this._slot.snapshot().state;
+        return state.kind === 'delivered' ? state.episode.episodeId : undefined;
+    }
+
+    /**
+     * Push the live-episode snapshot to the chat webview when it changed (SetLiveEpisode frame).
+     * PARKED is deliberately not live: no chat rows exist for a parked episode.
+     */
+    private _pushChatLiveEpisode(): void {
+        const live = this._deliveredEpisodeId() ?? null;
+        if (live === this._lastChatLiveEpisodeId) { return; }
+        this._lastChatLiveEpisodeId = live;
+        try { this._deps.setChatLiveEpisode(live); } catch { /* best-effort: chat push must never break the engine */ }
     }
 
     // ---------------------------------------------------------------------------
@@ -847,7 +884,7 @@ export class StruggleInterventionService implements AlertSink {
         sessionId?: number,
     ): void {
         const bubbleText = text;
-        this._deps.postBubble(bubbleText, messageId);
+        this._deps.postBubble(bubbleText, messageId, this._deliveredEpisodeId());
         if (sessionId !== undefined) {
             void this._deps.openSession(sessionId);
         }
@@ -890,7 +927,7 @@ export class StruggleInterventionService implements AlertSink {
         inlineHint: string | undefined,
         messageId: number | null,
     ): void {
-        this._deps.postBubble(text, messageId);
+        this._deps.postBubble(text, messageId, this._deliveredEpisodeId());
         if (inSession) { return; }
         // Out-of-session: full active push
         this._deps.showActiveNotification();
