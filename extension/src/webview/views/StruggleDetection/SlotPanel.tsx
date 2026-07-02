@@ -15,6 +15,50 @@ import { useSlotCountdowns } from './useSlotCountdowns';
 // unconditionally (satisfying Rules of Hooks).
 // ---------------------------------------------------------------------------
 
+/**
+ * The "why is it silent" block: reject backoff, session latches, student toggle, and the
+ * idle-abandon evidence gate. Rendered in BOTH the free and occupied branches — the free
+ * state is exactly when these matter.
+ */
+function SuppressionStatus({ snapshot }: { snapshot: SlotDebugSnapshot }) {
+    const s = snapshot.suppression;
+    return (
+        <div className={styles.group}>
+            <div className={styles.groupTitle}>Suppression status</div>
+            <div className={styles.row}>
+                <span className={styles.label}>Evidence gate (idle-abandon)</span>
+                <span className={styles.value}>{snapshot.awaitingEvidence ? 'awaiting fresh evidence' : 'clear'}</span>
+            </div>
+            <div className={styles.row}>
+                <span className={styles.label}>Dismiss strikes</span>
+                <span className={styles.value}>
+                    {s.dismissStrikes} / {s.pauseStrikes}{s.hardPaused ? ' · hard-paused' : ''}
+                </span>
+            </div>
+            <div className={styles.row}>
+                <span className={styles.label}>Annoyance</span>
+                <span className={styles.value}>{s.annoyance} / {s.softThreshold}</span>
+            </div>
+            <div className={styles.row}>
+                <span className={styles.label}>Owed soft skips</span>
+                <span className={styles.value}>{s.softSkipBudget}</span>
+            </div>
+            <div className={styles.row}>
+                <span className={styles.label}>Server</span>
+                <span className={styles.value}>{s.serverAvailable ? 'available' : 'unavailable (local fallback)'}</span>
+            </div>
+            <div className={styles.row}>
+                <span className={styles.label}>Course proactive</span>
+                <span className={styles.value}>{s.courseProactiveOff ? 'latched off' : 'on'}</span>
+            </div>
+            <div className={styles.row}>
+                <span className={styles.label}>Student toggle</span>
+                <span className={styles.value}>{s.studentProactiveOn ? 'on' : 'off'}</span>
+            </div>
+        </div>
+    );
+}
+
 function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
     const { staleLeft } = useSlotCountdowns(snapshot);
 
@@ -36,9 +80,7 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
             {snapshot.state === 'free' && (
                 <>
                     <p className={styles.emptyState}>Slot free - no active intervention.</p>
-                    {snapshot.awaitingEvidence && (
-                        <p className={styles.emptyState}>Awaiting fresh evidence (idle-abandon gate).</p>
-                    )}
+                    <SuppressionStatus snapshot={snapshot} />
                 </>
             )}
 
@@ -127,6 +169,8 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
                             <span className={styles.value}>{snapshot.pendingOutcomes}</span>
                         </div>
                     </div>
+
+                    <SuppressionStatus snapshot={snapshot} />
                 </>
             )}
         </div>

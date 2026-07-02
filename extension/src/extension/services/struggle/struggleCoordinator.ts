@@ -223,6 +223,9 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
             // Decision trace for the dev pipeline. Null when inactive: `_lastTick` outlives the
             // session, but the snapshot contract treats all fields as stale when !sessionActive.
             decisionTrace: (this._activeExerciseId !== undefined && tick) ? toLiveDecisionTrace(tick.decisionTrace) : null,
+            // Same inactive-session guard: the tracker is only recreated on start(), so reading it
+            // unconditionally would leak the previous session's streak after the session ends.
+            testStagnation: this._activeExerciseId !== undefined ? this._engine.getTestStagnationState() : null,
             caps: {
                 warmupS: SPEC.WARMUP_S,
                 cooldownS: SPEC.COOLDOWN_S,

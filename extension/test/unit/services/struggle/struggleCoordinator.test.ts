@@ -188,6 +188,19 @@ suite('StruggleCoordinator', () => {
         assert.strictEqual(typeof dbg.decisionTrace!.gates.notRearmed, 'boolean');
     });
 
+    test('getDebugSnapshot.testStagnation shows the streak mid-session and null after the session ends', () => {
+        coord.startExerciseSession(1);
+        coord.advanceTo(coord.sessionStartMs + 20_000);
+        const mid = coord.getDebugSnapshot().testStagnation;
+        assert.ok(mid, 'test-stagnation state present mid-session');
+        assert.strictEqual(mid!.streak, 0, 'no builds ingested yet');
+        assert.strictEqual(mid!.n, TUNING.testStagnationN);
+        assert.strictEqual(typeof mid!.enabled, 'boolean');
+        coord.endExerciseSession();
+        assert.strictEqual(coord.getDebugSnapshot().testStagnation, null,
+            'stale tracker (only recreated on start) must not leak after the session ends');
+    });
+
     test('getDebugSnapshot.decisionTrace is null and getSnapshot is inactive once the session ends', () => {
         coord.startExerciseSession(1);
         coord.advanceTo(coord.sessionStartMs + 20_000);

@@ -201,6 +201,74 @@ describe('StruggleInterventionService - slot debug snapshot + episode history', 
         expect(onSlotChange).not.toHaveBeenCalled();
     });
 
+    it('suppression group: backoff rises via recordOutcome/recordChatDismiss (NOT dismissEpisode) and hard-pauses at pauseStrikes', () => {
+        const { svc } = makeService();
+        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({
+            dismissStrikes: 0, annoyance: 0, softSkipBudget: 0, hardPaused: false,
+            pauseStrikes: 5, softThreshold: 3,
+        });
+
+        svc.recordOutcome('dismissed');
+        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({ dismissStrikes: 1, annoyance: 2, softSkipBudget: 0 });
+
+        svc.recordChatDismiss();  // annoyance 4 >= softThreshold 3 -> owes a soft skip
+        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({ dismissStrikes: 2, annoyance: 4, softSkipBudget: 1 });
+
+        for (let i = 0; i < 3; i++) { svc.recordOutcome('dismissed'); }
+        expect(svc.getSlotDebugSnapshot().suppression.dismissStrikes).toBe(5);
+        expect(svc.getSlotDebugSnapshot().suppression.hardPaused).toBe(true);
+
+        svc.recordOutcome('clicked');  // engagement clears the backoff
+        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({
+            dismissStrikes: 0, annoyance: 0, softSkipBudget: 0, hardPaused: false,
+        });
+    });
+
+    it('suppression group: server/course latches and the student toggle surface on the snapshot', async () => {
+        const { svc } = makeService({ postIntervention: vi.fn(async () => 'unavailable' as const) });
+        expect(svc.getSlotDebugSnapshot().suppression.serverAvailable).toBe(true);
+        svc.deliver(alertRecord());
+        await new Promise(r => setTimeout(r, 0));
+        expect(svc.getSlotDebugSnapshot().suppression.serverAvailable).toBe(false);
+
+        const { svc: svc2 } = makeService({ postIntervention: vi.fn(async () => 'course-off' as const) });
+        svc2.deliver(alertRecord());
+        await new Promise(r => setTimeout(r, 0));
+        expect(svc2.getSlotDebugSnapshot().suppression.courseProactiveOff).toBe(true);
+
+        const { svc: svc3 } = makeService({ isStudentProactiveOn: () => false });
+        expect(svc3.getSlotDebugSnapshot().suppression.studentProactiveOn).toBe(false);
+    });
+
+    it('notify regression: recordOutcome alone (inline-dismiss shape, no slot transition) refreshes the panel', async () => {
+        const onSlotChange = vi.fn();
+        const { svc } = makeService({ onSlotChange });
+        svc.recordOutcome('dismissed');
+        await Promise.resolve();
+        expect(onSlotChange).toHaveBeenCalledTimes(1);
+
+        onSlotChange.mockClear();
+        svc.recordChatDismiss();
+        await Promise.resolve();
+        expect(onSlotChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('notify regression: a guard-early-return server reply still heals serverAvailable and notifies', async () => {
+        const { svc } = makeService({ postIntervention: vi.fn(async () => 'unavailable' as const) });
+        svc.deliver(alertRecord());
+        await new Promise(r => setTimeout(r, 0));
+        expect(svc.getSlotDebugSnapshot().suppression.serverAvailable).toBe(false);
+
+        const onSlotChange = vi.fn();
+        svc['_deps'].onSlotChange = onSlotChange;
+        // No decide in flight -> onServerSilent exits at the guard, but the heal-to-true
+        // write sits BEFORE the early return and must both apply and notify.
+        svc.onServerSilent(undefined, undefined);
+        await Promise.resolve();
+        expect(svc.getSlotDebugSnapshot().suppression.serverAvailable).toBe(true);
+        expect(onSlotChange).toHaveBeenCalled();
+    });
+
     it('notify covers in-flight + pending-outcome mutations (not just public exits)', async () => {
         const onSlotChange = vi.fn();
         const { svc } = makeService({ onSlotChange });

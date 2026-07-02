@@ -21,6 +21,7 @@ function snap(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnapshot 
     return {
         sessionActive: true, nowMs: BASE, sessionStartMs: BASE - 100_000, lastAlertMs: null, lastFmBadMs: null,
         throttle: null, fN2Active: false, effectiveWindowS: 60, longestGapS: 10, decisionTrace: trace(),
+        testStagnation: null,
         caps: { warmupS: 480, cooldownS: 120, graceS: 32.94, minDeliveryGapS: 30, maxAlertsPerMinute: 2, maxAlertsPerSession: 6, n2MinActiveS: 60, gapNormS: 40 },
         ...over,
     };

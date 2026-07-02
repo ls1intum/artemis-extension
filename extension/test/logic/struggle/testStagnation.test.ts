@@ -105,4 +105,18 @@ describe('TestStagnationTracker (no-progress streak)', () => {
         expect(t.ingest(cls(2, 5))).toBe(false);
         expect(t.ingest(cls(2, 5))).toBe(true);
     });
+
+    it('exposes the live streak and N as telemetry getters', () => {
+        const t = new TestStagnationTracker(3);
+        expect(t.n).toBe(3);
+        expect(t.streak).toBe(0);
+        t.ingest(cls(2, 5));        // baseline -> streak 1
+        expect(t.streak).toBe(1);
+        t.ingest(cls(2, 5));        // flat -> streak 2
+        expect(t.streak).toBe(2);
+        t.ingest(cls(3, 5));        // strict new high -> reset
+        expect(t.streak).toBe(0);
+        t.reset();
+        expect(t.streak).toBe(0);
+    });
 });

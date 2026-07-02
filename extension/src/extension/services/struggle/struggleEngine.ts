@@ -181,6 +181,17 @@ export class StruggleEngine implements vscode.Disposable {
      *  (telemetry only; the decision reads grace internally via `graceActive`). */
     get lastFmBadS(): number | null { return this._lastFmBadS; }
 
+    /** Test-stagnation add-on state for the dev debug snapshot (telemetry only). `enabled`
+     *  reflects the production ablation default; golden-replay overrides pass their own
+     *  DecisionEngine ablation and never read this. */
+    getTestStagnationState(): { enabled: boolean; streak: number; n: number } {
+        return {
+            enabled: this._opts?.decision?.enableTestStagnation ?? TUNING.enableTestStagnation,
+            streak: this._testStagnation.streak,
+            n: this._testStagnation.n,
+        };
+    }
+
     // ── intake ─────────────────────────────────────────────────────────
 
     private _relS(tsMs: number): number {

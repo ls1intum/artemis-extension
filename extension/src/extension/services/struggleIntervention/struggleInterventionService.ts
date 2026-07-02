@@ -304,6 +304,20 @@ export class StruggleInterventionService implements AlertSink {
             owed: { confirmClose: this._owedConfirmClose !== undefined },
             pendingOutcomes: this._pendingOutcomes.size,
             awaitingEvidence: this._awaitingEvidence,
+            suppression: {
+                dismissStrikes: this._dismissStrikes,
+                pauseStrikes: this._deps.pauseStrikes,
+                hardPaused: this.isPaused(),
+                annoyance: this._annoyance,
+                softThreshold: this._deps.softThreshold,
+                softSkipBudget: this._softSkipBudget,
+                serverAvailable: this._serverAvailable,
+                courseProactiveOff: this._courseProactiveOff,
+                studentProactiveOn: (() => {
+                    const exId = this._deps.getExerciseId();
+                    return exId === undefined ? true : this._deps.isStudentProactiveOn(exId);
+                })(),
+            },
         };
     }
 
@@ -373,6 +387,13 @@ export class StruggleInterventionService implements AlertSink {
         if (this._awaitingEvidence === value) { return; }
         this._awaitingEvidence = value;
         this._dbg(`  -> EVIDENCE GATE ${value ? 'set' : 'cleared'} (${reason})`);
+        this.notifySlotDebugChanged();
+    }
+
+    /** Value-guarded latch setter so the suppression panel refreshes on every heal/trip. */
+    private _setServerAvailable(value: boolean): void {
+        if (this._serverAvailable === value) { return; }
+        this._serverAvailable = value;
         this.notifySlotDebugChanged();
     }
 
@@ -598,11 +619,12 @@ export class StruggleInterventionService implements AlertSink {
                 }
                 // _inFlightMarker stays set until the websocket reply arrives (onServerAmbient/Active/Silent)
             } else if (result === 'course-off') {
+                // Panel refresh: the _setInFlightMarker below notifies, covering this latch flip.
                 this._courseProactiveOff = true;
                 this._setInFlightMarker(undefined);
                 this._candidate = undefined;
             } else if (result === 'unavailable') {
-                this._serverAvailable = false;
+                this._setServerAvailable(false);
                 this._setInFlightMarker(undefined);
                 this._candidate = undefined;
                 this._fallback(signal);
@@ -628,7 +650,7 @@ export class StruggleInterventionService implements AlertSink {
      * sessionId is stored for the reveal flow (C2).
      */
     onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number): void {
-        this._serverAvailable = true;
+        this._setServerAvailable(true);
 
         if (sessionId !== undefined) {
             this._frozenSessionId = sessionId;
@@ -659,7 +681,7 @@ export class StruggleInterventionService implements AlertSink {
      * hardEvent), or suppress (already-active DELIVERED, no hardEvent, etc.).
      */
     onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
-        this._serverAvailable = true;
+        this._setServerAvailable(true);
 
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
@@ -686,7 +708,7 @@ export class StruggleInterventionService implements AlertSink {
      * C4: accepts `episodeId` echo (stale-drop if mismatch) and `messageId` for stale-row suppression.
      */
     onServerSilent(episodeId: string | undefined, messageId: number | undefined): void {
-        this._serverAvailable = true;
+        this._setServerAvailable(true);
 
         // C4 echo check: verify the wire's episodeId matches what was requested.
         // Do this BEFORE _acceptDecide so a mismatch does NOT consume the in-flight marker
@@ -733,7 +755,7 @@ export class StruggleInterventionService implements AlertSink {
         _closingSentence: string | undefined,
         episodeLabel: string | undefined,
     ): void {
-        this._serverAvailable = true;
+        this._setServerAvailable(true);
 
         // C4 echo check: must be a confirm_close in-flight for the right episode.
         // Echo mismatch -> drop without consuming the marker (real reply may still arrive).
@@ -1207,6 +1229,9 @@ export class StruggleInterventionService implements AlertSink {
                 this._softSkipBudget += 1;
             }
         }
+        // The inline-dismiss caller mutates backoff with NO slot transition afterwards, so the
+        // suppression panel only refreshes if the mutator itself notifies.
+        this.notifySlotDebugChanged();
     }
 
     /**
@@ -1218,6 +1243,7 @@ export class StruggleInterventionService implements AlertSink {
         if (this._annoyance >= this._deps.softThreshold) {
             this._softSkipBudget += 1;
         }
+        this.notifySlotDebugChanged();
     }
 
     /**
@@ -1285,9 +1311,11 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     private _clearBackoff(): void {
+        const changed = this._dismissStrikes !== 0 || this._annoyance !== 0 || this._softSkipBudget !== 0;
         this._dismissStrikes = 0;
         this._annoyance = 0;
         this._softSkipBudget = 0;
+        if (changed) { this.notifySlotDebugChanged(); }
     }
 
     resumeProactive(exerciseId: number): void {
@@ -1311,6 +1339,7 @@ export class StruggleInterventionService implements AlertSink {
     tryConsumeSoftSkip(): boolean {
         if (this._softSkipBudget > 0) {
             this._softSkipBudget -= 1;
+            this.notifySlotDebugChanged();
             return true;
         }
         return false;
@@ -1340,7 +1369,7 @@ export class StruggleInterventionService implements AlertSink {
         this._annoyance = 0;
         this._dismissStrikes = 0;
         this._softSkipBudget = 0;
-        this._serverAvailable = true;
+        this._setServerAvailable(true);
         this._courseProactiveOff = false;
         // C2: cancel any in-flight reveal-persist retry (generation bump invalidates stale closures)
         this._revealRetryGen++;

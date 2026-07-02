@@ -136,6 +136,10 @@ export interface StruggleDebugSnapshot {
      *  decision-flow pipeline renders from the init snapshot. `null` when no session is active
      *  or before the first tick (`_lastTick` persists across sessions; do not show it stale). */
     decisionTrace: LiveDecisionTrace | null;
+    /** Test-stagnation add-on state (discrete path): current no-progress streak vs N. `null`
+     *  when no session is active (the tracker is only recreated on start, so an unconditional
+     *  read would leak the previous session's streak). */
+    testStagnation: { enabled: boolean; streak: number; n: number } | null;
     caps: StruggleDebugCaps;
 }
 
@@ -169,6 +173,23 @@ export interface SlotDebugSnapshot {
     pendingOutcomes: number;
     /** Idle-abandon evidence gate: true = no new decide POSTs until fresh student activity. */
     awaitingEvidence: boolean;
+    /** The "why is it silent" state: reject backoff, session latches, and the student toggle. */
+    suppression: {
+        dismissStrikes: number;
+        pauseStrikes: number;
+        /** dismissStrikes >= pauseStrikes: proactive hard-paused for this exercise (spec §5.2). */
+        hardPaused: boolean;
+        annoyance: number;
+        softThreshold: number;
+        /** Owed soft skips (each swallows one alert above the throttle). */
+        softSkipBudget: number;
+        /** false -> POSTs stopped, local fallback templates on the lamp. */
+        serverAvailable: boolean;
+        /** Session latch: course-level proactive disabled (404/course-off reply). */
+        courseProactiveOff: boolean;
+        /** Durable per-exercise student toggle (true when no exercise is active). */
+        studentProactiveOn: boolean;
+    };
 }
 
 /**

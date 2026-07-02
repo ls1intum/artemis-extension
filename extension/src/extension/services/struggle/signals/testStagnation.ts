@@ -36,6 +36,16 @@ export class TestStagnationTracker {
         this._n = n;
     }
 
+    /** Current no-progress streak (telemetry read; never drives a decision). */
+    get streak(): number {
+        return this._streak;
+    }
+
+    /** The configured fire threshold N (telemetry read). */
+    get n(): number {
+        return this._n;
+    }
+
     /** Ingest a build classification; return whether THIS build is a stagnation fire. */
     ingest(c: BuildClassification): boolean {
         const passed = c.passedTestCaseCount;

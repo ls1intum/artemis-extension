@@ -65,6 +65,9 @@ export function TimersPanel({ debug, collapsible, defaultCollapsed }: TimersPane
     const reArm = debug.decisionTrace === null
         ? 'waiting for first tick'
         : debug.decisionTrace.gates.notRearmed ? 'waiting' : 'armed';
+    // Typing rate from the latest trace; null = no tick yet or the window has no data (B2 fail-open).
+    const typingRate = debug.decisionTrace?.typingRate ?? null;
+    const tps = debug.testStagnation;
 
     return (
         <Container
@@ -126,8 +129,20 @@ export function TimersPanel({ debug, collapsible, defaultCollapsed }: TimersPane
                     <Row label="Longest typing pause" title="Longest typing pause in the current window, shown against the 40 s normalisation cap (the gap score maxes out there).">
                         <Value sub={`(cap ${caps.gapNormS}s${Math.round(debug.longestGapS) >= caps.gapNormS ? ', maxed' : ''})`}>{Math.round(debug.longestGapS)}s</Value>
                     </Row>
+                    <Row label="Typing rate" title="Keystrokes per minute over the analysis window. Drives the typing-deficit severity feature, the fluent-typing gate (suppresses at 20/min or more), and the low-typing boundary (below 5/min after warm-up).">
+                        <Value sub="(fluent ≥ 20/min)">{typingRate === null ? <span className={styles.muted}>n/a</span> : `${Math.round(typingRate)}/min`}</Value>
+                    </Row>
                     <Row label="Error far from your cursor" title="Whether an error sits more than 3 lines from the cursor and has been active long enough to raise severity.">
                         <Badge variant={debug.fN2Active ? 'default' : 'muted'}>{debug.fN2Active ? 'active' : 'clear'}</Badge>
+                    </Row>
+                    <Row label="Test stagnation" title="Discrete add-on: fires on the Nth consecutive build without a strict new high in passed tests. Bypasses the moment gates; shares only the cooldown.">
+                        {tps === null || !tps.enabled
+                            ? <Value><span className={styles.muted}>{tps === null ? 'n/a' : 'disabled'}</span></Value>
+                            : (
+                                <Badge variant={tps.streak >= tps.n ? 'error' : 'muted'}>
+                                    {tps.streak} / {tps.n} builds without progress
+                                </Badge>
+                            )}
                     </Row>
                     <Row label="Re-arm after cooldown" title="After the cooldown ends, the engine waits for urgency to stay elevated before it re-arms for a new nudge.">
                         <Value>{reArm === 'armed' ? 'armed' : <span className={styles.muted}>{reArm}</span>}</Value>

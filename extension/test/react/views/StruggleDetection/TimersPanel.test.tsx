@@ -29,6 +29,7 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
         effectiveWindowS: 60,
         longestGapS: 18,
         decisionTrace: null,
+        testStagnation: null,
         caps: {
             warmupS: 480,
             cooldownS: 120,
@@ -117,5 +118,30 @@ describe('TimersPanel', () => {
     it('shows "waiting for first tick" for re-arm before the first tick arrives', () => {
         render(<TimersPanel debug={snapshot({ decisionTrace: null })} />);
         expect(screen.getByText('waiting for first tick')).toBeInTheDocument();
+    });
+
+    it('renders the typing rate from the latest trace, rounded, with the fluent threshold as context', () => {
+        render(<TimersPanel debug={snapshot({ decisionTrace: trace({ typingRate: 12.4 }) })} />);
+        expect(screen.getByText('12/min')).toBeInTheDocument();
+        expect(screen.getByText('(fluent ≥ 20/min)')).toBeInTheDocument();
+    });
+
+    it('renders the typing-rate row with n/a before the first tick (the row itself stays visible)', () => {
+        render(<TimersPanel debug={snapshot({ decisionTrace: null })} />);
+        expect(screen.getByText('Typing rate')).toBeInTheDocument();
+        expect(screen.getByText('(fluent ≥ 20/min)')).toBeInTheDocument();
+    });
+
+    it('renders the test-stagnation streak when enabled, and its disabled/inactive fallbacks', () => {
+        const { rerender } = render(<TimersPanel debug={snapshot({ testStagnation: { enabled: true, streak: 2, n: 3 } })} />);
+        expect(screen.getByText('2 / 3 builds without progress')).toBeInTheDocument();
+
+        rerender(<TimersPanel debug={snapshot({ testStagnation: { enabled: false, streak: 0, n: 3 } })} />);
+        expect(screen.getByText('disabled')).toBeInTheDocument();
+        expect(screen.queryByText(/builds without progress/)).not.toBeInTheDocument();
+
+        rerender(<TimersPanel debug={snapshot({ testStagnation: null })} />);
+        expect(screen.queryByText(/builds without progress/)).not.toBeInTheDocument();
+        expect(screen.queryByText('disabled')).not.toBeInTheDocument();
     });
 });

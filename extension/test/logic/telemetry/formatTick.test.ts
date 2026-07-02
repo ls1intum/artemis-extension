@@ -81,6 +81,7 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
         effectiveWindowS: 60,
         longestGapS: 18,
         decisionTrace: null,
+        testStagnation: null,
         caps: {
             warmupS: SPEC.WARMUP_S,
             cooldownS: SPEC.COOLDOWN_S,
