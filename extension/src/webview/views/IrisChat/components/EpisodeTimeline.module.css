@@ -4,7 +4,7 @@
     display: flex;
     flex-direction: column;
     margin: 8px 16px;
-    padding: 12px 14px 16px;
+    padding: 12px 14px;
     background: color-mix(in srgb, var(--vscode-charts-blue) 7%, transparent);
     border-radius: 8px;
 }
@@ -21,6 +21,11 @@
     display: grid;
     grid-template-columns: 16px 1fr;
     column-gap: 11px;
+}
+
+/* A one-hint episode has no rail column: the body starts at the card edge. */
+.rowSingle {
+    grid-template-columns: 1fr;
 }
 
 /* The rail runs the full row height; it is capped at the first node (starts there) and the last node
@@ -60,6 +65,11 @@
 .body {
     padding-bottom: 14px;
     border-radius: 6px;
+}
+
+/* The last row needs no spacer below it — the card's own padding closes the episode. */
+.rowLast .body {
+    padding-bottom: 0;
 }
 
 /* Hover/focus chrome: collapsed at rest, expands the row open with a short animation. The transition

@@ -74,6 +74,7 @@ function MessageBubbleComponent({
             className={clsx(styles.messageWrapper, {
                 [styles.user]: isUser,
                 [styles.assistant]: isAssistant,
+                [styles.groupedWrapper]: isProactive && grouped,
             })}
             onMouseEnter={() => setHovering(true)}
             onMouseLeave={() => setHovering(false)}

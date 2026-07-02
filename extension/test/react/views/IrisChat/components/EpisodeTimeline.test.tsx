@@ -23,6 +23,18 @@ describe('EpisodeTimeline', () => {
         expect(document.querySelectorAll('[data-episode-row]').length).toBe(3);
     });
 
+    it('renders no rail for a single-hint episode, but one per row from two hints on', () => {
+        const { rerender } = render(
+            <EpisodeTimeline messages={[msg(1)]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.queryByTestId('timeline-rail')).toBeNull();
+
+        rerender(
+            <EpisodeTimeline messages={[msg(1), msg(2)]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.getAllByTestId('timeline-rail').length).toBe(2);
+    });
+
     it('renders a timestamp on every row', () => {
         render(<EpisodeTimeline messages={[msg(1), msg(2)]} episodeId="ep" dismissable renderRowBody={(m) => <div>{m.content}</div>} />);
         expect(screen.getAllByTestId('row-time').length).toBe(2);

@@ -26,6 +26,8 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
     const foldStates = useChatStore((s) => s.foldStates);
     const fold = foldStates.get(episodeId);
     const latest = messages[messages.length - 1];
+    // One hint is not a timeline: drop the rail/node column entirely until a follow-up arrives.
+    const single = messages.length === 1;
 
     return (
         <div className={styles.timeline}>
@@ -38,10 +40,12 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
                 const showDismiss = dismissable && isLatest && m.id !== undefined && !!onDismiss
                     && !isClosingRow && m.proactiveOutcome !== 'DISMISSED';
                 return (
-                    <div key={m.localId} data-episode-row className={clsx(styles.row, isLatest && styles.rowLast)}>
-                        <div className={styles.rail}>
-                            <span className={clsx(styles.node, styles.nodeHint)} />
-                        </div>
+                    <div key={m.localId} data-episode-row className={clsx(styles.row, isLatest && styles.rowLast, single && styles.rowSingle)}>
+                        {!single && (
+                            <div className={styles.rail} data-testid="timeline-rail">
+                                <span className={clsx(styles.node, styles.nodeHint)} />
+                            </div>
+                        )}
                         <div className={styles.body}>
                             {renderRowBody(m, dismissable && isLatest)}
                             {/* Hover/focus chrome: per-message timestamp, plus Dismiss only on the latest live row.
