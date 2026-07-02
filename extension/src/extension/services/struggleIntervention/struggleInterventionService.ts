@@ -79,14 +79,16 @@ export interface StruggleInterventionDeps {
     showLamp(): void;
     /** Hide the status-bar lamp (called on session/context reset so stale hints do not survive). */
     clearLamp(): void;
-    /** Render the inline in-editor cue (gutter logo + after-line hint + hover) at the live anchor (spec §4.1). */
+    /**
+     * Arm the inline in-editor cue (gutter logo + after-line hint + hover) at the anchor (spec §4.1,
+     * relaxed): the decoration renders whenever the anchored file is a visible editor, so a cue armed
+     * while the student looks elsewhere appears as soon as they open the file.
+     */
     showInline(anchorFile: string, anchorLine: number, inlineHint: string, message: string): void;
-    /** Render the ambient gutter-only decoration (gutter icon, NO after-line text) at the live anchor (spec §5). */
+    /** Arm the ambient gutter-only decoration (gutter icon, NO after-line text) at the anchor (spec §5). */
     showGutterOnly(anchorFile: string, anchorLine: number): void;
     /** Remove any inline cue (session/context reset). */
     clearInline(): void;
-    /** True iff the anchored file is a visible editor AND the (1-based) line is in a visible range (spec §4). */
-    isAnchorLive(anchorFile: string, anchorLine: number): boolean;
     /** Durable per-exercise student opt-out (spec §12.2): false -> the orchestrator suppresses proactive for it. */
     isStudentProactiveOn(exerciseId: number): boolean;
     /** Reject-backoff thresholds (spec §5.2). */
@@ -839,10 +841,10 @@ export class StruggleInterventionService implements AlertSink {
                 this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
                 this._watchdog.arm(now, true /* parked */);
                 this._latch.reset();
-                // Parked surface: badge + lamp (+ gutter if anchor live)
+                // Parked surface: badge + lamp (+ gutter when the reply carries an anchor)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
-                if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+                if (anchorFile && anchorLine !== undefined && inlineHint) {
                     this._deps.showGutterOnly(anchorFile, anchorLine);
                 } else {
                     this._deps.clearInline();
@@ -882,7 +884,7 @@ export class StruggleInterventionService implements AlertSink {
                 // Surface: same parked pointers (badge + lamp + maybe gutter)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
-                if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+                if (anchorFile && anchorLine !== undefined && inlineHint) {
                     this._deps.showGutterOnly(anchorFile, anchorLine);
                 } else {
                     this._deps.clearInline();
@@ -957,7 +959,7 @@ export class StruggleInterventionService implements AlertSink {
             this._deps.showActiveNotification();
         }
         this._deps.clearLamp();
-        if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+        if (anchorFile && anchorLine !== undefined && inlineHint) {
             this._deps.showInline(anchorFile, anchorLine, inlineHint, bubbleText);
         } else {
             this._deps.clearInline();
@@ -993,7 +995,7 @@ export class StruggleInterventionService implements AlertSink {
         if (inSession) { return; }
         // Out-of-session: full active push
         this._deps.showActiveNotification();
-        if (anchorFile && anchorLine !== undefined && inlineHint && this._deps.isAnchorLive(anchorFile, anchorLine)) {
+        if (anchorFile && anchorLine !== undefined && inlineHint) {
             this._deps.showInline(anchorFile, anchorLine, inlineHint, text);
         }
     }

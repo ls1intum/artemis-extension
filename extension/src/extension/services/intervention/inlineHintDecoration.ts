@@ -1,8 +1,13 @@
 import * as vscode from 'vscode';
 
-import { buildCueText, buildHoverMarkdown, isAnchorLive, resolveAnchorEditor } from './inlineHint';
+import { buildCueText, buildHoverMarkdown, resolveAnchorEditor } from './inlineHint';
 
-/** One in-editor inline cue at a time: gutter Iris logo + after-line hint + whole-line hover (spec §4.1). */
+/**
+ * One in-editor inline cue at a time: gutter Iris logo + after-line hint + whole-line hover
+ * (spec §4.1, relaxed). The cue stays armed once shown: it renders whenever the anchored file
+ * is a visible editor, and VS Code reveals the decoration naturally when the line scrolls into
+ * view. A cue armed while the student looks elsewhere thus appears as soon as they open the file.
+ */
 export class InlineHintDecoration implements vscode.Disposable {
     private readonly type: vscode.TextEditorDecorationType;
     /** Ambient (PARKED) decoration: gutter Iris logo only, no after-line text (spec §5 pull model). */
@@ -37,10 +42,8 @@ export class InlineHintDecoration implements vscode.Disposable {
                     this.clear();
                 }
             }),
-            // The set of visible editors changed (tab switch / split).
+            // The set of visible editors changed (tab switch / split): decorate a newly visible anchor.
             vscode.window.onDidChangeVisibleTextEditors(() => this.reapply()),
-            // The viewport scrolled (anchor moved in/out of view). NOT covered by onDidChangeVisibleTextEditors.
-            vscode.window.onDidChangeTextEditorVisibleRanges(() => this.reapply()),
         );
     }
 
@@ -74,22 +77,36 @@ export class InlineHintDecoration implements vscode.Disposable {
         }
     }
 
+    /** The visible editor showing the anchored file, if the (1-based) anchor line exists in it. */
+    private resolveAnchoredLine(file: string, line: number): { editor: vscode.TextEditor; range: vscode.Range } | undefined {
+        const root = this.getExerciseRoot();
+        if (!root) {
+            return undefined;
+        }
+        const ed = resolveAnchorEditor(vscode.window.visibleTextEditors, file, root);
+        // Line-count guard: the server's anchor can point past EOF of the local file (divergent
+        // working copy); lineAt would throw.
+        if (!ed || line < 1 || line > ed.document.lineCount) {
+            return undefined;
+        }
+        return { editor: ed, range: ed.document.lineAt(line - 1).range };
+    }
+
     /**
-     * Redraw whichever surface is active (inline or gutter-only).
-     * Only one can be set at a time (the setters enforce mutual exclusivity).
+     * Redraw whichever surface is armed (inline or gutter-only) on the visible editor showing the
+     * anchored file. Off-screen lines are decorated too: the cue simply becomes visible when the
+     * student scrolls there. Only one surface can be armed at a time (the setters enforce that).
      */
     private reapply(): void {
         this.removeDecorations();
-        const root = this.getExerciseRoot();
 
         // Active path: gutter icon + after-line hint text.
         const c = this.current;
-        if (c && root && isAnchorLive(c.file, c.line, vscode.window.visibleTextEditors, root)) {
-            const ed = resolveAnchorEditor(vscode.window.visibleTextEditors, c.file, root);
-            if (ed) {
-                const range = ed.document.lineAt(c.line - 1).range;
-                ed.setDecorations(this.type, [{
-                    range,
+        if (c) {
+            const anchored = this.resolveAnchoredLine(c.file, c.line);
+            if (anchored) {
+                anchored.editor.setDecorations(this.type, [{
+                    range: anchored.range,
                     renderOptions: { after: { contentText: buildCueText(c.hint), color: '#007fcf', fontWeight: 'bold' } },
                     hoverMessage: buildHoverMarkdown(c.message),
                 }]);
@@ -98,11 +115,10 @@ export class InlineHintDecoration implements vscode.Disposable {
 
         // Ambient path: gutter icon only, no after-line text.
         const g = this._gutterOnlyCurrent;
-        if (g && root && isAnchorLive(g.file, g.line, vscode.window.visibleTextEditors, root)) {
-            const ed = resolveAnchorEditor(vscode.window.visibleTextEditors, g.file, root);
-            if (ed) {
-                const range = ed.document.lineAt(g.line - 1).range;
-                ed.setDecorations(this._gutterOnlyType, [{ range }]);
+        if (g) {
+            const anchored = this.resolveAnchoredLine(g.file, g.line);
+            if (anchored) {
+                anchored.editor.setDecorations(this._gutterOnlyType, [{ range: anchored.range }]);
             }
         }
     }

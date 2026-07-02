@@ -37,7 +37,6 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         clearLamp: vi.fn(),
         showInline: vi.fn(),
         clearInline: vi.fn(),
-        isAnchorLive: vi.fn().mockReturnValue(false),
         isStudentProactiveOn: vi.fn().mockReturnValue(true),
         softThreshold: 4,
         pauseStrikes: 3,
@@ -177,8 +176,8 @@ describe('subscribeStruggleEvents dispatch', () => {
 // ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService surface split (C1)', () => {
-    it('onServerAmbient with live anchor: showGutterOnly + badge + lamp; never showInline, never toast, never bubble', () => {
-        const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(true) });
+    it('onServerAmbient with anchor: showGutterOnly + badge + lamp; never showInline, never toast, never bubble', () => {
+        const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
@@ -193,8 +192,8 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.postBubble).not.toHaveBeenCalled();
     });
 
-    it('onServerAmbient without live anchor: badge + lamp only; no gutter-only, no inline', () => {
-        const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(false) });
+    it('onServerAmbient without anchor: badge + lamp only; no gutter-only, no inline', () => {
+        const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
@@ -208,7 +207,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     });
 
     it('onServerActive posts optimistic bubble tagged with messageId + inline + toast + badge + hides lamp', () => {
-        const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(true) });
+        const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
@@ -216,7 +215,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
 
         // Optimistic bubble with messageId for dedup
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556, 'ep-test');
-        // Inline breadcrumb at the live anchor (4th arg = message ?? inlineHint, so message wins when provided)
+        // Inline breadcrumb armed at the anchor (4th arg = message ?? inlineHint, so message wins when provided)
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Try checking array bounds.');
         // Toast notification
         expect(deps.showActiveNotification).toHaveBeenCalled();
@@ -257,7 +256,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     });
 
     it('applyEscalation(inSession=true) posts quiet bubble and suppresses toast + inline', () => {
-        const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(true) });
+        const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
         svc.applyEscalation(true, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', 789);
@@ -268,7 +267,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
     });
 
     it('applyEscalation(inSession=false) fires toast + inline push', () => {
-        const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(true) });
+        const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
         svc.applyEscalation(false, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', 789);
@@ -278,11 +277,11 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Check the loop bounds.');
     });
 
-    it('applyEscalation(inSession=false) without live anchor: toast but no inline push', () => {
-        const deps = makeDeps({ isAnchorLive: vi.fn().mockReturnValue(false) });
+    it('applyEscalation(inSession=false) without anchor data: toast but no inline push', () => {
+        const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
-        svc.applyEscalation(false, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', null);
+        svc.applyEscalation(false, 'Check the loop bounds.', undefined, undefined, undefined, null);
 
         expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', null, undefined);
         expect(deps.showActiveNotification).toHaveBeenCalled();

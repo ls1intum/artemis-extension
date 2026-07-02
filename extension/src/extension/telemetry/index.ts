@@ -4,7 +4,6 @@ import * as path from 'path';
 
 import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
-import { isAnchorLive } from '@extension/services/intervention/inlineHint';
 import { InlineHintDecoration } from '@extension/services/intervention/inlineHintDecoration';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { BackoffGate } from '@extension/services/struggle/alerting/backoffGate';
@@ -85,7 +84,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         clearInline: () => inline.clear(),
         postBubble: (text, id, episodeId) => deps.postOptimisticBubble(text, id, episodeId),
         setChatLiveEpisode: episodeId => deps.postLiveEpisode(episodeId),
-        isAnchorLive: (f, l) => isAnchorLive(f, l, vscode.window.visibleTextEditors, coordinator.activeExerciseRoot),
         isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
         softThreshold: TUNING.softThreshold,
         pauseStrikes: TUNING.pauseStrikes,

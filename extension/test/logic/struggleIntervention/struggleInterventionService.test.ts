@@ -41,7 +41,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showInline: vi.fn(),
         showGutterOnly: vi.fn(),
         clearInline: vi.fn(),
-        isAnchorLive: () => false,
         isStudentProactiveOn: () => true,
         softThreshold: 3,
         pauseStrikes: 5,
@@ -308,11 +307,12 @@ describe('StruggleInterventionService', () => {
         expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
-    it('inbound ambient event WITH a live anchor → badge + lamp + gutter icon; no inline text (spec §5 pull model)', () => {
-        const deps = fakeDeps({ isAnchorLive: () => true });
+    it('inbound ambient event WITH an anchor → badge + lamp + gutter icon armed; no inline text (spec §5 pull model)', () => {
+        const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
         svc.onServerAmbient('Re-check the logic.', 'src/A.java', 42, 'off-by-one?');
+        // The gutter cue is armed unconditionally: the decoration renders it once the file is visible.
         expect(deps.showGutterOnly).toHaveBeenCalledWith('src/A.java', 42);
         expect(deps.showLamp).toHaveBeenCalled();
         expect(deps.setBadge).toHaveBeenCalledWith(true);
@@ -323,11 +323,11 @@ describe('StruggleInterventionService', () => {
         expect(deps.showActiveNotification).not.toHaveBeenCalled();
     });
 
-    it('inbound ambient event with an anchor NOT live → badge + lamp only; clears any stale inline cue', () => {
-        const deps = fakeDeps({ isAnchorLive: () => false });
+    it('inbound ambient event WITHOUT an anchor → badge + lamp only; clears any stale inline cue', () => {
+        const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
-        svc.onServerAmbient('Re-check the logic.', 'src/A.java', 42, 'off-by-one?');
+        svc.onServerAmbient('Re-check the logic.', undefined, undefined, undefined);
         expect(deps.showLamp).toHaveBeenCalled();
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         expect(deps.clearInline).toHaveBeenCalled();   // clears any stale cue from a previous active
@@ -448,25 +448,26 @@ describe('StruggleInterventionService', () => {
         expect(deps.openSession).toHaveBeenCalledTimes(2);
     });
 
-    it('inbound active event with a live anchor ALSO drops the inline breadcrumb (spec §6.1)', () => {
-        const deps = fakeDeps({ isAnchorLive: () => true });
+    it('inbound active event with an anchor ALSO arms the inline breadcrumb (spec §6.1)', () => {
+        const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
         // the bubble still opens (active surface)...
         expect(deps.openSession).toHaveBeenCalledWith(8);
         expect(deps.showActiveNotification).toHaveBeenCalled();
-        // ...AND the inline breadcrumb is rendered at the anchor...
+        // ...AND the inline breadcrumb is armed at the anchor (rendered once the file is visible;
+        // the anchor no longer has to be on screen in the delivery moment)...
         expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
         // ...and it clears any standing lamp (inline and lamp are exclusive surfaces, mirrors onServerAmbient).
         expect(deps.clearLamp).toHaveBeenCalled();
     });
 
-    it('inbound active event without a live anchor renders no inline cue (clears any stale one)', () => {
-        const deps = fakeDeps({ isAnchorLive: () => false });
+    it('inbound active event without an anchor arms no inline cue (clears any stale one)', () => {
+        const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
-        svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
+        svc.onServerActive(8, undefined, undefined, undefined, 0.9);
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.clearInline).toHaveBeenCalled();
         expect(deps.openSession).toHaveBeenCalledWith(8);
@@ -477,7 +478,7 @@ describe('StruggleInterventionService', () => {
     // "something-else", new-exercise) funnel through _clearEpisodeRuntime(), so one representative
     // path (dismissEpisode) proves the shared seam clears the standing cue.
     it('a terminal episode exit retires the standing inline cue (no reliance on a later file edit)', () => {
-        const deps = fakeDeps({ isAnchorLive: () => true });
+        const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
@@ -982,7 +983,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     it('setInSession(true): escalation is quiet (bubble only, no toast/inline); setInSession(false): loud (toast+inline)', () => {
         // Helper to set up a DELIVERED-ambient slot and run an escalating decide
         function runEscalation(inSession: boolean): StruggleInterventionDeps {
-            const deps = fakeDeps({ isAnchorLive: () => true });
+            const deps = fakeDeps();
             const svc = new StruggleInterventionService(deps);
 
             // Set slot to DELIVERED ambient (parked then revealed)

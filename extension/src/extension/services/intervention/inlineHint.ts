@@ -16,19 +16,6 @@ export function resolveAnchorEditor(editors: readonly vscode.TextEditor[], ancho
     return editors.find(e => relPath(exerciseRoot, e.document.uri) === anchorFile);
 }
 
-/** Live = the anchored file is a visible editor AND the (1-based) line sits in a visible range. */
-export function isAnchorLive(anchorFile: string, anchorLine: number, editors: readonly vscode.TextEditor[], exerciseRoot: vscode.Uri | undefined): boolean {
-    if (!exerciseRoot) {
-        return false;
-    }
-    const ed = resolveAnchorEditor(editors, anchorFile, exerciseRoot);
-    if (!ed) {
-        return false;
-    }
-    const line = anchorLine - 1;
-    return ed.visibleRanges.some(r => line >= r.start.line && line <= r.end.line);
-}
-
 /**
  * Whole-line hover: the fuller message + Open chat / Hide inline / Dismiss command links (spec §4.1, §5.2).
  * `message` is server-provided (the LLM gate's hint), so trust is scoped to ONLY these three intervention
