@@ -34,7 +34,12 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
             </div>
 
             {snapshot.state === 'free' && (
-                <p className={styles.emptyState}>Slot free - no active intervention.</p>
+                <>
+                    <p className={styles.emptyState}>Slot free - no active intervention.</p>
+                    {snapshot.awaitingEvidence && (
+                        <p className={styles.emptyState}>Awaiting fresh evidence (idle-abandon gate).</p>
+                    )}
+                </>
             )}
 
             {snapshot.state !== 'free' && (

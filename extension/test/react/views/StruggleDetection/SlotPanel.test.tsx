@@ -33,11 +33,12 @@ function makeDeliveredSnapshot(overrides: Partial<SlotDebugSnapshot> = {}): Slot
         },
         owed: { confirmClose: false },
         pendingOutcomes: 0,
+        awaitingEvidence: false,
         ...overrides,
     };
 }
 
-function makeFreeSnapshot(): SlotDebugSnapshot {
+function makeFreeSnapshot(overrides: Partial<SlotDebugSnapshot> = {}): SlotDebugSnapshot {
     return {
         nowMs: NOW_MS,
         state: 'free',
@@ -52,6 +53,8 @@ function makeFreeSnapshot(): SlotDebugSnapshot {
         inFlight: null,
         owed: { confirmClose: false },
         pendingOutcomes: 0,
+        awaitingEvidence: false,
+        ...overrides,
     };
 }
 
@@ -97,6 +100,25 @@ describe('SlotPanel', () => {
         }));
 
         expect(screen.getByText(/no active intervention/i)).toBeInTheDocument();
+    });
+
+    it('renders the idle-abandon gate line on a FREE slot only while awaitingEvidence is set', () => {
+        const api = createMockVsCodeApi();
+        render(<SlotPanel vscodeApi={api} />);
+
+        act(() => dispatchExtensionMessage({
+            type: 'struggleSlotUpdate',
+            snapshot: makeFreeSnapshot({ awaitingEvidence: true }),
+            episodes: [],
+        }));
+        expect(screen.getByText(/awaiting fresh evidence/i)).toBeInTheDocument();
+
+        act(() => dispatchExtensionMessage({
+            type: 'struggleSlotUpdate',
+            snapshot: makeFreeSnapshot(),
+            episodes: [],
+        }));
+        expect(screen.queryByText(/awaiting fresh evidence/i)).toBeNull();
     });
 
     it('posts struggleLiveSubscribe on mount and struggleLiveUnsubscribe on unmount', () => {

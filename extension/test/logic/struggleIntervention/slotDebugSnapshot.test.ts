@@ -143,6 +143,7 @@ describe('StruggleInterventionService - slot debug snapshot + episode history', 
         expect(s.episodeId).toBeNull();
         expect(s.level).toBeNull();
         expect(s.inFlight).toBeNull();
+        expect(s.awaitingEvidence).toBe(false);
     });
 
     it('snapshot reflects a DELIVERED active episode with in-flight confirm_close', () => {

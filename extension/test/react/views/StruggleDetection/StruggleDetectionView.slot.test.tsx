@@ -53,6 +53,7 @@ const FREE_SNAPSHOT: SlotDebugSnapshot = {
     inFlight: null,
     owed: { confirmClose: false },
     pendingOutcomes: 0,
+    awaitingEvidence: false,
 };
 
 // ---------------------------------------------------------------------------

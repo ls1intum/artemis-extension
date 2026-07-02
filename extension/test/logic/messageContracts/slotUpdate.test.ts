@@ -13,7 +13,7 @@ describe('StruggleSlotUpdate contract', () => {
             episodeAgeMs: 500, hintCount: 2, isNew: false, inSession: true,
             watchdog: { armed: true, staleDeadlineMs: 2000 },
             inFlight: { intent: 'confirm_close', localToken: 7, episodeId: 'ep-1', generation: 3, requestToken: 'rt-abc' },
-            owed: { confirmClose: false }, pendingOutcomes: 0,
+            owed: { confirmClose: false }, pendingOutcomes: 0, awaitingEvidence: false,
         };
         const episodes: EpisodeHistoryEntry[] = [
             { episodeId: 'ep-0', peakLevel: 'ambient', outcome: 'DISCARDED', hintCount: 1, durationMs: 20_000, startedAtMs: 0 },

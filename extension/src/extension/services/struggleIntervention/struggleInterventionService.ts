@@ -246,6 +246,16 @@ export class StruggleInterventionService implements AlertSink {
      */
     _pendingOutcomes = new Map<string, { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }>();
 
+    /**
+     * Evidence gate after idle-abandon: set when the stale watchdog silently frees a slot
+     * (force-free / free-silent). While set, non-hard-boundary alerts are dropped pre-throttle
+     * (no POST, no delivery-budget consumption), so a walked-away session cannot re-hint on
+     * idle alone. Cleared by fresh student activity: a typing tick (one-char inserts), a
+     * hard-boundary alert, a new green test, or an explicit proactive re-enable. Session-only;
+     * a reload is covered by the D1 warmup instead.
+     */
+    private _awaitingEvidence = false;
+
     // ---------------------------------------------------------------------------
     // Task 3: episode history ring buffer + slot-change notify
     // ---------------------------------------------------------------------------
@@ -293,6 +303,7 @@ export class StruggleInterventionService implements AlertSink {
                 : null,
             owed: { confirmClose: this._owedConfirmClose !== undefined },
             pendingOutcomes: this._pendingOutcomes.size,
+            awaitingEvidence: this._awaitingEvidence,
         };
     }
 
@@ -358,6 +369,13 @@ export class StruggleInterventionService implements AlertSink {
 
     private _setInFlightMarker(v: InFlightMarker | undefined): void { this._inFlightMarker = v; this.notifySlotDebugChanged(); }
     private _setOwedConfirmClose(v: OwedConfirmClose | undefined): void { this._owedConfirmClose = v; this.notifySlotDebugChanged(); }
+    private _setAwaitingEvidence(value: boolean, reason: string): void {
+        if (this._awaitingEvidence === value) { return; }
+        this._awaitingEvidence = value;
+        this._dbg(`  -> EVIDENCE GATE ${value ? 'set' : 'cleared'} (${reason})`);
+        this.notifySlotDebugChanged();
+    }
+
     private _setPendingOutcome(episodeId: string, outcome: { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }): void { this._pendingOutcomes.set(episodeId, outcome); this.notifySlotDebugChanged(); }
     private _deletePendingOutcome(episodeId: string): void { this._pendingOutcomes.delete(episodeId); this.notifySlotDebugChanged(); }
     private _clearPendingOutcomes(): void { this._pendingOutcomes.clear(); this.notifySlotDebugChanged(); }
@@ -369,6 +387,18 @@ export class StruggleInterventionService implements AlertSink {
     /** Fed every engine tick (ungated buffer fill). Wired externally so we don't bypass coordinator gating. */
     onTick(tick: TickRecord): void {
         this._buffer.push(tick);
+        // Typing evidence (one-char inserts in the feature window): clears the idle-abandon gate
+        // AND defers the idle watchdog. Typing is activity, so the idle stretch is no longer
+        // continuous ("any activity postpones the silent free"); without the deferral, a
+        // threshold tick that carries both typing and a due watchdog deadline would abandon the
+        // episode and re-set the gate in the same tick the student returned.
+        if (tick.features.typingRate > 0) {
+            this._setAwaitingEvidence(false, 'typing evidence');
+            if (this._watchdog) {
+                this._watchdog.resetProgress(tick.ts);
+                this.notifySlotDebugChanged();
+            }
+        }
         // C3: feed progress latch with sBase from tick (newGreenTest path goes through onNewBuildResult)
         this._latch.observe(tick.ts, tick.sBase, false);
         this._propagateLatchToOwed();
@@ -395,6 +425,8 @@ export class StruggleInterventionService implements AlertSink {
     /** Called by the build-result watcher when a build produces a strict new high in passed tests. */
     onNewBuildResult(newGreenTest: boolean): void {
         if (!newGreenTest) { return; }
+        // A new green test is fresh student activity: clear the idle-abandon gate.
+        this._setAwaitingEvidence(false, 'new green test');
         // Feed the latch: newGreenTest=true triggers a progress edge
         // Use Date.now() for the latch since it cares about real time, not session time
         this._latch.observe(Date.now(), 1.0 /* above any threshold, won't fire sBase path */, true);
@@ -447,6 +479,9 @@ export class StruggleInterventionService implements AlertSink {
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             return '  -> SKIP (student turned proactive off for this exercise)';
         }
+        if (this._awaitingEvidence && !alert.types.some(t => HARD_BOUNDARIES.has(t))) {
+            return '  -> SKIP (awaiting fresh evidence after idle-abandon)';
+        }
         return null;
     }
 
@@ -466,6 +501,11 @@ export class StruggleInterventionService implements AlertSink {
             return;
         }
         if (alert.kind !== 'edit') { return; }
+
+        // A hard-boundary alert is itself fresh evidence (build/terminal/paste = student action).
+        if (this._awaitingEvidence && alert.types.some(t => HARD_BOUNDARIES.has(t))) {
+            this._setAwaitingEvidence(false, 'hard-boundary alert');
+        }
 
         try {
             const signal = buildStruggleSignal(alert, this._buffer.snapshot());
@@ -1015,6 +1055,7 @@ export class StruggleInterventionService implements AlertSink {
                     this._writeOutcomeWithBackfill(exerciseId, episodeId, 'ABANDONED');
                     this._deps.foldEpisode(episodeId, 'ABANDONED');
                 }
+                this._setAwaitingEvidence(true, 'idle-abandon force-free');
                 break;
             }
             case 'free-silent': {
@@ -1025,6 +1066,7 @@ export class StruggleInterventionService implements AlertSink {
                 if (parkedEp) { this.recordTerminalEpisode(parkedEp, 'DISCARDED'); }
                 this._slot.free();
                 this._clearEpisodeRuntime();
+                this._setAwaitingEvidence(true, 'idle-abandon free-silent');
                 break;
             }
         }
@@ -1257,6 +1299,8 @@ export class StruggleInterventionService implements AlertSink {
         if (this._deps.getExerciseId() !== exerciseId) { return; }
         if (on) {
             this._clearBackoff();
+            // Flipping the toggle back on is a deliberate user action (student is present).
+            this._setAwaitingEvidence(false, 'proactive re-enabled');
         } else {
             this._deps.clearLamp();
             this._deps.clearInline();
@@ -1312,6 +1356,7 @@ export class StruggleInterventionService implements AlertSink {
         this._continuedEpisodeIds.clear();
         this._frozenSessionId = undefined;
         this._clearPendingOutcomes();
+        this._setAwaitingEvidence(false, 'new exercise');
         this.reset();
         this.notifySlotDebugChanged();
     }

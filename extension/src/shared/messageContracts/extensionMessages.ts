@@ -167,6 +167,8 @@ export interface SlotDebugSnapshot {
     inFlight: SlotInFlightDebug | null;
     owed: { confirmClose: boolean };
     pendingOutcomes: number;
+    /** Idle-abandon evidence gate: true = no new decide POSTs until fresh student activity. */
+    awaitingEvidence: boolean;
 }
 
 /**
