@@ -72,7 +72,17 @@ export const SPEC = {
      * descriptive umbrella -- the in-sample S1 support is the STATE (build_in_flight d=1.18,
      * feedback_view +6/6), NOT delta-label membership (all per-delta shares < 5/6). */
     FM_DELTAS_BAD: ['worse', 'same-count', 'identical-set'] as const,
-    /** N1 long-insert threshold (PASTE_LONG_MIN_CHARS = 11, i.e. inserted text >= 11 chars); lives in sensing/collectors/paste.ts. Hardcoded engineering cutoff, NOT in derived_params.json. ENG (value); boundary use [L] (Pu 2025 multi-line); F3 found no severity signal. */
+    /** N1 paste derivation (lives in sensing/collectors/paste.ts): clipboard-confirmed paste
+     * of >= 2 lines, [L] Pu 2025 verbatim ("User pastes code that's more than 1 line", their
+     * most effective trigger at 73.1%); no char minimum ([D] recorder-confirmed study pastes:
+     * median 9 chars, 56% <= 11). F3 found no severity signal (boundary only).
+     * DEVIATION 2026-07-02 (documented SPEC-freeze exception, approved): until then the rule
+     * was `inserted length >= 11 chars OR multi-line heuristic`, mirroring the study
+     * pipeline's paste_events derivation. The 11-char branch was an ENG artifact of the old
+     * recorder only seeing multi-line paste triggers, and mostly caught completion false
+     * positives (IntelliSense/Copilot inserts >= 11 chars). Retired; goldens are unaffected
+     * (the asserted exact-replay mode INJECTS the reference's paste times - the live
+     * derivation is not on the golden-pinned path). */
 } as const;
 
 /** Boundary types in audit priority order (spec §3: FM > FM+ > E4 > N1 > STATE). ENG */

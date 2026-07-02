@@ -172,3 +172,121 @@ suite('VsCodeSensorHub', () => {
         }
     });
 });
+
+suite('VsCodeSensorHub paste relay (clipboard-confirmed)', () => {
+    const PASTED = 'first();\nsecond();';
+
+    /** Raw vscode change event shaped like a real multi-line paste (pure insert). */
+    function pasteShapedEvent(): vscode.TextDocumentChangeEvent {
+        return {
+            document: { uri: vscode.Uri.file('/w/Main.java') },
+            reason: undefined,
+            contentChanges: [{
+                text: PASTED,
+                rangeLength: 0,
+                range: { isEmpty: true, isSingleLine: false },
+            }],
+        } as unknown as vscode.TextDocumentChangeEvent;
+    }
+
+    /**
+     * Patch onDidChangeTextDocument (capture the hub's handler) and override the hub's
+     * clipboard seam with a deferred promise (`vscode.env.clipboard` is a frozen namespace
+     * and cannot be monkeypatched).
+     */
+    function patchSources(hub: VsCodeSensorHub): {
+        fire: (e: vscode.TextDocumentChangeEvent) => void;
+        resolveClipboard: (text: string) => void;
+        flush: () => Promise<void>;
+        restore: () => void;
+    } {
+        const originalOnChange = vscode.workspace.onDidChangeTextDocument;
+        let handler: ((e: vscode.TextDocumentChangeEvent) => void) | undefined;
+        let resolver: ((text: string) => void) | undefined;
+        (vscode.workspace as { onDidChangeTextDocument: typeof vscode.workspace.onDidChangeTextDocument }).onDidChangeTextDocument =
+            ((listener: (e: vscode.TextDocumentChangeEvent) => void) => {
+                handler = listener;
+                return new vscode.Disposable(() => { handler = undefined; });
+            }) as typeof vscode.workspace.onDidChangeTextDocument;
+        (hub as unknown as { _readClipboardText: () => Thenable<string> })._readClipboardText =
+            () => new Promise<string>(resolve => { resolver = resolve; });
+        return {
+            fire: e => handler?.(e),
+            resolveClipboard: text => resolver?.(text),
+            // Three microtask hops: Promise.resolve wrap + promise resolution + the .then callback.
+            flush: async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); },
+            restore: () => {
+                (vscode.workspace as { onDidChangeTextDocument: typeof vscode.workspace.onDidChangeTextDocument }).onDidChangeTextDocument = originalOnChange;
+            },
+        };
+    }
+
+    test('emits a clipboard-confirmed multi-line paste with the event-time ts', async () => {
+        const hub = new VsCodeSensorHub();
+        const patch = patchSources(hub);
+        try {
+            const received: Array<{ ts: number; chars: number; lines: number }> = [];
+            const sub = hub.onPasteDetected(p => received.push(p));
+
+            const before = Date.now();
+            patch.fire(pasteShapedEvent());
+            assert.strictEqual(received.length, 0, 'nothing emitted before the clipboard resolves');
+            patch.resolveClipboard(PASTED);
+            await patch.flush();
+
+            assert.strictEqual(received.length, 1);
+            assert.strictEqual(received[0].chars, PASTED.length);
+            assert.strictEqual(received[0].lines, 2);
+            assert.ok(received[0].ts >= before && received[0].ts <= Date.now(), 'ts stamped at event time');
+
+            sub.dispose();
+            hub.dispose();
+        } finally {
+            patch.restore();
+        }
+    });
+
+    test('does not emit when the clipboard differs (Copilot-shaped multi-line insert)', async () => {
+        const hub = new VsCodeSensorHub();
+        const patch = patchSources(hub);
+        try {
+            let count = 0;
+            const sub = hub.onPasteDetected(() => count++);
+
+            patch.fire(pasteShapedEvent());
+            patch.resolveClipboard('something completely different');
+            await patch.flush();
+
+            assert.strictEqual(count, 0);
+            sub.dispose();
+            hub.dispose();
+        } finally {
+            patch.restore();
+        }
+    });
+
+    test('a clipboard promise resolving after detach emits to NEITHER the old NOR a re-attached subscriber', async () => {
+        const hub = new VsCodeSensorHub();
+        const patch = patchSources(hub);
+        try {
+            let aCount = 0;
+            let bCount = 0;
+
+            const subA = hub.onPasteDetected(() => aCount++);
+            patch.fire(pasteShapedEvent());     // clipboard read pending in A's relay closure
+            subA.dispose();                      // detach while the read is in flight
+
+            const subB = hub.onPasteDetected(() => bCount++);
+            patch.resolveClipboard(PASTED);      // old promise resolves AFTER re-attach
+            await patch.flush();
+
+            assert.strictEqual(aCount, 0, 'disposed subscriber must not receive the stale paste');
+            assert.strictEqual(bCount, 0, 'stale paste must not leak into the re-attached subscriber set');
+
+            subB.dispose();
+            hub.dispose();
+        } finally {
+            patch.restore();
+        }
+    });
+});

@@ -311,7 +311,10 @@ export class ReplaySensorHub implements SensorHub {
         this._textChange.fire(signal);
 
         if (this._opts.pasteMode === 'derive') {
-            for (const paste of detectPastes(signal)) {
+            // Replayed sessions have no clipboard: `undefined` = read-failed, so the
+            // detector takes its deterministic multi-line heuristic fallback. Stays
+            // fully synchronous - pumpUpTo/advanceTo ordering must not change.
+            for (const paste of detectPastes(signal, undefined)) {
                 this._pasteDetected.fire(paste);
             }
         }

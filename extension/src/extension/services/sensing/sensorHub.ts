@@ -5,7 +5,7 @@ import type { PlatformCapabilities } from '@extension/theia';
 import type { ResultDTO } from '@extension/types';
 
 import { DiagnosticsSettleCollector } from './collectors/diagnosticsSettle';
-import { detectPastes } from './collectors/paste';
+import { qualifyPasteCandidate, snapshotPasteCandidate } from './collectors/paste';
 import { nextSensorSeq } from './sequence';
 import type {
     ActiveEditorSignal,
@@ -171,6 +171,13 @@ const NOOP_SUBSCRIPTION: vscode.Disposable = { dispose: () => { /* platform lack
 export class VsCodeSensorHub implements SensorHub {
     private readonly _disposables: vscode.Disposable[] = [];
 
+    /**
+     * Clipboard reader used by the paste channel. A field (not a direct API call) because
+     * `vscode.env.clipboard` is a frozen namespace that tests cannot monkeypatch; tests
+     * override this seam with a controllable promise.
+     */
+    protected _readClipboardText: () => Thenable<string> = () => vscode.env.clipboard.readText();
+
     /** Create a lazily-subscribing channel and track it for dispose(). */
     private _relay<TRaw, TSignal>(
         subscribe: (handler: (raw: TRaw) => void) => vscode.Disposable,
@@ -302,14 +309,28 @@ export class VsCodeSensorHub implements SensorHub {
             },
             (signal: DiagnosticsSettledSignal) => signal,
         );
-        // Derived channel: per-change paste detection over textChange; the
-        // underlying textChange subscription exists only while consumed.
+        // Derived channel: clipboard-confirmed paste detection over textChange; the
+        // underlying textChange subscription exists only while consumed. The clipboard
+        // read happens ONLY for snapshot-gated candidates (multi-line single-change
+        // inserts - never per keystroke), and only the plain-data snapshot crosses the
+        // await (the vscode event is not retained). Declared timing caveat: the ~1 ms
+        // clipboard IPC can push a paste landing in the last moments of a 10 s engine
+        // window into the next tick; the PasteSignal keeps the event-time ts.
         this.onPasteDetected = this._relay(
-            handler => this.onDidChangeTextDocument(signal => {
-                for (const paste of detectPastes(signal)) {
-                    handler(paste);
-                }
-            }),
+            handler => {
+                // Guards the relay reuse across detach/attach: a clipboard promise
+                // resolving after detach must not fire into a re-attached subscriber set.
+                let active = true;
+                const sub = this.onDidChangeTextDocument(signal => {
+                    const candidate = snapshotPasteCandidate(signal);
+                    if (candidate === null) { return; }
+                    void Promise.resolve(this._readClipboardText()).then(
+                        clip => { if (active) { const paste = qualifyPasteCandidate(candidate, clip); if (paste) { handler(paste); } } },
+                        () => { if (active) { const paste = qualifyPasteCandidate(candidate, undefined); if (paste) { handler(paste); } } },
+                    ).catch(() => { /* detector/handler failure must never break sensing or leak an unhandled rejection */ });
+                });
+                return new vscode.Disposable(() => { active = false; sub.dispose(); });
+            },
             (signal: PasteSignal) => signal,
         );
     }

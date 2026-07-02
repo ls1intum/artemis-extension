@@ -181,24 +181,31 @@ describe('ReplaySensorHub — channel mapping + state reads', () => {
         expect(pastes[0].ts).toBe(SESSION_START_MS + 2000);
     });
 
-    it('derive-mode fires onPasteDetected from the paste heuristic (the >10-char insert)', () => {
-        // textChange #2 inserts "YY" (2 chars, single-line, non-empty range start):
-        // does NOT qualify. Add a long insert that DOES qualify under detectPastes.
+    it('derive-mode fires onPasteDetected via the multi-line fallback (no clipboard in replay)', () => {
+        // Replay has no clipboard -> detectPastes(signal, undefined) takes the multi-line
+        // heuristic fallback. A long SINGLE-line insert (the retired >10-char rule) must NOT
+        // qualify anymore; a multi-line pure insert must.
         const events = buildEvents();
-        events.push({
-            type: 'textChange', timestamp: SESSION_START_MS + 7000, uri: URI,
-            changes: [{ range: range(0), rangeOffset: 8, rangeLength: 0, text: 'this-is-a-long-paste' }],
-        });
+        events.push(
+            {
+                type: 'textChange', timestamp: SESSION_START_MS + 7000, uri: URI,
+                changes: [{ range: range(0), rangeOffset: 8, rangeLength: 0, text: 'this-is-a-long-paste' }],
+            },
+            {
+                type: 'textChange', timestamp: SESSION_START_MS + 8000, uri: URI,
+                changes: [{ range: range(0), rangeOffset: 8, rangeLength: 0, text: 'first();\nsecond();' }],
+            },
+        );
         const hub = new ReplaySensorHub(events, {
             resolveSnapshotText, pasteMode: 'derive', sessionStartMs: SESSION_START_MS,
         });
         const pastes: PasteSignal[] = [];
         hub.onPasteDetected(s => pastes.push(s));
         hub.pumpUpTo(10);
-        // Only the long insert qualifies; the short "X"/"YY" inserts do not.
+        // Only the multi-line insert qualifies; short AND long single-line inserts do not.
         expect(pastes).toHaveLength(1);
-        expect(pastes[0].ts).toBe(SESSION_START_MS + 7000);
-        expect(pastes[0].chars).toBe('this-is-a-long-paste'.length);
+        expect(pastes[0].ts).toBe(SESSION_START_MS + 8000);
+        expect(pastes[0].lines).toBe(2);
     });
 
     it('preserves original event order for equal timestamps', () => {
