@@ -493,6 +493,83 @@ describe('StruggleInterventionService', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Delivered-slot POST gating: no decide POST when the result is provably discarded
+// ---------------------------------------------------------------------------
+
+describe('StruggleInterventionService delivered-slot POST gating', () => {
+    // While the slot is DELIVERED, reconcile suppresses every inbound result except the
+    // escalation case (revealed-ambient level + hard boundary). A decide POST whose result
+    // is provably discarded must not be sent at all: it costs a full server pipeline run
+    // (LLM call) only to be thrown away on arrival.
+
+    function stateAlert(t = 610): AlertRecord {
+        return { kind: 'edit', t, ts: t * 1000, urgency: 0.9, typesPreGate: ['STATE'], types: ['STATE'], primary: 'STATE', path: 'e6', inWarmup: false, inGrace: false };
+    }
+
+    it('soft (STATE) alert while DELIVERED-active: suppressed above the throttle, no POST', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(7);                                       // slot -> DELIVERED, level active
+        vi.mocked(deps.postIntervention).mockClear();
+
+        expect(svc.shouldSuppress(stateAlert())).toBe(true);         // BackoffSource: no delivery budget burned
+        svc.onTick(tick(610));
+        svc.deliver(stateAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+    });
+
+    it('hard (FM) alert while DELIVERED-active: still no POST (no escalation from active level)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(7);
+        vi.mocked(deps.postIntervention).mockClear();
+
+        expect(svc.shouldSuppress(alert())).toBe(true);              // FM is hard, but level is 'active'
+        svc.onTick(tick(620));
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+    });
+
+    it('soft (STATE) alert while DELIVERED-ambient (revealed): no POST (escalation needs a hard boundary)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb'), { level: 'ambient', text: 'hint', atSessionS: 100 });
+        svc._frozenSessionId = 55;
+        await svc.revealParkedHint();                                // slot -> DELIVERED, level ambient
+        vi.mocked(deps.postIntervention).mockClear();
+
+        expect(svc.shouldSuppress(stateAlert())).toBe(true);
+        svc.onTick(tick(620));
+        svc.deliver(stateAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+    });
+
+    it('hard (FM) alert while DELIVERED-ambient (revealed): POST proceeds (escalation candidate) with the live episode', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb'), { level: 'ambient', text: 'hint', atSessionS: 100 });
+        svc._frozenSessionId = 55;
+        await svc.revealParkedHint();
+        vi.mocked(deps.postIntervention).mockClear();
+
+        expect(svc.shouldSuppress(alert())).toBe(false);
+        svc.onTick(tick(620));
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).toHaveBeenCalledTimes(1);
+        // Continuation carries the live episode including the already-delivered hint.
+        const body = (deps.postIntervention as ReturnType<typeof vi.fn>).mock.calls[0][1] as StruggleInterventionRequest;
+        expect(body.episode.episodeId).toBe('ep-amb');
+        expect(body.episode.hints).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // C2: hold-frozen ambient + reveal-on-click + episode-outcome API + back-fill
 // ---------------------------------------------------------------------------
 
@@ -1044,6 +1121,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // isNew flip on first accepted request
     // -------------------------------------------------------------------------
     it('isNew=true on first POST; flips to false on the next POST to the same episode (after first accepted)', async () => {
+        // The only continuation POST left from a DELIVERED slot is the escalation candidate
+        // (revealed-ambient level + hard boundary); all other delivered-slot decides are
+        // skipped before the POST (delivered-slot POST gating).
         const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
         const svc = new StruggleInterventionService(deps);
@@ -1057,12 +1137,16 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(firstBody.episode.isNew).toBe(true);
         const episodeId = firstBody.episode.episodeId;
 
-        // Server replies: active -> DELIVERED. The episode is now in _continuedEpisodeIds.
-        svc.onServerActive(7);
+        // Server replies: ambient -> PARKED; the student reveals it -> DELIVERED at ambient level.
+        // The episode is now in _continuedEpisodeIds.
+        svc.onServerAmbient('Hint text', undefined, undefined, undefined);
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
+        svc._frozenSessionId = 55;
+        await svc.revealParkedHint();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
         postSpy.mockClear();
 
-        // Second decide from the DELIVERED slot: same episodeId, isNew MUST be false now.
+        // Second decide (hard boundary, escalation candidate): same episodeId, isNew MUST be false now.
         svc.deliver({ kind: 'edit', t: 540, ts: 540000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
         expect(postSpy).toHaveBeenCalledTimes(1);

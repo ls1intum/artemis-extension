@@ -505,6 +505,13 @@ export class StruggleInterventionService implements AlertSink {
         if (this._awaitingEvidence && !alert.types.some(t => HARD_BOUNDARIES.has(t))) {
             return '  -> SKIP (awaiting fresh evidence after idle-abandon)';
         }
+        // Delivered-slot POST gating: while the slot is DELIVERED, reconcile suppresses every
+        // inbound result except the escalation case (revealed-ambient level + hard boundary).
+        // When no result could surface, don't pay for the server pipeline run at all.
+        const slot = this._slot.snapshot().state;
+        if (slot.kind === 'delivered' && !(slot.level === 'ambient' && alert.types.some(t => HARD_BOUNDARIES.has(t)))) {
+            return '  -> SKIP (delivered slot: reconcile would suppress any result, POST saved)';
+        }
         return null;
     }
 
