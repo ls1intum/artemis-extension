@@ -67,7 +67,6 @@ export interface LiveTick {
     /** S_base urgency score. */
     urgency: number;
     s: number;
-    v: number;
     theta: number;
     boundariesPreGate: BoundaryType[];
     alertKind: 'edit' | 'discrete' | null;

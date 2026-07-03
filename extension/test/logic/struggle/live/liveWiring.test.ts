@@ -9,7 +9,7 @@ import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed
 
 function fakeTick(t: number, over: any = {}): any {
     return {
-        t, ts: t * 1000, sBase: 0.4, s: 0.4, v: 0.3, fastDecay: false,
+        t, ts: t * 1000, sBase: 0.4, s: 0.4,
         boundariesPreGate: [], alert: null,
         decisionTrace: {
             outcome: 'suppressed', reason: 'no-candidate', discreteTrigger: null,

@@ -70,10 +70,10 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
     };
 }
 function alert(): AlertRecord {
-    return { kind: 'edit', t: 530, ts: 530000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
+    return { kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
 }
 function tick(t: number): TickRecord {
-    return { t, ts: t * 1000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
+    return { t, ts: t * 1000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
 describe('StruggleInterventionService', () => {
@@ -81,7 +81,7 @@ describe('StruggleInterventionService', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc.onTick(tick(530));
-        const discrete: AlertRecord = { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, v: 0.72, trigger: 'test-stagnation', inWarmup: false };
+        const discrete: AlertRecord = { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, trigger: 'test-stagnation', inWarmup: false };
         svc.deliver(discrete);
         await Promise.resolve();
         expect(deps.postIntervention).not.toHaveBeenCalled();
@@ -91,7 +91,7 @@ describe('StruggleInterventionService', () => {
 
     it('shouldSuppress (BackoffSource): true for non-edit + student-opt-out, false for a normal edit alert', () => {
         // This is what BackoffGate consults ABOVE the throttle, so a suppressed alert never burns delivery budget.
-        const discrete: AlertRecord = { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, v: 0.72, trigger: 'test-stagnation', inWarmup: false };
+        const discrete: AlertRecord = { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, trigger: 'test-stagnation', inWarmup: false };
         expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(discrete)).toBe(true);                                    // non-edit → never surfaces
         expect(new StruggleInterventionService(fakeDeps({ isStudentProactiveOn: () => false })).shouldSuppress(alert())).toBe(true); // opted out
         expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(alert())).toBe(false);                                   // normal edit alert passes
@@ -1047,10 +1047,10 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
         const svc = new StruggleInterventionService(deps);
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
 
         // First decide: FREE slot, preallocates a candidate, isNew=true
-        svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
+        svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
         expect(postSpy).toHaveBeenCalledTimes(1);
         const firstBody = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
@@ -1063,7 +1063,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         postSpy.mockClear();
 
         // Second decide from the DELIVERED slot: same episodeId, isNew MUST be false now.
-        svc.deliver({ kind: 'edit', t: 540, ts: 540000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
+        svc.deliver({ kind: 'edit', t: 540, ts: 540000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
         expect(postSpy).toHaveBeenCalledTimes(1);
         const secondBody = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
@@ -1077,8 +1077,8 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const svc = new StruggleInterventionService(deps);
 
         // Deliver an alert -> will POST with a preallocated episode
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
-        svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
 
         const body = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
@@ -1099,8 +1099,8 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const deps = fakeDeps({ postIntervention: postSpy });
         const svc = new StruggleInterventionService(deps);
 
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
-        svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
 
         const sentEpisodeId = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1].episode.episodeId;
@@ -1465,7 +1465,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
 
         // DEFAULT_PROGRESS_CFG.reArmSBase = 0.6; feed sBase = 0.3 (below threshold)
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.3, s: 0.3, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.3, s: 0.3, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
 
         expect(resetSpy).toHaveBeenCalledTimes(1);
     });
@@ -1480,7 +1480,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
 
         // sBase = 0.8 (above reArmSBase threshold of 0.6)
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.8, s: 0.8, v: 0.8, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.8, s: 0.8, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
 
         expect(resetSpy).not.toHaveBeenCalled();
     });

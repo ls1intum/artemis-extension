@@ -20,7 +20,7 @@ export type EditTraceReason = LiveDecisionTrace['reason'];
  *   - boundary codes (FM, FM_PLUS, E4, N1, STATE)
  *   - decision reasons (EditTraceReason)
  *   - the discrete trigger (test-stagnation)
- *   - metric names (urgency, s, v, theta, fastDecay)
+ *   - metric names (urgency, s, theta)
  */
 export type GlossaryKey =
     | BoundaryType
@@ -28,9 +28,7 @@ export type GlossaryKey =
     | 'test-stagnation'
     | 'urgency'
     | 's'
-    | 'v'
-    | 'theta'
-    | 'fastDecay';
+    | 'theta';
 
 export interface GlossaryEntry {
     /** Fully spelled-out primary text shown in the UI. For numbers, includes unit and range. */
@@ -173,25 +171,13 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     s: {
         text: 'Raw per-moment severity signal, 0.00–1.00',
         code: 's',
-        tooltip: 'The unsmoothed severity that feeds the smoothed level V(t) below. Includes bonus weight for active feedback errors, A8 method-persistence, and N2 distant-error signals.',
-    },
-
-    v: {
-        text: 'Smoothed struggle level over time with memory and decay, 0.00–1.00',
-        code: 'v',
-        tooltip: 'V(t): severity carried across time with exponential decay (half-life 120 s; 30 s after an improved build). Shown for context: the alert threshold does NOT use this value.',
+        tooltip: 'The per-moment severity including bonus weight for active feedback errors, A8 method-persistence, and N2 distant-error signals. Telemetry only: the alert threshold does NOT use this value.',
     },
 
     theta: {
         text: 'Alert threshold: urgency must reach or exceed this before a nudge is considered (currently 0.70)',
         code: 'theta',
         tooltip: 'θ = 0.70, frozen from the v3 grid search. Drawn as a horizontal line on the urgency curve.',
-    },
-
-    fastDecay: {
-        text: 'Recent-improvement damping is currently active',
-        code: 'fastDecay',
-        tooltip: 'After a build that improved the result, V(t) decays faster (half-life 30 s instead of 120 s) for up to 120 s. The urgency curve will drop more quickly during this window.',
     },
 };
 

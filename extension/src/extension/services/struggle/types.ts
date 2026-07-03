@@ -26,8 +26,6 @@ export interface TickRecord {
     readonly features: FeatureVector;
     readonly sBase: number;
     readonly s: number;
-    readonly v: number;
-    readonly fastDecay: boolean;
     /** Boundary types pending at this tick BEFORE gates (audit). */
     readonly boundariesPreGate: readonly BoundaryType[];
     readonly alert: AlertRecord | null;
@@ -37,10 +35,10 @@ export interface TickRecord {
 
 /**
  * Schicht-2 → Schicht-3 hand-off, one per 10-s tick. The DecisionEngine reads
- * `urgency` + `editCandidate` + `discreteTriggers` ONLY; `telemetry` (S/V) is
+ * `urgency` + `editCandidate` + `discreteTriggers` ONLY; `telemetry` (S) is
  * recorder/regression substrate that the decision NEVER reads — the v3 threshold
- * moved off the V peak-hold curve onto `urgency = S_base = (f_typing + f_gap)/2`
- * (the `alerts_full_u` configuration).
+ * is `urgency = S_base = (f_typing + f_gap)/2` (the `alerts_full_u`
+ * configuration; the former V peak-hold telemetry curve was removed).
  */
 export interface EngineTick {
     /** Session-relative tick time (s). */
@@ -61,8 +59,6 @@ export interface EngineTick {
     /** Recorder/regression substrate only — never read by the DecisionEngine. */
     readonly telemetry: {
         readonly s: number;
-        readonly v: number;
-        readonly fastDecay: boolean;
     };
 }
 
@@ -156,11 +152,9 @@ export interface DiscreteDecisionAlert {
 /** The DecisionEngine's per-tick output, before the engine stamps `ts`/telemetry. */
 export type DecisionAlert = EditDecisionAlert | DiscreteDecisionAlert;
 
-/** Audit record of an emitted alert (+ absolute ts and the telemetry V). */
+/** Audit record of an emitted alert (+ absolute ts). */
 export type AlertRecord = DecisionAlert & {
     readonly ts: number;
-    /** Peak-hold V at the firing tick — TELEMETRY only, NOT the decision signal. */
-    readonly v: number;
 };
 
 /** Injectable clock/scheduler so tests and replay drive ticks deterministically. */
@@ -178,9 +172,8 @@ export interface EngineSessionContext {
 /** Live engine state for the debug UI. */
 export interface StruggleSnapshot {
     isStruggling: boolean;
-    /** Live threshold signal (S_base); isStruggling = urgency >= θ (NOT v >= θ). */
+    /** Live threshold signal (S_base); isStruggling = urgency >= θ. */
     urgency: number;
-    v: number;
     s: number;
     primaryBoundary: BoundaryType | null;
     lastAlert: { t: number; kind: 'edit' | 'discrete'; summary: string } | null;

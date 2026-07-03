@@ -35,8 +35,7 @@ export interface Scenario {
         alertKinds?: Array<'edit' | 'discrete'>;
         noAlerts?: boolean;
         /** Optional invariant on the final tick's V. */
-        finalVBelow?: number;
-        finalVAtLeast?: number;
+        finalSBelow?: number;
     };
 }
 

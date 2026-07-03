@@ -459,7 +459,9 @@ export interface StruggleScoreEvent {
     /** Session-relative tick time (s). */
     t: number;
     s: number;
-    v: number;
+    /** Peak-hold V telemetry. Present in study recordings; the live engine no
+     *  longer computes it, so new recordings omit it. */
+    v?: number;
     fTyping: number;
     fGap: number;
     fFb: number;
@@ -478,7 +480,9 @@ interface AlertEventBase {
     /** v3 threshold signal (S_base) that fired the alert. Absent in legacy v2
      *  recordings, where v was the decision signal. */
     urgency?: number;
-    v: number;
+    /** Peak-hold V telemetry. Present in study recordings; the live engine no
+     *  longer computes it, so new recordings omit it. */
+    v?: number;
     inWarmup: boolean;
     theta: number;
 }

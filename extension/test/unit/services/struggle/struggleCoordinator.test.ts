@@ -79,7 +79,7 @@ suite('StruggleCoordinator', () => {
         coord.startExerciseSession(1);
         coord.advanceTo(coord.sessionStartMs + 20_000);
         const snap = coord.getSnapshot();
-        assert.strictEqual(typeof snap.v, 'number');
+        assert.strictEqual(typeof snap.urgency, 'number');
         assert.strictEqual(snap.sessionSeconds, 20);
     });
 

@@ -40,7 +40,6 @@ export class NoopStruggleCoordinator implements IStruggleCoordinator {
         return {
             isStruggling: false,
             urgency: 0,
-            v: 0,
             s: 0,
             primaryBoundary: null,
             lastAlert: null,

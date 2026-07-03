@@ -15,7 +15,7 @@ export function tickRecord(over: Partial<TickRecord> = {}): TickRecord {
         t: 10, ts: 10_000,
         features: { t: 10, effectiveWindowS: 10, nOneCharInserts: 0, typingRate: 0, longestGapS: 0,
             fTyping: 0, fGap: 0, fFb: 0, fA8: 0, fN2: 0, tsState: false },
-        sBase: 0, s: 0, v: 0, fastDecay: false, boundariesPreGate: [], alert: null,
+        sBase: 0, s: 0, boundariesPreGate: [], alert: null,
         decisionTrace: emptyDecisionTrace, ...over,
     };
 }

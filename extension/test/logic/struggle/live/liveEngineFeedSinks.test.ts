@@ -9,7 +9,7 @@ function makeFeedWithEmitter() {
     const emitter = new vscode.EventEmitter<any>();
     const feed = new LiveEngineFeed({ onDidTick: emitter.event }, () => true, 600);
     const fireTick = (t: number) => emitter.fire({
-        t, ts: t * 1000, sBase: 0.4, s: 0.4, v: 0.3, fastDecay: false,
+        t, ts: t * 1000, sBase: 0.4, s: 0.4,
         boundariesPreGate: [], alert: null,
         decisionTrace: {
             outcome: 'suppressed', reason: 'no-candidate', discreteTrigger: null,

@@ -25,7 +25,6 @@ import {
     SELECTION_DEBOUNCE_MS, SPEC, TUNING,
 } from '@extension/services/struggle/config';
 import { type DecisionAblation, DecisionEngine } from '@extension/services/struggle/decision/decisionEngine';
-import { FastDecayTracker, VTracker } from '@extension/services/struggle/dynamics/decay';
 import { TrailingDebouncer } from '@extension/services/struggle/intake/trailingDebouncer';
 import { BuildDeltaTracker } from '@extension/services/struggle/signals/buildDelta';
 import { DocumentShadowTracker } from '@extension/services/struggle/signals/documentShadow';
@@ -93,8 +92,6 @@ export class StruggleEngine implements vscode.Disposable {
     private _n2: N2TrackerLike = new N2Tracker();
     private _buildDelta = new BuildDeltaTracker();
     private _testStagnation = new TestStagnationTracker(TUNING.testStagnationN);
-    private _fastDecay = new FastDecayTracker();
-    private _v = new VTracker();
     private _boundaries = new BoundaryTracker();
     private _decision = new DecisionEngine();
     private _selectionDebounce: TrailingDebouncer<{ tsS: number; uriKey: string; endLine: number }> | undefined;
@@ -299,11 +296,6 @@ export class StruggleEngine implements vscode.Disposable {
             const result: ResultDTO = signal.result;
             this._enqueue(tsS, () => {
                 const c = this._buildDelta.ingest(tsS, result);
-                if (c.improved) {
-                    this._fastDecay.ingestImproved(tsS);
-                } else {
-                    this._fastDecay.ingestNonImproved(tsS);
-                }
                 if (c.isFM) {
                     this._boundaries.ingest('FM', tsS);
                     this._lastFmBadS = tsS;
@@ -347,36 +339,32 @@ export class StruggleEngine implements vscode.Disposable {
         const fA8: 0 | 1 = this._a8.activeAt(tS) ? 1 : 0;
         const fN2: 0 | 1 = this._n2.activeAt(tS) ? 1 : 0;
         const { sBase, s } = severityFrom(wf, { fFb, fA8, fN2 });
-        const fast = this._fastDecay.activeAt(tS);
-        const v = this._v.update(tS, s, fast);
         const boundaries = this._boundaries.flagsAt(tS, wf.tsState);
         const graceActive = this._lastFmBadS !== null
             && this._lastFmBadS <= tS
             && tS - this._lastFmBadS <= SPEC.GRACE_S;
 
         // Schicht 3: the DecisionEngine owns the alert decision. It thresholds on
-        // urgency = sBase (NOT V); s/v/fastDecay travel as telemetry only.
+        // urgency = sBase; s (bonus severity) travels as telemetry only.
         const engineTick: EngineTick = {
             t: tS,
             urgency: sBase,
             editCandidate: { boundaries, typingRate: wf.typingRate, graceActive },
             discreteTriggers: { testStagnation: this._pendingTestStagnation },
-            telemetry: { s, v, fastDecay: fast },
+            telemetry: { s },
         };
         this._pendingTestStagnation = false;            // consumed by this tick
         const decision = this._decision.decide(engineTick);
         const decisionTrace = this._decision.lastTrace;
 
         const tsMs = (this._session?.sessionStartMs ?? 0) + tS * 1000;
-        const alert: AlertRecord | null = decision === null ? null : { ...decision, ts: tsMs, v };
+        const alert: AlertRecord | null = decision === null ? null : { ...decision, ts: tsMs };
         const record: TickRecord = {
             t: tS,
             ts: tsMs,
             features: { t: tS, ...wf, fFb, fA8, fN2 },
             sBase,
             s,
-            v,
-            fastDecay: fast,
             boundariesPreGate: boundaries,
             alert,
             decisionTrace,
@@ -399,8 +387,6 @@ export class StruggleEngine implements vscode.Disposable {
         this._n2 = this._opts?.trackers?.n2?.() ?? new N2Tracker();
         this._buildDelta = new BuildDeltaTracker();
         this._testStagnation = new TestStagnationTracker(TUNING.testStagnationN);
-        this._fastDecay = new FastDecayTracker();
-        this._v = new VTracker();
         this._boundaries = new BoundaryTracker();
         // Golden-replay overrides with validated-base mode; production defaults
         // the ablation from TUNING (add-ons on).

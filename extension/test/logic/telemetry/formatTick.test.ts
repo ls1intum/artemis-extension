@@ -60,8 +60,6 @@ function tick(over: Partial<TickRecord> = {}): TickRecord {
         features: f,
         sBase: 0.42,
         s: 0.42,
-        v: 0.5,
-        fastDecay: false,
         boundariesPreGate: [],
         alert: null,
         decisionTrace: trace(),

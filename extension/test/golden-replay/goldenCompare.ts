@@ -27,7 +27,6 @@ export interface CausalReport {
     readonly fN2DisagreeTicks: number;
     readonly pasteBoundaryDisagreeTicks: number;
     readonly maxAbsSDelta: number;
-    readonly maxAbsVDelta: number;
     readonly alertCountReplay: number;
     readonly alertCountGolden: number;
     readonly alertCountDelta: number;
@@ -76,9 +75,11 @@ function compareTickFields(
         { field: 'fFb', replay: rt.features.fFb, golden: gt.fFb },
         { field: 'fA8', replay: rt.features.fA8, golden: gt.fA8 },
         { field: 'fN2', replay: rt.features.fN2, golden: gt.fN2 },
+        // The golden fixtures still carry v/fastDecay from the study engine; the
+        // live engine dropped the V(t) telemetry curve, so those fields are no
+        // longer recomputed or compared. sBase/s and the alert stream stay pinned.
         { field: 'sBase', replay: rt.sBase, golden: gt.sBase },
         { field: 's', replay: rt.s, golden: gt.s },
-        { field: 'v', replay: rt.v, golden: gt.v },
     ];
 
     for (const { field, replay, golden } of numericFields) {
@@ -104,18 +105,6 @@ function compareTickFields(
             replay: rt.features.tsState,
             golden: gt.tsState,
             message: `tick[${index}] t=${t}: field "tsState" diverged (replay=${rt.features.tsState}, golden=${gt.tsState})`,
-        };
-    }
-
-    if (rt.fastDecay !== gt.fastDecay) {
-        return {
-            kind: 'tickField',
-            t,
-            index,
-            field: 'fastDecay',
-            replay: rt.fastDecay,
-            golden: gt.fastDecay,
-            message: `tick[${index}] t=${t}: field "fastDecay" diverged (replay=${rt.fastDecay}, golden=${gt.fastDecay})`,
         };
     }
 
@@ -338,7 +327,6 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
     let fN2DisagreeTicks = 0;
     let pasteBoundaryDisagreeTicks = 0;
     let maxAbsSDelta = 0;
-    let maxAbsVDelta = 0;
 
     for (let i = 0; i < ticksCompared; i++) {
         const rt = replay.ticks[i];
@@ -353,9 +341,6 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
 
         const sDelta = Math.abs(rt.s - gt.s);
         if (sDelta > maxAbsSDelta) {maxAbsSDelta = sDelta;}
-
-        const vDelta = Math.abs(rt.v - gt.v);
-        if (vDelta > maxAbsVDelta) {maxAbsVDelta = vDelta;}
     }
 
     const alertCountReplay = replay.alerts.length;
@@ -384,7 +369,6 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
         fN2DisagreeTicks,
         pasteBoundaryDisagreeTicks,
         maxAbsSDelta,
-        maxAbsVDelta,
         alertCountReplay,
         alertCountGolden,
         alertCountDelta: alertCountReplay - alertCountGolden,

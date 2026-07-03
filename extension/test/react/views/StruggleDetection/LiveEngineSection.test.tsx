@@ -49,7 +49,6 @@ function makeTick(t: number, o: TickOverrides = {}): LiveTick {
         t,
         urgency,
         s: urgency,
-        v: urgency,
         theta: 0.7,
         boundariesPreGate: o.boundariesPreGate ?? [],
         alertKind: o.alertKind ?? null,

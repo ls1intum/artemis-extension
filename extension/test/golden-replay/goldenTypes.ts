@@ -17,6 +17,8 @@ export interface GoldenTick {
     readonly tsState: boolean;
     readonly sBase: number;
     readonly s: number;
+    /** Study-era V(t) telemetry. Still present in the frozen fixtures, but no
+     *  longer recomputed or compared since the live engine dropped the curve. */
     readonly v: number;
     readonly fastDecay: boolean;
     /** Boundary types pre-gate, in audit priority order. */
@@ -26,7 +28,7 @@ export interface GoldenTick {
 export interface GoldenAlert {
     readonly t: number;
     /** The urgency (S_base) that fired the alert — the v3 decision signal
-     *  (alerts_full_u). The substrate V is compared at the tick level, not here. */
+     *  (alerts_full_u). */
     readonly urgency: number;
     readonly typesPreGate: BoundaryType[];
     readonly types: BoundaryType[];

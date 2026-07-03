@@ -201,8 +201,6 @@ function makeTick(overrides: Partial<TickRecord> = {}): TickRecord {
         },
         sBase: 0.3,
         s: 0.35,
-        v: 0.42,
-        fastDecay: false,
         boundariesPreGate: [],
         alert: null,
         decisionTrace: emptyDecisionTrace,
@@ -216,8 +214,7 @@ function makeAlert(overrides: Partial<Extract<AlertRecord, { kind: 'edit' }>> = 
         kind: 'edit',
         t: 30,
         ts: 1_700_000_030_000,
-        urgency: 0.7,      // decision signal (distinct from telemetry V below)
-        v: 0.85,
+        urgency: 0.7,      // decision signal
         typesPreGate: ['FM'],
         types: ['FM'],
         primary: 'FM',
@@ -235,7 +232,6 @@ function makeDiscreteAlert(overrides: Partial<Extract<AlertRecord, { kind: 'disc
         t: 180,
         ts: 1_700_000_180_000,
         urgency: 0.01,
-        v: 0.2,
         trigger: 'test-stagnation',
         inWarmup: true,
         ...overrides,
@@ -587,7 +583,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             harness.coordinator.fireTick(makeTick());
             sinon.assert.calledOnce(stub);
             sinon.assert.calledWithExactly(stub, {
-                t: 10, s: 0.35, v: 0.42,
+                t: 10, s: 0.35,
                 fTyping: 0.4, fGap: 0.2, fFb: 0, fA8: 0, fN2: 0,
                 typingRate: 12, longestGapS: 8,
             });
@@ -600,7 +596,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
             await harness.recorder.startSession(42);
-            harness.coordinator.fireTick(makeTick({ t: 20, s: 0.5, v: 0.6 }));
+            harness.coordinator.fireTick(makeTick({ t: 20, s: 0.5 }));
             await harness.recorder.endSession();
 
             const events = await readAllRecordedEvents(harness.tmpDir);
@@ -608,7 +604,6 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             assert.ok(score, 'struggleScore event missing');
             assert.strictEqual(score!.t, 20);
             assert.strictEqual(score!.s, 0.5);
-            assert.strictEqual(score!.v, 0.6);
             assert.strictEqual(score!.typingRate, 12);
         } finally {
             await harness.dispose();
@@ -621,7 +616,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             const stub = sandbox.stub(harness.recorder, 'recordAlert');
             harness.coordinator.fireAlert(makeAlert());
             sinon.assert.calledOnceWithExactly(stub, {
-                kind: 'edit', t: 30, urgency: 0.7, v: 0.85, types: ['FM'], primary: 'FM',
+                kind: 'edit', t: 30, urgency: 0.7, types: ['FM'], primary: 'FM',
                 path: 'armed', inWarmup: false, inGrace: false, theta: 0.7,
             });
         } finally {

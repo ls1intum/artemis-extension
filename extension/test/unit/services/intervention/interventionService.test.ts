@@ -7,7 +7,7 @@ import type { AlertRecord } from '@extension/services/struggle/types';
 
 function alert(overrides: Partial<AlertRecord> = {}): AlertRecord {
     return {
-        kind: 'edit', t: 490, ts: 1000, urgency: 0.7, v: 0.7, typesPreGate: ['STATE'], types: ['STATE'],
+        kind: 'edit', t: 490, ts: 1000, urgency: 0.7, typesPreGate: ['STATE'], types: ['STATE'],
         primary: 'STATE', path: 'armed', inWarmup: false, inGrace: false, ...overrides,
     } as AlertRecord;
 }
@@ -52,10 +52,10 @@ suite('InterventionService (AlertSink, single-level)', () => {
         svc = new InterventionService();
         const seen: AlertRecord[] = [];
         svc.onDidDeliver(a => seen.push(a));
-        const a = alert({ v: 0.85 });
+        const a = alert({ urgency: 0.85 });
         svc.deliver(a);
         assert.strictEqual(seen.length, 1);
-        assert.strictEqual(seen[0].v, 0.85);
+        assert.strictEqual(seen[0].urgency, 0.85);
     });
 
     // C1: showLamp / hideLamp

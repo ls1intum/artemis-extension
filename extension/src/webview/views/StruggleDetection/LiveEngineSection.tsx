@@ -24,10 +24,9 @@ interface LiveEngineSectionProps {
     defaultCollapsed?: boolean;
 }
 
-/** Line colours for the three curves (urgency primary, s/v secondary). */
+/** Line colours for the two curves (urgency primary, s secondary). */
 const URGENCY_COLOR = '#6366f1';
 const S_COLOR = '#f59e0b';
-const V_COLOR = '#22c55e';
 const THETA_COLOR = '#f44336';
 const BOUNDARY_COLOR = '#38bdf8';
 const ALERT_COLOR = '#ef4444';
@@ -92,7 +91,6 @@ export function LiveEngineSection({ vscodeApi, collapsible, defaultCollapsed }: 
     // null until the first session-state message arrives (subscribe posts it).
     const [sessionActive, setSessionActive] = useState<boolean | null>(null);
     const [showS, setShowS] = useState(false);
-    const [showV, setShowV] = useState(false);
     const [chartRef, chartWidth] = useMeasuredWidth(FALLBACK_CHART_WIDTH);
 
     // 1) Register the message listener FIRST so it is live before we subscribe.
@@ -185,11 +183,10 @@ export function LiveEngineSection({ vscodeApi, collapsible, defaultCollapsed }: 
                                     strokeDasharray="4 4"
                                     label={{ value: `alert threshold ${theta.toFixed(2)}`, position: 'insideTopRight', fill: THETA_COLOR, fontSize: 11 }}
                                 />
-                                {/* urgency (primary) + optional s / v. */}
+                                {/* urgency (primary) + optional s. */}
                                 {/* A single tick draws no line segment; show a dot so the lone point is visible. */}
                                 <Line type="monotone" dataKey="urgency" stroke={URGENCY_COLOR} strokeWidth={2} dot={ticks.length === 1} isAnimationActive={false} />
                                 {showS && <Line type="monotone" dataKey="s" stroke={S_COLOR} strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} />}
-                                {showV && <Line type="monotone" dataKey="v" stroke={V_COLOR} strokeWidth={1.5} strokeDasharray="2 3" dot={false} isAnimationActive={false} />}
                                 {/* Boundary markers (any tick with a pre-gate boundary). */}
                                 {ticks
                                     .filter((tk) => tk.boundariesPreGate.length > 0)
@@ -232,11 +229,6 @@ export function LiveEngineSection({ vscodeApi, collapsible, defaultCollapsed }: 
                                 <input type="checkbox" checked={showS} onChange={(e) => setShowS(e.target.checked)} />
                                 <span className={styles.swatch} style={{ background: S_COLOR }} />
                                 <span title={GLOSSARY.s.tooltip}>{GLOSSARY.s.text}</span>
-                            </label>
-                            <label className={styles.toggleLabel}>
-                                <input type="checkbox" checked={showV} onChange={(e) => setShowV(e.target.checked)} />
-                                <span className={styles.swatch} style={{ background: V_COLOR }} />
-                                <span title={GLOSSARY.v.tooltip}>{GLOSSARY.v.text}</span>
                             </label>
                         </div>
                     </>

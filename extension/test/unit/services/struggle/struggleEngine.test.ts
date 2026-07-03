@@ -63,9 +63,8 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         // idle severity (v3 2-feature): fTyping=1, fGap=1 -> S = (1+1)/2 = 1.0 >= theta(0.7)
         const tick49 = ticks.find(t => t.t === 490)!;
         assert.ok(Math.abs(tick49.s - 1.0) < 1e-9);
-        // The alert payload carries the firing tick's V telemetry (the golden
-        // parity compares V at tick level only, so guard the alert stamping here).
-        assert.strictEqual(a0.v, tick49.v);
+        // The alert payload carries the firing tick's decision signal.
+        assert.strictEqual(a0.urgency, tick49.sBase);
     });
 
     test('E6 re-alerts every 120 s while the idle state persists', () => {
@@ -74,8 +73,8 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         assert.deepStrictEqual(alerts.map(a => asEditAlert(a).path), ['armed', 'e6', 'e6']);
     });
 
-    test('an FM boundary breaks through warmup when V is already high', () => {
-        // idle until V >= theta (reached well before 400), bad build at 400 s
+    test('an FM boundary breaks through warmup when severity is already high', () => {
+        // idle until urgency >= theta (reached well before 400), bad build at 400 s
         engine.advanceTo(START + 400_000);
         hub.emit.buildResult.fire({ ts: START + 400_500, result: failingResult([], true) });
         engine.advanceTo(START + 480_000);
@@ -152,7 +151,6 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         engine.advanceTo(START2 + 10_000);
         const first = ticks[ticks.length - 1];
         assert.strictEqual(first.t, 10);
-        assert.strictEqual(first.v, first.s);     // V reset: first tick V = S
     });
 
     test('live timer drives ticks through the injectable clock (sinon)', () => {

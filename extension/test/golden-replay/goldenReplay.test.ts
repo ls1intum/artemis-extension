@@ -120,7 +120,7 @@ describe('golden replay (local, study dataset)', () => {
                 `${pid}: ticks=${summary.ticksCompared} (Δcount ${summary.tickCountDelta}) ` +
                 `fA8≠ ${summary.fA8DisagreeTicks} fN2≠ ${summary.fN2DisagreeTicks} ` +
                 `N1≠ ${summary.pasteBoundaryDisagreeTicks} ` +
-                `maxΔS ${summary.maxAbsSDelta.toFixed(4)} maxΔV ${summary.maxAbsVDelta.toFixed(4)} ` +
+                `maxΔS ${summary.maxAbsSDelta.toFixed(4)} ` +
                 `alerts ts=${summary.alertCountReplay}/ref=${summary.alertCountGolden} (Δ ${summary.alertCountDelta}) ` +
                 `alert-only ts/ref ${summary.alertTimesOnlyInReplay}/${summary.alertTimesOnlyInGolden} ` +
                 `fieldΔ ${summary.alertSharedTimeFieldMismatches}`,

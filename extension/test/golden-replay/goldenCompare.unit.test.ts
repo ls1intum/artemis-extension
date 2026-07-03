@@ -76,8 +76,6 @@ function makeReplayTick(gt: GoldenTick): TickRecord {
         },
         sBase: gt.sBase,
         s: gt.s,
-        v: gt.v,
-        fastDecay: gt.fastDecay,
         boundariesPreGate: [...gt.boundaries],
         alert: null,
         decisionTrace: emptyDecisionTrace,
@@ -91,9 +89,6 @@ function makeReplayAlert(ga: GoldenAlert): AlertRecord {
         t: ga.t,
         ts: ga.t * 1000,
         urgency: ga.urgency,
-        // The golden carries only the urgency decision signal; the telemetry V is
-        // compared at the tick level, not here, so this fixture mirrors urgency.
-        v: ga.urgency,
         typesPreGate: [...ga.typesPreGate],
         types: [...ga.types],
         primary: ga.primary,
@@ -118,32 +113,32 @@ describe('compareExact', () => {
     });
 
     it('returns ok:true when numeric difference is within TOL (1e-7)', () => {
-        const gt = makeTick({ v: 0.5 });
+        const gt = makeTick({ s: 0.5 });
         const golden = makeGolden({ ticks: [gt] });
         const replayTick = makeReplayTick(gt);
-        // perturb v by 1e-7, which is within TOL=1e-6
+        // perturb s by 1e-7, which is within TOL=1e-6
         const replay = {
             durationS: 600,
-            ticks: [{ ...replayTick, v: replayTick.v + 1e-7 }],
+            ticks: [{ ...replayTick, s: replayTick.s + 1e-7 }],
             alerts: [],
         };
         expect(compareExact(replay, golden)).toEqual({ ok: true });
     });
 
-    it('returns ok:false with tickField divergence when v differs by 1e-5', () => {
-        const gt = makeTick({ v: 0.5 });
+    it('returns ok:false with tickField divergence when s differs by 1e-5', () => {
+        const gt = makeTick({ s: 0.5 });
         const golden = makeGolden({ ticks: [gt] });
         const replayTick = makeReplayTick(gt);
         const replay = {
             durationS: 600,
-            ticks: [{ ...replayTick, v: replayTick.v + 1e-5 }],
+            ticks: [{ ...replayTick, s: replayTick.s + 1e-5 }],
             alerts: [],
         };
         const result = compareExact(replay, golden);
         expect(result.ok).toBe(false);
         expect(result.firstDivergence?.kind).toBe('tickField');
         expect(result.firstDivergence?.t).toBe(10);
-        expect(result.firstDivergence?.field).toBe('v');
+        expect(result.firstDivergence?.field).toBe('s');
     });
 
     it('returns ok:false with tickCount divergence when tick counts differ', () => {

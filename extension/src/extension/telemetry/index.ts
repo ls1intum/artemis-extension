@@ -221,7 +221,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             t: Math.round(snap.sessionSeconds),
             ts: Date.now(),
             urgency: 1,
-            v: snap.v,
             typesPreGate: ['STATE'],
             types: ['STATE'],
             primary: 'STATE',

@@ -613,11 +613,14 @@ function parseSubmission(d: Record<string, unknown>, timestamp: number): Submiss
 function parseStruggleScore(d: Record<string, unknown>, timestamp: number): StruggleScoreEvent | null {
     // v3 2-feature schema: the v2 fN4/n4Ratio fields are no longer required and,
     // if present in an old recording, are ignored (not copied to the output).
-    const nums = ['t', 's', 'v', 'fTyping', 'fGap', 'fFb', 'fA8', 'fN2', 'typingRate', 'longestGapS'] as const;
+    // v (peak-hold telemetry) is optional: present in study recordings, absent
+    // since the live engine dropped the V(t) curve.
+    const nums = ['t', 's', 'fTyping', 'fGap', 'fFb', 'fA8', 'fN2', 'typingRate', 'longestGapS'] as const;
     for (const k of nums) { if (!isFiniteNumber(d[k])) { return null; } }
     return {
         type: 'struggleScore', timestamp,
-        t: d.t as number, s: d.s as number, v: d.v as number,
+        t: d.t as number, s: d.s as number,
+        ...(isFiniteNumber(d.v) ? { v: d.v as number } : {}),
         fTyping: d.fTyping as number, fGap: d.fGap as number,
         fFb: d.fFb as number, fA8: d.fA8 as number, fN2: d.fN2 as number,
         typingRate: d.typingRate as number, longestGapS: d.longestGapS as number,
@@ -627,14 +630,17 @@ function parseStruggleScore(d: Record<string, unknown>, timestamp: number): Stru
 const RECORDED_BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
 
 function parseAlert(d: Record<string, unknown>, timestamp: number): AlertEvent | null {
-    if (!isFiniteNumber(d.t) || !isFiniteNumber(d.v) || !isFiniteNumber(d.theta)) { return null; }
+    if (!isFiniteNumber(d.t) || !isFiniteNumber(d.theta)) { return null; }
     if (!isBoolean(d.inWarmup)) { return null; }
     if (d.kind !== undefined && d.kind !== 'edit' && d.kind !== 'discrete') { return null; }
     // urgency is the v3 decision signal; legacy v2 recordings omit it (ignored).
+    // v (peak-hold telemetry) is optional: present in study recordings, absent
+    // since the live engine dropped the V(t) curve.
     const base = {
         type: 'alert' as const, timestamp,
         ...(isFiniteNumber(d.urgency) ? { urgency: d.urgency as number } : {}),
-        t: d.t as number, v: d.v as number,
+        ...(isFiniteNumber(d.v) ? { v: d.v as number } : {}),
+        t: d.t as number,
         inWarmup: d.inWarmup as boolean, theta: d.theta as number,
     };
     if (d.kind === 'discrete') {

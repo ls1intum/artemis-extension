@@ -97,7 +97,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     onNewResult(result: ResultDTO): void {
         if (!this._isEnabled) { return; }
         if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) { return; }
-        this._hub.emitBuildResult(result);          // engine (FM/FM+/improved + fast decay)
+        this._hub.emitBuildResult(result);          // engine (FM/FM+/improved + test stagnation)
         // Detect a strict new high in passed tests and notify the alert sink so the
         // orchestrator's progress-close latch can observe the green-test path.
         const passed = result.passedTestCaseCount;
@@ -178,15 +178,13 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         // endExerciseSession(), so without this guard the snapshot — and the developer urgency
         // meter that renders from it — would surface stale data from the previous session.
         if (this._activeExerciseId === undefined) {
-            return { isStruggling: false, urgency: 0, v: 0, s: 0, primaryBoundary: null, lastAlert: null, sessionSeconds: 0 };
+            return { isStruggling: false, urgency: 0, s: 0, primaryBoundary: null, lastAlert: null, sessionSeconds: 0 };
         }
         const tick = this._lastTick;
-        // v3: isStruggling thresholds on urgency = S_base (the live decision
-        // signal), NOT the V peak-hold curve. V stays as telemetry below.
+        // v3: isStruggling thresholds on urgency = S_base (the live decision signal).
         return {
             isStruggling: tick ? tick.sBase >= SPEC.THETA_FULL : false,
             urgency: tick?.sBase ?? 0,
-            v: tick?.v ?? 0,
             s: tick?.s ?? 0,
             primaryBoundary: tick && tick.boundariesPreGate.length > 0 ? tick.boundariesPreGate[0] : null,
             lastAlert: this._lastAlert ? summarizeAlert(this._lastAlert) : null,

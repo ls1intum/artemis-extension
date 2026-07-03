@@ -32,14 +32,14 @@ export const SCENARIOS: Scenario[] = [
     {
         id: 'fluent-development',
         category: 'no-struggle',
-        description: 'Continuous fluent typing, one improving build: no alerts, V stays low.',
+        description: 'Continuous fluent typing, one improving build: no alerts, severity stays low.',
         durationS: 600,
         events: [
             { at: 0, type: 'typing', durationS: 600, charsPerSecond: 2 },
             { at: 200, type: 'build', failed: [] },
         ],
         // typing 120/min (v3 2-feature): fTyping 0; gap 0.5/40 ~ 0.0125 -> S ~ 0.006.
-        expected: { noAlerts: true, finalVBelow: 0.2 },
+        expected: { noAlerts: true, finalSBelow: 0.2 },
     },
     {
         id: 'warmup-quiet-session',
@@ -120,11 +120,10 @@ export const SCENARIOS: Scenario[] = [
         ],
         // Derivation (v3 2-feature): base S ~ (0.55 + 0.15)/2 = 0.35; with +0.25
         // from 490 on: S = 0.6 exactly — still < theta(0.7), so no alert. Typing
-        // at ~10/min also keeps tsState false, so no STATE boundary either. V's
-        // floor is S, so final V settles at 0.6: the bonus alone must not fabricate
-        // alerts or push V to alert level. Bound pinned just above 0.6 so a real
-        // upward drift (e.g. to 0.62) fails.
-        expected: { noAlerts: true, finalVBelow: 0.61 },
+        // at ~10/min also keeps tsState false, so no STATE boundary either. The
+        // bonus alone must not fabricate alerts or push severity to alert level.
+        // Bound pinned just above 0.6 so a real upward drift (e.g. to 0.62) fails.
+        expected: { noAlerts: true, finalSBelow: 0.61 },
     },
     {
         id: 'test-stagnation-while-typing',

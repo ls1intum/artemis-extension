@@ -4,7 +4,7 @@ import { boundaryText, discreteText, GLOSSARY, reasonText } from '@webview/views
 const ALL_KEYS: GlossaryKey[] = [
     'FM', 'FM_PLUS', 'E4', 'N1', 'STATE',
     'fired', 'no-candidate', 'b2-fluent-typing', 'b4-grace-filter', 'd1-warmup', 'below-threshold', 'cooldown', 'not-rearmed',
-    'test-stagnation', 'urgency', 's', 'v', 'theta', 'fastDecay',
+    'test-stagnation', 'urgency', 's', 'theta',
 ];
 
 test('every glossary key has spelled-out text distinct from its code', () => {

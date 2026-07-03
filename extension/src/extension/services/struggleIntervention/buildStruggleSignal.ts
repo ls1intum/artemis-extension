@@ -43,12 +43,13 @@ export function buildStruggleSignal(alert: EditAlertRecord, ticks: readonly Tick
             tSessionS: alert.t,
             primaryBoundary: alert.primary,
             boundaryTypes: [...alert.types],
-            severity: round2(alert.v),
+            // The decision signal sBase at the firing tick.
+            severity: round2(alert.urgency),
             path: alert.path,
             inWarmup: alert.inWarmup,
             inGrace: alert.inGrace,
         },
-        trajectory: ticks.slice(-12).map(tk => ({ t: tk.t, s: round2(tk.s), v: round2(tk.v) })),
+        trajectory: ticks.slice(-12).map(tk => ({ t: tk.t, s: round2(tk.s) })),
         dominantComponents,
         sessionSeconds: alertTick?.t ?? alert.t,
     };

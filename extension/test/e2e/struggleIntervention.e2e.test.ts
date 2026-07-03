@@ -64,9 +64,9 @@ function buildStuckRequest(): StruggleInterventionRequest {
                 inGrace: false,
             },
             trajectory: [
-                { t: 500, s: 0.5, v: 0.55 },
-                { t: 520, s: 0.62, v: 0.68 },
-                { t: 540, s: 0.74, v: 0.78 },
+                { t: 500, s: 0.5 },
+                { t: 520, s: 0.62 },
+                { t: 540, s: 0.74 },
             ],
             dominantComponents: [
                 { name: 'feedbackViewing', value: 0.9 },

@@ -63,11 +63,11 @@ function makeService(over: Partial<StruggleInterventionDeps> = {}): { svc: Strug
 }
 
 function alertRecord(): AlertRecord {
-    return { kind: 'edit', t: 530, ts: 530000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
+    return { kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
 }
 
 function tickRecord(): TickRecord {
-    return { t: 530, ts: 530_000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, v: 0.5, fastDecay: false, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
+    return { t: 530, ts: 530_000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
 // NOTE: the simulate*/arm* helpers below set `_inFlightMarker` by DIRECT field write for fast

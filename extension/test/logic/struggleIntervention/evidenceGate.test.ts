@@ -78,8 +78,6 @@ function tick(ts: number, sBase: number, typingRate = 0): TickRecord {
         features: { typingRate } as TickRecord['features'],
         sBase,
         s: sBase,
-        v: sBase,
-        fastDecay: false,
         boundariesPreGate: [],
         alert: null,
         decisionTrace: emptyDecisionTrace,
@@ -87,11 +85,11 @@ function tick(ts: number, sBase: number, typingRate = 0): TickRecord {
 }
 
 function stateAlert(): AlertRecord {
-    return { kind: 'edit', t: 530, ts: 530_000, urgency: 0.72, v: 0.72, typesPreGate: ['STATE'], types: ['STATE'], primary: 'STATE', path: 'armed', inWarmup: false, inGrace: false };
+    return { kind: 'edit', t: 530, ts: 530_000, urgency: 0.72, typesPreGate: ['STATE'], types: ['STATE'], primary: 'STATE', path: 'armed', inWarmup: false, inGrace: false };
 }
 
 function fmAlert(): AlertRecord {
-    return { kind: 'edit', t: 530, ts: 530_000, urgency: 0.72, v: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
+    return { kind: 'edit', t: 530, ts: 530_000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));

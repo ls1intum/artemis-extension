@@ -8,7 +8,6 @@ export async function showStruggleScoreDialog(snapshot: StruggleSnapshot): Promi
     const lines = [
         `Struggling: ${snapshot.isStruggling ? 'yes' : 'no'}`,
         `Urgency (S_base, decision signal): ${snapshot.urgency.toFixed(3)}`,
-        `V (decayed severity, telemetry): ${snapshot.v.toFixed(3)}`,
         `S (instantaneous, telemetry): ${snapshot.s.toFixed(3)}`,
         `Boundary at last tick: ${snapshot.primaryBoundary ?? '—'}`,
         `Last alert: ${lastAlert ? `t=${lastAlert.t}s (${lastAlert.kind}: ${lastAlert.summary})` : '—'}`,

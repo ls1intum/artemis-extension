@@ -18,12 +18,9 @@ suite('struggle engine v3 scenarios', () => {
             if (scenario.expected.alertKinds) {
                 assert.deepStrictEqual(alerts.map(a => a.kind), scenario.expected.alertKinds);
             }
-            const finalV = ticks[ticks.length - 1]?.v ?? 0;
-            if (scenario.expected.finalVBelow !== undefined) {
-                assert.ok(finalV < scenario.expected.finalVBelow, `final V ${finalV} not < ${scenario.expected.finalVBelow}`);
-            }
-            if (scenario.expected.finalVAtLeast !== undefined) {
-                assert.ok(finalV >= scenario.expected.finalVAtLeast, `final V ${finalV} not >= ${scenario.expected.finalVAtLeast}`);
+            const finalS = ticks[ticks.length - 1]?.s ?? 0;
+            if (scenario.expected.finalSBelow !== undefined) {
+                assert.ok(finalS < scenario.expected.finalSBelow, `final S ${finalS} not < ${scenario.expected.finalSBelow}`);
             }
         });
     }

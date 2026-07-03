@@ -42,10 +42,6 @@ export const SPEC = {
     W_FB: 0.25,
     W_A8: 0.15,
     W_N2: 0.10,
-    /** V(t) half-lives. hl=120 [D] descriptive (S3), value 120 ENG; fast 30 s after improved build: pattern [D+L] (S3 ~36 s 6/6; convergent w/ EQ/RED reset, Jadud/Becker), value 30 ENG (rounded down from 36 s) */
-    HL_DEFAULT_S: 120,
-    HL_FAST_S: 30,
-    FAST_DECAY_MAX_S: 120,
     /** D1 warmup; FM/E4 break through. [L] ENG (non-primary X=8min sweep arm chosen over the pre-registered primary X=5min/300s; cost 0 structurally guaranteed - 0 true alerts in first 8min, 4/6 TN) */
     WARMUP_S: 480,
     /** B2 soft gate: no alert while typing_rate >= 20/min (fail-open). [L]+ENG (fail-open timing gate from Pu 2025 / Nakada & Miura 2024; absolute 20/min cut is ENG. F4's +0.31 uplift at 4/6 was measured on a PERSON-RELATIVE typing-z>1 gate, not this absolute cut; F4 never swept an absolute threshold and F2 C1 rejected the relative rule 0/6 -> directional only) */

@@ -6,7 +6,7 @@ describe('struggle contract', () => {
     it('a StruggleSignal literal type-checks with the wire field names', () => {
         const signal: StruggleSignal = {
             alert: { tSessionS: 540, primaryBoundary: 'FM', boundaryTypes: ['FM', 'STATE'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false },
-            trajectory: [{ t: 530, s: 0.6, v: 0.7 }],
+            trajectory: [{ t: 530, s: 0.6 }],
             dominantComponents: [{ name: 'feedbackViewing', value: 1 }],
             sessionSeconds: 540,
         };

@@ -11,13 +11,14 @@ export interface StruggleSignal {
         tSessionS: number;
         primaryBoundary: BoundaryType;
         boundaryTypes: BoundaryType[];
+        /** The decision signal sBase at the firing tick. */
         severity: number;
         path: 'armed' | 'e6';
         inWarmup: boolean;
         inGrace: boolean;
     };
     /** last ≤12 ticks, oldest→newest */
-    trajectory: Array<{ t: number; s: number; v: number }>;
+    trajectory: Array<{ t: number; s: number }>;
     dominantComponents: Array<{ name: ComponentName; value: number }>;
     sessionSeconds: number;
 }

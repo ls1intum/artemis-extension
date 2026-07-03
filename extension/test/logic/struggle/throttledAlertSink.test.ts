@@ -6,7 +6,7 @@ import type { AlertRecord } from '@extension/services/struggle/types';
 
 function mkAlert(t: number): AlertRecord {
     return {
-        kind: 'edit', t, ts: t * 1000, urgency: 0.8, v: 0.9,
+        kind: 'edit', t, ts: t * 1000, urgency: 0.8,
         typesPreGate: ['STATE'], types: ['STATE'], primary: 'STATE',
         path: 'armed', inWarmup: false, inGrace: false,
     };

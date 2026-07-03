@@ -28,7 +28,7 @@ export class LiveEngineFeed implements vscode.Disposable {
     static toLiveTick(rec: TickRecord): LiveTick {
         const tr = rec.decisionTrace;
         return {
-            t: rec.t, urgency: rec.sBase, s: rec.s, v: rec.v, theta: tr.theta,
+            t: rec.t, urgency: rec.sBase, s: rec.s, theta: tr.theta,
             boundariesPreGate: [...rec.boundariesPreGate],
             alertKind: rec.alert ? rec.alert.kind : null,
             alertPrimary: rec.alert && rec.alert.kind === 'edit' ? rec.alert.primary : null,
