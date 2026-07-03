@@ -22,6 +22,8 @@ export class NavigationCommandModule {
             [WebviewCmd.ShowAiConfig]: this.handleShowAiConfig,
             [WebviewCmd.ShowServiceStatus]: this.handleShowServiceStatus,
             [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
+            [WebviewCmd.StruggleLiveSubscribe]: this.handleStruggleLiveSubscribe,
+            [WebviewCmd.StruggleLiveUnsubscribe]: this.handleStruggleLiveUnsubscribe,
             [WebviewCmd.ShowRecommendedExtensions]: this.handleShowRecommendedExtensions,
             [WebviewCmd.ShowGitCredentials]: this.handleShowGitCredentials,
             [WebviewCmd.LoadArchivedCourses]: this.handleLoadArchivedCourses,
@@ -34,6 +36,7 @@ export class NavigationCommandModule {
             [WebviewCmd.ToggleFullscreen]: this.handleToggleFullscreen,
             [WebviewCmd.ToggleCourseFullscreen]: this.handleToggleCourseFullscreen,
             [WebviewCmd.ToggleCourseListFullscreen]: this.handleToggleCourseListFullscreen,
+            [WebviewCmd.ToggleStruggleFullscreen]: this.handleToggleStruggleFullscreen,
         };
     }
 
@@ -149,6 +152,16 @@ export class NavigationCommandModule {
 
     private handleShowStruggleDetection = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showStruggleDetection();
+    };
+
+    private handleStruggleLiveSubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        const sink = this.context.getCurrentSender();
+        this.context.struggleLiveFeed?.subscribe(sink);
+    };
+
+    private handleStruggleLiveUnsubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        const sink = this.context.getCurrentSender();
+        this.context.struggleLiveFeed?.unsubscribe(sink);
     };
 
     private handleShowRecommendedExtensions = async (_message: WebviewToExtensionMessage): Promise<void> => {
@@ -348,6 +361,15 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Error opening course list in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open course list in fullscreen mode');
+        }
+    };
+
+    private handleToggleStruggleFullscreen = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            await this.context.actionHandler.openStruggleFullscreen();
+        } catch (error: unknown) {
+            logger.viewError('Error opening struggle detection in fullscreen:', error);
+            vscode.window.showErrorMessage('Failed to open struggle detection in a new tab');
         }
     };
 

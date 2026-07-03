@@ -10,3 +10,58 @@
     display: flex;
     flex-direction: column;
 }
+
+/* Folded episode container (C7). Wraps the fold-line toggle and any expanded timeline beneath it. */
+.episodeFold {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Borderless summary line for a CLOSED episode: chevron + outcome + topic. No box (closed sessions
+   carry no border) — reads as a quiet log line. */
+.episodeFoldLine {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin: 8px 16px;
+    padding: 2px 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.episodeFoldLine:hover {
+    text-decoration: underline;
+}
+
+/* Holds the lucide outcome icon (the whole outcome while collapsed). currentColor flows from the
+   tone class to the icon stroke. */
+.foldOutcome {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* The outcome word, shown next to the icon only once the episode is expanded (spells the glyph out). */
+.foldWord {
+    font-weight: 600;
+}
+
+.foldSep {
+    opacity: 0.5;
+}
+
+.foldTopic {
+    color: var(--vscode-foreground);
+}
+
+.toneSuccess {
+    color: var(--vscode-charts-green);
+}
+
+.toneMuted,
+.toneNeutral {
+    color: var(--vscode-descriptionForeground);
+}

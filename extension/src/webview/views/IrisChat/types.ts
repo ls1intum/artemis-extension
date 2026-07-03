@@ -18,6 +18,27 @@ export interface ChatMessage {
      * stays non-retryable as long as `.noai` is still detected).
      */
     errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+    /**
+     * Durable provenance marker for assistant messages. `'proactive'` flags a
+     * message Iris pushed unprompted (struggle intervention) so the bubble can
+     * render distinctly. Survives a history reload because the extension maps
+     * the server's `'PROACTIVE_STRUGGLE'` onto this flag on both the live
+     * websocket path and the GET /messages history path.
+     */
+    origin?: 'proactive';
+    /**
+     * Durable reaction to a proactive message. `'DISMISSED'` means the student
+     * collapsed the bubble; `'RECOVERED'` means progress confirmed; `'ABANDONED'`
+     * means the watchdog timed out. Survives a history reload (server round-trips
+     * it on `IrisMessageResponseDTO`).
+     */
+    proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
+    /**
+     * Client-allocated uuid grouping proactive messages by episode (C4/C6).
+     * Present on both live ws rows (via chat-ws AddMessage) and reloaded history.
+     * Used by C6 to render episode groups and by C7 for fold animation targeting.
+     */
+    proactiveEpisodeId?: string;
 }
 
 // Chat session summary (from extension)

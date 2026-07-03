@@ -39,3 +39,57 @@
 .description {
   margin: 0;
 }
+
+/* Proactive struggle on/off control (spec §12.2) */
+.proactiveControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.toggleGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proactiveLabel {
+  color: var(--vscode-descriptionForeground);
+}
+
+.proactiveSwitch {
+  cursor: pointer;
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--vscode-descriptionForeground);
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+}
+
+.proactiveSwitch[data-state='on'] {
+  border-color: var(--vscode-focusBorder);
+  color: var(--vscode-focusBorder);
+}
+
+.autoPaused {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resume {
+  cursor: pointer;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+}
+
+.cardNote {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}

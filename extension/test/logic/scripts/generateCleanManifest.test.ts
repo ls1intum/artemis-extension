@@ -48,8 +48,6 @@ describe('generate-clean-manifest: cleanManifest', () => {
         const props = cleanManifest(baseManifest()).contributes.configuration.properties;
         expect(props['artemis.startPage'].default).toBe('workspace-exercise');
         expect(props['artemis.showStartPageSuggestion'].default).toBe(false);
-        expect(props['artemis.struggleDetection.enabled'].default).toBe(false);
-        expect(props['artemis.struggleDetection.showInterventions'].default).toBe(false);
         expect(props['artemis.showSetDefaultClonePathPrompt'].default).toBe(false);
     });
 
@@ -58,9 +56,12 @@ describe('generate-clean-manifest: cleanManifest', () => {
         expect(props['artemis.serverUrl'].default).toBe('https://artemis.tum.de');
     });
 
-    it('removes the consent setting and dropped commands (recording + struggle score)', () => {
+    it('strips consent + struggleDetection settings and dropped commands (recording + struggle score)', () => {
         const m = cleanManifest(baseManifest());
-        expect(m.contributes.configuration.properties['artemis.dataCollectionConsent']).toBeUndefined();
+        const props = m.contributes.configuration.properties;
+        expect(props['artemis.dataCollectionConsent']).toBeUndefined();
+        expect(props['artemis.struggleDetection.enabled']).toBeUndefined();
+        expect(props['artemis.struggleDetection.showInterventions']).toBeUndefined();
         expect(m.contributes.commands.map(c => c.command)).toEqual(['artemis.login']);
     });
 

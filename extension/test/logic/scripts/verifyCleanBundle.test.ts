@@ -18,52 +18,46 @@ function metaWith(inputs: string[]): string {
 }
 
 describe('verify-clean-bundle', () => {
-    it('flags recorder/consent inputs', () => {
+    it('flags struggle-engine, intervention, recorder, and consent inputs', () => {
         const f = metaWith([
-            'src/extension/services/telemetry/recording/sessionRecorder.ts',
+            'src/extension/services/struggle/struggleEngine.ts',
+            'src/extension/services/intervention/interventionService.ts',
+            'src/extension/services/recording/sessionRecorder.ts',
             'src/extension/services/auth/consentService.ts',
-            'src/extension/services/telemetry/metrics/errorQuotientEngine.ts',
         ]);
-        expect(forbiddenInputs(f)).toHaveLength(3);
+        expect(forbiddenInputs(f)).toHaveLength(4);
     });
 
-    it('passes a clean input set', () => {
+    it('passes a clean input set (seam stubs + dataCollection noop)', () => {
         const f = metaWith([
-            'src/extension/services/telemetry/types.ts',
+            'src/extension/telemetry/noop.ts',
             'src/extension/dataCollection/noop.ts',
+            'src/webview/views/StruggleDetection/stub.tsx',
         ]);
         expect(forbiddenInputs(f)).toEqual([]);
     });
 
-    it('flags the struggle engine entry points', () => {
+    it('is fail-closed: flags ANY file under the struggle/intervention subtrees', () => {
         const f = metaWith([
-            'src/extension/services/telemetry/telemetryManager.ts',
-            'src/extension/services/telemetry/decision/interventionDecisionEngine.ts',
-            'src/extension/services/telemetry/eventPipeline/boundaryTriggerEmitter.ts',
-            'src/extension/services/telemetry/types.ts', // allowed
+            'src/extension/services/struggle/config.ts',
+            'src/extension/services/struggle/decision/decisionEngine.ts',
+            'src/extension/services/intervention/debug/struggleDebug.ts',
         ]);
         expect(forbiddenInputs(f)).toHaveLength(3);
     });
 
-    it('flags the struggle-detection webview view files', () => {
+    it('flags the struggle-detection webview view files, allows stub/types', () => {
         const f = metaWith([
             'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',
             'src/webview/views/StruggleDetection/StruggleDetectionView.module.css',
-            'src/webview/views/StruggleDetection/stub.tsx', // allowed
-            'src/webview/views/StruggleDetection/types.ts', // allowed
+            'src/webview/views/StruggleDetection/stub.tsx', // allowed (alias target)
+            'src/webview/views/StruggleDetection/types.ts', // allowed (type-only)
         ]);
         expect(forbiddenInputs(f)).toHaveLength(2);
     });
 
-    it('is fail-closed: flags unlisted telemetry-subtree files, allows only types.ts', () => {
-        const f = metaWith([
-            'src/extension/services/telemetry/uriFilter.ts', // recorder util, never explicitly listed
-            'src/extension/services/telemetry/someNewFile.ts', // any future addition
-            'src/extension/services/telemetry/types.ts', // allowlisted exception
-        ]);
-        expect(forbiddenInputs(f)).toEqual([
-            'src/extension/services/telemetry/uriFilter.ts',
-            'src/extension/services/telemetry/someNewFile.ts',
-        ]);
+    it('flags sessionRecorderWiring (lives outside the subtrees)', () => {
+        const f = metaWith(['src/extension/activation/sessionRecorderWiring.ts']);
+        expect(forbiddenInputs(f)).toHaveLength(1);
     });
 });

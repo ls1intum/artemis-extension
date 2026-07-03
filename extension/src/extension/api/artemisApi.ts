@@ -1,6 +1,7 @@
 import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '@extension/domain/problemStatementRendering';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { StruggleEgressResult, StruggleInterventionAccepted, StruggleInterventionRequest } from '@extension/services/struggleIntervention/struggleContract';
 import type {
     ArtemisParticipation,
     ArtemisUser,
@@ -545,6 +546,37 @@ export class ArtemisApiService {
         }
     }
 
+    /**
+     * Trigger a proactive struggle intervention (spec §5.2), exercise-keyed. Fire-and-forget: the server
+     * returns 202 {accepted, courseDisabled, exerciseId, jobId} and the gated result arrives over the per-user
+     * struggle topic. Auth + 401 handling via makeRequest. Returns a {@link StruggleEgressResult} so the orchestrator
+     * can pause proactive on a course-off (§13), or degrade to the no-AI lamp on a 404 (feature missing — spec §9, §11).
+     */
+    async postStruggleIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult> {
+        try {
+            const response = await this.makeRequest(`/api/iris/chat/exercises/${exerciseId}/struggle-intervention`, {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+            // Course-off (§13) is a deliberate instructor choice: pause proactive with no lamp. An in-flight
+            // `accepted:false` (courseDisabled false/absent) is NOT course-off — treat it as accepted (a job is
+            // already running; await its websocket decision).
+            const accepted = (await response.json().catch(() => null)) as StruggleInterventionAccepted | null;
+            if (accepted?.accepted === false && accepted?.courseDisabled === true) {
+                return 'course-off';
+            }
+            return 'accepted';
+        }
+        catch (error) {
+            // A 404 means this Artemis lacks the endpoint (old / feature-less) → degrade to the no-AI lamp for the
+            // session (spec §11: "no-AI lamp remains"). Any other failure (transient 5xx / network / 401) → silent.
+            if (error instanceof ApiError && error.status === 404) {
+                return 'unavailable';
+            }
+            return 'failed';
+        }
+    }
+
     // Mark a message as helpful
     async markMessageHelpful(sessionId: number, messageId: number, helpful: boolean): Promise<void> {
         await this.makeRequest(
@@ -553,6 +585,90 @@ export class ArtemisApiService {
                 method: 'PUT',
                 body: JSON.stringify(helpful)
             }
+        );
+    }
+
+    // Record how the student reacted to a proactive Iris message (spec §7.5).
+    async setProactiveOutcome(sessionId: number, messageId: number, outcome: 'DISMISSED'): Promise<void> {
+        await this.makeRequest(
+            `/api/iris/sessions/${sessionId}/messages/${messageId}/proactive-outcome`,
+            {
+                method: 'PUT',
+                body: JSON.stringify(outcome)
+            }
+        );
+    }
+
+    /**
+     * Reveal a hidden ambient hint by persisting it as a chat message in the proactive session (A10, spec §5.2).
+     * POST api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/reveal
+     * Body: { hintText, level, clientMessageId }
+     * Returns the persisted IrisChatMessage (id + proactiveEpisodeId + server sentAt) so the client
+     * can reconcile the optimistic bubble without producing a duplicate row.
+     */
+    async revealAmbient(
+        exerciseId: number,
+        episodeId: string,
+        hintText: string,
+        level: 'ambient' | 'active',
+        clientMessageId: string,
+    ): Promise<IrisChatMessage> {
+        const response = await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/episodes/${episodeId}/reveal`,
+            {
+                method: 'POST',
+                body: JSON.stringify({ hintText, level, clientMessageId }),
+            },
+        );
+        return parseApiObject<IrisChatMessage>('IrisChatMessage', await response.json());
+    }
+
+    /**
+     * Record the student's terminal outcome for an episode-keyed proactive row (A10).
+     * PUT api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/proactive-outcome
+     * Returns { applied: boolean }; applied=false when the canonical row does not yet exist
+     * (the reveal persist is still in flight or pending retry). The client back-fill loop in
+     * StruggleInterventionService re-calls this once the row is created.
+     * Note: do NOT confuse with the legacy message-keyed setProactiveOutcome above.
+     */
+    async setEpisodeOutcome(
+        exerciseId: number,
+        episodeId: string,
+        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
+    ): Promise<{ applied: boolean }> {
+        const response = await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/episodes/${episodeId}/proactive-outcome`,
+            {
+                method: 'PUT',
+                body: JSON.stringify(outcome),
+            },
+        );
+        return response.json() as Promise<{ applied: boolean }>;
+    }
+
+    /**
+     * Delete a superseded proactive message row (A10, C4 durable stale-row suppression).
+     * DELETE api/iris/chat/exercises/{exerciseId}/messages/{messageId}/proactive (204)
+     */
+    async deleteSupersededProactiveMessage(exerciseId: number, messageId: number): Promise<void> {
+        await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/messages/${messageId}/proactive`,
+            { method: 'DELETE' },
+        );
+    }
+
+    /**
+     * Cancel an outstanding struggle intervention job by its request token (A10, C3 free-re-opens-the-wire).
+     * POST api/iris/chat/exercises/{exerciseId}/struggle-intervention/cancel
+     * Body: { requestToken } (204)
+     */
+    async cancelOutstandingStruggleJob(exerciseId: number, requestToken: string): Promise<void> {
+        await this.makeRequest(
+            `/api/iris/chat/exercises/${exerciseId}/struggle-intervention/cancel`,
+            {
+                method: 'POST',
+                body: JSON.stringify({ requestToken }),
+            },
         );
     }
 

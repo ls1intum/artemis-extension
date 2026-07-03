@@ -1,19 +1,25 @@
-// Produce a clean package.json (no consent setting, no recording commands, no
-// rebuild-on-package hook) and apply the cloud/Theia setting-default overrides,
-// WITHOUT mutating the source manifest. CLI writes to argv[2]. See docs/adr/002.
+// Produce a clean package.json (no consent/struggle settings, no excluded-feature
+// commands, no rebuild-on-package hook) and apply the cloud/Theia setting-default
+// overrides, WITHOUT mutating the source manifest. CLI writes to argv[2]. See ADR 002/003.
 const fs = require('fs');
 const path = require('path');
 
 // Cloud/Theia-tailored setting defaults (clean variant only). See ADR 002.
-// NOTE: the two struggleDetection.* entries are temporary — remove them once the
-// cloud intervention pipeline is live.
 const OPENVSX_SETTING_DEFAULTS = {
     'artemis.startPage': 'workspace-exercise',
     'artemis.showStartPageSuggestion': false,
-    'artemis.struggleDetection.enabled': false,
-    'artemis.struggleDetection.showInterventions': false,
     'artemis.showSetDefaultClonePathPrompt': false,
 };
+
+// Settings whose backing feature is excluded from the clean build. Removed
+// ENTIRELY (not just defaulted) so the manifest advertises no absent feature:
+// the struggle engine is provably absent from the EduIDE bundle (verify-clean-
+// bundle.js), so its settings must not appear either.
+const DROPPED_SETTINGS = [
+    'artemis.dataCollectionConsent',
+    'artemis.struggleDetection.enabled',
+    'artemis.struggleDetection.showInterventions',
+];
 
 // Commands whose backing feature is excluded from the clean build.
 const DROPPED_COMMANDS = new Set([
@@ -24,7 +30,9 @@ const DROPPED_COMMANDS = new Set([
 
 function cleanManifest(m) {
     const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
-    if (props) { delete props['artemis.dataCollectionConsent']; }
+    if (props) {
+        for (const key of DROPPED_SETTINGS) { delete props[key]; }
+    }
 
     for (const [key, value] of Object.entries(OPENVSX_SETTING_DEFAULTS)) {
         if (!props || !props[key]) {

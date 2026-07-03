@@ -90,12 +90,18 @@ export class CourseAccessStorageService {
     }
 }
 
-function buildScopeKey(scope: CourseAccessScope): string | null {
+/** Normalized `<server>::<principal>` segment shared by globalState-scoped services (null if unresolved). */
+export function normalizeScopeSegment(scope: CourseAccessScope): string | null {
     const server = normalizeServerUrl(scope.serverUrl);
     if (!server) { return null; }
     const principal = normalizePrincipal(scope.principal);
     if (!principal) { return null; }
-    return `${STORAGE_KEY_PREFIX}::${server}::${principal}`;
+    return `${server}::${principal}`;
+}
+
+function buildScopeKey(scope: CourseAccessScope): string | null {
+    const segment = normalizeScopeSegment(scope);
+    return segment ? `${STORAGE_KEY_PREFIX}::${segment}` : null;
 }
 
 function normalizeServerUrl(raw: string): string | null {

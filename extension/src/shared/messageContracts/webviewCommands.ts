@@ -35,6 +35,9 @@ export const WebviewCmd = {
     ToggleCourseListFullscreen: 'toggleCourseListFullscreen',
     AskIrisAboutCourse: 'askIrisAboutCourse',
 
+    // Struggle detection (developer)
+    ToggleStruggleFullscreen: 'toggleStruggleFullscreen',
+
     // Exercise
     ReloadExerciseDetail: 'reloadExerciseDetail',
     ToggleFullscreen: 'toggleFullscreen',
@@ -66,7 +69,6 @@ export const WebviewCmd = {
     RequestGitIdentity: 'requestGitIdentity',
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
-    ReplaySession: 'replaySession',
 
     // Views
     ShowAiConfig: 'showAiConfig',
@@ -74,6 +76,8 @@ export const WebviewCmd = {
     ShowServiceStatus: 'showServiceStatus',
     ShowGitCredentials: 'showGitCredentials',
     ShowStruggleDetection: 'showStruggleDetection',
+    StruggleLiveSubscribe: 'struggleLiveSubscribe',
+    StruggleLiveUnsubscribe: 'struggleLiveUnsubscribe',
     PerformHealthChecks: 'performHealthChecks',
 
     // Iris Chat
@@ -86,6 +90,11 @@ export const WebviewCmd = {
     ReconnectWebSocket: 'reconnectWebSocket',
     ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
+    MessageProactiveOutcome: 'messageProactiveOutcome',
+    // Proactive control (AskIris On/Off switch + 3-state badge, spec §12.2)
+    RequestProactiveControl: 'requestProactiveControl',
+    SetProactiveEnabled: 'setProactiveEnabled',
+    ResumeProactive: 'resumeProactive',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
     DebugSessions: 'debugSessions',
@@ -132,6 +141,9 @@ interface WebviewCmdPayloads {
     toggleCourseListFullscreen: undefined;
     askIrisAboutCourse: { courseId: number; courseTitle: string; courseShortName?: string };
 
+    // Struggle detection (developer)
+    toggleStruggleFullscreen: undefined;
+
     // Exercise
     reloadExerciseDetail: { exerciseId: number };
     toggleFullscreen: undefined;
@@ -159,7 +171,6 @@ interface WebviewCmdPayloads {
 
     // Recording
     openRecordingsFolder: undefined;
-    replaySession: undefined;
 
     // Git
     saveGitIdentity: { name: string; email: string };
@@ -170,6 +181,8 @@ interface WebviewCmdPayloads {
     showServiceStatus: undefined;
     showGitCredentials: undefined;
     showStruggleDetection: undefined;
+    struggleLiveSubscribe: undefined;
+    struggleLiveUnsubscribe: undefined;
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat
@@ -182,6 +195,11 @@ interface WebviewCmdPayloads {
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
+    messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED'; proactiveEpisodeId?: string };
+    // courseId lets every _push (init AND toggle/resume) re-derive §14 availability with the course id (slice 5c).
+    requestProactiveControl: { exerciseId: number; courseId?: number };
+    setProactiveEnabled: { exerciseId: number; enabled: boolean; courseId?: number };
+    resumeProactive: { exerciseId: number; courseId?: number };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;
@@ -276,6 +294,10 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SelectChatContext,
     WebviewCmd.SwitchSession,
     WebviewCmd.MessageFeedback,
+    WebviewCmd.MessageProactiveOutcome,
+    WebviewCmd.RequestProactiveControl,
+    WebviewCmd.SetProactiveEnabled,
+    WebviewCmd.ResumeProactive,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.FreshSsrPreview,

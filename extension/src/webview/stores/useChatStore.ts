@@ -49,6 +49,32 @@ interface ChatState {
      * the loader until this matches the active session.
      */
     messageLoad: MessageLoadResult | null;
+    /**
+     * Artemis message ids that have been explicitly suppressed by a stale-row drop
+     * (C4). `addMessage` skips any row whose numeric `id` is in this set so a
+     * chat-ws row arriving AFTER a `removeMessageById` call is never inserted
+     * (guards both arrival orders).
+     */
+    suppressedIds: Set<number>;
+    /**
+     * Runtime-only fold state per proactive episode (C7). Keyed by
+     * `proactiveEpisodeId`. `folded: true` collapses the group to a summary
+     * fold-line. When `closeMessageId` is set (praise path), the group stays
+     * expanded until the close row arrives and a ~5 s timer fires.
+     * Reset in `clearMessages`; NOT populated in `applyLoadedMessages` (reloaded
+     * episodes fold automatically via the `liveEpisodeIds` gate).
+     */
+    foldStates: Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>;
+    /**
+     * The episode ids currently considered live (C7). Two writers that agree:
+     * the host's `setLiveEpisode` state frame (authoritative, re-sent on webview
+     * init) and `addMessage` for proactive rows arriving live (covers the window
+     * before the frame lands). Episodes absent from this set and without a
+     * `foldStates` entry are reloaded episodes and fold automatically. NOT reset
+     * in `clearMessages` (liveness is slot state, not session state) and NOT
+     * populated in `applyLoadedMessages`.
+     */
+    liveEpisodeIds: Set<string>;
 
     // Streaming
     streaming: StreamingState;
@@ -78,6 +104,8 @@ interface ChatState {
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
     addMessage: (message: ChatMessage) => void;
+    /** Patch the proactive outcome on the message with this Artemis id (optimistic collapse). */
+    setProactiveOutcome: (messageId: number, outcome: NonNullable<ChatMessage['proactiveOutcome']>) => void;
     /**
      * Mark a still-pending user message as failed. Returns `true` only if
      * a matching message was found AND it was a pending user send
@@ -91,7 +119,32 @@ interface ChatState {
         errorReason: NonNullable<ChatMessage['errorReason']>,
     ) => boolean;
     removeMessage: (localId: string) => void;
+    /**
+     * Remove the message with the given Artemis numeric id (if present) AND record
+     * that id in `suppressedIds` so a chat-ws row with the same id arriving later
+     * is never inserted. Drives the C4 stale-row suppression on both arrival orders.
+     */
+    removeMessageById: (id: number) => void;
     clearMessages: () => void;
+    /**
+     * Record a fold instruction for an episode (C7). Called when the host sends
+     * `FoldEpisode`. Without praise: folds immediately (`folded: true`). With
+     * praise: stores `episodeLabel` + `closeMessageId` and waits for the
+     * `ChatMessageList` timer to fire after the close row arrives.
+     */
+    foldEpisode: (episodeId: string, outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED', praise?: { episodeLabel: string; closeMessageId: number }) => void;
+    /**
+     * Mark an episode as folded after the ~5 s timer fires (C7). Called by
+     * `ChatMessageList` when the close row is present and the delay has elapsed.
+     */
+    setEpisodeFolded: (episodeId: string) => void;
+    /**
+     * Host-authoritative live-episode snapshot: replaces `liveEpisodeIds`
+     * wholesale (single slot => at most one live episode). Sent by the host on
+     * every slot transition and re-sent on webview init, so a freshly created
+     * webview renders the live episode open instead of folding it.
+     */
+    setLiveEpisode: (episodeId: string | null) => void;
 
     // Streaming actions
     startStreaming: () => void;
@@ -126,6 +179,9 @@ export const useChatStore = create<ChatState>()(
             courses: [],
             messages: [],
             messageLoad: null,
+            suppressedIds: new Set<number>(),
+            foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
+            liveEpisodeIds: new Set<string>(),
             streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
@@ -178,9 +234,36 @@ export const useChatStore = create<ChatState>()(
             },
 
             addMessage: (message) => {
+                set((state) => {
+                    if (message.id !== undefined) {
+                        // Dedup: already present (optimistic bubble vs chat-ws row)
+                        if (state.messages.some(m => m.id === message.id)) {
+                            return state;
+                        }
+                        // Stale-row suppression (C4): id was flagged by removeMessageById
+                        if (state.suppressedIds.has(message.id)) {
+                            return state;
+                        }
+                    }
+                    const finalMessage = message;
+                    // Track live episodes (C7): episodes that arrive via addMessage are "live"
+                    // (not reloaded). The liveEpisodeIds gate controls auto-fold for reloaded rows.
+                    const nextLiveEpisodeIds =
+                        message.role === 'assistant' &&
+                        message.origin === 'proactive' &&
+                        message.proactiveEpisodeId
+                            ? new Set([...state.liveEpisodeIds, message.proactiveEpisodeId])
+                            : state.liveEpisodeIds;
+                    return { messages: [...state.messages, finalMessage], liveEpisodeIds: nextLiveEpisodeIds };
+                }, false, 'addMessage');
+            },
+
+            setProactiveOutcome: (messageId, outcome) => {
                 set((state) => ({
-                    messages: [...state.messages, message],
-                }), false, 'addMessage');
+                    messages: state.messages.map((m) =>
+                        m.id === messageId ? { ...m, proactiveOutcome: outcome } : m,
+                    ),
+                }), false, 'setProactiveOutcome');
             },
 
             markMessageFailed: (localId, errorMessage, errorReason) => {
@@ -205,10 +288,58 @@ export const useChatStore = create<ChatState>()(
                 }), false, 'removeMessage');
             },
 
+            removeMessageById: (id) => {
+                set((state) => {
+                    const next = new Set(state.suppressedIds);
+                    next.add(id);
+                    return {
+                        messages: state.messages.filter((m) => m.id !== id),
+                        suppressedIds: next,
+                    };
+                }, false, 'removeMessageById');
+            },
+
+            foldEpisode: (episodeId, outcome, praise) => {
+                set((state) => {
+                    const nextFoldStates = new Map(state.foldStates);
+                    if (praise) {
+                        nextFoldStates.set(episodeId, {
+                            folded: false,
+                            outcome,
+                            episodeLabel: praise.episodeLabel,
+                            closeMessageId: praise.closeMessageId,
+                        });
+                    } else {
+                        nextFoldStates.set(episodeId, { folded: true, outcome });
+                    }
+                    return { foldStates: nextFoldStates };
+                }, false, 'foldEpisode');
+            },
+
+            setEpisodeFolded: (episodeId) => {
+                set((state) => {
+                    const existing = state.foldStates.get(episodeId);
+                    if (!existing) { return state; }
+                    const nextFoldStates = new Map(state.foldStates);
+                    nextFoldStates.set(episodeId, { ...existing, folded: true });
+                    return { foldStates: nextFoldStates };
+                }, false, 'setEpisodeFolded');
+            },
+
+            setLiveEpisode: (episodeId) => {
+                set({
+                    liveEpisodeIds: new Set<string>(episodeId !== null ? [episodeId] : []),
+                }, false, 'setLiveEpisode');
+            },
+
             clearMessages: () => {
+                // liveEpisodeIds deliberately survives: it mirrors the host's slot state,
+                // which does not change when the user switches sessions.
                 set({
                     messages: [],
                     messageLoad: null,
+                    suppressedIds: new Set<number>(),
+                    foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
                     irisStages: [],
                     streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');

@@ -76,11 +76,6 @@
         "icon": "$(graph)"
       },
       {
-        "command": "artemis.replaySession",
-        "title": "Artemis: Replay Session (EQ Tuning)",
-        "icon": "$(play)"
-      },
-      {
         "command": "artemis.openRecordingsFolder",
         "title": "Artemis: Open Recordings Folder",
         "icon": "$(folder-opened)"
@@ -103,6 +98,11 @@
         "command": "artemis.showTheiaEnvironment",
         "title": "Artemis: Show Theia Environment (Diagnostic)",
         "icon": "$(info)"
+      },
+      {
+        "command": "artemis.forceStruggleIntervention",
+        "title": "Artemis: Force Struggle Intervention (Developer)",
+        "icon": "$(zap)"
       }
     ],
     "menus": {
@@ -121,6 +121,10 @@
         },
         {
           "command": "artemis.showJwtToken",
+          "when": "config.artemis.developerMode"
+        },
+        {
+          "command": "artemis.forceStruggleIntervention",
           "when": "config.artemis.developerMode"
         }
       ]
@@ -170,6 +174,17 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Allow Iris to access your uncommitted file changes (unsaved, unstaged, and unpushed files). When enabled, Iris can see your current work-in-progress code to provide better assistance. **Privacy**: Only files from your current workspace are sent, and only when you send a message to Iris."
+        },
+        "artemis.iris.proactiveCodeEgress": {
+          "type": "string",
+          "enum": ["ask", "enabled", "disabled"],
+          "enumDescriptions": [
+            "Ask once whether to allow proactive code reading",
+            "Allow Iris to proactively read your current code when you appear stuck",
+            "Never send code proactively (a local hint is shown instead)"
+          ],
+          "default": "ask",
+          "markdownDescription": "Controls whether Iris may proactively read your current exercise code to offer help when the struggle detector flags that you may be stuck. Separate from `artemis.dataCollectionConsent`."
         },
         "artemis.developerMode": {
           "type": "boolean",
@@ -271,10 +286,10 @@
     "lint:src": "eslint src",
     "test:unit": "vscode-test --label unit",
     "test:unit:coverage": "vscode-test --label unit --coverage",
+    "test:golden-replay": "vitest run --config vitest.golden-replay.config.mts",
     "test:react": "vitest run",
     "test:react:watch": "vitest",
     "test:react:coverage": "vitest run --coverage",
-    "test:struggle": "npm run compile-tests && vscode-test --label struggle",
     "test:e2e": "npm run compile-tests && vscode-test --label e2e",
     "test:recorder-e2e": "npm run compile-tests && vscode-test --label recorder-e2e",
     "test:ui": "bash test/e2e/ui/run-tests.sh",
@@ -342,6 +357,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-textarea-autosize": "8.5.9",
+    "recharts": "3.8.0",
     "shiki": "3.23.0",
     "streamdown": "2.5.0",
     "use-stick-to-bottom": "1.1.3",

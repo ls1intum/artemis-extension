@@ -2,7 +2,7 @@ import * as assert from 'assert';
 
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import { ExerciseOpeningService } from '@extension/services/ui/exerciseOpeningService';
 import type { IProviderRegistry } from '@extension/services/ui/providerRegistry';
 import type { ExerciseDetailsResponse } from '@extension/types';
@@ -31,7 +31,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const svc = new ExerciseOpeningService(
             buildRegistry(),
             buildProviderRegistry(),
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             storage as unknown as CourseAccessStorageService,
         );
 
@@ -53,7 +53,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const svc = new ExerciseOpeningService(
             buildRegistry(),
             buildProviderRegistry(),
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             storage as unknown as CourseAccessStorageService,
         );
 
@@ -74,7 +74,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const svc = new ExerciseOpeningService(
             buildRegistry(),
             buildProviderRegistry(),
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             undefined,
         );
 

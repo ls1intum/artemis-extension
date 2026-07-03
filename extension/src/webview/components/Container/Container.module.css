@@ -92,6 +92,25 @@
   margin-top: 8px;
 }
 
+/* Collapsible */
+.containerBodyCollapsed {
+  display: none;
+}
+
+.containerHeaderButton {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.containerChevron {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
 /* Footer */
 .containerFooter {
   margin-top: 12px;

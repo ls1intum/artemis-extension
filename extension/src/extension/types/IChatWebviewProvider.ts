@@ -24,4 +24,8 @@ export interface IChatWebviewProvider {
         courseId?: number,
     ): void;
     setCourseContext(courseId: number, courseTitle: string, reason?: string, shortName?: string): void;
+    /** True iff a `.noai` marker disables AI for the workspace (spec §14 case 3). */
+    isNoAiEnabled(): boolean;
+    /** Resolves once the initial `.noai` workspace scan has completed, so `isNoAiEnabled()` is authoritative. */
+    whenNoAiReady(): Promise<void>;
 }

@@ -45,6 +45,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         openExerciseFullscreen: sinon.SinonStub;
         openCourseFullscreen: sinon.SinonStub;
         openCourseListFullscreen: sinon.SinonStub;
+        openStruggleFullscreen: sinon.SinonStub;
         sendInitData: sinon.SinonStub;
         backgroundRenderProblemStatement: sinon.SinonStub;
         navigateBack: sinon.SinonStub;
@@ -84,6 +85,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             openExerciseFullscreen: sandbox.stub().resolves(),
             openCourseFullscreen: sandbox.stub().resolves(),
             openCourseListFullscreen: sandbox.stub().resolves(),
+            openStruggleFullscreen: sandbox.stub().resolves(),
             sendInitData: sandbox.stub(),
             backgroundRenderProblemStatement: sandbox.stub(),
             navigateBack: sandbox.stub().resolves(),
@@ -219,6 +221,33 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
                 (handler as any)._sendMessage,
                 originalSender,
                 'Original sender should be restored in finally block even when handler throws'
+            );
+        });
+
+        test('isAlive=false skips the queued task entirely before touching the sender', async () => {
+            // This is a characterisation/lock test: the isAlive guard already exists; the test
+            // ensures it is never accidentally removed or bypassed.
+            const originalSender = sandbox.stub();
+            const overrideSender = sandbox.stub();
+            handler.setMessageSender(originalSender);
+
+            // Inject a handler that would call sendMessage if it ran
+            (handler as any).commandHandlers.set('liveSubscribeCmd', async () => {
+                (handler as any)._sendMessage({ type: 'sendMessageInit' } as any);
+            });
+
+            await handler.handleMessageWithSender(
+                { type: 'command', command: 'liveSubscribeCmd' } as any,
+                overrideSender,
+                () => false,
+            );
+
+            assert.ok(!overrideSender.called, 'Override sender must not be called when isAlive returns false');
+            assert.ok(!originalSender.called, 'Original sender must not be called when the task is skipped');
+            assert.strictEqual(
+                (handler as any)._sendMessage,
+                originalSender,
+                'Sender should remain unchanged when the task is skipped by isAlive',
             );
         });
     });

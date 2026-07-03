@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -136,47 +136,34 @@ describe('MessageBubble', () => {
 		expect(screen.queryByRole('button', { name: 'Helpful' })).not.toBeInTheDocument();
 	});
 
-	it('shows feedback buttons for assistant messages on hover', async () => {
+	it('renders feedback buttons for assistant messages (revealed on hover via CSS)', () => {
 		const message = makeMessage({ role: 'assistant', content: 'Here is help.' });
-		const { container } = render(
-			<MessageBubble message={message} onFeedback={vi.fn()} />
-		);
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
 
-		const wrapper = container.firstChild as HTMLElement;
-		await userEvent.hover(wrapper);
-
+		// The thumbs live in the DOM (a floating bar shown on hover via CSS), so they
+		// are reachable without simulating hover in jsdom.
 		expect(screen.getByRole('button', { name: 'Helpful' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Not helpful' })).toBeInTheDocument();
 	});
 
-	it('calls onFeedback with positive when helpful button clicked', async () => {
+	// The action bar is pointer-events:none until hover (CSS), which jsdom cannot
+	// simulate; fireEvent dispatches directly to verify the handler wiring.
+	it('calls onFeedback with positive when helpful button clicked', () => {
 		const onFeedback = vi.fn();
 		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
-		const { container } = render(
-			<MessageBubble message={message} onFeedback={onFeedback} />
-		);
+		render(<MessageBubble message={message} onFeedback={onFeedback} />);
 
-		const wrapper = container.firstChild as HTMLElement;
-		await userEvent.hover(wrapper);
-
-		const helpfulButton = screen.getByRole('button', { name: 'Helpful' });
-		await userEvent.click(helpfulButton);
+		fireEvent.click(screen.getByRole('button', { name: 'Helpful' }));
 
 		expect(onFeedback).toHaveBeenCalledWith(1, 'positive');
 	});
 
-	it('calls onFeedback with negative when not helpful button clicked', async () => {
+	it('calls onFeedback with negative when not helpful button clicked', () => {
 		const onFeedback = vi.fn();
 		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
-		const { container } = render(
-			<MessageBubble message={message} onFeedback={onFeedback} />
-		);
+		render(<MessageBubble message={message} onFeedback={onFeedback} />);
 
-		const wrapper = container.firstChild as HTMLElement;
-		await userEvent.hover(wrapper);
-
-		const notHelpfulButton = screen.getByRole('button', { name: 'Not helpful' });
-		await userEvent.click(notHelpfulButton);
+		fireEvent.click(screen.getByRole('button', { name: 'Not helpful' }));
 
 		expect(onFeedback).toHaveBeenCalledWith(1, 'negative');
 	});
@@ -186,5 +173,44 @@ describe('MessageBubble', () => {
 		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
 		const streamdown = screen.getByTestId('streamdown');
 		expect(streamdown).toHaveAttribute('data-mode', 'static');
+	});
+
+	describe('button scoping (C6)', () => {
+		it('Dismiss renders on a live proactive hint card (not stale-ask, not dismissed)', () => {
+			const onDismiss = vi.fn();
+			const message = makeMessage({
+				id: 5,
+				role: 'assistant',
+				origin: 'proactive',
+				content: 'Here is a hint.',
+			});
+			render(<MessageBubble message={message} onFeedback={vi.fn()} onDismiss={onDismiss} />);
+			expect(screen.getByRole('button', { name: 'Dismiss this suggestion' })).toBeInTheDocument();
+		});
+
+		it('Retry does NOT render on a proactive assistant message even when it has error status', () => {
+			const onRetry = vi.fn();
+			const message = makeMessage({
+				role: 'assistant',
+				origin: 'proactive',
+				status: 'error',
+				errorMessage: 'Something went wrong',
+				content: 'Proactive hint content',
+			});
+			render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={onRetry} />);
+			expect(screen.queryByRole('button', { name: 'Retry sending this message' })).not.toBeInTheDocument();
+		});
+
+		it('Retry renders on a non-proactive failed user message', () => {
+			const onRetry = vi.fn();
+			const message = makeMessage({
+				role: 'user',
+				status: 'error',
+				errorMessage: 'Failed to send',
+				content: 'User message',
+			});
+			render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={onRetry} />);
+			expect(screen.getByRole('button', { name: 'Retry sending this message' })).toBeInTheDocument();
+		});
 	});
 });

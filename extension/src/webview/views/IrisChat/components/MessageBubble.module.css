@@ -43,6 +43,39 @@
     opacity: 0.85;
 }
 
+/* Proactive (struggle-intervention) assistant messages read as a distinct, unprompted
+   card: a faint tint plus rounded corners set them apart from the transparent normal
+   replies, without the old left "AI line" or a logo (spec §6.2). */
+.proactiveBubble {
+    background-color: color-mix(in srgb, var(--vscode-charts-blue) 9%, transparent);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.proactiveCaption {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--vscode-charts-blue);
+    margin-bottom: 4px;
+    opacity: 0.85;
+}
+
+/* A proactive message rendered INSIDE an episode timeline: flat, no nested tint or rounded card
+   (the timeline owns the tint and the single caption; the row/node owns the layout). */
+.groupedBubble {
+    background: transparent;
+    padding: 4px 0;
+    border-radius: 0;
+    max-width: none;
+}
+
+/* The wrapper sheds its chat-list chrome inside a timeline row: the timeline card owns all
+   spacing, so the row body starts at the node and uses the full card width. */
+.groupedWrapper {
+    padding: 0;
+    margin: 0;
+}
+
 .content {
     composes: richContent from '../../../styles/richContent.module.css';
 }
@@ -53,7 +86,10 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-width: 70%;
+    /* Fill a narrow sidebar (the 92% wins) but cap the line length on a wide
+       sidebar (the ~70ch wins) so lines stay readable. Applies to user and
+       assistant alike; only the alignment differs above. */
+    max-width: min(92%, 70ch);
 }
 
 .messageWrapper.user .bubbleColumn {
@@ -111,16 +147,40 @@
     cursor: not-allowed;
 }
 
+/* A hover-revealed floating action bar. Absolutely positioned so it reserves
+   no layout space in the resting state (no empty gap) and can overhang the
+   bubble's bottom edge. It stays a child of the bubble, so hovering the bar
+   itself keeps `.messageWrapper:hover` true (no disappear-on-approach). */
+.actionRow {
+    position: absolute;
+    left: 10px;
+    bottom: -14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+}
+
+/* `:focus-within` keeps the bar reachable by keyboard: the buttons stay in the
+   tab order, so focusing one must also make it visible (it is not mouse-only). */
+.messageWrapper:hover .actionRow,
+.messageWrapper:focus-within .actionRow {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* On a proactive card the buttons span the card: thumbs on the left, Dismiss
+   on the right. No container chrome — just the buttons float over the edge. */
+.actionRow.actionRowCard {
+    right: 10px;
+    justify-content: space-between;
+}
+
 .feedbackContainer {
     display: flex;
     gap: 4px;
-    margin-top: 8px;
-    opacity: 0;
-    transition: opacity 150ms ease;
-}
-
-.feedbackContainer.visible {
-    opacity: 1;
 }
 
 .feedbackButton {
@@ -161,4 +221,36 @@
 
 .messageWrapper.assistant .timestamp {
     left: 16px;
+}
+
+/* A dismissed proactive card stays visible but recedes (spec §6.3: collapse, never delete). */
+.proactiveDismissed {
+    opacity: 0.6;
+}
+
+.dismissButton,
+.dismissedToggle {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: 1px solid var(--vscode-widget-border, transparent);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* The dismissed-collapse toggle ("Show suggestion"/"Hide") sits inline under
+   the caption; the Dismiss action lives in the action row and hugs the right. */
+.dismissedToggle {
+    align-self: flex-start;
+    margin-top: 6px;
+}
+
+.dismissButton {
+    margin-left: auto;
+}
+
+.dismissButton:hover,
+.dismissedToggle:hover {
+    color: var(--vscode-foreground);
 }

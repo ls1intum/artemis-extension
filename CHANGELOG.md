@@ -60,6 +60,26 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Internal
 
+- **Engine v2 golden-replay verification**: a local (non-CI) harness replays recorded
+  sessions through the Engine v2 TS port and checks it tick-for-tick against the frozen
+  Python reference (exact engine-math fidelity; causal-mode divergence from the three
+  declared live deviations is characterized locally). Study data and per-session results
+  stay local; only the harness and methodology are in the repo.
+- **Struggle Engine v2 live (switchover)**: the v1 EQ decision path (boundary triggers,
+  adaptive cadence, intervention filter/decision engine, inactivity/build-result/diagnostic
+  trackers, debug dashboard, TelemetryManager) is removed; Engine v2 now drives a single-level
+  status-bar intervention via an AlertSink. Recording schema v3 adds per-tick `struggleScore`
+  and `alert` events; the debug view shows V/S/boundary state. EQ survives as a passive logger
+  only. `services/telemetry/` is deleted.
+- **Sensing Layer**: A single `SensorHub` (`services/sensing/`) now owns all VS Code event subscriptions and state reads for telemetry; the session recorder, the EQ pipeline, and the inactivity/diagnostics services consume typed hub channels. No behavior change; recordings stay schema-v2 identical.
+- **Services restructuring**: recorder and replay moved to `services/recording/`, the
+  passive EQ pipeline to `services/eq/`, URI filter and paste heuristic into the
+  sensing layer. Pure relocation, no behavior change.
+- **Struggle Engine v2 (additive)**: data-derived detection engine in `services/struggle/`
+  (10 s tick contract, severity/decay/boundaries/gates/alert state machine, ports of the
+  26 reference state-machine tests), sensor hub internal sources for build results and
+  task-feedback views, derived paste channel. Not yet wired to UI or recorder (switchover
+  follows in PR 2c); the v1 decision path is unchanged.
 - **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
 - **Live Recording Viewer**: The Event Breakdown counts, event total, and session duration now update live alongside the timeline instead of freezing at the values from when the live session was opened.
 - **Live Recording Viewer**: Live mode can now be served from the production build (`npm run preview:live:token`), which eliminates a browser-tab out-of-memory crash that could occur during long or high-volume live sessions on the dev server.
