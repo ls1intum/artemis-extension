@@ -142,7 +142,7 @@ export interface StruggleInterventionDeps {
         outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED',
         praise?: { episodeLabel: string; closeMessageId: number },
     ): void;
-    // ---- C4: stale-row suppression + stale-ask ----
+    // ---- C4: stale-row suppression ----
     /**
      * Post a host->webview removeMessage{id} so the webview removes the stale row (if present)
      * and suppresses any later chat-ws arrival of the same id (C4 stale-row suppression).
@@ -1183,9 +1183,10 @@ export class StruggleInterventionService implements AlertSink {
      *
      * Clears the episode-scoped inline cue too: the after-line hint (DELIVERED) or gutter pointer
      * (PARKED) belongs to the episode, so every terminal exit (RECOVERED close, watchdog/ABANDON
-     * force-free, dismiss, stale-ask "something-else", new-exercise) retires it here in one place.
-     * Previously this relied on the student's next file edit firing the decoration's own edit
-     * listener, which left a stale cue when the episode resolved without an edit (e.g. solved in chat).
+     * force-free, dismiss, new-exercise) retires it here in one place.
+     * This is the cue's ONLY lifecycle clear besides the hover Hide/Dismiss actions: typing does
+     * not retire it (the decoration merely tracks line shifts), so a missed terminal clear here
+     * would leave the cue standing forever.
      */
     private _clearEpisodeRuntime(): void {
         this._deps.clearInline();

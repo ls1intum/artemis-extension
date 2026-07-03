@@ -129,8 +129,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
 
     // Inline-hover action links (spec §4.1, §5.2): Open chat engages (clears backoff) and KEEPS the cue as a
     // standing reference; Hide inline removes the cue with NO backoff (pure visual); Dismiss (→ backoff)
-    // removes it. The cue also retires on its other lifecycle events (student edit, new episode, terminal
-    // episode exit). Registered behind the seam so extension.ts never imports the intervention surface.
+    // removes it. The cue also retires on its other lifecycle events (new episode, terminal episode
+    // exit); typing does NOT retire it. Registered behind the seam so extension.ts never imports the
+    // intervention surface.
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             orchestrator.recordOutcome('clicked');

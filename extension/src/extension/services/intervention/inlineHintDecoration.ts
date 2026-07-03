@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { buildCueText, buildHoverMarkdown, resolveAnchorEditor } from './inlineHint';
+import { buildCueText, buildHoverMarkdown, isAnchorDocument, resolveAnchorEditor, shiftAnchorLine } from './inlineHint';
 
 /**
  * One in-editor inline cue at a time: gutter Iris logo + after-line hint + whole-line hover
@@ -29,17 +29,20 @@ export class InlineHintDecoration implements vscode.Disposable {
             gutterIconSize: 'contain',
         });
         this.disposables.push(
-            // The student edited either anchored document -> they are acting; retire the cue entirely.
+            // Typing never retires the cue (it clears via hover Hide/Dismiss or the episode's terminal
+            // exit). The stored anchor line must still follow edits: VS Code shifts the live decoration
+            // itself, but reapply() re-renders from the stored line and must not jump back.
             vscode.workspace.onDidChangeTextDocument(e => {
                 const root = this.getExerciseRoot();
-                const inlineDoc = this.current && root
-                    ? resolveAnchorEditor(vscode.window.visibleTextEditors, this.current.file, root)?.document
-                    : undefined;
-                const gutterDoc = this._gutterOnlyCurrent && root
-                    ? resolveAnchorEditor(vscode.window.visibleTextEditors, this._gutterOnlyCurrent.file, root)?.document
-                    : undefined;
-                if (inlineDoc === e.document || gutterDoc === e.document) {
-                    this.clear();
+                if (!root) {
+                    return;
+                }
+                for (const cur of [this.current, this._gutterOnlyCurrent]) {
+                    if (cur && isAnchorDocument(e.document, cur.file, root)) {
+                        for (const change of e.contentChanges) {
+                            cur.line = shiftAnchorLine(cur.line, change);
+                        }
+                    }
                 }
             }),
             // The set of visible editors changed (tab switch / split): decorate a newly visible anchor.
