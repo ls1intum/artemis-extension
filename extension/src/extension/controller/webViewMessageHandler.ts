@@ -9,7 +9,6 @@ import type { CourseAccessStorageService } from '@extension/services/courseAcces
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 
@@ -21,7 +20,6 @@ import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { mergeRecordingHandlers } from './commands/mergeCommandHandlers';
 import { NavigationCommandModule } from './commands/navigationCommands';
-import { ProactiveControlCommandModule } from './commands/proactiveControlCommands';
 import { ProblemStatementTrackingCommandModule } from './commands/problemStatementTrackingCommands';
 import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
 import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
@@ -56,9 +54,6 @@ export class WebViewMessageHandler {
         courseDataCache?: CourseDataCache,
         courseAccessStorage?: CourseAccessStorageService,
         recordingHandlers: CommandMap = {},
-        struggleLiveFeed?: { subscribe(sink: (msg: ExtensionToWebviewMessage) => void): void; unsubscribe(sink: (msg: ExtensionToWebviewMessage) => void): void; dropSink(sink: (msg: ExtensionToWebviewMessage) => void): void },
-        proactivePreference?: ProactivePreferenceService,
-        proactiveControl?: CommandContext['proactiveControl'],
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -67,7 +62,6 @@ export class WebViewMessageHandler {
             appStateManager: this.appStateManager,
             actionHandler: this.actionHandler,
             sendMessage: (message: ExtensionToWebviewMessage) => this._sendMessage(message),
-            getCurrentSender: () => this._sendMessage,
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
             getWebsocketService: () => this._websocketService,
             extensionContext,
@@ -75,9 +69,6 @@ export class WebViewMessageHandler {
             providerRegistry,
             courseDataCache,
             courseAccessStorage,
-            struggleLiveFeed,
-            proactivePreference,
-            proactiveControl,
         };
 
         this.repositoryStatusModule = new RepositoryStatusCommands(context);
@@ -96,7 +87,6 @@ export class WebViewMessageHandler {
             new ProblemStatementTrackingCommandModule(context),
             new BuildLogCommands(context),
             new ExerciseLifecycleCommands(context),
-            new ProactiveControlCommandModule(context),
         ];
 
         modules.forEach(module => {
@@ -115,16 +105,9 @@ export class WebViewMessageHandler {
     /**
      * Process a message received from the webview, temporarily overriding the message sender.
      * Serialized via promise queue to prevent concurrent calls from corrupting the sender.
-     * The optional `isAlive` predicate is checked before the queued task runs; when the host
-     * has been disposed between enqueue and execution the task is silently skipped.
      */
-    public handleMessageWithSender(
-        message: WebviewToExtensionMessage,
-        sendResponse: (message: ExtensionToWebviewMessage) => void,
-        isAlive?: () => boolean,
-    ): Promise<void> {
+    public handleMessageWithSender(message: WebviewToExtensionMessage, sendResponse: (message: ExtensionToWebviewMessage) => void): Promise<void> {
         const task = this._senderQueue.then(async () => {
-            if (isAlive && !isAlive()) { return; }
             const originalSender = this._sendMessage;
             this._sendMessage = sendResponse;
             try {
@@ -135,15 +118,6 @@ export class WebViewMessageHandler {
         });
         this._senderQueue = task.catch(() => { /* keep chain alive */ });
         return task;
-    }
-
-    /**
-     * Return the sender function that is currently bound to this handler. Used
-     * by command handlers to capture a stable per-host identity for feed
-     * subscription (sidebar: the stable wrapper; fullscreen: the panel's postSafe).
-     */
-    public getCurrentSender(): (m: ExtensionToWebviewMessage) => void {
-        return this._sendMessage;
     }
 
     /**

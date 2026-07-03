@@ -1,0 +1,31 @@
+{
+    "id": "undo-redo-then-giving-up",
+    "name": "Errors Then Recovery",
+    "description": "Student has 3 consecutive error saves then fixes and has 5 clean saves. Pairs: (e,e),(e,e),(e,c),(c,c),(c,c),(c,c),(c,c). 2 error pairs score 11/11 each, rest score 0. EQ = (2*11/11)/7 = 2/7 ≈ 0.286.",
+    "difficulty": "subtle",
+    "tags": ["subtle", "recovery", "error-then-fix"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 0.28, "max": 0.30 },
+        "expectedAction": "subtle"
+    },
+    "events": [
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Calculator.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 6100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 12100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 18100, "action": "clear" },
+        { "type": "save", "timestamp": 18200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 24200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 30200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 36200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 42200, "file": "Calculator.java" }
+    ]
+}

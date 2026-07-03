@@ -1,1 +1,0 @@
-export { InterventionService } from './interventionService';

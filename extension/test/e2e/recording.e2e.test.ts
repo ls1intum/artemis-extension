@@ -19,8 +19,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { parseRecordedEvent } from '@extension/services/recording/parseRecordedData';
-import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
+import { parseRecordedEvent } from '@extension/services/telemetry/recording/parseRecordedData';
+import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {
     BreakpointChangeEvent,
     ConsentChangeEvent,
@@ -42,7 +42,7 @@ import type {
     TextDocumentOpenEvent,
     VisibleRangeChangeEvent,
     WindowFocusEvent,
-} from '@extension/services/recording/types';
+} from '@extension/services/telemetry/recording/types';
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
@@ -197,7 +197,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(sessionStart.exerciseId, 1, 'sessionStart.exerciseId');
         assert.strictEqual(sessionStart.participantId, 'e2e-test', 'sessionStart.participantId');
         assert.strictEqual(sessionStart.exerciseRoot, workspaceUri.toString(), 'sessionStart.exerciseRoot');
-        assert.strictEqual(sessionStart.schemaVersion, 3, 'sessionStart.schemaVersion');
+        assert.strictEqual(sessionStart.schemaVersion, 2, 'sessionStart.schemaVersion');
         assert.strictEqual(sessionEnd.exerciseId, 1, 'sessionEnd.exerciseId');
         assert.ok(sessionStart.timestamp >= sessionStartWallclock - 1000, 'sessionStart.timestamp plausible');
         assert.ok(sessionEnd.timestamp <= sessionEndWallclock + 1000, 'sessionEnd.timestamp plausible');
@@ -326,7 +326,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             startTime: number;
             endTime: number | undefined;
         };
-        assert.strictEqual(metadata.schemaVersion, 3, 'metadata.schemaVersion');
+        assert.strictEqual(metadata.schemaVersion, 2, 'metadata.schemaVersion');
         assert.strictEqual(metadata.exerciseId, 1, 'metadata.exerciseId');
         assert.strictEqual(metadata.participantId, 'e2e-test', 'metadata.participantId');
         assert.strictEqual(metadata.sessionId, sessionDirs[0], 'metadata.sessionId matches dir name');
@@ -673,6 +673,16 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         recorder.recordIrisChatReceived('hi student', 'm-recv', 's-1', 1700000002);
         recorder.recordIrisChatSendAttempt('attempt body', 'failed', 'network down');
         recorder.recordIrisChatFeedback('m-recv', true);
+        recorder.recordEqSnapshot(0.42, 'sufficient', 'save', 'execution-error');
+        recorder.recordEqEngineState(
+            [{ timestamp: 1700000010, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }],
+            0.42, 7, 'sufficient',
+        );
+        recorder.recordIntervention('shown', 'notification', true, 0.5, 'sufficient', 'idle');
+        recorder.recordIntervention('blocked', 'subtle', false, 0.2, 'insufficient', 'idle',
+            { blockedReason: 'cooldown', rawWanted: true });
+        recorder.recordIntervention('dismissed', 'proactive', true, 0.7, 'sufficient', 'multiline-paste',
+            { dismissReason: 'user-action' });
         recorder.recordViewNavigation('problem-statement', 'code-editor');
         recorder.recordPanelVisibility('artemis', true);
         recorder.recordPanelVisibility('chat', false);
@@ -697,6 +707,9 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(count('irisChatMessage'), 2, '2 irisChatMessage (sent + received)');
         assert.strictEqual(count('irisChatSendAttempt'), 1, '1 irisChatSendAttempt');
         assert.strictEqual(count('irisChatFeedback'), 1, '1 irisChatFeedback');
+        assert.strictEqual(count('eqSnapshot'), 1, '1 eqSnapshot');
+        assert.strictEqual(count('eqEngineState'), 1, '1 eqEngineState');
+        assert.strictEqual(count('intervention'), 3, '3 intervention');
         assert.strictEqual(count('viewNavigation'), 1, '1 viewNavigation');
         assert.strictEqual(count('panelVisibility'), 2, '2 panelVisibility');
         assert.strictEqual(count('configurationSnapshot'), 1, '1 configurationSnapshot');
@@ -720,6 +733,11 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             { type: 'irisChatMessage', direction: 'received', content: 'hi student', messageId: 'm-recv', sessionId: 's-1', sentAt: 1700000002 },
             { type: 'irisChatSendAttempt', content: 'attempt body', status: 'failed', errorMessage: 'network down' },
             { type: 'irisChatFeedback', messageId: 'm-recv', helpful: true },
+            { type: 'eqSnapshot', eq: 0.42, confidence: 'sufficient', source: 'save', triggerType: 'execution-error' },
+            { type: 'eqEngineState', snapshots: [{ timestamp: 1700000010, hasErrors: true, errorFamilies: ['SYNTAX'], errorCount: 2 }], currentEQ: 0.42, pairCount: 7, confidence: 'sufficient' },
+            { type: 'intervention', action: 'shown', level: 'notification', shouldIntervene: true, eq: 0.5, confidence: 'sufficient', triggerType: 'idle' },
+            { type: 'intervention', action: 'blocked', level: 'subtle', shouldIntervene: false, eq: 0.2, confidence: 'insufficient', triggerType: 'idle', blockedReason: 'cooldown', rawWanted: true },
+            { type: 'intervention', action: 'dismissed', level: 'proactive', shouldIntervene: true, eq: 0.7, confidence: 'sufficient', triggerType: 'multiline-paste', dismissReason: 'user-action' },
             { type: 'viewNavigation', from: 'problem-statement', to: 'code-editor' },
             { type: 'panelVisibility', panel: 'artemis', visible: true },
             { type: 'panelVisibility', panel: 'chat', visible: false },
@@ -738,8 +756,8 @@ suite('Session Recorder — E2E (VS Code only)', function () {
 
         // ── Parser round-trip for every Class B event ──
         const classBTypes = new Set<RecordedEvent['type']>([
-            'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback',
-            'viewNavigation', 'panelVisibility', 'configurationSnapshot', 'configurationChange',
+            'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback', 'eqSnapshot', 'eqEngineState',
+            'intervention', 'viewNavigation', 'panelVisibility', 'configurationSnapshot', 'configurationChange',
             'testResultsOverviewView', 'taskFeedbackView', 'submission',
         ]);
         for (const e of events.filter(e => classBTypes.has(e.type))) {
@@ -971,37 +989,14 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             return;
         }
 
-        // Run the command and wait for THIS shell execution to actually END. In a
-        // headless host without a rendered terminal viewport, shellIntegration can
-        // be present yet executeCommand silently no-ops (VS Code's bundled xterm
-        // throws "reading 'dimensions'" internally), so the execution never ends.
-        // Subscribe before issuing the command (no end-event race) and match the
-        // exact returned execution handle so an unrelated same-terminal execution
-        // cannot flip the flag.
-        let execution: vscode.TerminalShellExecution | undefined;
-        let executionEnded = false;
-        const endSub = vscode.window.onDidEndTerminalShellExecution(e => {
-            if (execution && e.execution === execution) { executionEnded = true; }
-        });
-        execution = si.executeCommand('echo recorder-e2e-sentinel');
-        for (let i = 0; i < 32 && !executionEnded; i++) { await sleep(250); }
-        endSub.dispose();
-        await sleep(500); // let the recorder flush the captured event to JSONL
+        si.executeCommand('echo recorder-e2e-sentinel');
+        await sleep(3000);
         term.dispose();
         await sleep(800);
         await recorder.endSession();
 
         const { sessionDir, events } = readSingleSession(storageDir);
         const cmds = events.filter((e): e is TerminalCommandEvent => e.type === 'terminalCommand');
-        // Best-effort contract: if the headless terminal never actually ran the
-        // command (no execution-end AND nothing captured), shell integration is
-        // effectively unavailable here, so skip rather than fail. The capture logic
-        // itself is covered deterministically by terminalShellExecution.test.ts. A
-        // command that DID end but produced no event is a real bug and still fails.
-        if (!executionEnded && cmds.length === 0) {
-            this.skip();
-            return;
-        }
         assert.ok(cmds.length >= 1, 'at least one terminalCommand captured');
         const sentinel = cmds.find(c => c.command.includes('recorder-e2e-sentinel'));
         assert.ok(sentinel, 'terminalCommand for our sentinel command captured');

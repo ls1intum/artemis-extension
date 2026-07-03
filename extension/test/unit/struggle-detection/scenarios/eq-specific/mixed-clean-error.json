@@ -1,0 +1,44 @@
+{
+    "id": "eq-mixed-clean-error",
+    "name": "Mixed Clean and Error",
+    "description": "8 saves alternating error/clean. Pairs: (err,clean), (clean,err), (err,clean), ... -> all score 0. EQ=0.0.",
+    "difficulty": "obvious",
+    "tags": ["eq-specific", "alternating", "baseline"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedEQ": { "min": 0.0, "max": 0.0 },
+        "expectedAction": "none"
+    },
+    "events": [
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 1, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+
+        { "type": "diagnostic", "timestamp": 6000, "action": "clear" },
+        { "type": "save", "timestamp": 6100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+
+        { "type": "diagnostic", "timestamp": 12000, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 1, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 12100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+
+        { "type": "diagnostic", "timestamp": 18000, "action": "clear" },
+        { "type": "save", "timestamp": 18100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+
+        { "type": "diagnostic", "timestamp": 24000, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 1, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 24100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+
+        { "type": "diagnostic", "timestamp": 30000, "action": "clear" },
+        { "type": "save", "timestamp": 30100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+
+        { "type": "diagnostic", "timestamp": 36000, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 1, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 36100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+
+        { "type": "diagnostic", "timestamp": 42000, "action": "clear" },
+        { "type": "save", "timestamp": 42100, "file": "Main.java" }
+    ]
+}

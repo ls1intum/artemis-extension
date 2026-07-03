@@ -179,10 +179,6 @@ export interface IrisChatMessage {
     sender?: string;
     sentAt?: string;
     content?: IrisChatMessageContent[];
-    origin?: string;
-    proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
-    /** Client-allocated uuid grouping proactive messages by episode (C4/A9). */
-    proactiveEpisodeId?: string;
     [key: string]: unknown;
 }
 
@@ -204,8 +200,6 @@ export interface IrisStageDTO {
 export interface IrisSettingsResponse {
     settings?: {
         enabled?: boolean;
-        /** Course-level proactive struggle detection toggle (spec §13; admin-only, default off). */
-        proactiveStruggleEnabled?: boolean;
         [key: string]: unknown;
     };
     effectiveRateLimit?: {

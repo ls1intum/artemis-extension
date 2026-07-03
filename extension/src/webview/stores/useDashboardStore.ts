@@ -9,16 +9,11 @@ interface DashboardState {
     recentCourses: RecentCourseNode[];
     workspaceExercise: { id: number; title: string } | 'loading' | null;
     isLoading: boolean;
-    /** True when NOT in developer mode. Hides developer-only dashboard entries (the
-     *  struggle-detection page). Fail-closed default (true) so the dev entry stays hidden
-     *  until the init payload confirms developer mode. */
-    hideDeveloperTools: boolean;
 
     // Actions
     loadDashboard: (vscodeApi: VsCodeApi) => void;
     setDashboardData: (courses: RecentCourseNode[]) => void;
     setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => void;
-    setHideDeveloperTools: (hide: boolean) => void;
     setLoading: (loading: boolean) => void;
 }
 
@@ -28,7 +23,6 @@ export const useDashboardStore = create<DashboardState>()(
             recentCourses: [],
             workspaceExercise: 'loading',
             isLoading: false,
-            hideDeveloperTools: true,
 
             loadDashboard: (vscodeApi: VsCodeApi) => {
                 set({ isLoading: true, workspaceExercise: 'loading' }, false, 'loadDashboard');
@@ -42,10 +36,6 @@ export const useDashboardStore = create<DashboardState>()(
 
             setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => {
                 set({ workspaceExercise: exercise }, false, 'setWorkspaceExercise');
-            },
-
-            setHideDeveloperTools: (hide: boolean) => {
-                set({ hideDeveloperTools: hide }, false, 'setHideDeveloperTools');
             },
 
             setLoading: (loading: boolean) => {

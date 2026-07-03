@@ -1,0 +1,109 @@
+import { InterventionBlockedReason, InterventionState, RecommendedAction, SessionResettable, SessionStartContext } from './types';
+
+/**
+ * Pedagogical guards for intervention decisions.
+ * Ensures interventions are appropriate and not overwhelming.
+ */
+export class InterventionFilter implements SessionResettable {
+    /** Minimum time in exercise before first intervention (5 minutes) */
+    private static readonly MIN_EXERCISE_TIME_MS = 5 * 60 * 1000;
+    /** Maximum interventions per session */
+    private static readonly MAX_INTERVENTIONS_PER_SESSION = 3;
+    /** Grace period after progress (2 minutes) */
+    private static readonly PROGRESS_GRACE_PERIOD_MS = 2 * 60 * 1000;
+    /** EQ at/above which a proactive intervention is allowed even past the session limit */
+    private static readonly SEVERE_EQ_PROACTIVE_OVERRIDE = 0.85;
+
+    private _exerciseStartTime: number | undefined;
+    private _lastProgressTime: number = 0;
+
+    constructor() {
+        // Will be initialized when exercise is started
+    }
+
+    /**
+     * Record when the exercise session started
+     */
+    public setExerciseStartTime(timestamp: number = Date.now()): void {
+        this._exerciseStartTime = timestamp;
+    }
+
+    /**
+     * Record when the student made progress (e.g., fixed an error, passed a test)
+     */
+    public recordProgress(): void {
+        this._lastProgressTime = Date.now();
+    }
+
+    /**
+     * Check if enough time has passed in the exercise.
+     * If the start time is unknown (session never initialized), be conservative
+     * and block interventions — the 5-minute warmup exists to prevent premature
+     * interventions, and "unknown" should not silently bypass it.
+     */
+    private _hasEnoughExerciseTime(): boolean {
+        if (this._exerciseStartTime === undefined) {
+            return false;
+        }
+
+        const elapsed = Date.now() - this._exerciseStartTime;
+        return elapsed >= InterventionFilter.MIN_EXERCISE_TIME_MS;
+    }
+
+    /**
+     * Check if the student has made recent progress
+     */
+    private _hasRecentProgress(): boolean {
+        if (this._lastProgressTime === 0) {
+            return false;
+        }
+
+        const elapsed = Date.now() - this._lastProgressTime;
+        return elapsed < InterventionFilter.PROGRESS_GRACE_PERIOD_MS;
+    }
+
+    /**
+     * EQ-based intervention check — applies pedagogical guardrails
+     * (exercise time, recent progress, session limit, dismiss behavior).
+     */
+    public shouldInterveneEQ(
+        decision: { level: RecommendedAction; eq: number },
+        state: InterventionState,
+    ): { ok: boolean; reason?: InterventionBlockedReason } {
+        if (decision.level === 'none') {
+            return { ok: false };
+        }
+
+        if (!this._hasEnoughExerciseTime()) {
+            return { ok: false, reason: 'warmup' };
+        }
+
+        if (this._hasRecentProgress()) {
+            return { ok: false, reason: 'recent-progress' };
+        }
+
+        // Session intervention limit
+        if (state.sessionInterventionCount >= InterventionFilter.MAX_INTERVENTIONS_PER_SESSION) {
+            // Allow proactive even after limit for severe EQ
+            if (decision.level !== 'proactive' || decision.eq < InterventionFilter.SEVERE_EQ_PROACTIVE_OVERRIDE) {
+                return { ok: false, reason: 'session-limit' };
+            }
+        }
+
+        // Dismissed → only proactive allowed
+        if (state.lastDismissed && decision.level !== 'proactive') {
+            return { ok: false, reason: 'last-dismissed' };
+        }
+
+        return { ok: true };
+    }
+
+    /**
+     * SessionResettable — reset exercise start time when a new session begins.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.setExerciseStartTime();
+        this._lastProgressTime = 0;
+    }
+
+}

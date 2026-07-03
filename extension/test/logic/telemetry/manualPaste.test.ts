@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isLikelyManualPaste } from '@extension/services/sensing/collectors/paste';
+import { isLikelyManualPaste } from '@extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
 
 type Change = Parameters<typeof isLikelyManualPaste>[0];
 

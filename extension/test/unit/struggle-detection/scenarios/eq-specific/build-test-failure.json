@@ -1,0 +1,29 @@
+{
+    "id": "eq-build-test-failure",
+    "name": "Build Test Failure",
+    "description": "8 build events with buildFailed=false (test failures, not compiler errors). hasErrors=false for all snapshots. All pairs score 0. EQ=0.0.",
+    "difficulty": "obvious",
+    "tags": ["eq-specific", "test-failure", "baseline"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedEQ": { "min": 0.0, "max": 0.0 },
+        "expectedAction": "none"
+    },
+    "events": [
+        { "type": "build", "timestamp": 0, "success": false, "buildFailed": false, "failedTests": ["testAdd"] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 10000, "success": false, "buildFailed": false, "failedTests": ["testAdd"] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 20000, "success": false, "buildFailed": false, "failedTests": ["testAdd"] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 30000, "success": false, "buildFailed": false, "failedTests": ["testAdd"] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 40000, "success": false, "buildFailed": false, "failedTests": ["testAdd"] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 50000, "success": false, "buildFailed": false, "failedTests": ["testAdd"] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 60000, "success": false, "buildFailed": false, "failedTests": ["testAdd"] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 70000, "success": false, "buildFailed": false, "failedTests": ["testAdd"] }
+    ]
+}

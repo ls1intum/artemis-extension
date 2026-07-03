@@ -21,9 +21,9 @@ import { type CourseAccessScope, CourseAccessStorageService } from '@extension/s
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import type { SubmissionPayload } from '@extension/services/recording/types';
+import type { ITelemetryManager } from '@extension/services/telemetry';
+import type { SubmissionPayload } from '@extension/services/telemetry/recording/types';
 import type { IProviderRegistry } from '@extension/services/ui';
 import {
     BuildDiagnosticsService,
@@ -34,13 +34,11 @@ import {
     ViewInitDataService,
 } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
-import type { ILiveEngineFeed, IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
 import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
-import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
+import { CONFIG, resolveServerUrl } from '@extension/utils';
 import { createRecordingWebviewHandlers } from '@dataCollection';
-import { createLiveEngineFeed } from '@telemetry';
 
 import type { ArtemisWebviewProviderDeps } from './artemisWebviewProviderDeps';
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -81,22 +79,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _exerciseOpeningService: ExerciseOpeningService;
     private _startPageResolver: StartPageResolver;
     private readonly _courseAccessStorage: CourseAccessStorageService;
-    private readonly _proactivePreference: ProactivePreferenceService;
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
-    private readonly _struggleCoordinator: IStruggleCoordinator;
-    private readonly _liveEngineFeed: ILiveEngineFeed;
+    private readonly _telemetryManager: ITelemetryManager;
     private readonly _renderService: ProblemStatementRenderService;
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;
-
-    /**
-     * Stable sender reference for the sidebar webview. Created once in the ctor
-     * and reused on every re-resolve so the feed's Map<Sink, refcount> always
-     * sees the same key for the sidebar.
-     */
-    private readonly _sidebarSender: (m: ExtensionToWebviewMessage) => void;
 
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
@@ -123,9 +112,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Constructor ────────────────────────────────────────────────────
     constructor(deps: ArtemisWebviewProviderDeps) {
         super();
-        // One stable closure created immediately so the feed's Map<Sink,refcount>
-        // always sees the same key for this sidebar host across re-resolves.
-        this._sidebarSender = (m) => this._postMessageSafe(m);
         this._extensionUri = deps.extensionUri;
         this._extensionContext = deps.extensionContext;
         this._authManager = deps.authManager;
@@ -133,7 +119,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._exerciseRegistry = deps.exerciseRegistry;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
-        this._struggleCoordinator = deps.struggleCoordinator;
+        this._telemetryManager = deps.telemetryManager;
         this._authContextUpdater = deps.updateAuthContext;
         this._courseDataCache = deps.courseDataCache;
         const buildErrorCodeLensProvider = deps.buildErrorCodeLensProvider;
@@ -146,11 +132,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         // 2. CourseAccessStorage — its scope callback resolves on the provider.
         this._courseAccessStorage = new CourseAccessStorageService(
-            this._extensionContext.globalState,
-            () => this._currentCourseAccessScope(),
-        );
-        // Per-exercise proactive on/off preference (spec §12.2) — same globalState scope as course access.
-        this._proactivePreference = new ProactivePreferenceService(
             this._extensionContext.globalState,
             () => this._currentCourseAccessScope(),
         );
@@ -167,7 +148,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._exerciseOpeningService = new ExerciseOpeningService(
             this._exerciseRegistry,
             this._providerRegistry,
-            this._struggleCoordinator,
+            this._telemetryManager,
             this._courseAccessStorage,
         );
 
@@ -209,24 +190,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             sendInitData: () => this.sendInitData(),
             backgroundRenderProblemStatement: () => void this._ssrCoordinator.scheduleRender(),
             getServerUrl: () => resolveServerUrl(),
-            openStruggleFullscreen: () => this._openStruggleFullscreen(),
         });
-
-        // 8b. Live engine-decision feed (developer-mode struggle view). Built via
-        //     the @telemetry seam so the clean build never imports the real feed
-        //     (which lives under the build-excluded services/struggle/ subtree).
-        //     Streams to the same webview post as the init service; gated on the
-        //     same artemis.developerMode probe. A new exercise session clears the
-        //     buffer so the chart restarts with the session.
-        this._liveEngineFeed = createLiveEngineFeed(
-            this._struggleCoordinator,
-            () => this._isDeveloperMode(),
-        );
-        this._disposables.push(
-            this._liveEngineFeed,
-            this._struggleCoordinator.onDidStartSession(() => this._liveEngineFeed.setSessionActive(true)),
-            this._struggleCoordinator.onDidEndSession(() => this._liveEngineFeed.setSessionActive(false)),
-        );
 
         // 9. Webview message handler — now routes commands through the facade.
         this._messageHandler = new WebViewMessageHandler(
@@ -241,45 +205,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseDataCache,
             this._courseAccessStorage,
             createRecordingWebviewHandlers(this._extensionContext.globalStorageUri),
-            this._liveEngineFeed,
-            this._proactivePreference,
-            deps.proactiveControl,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
 
         // 10. Init data service — depends on the message handler being ready.
         this._viewInitDataService = new ViewInitDataService(
             this._appStateManager,
-            this._struggleCoordinator,
+            this._telemetryManager,
             this._messageHandler,
             (msg) => this._postMessageSafe(msg),
             this._courseAccessStorage,
-        );
-
-        // 10b. Keep the struggle snapshot panel (urgency meter + status) live: the
-        //      init is a one-shot, so without this it freezes at the value captured
-        //      when the page opened. Re-send it on each engine tick, but only while
-        //      the struggle page is the active view (other pages are not re-pushed).
-        //      The no-op coordinator never ticks, so the clean build does nothing.
-        this._disposables.push(
-            this._struggleCoordinator.onDidTick(() => {
-                if (this._appStateManager.currentState === 'struggle-detection') {
-                    this._viewInitDataService.sendStruggleDetectionInit();
-                }
-            }),
-        );
-
-        // 10c. Also refresh on session start/end. Ticks STOP when a session ends, so without this
-        //      the dev timers panel would freeze on the last active-session snapshot and never flip
-        //      to its "no active session" empty state (sessionActive only changes at these edges).
-        const refreshStruggleIfActive = (): void => {
-            if (this._appStateManager.currentState === 'struggle-detection') {
-                this._viewInitDataService.sendStruggleDetectionInit();
-            }
-        };
-        this._disposables.push(
-            this._struggleCoordinator.onDidStartSession(refreshStruggleIfActive),
-            this._struggleCoordinator.onDidEndSession(refreshStruggleIfActive),
         );
 
         // 11. Submission WS handler — fans build results into diagnostics
@@ -325,11 +260,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
     }
 
-    /** The per-exercise proactive on/off preference (spec §12.2); read by the engine's `isStudentProactiveOn` dep. */
-    public get proactivePreference(): ProactivePreferenceService {
-        return this._proactivePreference;
-    }
-
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     public dispose(): void {
@@ -362,9 +292,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         webviewView.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, webviewView.webview);
 
-        // Reuse the stable sidebar sender so the feed's Map<Sink,refcount>
-        // always sees the same function reference for this host.
-        this._messageHandler.setMessageSender(this._sidebarSender);
+        // Set up message sender for the message handler (using safe posting)
+        this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
+            this._postMessageSafe(message);
+        });
 
         // Check for existing authentication and auto-login if valid
         this._authFlowHandler.checkExistingAuthentication();
@@ -493,21 +424,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._navigationFacade.showLogin();
     }
 
-    /** Navigate the panel to the developer struggle-detection / live-engine view. */
-    public showStruggleDetection(): void {
-        this._navigationFacade.showStruggleDetection();
-    }
-
-    /** Register the slot debug snapshot provider on the live engine feed. */
-    public wireSlotDebug(provider: Parameters<ILiveEngineFeed['setSlotProvider']>[0]): void {
-        this._liveEngineFeed.setSlotProvider(provider);
-    }
-
-    /** Push the current slot debug snapshot to any subscribed webview. */
-    public pushSlotUpdate(): void {
-        this._liveEngineFeed.pushSlotUpdate();
-    }
-
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
 
     protected _onReady(): void {
@@ -515,11 +431,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
-        // Route through the same serialized sender queue as the fullscreen path, binding the sidebar's
-        // stable sender. This keeps getCurrentSender() correct: with all command processing serialized on
-        // one queue, a sidebar command can never observe a fullscreen handleMessageWithSender override
-        // (which persists across its await), so the struggle-live sink is always captured per-host correctly.
-        void this._messageHandler.handleMessageWithSender(message, this._sidebarSender);
+        this._messageHandler.handleMessage(message);
     }
 
     // ── Private: Helpers ───────────────────────────────────────────────
@@ -529,44 +441,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      * the storage service is constructed in this ctor with this getter as a
      * callback - moving it to the facade would create a cycle.
      */
-    /**
-     * Developer-mode probe — same `artemis.developerMode` setting the view-init
-     * service reads to gate the developer struggle view. The live engine feed
-     * only streams while this is on.
-     */
-    private _isDeveloperMode(): boolean {
-        return vscode.workspace
-            .getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION)
-            .get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
-    }
-
-    /**
-     * Open the developer struggle view in its own editor tab (which VS Code can move to a separate
-     * window). The panel is fed the SAME per-tick snapshot the sidebar uses, with `embedded` set so
-     * the view drops its back-link, the live chart, and the pop-out button. The coordinator access
-     * stays here (behind the @telemetry seam), so the always-bundled panel manager never imports the
-     * engine; the no-op coordinator's onDidTick never fires, so the clean build shows a static panel.
-     */
-    private _openStruggleFullscreen(): void {
-        this._fullscreenPanelManager.openStruggleFullscreen(
-            () => this._viewInitDataService.buildStruggleDetectionInit({ embedded: true }),
-            // Refresh on every tick AND on session start/end: ticks STOP when a session ends, so
-            // without the edge events the panel would freeze on the last active snapshot and never
-            // flip to "no active session" (mirrors the sidebar's start/end refresh).
-            (refresh) => {
-                const subs = [
-                    this._struggleCoordinator.onDidTick(() => refresh()),
-                    this._struggleCoordinator.onDidStartSession(() => refresh()),
-                    this._struggleCoordinator.onDidEndSession(() => refresh()),
-                ];
-                return new vscode.Disposable(() => { for (const s of subs) { s.dispose(); } });
-            },
-            // Drop the panel's postSafe from the feed on panel close so the Map entry
-            // is cleaned up even if the React side did not send an unsubscribe command.
-            (postSafe) => this._liveEngineFeed.dropSink(postSafe),
-        );
-    }
-
     private _currentCourseAccessScope(): CourseAccessScope | null {
         const info = this._appStateManager.userInfo;
         if (!info) { return null; }

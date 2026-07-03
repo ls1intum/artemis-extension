@@ -53,9 +53,6 @@ export interface WebviewNavigationFacadeDeps {
     sendInitData: () => void;
     backgroundRenderProblemStatement: () => void;
     getServerUrl: () => string;
-    /** Open the developer struggle view in its own editor tab. Supplied by the provider (which owns the
-     *  struggle coordinator behind the @telemetry seam); absent in the clean build. */
-    openStruggleFullscreen?: () => void;
 }
 
 /**
@@ -268,13 +265,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public showStruggleDetection(): void {
-        // Developer-only page: block navigation entirely when developer mode is off, so the route
-        // cannot be reached via the command/action path (the dashboard button is also hidden, but
-        // this is the primary gate). The view itself shows a "developer mode only" backstop.
-        if (!vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false)) {
-            logger.warn('showStruggleDetection ignored: developer mode is off (developer-only view)', LogCategory.VIEW);
-            return;
-        }
         this.deps.appStateManager.showStruggleDetection();
         this.deps.render();
     }
@@ -314,24 +304,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
 
     public async openCourseFullscreen(courseData: CourseDetailData): Promise<void> {
         this.deps.fullscreenPanelManager.openCourseFullscreen(courseData);
-    }
-
-    public async openStruggleFullscreen(): Promise<void> {
-        // Developer-only page (mirrors showStruggleDetection): block the editor-tab pop-out when
-        // developer mode is off, so a stale/replayed command — or toggling dev mode off while the
-        // page is already open — cannot open the standalone struggle panel.
-        if (!vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false)) {
-            logger.warn('openStruggleFullscreen ignored: developer mode is off (developer-only view)', LogCategory.VIEW);
-            return;
-        }
-        if (!this.deps.openStruggleFullscreen) {
-            // Absent by design in the clean (no-engine) build, where the button is never rendered.
-            // If it ever fires there (or a full-build wiring regression drops the opener), surface it
-            // instead of silently doing nothing.
-            logger.warn('openStruggleFullscreen invoked but no opener is wired (struggle detection unavailable in this build).', LogCategory.VIEW);
-            return;
-        }
-        this.deps.openStruggleFullscreen();
     }
 
     public async openCourseListFullscreen(): Promise<void> {

@@ -19,6 +19,7 @@ import {
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
@@ -106,16 +107,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }>();
     public readonly onDidProvideIrisChatFeedback = this._onDidProvideIrisChatFeedback.event;
 
-    private readonly _onDidDismissProactive = new vscode.EventEmitter<void>();
-    /** Fires when the student dismisses a proactive bubble (drives the Slice-4a delivery backoff in extension.ts). */
-    public readonly onDidDismissProactive = this._onDidDismissProactive.event;
-
-    /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode), wired by extension.ts. */
-    private _onEpisodeDismiss?: (episodeId?: string) => void;
-
-    /** Last live-episode snapshot posted (SetLiveEpisode); replayed to re-created webviews on init. */
-    private _liveEpisodeId: string | null = null;
-
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
@@ -129,6 +120,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _courseDataCache: CourseDataCache | undefined,
+        private readonly _telemetryManager: ITelemetryManager | undefined,
         contextStore: ContextStore,
     ) {
         super(LogCategory.IRIS_CHAT);
@@ -136,7 +128,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidSendIrisChatMessage);
         this._disposables.push(this._onDidAttemptIrisChatSend);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
-        this._disposables.push(this._onDidDismissProactive);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = contextStore;
         this._disposables.push(
@@ -345,7 +336,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             this._onDidChangePanelVisibility.fire(webviewView.visible);
             if (webviewView.visible) {
-                this.setProactiveBadge(false);
                 logger.debug('Iris Chat view became visible, loading data...', LogCategory.VIEW);
                 this._sendInitData();
             } else {
@@ -353,10 +343,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             }
         });
         this._viewDisposables.push(visibilityListener);
-        // Seed the current visibility once: a view that resolves already-visible fires no
-        // onDidChangeVisibility change event, so consumers (the in-session toast gate) would
-        // otherwise stay stale-false until the first visibility toggle.
-        this._onDidChangePanelVisibility.fire(webviewView.visible);
 
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
@@ -384,9 +370,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
-        // A re-created webview starts with an empty live-episode set; replay the last
-        // snapshot BEFORE messages hydrate so the live episode never renders folded.
-        this.resendLiveEpisode();
         await this._populateAvailableContexts();
         void this._loadIrisMessagesIfNeeded().catch((err: unknown) => {
             logger.error('Failed to load Iris messages during init', LogCategory.IRIS_CHAT, err);
@@ -403,6 +386,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // ── Public API ─────────────────────────────────────────────────────
 
     /**
+     * Get current struggle context for Iris chat integration
+     */
+    public getStruggleContext(): StruggleContext | undefined {
+        return this._telemetryManager?.getStruggleContext();
+    }
+
+    /**
      * Access the WebSocket message handler for wiring up received-message events.
      */
     public get websocketMessageHandler(): IrisWebSocketMessageHandler {
@@ -414,14 +404,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      */
     public isNoAiEnabled(): boolean {
         return this._noAiDetectionService.isNoAiEnabled;
-    }
-
-    /**
-     * Resolves once the initial `.noai` workspace scan has run, so the first `isNoAiEnabled()` read is
-     * authoritative (spec §14 case 3). Used by the AskIris proactive card so the first render can't fail-open.
-     */
-    public whenNoAiReady(): Promise<void> {
-        return this._noAiDetectionService.waitForInitialization().then(() => undefined);
     }
 
     public async clearAllSessions(): Promise<void> {
@@ -467,104 +449,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     public switchToSession(sessionId: string): void {
         this._chatSessionService.switchToSession(sessionId);
-    }
-
-    /** Show/clear a badge on the Iris view to flag a proactive suggestion (spec §8 active/ambient surface). */
-    setProactiveBadge(on: boolean): void {
-        if (this._view) {
-            this._view.badge = on ? { value: 1, tooltip: 'Iris has a suggestion for you' } : undefined;
-        }
-    }
-
-    /**
-     * Post an optimistic proactive bubble to the chat immediately (before the server-persisted
-     * message arrives via the chat WebSocket). When `messageId` is set, the webview can
-     * deduplicate against a later `loadMessages` response that contains the same id (one bubble).
-     * When `messageId` is null (server persist failed, A9), the bubble is runtime-only and has
-     * no dedup tag. When `episodeId` is set, the row is threaded into its episode group so a
-     * live delivery renders as the open episode timeline (and registers the episode as live);
-     * the ambient reveal path passes none on purpose (a PARKED episode is not live in the chat).
-     * The badge-clears-on-chat-open behaviour (onDidChangeVisibility) is unaffected.
-     */
-    postOptimisticBubble(text: string, messageId: number | null, episodeId?: string): void {
-        this._postMessageSafe({
-            type: ExtensionMsg.AddMessage,
-            message: {
-                ...(messageId !== null ? { id: messageId } : {}),
-                role: 'assistant',
-                content: text,
-                timestamp: Date.now(),
-                origin: 'proactive',
-                ...(episodeId !== undefined ? { proactiveEpisodeId: episodeId } : {}),
-            }
-        });
-    }
-
-    /**
-     * Post the host-authoritative live-episode snapshot (SetLiveEpisode state frame) and cache
-     * it, so `resendLiveEpisode` can replay it to a freshly created webview. Sent by the
-     * struggle engine on every slot transition: the DELIVERED episode's id, or null when no
-     * episode is live.
-     */
-    postLiveEpisode(episodeId: string | null): void {
-        this._liveEpisodeId = episodeId;
-        this._postMessageSafe({ type: ExtensionMsg.SetLiveEpisode, episodeId });
-    }
-
-    /**
-     * Re-post the cached live-episode frame. Called on webview init (`_sendInitData`): a
-     * re-created webview starts with an empty live set and would otherwise fold the still-live
-     * episode as an "Earlier hint" after hydration. An explicit null is sent too, so a stale
-     * live set from a previous session cannot survive.
-     */
-    resendLiveEpisode(): void {
-        this._postMessageSafe({ type: ExtensionMsg.SetLiveEpisode, episodeId: this._liveEpisodeId });
-    }
-
-    /**
-     * Post a host->webview removeMessage{id} for stale-row suppression (C4).
-     * The webview removes the row if present AND records the id in suppressedIds
-     * so a chat-ws arrival of the same row after the drop is never inserted.
-     */
-    postRemoveMessage(id: number): void {
-        this._postMessageSafe({ type: ExtensionMsg.RemoveMessage, id });
-    }
-
-    /**
-     * C7: Post a host->webview foldEpisode control frame so the webview collapses
-     * the episode group to a summary fold-line. Without praise: folds immediately.
-     * With praise: waits for the close row identified by `closeMessageId` to
-     * arrive, then starts a ~5 s timer before collapsing.
-     */
-    postFoldEpisode(
-        episodeId: string,
-        outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED',
-        praise?: { episodeLabel: string; closeMessageId: number },
-    ): void {
-        this._postMessageSafe({ type: ExtensionMsg.FoldEpisode, episodeId, outcome, praise });
-    }
-
-    /**
-     * C8: Wire the struggle-engine callbacks into the provider.
-     * Called by extension.ts after the engine handle is available.
-     */
-    public setStruggleCallbacks(callbacks: {
-        /** C8: episode-scoped dismiss; routes to orchestrator.dismissEpisode. */
-        onEpisodeDismiss?: (episodeId?: string) => void;
-    }): void {
-        this._onEpisodeDismiss = callbacks.onEpisodeDismiss;
-    }
-
-    /**
-     * Open/attach the Iris session carrying a proactive bubble (spec §5.5 `active`). The session is freshly
-     * created server-side with a single LLM bubble and no USER reply. The sessions/overview now lists such
-     * proactive-only sessions (spec §7.3), but a plain reload is async and may not have run yet, so for an
-     * immediate active open we still inject a local entry directly. Delegated to the session service, which adds
-     * a local entry keyed `session-<artemisSessionId>` (unless present), switches to it, and lets the existing
-     * message-load surface the bubble.
-     */
-    async openProactiveSession(sessionId: number): Promise<void> {
-        await this._chatSessionService.openProactiveSession(sessionId);
     }
 
     public getSelectedContext(): ActiveContext | null {
@@ -696,11 +580,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     }).catch(err => {
                         logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
                     });
-                    break;
-                }
-                case WebviewCmd.MessageProactiveOutcome: {
-                    const { sessionId, messageId, proactiveEpisodeId } = getPayload<WebCmd<'messageProactiveOutcome'>>(message);
-                    this._handleProactiveOutcome(sessionId, messageId, proactiveEpisodeId);
                     break;
                 }
                 case WebviewCmd.OpenHelpPopup:
@@ -959,6 +838,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             const result = await this._chatMessageService.sendMessage({
                 text: content,
                 isNoAiEnabled: this._noAiDetectionService.isNoAiEnabled,
+                struggleContext: this.getStruggleContext(),
             });
 
             if (result.sent) {
@@ -1020,32 +900,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             logger.error('Failed to send feedback to server', LogCategory.IRIS_CHAT, error);
             vscode.window.showErrorMessage('Failed to submit feedback. Please try again.');
         }
-    }
-
-    private _handleProactiveOutcome(
-        sessionId: number,
-        messageId: number,
-        proactiveEpisodeId?: string,
-    ): void {
-        // Signal the dismiss to the delivery backoff first (drives Slice-4a via onDidDismissProactive).
-        this._onDidDismissProactive.fire();
-
-        if (proactiveEpisodeId) {
-            // C8 episode-scoped path: route to the orchestrator via the seam callback.
-            // The orchestrator frees the slot, tears down runtime, writes DISMISSED, and folds.
-            this._onEpisodeDismiss?.(proactiveEpisodeId);
-            return;
-        }
-
-        // Legacy fallback: message-scoped write for rows that pre-date the episode model
-        // (no proactiveEpisodeId attached to the persisted row).
-        if (!this._artemisApiService) {
-            logger.warn('Artemis API service not available for proactive outcome', LogCategory.IRIS_CHAT);
-            return;
-        }
-        void this._artemisApiService.setProactiveOutcome(sessionId, messageId, 'DISMISSED').catch(error => {
-            logger.error('Failed to persist proactive outcome', LogCategory.IRIS_CHAT, error);
-        });
     }
 
     private async _handleOpenDiagnostics(): Promise<void> {

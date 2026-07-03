@@ -41,10 +41,6 @@ export const VSCODE_CONFIG = {
         ENABLED_KEY: 'enabled',
         SHOW_INTERVENTIONS_KEY: 'showInterventions',
     },
-    IRIS: {
-        SECTION: 'artemis.iris',
-        PROACTIVE_EGRESS_KEY: 'proactiveCodeEgress',
-    },
 } as const;
 
 // File processing constants

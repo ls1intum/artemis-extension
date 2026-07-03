@@ -6,7 +6,7 @@ import type { DataCollectionDeps, DataCollectionHandle } from './types';
 
 /**
  * No-op data-collection seam for the Open VSX (clean) variant. Imports nothing
- * from consent/recording, so esbuild keeps that subtree out of the bundle.
+ * from consent/recording/replay, so esbuild keeps that subtree out of the bundle.
  */
 export function wireDataCollection(_deps: DataCollectionDeps): DataCollectionHandle {
     return {

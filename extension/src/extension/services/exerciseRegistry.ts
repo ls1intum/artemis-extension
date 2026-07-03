@@ -28,10 +28,10 @@ export class ExerciseRegistry {
     private exercises: Map<number, ExerciseRegistryEntry> = new Map();
     /**
      * Reverse lookup from participationId to exerciseId.
-     * Enables the StruggleCoordinator to filter WebSocket build results by the
+     * Enables TelemetryManager to filter WebSocket build results by the
      * currently-active exercise — the ResultDTO only carries a participationId,
      * not an exerciseId, so without this map a result from exercise A would
-     * contaminate the struggle engine of the active exercise B.
+     * contaminate the EQ engine of the active exercise B.
      */
     private participationToExercise: Map<number, number> = new Map();
 

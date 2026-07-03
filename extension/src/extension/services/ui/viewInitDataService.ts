@@ -7,13 +7,13 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import { GitService } from '@extension/services/workspace/gitService';
 import {
     collectExerciseSources,
     detectWorkspaceExercise,
     detectWorkspaceForRepoUris,
 } from '@extension/services/workspace/workspaceDetectionService';
-import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 import { resolveServerUrl } from '@extension/utils';
@@ -26,7 +26,7 @@ export class ViewInitDataService {
 
     constructor(
         private readonly _appStateManager: AppStateManager,
-        private readonly _struggleCoordinator: IStruggleCoordinator | undefined,
+        private readonly _telemetryManager: ITelemetryManager | undefined,
         private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         private readonly _courseAccessStorage?: CourseAccessStorageService,
@@ -96,7 +96,6 @@ export class ViewInitDataService {
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
                 workspaceExercise: noMatch,
-                hideDeveloperTools: !this._isDeveloperMode(),
             });
             return;
         }
@@ -110,7 +109,6 @@ export class ViewInitDataService {
                 workspaceExercise: detectedExercise
                     ? { id: detectedExercise.id, title: detectedExercise.title }
                     : noMatch,
-                hideDeveloperTools: !this._isDeveloperMode(),
             });
         }).catch((error) => {
             if (gen !== this._initGeneration) { return; }
@@ -119,7 +117,6 @@ export class ViewInitDataService {
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
                 workspaceExercise: noMatch,
-                hideDeveloperTools: !this._isDeveloperMode(),
             });
         });
     }
@@ -241,28 +238,19 @@ export class ViewInitDataService {
         this._postMessage({ type: ExtensionMsg.AiConfigInit, aiExtensions });
     }
 
-    /**
-     * Build the struggle-detection init payload. `embedded` marks the standalone editor-tab copy
-     * (the view then hides its back-link, the live chart, and the pop-out button). Exposed so the
-     * fullscreen panel can be fed the SAME snapshot the sidebar renders from.
-     */
-    public buildStruggleDetectionInit(opts: { embedded?: boolean } = {}): ExtensionToWebviewMessage {
-        const coordinator = this._struggleCoordinator;
-        const snapshot = coordinator?.getSnapshot();
-        const developerMode = this._isDeveloperMode();
-        return {
-            type: ExtensionMsg.StruggleDetectionInit,
-            urgency: snapshot?.urgency ?? 0,
-            isEnabled: coordinator?.isEnabled() ?? false,
-            developerMode,
-            // Dev dashboard only: the full timers/counters snapshot. Omitted for normal students.
-            debug: developerMode ? coordinator?.getDebugSnapshot() : undefined,
-            embedded: opts.embedded ?? false,
-        };
-    }
-
     public sendStruggleDetectionInit(): void {
-        this._postMessage(this.buildStruggleDetectionInit());
+        const telemetry = this._telemetryManager;
+        const ctx = telemetry?.getStruggleContext();
+        this._postMessage({
+            type: ExtensionMsg.StruggleDetectionInit,
+            isStruggling: ctx?.isStruggling ?? false,
+            eq: ctx?.eq ?? 0,
+            eqConfidence: ctx?.eqConfidence ?? 'insufficient',
+            triggerType: ctx?.triggerType,
+            recommendedAction: ctx?.recommendedAction ?? 'none',
+            isEnabled: telemetry?.isEnabled() ?? false,
+            developerMode: this._isDeveloperMode(),
+        });
     }
 
     public sendServiceStatusInit(): void {

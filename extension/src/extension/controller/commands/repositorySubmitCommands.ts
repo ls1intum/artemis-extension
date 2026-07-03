@@ -4,7 +4,7 @@ import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { SubmissionFailureReason, SubmissionPayload } from '@extension/services/recording/types';
+import type { SubmissionFailureReason, SubmissionPayload } from '@extension/services/telemetry/recording/types';
 import * as workspaceServices from '@extension/services/workspace';
 import * as fileChecker from '@extension/services/workspace/workspaceFileChecker';
 import { extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';

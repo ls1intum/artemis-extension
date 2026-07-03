@@ -192,50 +192,6 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(sink._register.callCount, 0);
         disposable.dispose();
     });
-
-    test('a detected workspace exercise also starts the struggle session (onWorkspaceExerciseDetected)', async () => {
-        const sink = makeSinkSpy();
-        const onDetected = sinon.spy();
-        let captured!: { registerExercise: (input: WorkspaceRegisterInput) => void; clearStaleWorkspaceContext: () => void };
-        detectStub.callsFake(async (_api: unknown, cb: typeof captured) => { captured = cb; });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink, onWorkspaceExerciseDetected: onDetected });
-        await Promise.resolve();
-        captured.registerExercise({ id: 7, title: 'X', source: 'workspace-detected', isWorkspace: true });
-        assert.strictEqual(onDetected.callCount, 1, 'detection must start the struggle session');
-        assert.strictEqual(onDetected.firstCall.args[0], 7);
-        disposable.dispose();
-    });
-
-    test('onWorkspaceExerciseDetected respects the dispose guard (no session start after dispose)', async () => {
-        const sink = makeSinkSpy();
-        const onDetected = sinon.spy();
-        let resolve!: () => void;
-        let captured!: { registerExercise: (input: WorkspaceRegisterInput) => void; clearStaleWorkspaceContext: () => void };
-        detectStub.callsFake(async (_api: unknown, cb: typeof captured) => {
-            captured = cb;
-            await new Promise<void>(r => { resolve = r; });
-        });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink, onWorkspaceExerciseDetected: onDetected });
-        await Promise.resolve();
-        disposable.dispose();
-        captured.registerExercise({ id: 1, title: 'X', source: 'workspace-detected', isWorkspace: true });
-        resolve();
-        await Promise.resolve();
-        assert.strictEqual(onDetected.callCount, 0);
-        assert.strictEqual(sink._register.callCount, 0);
-    });
-
-    test('a no-match detection ends the struggle session (onWorkspaceExerciseCleared)', async () => {
-        const sink = makeSinkSpy();
-        const onCleared = sinon.spy();
-        detectStub.callsFake(async (_api: unknown, cb: { clearStaleWorkspaceContext: () => void }) => {
-            cb.clearStaleWorkspaceContext();
-        });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink, onWorkspaceExerciseCleared: onCleared });
-        await Promise.resolve();
-        assert.strictEqual(onCleared.callCount, 1, 'leaving the exercise must end the struggle session');
-        disposable.dispose();
-    });
 });
 
 suite('buildChatProviderSink', () => {

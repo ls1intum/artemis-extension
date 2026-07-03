@@ -794,7 +794,7 @@ npm run test:coverage
 **Specific test suite:**
 
 ```bash
-npm run test:unit      # Unit tests (incl. EQ logger + Engine v2 struggle tests)
+npm run test:struggle  # Struggle detection tests only
 npm run test:e2e       # E2E tests only
 ```
 

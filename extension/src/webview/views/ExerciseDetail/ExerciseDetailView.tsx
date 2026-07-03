@@ -67,10 +67,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         dirtyPagesStatus,
         clonedNotice,
         pendingSubmissionsByParticipationId,
-        proactiveControl,
         setExerciseData,
         setError,
-        setProactiveControl,
         loadExerciseDetail,
         clearClonedNotice,
     } = useExerciseDetailStore();
@@ -114,14 +112,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             } else {
                 setServerRenderedPS(null);
             }
-            // (Re)request the proactive control state on every init — the provider re-posts init on each sidebar
-            // visibility refresh, so this refreshes the badge (incl. a backoff "Auto-paused" that flipped while hidden).
-            if (msg.exerciseData.exercise?.id !== undefined) {
-                postCommand(vscodeApi, 'requestProactiveControl', {
-                    exerciseId: msg.exerciseData.exercise.id,
-                    courseId: msg.exerciseData.exercise.course?.id,
-                });
-            }
         }
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
@@ -130,28 +120,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
             setServerRenderedPS({ html: msg.html });
         }
-        // Proactive control state (spec §12.2). Stored UNCONDITIONALLY here, tagged with its exerciseId; the render
-        // below only paints it when the tag matches the live exercise, so a late update for a previous exercise can
-        // never show a stale badge (and we avoid closing over a stale exerciseData in this handler).
-        if (msg.type === ExtensionMsg.UpdateProactiveControl) {
-            setProactiveControl({
-                exerciseId: msg.exerciseId,
-                preference: msg.preference,
-                autoPaused: msg.autoPaused,
-                cardState: msg.cardState,
-                reason: msg.cardReason,
-            });
-        }
-        // .noai can be created/deleted mid-session and the proactive card derives from it (§14), so re-request the
-        // card when the marker flips. Read the live exercise from the store at message time — NOT a closed-over render
-        // value — to avoid the useExtensionMessage stale-closure hazard (the handler is frozen until its deps change).
-        if (msg.type === ExtensionMsg.UpdateNoAiStatus) {
-            const current = useExerciseDetailStore.getState().exerciseData?.exercise;
-            if (current?.id !== undefined) {
-                postCommand(vscodeApi, 'requestProactiveControl', { exerciseId: current.id, courseId: current.course?.id });
-            }
-        }
-    }, [vscodeApi, setExerciseData, setError, setProactiveControl]);
+    }, [vscodeApi, setExerciseData, setError]);
 
     // Listen for exercise-related extension messages
     useExerciseStatusMessages(vscodeApi);
@@ -637,27 +606,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 />
             )}
 
-            {/* §14 availability banner (cases 2-3): the whole feature, incl. the manual chat, is off for this exercise. */}
-            {proactiveControl && proactiveControl.exerciseId === exercise.id && proactiveControl.cardState === 'unavailable' && (
-                <div className={styles.banner} data-variant="warning">
-                    {proactiveControl.reason === 'noai'
-                        ? 'A .noai file disables Iris for this repository, including the chat.'
-                        : 'Iris is not available for this exercise right now.'}
-                </div>
-            )}
-
             {/* Ask Iris Section */}
             <AskIris
                 description="Open the Iris chat to discuss this exercise or get guidance."
                 onClick={handleAskIris}
-                proactiveControl={proactiveControl && proactiveControl.exerciseId === exercise.id ? {
-                    preference: proactiveControl.preference,
-                    autoPaused: proactiveControl.autoPaused,
-                    cardState: proactiveControl.cardState,
-                    reason: proactiveControl.reason,
-                    onToggle: (enabled) => postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled, courseId: exercise.course?.id }),
-                    onResume: () => postCommand(vscodeApi, 'resumeProactive', { exerciseId: exercise.id!, courseId: exercise.course?.id }),
-                } : undefined}
             />
 
             {/* Problem Statement */}

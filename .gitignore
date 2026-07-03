@@ -63,5 +63,6 @@ extension/recording-viewer.zip
 # Staging directory for openvsx clean packaging
 extension/build/
 
-# Superpowers scratch state (specs/plans under docs/superpowers/ ARE tracked)
+# Superpowers planning artifacts (kept locally as design notes, not tracked)
+docs/superpowers/
 .superpowers/

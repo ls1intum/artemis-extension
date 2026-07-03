@@ -21,7 +21,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { KNOWN_EVENT_TYPES } from '@extension/services/recording/parseRecordedData';
+import { KNOWN_EVENT_TYPES } from '@extension/services/telemetry/recording/parseRecordedData';
 
 // ──────────────────────────────────────────────────────────────────────
 // Types

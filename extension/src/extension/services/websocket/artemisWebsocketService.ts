@@ -56,9 +56,6 @@ export class ArtemisWebsocketService {
     public subscribeToIrisSession(id: number, onMessage: (m: unknown) => void): () => void {
         return this._subscriptions.subscribeToIrisSession(id, onMessage);
     }
-    public subscribeToTopic(topic: string, onMessage: (data: unknown) => void): () => void {
-        return this._subscriptions.subscribeToTopic(topic, onMessage);
-    }
 
     public isConnected(): boolean {
         return this._lifecycle.state === 'connected' && this._client?.connected === true;

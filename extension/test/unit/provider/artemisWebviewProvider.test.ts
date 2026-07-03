@@ -7,9 +7,7 @@ import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvid
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { InterventionService } from '@extension/services/intervention';
-import { VsCodeSensorHub } from '@extension/services/sensing';
-import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
+import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -123,7 +121,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     let suiteSandbox: sinon.SinonSandbox;
 
     setup(() => {
-        // Stub command registration so concurrent InterventionService
+        // Stub command registration so concurrent TelemetryManager
         // instances in this suite do not collide on the global registry.
         suiteSandbox = sinon.createSandbox();
         suiteSandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
@@ -134,7 +132,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: new InterventionService() });
+        const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
         provider = new ArtemisWebviewProvider({
@@ -146,7 +144,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,
-            struggleCoordinator: mockCoordinator,
+            telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
         });
     });
@@ -200,7 +198,7 @@ suite('Panel hide/show state persistence', () => {
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: new InterventionService() });
+        const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
         provider = new ArtemisWebviewProvider({
@@ -212,7 +210,7 @@ suite('Panel hide/show state persistence', () => {
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,
-            struggleCoordinator: mockCoordinator,
+            telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
         });
 

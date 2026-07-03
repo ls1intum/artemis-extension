@@ -1,0 +1,29 @@
+{
+    "id": "thinking-pause",
+    "name": "Thinking Pause - No Errors",
+    "description": "Student pauses to think between saves, but no errors present. 8 clean saves with long waits. All snapshots have hasErrors=false → all pairs score 0 → EQ=0.0.",
+    "difficulty": "obvious",
+    "tags": ["no-struggle", "thinking", "clean-code"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedEQ": { "min": 0.0, "max": 0.0 },
+        "expectedAction": "none"
+    },
+    "events": [
+        { "type": "save", "timestamp": 0, "file": "Algorithm.java" },
+        { "type": "wait", "duration": 15000 },
+        { "type": "save", "timestamp": 15000, "file": "Algorithm.java" },
+        { "type": "wait", "duration": 20000 },
+        { "type": "save", "timestamp": 35000, "file": "Algorithm.java" },
+        { "type": "wait", "duration": 25000 },
+        { "type": "save", "timestamp": 60000, "file": "Algorithm.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 90000, "file": "Algorithm.java" },
+        { "type": "wait", "duration": 20000 },
+        { "type": "save", "timestamp": 110000, "file": "Algorithm.java" },
+        { "type": "wait", "duration": 25000 },
+        { "type": "save", "timestamp": 135000, "file": "Algorithm.java" },
+        { "type": "wait", "duration": 15000 },
+        { "type": "save", "timestamp": 150000, "file": "Algorithm.java" }
+    ]
+}

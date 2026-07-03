@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { logger } from '@extension/services/loggingService';
-import type { IStruggleCoordinator } from '@extension/telemetry/contract';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
 import type { IProviderRegistry } from './providerRegistry';
@@ -12,7 +12,7 @@ export class ExerciseOpeningService {
     constructor(
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _providerRegistry: IProviderRegistry,
-        private _struggleCoordinator?: IStruggleCoordinator,
+        private _telemetryManager?: ITelemetryManager,
         private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 
@@ -46,8 +46,8 @@ export class ExerciseOpeningService {
             this._courseAccessStorage?.onCourseAccessed(courseId);
         }
 
-        // Start struggle-detection session
-        this._struggleCoordinator?.startExerciseSession(
+        // Start telemetry session
+        this._telemetryManager?.startExerciseSession(
             exerciseIdFromData,
             vscode.workspace.workspaceFolders?.[0]?.uri,
         );

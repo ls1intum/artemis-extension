@@ -1,49 +1,36 @@
-// Fail-closed proof that the Open VSX (EduIDE/cloud) bundle excludes the
-// struggle-detection engine, intervention delivery, the session recorder, and
-// consent. Reads the variant metafiles and asserts no forbidden input is present.
+// Fail-closed proof that the Open VSX bundle excludes recorder/consent/replay/struggle-engine.
+// Reads the variant metafiles and asserts no forbidden input path is present.
 const fs = require('fs');
 const path = require('path');
 
-// The struggle engine + intervention delivery + session recorder are excluded
-// from the clean build via the @telemetry and @dataCollection seams. Deny these
-// subtrees by DEFAULT (fail-closed): ANY file under them is forbidden. The
-// @telemetry contract (src/extension/telemetry/*) is type-only and erased, so it
-// never appears as a bundle input.
-const FORBIDDEN_SUBTREES = [
-    'src/extension/services/struggle/',
-    'src/extension/services/intervention/',
-    'src/extension/services/struggleIntervention/',
-    'src/extension/services/recording/',
+// The whole telemetry-engine subtree (struggle detection, metrics, intervention,
+// session recorder, replay, URI filtering) is excluded from the clean Open VSX
+// build via the @telemetry seam. Deny the entire subtree by DEFAULT (fail-closed):
+// any file under it is forbidden unless explicitly allowlisted. This replaces an
+// earlier hand-picked denylist that silently let unlisted files (e.g. uriFilter.ts)
+// through if they were ever pulled into the clean bundle.
+const TELEMETRY_SUBTREE = 'src/extension/services/telemetry/';
+const TELEMETRY_ALLOWED = [
+    // Shared type + config declarations only (no engine/recorder/consent logic).
+    'src/extension/services/telemetry/types.ts',
 ];
 
-// Excluded code that lives OUTSIDE the forbidden subtrees.
+// Excluded code that lives OUTSIDE the telemetry subtree.
 const FORBIDDEN = [
     'src/extension/services/auth/consentService.ts',
     'src/extension/activation/sessionRecorderWiring.ts',
+    // Struggle-detection webview view, excluded via the @struggleView alias.
+    // stub.tsx, types.ts, and index.ts are NOT forbidden (stub is the alias target).
+    'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',
+    'src/webview/views/StruggleDetection/StruggleDetectionView.module.css',
 ];
-
-// Files under src/webview/views/StruggleDetection/ that ARE allowed in the
-// clean bundle: stub.tsx is the no-op the @struggleView alias resolves to;
-// types.ts and index.ts are type/re-export only.
-const STRUGGLE_VIEW_ALLOWED = ['stub.tsx', 'types.ts', 'index.ts'];
-const STRUGGLE_VIEW_PREFIX = 'src/webview/views/StruggleDetection/';
-
-// recharts must never enter the clean bundle (it is a dev-only live-view dep).
-const FORBIDDEN_MODULES = ['node_modules/recharts'];
 
 function isForbiddenInput(input) {
     const p = input.replace(/\\/g, '/');
-    if (FORBIDDEN_SUBTREES.some(s => p.includes(s))) { return true; }
-    if (FORBIDDEN.some(f => p.includes(f))) { return true; }
-    if (FORBIDDEN_MODULES.some(m => p.includes(m))) { return true; }
-    // Forbid every file under StruggleDetection/ except the three allowed stubs.
-    const sdIdx = p.indexOf(STRUGGLE_VIEW_PREFIX);
-    if (sdIdx !== -1) {
-        const filename = p.slice(sdIdx + STRUGGLE_VIEW_PREFIX.length);
-        // Only allow the explicitly whitelisted filenames (no subdirectories).
-        if (!STRUGGLE_VIEW_ALLOWED.includes(filename)) { return true; }
+    if (p.includes(TELEMETRY_SUBTREE)) {
+        return !TELEMETRY_ALLOWED.some(allowed => p.includes(allowed));
     }
-    return false;
+    return FORBIDDEN.some(f => p.includes(f));
 }
 
 function forbiddenInputs(metafilePath) {
@@ -63,8 +50,8 @@ function main() {
         console.error('FAIL: forbidden inputs in clean bundle:\n' + hits.join('\n'));
         process.exit(1);
     }
-    console.log('OK: clean bundle contains no struggle-engine, intervention, recorder, consent, struggle-view, or recharts inputs');
+    console.log('OK: clean bundle contains no recorder/consent/replay, struggle-engine, or struggle-view inputs');
 }
 
-module.exports = { forbiddenInputs, FORBIDDEN, FORBIDDEN_SUBTREES, FORBIDDEN_MODULES, STRUGGLE_VIEW_ALLOWED };
+module.exports = { forbiddenInputs, FORBIDDEN };
 if (require.main === module) { main(); }
