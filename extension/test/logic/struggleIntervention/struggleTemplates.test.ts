@@ -18,6 +18,12 @@ describe('templateForSignal', () => {
     it('keys on a long paste', () => {
         expect(templateForSignal(sig('N1'))).toMatch(/pasted|understand/i);
     });
+    it('keys on test stagnation (TPS) with build-output-neutral copy', () => {
+        const template = templateForSignal(sig('TPS'));
+        expect(template).toMatch(/builds have not made progress/i);
+        // TPS also fires on compile-error streaks, so the copy must not claim "a test is failing".
+        expect(template).not.toMatch(/a test is failing/i);
+    });
     it('keys on a sustained-stuck state / region persistence', () => {
         expect(templateForSignal(sig('STATE'))).toMatch(/step back|same spot|logic/i);
         expect(templateForSignal(sig('E4', 'regionPersistence'))).toMatch(/step back|same spot|logic/i);

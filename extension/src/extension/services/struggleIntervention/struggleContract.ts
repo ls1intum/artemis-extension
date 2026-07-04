@@ -1,5 +1,6 @@
-/** Boundary codenames — identical to the engine (constants.ts) and the server enum. */
-export type BoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE';
+/** Boundary codenames — the engine's edit-path set (constants.ts) plus the wire-only 'TPS'
+ *  for the discrete test-stagnation path. Mirrored by the Pyris BoundaryType literal. */
+export type BoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | 'TPS';
 
 /** Interpretable severity-driver names (spec §5.1), derived from engine feature fields. */
 export type ComponentName = 'feedbackViewing' | 'regionPersistence' | 'errorDistance' | 'typing' | 'gap' | 'n4';
@@ -13,7 +14,8 @@ export interface StruggleSignal {
         boundaryTypes: BoundaryType[];
         /** The decision signal sBase at the firing tick. */
         severity: number;
-        path: 'armed' | 'e6';
+        /** 'armed'/'e6' for edit-path alerts; 'discrete' for the add-on path (TPS). */
+        path: 'armed' | 'e6' | 'discrete';
         inWarmup: boolean;
         inGrace: boolean;
     };

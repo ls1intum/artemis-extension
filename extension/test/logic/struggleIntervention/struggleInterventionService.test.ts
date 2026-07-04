@@ -72,30 +72,45 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
 function alert(): AlertRecord {
     return { kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
 }
+function discreteAlert(): AlertRecord {
+    return { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, trigger: 'test-stagnation', inWarmup: false };
+}
 function tick(t: number): TickRecord {
     return { t, ts: t * 1000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
 describe('StruggleInterventionService', () => {
-    it('discrete (test-stagnation) alert is fully skipped: no POST, no fallback surface (Phase 0 / G2)', async () => {
+    it('discrete (test-stagnation) alert POSTs a decide with the TPS wire signal', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc.onTick(tick(530));
-        const discrete: AlertRecord = { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, trigger: 'test-stagnation', inWarmup: false };
-        svc.deliver(discrete);
-        await Promise.resolve();
-        expect(deps.postIntervention).not.toHaveBeenCalled();
-        expect(deps.showAmbient).not.toHaveBeenCalled();
-        expect(deps.showActiveNotification).not.toHaveBeenCalled();
+        svc.deliver(discreteAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).toHaveBeenCalledTimes(1);
+        const [exId, body] = (deps.postIntervention as ReturnType<typeof vi.fn>).mock.calls[0];
+        expect(exId).toBe(42);
+        expect(body.intent).toBe('decide');
+        expect(body.struggleSignal.alert.primaryBoundary).toBe('TPS');
+        expect(body.struggleSignal.alert.boundaryTypes).toEqual(['TPS']);
+        expect(body.struggleSignal.alert.path).toBe('discrete');
     });
 
-    it('shouldSuppress (BackoffSource): true for non-edit + student-opt-out, false for a normal edit alert', () => {
+    it('shouldSuppress (BackoffSource): discrete passes by default, both kinds suppressed on student-opt-out', () => {
         // This is what BackoffGate consults ABOVE the throttle, so a suppressed alert never burns delivery budget.
-        const discrete: AlertRecord = { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, trigger: 'test-stagnation', inWarmup: false };
-        expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(discrete)).toBe(true);                                    // non-edit → never surfaces
-        expect(new StruggleInterventionService(fakeDeps({ isStudentProactiveOn: () => false })).shouldSuppress(alert())).toBe(true); // opted out
+        expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(discreteAlert())).toBe(false);                            // TPS intervenes now
+        expect(new StruggleInterventionService(fakeDeps({ isStudentProactiveOn: () => false })).shouldSuppress(discreteAlert())).toBe(true); // opted out (discrete)
+        expect(new StruggleInterventionService(fakeDeps({ isStudentProactiveOn: () => false })).shouldSuppress(alert())).toBe(true); // opted out (edit)
         expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(alert())).toBe(false);                                   // normal edit alert passes
         // (course-off only latches after a POST → covered by the course-off latch test.)
+    });
+
+    it('discrete + unavailable server (404) → TPS no-progress template on the lamp, no crash', async () => {
+        const deps = fakeDeps({ postIntervention: vi.fn(async () => 'unavailable' as const) });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(discreteAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.showAmbient).toHaveBeenCalledWith(expect.stringContaining('builds have not made progress'), false);
     });
 
     it('not opted in → shows a local template on the lamp (opensChat=false), never POSTs', async () => {
@@ -566,6 +581,34 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
         const body = (deps.postIntervention as ReturnType<typeof vi.fn>).mock.calls[0][1] as StruggleInterventionRequest;
         expect(body.episode.episodeId).toBe('ep-amb');
         expect(body.episode.hints).toHaveLength(1);
+    });
+
+    it('TPS (discrete) alert while DELIVERED-ambient (revealed): POST proceeds and the active reply escalates', async () => {
+        // The REAL escalation flow (not a synthetic hardEvent stamp): parked -> reveal ->
+        // TPS deliver() -> POST (hard event lets it through the delivered-slot gate) ->
+        // server replies active -> reconcile escalates the SAME episode ambient -> active.
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb'), { level: 'ambient', text: 'hint', atSessionS: 100 });
+        svc._frozenSessionId = 55;
+        await svc.revealParkedHint();                                // slot -> DELIVERED, level ambient
+        vi.mocked(deps.postIntervention).mockClear();
+        vi.mocked(deps.postBubble).mockClear();
+
+        expect(svc.shouldSuppress(discreteAlert())).toBe(false);     // TPS is hard: escalation candidate
+        svc.onTick(tick(620));
+        svc.deliver(discreteAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).toHaveBeenCalledTimes(1);
+        const body = (deps.postIntervention as ReturnType<typeof vi.fn>).mock.calls[0][1] as StruggleInterventionRequest;
+        expect(body.struggleSignal.alert.primaryBoundary).toBe('TPS');
+        expect(body.episode.episodeId).toBe('ep-amb');               // continues the live episode
+
+        svc.onServerActive(55, undefined, undefined, undefined, 0.9, 'escalated hint', 123);
+        const state = svc._slot.snapshot().state;
+        expect(state.kind).toBe('delivered');
+        expect(state.kind === 'delivered' ? state.level : null).toBe('active');
+        expect(deps.postBubble).toHaveBeenCalledWith('escalated hint', 123, 'ep-amb');
     });
 });
 
@@ -1228,6 +1271,30 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc.onNewBuildResult(true);
         await new Promise(r => setTimeout(r, 0));
         expect(postSpy).toHaveBeenCalledTimes(0);
+    });
+
+    it('confirmClose after a TPS-originated decide reuses the TPS _lastSignal (path=discrete on the wire)', async () => {
+        const postSpy = vi.fn(async () => 'accepted' as const);
+        const deps = fakeDeps({ postIntervention: postSpy });
+        const svc = new StruggleInterventionService(deps);
+
+        // Real decide path: _lastSignal is built from the discrete alert by production code.
+        svc.onTick(tick(530));
+        svc.deliver(discreteAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(postSpy).toHaveBeenCalledTimes(1);
+
+        svc.onServerActive(7);                    // decide reply -> slot DELIVERED
+        postSpy.mockClear();
+
+        svc.onNewBuildResult(true);               // progress edge -> owed confirmClose -> drains
+        await new Promise(r => setTimeout(r, 0));
+        expect(postSpy).toHaveBeenCalledTimes(1);
+        const body = (postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
+        expect(body.intent).toBe('confirm_close');
+        expect(body.confirmReason).toBe('progress');
+        expect(body.struggleSignal.alert.primaryBoundary).toBe('TPS');
+        expect(body.struggleSignal.alert.path).toBe('discrete');
     });
 
     // -------------------------------------------------------------------------

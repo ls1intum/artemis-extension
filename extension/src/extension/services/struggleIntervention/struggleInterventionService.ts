@@ -59,6 +59,19 @@ const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404, 422]);
 /** Boundary types that constitute a hard event (drive the escalation path). */
 const HARD_BOUNDARIES = new Set<string>(['FM', 'FM_PLUS', 'E4', 'N1']);
 
+/**
+ * A hard alert is anchored on a student ACTION (build/terminal/paste), not on passive state:
+ * it clears/bypasses the awaiting-evidence gate and may escalate a delivered-ambient episode.
+ * Edit path: any hard boundary present. Discrete path: the test-stagnation trigger is hard
+ * (build-anchored — the engine treats it as warmup-breaking for the same reason). Scoped to
+ * the TRIGGER, not the kind: a future discrete add-on must opt into hard semantics explicitly.
+ */
+function isHardAlert(alert: AlertRecord): boolean {
+    return alert.kind === 'edit'
+        ? alert.types.some(t => HARD_BOUNDARIES.has(t))
+        : alert.trigger === 'test-stagnation';
+}
+
 // ---------------------------------------------------------------------------
 // Deps interface
 // ---------------------------------------------------------------------------
@@ -492,9 +505,6 @@ export class StruggleInterventionService implements AlertSink {
      * Returns the dev-log reason, or null when the alert may proceed.
      */
     private _suppressReason(alert: AlertRecord): string | null {
-        if (alert.kind !== 'edit') {
-            return `alert kind=${alert.kind} skipped (only edit-path alerts intervene)`;
-        }
         if (this._courseProactiveOff) {
             return '  -> SKIP (course proactive disabled for this session)';
         }
@@ -502,14 +512,14 @@ export class StruggleInterventionService implements AlertSink {
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             return '  -> SKIP (student turned proactive off for this exercise)';
         }
-        if (this._awaitingEvidence && !alert.types.some(t => HARD_BOUNDARIES.has(t))) {
+        if (this._awaitingEvidence && !isHardAlert(alert)) {
             return '  -> SKIP (awaiting fresh evidence after idle-abandon)';
         }
         // Delivered-slot POST gating: while the slot is DELIVERED, reconcile suppresses every
-        // inbound result except the escalation case (revealed-ambient level + hard boundary).
+        // inbound result except the escalation case (revealed-ambient level + hard event).
         // When no result could surface, don't pay for the server pipeline run at all.
         const slot = this._slot.snapshot().state;
-        if (slot.kind === 'delivered' && !(slot.level === 'ambient' && alert.types.some(t => HARD_BOUNDARIES.has(t)))) {
+        if (slot.kind === 'delivered' && !(slot.level === 'ambient' && isHardAlert(alert))) {
             return '  -> SKIP (delivered slot: reconcile would suppress any result, POST saved)';
         }
         return null;
@@ -530,10 +540,9 @@ export class StruggleInterventionService implements AlertSink {
             this._dbg(suppressed);
             return;
         }
-        if (alert.kind !== 'edit') { return; }
 
-        // A hard-boundary alert is itself fresh evidence (build/terminal/paste = student action).
-        if (this._awaitingEvidence && alert.types.some(t => HARD_BOUNDARIES.has(t))) {
+        // A hard alert is itself fresh evidence (build/terminal/paste = student action).
+        if (this._awaitingEvidence && isHardAlert(alert)) {
             this._setAwaitingEvidence(false, 'hard-boundary alert');
         }
 
@@ -563,7 +572,7 @@ export class StruggleInterventionService implements AlertSink {
             }
 
             const exerciseId = this._deps.getExerciseId() as number;
-            const hardEvent = alert.types.some(t => HARD_BOUNDARIES.has(t));
+            const hardEvent = isHardAlert(alert);
 
             // Episode preallocation: candidate for FREE/PARKED, live episode for DELIVERED
             let requestEpisode: { episodeId: string; isNew: boolean; hints: EpisodeHint[] };

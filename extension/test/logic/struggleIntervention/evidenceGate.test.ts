@@ -92,6 +92,10 @@ function fmAlert(): AlertRecord {
     return { kind: 'edit', t: 530, ts: 530_000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
 }
 
+function tpsAlert(): AlertRecord {
+    return { kind: 'discrete', t: 530, ts: 530_000, urgency: 0.72, trigger: 'test-stagnation', inWarmup: false };
+}
+
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 /** Drive the service into DELIVERED state via onServerActive (take-delivered path). */
@@ -175,6 +179,22 @@ describe('StruggleInterventionService - evidence gate after idle-abandon', () =>
 
         expect(svc.shouldSuppress(fmAlert())).toBe(false);
         svc.deliver(fmAlert());
+        await flush();
+        expect(deps.postIntervention).toHaveBeenCalledTimes(1);
+        expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(false);
+        expect(svc.shouldSuppress(stateAlert())).toBe(false);
+    });
+
+    it('a TPS (discrete) alert is a hard event too: passes the gate, POSTs, and clears it', async () => {
+        // TPS is build-anchored (a student-submitted build), so like FM/E4/N1 it counts as
+        // fresh evidence after an idle-abandon.
+        const { svc, deps } = makeService();
+        simulateDelivered(svc);
+        driveIdleAbandon(svc);
+        expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(true);
+
+        expect(svc.shouldSuppress(tpsAlert())).toBe(false);
+        svc.deliver(tpsAlert());
         await flush();
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
         expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(false);
