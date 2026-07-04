@@ -15,32 +15,23 @@ export interface EpisodeHint {
 /**
  * Client-side episode tracking.
  *
- * `isNew` is true from creation until the FIRST accepted outbound request of ANY intent
- * for this episode (C3 in the slot spec), then flipped via markContinuation.
+ * Novelty ("is this episode still new to Pyris") is NOT modeled on the episode: the orchestrator
+ * owns it in its `_continuedEpisodeIds` set, keyed by episodeId, because episode objects are cloned
+ * across the request lifecycle (take/replace/escalate). The wire `isNew` flag is derived from that
+ * set at send time, and the slot debug snapshot re-derives it the same way.
  */
 export interface Episode {
     episodeId: string;
-    isNew: boolean;
     hints: EpisodeHint[];
     createdAtMs: number;
 }
 
 /** Create a fresh episode. `idgen` is injected so tests can be deterministic. */
 export function newEpisode(now: number, idgen: () => string): Episode {
-    return { episodeId: idgen(), isNew: true, hints: [], createdAtMs: now };
+    return { episodeId: idgen(), hints: [], createdAtMs: now };
 }
 
 /** Immutably append a hint to the episode. */
 export function addHint(ep: Episode, hint: EpisodeHint): Episode {
     return { ...ep, hints: [...ep.hints, hint] };
-}
-
-/** Immutably mark the episode as no longer new (after the first accepted outbound request). */
-export function markContinuation(ep: Episode): Episode {
-    return { ...ep, isNew: false };
-}
-
-/** Project the episode into the shape sent on every outbound request (drops createdAtMs). */
-export function toRequestEpisode(ep: Episode): { episodeId: string; isNew: boolean; hints: EpisodeHint[] } {
-    return { episodeId: ep.episodeId, isNew: ep.isNew, hints: ep.hints };
 }

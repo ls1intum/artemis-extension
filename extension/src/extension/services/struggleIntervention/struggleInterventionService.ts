@@ -12,7 +12,7 @@ import { decideOutcome } from './decideOutcome';
 import type { InterventionEventLog } from './interventionEventLog';
 import type { EpisodeHint, Level } from './slot/episode';
 import type { Episode } from './slot/episode';
-import { markContinuation, newEpisode } from './slot/episode';
+import { newEpisode } from './slot/episode';
 import type { PendingStamp } from './slot/guard';
 import { InFlightGuard } from './slot/guard';
 import type { ProgressCloseCfg } from './slot/progressClose';
@@ -294,7 +294,7 @@ export class StruggleInterventionService implements AlertSink {
             generation: snap.generation,
             episodeAgeMs: episode ? now - episode.createdAtMs : null,
             hintCount: episode?.hints.length ?? 0,
-            isNew: episode?.isNew ?? false,
+            isNew: episode ? !this._continuedEpisodeIds.has(episode.episodeId) : false,
             inSession: snap.inSession,
             watchdog: {
                 armed: this._watchdog?.isArmed() ?? false,
@@ -621,11 +621,8 @@ export class StruggleInterventionService implements AlertSink {
             this._dbg(`  -> POST result: ${result}`);
 
             if (result === 'accepted') {
-                // Flip isNew: this episode has now been seen by Pyris
+                // This episode has now been seen by Pyris: record it so later requests send isNew=false.
                 this._continuedEpisodeIds.add(requestEpisode.episodeId);
-                if (this._candidate) {
-                    this._candidate = markContinuation(this._candidate);
-                }
                 // _inFlightMarker stays set until the websocket reply arrives (onServerAmbient/Active/Silent)
             } else if (result === 'course-off') {
                 // Panel refresh: the _setInFlightMarker below notifies, covering this latch flip.

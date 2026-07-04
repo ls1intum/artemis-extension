@@ -21,7 +21,7 @@ function simulateDecidePending(svc: StruggleInterventionService, episodeId = 'ep
     const stamp: PendingStamp = { episodeId, generation: gen, hardEvent, requestToken };
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
-    svc._candidate = { episodeId, isNew: true, hints: [], createdAtMs: 0 };
+    svc._candidate = { episodeId, hints: [], createdAtMs: 0 };
 }
 
 function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
@@ -418,7 +418,7 @@ describe('StruggleInterventionService -- C4 silent dispatch', () => {
         const stamp2: PendingStamp = { episodeId: 'ep-parked-2', generation: gen2, hardEvent: false, requestToken: 'tok2' };
         const lt2 = svc._guard.issue('decide', stamp2);
         svc._inFlightMarker = { requestToken: 'tok2', episodeId: 'ep-parked-2', generation: gen2, intent: 'decide', localToken: lt2 };
-        svc._candidate = { episodeId: 'ep-parked-2', isNew: true, hints: [], createdAtMs: 0 };
+        svc._candidate = { episodeId: 'ep-parked-2', hints: [], createdAtMs: 0 };
 
         svc.onServerSilent('ep-parked-2', undefined);
 

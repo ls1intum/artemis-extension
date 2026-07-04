@@ -65,6 +65,10 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private _showInterventions = true;
     /** Maximum passed-test count seen in the active session (-1 = no build yet). Reset on each new session. */
     private _maxPassedTestCount = -1;
+    /** Test-set size (denominator) the current max was measured against (-1 = none yet). A changed
+     *  denominator makes the old high incomparable, so the baseline is re-established (mirrors the
+     *  engine's TestStagnationTracker). Reset on each new session. */
+    private _refTestCaseCount = -1;
 
     constructor(deps: StruggleCoordinatorDeps) {
         this._hub = deps.hub;
@@ -98,9 +102,43 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (!this._isEnabled) { return; }
         if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) { return; }
         this._hub.emitBuildResult(result);          // engine (FM/FM+/improved + test stagnation)
-        // Detect a strict new high in passed tests and notify the alert sink so the
-        // orchestrator's progress-close latch can observe the green-test path.
+        // Detect a strict new high in passed tests and notify the alert sink so the orchestrator's
+        // progress-close latch can observe the green-test path. Mirror the guards the engine applies
+        // to its own trackers so a raw backend field can never fake progress and wrongly stand down a
+        // live intervention.
+        const buildFailed = result.submission?.buildFailed ?? false;
         const passed = result.passedTestCaseCount;
+        const total = result.testCaseCount;
+        // Failed/compile-error build: no comparable test info (BuildDeltaTracker nulls both counts).
+        // Never green; leave both baseline fields untouched so a stale backend count cannot poison them.
+        if (buildFailed) {
+            this._alertSink.onNewBuildResult?.(false);
+            return;
+        }
+        // Malformed / internally-inconsistent counts (mirrors TestStagnationTracker's validity guard):
+        // a non-positive denominator, a negative passed count, or passed > total carries no real progress
+        // signal. Skip it — not green, baseline untouched — so a bogus backend payload cannot fake a new high.
+        if ((typeof total === 'number' && total <= 0)
+            || (typeof passed === 'number' && passed < 0)
+            || (typeof passed === 'number' && typeof total === 'number' && passed > total)) {
+            this._alertSink.onNewBuildResult?.(false);
+            return;
+        }
+        // Changed test set: the old high is not comparable to counts against a different denominator, so
+        // re-baseline SILENTLY (mirrors TestStagnationTracker). Defer the re-baseline until a build that
+        // actually carries a passed count — a half-null build is incomplete and must not shift the baseline.
+        if (typeof total === 'number' && this._refTestCaseCount !== -1 && total !== this._refTestCaseCount) {
+            if (typeof passed === 'number') {
+                this._maxPassedTestCount = passed;
+                this._refTestCaseCount = total;
+            }
+            this._alertSink.onNewBuildResult?.(false);
+            return;
+        }
+        // Record the denominator the first time we see one, so a later change is detectable.
+        if (typeof total === 'number' && this._refTestCaseCount === -1) {
+            this._refTestCaseCount = total;
+        }
         const isNewGreen = typeof passed === 'number' && passed > this._maxPassedTestCount;
         if (isNewGreen) { this._maxPassedTestCount = passed; }
         this._alertSink.onNewBuildResult?.(isNewGreen);
@@ -134,6 +172,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._activeExerciseRoot = exerciseRoot;
         this._sessionStartMs = this._clock.now();
         this._maxPassedTestCount = -1;  // reset per-exercise baseline
+        this._refTestCaseCount = -1;
         // New session: reset the sink's per-session throttle budget AND clear any
         // stale intervention (resetSession falls back to reset when unsupported).
         if (this._alertSink.resetSession) {

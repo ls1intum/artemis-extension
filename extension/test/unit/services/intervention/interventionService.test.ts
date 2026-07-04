@@ -3,16 +3,8 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { InterventionService } from '@extension/services/intervention';
-import type { AlertRecord } from '@extension/services/struggle/types';
 
-function alert(overrides: Partial<AlertRecord> = {}): AlertRecord {
-    return {
-        kind: 'edit', t: 490, ts: 1000, urgency: 0.7, typesPreGate: ['STATE'], types: ['STATE'],
-        primary: 'STATE', path: 'armed', inWarmup: false, inGrace: false, ...overrides,
-    } as AlertRecord;
-}
-
-suite('InterventionService (AlertSink, single-level)', () => {
+suite('InterventionService (ambient lamp)', () => {
     let svc: InterventionService;
     let sandbox: sinon.SinonSandbox;
 
@@ -26,57 +18,50 @@ suite('InterventionService (AlertSink, single-level)', () => {
     });
     teardown(() => { svc?.dispose(); sandbox.restore(); });
 
-    test('deliver shows the status-bar hint', () => {
-        svc = new InterventionService();
-        svc.deliver(alert());
-        // The hint is visible; exposed for testing via a getter.
-        assert.strictEqual(svc.isHintVisible, true);
-    });
-
-    test('clicking the hint opens the Iris chat view', async () => {
-        const exec = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
-        svc = new InterventionService();
-        svc.deliver(alert());
-        await svc.handleClick();
-        assert.ok(exec.calledWith('iris.chatView.focus'));
-    });
-
-    test('onSessionStart clears any visible hint', () => {
-        svc = new InterventionService();
-        svc.deliver(alert());
-        svc.onSessionStart({ exerciseId: 1 });
-        assert.strictEqual(svc.isHintVisible, false);
-    });
-
-    test('deliver fires onDidDeliver with the alert (for the recorder/debug)', () => {
-        svc = new InterventionService();
-        const seen: AlertRecord[] = [];
-        svc.onDidDeliver(a => seen.push(a));
-        const a = alert({ urgency: 0.85 });
-        svc.deliver(a);
-        assert.strictEqual(seen.length, 1);
-        assert.strictEqual(seen[0].urgency, 0.85);
-    });
-
-    // C1: showLamp / hideLamp
-    test('showLamp makes the hint visible', () => {
+    test('showLamp shows the status-bar hint', () => {
         svc = new InterventionService();
         svc.showLamp();
         assert.strictEqual(svc.isHintVisible, true);
     });
 
-    test('hideLamp clears the visible lamp', () => {
+    test('showAmbient shows the status-bar hint', () => {
+        svc = new InterventionService();
+        svc.showAmbient('check your loop bounds', true);
+        assert.strictEqual(svc.isHintVisible, true);
+    });
+
+    test('reset clears the visible hint', () => {
         svc = new InterventionService();
         svc.showLamp();
-        svc.hideLamp();
+        svc.reset();
         assert.strictEqual(svc.isHintVisible, false);
     });
 
-    test('showLamp clicking it opens the Iris chat view', async () => {
+    test('clicking the lamp opens the Iris chat view', async () => {
         const exec = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
         svc = new InterventionService();
         svc.showLamp();
         await svc.handleClick();
         assert.ok(exec.calledWith('iris.chatView.focus'));
+    });
+
+    test('a no-AI ambient hint shows the template on click and does NOT open the chat', async () => {
+        const exec = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+        const info = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
+        svc = new InterventionService();
+        svc.showAmbient('local template hint', false);
+        await svc.handleClick();
+        assert.ok(!exec.calledWith('iris.chatView.focus'), 'must not bounce to the AI chat');
+        assert.ok(info.calledWith('local template hint'));
+    });
+
+    test('clicking fires onDidClick', () => {
+        sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+        svc = new InterventionService();
+        let clicks = 0;
+        svc.onDidClick(() => { clicks++; });
+        svc.showLamp();
+        void svc.handleClick();
+        assert.strictEqual(clicks, 1);
     });
 });

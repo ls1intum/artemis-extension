@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { EpisodeHint } from '@extension/services/struggleIntervention/slot/episode';
-import { addHint, markContinuation, newEpisode, toRequestEpisode } from '@extension/services/struggleIntervention/slot/episode';
+import { addHint, newEpisode } from '@extension/services/struggleIntervention/slot/episode';
 
 describe('episode model', () => {
     const idgen = () => 'ep-1';
 
     it('newEpisode returns correct initial shape', () => {
         const ep = newEpisode(1000, idgen);
-        expect(ep).toEqual({ episodeId: 'ep-1', isNew: true, hints: [], createdAtMs: 1000 });
+        expect(ep).toEqual({ episodeId: 'ep-1', hints: [], createdAtMs: 1000 });
     });
 
     it('addHint appends a hint immutably', () => {
@@ -25,7 +25,6 @@ describe('episode model', () => {
 
         // other fields are preserved
         expect(ep2.episodeId).toBe('ep-1');
-        expect(ep2.isNew).toBe(true);
         expect(ep2.createdAtMs).toBe(1000);
     });
 
@@ -37,30 +36,5 @@ describe('episode model', () => {
         ep = addHint(ep, h2);
         expect(ep.hints).toHaveLength(2);
         expect(ep.hints[1].level).toBe('active');
-    });
-
-    it('markContinuation sets isNew=false immutably', () => {
-        const ep = newEpisode(1000, idgen);
-        const ep2 = markContinuation(ep);
-
-        // input is unchanged
-        expect(ep.isNew).toBe(true);
-
-        // output has isNew=false
-        expect(ep2.isNew).toBe(false);
-
-        // other fields are preserved
-        expect(ep2.episodeId).toBe('ep-1');
-        expect(ep2.hints).toEqual([]);
-        expect(ep2.createdAtMs).toBe(1000);
-    });
-
-    it('toRequestEpisode drops createdAtMs', () => {
-        const hint: EpisodeHint = { level: 'ambient', text: 'a hint', atSessionS: 45 };
-        const ep = addHint(newEpisode(1000, idgen), hint);
-        const req = toRequestEpisode(ep);
-
-        expect(req).toEqual({ episodeId: 'ep-1', isNew: true, hints: [hint] });
-        expect((req as Record<string, unknown>)['createdAtMs']).toBeUndefined();
     });
 });

@@ -1,7 +1,7 @@
 // extension/src/extension/services/struggle/alerting/throttledAlertSink.ts
 /**
  * Tier-2 delivery throttle (Engine v3 WS4). A decorator AlertSink that rate-limits
- * DELIVERY to an inner sink (the InterventionService UI). It sits strictly
+ * DELIVERY to an inner sink (the proactive intervention orchestrator). It sits strictly
  * downstream of the recorded/measured alert path (the recorder subscribes the
  * engine's onDidAlert directly), so the throttle can NEVER affect goldens, the
  * held-out F1, or research data — it only shapes how often the user sees a hint.

@@ -23,7 +23,7 @@ function simulateDecidePending(svc: StruggleInterventionService, episodeId = 'ep
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
     // Also set the candidate so take-parked/take-delivered can proceed
-    svc._candidate = { episodeId, isNew: true, hints: [], createdAtMs: 0 };
+    svc._candidate = { episodeId, hints: [], createdAtMs: 0 };
 }
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
@@ -1016,7 +1016,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         // Set up an in-flight decide at generation 0
         simulateDecidePending(svc, 'ep-stale', false);
         // Bump generation by doing a fresh take (simulate reveal)
-        const ep = { episodeId: 'ep-stale', isNew: false, hints: [], createdAtMs: 0 };
+        const ep = { episodeId: 'ep-stale', hints: [], createdAtMs: 0 };
         svc._slot.takeParked(0, ep, { level: 'ambient', text: 'h', atSessionS: 0 });
         // Now generation is 1 but in-flight marker still has generation 0 (from simulateDecidePending)
         // The accept() check: stamp.generation(0) !== snap.generation(1) -> null -> drop
@@ -1036,7 +1036,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const svc = new StruggleInterventionService(deps);
 
         // Set slot to DELIVERED ambient (via reveal: PARKED->DELIVERED)
-        const ep = { episodeId: 'ep-escl', isNew: false, hints: [], createdAtMs: 0 };
+        const ep = { episodeId: 'ep-escl', hints: [], createdAtMs: 0 };
         svc._slot.takeParked(0, ep, { level: 'ambient', text: 'h', atSessionS: 0 });
         const revealHint = { level: 'ambient' as const, text: 'h', atSessionS: 0 };
         svc._slot.revealParked(revealHint);
@@ -1064,7 +1064,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
             const svc = new StruggleInterventionService(deps);
 
             // Set slot to DELIVERED ambient (parked then revealed)
-            const ep = { episodeId: 'ep-esc', isNew: false, hints: [], createdAtMs: 0 };
+            const ep = { episodeId: 'ep-esc', hints: [], createdAtMs: 0 };
             svc._slot.takeParked(0, ep, { level: 'ambient', text: 'h', atSessionS: 0 });
             svc._slot.revealParked({ level: 'ambient', text: 'h', atSessionS: 0 });
             const gen = svc._slot.generation();
@@ -1101,7 +1101,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const svc = new StruggleInterventionService(deps);
 
         // Set slot to DELIVERED ambient
-        const ep = { episodeId: 'ep-soft', isNew: false, hints: [], createdAtMs: 0 };
+        const ep = { episodeId: 'ep-soft', hints: [], createdAtMs: 0 };
         svc._slot.takeParked(0, ep, { level: 'ambient', text: 'h', atSessionS: 0 });
         svc._slot.revealParked({ level: 'ambient', text: 'h', atSessionS: 0 });
         const genAfterReveal = svc._slot.generation();
@@ -1449,7 +1449,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._watchdog!.arm(Date.now(), false);
 
         // Free the slot to trigger clearEpisodeRuntime
-        svc._slot.takeParked(0, { episodeId: 'ep-tear', isNew: false, hints: [], createdAtMs: 0 }, { level: 'ambient', text: 'h', atSessionS: 0 });
+        svc._slot.takeParked(0, { episodeId: 'ep-tear', hints: [], createdAtMs: 0 }, { level: 'ambient', text: 'h', atSessionS: 0 });
         svc._slot.free();
         svc['_clearEpisodeRuntime']();
 

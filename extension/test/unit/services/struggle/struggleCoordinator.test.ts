@@ -68,6 +68,97 @@ suite('StruggleCoordinator', () => {
         }
     });
 
+    test('a failed build with a stale non-zero passed count is never a new green', () => {
+        const calls: boolean[] = [];
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1);
+            c.onNewResult({ id: 1, passedTestCaseCount: 5, testCaseCount: 10 } as ResultDTO);   // green, max=5
+            // A failed/compile-error build carrying a stale HIGHER count must NOT fire green (the engine
+            // nulls the count on failed builds; the coordinator must too), and must leave the baseline alone.
+            c.onNewResult({ id: 2, passedTestCaseCount: 8, testCaseCount: 10, submission: { id: 2, buildFailed: true } } as unknown as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false], 'a failed build never fires a new green');
+            // Baseline untouched: a later same-set 6/10 is still a strict new high over the retained 5.
+            c.onNewResult({ id: 3, passedTestCaseCount: 6, testCaseCount: 10 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false, true], 'the failed build left the baseline at 5');
+        } finally {
+            c.dispose();
+        }
+    });
+
+    test('a changed test set (denominator) re-baselines silently; only a later same-set high fires green', () => {
+        const calls: boolean[] = [];
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1);
+            c.onNewResult({ id: 1, passedTestCaseCount: 5, testCaseCount: 10 } as ResultDTO);   // green, max=5, ref=10
+            // Denominator change 10 -> 20: 8 > 5 must NOT fake progress across incomparable sets; the new
+            // set re-baselines silently to 8/20 instead of emitting green.
+            c.onNewResult({ id: 2, passedTestCaseCount: 8, testCaseCount: 20 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false], 'the first build at a new test set is not progress');
+            // Same set, strict increase over the new baseline -> green.
+            c.onNewResult({ id: 3, passedTestCaseCount: 9, testCaseCount: 20 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false, true], '9 > 8 on the same set is a new high');
+        } finally {
+            c.dispose();
+        }
+    });
+
+    test('a half-null build at a changed denominator defers the re-baseline until the first comparable build', () => {
+        const calls: boolean[] = [];
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1);
+            c.onNewResult({ id: 1, passedTestCaseCount: 5, testCaseCount: 10 } as ResultDTO);   // green, max=5, ref=10
+            // Denominator changed but the passed count is missing (incomplete build) -> skip, baseline stays 5/10.
+            c.onNewResult({ id: 2, testCaseCount: 20 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false], 'an incomplete build is not green');
+            // First COMPARABLE build at the new set: silent re-baseline to 2/20, NOT green against the stale -1/5.
+            c.onNewResult({ id: 3, passedTestCaseCount: 2, testCaseCount: 20 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false, false], 'the first comparable build at the new set is silent');
+            // Now a strict increase on the new set fires green.
+            c.onNewResult({ id: 4, passedTestCaseCount: 3, testCaseCount: 20 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false, false, true], '3 > 2 on the new set is a new high');
+        } finally {
+            c.dispose();
+        }
+    });
+
+    test('a malformed build (passed > total, negative passed, or non-positive total) is never a new green', () => {
+        const calls: boolean[] = [];
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1);
+            c.onNewResult({ id: 1, passedTestCaseCount: 5, testCaseCount: 10 } as ResultDTO);   // green, max=5
+            // Internally-inconsistent payloads carry no real progress signal: never green, baseline untouched.
+            c.onNewResult({ id: 2, passedTestCaseCount: 999, testCaseCount: 10 } as ResultDTO);  // passed > total
+            c.onNewResult({ id: 3, passedTestCaseCount: -1, testCaseCount: 10 } as ResultDTO);   // negative passed
+            c.onNewResult({ id: 4, passedTestCaseCount: 0, testCaseCount: 0 } as ResultDTO);     // non-positive total
+            assert.deepStrictEqual(calls, [true, false, false, false], 'malformed builds never fire a new green');
+            // Baseline intact: a real 6/10 is still a strict new high over the retained 5.
+            c.onNewResult({ id: 5, passedTestCaseCount: 6, testCaseCount: 10 } as ResultDTO);
+            assert.deepStrictEqual(calls, [true, false, false, false, true], 'malformed builds left the baseline at 5');
+        } finally {
+            c.dispose();
+        }
+    });
+
     test('an idle session drives the engine to an alert and the sink receives it', () => {
         coord.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
         coord.advanceTo(coord.sessionStartMs + 520_000);   // test-only passthrough to engine.advanceTo

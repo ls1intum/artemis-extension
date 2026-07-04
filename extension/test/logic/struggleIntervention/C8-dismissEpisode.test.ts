@@ -56,7 +56,7 @@ function simulateDelivered(svc: StruggleInterventionService, episodeId = 'ep-1')
     const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: true, requestToken };
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
-    svc._candidate = { episodeId, isNew: true, hints: [], createdAtMs: 0 };
+    svc._candidate = { episodeId, hints: [], createdAtMs: 0 };
     // Simulate an active server response, which takes the slot and sets delivered
     svc.onServerActive(1, undefined, undefined, undefined, 0.9, 'hint text', 99);
 }
