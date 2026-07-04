@@ -38,7 +38,7 @@ export interface TickRecord {
  * `urgency` + `editCandidate` + `discreteTriggers` ONLY; `telemetry` (S) is
  * recorder/regression substrate that the decision NEVER reads — the v3 threshold
  * is `urgency = S_base = (f_typing + f_gap)/2` (the `alerts_full_u`
- * configuration; the former V peak-hold telemetry curve was removed).
+ * configuration).
  */
 export interface EngineTick {
     /** Session-relative tick time (s). */
