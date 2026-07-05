@@ -24,6 +24,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         getExerciseId: () => 42,
         getExerciseRoot: () => undefined,
         collectFiles: vi.fn(async () => ({ 'src/A.java': 'class A {}' })),
+        readFileContent: vi.fn(() => undefined),
         postIntervention: vi.fn(async () => 'accepted' as const),
         openSession: vi.fn(async () => undefined),
         showAmbient: vi.fn(),

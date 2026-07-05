@@ -81,6 +81,21 @@ describe('inlineHint helpers', () => {
             // Replace 0-based lines 1..3 (two breaks removed) with text containing one break.
             expect(shiftAnchorLine(10, change(1, 0, 3, 0, 'a\n'))).toBe(9);
         });
+
+        it('follows the merged remainder past inserted lines when an edit reaches into the anchor line', () => {
+            // Repro: an edit from (0-based 5,3) into the anchor line (0-based 9), replaced with
+            // 'x\ny\n' (2 inserted breaks). The surviving tail of the anchor line merges onto
+            // 0-based line 5+2=7 -> 1-based 8. The buggy branch returned start.line+1 = 6,
+            // dropping the inserted lines. With added=0 this must still equal the swallow case (6).
+            expect(shiftAnchorLine(10, change(5, 3, 9, 2, 'x\ny\n'))).toBe(8);
+            expect(shiftAnchorLine(10, change(5, 3, 9, 2, ''))).toBe(6);
+        });
+
+        it('clamps to the edit start line when the anchor line is fully deleted (end below it)', () => {
+            // The edit range fully contains the anchor line (end 0-based 12 > idx 9): no surviving
+            // remainder, so inserted lines must NOT push it down; clamp to the start line (6).
+            expect(shiftAnchorLine(10, change(5, 3, 12, 2, 'x\ny\n'))).toBe(6);
+        });
     });
 
     describe('isSafeAnchorPath', () => {

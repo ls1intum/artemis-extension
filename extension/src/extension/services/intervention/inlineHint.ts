@@ -44,8 +44,15 @@ export function shiftAnchorLine(line: number, change: AnchorLineChange): number 
     if (end.line < idx || (end.line === idx && end.character === 0)) {
         return line + added - removed;
     }
-    // The edit starts above and reaches into the anchor line: its remainder merges into the start line.
+    // The edit starts above and reaches into the anchor line.
     if (start.line < idx) {
+        // Ends on the anchor line (end.character > 0 here; the col-0 case is handled above): the
+        // anchor line's surviving tail merges onto start.line + added.
+        if (end.line === idx) {
+            return start.line + added + 1;
+        }
+        // Ends below the anchor line: the anchor line is fully deleted, so there is no remainder to
+        // follow. Clamp to the edit's start line.
         return start.line + 1;
     }
     // The edit starts on the anchor line: the line keeps its position.

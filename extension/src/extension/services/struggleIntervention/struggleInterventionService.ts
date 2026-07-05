@@ -4,6 +4,7 @@ import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, SlotDebugSnapshot } from
 
 import { ApiError } from '@extension/domain';
 import { isSafeAnchorPath } from '@extension/services/intervention/anchorPath';
+import { rebaseAnchorLine } from '@extension/services/intervention/anchorRebase';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { IrisChatMessage } from '@extension/types';
@@ -39,6 +40,13 @@ interface InFlightMarker {
     intent: 'decide' | 'confirm_close';
     /** Local token from InFlightGuard.issue() for accept() call. */
     localToken: number;
+    /**
+     * The exact working-copy snapshot (`uncommittedFiles`) this decide POST sent, keyed by the same
+     * path the server anchors against. Used at delivery to rebase the server anchor line onto the
+     * live buffer (the coord system it was picked in). Set after collectFiles; dropped with the
+     * marker. Only decide POSTs carry an anchor reply, so confirm_close leaves it undefined.
+     */
+    baseline?: Record<string, string>;
 }
 
 /** A queued confirmClose reason waiting to be POSTed. */
@@ -84,6 +92,13 @@ export interface StruggleInterventionDeps {
     getExerciseId(): number | undefined;
     getExerciseRoot(): Uri | undefined;
     collectFiles(root: Uri | undefined): Promise<Record<string, string>>;
+    /**
+     * Current in-memory buffer text of the anchor file (resolved exercise-root-relative, the same way
+     * the anchor surfaces do), or undefined when the file is not open. Reads the editor buffer, NOT
+     * disk, so unsaved edits are reflected. Used to rebase the server anchor line onto the live
+     * document at delivery.
+     */
+    readFileContent(anchorFile: string): string | undefined;
     postIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult>;
     /** Open/attach the proactive session by id + reload its history so the bubble shows (spec §5.5 active). */
     openSession(sessionId: number): Promise<void>;
@@ -630,6 +645,12 @@ export class StruggleInterventionService implements AlertSink {
             this._setInFlightMarker({ requestToken, episodeId: requestEpisode.episodeId, generation: snap.generation, intent: 'decide', localToken });
 
             const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
+            // Stash the exact bytes we send as the rebase baseline for the eventual anchor reply. The
+            // marker is stable across this await (the in-flight guard blocks a second decide, and no
+            // reply for this POST can exist yet), but key on the requestToken to be defensive.
+            if (this._inFlightMarker?.requestToken === requestToken) {
+                this._inFlightMarker.baseline = uncommittedFiles;
+            }
             await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'server', signal });
 
             const result = await this._deps.postIntervention(exerciseId, {
@@ -690,6 +711,10 @@ export class StruggleInterventionService implements AlertSink {
             return;
         }
 
+        // Read the sent snapshot BEFORE _acceptDecide clears the in-flight marker (it is the coord
+        // system the server anchored against; the rebase happens once in _applyDecideAction).
+        const baseline = this._inFlightMarker?.baseline;
+
         // Validate against the pending decide stamp (drop stale replies)
         const accepted = this._acceptDecide();
         if (accepted === null) {
@@ -700,7 +725,7 @@ export class StruggleInterventionService implements AlertSink {
         const decision = { action: 'ambient' as const, text: hint, hardEvent: accepted.hardEvent };
         const action = reconcile(snap.state, decision);
 
-        this._applyDecideAction(action, hint, { level: 'ambient', text: hint, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence);
+        this._applyDecideAction(action, hint, { level: 'ambient', text: hint, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, baseline);
     }
 
     /**
@@ -717,6 +742,9 @@ export class StruggleInterventionService implements AlertSink {
             return;
         }
 
+        // Read the sent snapshot BEFORE _acceptDecide clears the in-flight marker (see onServerAmbient).
+        const baseline = this._inFlightMarker?.baseline;
+
         const accepted = this._acceptDecide();
         if (accepted === null) {
             return;
@@ -727,7 +755,7 @@ export class StruggleInterventionService implements AlertSink {
         const decision = { action: 'active' as const, text, hardEvent: accepted.hardEvent };
         const action = reconcile(snap.state, decision);
 
-        this._applyDecideAction(action, text, { level: 'active', text, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, sessionId);
+        this._applyDecideAction(action, text, { level: 'active', text, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, baseline, sessionId);
     }
 
     /**
@@ -855,9 +883,25 @@ export class StruggleInterventionService implements AlertSink {
         anchorLine: number | undefined,
         inlineHint: string | undefined,
         confidence: number | undefined,
+        baseline: Record<string, string> | undefined,
         sessionId?: number,
     ): void {
         const now = Date.now();
+
+        // Rebase the server anchor line from the snapshot we SENT at trigger onto the live buffer at
+        // delivery: the server picked the line against those exact bytes, but the student kept typing
+        // in the ~10s round-trip. Done ONCE here so every surface (gutter, inline + jump, escalation)
+        // shares the corrected line. undefined -> the anchored line is gone, so the surfaces'
+        // `!== undefined` guards drop the cue while the bubble/message still shows (fail-safe). No
+        // baseline (anchor on an unchanged file) or file not open -> keep the raw line (today's behaviour).
+        let effectiveAnchorLine = anchorLine;
+        if (anchorFile !== undefined && anchorLine !== undefined && isSafeAnchorPath(anchorFile)) {
+            const base = baseline?.[anchorFile];
+            const current = base !== undefined ? this._deps.readFileContent(anchorFile) : undefined;
+            if (base !== undefined && current !== undefined) {
+                effectiveAnchorLine = rebaseAnchorLine(base, current, anchorLine);
+            }
+        }
 
         switch (action.kind) {
             case 'take-parked': {
@@ -870,8 +914,8 @@ export class StruggleInterventionService implements AlertSink {
                 // Parked surface: badge + lamp (+ gutter when the reply carries an anchor)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
-                if (anchorFile && anchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
-                    this._deps.showGutterOnly(anchorFile, anchorLine);
+                if (anchorFile && effectiveAnchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
+                    this._deps.showGutterOnly(anchorFile, effectiveAnchorLine);
                 } else {
                     this._deps.clearInline();
                 }
@@ -888,7 +932,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
                 this._watchdog.arm(now, false /* delivered */);
                 this._latch.reset();
-                this._applyActiveSurface(text, messageId, anchorFile, anchorLine, inlineHint, sessionId);
+                this._applyActiveSurface(text, messageId, anchorFile, effectiveAnchorLine, inlineHint, sessionId);
                 void this._deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._lastSignal, confidence });
                 break;
             }
@@ -910,8 +954,8 @@ export class StruggleInterventionService implements AlertSink {
                 // Surface: same parked pointers (badge + lamp + maybe gutter)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
-                if (anchorFile && anchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
-                    this._deps.showGutterOnly(anchorFile, anchorLine);
+                if (anchorFile && effectiveAnchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
+                    this._deps.showGutterOnly(anchorFile, effectiveAnchorLine);
                 } else {
                     this._deps.clearInline();
                 }
@@ -932,7 +976,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
                 this._watchdog.arm(now, false /* delivered */);
                 this._latch.reset();
-                this._applyActiveSurface(text, messageId, anchorFile, anchorLine, inlineHint, sessionId);
+                this._applyActiveSurface(text, messageId, anchorFile, effectiveAnchorLine, inlineHint, sessionId);
                 void this._deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._lastSignal, confidence });
                 break;
             }
@@ -942,7 +986,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._slot.escalate(hint);
                 this._dbg(`  -> ESCALATE ambient->active hint="${text}"`);
                 const inSession = this._slot.snapshot().inSession;
-                this._applyEscalation(inSession, text, anchorFile, anchorLine, inlineHint, messageId);
+                this._applyEscalation(inSession, text, anchorFile, effectiveAnchorLine, inlineHint, messageId);
                 // Watchdog: resetProgress is NOT called here (escalation is not "hard progress")
                 void this._deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._lastSignal, confidence });
                 break;

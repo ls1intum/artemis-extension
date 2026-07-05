@@ -4,6 +4,7 @@ import * as path from 'path';
 
 import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
+import { isAnchorDocument } from '@extension/services/intervention/inlineHint';
 import { InlineHintDecoration } from '@extension/services/intervention/inlineHintDecoration';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { BackoffGate } from '@extension/services/struggle/alerting/backoffGate';
@@ -74,6 +75,14 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         getExerciseId: () => coordinator.activeExerciseId,
         getExerciseRoot: () => coordinator.activeExerciseRoot,
         collectFiles: root => collectExerciseScopedFiles(root),
+        // Current in-memory text of the anchor file, resolved exercise-root-relative like the anchor
+        // surfaces (isAnchorDocument), so the delivery-time rebase reads the same coord system the
+        // decoration/jump do. Reads the open buffer (unsaved edits included), undefined if not open.
+        readFileContent: anchorFile => {
+            const root = coordinator.activeExerciseRoot;
+            if (!root) { return undefined; }
+            return vscode.workspace.textDocuments.find(d => isAnchorDocument(d, anchorFile, root))?.getText();
+        },
         postIntervention: (exId, body) => deps.postIntervention(exId, body),
         openSession: async id => { await deps.openProactiveSession(id); },
         showAmbient: (hint, opensChat) => lamp.showAmbient(hint, opensChat),

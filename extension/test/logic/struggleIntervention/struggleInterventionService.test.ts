@@ -33,6 +33,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         getExerciseId: () => 42,
         getExerciseRoot: () => undefined,
         collectFiles: vi.fn(async () => ({ 'src/A.java': 'class A {}' })),
+        readFileContent: vi.fn(() => undefined),
         postIntervention: vi.fn(async () => 'accepted' as const),
         openSession: vi.fn(async () => undefined),
         showAmbient: vi.fn(),
@@ -506,6 +507,73 @@ describe('StruggleInterventionService', () => {
         expect(deps.showActiveJump).not.toHaveBeenCalled();
         expect(deps.clearInline).toHaveBeenCalled();
         expect(deps.clearLamp).toHaveBeenCalled();
+    });
+
+    // Delivery-time anchor rebase: the server anchor is in the coords of the snapshot the client SENT
+    // at trigger; the student keeps typing during the ~10s round-trip, so the raw line can be stale.
+    describe('anchor rebase (snapshot-to-delivery gap)', () => {
+        const lines = (...ls: string[]): string => ls.join('\n');
+
+        it('rebases the active anchor from the sent snapshot onto the current buffer before arming surfaces', () => {
+            const baseline = lines('class B {', 'void m() {', 'return x;', '}');
+            const current = lines('class B {', 'void m() {', 'int y = 0;', 'return x;', '}');
+            const deps = fakeDeps({ readFileContent: vi.fn(() => current) });
+            const svc = new StruggleInterventionService(deps);
+            simulateDecidePending(svc, 'ep-1', false);
+            svc._inFlightMarker!.baseline = { 'src/B.java': baseline };
+            svc.onServerActive(8, 'src/B.java', 3, 'check punctuation', 0.9);
+            // A line was inserted above the return: server line 3 -> live line 4, on inline AND jump.
+            expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 4, 'check punctuation', 'Iris has a suggestion for you.');
+            expect(deps.showActiveJump).toHaveBeenCalledWith('src/B.java', 4);
+        });
+
+        it('rebases the gutter anchor for an ambient reply too', () => {
+            const baseline = lines('a', 'b', 'TARGET', 'c');
+            const current = lines('a', 'NEW', 'b', 'TARGET', 'c');
+            const deps = fakeDeps({ readFileContent: vi.fn(() => current) });
+            const svc = new StruggleInterventionService(deps);
+            simulateDecidePending(svc);
+            svc._inFlightMarker!.baseline = { 'src/A.java': baseline };
+            svc.onServerAmbient('Re-check the logic.', 'src/A.java', 3, 'off-by-one?');
+            expect(deps.showGutterOnly).toHaveBeenCalledWith('src/A.java', 4);
+        });
+
+        it('suppresses the cue but keeps the bubble when the anchored line was rewritten', () => {
+            const baseline = lines('class B {', 'void m() {', 'return x;', '}');
+            const current = lines('class B {', 'void m() {', 'return y;', '}');
+            const deps = fakeDeps({ readFileContent: vi.fn(() => current) });
+            const svc = new StruggleInterventionService(deps);
+            simulateDecidePending(svc, 'ep-1', false);
+            svc._inFlightMarker!.baseline = { 'src/B.java': baseline };
+            svc.onServerActive(8, 'src/B.java', 3, 'check punctuation', 0.9);
+            expect(deps.showInline).not.toHaveBeenCalled();
+            expect(deps.showActiveJump).not.toHaveBeenCalled();
+            expect(deps.clearInline).toHaveBeenCalled();
+            // The bubble/session still open; only the code cue is dropped (fail-safe).
+            expect(deps.postBubble).toHaveBeenCalled();
+            expect(deps.openSession).toHaveBeenCalledWith(8);
+        });
+
+        it('keeps the raw server line when the anchor file has no snapshot baseline (unchanged file)', () => {
+            const deps = fakeDeps({ readFileContent: vi.fn(() => 'whatever') });
+            const svc = new StruggleInterventionService(deps);
+            simulateDecidePending(svc, 'ep-1', false);
+            svc._inFlightMarker!.baseline = { 'src/OTHER.java': 'x' }; // no entry for the anchored file
+            svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
+            expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
+            // Without a baseline the live buffer is never consulted.
+            expect(deps.readFileContent).not.toHaveBeenCalled();
+        });
+
+        it('keeps the raw server line when the anchor file is not open (no current buffer)', () => {
+            const deps = fakeDeps({ readFileContent: vi.fn(() => undefined) });
+            const svc = new StruggleInterventionService(deps);
+            simulateDecidePending(svc, 'ep-1', false);
+            svc._inFlightMarker!.baseline = { 'src/B.java': 'class B {}' };
+            svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
+            expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
+            expect(deps.readFileContent).toHaveBeenCalledWith('src/B.java');
+        });
     });
 
     // Terminal-cleanup: the inline cue is episode-scoped, so every terminal exit must retire it.
