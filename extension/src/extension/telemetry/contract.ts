@@ -202,8 +202,9 @@ export interface StruggleEngineHandle {
     resumeProactive?(exerciseId: number): void;
     /**
      * True iff proactive is degraded (no proactive-egress consent OR a 404-latched server). Drives the AskIris
-     * "Degraded" card (spec §14 cases 4-5). Session-global, no exercise id. ABSENT in the clean build (like the
-     * three above), so extension.ts assembles no `proactiveControl` capability there.
+     * "Degraded" card (spec §14 cases 4-5): manual Ask still works, but the proactive path itself is off (no
+     * local fallback). Session-global, no exercise id. ABSENT in the clean build (like the three above), so
+     * extension.ts assembles no `proactiveControl` capability there.
      */
     isProactiveDegraded?(): boolean;
     /**

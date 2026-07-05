@@ -13,7 +13,10 @@ export interface ProactiveCardSignals {
     noAi: boolean;
     /** Course-level `proactiveStruggleEnabled` (§13). `undefined` = unknown this tick (settings unread). */
     courseProactiveEnabled: boolean | undefined;
-    /** No proactive-egress consent OR a 404-latched server (§14 cases 4-5): local-template-only fallback. */
+    /**
+     * No proactive-egress consent OR a 404-latched server (§14 cases 4-5): manual Ask still works, but the
+     * proactive path itself is off (there is no local fallback to fall back to).
+     */
     degraded: boolean;
 }
 
@@ -34,7 +37,7 @@ export function deriveProactiveCardState(s: ProactiveCardSignals): { state: Proa
     if (s.courseProactiveEnabled === false) {
         return { state: 'off-course', reason: 'course-off' };
     }
-    // §14 cases 4-5: no egress consent / 404 → degrade to the no-AI fallback (Ask works, proactive limited).
+    // §14 cases 4-5: no egress consent / 404 → proactive is off (Ask still works, no proactive surfacing).
     if (s.degraded) {
         return { state: 'degraded', reason: 'limited' };
     }

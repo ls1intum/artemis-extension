@@ -25,15 +25,16 @@ interface AskIrisProps {
 /** Per-state note shown next to the switch (the full §14 banner for `unavailable` lives in the exercise view). */
 const NOTE: Partial<Record<ProactiveCardState, string>> = {
   'off-course': 'Proactive help is disabled for this course.',
-  degraded: 'Proactive help is limited right now.',
+  degraded: 'Proactive help is unavailable right now.',
 };
 
 export function AskIris({ description, onClick, proactiveControl }: AskIrisProps) {
   const state = proactiveControl?.cardState;
   // Unavailable (§14 cases 2-3) is a full shut-off: Iris is off for this repo/exercise, so disable Ask too.
   const askDisabled = state === 'unavailable';
-  // The switch shows for every state where proactive CAN run (incl. degraded local-only); it is read-only for off-course.
-  const showSwitch = state === 'available' || state === 'off-course' || state === 'degraded';
+  // The switch shows only where proactive can actually run right now (available), or read-only for off-course.
+  // Degraded has no proactive path to toggle (see NOTE.degraded), so it gets no switch either.
+  const showSwitch = state === 'available' || state === 'off-course';
   const switchDisabled = state === 'off-course';
 
   return (
