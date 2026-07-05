@@ -50,3 +50,28 @@ export async function resolveCourseIdFromContext(
         return undefined;
     }
 }
+
+/**
+ * Resolve a courseId from a bare exerciseId (the struggle engine only knows the exercise).
+ * Store lookup first, then getExerciseDetails. Returns undefined if both fail.
+ */
+export async function resolveCourseIdForExercise(
+    exerciseId: number,
+    contextStore: ContextStore,
+    api: ArtemisApiService | undefined,
+): Promise<number | undefined> {
+    const tracked = contextStore.getExerciseById(exerciseId);
+    if (tracked?.courseId) {
+        return tracked.courseId;
+    }
+    if (!api) {
+        return undefined;
+    }
+    try {
+        const details = await api.getExerciseDetails(exerciseId);
+        return details?.exercise?.course?.id;
+    } catch (error) {
+        logger.warn('Failed to resolve course from exercise id:', LogCategory.IRIS_CHAT, error);
+        return undefined;
+    }
+}

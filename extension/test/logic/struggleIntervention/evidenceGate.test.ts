@@ -23,6 +23,7 @@ const IDLE_ABANDON_MS = 1000;
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
+        isIrisEnabled: () => true,
         isEgressEnabled: () => true,
         hasNoaiMarker: () => false,
         getExerciseId: () => 42,
@@ -31,7 +32,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         readFileContent: vi.fn(() => undefined),
         postIntervention: vi.fn(async () => 'accepted' as const),
         openSession: vi.fn(async () => undefined),
-        showAmbient: vi.fn(),
         showLamp: vi.fn(),
         clearLamp: vi.fn(),
         showActiveJump: vi.fn(),
@@ -294,6 +294,5 @@ describe('StruggleInterventionService - evidence gate after idle-abandon', () =>
         expect(svc.getSlotDebugSnapshot().state).toBe('free');
         expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(true);
         expect(deps.showLamp).not.toHaveBeenCalled();
-        expect(deps.showAmbient).not.toHaveBeenCalled();
     });
 });

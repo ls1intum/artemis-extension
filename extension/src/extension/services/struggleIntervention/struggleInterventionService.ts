@@ -25,7 +25,6 @@ import { SlotManager } from './slot/slotManager';
 import type { StaleConfig } from './slot/staleWatchdog';
 import { StaleWatchdog } from './slot/staleWatchdog';
 import type { StruggleEgressResult, StruggleInterventionRequest, StruggleSignal } from './struggleContract';
-import { templateForSignal } from './struggleTemplates';
 import { TickRingBuffer } from './tickRingBuffer';
 
 // ---------------------------------------------------------------------------
@@ -86,6 +85,9 @@ function isHardAlert(alert: AlertRecord): boolean {
 // ---------------------------------------------------------------------------
 
 export interface StruggleInterventionDeps {
+    /** True iff Iris is enabled for the active exercise's course (global profile + course chat).
+     *  Fail-closed: false when Iris is off OR availability is not yet known. */
+    isIrisEnabled(): boolean;
     isEgressEnabled(): boolean;
     /** True when a `.noai` marker file is present in the workspace (spec §9). */
     hasNoaiMarker(): boolean;
@@ -102,8 +104,6 @@ export interface StruggleInterventionDeps {
     postIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult>;
     /** Open/attach the proactive session by id + reload its history so the bubble shows (spec §5.5 active). */
     openSession(sessionId: number): Promise<void>;
-    /** opensChat: true -> click focuses Iris chat; false -> click shows the local template. */
-    showAmbient(hint: string, opensChat: boolean): void;
     /** Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). No per-hint tooltip. */
     showLamp(): void;
     /**
@@ -115,9 +115,8 @@ export interface StruggleInterventionDeps {
     /** Hide the status-bar lamp unconditionally (session/context reset so stale hints do not survive). */
     clearLamp(): void;
     /**
-     * Clear the lamp ONLY when it shows an episode-scoped surface (parked / jump); a no-AI fallback
-     * lamp is NOT slot-scoped and must survive a terminal episode teardown. Called from per-episode
-     * teardown + the inline hide/dismiss paths.
+     * Clear the lamp ONLY when it shows an episode-scoped surface (parked / jump). Called from
+     * per-episode teardown + the inline hide/dismiss paths.
      */
     clearEpisodeLamp(): void;
     /**
@@ -521,18 +520,14 @@ export class StruggleInterventionService implements AlertSink {
         this._deps.devLog?.(msg);
     }
 
-    /** No-AI path: deterministic signal-keyed local template on the lamp, ZERO egress; click shows the template. */
-    private _fallback(signal: StruggleSignal): void {
-        const template = templateForSignal(signal);
-        this._dbg(`  -> FALLBACK (no egress): local lamp template "${template}"`);
-        this._deps.showAmbient(template, false);
-    }
-
     /**
      * Pre-throttle suppression (the BackoffSource predicate {@link shouldSuppress} wraps this).
      * Returns the dev-log reason, or null when the alert may proceed.
      */
     private _suppressReason(alert: AlertRecord): string | null {
+        if (!this._deps.isIrisEnabled()) {
+            return '  -> SKIP (Iris not enabled for this course: no proactivity)';
+        }
         if (this._courseProactiveOff) {
             return '  -> SKIP (course proactive disabled for this session)';
         }
@@ -590,8 +585,9 @@ export class StruggleInterventionService implements AlertSink {
                 + `severity=${signal.alert.severity.toFixed(2)} -> decision=${outcome} `
                 + `(slot=${snap.state.kind}, gen=${snap.generation}, inFlight=${this._inFlightMarker !== undefined})`);
 
-            if (outcome === 'fallback') {
-                this._fallback(signal);
+            if (outcome === 'silent') {
+                await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'local', signal });
+                this._dbg('  -> SILENT (no egress path: no opt-in / .noai / server-unavailable)');
                 return;
             }
             if (outcome === 'skip') {
@@ -676,7 +672,6 @@ export class StruggleInterventionService implements AlertSink {
                 this._setServerAvailable(false);
                 this._setInFlightMarker(undefined);
                 this._candidate = undefined;
-                this._fallback(signal);
             } else {
                 // 'failed': transient error -- release wire so next alert retries
                 this._setInFlightMarker(undefined);
@@ -1205,6 +1200,8 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     private async _drainOwed(): Promise<void> {
+        // Defense-in-depth: never egress code while Iris is disabled, mirrors the _suppressReason gate.
+        if (!this._deps.isIrisEnabled()) { return; }
         // Wire must be free to drain
         if (this._inFlightMarker !== undefined) { return; }
 
@@ -1273,8 +1270,8 @@ export class StruggleInterventionService implements AlertSink {
      * Clears the episode-scoped inline cue AND the episode-scoped lamp (parked reveal-lamp or active
      * jump lamp): both belong to the episode, so every terminal exit (RECOVERED close,
      * watchdog/ABANDON force-free, dismiss, new-exercise) retires them here in one place. The lamp
-     * clear is mode-guarded (clearEpisodeLamp) so a no-AI fallback lamp — which is NOT slot-scoped —
-     * survives. This is the inline cue's ONLY lifecycle clear besides the hover Hide/Dismiss actions:
+     * clear is mode-guarded (clearEpisodeLamp), which only clears the parked/jump modes.
+     * This is the inline cue's ONLY lifecycle clear besides the hover Hide/Dismiss actions:
      * typing does not retire it (the decoration merely tracks line shifts), so a missed terminal
      * clear here would leave the cue standing forever.
      */

@@ -29,10 +29,10 @@ describe('AskIris card states (§12.2)', () => {
         expect(screen.getByRole('button', { name: /ask/i })).toBeDisabled();
     });
 
-    it('degraded → switch present + limited note, Ask enabled', () => {
+    it('degraded → no switch, truthful note, Ask enabled', () => {
         render(<AskIris {...base} proactiveControl={control({ cardState: 'degraded', reason: 'limited' })} />);
-        expect(screen.getByRole('switch')).toBeInTheDocument();
-        expect(screen.getByText(/limited/i)).toBeInTheDocument();
+        expect(screen.queryByRole('switch')).toBeNull();
+        expect(screen.getByText('Proactive help is unavailable right now.')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /ask/i })).not.toBeDisabled();
     });
 
@@ -40,7 +40,7 @@ describe('AskIris card states (§12.2)', () => {
         const { rerender } = render(<AskIris {...base} proactiveControl={control({ autoPaused: true })} />);
         // Transparency (§12.2): the pause spells out WHY it paused (an explicit dismiss), not a bare "paused".
         expect(screen.getByText(/dismissing recent hints/i)).toBeInTheDocument();
-        // Degraded keeps the switch but never the auto-pause affordance (the card already says "limited").
+        // Degraded hides the switch entirely (proactive is off), so the auto-pause affordance never shows either.
         rerender(<AskIris {...base} proactiveControl={control({ cardState: 'degraded', reason: 'limited', autoPaused: true })} />);
         expect(screen.queryByText(/dismissing recent hints/i)).toBeNull();
     });

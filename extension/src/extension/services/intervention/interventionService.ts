@@ -2,11 +2,10 @@
 import * as vscode from 'vscode';
 
 /**
- * Ambient status-bar lamp for proactive struggle hints (spec R4): a single indicator with three
+ * Ambient status-bar lamp for proactive struggle hints (spec R4): a single indicator with two
  * mutually exclusive modes.
  *
  *  - 'parked'   -> a hidden server hint is waiting; clicking pulls it into the Iris chat (spec §5).
- *  - 'fallback' -> the no-AI local template (spec §9); clicking shows the template, no chat bounce.
  *  - 'jump'     -> an active hint carries a code anchor; clicking opens that file at the line so the
  *                  student can find the (otherwise silent / off-screen) inline cue.
  *
@@ -14,21 +13,18 @@ import * as vscode from 'vscode';
  * so a mode transition can never leave a stale click behaviour on the item.
  *
  * This is a PASSIVE surface: the StruggleInterventionService orchestrator drives it through the
- * showAmbient / showLamp / showJump / clearEpisodeLamp / clearLamp callbacks (see telemetry/index.ts).
+ * showLamp / showJump / clearEpisodeLamp / clearLamp callbacks (see telemetry/index.ts).
  * It is NOT the coordinator's AlertSink and carries no suppression/cadence logic.
  */
 const HINT_COMMAND = 'iris.intervention.acceptSubtle';
 
-type LampMode = 'none' | 'parked' | 'fallback' | 'jump';
+type LampMode = 'none' | 'parked' | 'jump';
 
 export class InterventionService implements vscode.Disposable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _statusBarItem: vscode.StatusBarItem;
 
     private _mode: LampMode = 'none';
-    private _ambientHint: string | undefined;
-    /** Fallback-mode click routing: true -> focus chat, false -> show the local template (spec §9). */
-    private _ambientOpensChat = false;
     /** Jump target snapshotted at arm time (absolute Uri + 1-based line); only set in 'jump' mode. */
     private _jumpTarget: { uri: vscode.Uri; line: number } | undefined;
 
@@ -52,27 +48,11 @@ export class InterventionService implements vscode.Disposable {
     get mode(): LampMode { return this._mode; }
 
     /**
-     * Show the no-AI fallback lamp with a hover hint (spec §9): click shows the template, does NOT
-     * bounce to the AI chat. NOT episode-scoped, so {@link clearEpisodeLamp} leaves it standing.
-     */
-    showAmbient(hint: string, opensChat: boolean): void {
-        this._mode = 'fallback';
-        this._ambientHint = hint;
-        this._ambientOpensChat = opensChat;
-        this._jumpTarget = undefined;
-        this._statusBarItem.text = '$(lightbulb) Need help?';
-        this._statusBarItem.tooltip = hint || 'Iris noticed you might be stuck.';
-        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-        this._statusBarItem.show();
-    }
-
-    /**
      * Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). Clicking reveals the
      * hidden hint into the chat (no per-hint tooltip, since the hint is hidden until pulled).
      */
     showLamp(): void {
         this._mode = 'parked';
-        this._ambientHint = undefined;
         this._jumpTarget = undefined;
         this._statusBarItem.text = '$(lightbulb) Iris has a hint';
         this._statusBarItem.tooltip = 'Iris noticed something - click to open the chat.';
@@ -87,7 +67,6 @@ export class InterventionService implements vscode.Disposable {
      */
     showJump(uri: vscode.Uri, line: number): void {
         this._mode = 'jump';
-        this._ambientHint = undefined;
         this._jumpTarget = { uri, line };
         const base = uri.path.split('/').pop() || uri.path;
         this._statusBarItem.text = `$(arrow-right) Iris: ${base}:${line}`;
@@ -98,19 +77,11 @@ export class InterventionService implements vscode.Disposable {
 
     async handleClick(): Promise<void> {
         const mode = this._mode;
-        const hint = this._ambientHint;
-        const opensChat = this._ambientOpensChat;
         const jump = this._jumpTarget;
         this._onDidClick.fire();
         this._hide();
         if (mode === 'jump' && jump) {
             await this._openAnchor(jump.uri, jump.line);
-        }
-        else if (mode === 'fallback') {
-            // No-AI fallback (spec §9): opensChat=false shows the local template, does NOT bounce
-            // to the AI chat; opensChat=true focuses the chat (kept for contract parity).
-            if (opensChat) { await vscode.commands.executeCommand('iris.chatView.focus'); }
-            else if (hint) { void vscode.window.showInformationMessage(hint); }
         }
         else if (mode === 'parked') {
             await vscode.commands.executeCommand('iris.chatView.focus');
@@ -130,9 +101,8 @@ export class InterventionService implements vscode.Disposable {
     }
 
     /**
-     * Clear the lamp ONLY when it shows an episode-scoped surface ('parked' or 'jump'). A 'fallback'
-     * lamp is the degraded-mode affordance and is NOT slot-scoped, so a terminal episode teardown
-     * must leave it standing. Called from the orchestrator's per-episode teardown paths.
+     * Clear the lamp ONLY when it shows an episode-scoped surface ('parked' or 'jump'). Called from
+     * the orchestrator's per-episode teardown paths.
      */
     clearEpisodeLamp(): void {
         if (this._mode === 'parked' || this._mode === 'jump') { this._hide(); }
@@ -143,8 +113,6 @@ export class InterventionService implements vscode.Disposable {
 
     private _hide(): void {
         this._mode = 'none';
-        this._ambientHint = undefined;
-        this._ambientOpensChat = false;
         this._jumpTarget = undefined;
         this._statusBarItem.backgroundColor = undefined;
         this._statusBarItem.hide();

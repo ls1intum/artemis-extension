@@ -67,6 +67,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     const inline = new InlineHintDecoration(deps.context.extensionUri, () => coordinator.activeExerciseRoot);
     deps.context.subscriptions.push(inline);
     const orchestrator = new StruggleInterventionService({
+        isIrisEnabled: () => deps.isIrisEnabled(),
         isEgressEnabled: () => consent.isEnabled,
         hasNoaiMarker: () => {
             const root = coordinator.activeExerciseRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -85,7 +86,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         },
         postIntervention: (exId, body) => deps.postIntervention(exId, body),
         openSession: async id => { await deps.openProactiveSession(id); },
-        showAmbient: (hint, opensChat) => lamp.showAmbient(hint, opensChat),
         showLamp: () => lamp.showLamp(),
         // Snapshot the absolute anchor Uri at arm time (inverse of the shared relPath in inlineHint.ts),
         // so a later exercise switch cannot retarget the jump click. The orchestrator has already
@@ -235,7 +235,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // bypassing the engine gates (warmup / θ / B2 / B4) and the Tier-2 throttle that make
     // a real alert slow + flaky to provoke. decideOutcome still runs, so egress consent /
     // exercise presence stay realistic: with egress on you get the full POST → Pyris →
-    // bubble round-trip, otherwise the local fallback lamp. Palette entry is dev-gated.
+    // bubble round-trip, otherwise it ends silently (logged, no local surface). Palette entry is dev-gated.
     deps.context.subscriptions.push(vscode.commands.registerCommand('artemis.forceStruggleIntervention', () => {
         if (!isDevMode()) {
             void vscode.window.showWarningMessage('Artemis: "Force Struggle Intervention" is developer-mode only.');

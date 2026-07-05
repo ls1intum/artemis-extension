@@ -10,6 +10,7 @@ import type { IrisChatMessage } from '@extension/types';
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
+        isIrisEnabled: () => true,
         isEgressEnabled: () => true,
         hasNoaiMarker: () => false,
         getExerciseId: () => 42,
@@ -18,7 +19,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         readFileContent: vi.fn(() => undefined),
         postIntervention: vi.fn(async () => 'accepted' as const),
         openSession: vi.fn(async () => undefined),
-        showAmbient: vi.fn(),
         showLamp: vi.fn(),
         clearLamp: vi.fn(),
         showActiveJump: vi.fn(),
