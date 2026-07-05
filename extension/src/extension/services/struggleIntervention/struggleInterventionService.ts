@@ -1200,6 +1200,8 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     private async _drainOwed(): Promise<void> {
+        // Defense-in-depth: never egress code while Iris is disabled, mirrors the _suppressReason gate.
+        if (!this._deps.isIrisEnabled()) { return; }
         // Wire must be free to drain
         if (this._inFlightMarker !== undefined) { return; }
 

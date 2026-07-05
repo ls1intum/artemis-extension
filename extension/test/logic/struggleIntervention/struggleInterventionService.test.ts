@@ -221,7 +221,7 @@ describe('StruggleInterventionService', () => {
         expect(post).toHaveBeenCalledTimes(2);
     });
 
-    it('isProactiveDegraded: true when egress consent is off (local-template fallback)', () => {
+    it('isProactiveDegraded: true when egress consent is off', () => {
         const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => false }));
         expect(svc.isProactiveDegraded()).toBe(true);
     });
@@ -1422,6 +1422,29 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc.onNewBuildResult(true);
         await new Promise(r => setTimeout(r, 0));
         expect(postSpy).toHaveBeenCalledTimes(0);
+    });
+
+    it('owed confirmClose is NOT posted while Iris is disabled (defense-in-depth _drainOwed gate)', async () => {
+        const postSpy = vi.fn(async () => 'accepted' as const);
+        // isIrisEnabled flips false AFTER the (synthetic) episode is already live, mirroring a
+        // mid-session cache invalidation: _drainOwed must still refuse to egress code.
+        const deps = fakeDeps({ postIntervention: postSpy, isIrisEnabled: () => false });
+        const svc = new StruggleInterventionService(deps);
+
+        // Set up DELIVERED slot + lastSignal directly (bypasses the gated alert path on purpose,
+        // so this test isolates the _drainOwed guard from the _suppressReason guard).
+        simulateDecidePending(svc, 'ep-del', false);
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svc.onServerActive(7);
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+
+        // Green test -> latch fires -> owed confirmClose queued -> _drainOwed runs but must bail early
+        svc.onNewBuildResult(true);
+        await new Promise(r => setTimeout(r, 0));
+        expect(postSpy).not.toHaveBeenCalled();
+        // The owed request is left queued (not consumed), proving the guard returned before
+        // touching collectFiles/postIntervention/the owed-clear branch.
+        expect(svc._owedConfirmClose).toEqual({ confirmReason: 'progress' });
     });
 
     it('confirmClose after a TPS-originated decide reuses the TPS _lastSignal (path=discrete on the wire)', async () => {
