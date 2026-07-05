@@ -4,7 +4,7 @@ export interface InterventionLogEvent {
     action: StruggleAction | 'requested';   // what we did / server proposed
     finalAction: StruggleAction;             // surfaced level after gating
     surface: 'none' | 'lamp' | 'bubble' | 'inline';
-    source: 'server' | 'template';
+    source: 'server' | 'local';
     /** The originating signal (alert + trajectory + dominant components) - the analytic payload (spec §12). */
     signal?: StruggleSignal;
     confidence?: number;                     // server confidence (active/ambient AI path), when known

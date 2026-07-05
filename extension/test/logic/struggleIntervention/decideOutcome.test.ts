@@ -5,13 +5,13 @@ import { decideOutcome } from '@extension/services/struggleIntervention/decideOu
 describe('decideOutcome', () => {
     const base = { optedIn: true, inFlight: false, hasExercise: true, noaiMarker: false, serverAvailable: true };
     it('not opted in → local fallback', () => {
-        expect(decideOutcome({ ...base, optedIn: false })).toBe('fallback');
+        expect(decideOutcome({ ...base, optedIn: false })).toBe('silent');
     });
     it('.noai marker → local fallback even when opted in (spec §9)', () => {
-        expect(decideOutcome({ ...base, noaiMarker: true })).toBe('fallback');
+        expect(decideOutcome({ ...base, noaiMarker: true })).toBe('silent');
     });
     it('server unavailable → local fallback even when opted in (spec §9/§11: no-AI lamp remains)', () => {
-        expect(decideOutcome({ ...base, serverAvailable: false })).toBe('fallback');
+        expect(decideOutcome({ ...base, serverAvailable: false })).toBe('silent');
     });
     it('opted in, idle, has exercise, server up → post (no session needed — endpoint is exercise-keyed)', () => {
         expect(decideOutcome(base)).toBe('post');

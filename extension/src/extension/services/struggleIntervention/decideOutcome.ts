@@ -8,10 +8,10 @@ export interface OutcomeInputs {
     serverAvailable: boolean;
 }
 
-export type Outcome = 'fallback' | 'post' | 'skip';
+export type Outcome = 'silent' | 'post' | 'skip';
 
 /**
- * Pure gating for an alert (spec §9/§10/§11). The no-AI path (deterministic local template, ZERO egress) is
+ * Pure gating for an alert (spec §9/§10/§11). The silent path (no surface, ZERO egress, logged) is
  * entered when ANY of the three §9 triggers holds: no proactive-egress opt-in, a `.noai` marker, or the server
  * being unavailable. Otherwise POST to the exercise-keyed endpoint unless a request is already in flight or
  * there is no active exercise to key on. NO session is required — the server materializes it only on `active`.
@@ -20,7 +20,7 @@ export type Outcome = 'fallback' | 'post' | 'skip';
  */
 export function decideOutcome(i: OutcomeInputs): Outcome {
     if (!i.optedIn || i.noaiMarker || !i.serverAvailable) {
-        return 'fallback';
+        return 'silent';
     }
     if (i.inFlight || !i.hasExercise) {
         return 'skip';

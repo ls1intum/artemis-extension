@@ -36,7 +36,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         readFileContent: vi.fn(() => undefined),
         postIntervention: vi.fn(async () => 'accepted' as const),
         openSession: vi.fn(async () => undefined),
-        showAmbient: vi.fn(),
         showLamp: vi.fn(),
         clearLamp: vi.fn(),
         showActiveJump: vi.fn(),
@@ -107,23 +106,28 @@ describe('StruggleInterventionService', () => {
         // (course-off only latches after a POST → covered by the course-off latch test.)
     });
 
-    it('discrete + unavailable server (404) → TPS no-progress template on the lamp, no crash', async () => {
-        const deps = fakeDeps({ postIntervention: vi.fn(async () => 'unavailable' as const) });
+    it('ends an alert silently (no surface, logged) when egress is not opted in', async () => {
+        const deps = fakeDeps({ isEgressEnabled: () => false });
         const svc = new StruggleInterventionService(deps);
         svc.onTick(tick(530));
         svc.deliver(discreteAlert());
         await new Promise(r => setTimeout(r, 0));
-        expect(deps.showAmbient).toHaveBeenCalledWith(expect.stringContaining('builds have not made progress'), false);
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+        expect(deps.log.record).toHaveBeenCalledWith(
+            expect.objectContaining({ finalAction: 'silent', surface: 'none', source: 'local' }),
+        );
     });
 
-    it('not opted in → shows a local template on the lamp (opensChat=false), never POSTs', async () => {
+    it('not opted in → ends silently (no surface, logged), never POSTs', async () => {
         const deps = fakeDeps({ isEgressEnabled: () => false });
         const svc = new StruggleInterventionService(deps);
         svc.onTick(tick(530));
         svc.deliver(alert());
         await Promise.resolve();
-        expect(deps.showAmbient).toHaveBeenCalledWith(expect.any(String), false);
         expect(deps.postIntervention).not.toHaveBeenCalled();
+        expect(deps.log.record).toHaveBeenCalledWith(
+            expect.objectContaining({ finalAction: 'silent', surface: 'none', source: 'local' }),
+        );
     });
 
     it('opted in → collects files and POSTs exercise-keyed; a second immediate alert is skipped (in-flight)', async () => {
@@ -154,27 +158,31 @@ describe('StruggleInterventionService', () => {
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
     });
 
-    it('.noai marker → shows a local template, never POSTs (spec §9)', async () => {
+    it('.noai marker → ends silently, never POSTs (spec §9)', async () => {
         const deps = fakeDeps({ hasNoaiMarker: () => true });
         const svc = new StruggleInterventionService(deps);
         svc.onTick(tick(530));
         svc.deliver(alert());
         await Promise.resolve();
-        expect(deps.showAmbient).toHaveBeenCalledWith(expect.any(String), false);
         expect(deps.postIntervention).not.toHaveBeenCalled();
+        expect(deps.log.record).toHaveBeenCalledWith(
+            expect.objectContaining({ finalAction: 'silent', surface: 'none', source: 'local' }),
+        );
     });
 
-    it('server 404 → no-AI template now AND subsequent alerts stop POSTing (spec §9/§11)', async () => {
+    it('server 404 → subsequent alerts end silently (logged) without POSTing again (spec §9/§11)', async () => {
         const deps = fakeDeps({ postIntervention: vi.fn(async () => 'unavailable' as const) });
         const svc = new StruggleInterventionService(deps);
         svc.onTick(tick(530));
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
-        expect(deps.showAmbient).toHaveBeenCalledWith(expect.any(String), false);
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
+        expect(deps.log.record).toHaveBeenCalledWith(
+            expect.objectContaining({ finalAction: 'silent', surface: 'none', source: 'local' }),
+        );
     });
 
     it("'failed' POST releases the in-flight slot so the next alert retries instead of wedging for 30s (silent, no lamp)", async () => {
@@ -187,7 +195,6 @@ describe('StruggleInterventionService', () => {
         svc.deliver(alert());                                // first POST → 'failed'
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(1);
-        expect(deps.showAmbient).not.toHaveBeenCalled();     // 'failed' is silent: no fallback lamp (per contract)
         svc.deliver(alert());                                // in-flight was released → this one POSTs again
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(2);
@@ -239,7 +246,6 @@ describe('StruggleInterventionService', () => {
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(1);
-        expect(deps.showAmbient).not.toHaveBeenCalled();   // course-off => no no-AI lamp
 
         // The watchdog fires: without the latch this would un-wedge the session and let the next alert POST again.
         fireInflightWatchdog?.();
@@ -266,7 +272,6 @@ describe('StruggleInterventionService', () => {
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(post).not.toHaveBeenCalled();
-        expect(deps.showAmbient).not.toHaveBeenCalled();
     });
 
     it('inbound ambient/active are dropped when the student turned proactive off (mid-flight opt-out)', () => {
@@ -274,7 +279,6 @@ describe('StruggleInterventionService', () => {
         const svc = new StruggleInterventionService(deps);
         svc.onServerAmbient('hint', undefined, undefined, undefined);
         svc.onServerActive(99);
-        expect(deps.showAmbient).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.showActiveNotification).not.toHaveBeenCalled();
     });
@@ -310,14 +314,13 @@ describe('StruggleInterventionService', () => {
 
     // C1/C3: ambient = PARKED pointer only (badge + lamp always; gutter icon if anchor live). No inline text, no toast.
     // Note: C3 routes onServerAmbient through the slot guard; tests use simulateDecidePending to set up the in-flight state.
-    it('inbound ambient event (no anchor) → badge + lamp (PARKED pointer); no showAmbient, no inline', () => {
+    it('inbound ambient event (no anchor) → badge + lamp (PARKED pointer); no inline', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
         svc.onServerAmbient('Re-check the logic.', undefined, undefined, undefined);
         expect(deps.showLamp).toHaveBeenCalled();
         expect(deps.setBadge).toHaveBeenCalledWith(true);
-        expect(deps.showAmbient).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
         expect(deps.showActiveNotification).not.toHaveBeenCalled();
@@ -336,7 +339,6 @@ describe('StruggleInterventionService', () => {
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         // Ambient must NOT render the inline after-line text or toast or bubble:
         expect(deps.showInline).not.toHaveBeenCalled();
-        expect(deps.showAmbient).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
         expect(deps.showActiveNotification).not.toHaveBeenCalled();
     });
@@ -351,7 +353,6 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearInline).toHaveBeenCalled();   // clears any stale cue from a previous active
         expect(deps.showGutterOnly).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
-        expect(deps.showAmbient).not.toHaveBeenCalled();
     });
 
     it('hard-pauses after pauseStrikes dismisses; clicked + resetSession clear it; reset() (UI-only) does NOT', () => {
@@ -606,7 +607,7 @@ describe('StruggleInterventionService', () => {
         svc.dismissEpisode();                           // terminal exit -> _clearEpisodeRuntime()
 
         expect(deps.clearEpisodeLamp).toHaveBeenCalled();
-        // Teardown uses ONLY the mode-guarded clear, so a coexisting no-AI fallback lamp survives.
+        // Teardown uses ONLY the mode-guarded clear (parked/jump), not the unconditional clearLamp.
         expect(deps.clearLamp).not.toHaveBeenCalled();
     });
 });

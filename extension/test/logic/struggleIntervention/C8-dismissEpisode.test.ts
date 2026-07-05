@@ -18,7 +18,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         readFileContent: vi.fn(() => undefined),
         postIntervention: vi.fn(async () => 'accepted' as const),
         openSession: vi.fn(async () => undefined),
-        showAmbient: vi.fn(),
         showLamp: vi.fn(),
         clearLamp: vi.fn(),
         showActiveJump: vi.fn(),

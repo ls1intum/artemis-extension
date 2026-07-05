@@ -34,7 +34,6 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         readFileContent: vi.fn(() => undefined),
         postIntervention: vi.fn().mockResolvedValue('accepted'),
         openSession: vi.fn().mockResolvedValue(undefined),
-        showAmbient: vi.fn(),
         clearLamp: vi.fn(),
         showActiveJump: vi.fn(),
         clearEpisodeLamp: vi.fn(),
