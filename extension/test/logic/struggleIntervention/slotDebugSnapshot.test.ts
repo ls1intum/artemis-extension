@@ -19,6 +19,7 @@ import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
+        isIrisEnabled: () => true,
         isEgressEnabled: () => true,
         hasNoaiMarker: () => false,
         getExerciseId: () => 42,

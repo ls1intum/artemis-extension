@@ -26,6 +26,7 @@ function simulateDecidePending(svc: StruggleInterventionService, episodeId = 'ep
 
 function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
+        isIrisEnabled: vi.fn().mockReturnValue(true),
         isEgressEnabled: vi.fn().mockReturnValue(true),
         hasNoaiMarker: vi.fn().mockReturnValue(false),
         getExerciseId: vi.fn().mockReturnValue(1),

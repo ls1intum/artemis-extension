@@ -10,6 +10,7 @@ import type { IrisChatMessage } from '@extension/types';
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
+        isIrisEnabled: () => true,
         isEgressEnabled: () => true,
         hasNoaiMarker: () => false,
         getExerciseId: () => 42,

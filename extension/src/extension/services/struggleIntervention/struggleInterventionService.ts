@@ -85,6 +85,9 @@ function isHardAlert(alert: AlertRecord): boolean {
 // ---------------------------------------------------------------------------
 
 export interface StruggleInterventionDeps {
+    /** True iff Iris is enabled for the active exercise's course (global profile + course chat).
+     *  Fail-closed: false when Iris is off OR availability is not yet known. */
+    isIrisEnabled(): boolean;
     isEgressEnabled(): boolean;
     /** True when a `.noai` marker file is present in the workspace (spec §9). */
     hasNoaiMarker(): boolean;
@@ -522,6 +525,9 @@ export class StruggleInterventionService implements AlertSink {
      * Returns the dev-log reason, or null when the alert may proceed.
      */
     private _suppressReason(alert: AlertRecord): string | null {
+        if (!this._deps.isIrisEnabled()) {
+            return '  -> SKIP (Iris not enabled for this course: no proactivity)';
+        }
         if (this._courseProactiveOff) {
             return '  -> SKIP (course proactive disabled for this session)';
         }

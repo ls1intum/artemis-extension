@@ -28,6 +28,7 @@ function simulateDecidePending(svc: StruggleInterventionService, episodeId = 'ep
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
+        isIrisEnabled: () => true,
         isEgressEnabled: () => true,
         hasNoaiMarker: () => false,
         getExerciseId: () => 42,
@@ -104,6 +105,26 @@ describe('StruggleInterventionService', () => {
         expect(new StruggleInterventionService(fakeDeps({ isStudentProactiveOn: () => false })).shouldSuppress(alert())).toBe(true); // opted out (edit)
         expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(alert())).toBe(false);                                   // normal edit alert passes
         // (course-off only latches after a POST → covered by the course-off latch test.)
+    });
+
+    it('suppresses every alert (no POST, no surface) while Iris is not enabled', async () => {
+        const deps = fakeDeps({ isIrisEnabled: () => false });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(discreteAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+        expect(deps.showLamp).not.toHaveBeenCalled();
+        expect(deps.showInline).not.toHaveBeenCalled();
+    });
+
+    it('proceeds to POST when Iris is enabled and egress is opted in', async () => {
+        const deps = fakeDeps({ isIrisEnabled: () => true, isEgressEnabled: () => true });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(discreteAlert());
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).toHaveBeenCalled();
     });
 
     it('ends an alert silently (no surface, logged) when egress is not opted in', async () => {

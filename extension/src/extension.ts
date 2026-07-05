@@ -7,7 +7,10 @@ import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider
 import { AuthManager } from '@extension/services/auth';
 import { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { classifyIrisCourseAvailability } from '@extension/services/iris/chat/chatSessionService';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
+import { IrisEnabledCache } from '@extension/services/iris/irisEnabledCache';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
 import { createProviderRegistry } from '@extension/services/ui';
@@ -79,10 +82,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
+	// Forward-ref: the Iris-enabled cache is constructed later (after ContextStore exists), but the
+	// engine's gate reads it lazily at alert-time, so a fail-closed default until it is wired.
+	let irisEnabledCache: IrisEnabledCache | undefined;
 	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
+		isIrisEnabled: () => irisEnabledCache?.isEnabled() ?? false,
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
 		isStudentProactiveOn: exerciseId => proactivePreferenceRef?.isProactiveOn(exerciseId) ?? true,
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
@@ -229,6 +236,29 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const contextStore = new ContextStore(context);
 	context.subscriptions.push(contextStore);
+
+	// Iris-enabled gate (no proactive struggle interventions when Iris is disabled for the
+	// course): keyed to the struggle exercise session, refreshed on session start/end and on
+	// websocket reconnect (a transient 'unavailable' classification deserves a retry).
+	const irisReconnect = new vscode.EventEmitter<void>();
+	context.subscriptions.push(
+		irisReconnect,
+		artemisWebsocketService.onDidChangeConnectionState((e) => { if (e.connected) { irisReconnect.fire(); } }),
+	);
+	irisEnabledCache = new IrisEnabledCache({
+		classify: async (exerciseId) => {
+			const courseId = await resolveCourseIdForExercise(exerciseId, contextStore, artemisApiService);
+			if (courseId === undefined) { return 'unavailable'; }
+			const { availability } = await classifyIrisCourseAvailability(artemisApiService, async () => courseId);
+			return availability.kind;
+		},
+		onSessionStart: struggleCoordinator.onDidStartSession,
+		onSessionEnd: struggleCoordinator.onDidEndSession,
+		onReconnect: irisReconnect.event,
+		getActiveExerciseId: () => struggleCoordinator.activeExerciseId,
+		schedule: (fn, ms) => { const h = setTimeout(fn, ms); return () => clearTimeout(h); },
+	});
+	context.subscriptions.push(irisEnabledCache);
 
 	chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,

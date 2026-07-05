@@ -67,6 +67,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     const inline = new InlineHintDecoration(deps.context.extensionUri, () => coordinator.activeExerciseRoot);
     deps.context.subscriptions.push(inline);
     const orchestrator = new StruggleInterventionService({
+        isIrisEnabled: () => deps.isIrisEnabled(),
         isEgressEnabled: () => consent.isEnabled,
         hasNoaiMarker: () => {
             const root = coordinator.activeExerciseRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri;

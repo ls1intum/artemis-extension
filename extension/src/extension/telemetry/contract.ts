@@ -30,6 +30,7 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
     | 'onDidAlert'
     | 'onDidStartSession'
     | 'onDidEndSession'
+    | 'activeExerciseId'
 >;
 
 /**
@@ -81,6 +82,9 @@ export interface ILiveEngineFeed {
 export interface StruggleEngineDeps {
     hub: SensorHub;
     exerciseRegistry: ExerciseRegistry;
+    /** True iff Iris is enabled for the active exercise's course (global profile + course chat).
+     *  Fail-closed: false when Iris is off OR availability is not yet known. */
+    isIrisEnabled(): boolean;
     /** Registers the lifetime of the intervention service + delivery sink. */
     context: vscode.ExtensionContext;
     /** POST the proactive struggle signal to Artemis (egress); returns the egress result. */
