@@ -29,6 +29,8 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showAmbient: vi.fn(),
         showLamp: vi.fn(),
         clearLamp: vi.fn(),
+        showActiveJump: vi.fn(),
+        clearEpisodeLamp: vi.fn(),
         showInline: vi.fn(),
         showGutterOnly: vi.fn(),
         clearInline: vi.fn(),

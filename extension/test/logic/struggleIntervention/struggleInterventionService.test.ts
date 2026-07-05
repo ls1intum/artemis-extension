@@ -38,6 +38,8 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showAmbient: vi.fn(),
         showLamp: vi.fn(),
         clearLamp: vi.fn(),
+        showActiveJump: vi.fn(),
+        clearEpisodeLamp: vi.fn(),
         showInline: vi.fn(),
         showGutterOnly: vi.fn(),
         clearInline: vi.fn(),
@@ -474,18 +476,36 @@ describe('StruggleInterventionService', () => {
         // ...AND the inline breadcrumb is armed at the anchor (rendered once the file is visible;
         // the anchor no longer has to be on screen in the delivery moment)...
         expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
-        // ...and it clears any standing lamp (inline and lamp are exclusive surfaces, mirrors onServerAmbient).
-        expect(deps.clearLamp).toHaveBeenCalled();
+        // ...and the jump lamp is armed at the same anchor (the persistent way to reach the cue);
+        // showActiveJump replaces the old unconditional clearLamp for the anchored case.
+        expect(deps.showActiveJump).toHaveBeenCalledWith('src/B.java', 84);
+        expect(deps.clearLamp).not.toHaveBeenCalled();
     });
 
-    it('inbound active event without an anchor arms no inline cue (clears any stale one)', () => {
+    it('inbound active event without an anchor arms no inline cue and no jump lamp (clears both)', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive(8, undefined, undefined, undefined, 0.9);
         expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.showActiveJump).not.toHaveBeenCalled();
         expect(deps.clearInline).toHaveBeenCalled();
+        expect(deps.clearLamp).toHaveBeenCalled();
         expect(deps.openSession).toHaveBeenCalledWith(8);
+    });
+
+    it('an UNSAFE anchor path (traversal) is treated as no anchor on every surface', () => {
+        // One contract for inline, gutter, and jump: a malformed server anchor like ../x must not
+        // arm any anchor surface (it could point outside the exercise root). It falls through to the
+        // no-anchor branch exactly like a missing anchor.
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(8, '../../etc/passwd', 1, 'peek', 0.9, 'Hint text', 5);
+        expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.showActiveJump).not.toHaveBeenCalled();
+        expect(deps.clearInline).toHaveBeenCalled();
+        expect(deps.clearLamp).toHaveBeenCalled();
     });
 
     // Terminal-cleanup: the inline cue is episode-scoped, so every terminal exit must retire it.
@@ -504,6 +524,22 @@ describe('StruggleInterventionService', () => {
 
         expect(deps.clearInline).toHaveBeenCalled();    // the standing cue is retired at the episode end
         expect(svc._slot.isFree()).toBe(true);
+    });
+
+    it('a terminal episode exit retires the jump lamp (mode-guarded clearEpisodeLamp)', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
+        expect(deps.showActiveJump).toHaveBeenCalled(); // jump lamp is standing on the DELIVERED slot
+        vi.mocked(deps.clearEpisodeLamp).mockClear();
+
+        vi.mocked(deps.clearLamp).mockClear();
+        svc.dismissEpisode();                           // terminal exit -> _clearEpisodeRuntime()
+
+        expect(deps.clearEpisodeLamp).toHaveBeenCalled();
+        // Teardown uses ONLY the mode-guarded clear, so a coexisting no-AI fallback lamp survives.
+        expect(deps.clearLamp).not.toHaveBeenCalled();
     });
 });
 
@@ -1126,17 +1162,42 @@ describe('StruggleInterventionService C3 slot routing', () => {
             return deps;
         }
 
-        // In-session: bubble only, no notification or inline push
+        // In-session: bubble only, no notification or inline push. The jump lamp is the ONE code
+        // pointer that still arms in-session (leiser, no focus steal) so the code stays reachable.
+        // clearInline still fires to retire any stale parked gutter cue carried over by the reveal.
         const inSessionDeps = runEscalation(true);
         expect(inSessionDeps.postBubble).toHaveBeenCalledTimes(1);
         expect(inSessionDeps.showActiveNotification).not.toHaveBeenCalled();
         expect(inSessionDeps.showInline).not.toHaveBeenCalled();
+        expect(inSessionDeps.clearInline).toHaveBeenCalled();
+        expect(inSessionDeps.showActiveJump).toHaveBeenCalledWith('src/A.java', 10);
 
-        // Out-of-session (default): bubble + notification + inline
+        // Out-of-session (default): bubble + notification + inline + jump lamp
         const outSessionDeps = runEscalation(false);
         expect(outSessionDeps.postBubble).toHaveBeenCalledTimes(1);
         expect(outSessionDeps.showActiveNotification).toHaveBeenCalledTimes(1);
         expect(outSessionDeps.showInline).toHaveBeenCalledTimes(1);
+        expect(outSessionDeps.showActiveJump).toHaveBeenCalledWith('src/A.java', 10);
+    });
+
+    it('escalation WITHOUT an anchor retires any stale parked gutter cue and arms no jump lamp', () => {
+        // Regression: revealParkedHint keeps the parked gutter cue; a no-anchor escalation must
+        // still clear it (previously the escalation returned without touching inline state).
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc._slot.takeParked(0, { episodeId: 'ep-na', hints: [], createdAtMs: 0 }, { level: 'ambient', text: 'h', atSessionS: 0 });
+        svc._slot.revealParked({ level: 'ambient', text: 'h', atSessionS: 0 });
+        const gen = svc._slot.generation();
+        const stamp = { episodeId: 'ep-na', generation: gen, hardEvent: true, requestToken: 'tok-na' };
+        const localToken = svc._guard.issue('decide', stamp);
+        svc._inFlightMarker = { requestToken: 'tok-na', episodeId: 'ep-na', generation: gen, intent: 'decide', localToken };
+        vi.mocked(deps.clearInline).mockClear();
+
+        svc.onServerActive(9);                          // active reply with NO anchor -> escalate
+
+        expect(deps.clearInline).toHaveBeenCalled();    // stale gutter cue retired
+        expect(deps.showActiveJump).not.toHaveBeenCalled();
+        expect(deps.showInline).not.toHaveBeenCalled();
     });
 
     it('escalation gated by hardEvent: delivered-ambient + active WITHOUT hardEvent -> suppress', () => {

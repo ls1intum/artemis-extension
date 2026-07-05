@@ -78,7 +78,20 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         openSession: async id => { await deps.openProactiveSession(id); },
         showAmbient: (hint, opensChat) => lamp.showAmbient(hint, opensChat),
         showLamp: () => lamp.showLamp(),
+        // Snapshot the absolute anchor Uri at arm time (inverse of the shared relPath in inlineHint.ts),
+        // so a later exercise switch cannot retarget the jump click. The orchestrator has already
+        // enforced isSafeAnchorPath (one contract for all anchor surfaces), so only the root can be
+        // missing here; when it is, clear any stale episode lamp rather than leave a dangling pointer.
+        showActiveJump: (anchorFile, anchorLine) => {
+            const root = coordinator.activeExerciseRoot;
+            if (root) {
+                lamp.showJump(vscode.Uri.joinPath(root, ...anchorFile.split('/')), anchorLine);
+            } else {
+                lamp.clearEpisodeLamp();
+            }
+        },
         clearLamp: () => lamp.reset(),
+        clearEpisodeLamp: () => lamp.clearEpisodeLamp(),
         showInline: (f, l, h, m) => inline.show(f, l, h, m),
         showGutterOnly: (f, l) => inline.showGutterOnly(f, l),
         clearInline: () => inline.clear(),
@@ -143,11 +156,14 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         vscode.commands.registerCommand('iris.intervention.inlineHide', () => {
             // Pure visual hide: remove the in-editor cue only. Unlike Dismiss it records NO outcome
             // (no reject-backoff) and does not touch the episode -- the hint stays in the chat.
+            // The jump lamp points at the same cue, so retire it too (mode-guarded: leaves fallback).
             inline.clear();
+            lamp.clearEpisodeLamp();
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
             orchestrator.recordOutcome('dismissed');
             inline.clear();
+            lamp.clearEpisodeLamp();
         }),
     );
 

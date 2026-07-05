@@ -35,6 +35,8 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         openSession: vi.fn().mockResolvedValue(undefined),
         showAmbient: vi.fn(),
         clearLamp: vi.fn(),
+        showActiveJump: vi.fn(),
+        clearEpisodeLamp: vi.fn(),
         showInline: vi.fn(),
         clearInline: vi.fn(),
         isStudentProactiveOn: vi.fn().mockReturnValue(true),
@@ -221,9 +223,10 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.showActiveNotification).toHaveBeenCalled();
         // Badge
         expect(deps.setBadge).toHaveBeenCalledWith(true);
-        // Lamp hidden (active surface takes over)
-        expect(deps.clearLamp).toHaveBeenCalled();
-        // Ambient lamp must NOT be shown for active
+        // Anchored active: the jump lamp is armed (not the unconditional clearLamp), and the
+        // ambient reveal-lamp is never shown for active.
+        expect(deps.showActiveJump).toHaveBeenCalledWith('Sort.java', 10);
+        expect(deps.clearLamp).not.toHaveBeenCalled();
         expect(deps.showLamp).not.toHaveBeenCalled();
     });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 
+import { isSafeAnchorPath } from '@extension/services/intervention/anchorPath';
 import type { AnchorLineChange } from '@extension/services/intervention/inlineHint';
 import { buildCueText, buildHoverMarkdown, isAnchorDocument, resolveAnchorEditor, shiftAnchorLine } from '@extension/services/intervention/inlineHint';
 
@@ -79,6 +80,21 @@ describe('inlineHint helpers', () => {
         it('shifts by the net delta of a multi-line replacement above', () => {
             // Replace 0-based lines 1..3 (two breaks removed) with text containing one break.
             expect(shiftAnchorLine(10, change(1, 0, 3, 0, 'a\n'))).toBe(9);
+        });
+    });
+
+    describe('isSafeAnchorPath', () => {
+        it('accepts a normal repo-relative path', () => {
+            expect(isSafeAnchorPath('src/de/tum/cit/aet/ProjectPlanner.java')).toBe(true);
+            expect(isSafeAnchorPath('A.java')).toBe(true);
+        });
+        it('rejects traversal, absolute, empty, and dot segments (jump must match the inline anchor contract)', () => {
+            expect(isSafeAnchorPath('../secrets.txt')).toBe(false);
+            expect(isSafeAnchorPath('src/../../etc/passwd')).toBe(false);
+            expect(isSafeAnchorPath('/etc/passwd')).toBe(false);
+            expect(isSafeAnchorPath('')).toBe(false);
+            expect(isSafeAnchorPath('src//A.java')).toBe(false);
+            expect(isSafeAnchorPath('./A.java')).toBe(false);
         });
     });
 

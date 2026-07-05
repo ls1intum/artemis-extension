@@ -3,6 +3,7 @@ import type { Uri } from 'vscode';
 import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, SlotDebugSnapshot } from '@shared/messageContracts';
 
 import { ApiError } from '@extension/domain';
+import { isSafeAnchorPath } from '@extension/services/intervention/anchorPath';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { IrisChatMessage } from '@extension/types';
@@ -90,8 +91,20 @@ export interface StruggleInterventionDeps {
     showAmbient(hint: string, opensChat: boolean): void;
     /** Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). No per-hint tooltip. */
     showLamp(): void;
-    /** Hide the status-bar lamp (called on session/context reset so stale hints do not survive). */
+    /**
+     * Arm the jump lamp for an active hint carrying a code anchor (spec §4.1): a status-bar item that,
+     * on click, opens the anchored file at the line so the student can find the (silent, possibly
+     * off-screen) inline cue. The wiring snapshots the absolute Uri at arm time.
+     */
+    showActiveJump(anchorFile: string, anchorLine: number): void;
+    /** Hide the status-bar lamp unconditionally (session/context reset so stale hints do not survive). */
     clearLamp(): void;
+    /**
+     * Clear the lamp ONLY when it shows an episode-scoped surface (parked / jump); a no-AI fallback
+     * lamp is NOT slot-scoped and must survive a terminal episode teardown. Called from per-episode
+     * teardown + the inline hide/dismiss paths.
+     */
+    clearEpisodeLamp(): void;
     /**
      * Arm the inline in-editor cue (gutter logo + after-line hint + hover) at the anchor (spec §4.1,
      * relaxed): the decoration renders whenever the anchored file is a visible editor, so a cue armed
@@ -857,7 +870,7 @@ export class StruggleInterventionService implements AlertSink {
                 // Parked surface: badge + lamp (+ gutter when the reply carries an anchor)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
-                if (anchorFile && anchorLine !== undefined && inlineHint) {
+                if (anchorFile && anchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
                     this._deps.showGutterOnly(anchorFile, anchorLine);
                 } else {
                     this._deps.clearInline();
@@ -897,7 +910,7 @@ export class StruggleInterventionService implements AlertSink {
                 // Surface: same parked pointers (badge + lamp + maybe gutter)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
-                if (anchorFile && anchorLine !== undefined && inlineHint) {
+                if (anchorFile && anchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
                     this._deps.showGutterOnly(anchorFile, anchorLine);
                 } else {
                     this._deps.clearInline();
@@ -971,11 +984,15 @@ export class StruggleInterventionService implements AlertSink {
         if (!this._slot.snapshot().inSession) {
             this._deps.showActiveNotification();
         }
-        this._deps.clearLamp();
-        if (anchorFile && anchorLine !== undefined && inlineHint) {
+        if (anchorFile && anchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
             this._deps.showInline(anchorFile, anchorLine, inlineHint, bubbleText);
+            // Jump lamp: the persistent, discoverable way to reach the (silent, possibly off-screen)
+            // inline cue. A fresh accepted active reply is authoritative server state, so clobbering
+            // any stale lamp (incl. a recovered-from fallback) via showActiveJump is correct here.
+            this._deps.showActiveJump(anchorFile, anchorLine);
         } else {
             this._deps.clearInline();
+            this._deps.clearLamp();
         }
     }
 
@@ -1005,11 +1022,26 @@ export class StruggleInterventionService implements AlertSink {
         messageId: number | null,
     ): void {
         this._deps.postBubble(text, messageId, this._deliveredEpisodeId());
-        if (inSession) { return; }
+        const hasAnchor = !!anchorFile && anchorLine !== undefined && !!inlineHint && isSafeAnchorPath(anchorFile);
+        // The jump lamp is a leiser, no-focus-steal code pointer, so arm it for an anchored
+        // escalation regardless of in-session (the inline cue below stays in-session-suppressed).
+        if (hasAnchor) {
+            this._deps.showActiveJump(anchorFile, anchorLine);
+        }
+        if (inSession) {
+            // Quiet in-session escalation: bubble + jump lamp only. Still retire any inline/gutter
+            // cue carried over from the parked phase (revealParkedHint keeps the parked gutter cue),
+            // so a stale pointer at the old anchor cannot outlive the escalation.
+            this._deps.clearInline();
+            return;
+        }
         // Out-of-session: full active push
         this._deps.showActiveNotification();
-        if (anchorFile && anchorLine !== undefined && inlineHint) {
+        if (hasAnchor) {
             this._deps.showInline(anchorFile, anchorLine, inlineHint, text);
+        } else {
+            // No-anchor escalation: retire any stale parked gutter cue (nothing fresh to arm).
+            this._deps.clearInline();
         }
     }
 
@@ -1194,15 +1226,17 @@ export class StruggleInterventionService implements AlertSink {
      * Also performs a scoped server-side cancel for any in-flight request so the job slot is
      * freed. revealParkedHint is NOT terminal and cancels its own in-flight separately.
      *
-     * Clears the episode-scoped inline cue too: the after-line hint (DELIVERED) or gutter pointer
-     * (PARKED) belongs to the episode, so every terminal exit (RECOVERED close, watchdog/ABANDON
-     * force-free, dismiss, new-exercise) retires it here in one place.
-     * This is the cue's ONLY lifecycle clear besides the hover Hide/Dismiss actions: typing does
-     * not retire it (the decoration merely tracks line shifts), so a missed terminal clear here
-     * would leave the cue standing forever.
+     * Clears the episode-scoped inline cue AND the episode-scoped lamp (parked reveal-lamp or active
+     * jump lamp): both belong to the episode, so every terminal exit (RECOVERED close,
+     * watchdog/ABANDON force-free, dismiss, new-exercise) retires them here in one place. The lamp
+     * clear is mode-guarded (clearEpisodeLamp) so a no-AI fallback lamp — which is NOT slot-scoped —
+     * survives. This is the inline cue's ONLY lifecycle clear besides the hover Hide/Dismiss actions:
+     * typing does not retire it (the decoration merely tracks line shifts), so a missed terminal
+     * clear here would leave the cue standing forever.
      */
     private _clearEpisodeRuntime(): void {
         this._deps.clearInline();
+        this._deps.clearEpisodeLamp();
         this._latch.reset();
         this._watchdog?.disarm();
         this._watchdog = undefined;
