@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
+import { ExtensionMsg, WebviewCmd, WebviewMsgType } from '@shared/messageContracts';
+
 import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
@@ -325,5 +327,92 @@ suite('Panel hide/show state persistence', () => {
             (provider as any)._appStateManager._currentState, 'login',
             'state should transition to login when auth has expired on re-show'
         );
+    });
+});
+
+suite('Nudge banner replay and cache-clear', () => {
+    let provider: ArtemisWebviewProvider;
+    let mockContext: MockExtensionContext;
+    let mockAuthManager: MockAuthManager;
+    let mockApiService: MockArtemisApiService;
+    let controllableView: ControllableWebviewView;
+    let spyWebview: SpyWebview;
+    let sandbox: sinon.SinonSandbox;
+
+    setup(async () => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+
+        mockContext = new MockExtensionContext();
+        mockAuthManager = new MockAuthManager(mockContext);
+        mockApiService = new MockArtemisApiService(mockAuthManager);
+        sandbox.stub(mockAuthManager, 'hasAuthToken').resolves(true);
+
+        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
+        const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } } });
+        const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+
+        provider = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            artemisApi: mockApiService,
+            exerciseRegistry: new ExerciseRegistry(),
+            providerRegistry: createProviderRegistry(),
+            websocketService: mockWebsocket,
+            buildErrorCodeLensProvider: mockCodeLens,
+            struggleCoordinator: mockCoordinator,
+            updateAuthContext: mockUpdateAuth,
+        });
+
+        spyWebview = new SpyWebview();
+        controllableView = new ControllableWebviewView(spyWebview);
+        await provider.resolveWebviewView(controllableView, {} as any, {} as any);
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    const showBannerMessages = () => spyWebview.sentMessages.filter((m: any) => m.type === ExtensionMsg.ShowNudgeBanner);
+
+    test('a fresh resolve replays the cached banner exactly once on ready, and a later requestInit does not replay it again', async () => {
+        // showNudgeBanner can be called while the sidebar reveal is still resolving the view
+        // (see extension.ts's hidden-reveal branch), i.e. before the fresh webview is ready.
+        provider.showNudgeBanner({ title: 'Stuck?', sub: 'Want a hint?' }, 'ep-1', 10_000);
+        assert.strictEqual(showBannerMessages().length, 0, 'no post before the webview is ready');
+
+        spyWebview.simulateMessage({ type: WebviewMsgType.Ready });
+        await Promise.resolve();
+
+        const afterReady = showBannerMessages();
+        assert.strictEqual(afterReady.length, 1, 'the fresh ready should replay the cached banner exactly once');
+        assert.strictEqual((afterReady[0] as any).episodeId, 'ep-1');
+
+        // A RequestInit retry on the now-live view must not restart the 10s countdown.
+        spyWebview.sentMessages = [];
+        spyWebview.simulateMessage({ type: WebviewMsgType.RequestInit });
+        await Promise.resolve();
+
+        assert.strictEqual(showBannerMessages().length, 0, 'requestInit on an already-replayed banner must not post again');
+    });
+
+    test('a nudgeBannerAction command clears the cached banner so a later resolve+ready does not replay it', async () => {
+        provider.showNudgeBanner({ title: 'Stuck?', sub: 'Want a hint?' }, 'ep-2', 10_000);
+        spyWebview.simulateMessage({ type: WebviewMsgType.Ready });
+        await Promise.resolve();
+        assert.strictEqual(showBannerMessages().length, 1, 'sanity check: banner replayed on first ready');
+
+        spyWebview.simulateMessage({ type: 'command', command: WebviewCmd.NudgeBannerAction, payload: { action: 'dismiss', episodeId: 'ep-2' } });
+        await Promise.resolve();
+
+        // Simulate a webview reload: a fresh resolve followed by ready.
+        spyWebview.sentMessages = [];
+        await provider.resolveWebviewView(controllableView, {} as any, {} as any);
+        spyWebview.simulateMessage({ type: WebviewMsgType.Ready });
+        await Promise.resolve();
+
+        assert.strictEqual(showBannerMessages().length, 0, 'a dismissed banner must not be replayed after a later resolve+ready');
     });
 });

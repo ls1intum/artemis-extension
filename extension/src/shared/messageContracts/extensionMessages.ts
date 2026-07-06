@@ -285,6 +285,10 @@ export const ExtensionMsg = {
     // Server-side problem statement rendering
     ProblemStatementRendered: 'problemStatementRendered',
 
+    // Proactive nudge banner
+    ShowNudgeBanner: 'showNudgeBanner',
+    HideNudgeBanner: 'hideNudgeBanner',
+
 } as const;
 
 /** Union of all Extension->Webview message type strings */
@@ -537,6 +541,10 @@ interface ExtensionMsgPayloads {
      * chat-ws row with the same id arriving after the drop is never inserted.
      */
     removeMessage: { id: number };
+
+    // Proactive nudge banner
+    showNudgeBanner: { title: string; sub: string; episodeId?: string; timerMs: number };
+    hideNudgeBanner: undefined;
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 import type {
     ProblemStatementScrollPayload,
     ProblemStatementSelectionPayload,
@@ -33,6 +34,7 @@ import {
     SubmissionWebSocketHandler,
     ViewInitDataService,
 } from '@extension/services/ui';
+import type { NudgeText } from '@extension/services/ui/nudgeBannerText';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { ILiveEngineFeed, IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
@@ -91,6 +93,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
     private readonly _navigationFacade: WebviewNavigationFacade;
 
+    /** Authoritative nudge-banner state, replayed to a freshly-resolved view (see `_bannerNeedsReplay`). */
+    private _currentBanner: { title: string; sub: string; episodeId?: string; timerMs: number } | null = null;
+    /** One-shot flag armed in `resolveWebviewView`: replay `_currentBanner` on the NEXT ready, but only once per resolve. */
+    private _bannerNeedsReplay = false;
+
     /**
      * Stable sender reference for the sidebar webview. Created once in the ctor
      * and reused on every re-resolve so the feed's Map<Sink, refcount> always
@@ -103,6 +110,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
+
+    private readonly _onDidNudgeBannerAction = new vscode.EventEmitter<{ action: 'showMe' | 'dismiss' | 'timeout'; episodeId?: string }>();
+    public readonly onDidNudgeBannerAction = this._onDidNudgeBannerAction.event;
 
     private readonly _onDidOpenTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewOpenedPayload>();
     private readonly _onDidCloseTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
@@ -314,6 +324,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         this._disposables.push(this._onDidChangeViewNavigation);
         this._disposables.push(this._onDidChangePanelVisibility);
+        this._disposables.push(this._onDidNudgeBannerAction);
         this._disposables.push(
             this._onDidOpenTestResultsOverview,
             this._onDidCloseTestResultsOverview,
@@ -349,6 +360,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._view = webviewView;
 
         this._resetReadyState();
+        this._bannerNeedsReplay = true;
 
         webviewView.webview.options = {
             // Allow scripts in the webview
@@ -508,13 +520,47 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._liveEngineFeed.pushSlotUpdate();
     }
 
+    // ── Public API: nudge banner ─────────────────────────────────────
+
+    /** Show the proactive nudge banner, caching it as the authoritative state for replay-on-ready. */
+    public showNudgeBanner(text: NudgeText, episodeId: string | undefined, timerMs: number): void {
+        this._currentBanner = { title: text.title, sub: text.sub, episodeId, timerMs };
+        // While a fresh resolve is pending (`_bannerNeedsReplay`), `_onReady` will replay
+        // `_currentBanner` exactly once as soon as the new view signals ready. Posting here too
+        // would either be queued and flushed a second time, or double-show the banner once the
+        // replay fires, so skip the immediate post and let the replay be the single source of truth.
+        if (!this._bannerNeedsReplay) {
+            this._postMessageSafe({ type: ExtensionMsg.ShowNudgeBanner, ...this._currentBanner });
+        }
+    }
+
+    /** Hide the proactive nudge banner and clear the cached replay state. */
+    public hideNudgeBanner(): void {
+        this._currentBanner = null;
+        this._postMessageSafe({ type: ExtensionMsg.HideNudgeBanner });
+    }
+
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
 
     protected _onReady(): void {
         this.sendInitData();
+        // `_onReady` fires for BOTH a fresh Ready mount AND a RequestInit retry on an already-live
+        // view. Gate the replay on the one-shot flag so a RequestInit never restarts a live banner's
+        // 10s countdown; only a genuine fresh resolve re-arms it (see resolveWebviewView).
+        if (this._bannerNeedsReplay) {
+            this._bannerNeedsReplay = false;
+            if (this._currentBanner) { this._postMessageSafe({ type: ExtensionMsg.ShowNudgeBanner, ...this._currentBanner }); }
+        }
     }
 
     protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
+        if (message.command === WebviewCmd.NudgeBannerAction) {
+            // All three actions (showMe/dismiss/timeout) self-hide the banner in the webview, so the
+            // cached state is now stale and must not be replayed on a later re-resolve.
+            this._currentBanner = null;
+            this._onDidNudgeBannerAction.fire(getPayload<WebCmd<typeof WebviewCmd.NudgeBannerAction>>(message));
+            return;
+        }
         // Route through the same serialized sender queue as the fullscreen path, binding the sidebar's
         // stable sender. This keeps getCurrentSender() correct: with all command processing serialized on
         // one queue, a sidebar command can never observe a fullscreen handleMessageWithSender override

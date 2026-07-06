@@ -13,12 +13,12 @@ import { TUNING } from '@extension/services/struggle/config';
 import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { AlertRecord } from '@extension/services/struggle/types';
-import { showActiveNotification } from '@extension/services/struggleIntervention/activeNotification';
 import { collectExerciseScopedFiles } from '@extension/services/struggleIntervention/exerciseScopedCollector';
 import { InterventionEventLog } from '@extension/services/struggleIntervention/interventionEventLog';
 import { ProactiveEgressConsent } from '@extension/services/struggleIntervention/proactiveEgressConsent';
 import { subscribeStruggleEvents } from '@extension/services/struggleIntervention/struggleEventSubscription';
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
+import { pickNudgeText } from '@extension/services/ui/nudgeBannerText';
 
 import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, StruggleEngineHandle } from './contract';
 import { formatTick } from './formatTick';
@@ -62,6 +62,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // Forward ref: the slot-change sink is registered after the orchestrator is built
     // (via handle.setSlotChangeSink), so we close over a mutable binding.
     let slotChangeSink: () => void = () => {};
+    // Nudge-banner text rotation: tracks the last shown title so pickNudgeText never repeats it.
+    let lastNudgeTitle: string | undefined;
     // Inline in-editor cue surface (spec §4.1). The getExerciseRoot thunk reads the coordinator lazily (it is
     // assigned below; the thunk only fires on later editor events), so constructing this before it is safe.
     const inline = new InlineHintDecoration(deps.context.extensionUri, () => coordinator.activeExerciseRoot);
@@ -115,17 +117,12 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         slotCfg: TUNING.slot,
         progressCloseCfg: TUNING.slot,
         setBadge: on => deps.setProactiveBadge(on),
-        showActiveNotification: () => showActiveNotification(
-            () => orchestrator.recordOutcome('clicked'),
-            () => {
-                // C8: keep the existing backoff bump, and also perform the episode-scoped
-                // resolution (free the slot, write DISMISSED outcome, fold the episode).
-                // recordOutcome is NOT inside dismissEpisode to avoid double-counting
-                // with the card path (which bumps the backoff via _onDidDismissProactive).
-                orchestrator.recordOutcome('dismissed');
-                orchestrator.dismissEpisode();
-            },
-        ),
+        showActiveBanner: (episodeId) => {
+            const t = pickNudgeText(lastNudgeTitle);
+            lastNudgeTitle = t.title;
+            deps.showNudgeBanner(t, episodeId, 10_000);
+        },
+        hideActiveBanner: () => deps.hideNudgeBanner(),
         // C2: reveal + episode-outcome (seam-threaded; webview reconcile wired via deps)
         generateLocalId: () => crypto.randomUUID(),
         postRevealBubble: (text, localId) => deps.postRevealBubble(text, localId),
@@ -274,6 +271,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         getSlotDebugSnapshot: () => orchestrator.getSlotDebugSnapshot(),
         getEpisodeHistory: () => orchestrator.getEpisodeHistory(),
         setSlotChangeSink: (fn: () => void) => { slotChangeSink = fn; },
+        handleBannerAction: (action, episodeId) => {
+            if (action === 'showMe') { orchestrator.recordOutcome('clicked'); }
+            else if (action === 'dismiss') { orchestrator.recordOutcome('dismissed'); orchestrator.dismissEpisode(episodeId); }
+            // 'timeout' → no outcome (episode stays active)
+        },
     };
 }
 

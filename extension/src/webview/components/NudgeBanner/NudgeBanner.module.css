@@ -1,0 +1,125 @@
+.banner {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 200, 220, 0.4);
+  background: rgba(28, 58, 68, 0.86);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  color: #e6f6fb;
+  overflow: hidden;
+  animation: nudgeSlideUp 0.22s ease-out;
+}
+
+@keyframes nudgeSlideUp {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.closeBtn {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #cfeef6;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 20px;
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+
+.textCol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.sub {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.primaryBtn {
+  background: #4ec9e0;
+  color: #08313a;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ghostBtn {
+  background: transparent;
+  color: #cfeef6;
+  border: 1px solid rgba(120, 200, 220, 0.45);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.countdown {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  transform-origin: left;
+  background: linear-gradient(90deg, #6fe0f5, #3aa8c1);
+  animation-name: nudgeDraining;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes nudgeDraining {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}

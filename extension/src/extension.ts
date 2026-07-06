@@ -85,7 +85,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref: the Iris-enabled cache is constructed later (after ContextStore exists), but the
 	// engine's gate reads it lazily at alert-time, so a fail-closed default until it is wired.
 	let irisEnabledCache: IrisEnabledCache | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink } = createStruggleEngine({
+	// Forward-ref: the nudge-banner deps below (showNudgeBanner/hideNudgeBanner) are only ever invoked
+	// lazily (well after the provider is constructed below), so reading it through a mutable binding is safe.
+	let artemisWebviewProvider: ArtemisWebviewProvider | undefined;
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink, handleBannerAction } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
@@ -133,6 +136,24 @@ export async function activate(context: vscode.ExtensionContext) {
 			});
 			return { dispose: () => { stateSub.dispose(); try { activeUnsub?.(); } catch { /* stale sub after disconnect */ } activeUnsub = undefined; } };
 		},
+		showNudgeBanner: (text, episodeId, timerMs) => {
+			if (artemisWebviewProvider?.getCurrentVisibility()) {
+				artemisWebviewProvider.showNudgeBanner(text, episodeId, timerMs);
+				return;
+			}
+			// Sidebar is hidden: reveal it first and post the banner only once the reveal (and the
+			// best-effort editor-focus restore below) has resolved, so the webview's 10s countdown
+			// never starts while the panel is still off-screen and thus invisible to the student.
+			const prev = vscode.window.activeTextEditor;
+			// VS Code has no no-focus reveal command for a collapsed webview view, so revealing steals
+			// focus; we best-effort restore the editor the student was in, but if they were in a
+			// non-editor surface (terminal/explorer) focus stays on the sidebar.
+			void vscode.commands.executeCommand('artemis.loginView.focus').then(() => {
+				if (prev) { void vscode.window.showTextDocument(prev.document, { viewColumn: prev.viewColumn, preserveFocus: false, selection: prev.selection }); }
+				artemisWebviewProvider?.showNudgeBanner(text, episodeId, timerMs);
+			});
+		},
+		hideNudgeBanner: () => artemisWebviewProvider?.hideNudgeBanner(),
 	});
 	activeStruggleCoordinator = struggleCoordinator;
 	struggleCoordinator.setWebsocketService(artemisWebsocketService);
@@ -192,7 +213,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	const artemisWebviewProvider = new ArtemisWebviewProvider({
+	artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
 		authManager,
@@ -219,6 +240,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
+	// Route a nudge-banner button back to the engine outcome, and open the chat on "Show me".
+	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction(({ action, episodeId }) => {
+		handleBannerAction?.(action, episodeId);
+		if (action === 'showMe') { void vscode.commands.executeCommand('iris.chatView.focus'); }
+	}));
 
 	// Developer-only: surface the engine's live alert decision (firing / gated /
 	// armed) in the status bar. Reads the coordinator's tick stream; no-op

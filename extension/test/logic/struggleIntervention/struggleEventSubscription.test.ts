@@ -44,7 +44,8 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         softThreshold: 4,
         pauseStrikes: 3,
         setBadge: vi.fn(),
-        showActiveNotification: vi.fn(),
+        showActiveBanner: vi.fn(),
+        hideActiveBanner: vi.fn(),
         showLamp: vi.fn(),
         showGutterOnly: vi.fn(),
         postBubble: vi.fn(),
@@ -179,7 +180,7 @@ describe('subscribeStruggleEvents dispatch', () => {
 // ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService surface split (C1)', () => {
-    it('onServerAmbient with anchor: showGutterOnly + badge + lamp; never showInline, never toast, never bubble', () => {
+    it('onServerAmbient with anchor: showGutterOnly + badge + lamp; never showInline, never banner, never bubble', () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -189,9 +190,9 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.showGutterOnly).toHaveBeenCalledWith('Sort.java', 10);
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         expect(deps.showLamp).toHaveBeenCalled();
-        // Must NOT show inline text, toast, or bubble:
+        // Must NOT show inline text, banner, or bubble:
         expect(deps.showInline).not.toHaveBeenCalled();
-        expect(deps.showActiveNotification).not.toHaveBeenCalled();
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
     });
 
@@ -209,7 +210,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.postBubble).not.toHaveBeenCalled();
     });
 
-    it('onServerActive posts optimistic bubble tagged with messageId + inline + toast + badge + hides lamp', () => {
+    it('onServerActive posts optimistic bubble tagged with messageId + inline + banner + badge + hides lamp', () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -220,8 +221,8 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556, 'ep-test');
         // Inline breadcrumb armed at the anchor (4th arg = message ?? inlineHint, so message wins when provided)
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Try checking array bounds.');
-        // Toast notification
-        expect(deps.showActiveNotification).toHaveBeenCalled();
+        // Nudge banner
+        expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-test');
         // Badge
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         // Anchored active: the jump lamp is armed (not the unconditional clearLamp), and the
@@ -240,7 +241,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
 
         // Fallback bubble with null id (runtime-only, no dedup tag)
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking bounds.', null, 'ep-test');
-        expect(deps.showActiveNotification).toHaveBeenCalled();
+        expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-test');
         expect(deps.clearLamp).toHaveBeenCalled();
     });
 
@@ -259,36 +260,36 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(calledId).toBe(123);
     });
 
-    it('applyEscalation(inSession=true) posts quiet bubble and suppresses toast + inline', () => {
+    it('applyEscalation(inSession=true) posts quiet bubble and suppresses banner + inline', () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
         svc.applyEscalation(true, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', 789);
 
         expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', 789, undefined);
-        expect(deps.showActiveNotification).not.toHaveBeenCalled();
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
     });
 
-    it('applyEscalation(inSession=false) fires toast + inline push', () => {
+    it('applyEscalation(inSession=false) fires banner + inline push', () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
         svc.applyEscalation(false, 'Check the loop bounds.', 'Sort.java', 10, 'off-by-one?', 789);
 
         expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', 789, undefined);
-        expect(deps.showActiveNotification).toHaveBeenCalled();
+        expect(deps.showActiveBanner).toHaveBeenCalledWith(undefined);
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Check the loop bounds.');
     });
 
-    it('applyEscalation(inSession=false) without anchor data: toast but no inline push', () => {
+    it('applyEscalation(inSession=false) without anchor data: banner but no inline push', () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
         svc.applyEscalation(false, 'Check the loop bounds.', undefined, undefined, undefined, null);
 
         expect(deps.postBubble).toHaveBeenCalledWith('Check the loop bounds.', null, undefined);
-        expect(deps.showActiveNotification).toHaveBeenCalled();
+        expect(deps.showActiveBanner).toHaveBeenCalledWith(undefined);
         expect(deps.showInline).not.toHaveBeenCalled();
     });
 });

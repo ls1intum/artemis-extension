@@ -112,6 +112,9 @@ export const WebviewCmd = {
     // Problem-statement tracking
     ProblemStatementScroll: 'problemStatementScroll',
     ProblemStatementSelection: 'problemStatementSelection',
+
+    // Proactive nudge banner
+    NudgeBannerAction: 'nudgeBannerAction',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -265,6 +268,9 @@ interface WebviewCmdPayloads {
         selectionWidth: number;
         selectionHeight: number;
     };
+
+    // Proactive nudge banner
+    nudgeBannerAction: { action: 'showMe' | 'dismiss' | 'timeout'; episodeId?: string };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -310,6 +316,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.TaskFeedbackClosed,
     WebviewCmd.ProblemStatementScroll,
     WebviewCmd.ProblemStatementSelection,
+    WebviewCmd.NudgeBannerAction,
 ]);
 
 /** Auto-generated command messages */

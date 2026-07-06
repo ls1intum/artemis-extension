@@ -135,7 +135,10 @@ export interface StruggleInterventionDeps {
     softThreshold: number;
     pauseStrikes: number;
     setBadge(on: boolean): void;
-    showActiveNotification(): void;
+    /** Show the proactive nudge banner for the given (out-of-session, DELIVERED) episode. */
+    showActiveBanner(episodeId: string | undefined): void;
+    /** Hide the proactive nudge banner. */
+    hideActiveBanner(): void;
     /**
      * Post an optimistic proactive bubble to the open chat. When `messageId` is set, a later server
      * message with the same id deduplicates on the webview side. When `messageId` is null
@@ -1018,10 +1021,10 @@ export class StruggleInterventionService implements AlertSink {
             void this._deps.openSession(sessionId);
         }
         this._deps.setBadge(true);
-        // The bubble already lands in the open chat, so the toast is redundant (and noisy) when the
-        // chat view is open. Mirror the escalation path, which already suppresses the toast in-session.
+        // The bubble already lands in the open chat, so the banner is redundant (and noisy) when the
+        // chat view is open. Mirror the escalation path, which already suppresses the banner in-session.
         if (!this._slot.snapshot().inSession) {
-            this._deps.showActiveNotification();
+            this._deps.showActiveBanner(this._deliveredEpisodeId());
         }
         if (anchorFile && anchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
             this._deps.showInline(anchorFile, anchorLine, inlineHint, bubbleText);
@@ -1038,8 +1041,8 @@ export class StruggleInterventionService implements AlertSink {
     /**
      * Apply an escalation (PARKED -> DELIVERED transition, driven by C3 slot reconcile).
      * Computes loudness from `inSession`: when the chat view is open (in-session), the escalation
-     * drops quietly as a bubble with no toast or inline push; otherwise it fires the full active
-     * surface (toast + inline). This method does NOT touch the slot state (C3 owns that).
+     * drops quietly as a bubble with no banner or inline push; otherwise it fires the full active
+     * surface (banner + inline). This method does NOT touch the slot state (C3 owns that).
      */
     applyEscalation(
         inSession: boolean,
@@ -1075,7 +1078,7 @@ export class StruggleInterventionService implements AlertSink {
             return;
         }
         // Out-of-session: full active push
-        this._deps.showActiveNotification();
+        this._deps.showActiveBanner(this._deliveredEpisodeId());
         if (hasAnchor) {
             this._deps.showInline(anchorFile, anchorLine, inlineHint, text);
         } else {
@@ -1278,6 +1281,7 @@ export class StruggleInterventionService implements AlertSink {
     private _clearEpisodeRuntime(): void {
         this._deps.clearInline();
         this._deps.clearEpisodeLamp();
+        this._deps.hideActiveBanner();
         this._latch.reset();
         this._watchdog?.disarm();
         this._watchdog = undefined;
@@ -1305,7 +1309,7 @@ export class StruggleInterventionService implements AlertSink {
     // ---------------------------------------------------------------------------
 
     /**
-     * A surfaced intervention was engaged (lamp click / toast action / inline command).
+     * A surfaced intervention was engaged (lamp click / banner action / inline command).
      * Feeds the reject backoff (dismiss escalates, click clears).
      */
     recordOutcome(outcome: 'clicked' | 'dismissed'): void {
@@ -1339,7 +1343,7 @@ export class StruggleInterventionService implements AlertSink {
 
     /**
      * C8: Episode-scoped dismiss. Called by the card Dismiss button (via the provider callback
-     * seam) and by the active-toast "Not now" action (via the telemetry closure).
+     * seam) and by the active banner's "Not now" action (via the telemetry closure).
      *
      * For the live DELIVERED episode: frees the slot, tears down episode runtime, writes the
      * DISMISSED outcome (best-effort, A10 first-terminal-wins), and folds the episode without
@@ -1353,7 +1357,7 @@ export class StruggleInterventionService implements AlertSink {
      *
      * Backoff is NOT bumped here. Callers handle it to avoid double-counting:
      *   Card: _onDidDismissProactive.fire() -> recordProactiveDismiss() -> recordChatDismiss()
-     *   Toast: recordOutcome('dismissed') kept alongside in the telemetry seam closure.
+     *   Banner: recordOutcome('dismissed') kept alongside in the telemetry seam closure.
      */
     public dismissEpisode(episodeId?: string): void {
         const snapState = this._slot.snapshot().state;
@@ -1424,6 +1428,7 @@ export class StruggleInterventionService implements AlertSink {
             this._deps.clearLamp();
             this._deps.clearInline();
             this._deps.setBadge(false);
+            this._deps.hideActiveBanner();
         }
     }
 
@@ -1449,6 +1454,7 @@ export class StruggleInterventionService implements AlertSink {
         this._deps.setBadge(false);
         this._deps.clearLamp();
         this._deps.clearInline();
+        this._deps.hideActiveBanner();
     }
 
     /**

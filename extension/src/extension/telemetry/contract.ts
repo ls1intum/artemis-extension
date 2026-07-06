@@ -175,6 +175,10 @@ export interface StruggleEngineDeps {
      * Delegates to ArtemisApiService.deleteSupersededProactiveMessage.
      */
     deleteSupersededProactiveMessage(exerciseId: number, messageId: number): Promise<void>;
+    /** Show the proactive nudge banner over the Artemis sidebar page (reveals it if hidden). Lazy. */
+    showNudgeBanner(text: import('@extension/services/ui/nudgeBannerText').NudgeText, episodeId: string | undefined, timerMs: number): void;
+    /** Hide the proactive nudge banner. Lazy. */
+    hideNudgeBanner(): void;
 }
 
 /**
@@ -218,7 +222,7 @@ export interface StruggleEngineHandle {
      * C8: Episode-scoped dismiss. Frees the slot, tears down episode runtime, writes
      * the DISMISSED outcome (best-effort), and folds the episode without praise.
      * Called by the chat-card Dismiss (via setStruggleCallbacks.onEpisodeDismiss) and by
-     * the active-toast "Not now" action (directly in the telemetry seam closure).
+     * the banner's "Not now" action (directly in the telemetry seam closure).
      * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
      */
     dismissEpisode?(episodeId?: string): void;
@@ -238,4 +242,6 @@ export interface StruggleEngineHandle {
      * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
      */
     setSlotChangeSink?(fn: () => void): void;
+    /** Route a nudge-banner button back to the engine outcome (full build only; omitted by the noop). */
+    handleBannerAction?(action: 'showMe' | 'dismiss' | 'timeout', episodeId?: string): void;
 }

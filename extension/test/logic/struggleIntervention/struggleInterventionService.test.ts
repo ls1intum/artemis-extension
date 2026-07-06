@@ -48,7 +48,8 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         softThreshold: 3,
         pauseStrikes: 5,
         setBadge: vi.fn(),
-        showActiveNotification: vi.fn(),
+        showActiveBanner: vi.fn(),
+        hideActiveBanner: vi.fn(),
         postBubble: vi.fn(),
         setChatLiveEpisode: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
@@ -301,16 +302,17 @@ describe('StruggleInterventionService', () => {
         svc.onServerAmbient('hint', undefined, undefined, undefined);
         svc.onServerActive(99);
         expect(deps.showInline).not.toHaveBeenCalled();
-        expect(deps.showActiveNotification).not.toHaveBeenCalled();
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
     });
 
-    it('setStudentProactive(active exercise, false) clears a standing inline cue + lamp + badge', () => {
+    it('setStudentProactive(active exercise, false) clears a standing inline cue + lamp + badge + banner', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc.setStudentProactive(42, false);   // 42 is fakeDeps' active exercise
         expect(deps.clearInline).toHaveBeenCalled();
         expect(deps.clearLamp).toHaveBeenCalled();
         expect(deps.setBadge).toHaveBeenCalledWith(false);
+        expect(deps.hideActiveBanner).toHaveBeenCalled();
     });
 
     it('setStudentProactive on a NON-active exercise does not touch live surfaces (no cross-exercise clobber)', () => {
@@ -320,6 +322,7 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearInline).not.toHaveBeenCalled();
         expect(deps.clearLamp).not.toHaveBeenCalled();
         expect(deps.setBadge).not.toHaveBeenCalled();
+        expect(deps.hideActiveBanner).not.toHaveBeenCalled();
     });
 
     it('resumeProactive clears an auto-pause for the active exercise, but not for another', () => {
@@ -333,7 +336,7 @@ describe('StruggleInterventionService', () => {
         expect(svc.isProactivePaused(42)).toBe(false);
     });
 
-    // C1/C3: ambient = PARKED pointer only (badge + lamp always; gutter icon if anchor live). No inline text, no toast.
+    // C1/C3: ambient = PARKED pointer only (badge + lamp always; gutter icon if anchor live). No inline text, no banner.
     // Note: C3 routes onServerAmbient through the slot guard; tests use simulateDecidePending to set up the in-flight state.
     it('inbound ambient event (no anchor) → badge + lamp (PARKED pointer); no inline', () => {
         const deps = fakeDeps();
@@ -344,7 +347,7 @@ describe('StruggleInterventionService', () => {
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
-        expect(deps.showActiveNotification).not.toHaveBeenCalled();
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
         // Slot is now PARKED
         expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
@@ -358,10 +361,10 @@ describe('StruggleInterventionService', () => {
         expect(deps.showGutterOnly).toHaveBeenCalledWith('src/A.java', 42);
         expect(deps.showLamp).toHaveBeenCalled();
         expect(deps.setBadge).toHaveBeenCalledWith(true);
-        // Ambient must NOT render the inline after-line text or toast or bubble:
+        // Ambient must NOT render the inline after-line text or banner or bubble:
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
-        expect(deps.showActiveNotification).not.toHaveBeenCalled();
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
     });
 
     it('inbound ambient event WITHOUT an anchor → badge + lamp only; clears any stale inline cue', () => {
@@ -430,7 +433,7 @@ describe('StruggleInterventionService', () => {
     // The old 3/session cap is replaced by the slot (only one episode at a time). Only the first active
     // surface per episode is delivered; subsequent decides from a DELIVERED slot are suppressed unless
     // the slot is an escalation candidate (ambient+hardEvent).
-    it('inbound active event (FREE slot) → opens session + badge + notification + inline if anchor live', () => {
+    it('inbound active event (FREE slot) → opens session + badge + banner + inline if anchor live', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
@@ -438,19 +441,19 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearInline).toHaveBeenCalled();   // active clears any stale inline cue
         expect(deps.openSession).toHaveBeenCalledWith(7);
         expect(deps.setBadge).toHaveBeenCalledWith(true);
-        expect(deps.showActiveNotification).toHaveBeenCalled();
+        expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
         // Slot is now DELIVERED
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
-    it('active delivery suppresses the toast when the chat is already open (in-session); the bubble still posts', () => {
+    it('active delivery suppresses the banner when the chat is already open (in-session); the bubble still posts', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc._slot.setInSession(true);                              // chat view open
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive(7);
         expect(deps.postBubble).toHaveBeenCalled();                // bubble still lands in the open chat
-        expect(deps.showActiveNotification).not.toHaveBeenCalled(); // ...but no redundant toast
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();      // ...but no redundant banner
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
@@ -495,7 +498,7 @@ describe('StruggleInterventionService', () => {
         svc.onServerActive(8, 'src/B.java', 84, 'check punctuation', 0.9);
         // the bubble still opens (active surface)...
         expect(deps.openSession).toHaveBeenCalledWith(8);
-        expect(deps.showActiveNotification).toHaveBeenCalled();
+        expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
         // ...AND the inline breadcrumb is armed at the anchor (rendered once the file is visible;
         // the anchor no longer has to be on screen in the delivery moment)...
         expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
@@ -1226,7 +1229,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.postBubble).toHaveBeenCalledTimes(1);
     });
 
-    it('setInSession(true): escalation is quiet (bubble only, no toast/inline); setInSession(false): loud (toast+inline)', () => {
+    it('setInSession(true): escalation is quiet (bubble only, no banner/inline); setInSession(false): loud (banner+inline)', () => {
         // Helper to set up a DELIVERED-ambient slot and run an escalating decide
         function runEscalation(inSession: boolean): StruggleInterventionDeps {
             const deps = fakeDeps();
@@ -1252,20 +1255,21 @@ describe('StruggleInterventionService C3 slot routing', () => {
             return deps;
         }
 
-        // In-session: bubble only, no notification or inline push. The jump lamp is the ONE code
+        // In-session: bubble only, no banner or inline push. The jump lamp is the ONE code
         // pointer that still arms in-session (leiser, no focus steal) so the code stays reachable.
         // clearInline still fires to retire any stale parked gutter cue carried over by the reveal.
         const inSessionDeps = runEscalation(true);
         expect(inSessionDeps.postBubble).toHaveBeenCalledTimes(1);
-        expect(inSessionDeps.showActiveNotification).not.toHaveBeenCalled();
+        expect(inSessionDeps.showActiveBanner).not.toHaveBeenCalled();
         expect(inSessionDeps.showInline).not.toHaveBeenCalled();
         expect(inSessionDeps.clearInline).toHaveBeenCalled();
         expect(inSessionDeps.showActiveJump).toHaveBeenCalledWith('src/A.java', 10);
 
-        // Out-of-session (default): bubble + notification + inline + jump lamp
+        // Out-of-session (default): bubble + banner + inline + jump lamp
         const outSessionDeps = runEscalation(false);
         expect(outSessionDeps.postBubble).toHaveBeenCalledTimes(1);
-        expect(outSessionDeps.showActiveNotification).toHaveBeenCalledTimes(1);
+        expect(outSessionDeps.showActiveBanner).toHaveBeenCalledTimes(1);
+        expect(outSessionDeps.showActiveBanner).toHaveBeenCalledWith('ep-esc');
         expect(outSessionDeps.showInline).toHaveBeenCalledTimes(1);
         expect(outSessionDeps.showActiveJump).toHaveBeenCalledWith('src/A.java', 10);
     });
