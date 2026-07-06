@@ -18,6 +18,13 @@ import * as vscode from 'vscode';
  */
 const HINT_COMMAND = 'iris.intervention.acceptSubtle';
 
+/**
+ * Dominant blue sampled from the Iris mascot logo (media/iris-logo-big-left.png). Used as the
+ * lamp's foreground: VS Code only honours error/warning ThemeColors for a status-bar *background*,
+ * so the Iris identity lives in the text/icon colour instead of a coloured pill.
+ */
+const IRIS_BLUE = '#007fcf';
+
 type LampMode = 'none' | 'parked' | 'jump';
 
 export class InterventionService implements vscode.Disposable {
@@ -35,6 +42,7 @@ export class InterventionService implements vscode.Disposable {
     constructor() {
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this._statusBarItem.command = HINT_COMMAND;
+        this._statusBarItem.color = IRIS_BLUE;
         this._disposables.push(this._statusBarItem);
         this._disposables.push(
             vscode.commands.registerCommand(HINT_COMMAND, () => this.handleClick()),
@@ -56,7 +64,6 @@ export class InterventionService implements vscode.Disposable {
         this._jumpTarget = undefined;
         this._statusBarItem.text = '$(lightbulb) Iris has a hint';
         this._statusBarItem.tooltip = 'Iris noticed something - click to open the chat.';
-        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         this._statusBarItem.show();
     }
 
@@ -71,7 +78,6 @@ export class InterventionService implements vscode.Disposable {
         const base = uri.path.split('/').pop() || uri.path;
         this._statusBarItem.text = `$(arrow-right) Iris: ${base}:${line}`;
         this._statusBarItem.tooltip = 'Jump to the line Iris flagged.';
-        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         this._statusBarItem.show();
     }
 

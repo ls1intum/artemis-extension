@@ -2,7 +2,7 @@
   position: fixed;
   left: 8px;
   right: 8px;
-  bottom: 8px;
+  bottom: 16px;
   /* Cap the width on a wide sidebar; auto margins centre it within the 8px gutters. */
   max-width: 480px;
   margin: 0 auto;
@@ -12,12 +12,13 @@
   gap: 10px;
   padding: 15px;
   border-radius: 14px;
-  border: 1px solid rgba(120, 200, 220, 0.4);
+  border: 1px solid rgba(74, 168, 232, 0.42);
   /* Iris-blue frosted glass that still follows the theme: tint the theme's notification
-     background toward Iris blue, then hold it slightly translucent so the page frosts through.
-     Opaque fallback first for webviews without color-mix (VS Code's Chromium has it). */
+     background toward the Iris blue (#007fcf, sampled from the mascot logo), then hold it
+     slightly translucent so the page frosts through. Opaque fallback first for webviews
+     without color-mix (VS Code's Chromium has it). */
   background: var(--vscode-notifications-background);
-  background: color-mix(in srgb, color-mix(in srgb, var(--vscode-notifications-background) 68%, #3aa8c1 32%) 90%, transparent);
+  background: color-mix(in srgb, color-mix(in srgb, var(--vscode-notifications-background) 68%, #007fcf 32%) 90%, transparent);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow: 0 6px 18px var(--vscode-widget-shadow);
@@ -79,7 +80,9 @@
 
 .sub {
   font-size: 12px;
-  color: var(--vscode-descriptionForeground);
+  /* Inherit the banner's (theme) foreground and just dim it. descriptionForeground is tuned for the
+     plain theme background, not our azure-tinted surface, where it drops below a comfortable contrast. */
+  opacity: 0.82;
 }
 
 .actions {
@@ -89,8 +92,8 @@
 }
 
 .primaryBtn {
-  background: #4ec9e0;
-  color: #08313a;
+  background: #007fcf;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 6px 12px;
@@ -100,7 +103,7 @@
 }
 
 .primaryBtn:hover {
-  background: #3ab4cd;
+  background: #1a90da;
 }
 
 .ghostBtn {
@@ -124,7 +127,7 @@
   height: 3px;
   width: 100%;
   transform-origin: left;
-  background: linear-gradient(90deg, #6fe0f5, #3aa8c1);
+  background: linear-gradient(90deg, #4aa8e8, #0167a8);
   animation-name: nudgeDraining;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
