@@ -132,7 +132,7 @@ export const TUNING = {
      *                (RECOVERED) fires (prevents sub-second re-trigger on fast build cycles).
      */
     slot: {
-        idleAbandonMs: 360_000,     // [ENG] continuous-idle silent-free backstop (~6 min)
+        idleAbandonMs: 600_000,     // [ENG] continuous-idle silent-free backstop (~10 min)
         reArmSBase: 0.6,            // [ENG]
         reArmHoldMs: 30_000,        // [ENG]
     },

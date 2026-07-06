@@ -210,7 +210,7 @@ export interface StruggleInterventionDeps {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_SLOT_CFG: StaleConfig = {
-    idleAbandonMs: 360_000,
+    idleAbandonMs: 600_000,
 };
 
 const DEFAULT_PROGRESS_CFG: ProgressCloseCfg = {

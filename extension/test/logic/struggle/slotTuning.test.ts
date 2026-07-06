@@ -13,7 +13,7 @@ describe('TUNING.slot knobs', () => {
 
     it('matches the provisional default values', () => {
         expect(TUNING.slot).toMatchObject({
-            idleAbandonMs: 360_000,
+            idleAbandonMs: 600_000,
             reArmSBase: 0.6,
             reArmHoldMs: 30_000,
         });

@@ -1686,7 +1686,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         simulateDecidePending(svc, 'ep-tear', false);
         svc._owedConfirmClose = { confirmReason: 'progress' };
         // Arm watchdog
-        svc._watchdog = new StaleWatchdog({ idleAbandonMs: 360_000 });
+        svc._watchdog = new StaleWatchdog({ idleAbandonMs: 600_000 });
         svc._watchdog!.arm(Date.now(), false);
 
         // Free the slot to trigger clearEpisodeRuntime
