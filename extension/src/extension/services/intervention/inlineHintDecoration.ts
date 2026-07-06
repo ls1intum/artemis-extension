@@ -113,13 +113,16 @@ export class InlineHintDecoration implements vscode.Disposable {
                     renderOptions: {
                         after: {
                             contentText: buildCueText(c.hint),
-                            color: '#eaffff',
+                            color: '#eef6ff',
                             fontWeight: 'bold',
-                            backgroundColor: '#0c6a7c',
-                            border: '1px solid #3aa8c1',
+                            backgroundColor: '#0a4b6b',
+                            border: '1px solid #007fcf',
                             // Smuggle padding + rounded corners through textDecoration (rendered as inline CSS),
                             // turning the live dynamic hint into a colourful pill without a fixed-width SVG.
-                            textDecoration: 'none; padding: 1px 8px; border-radius: 10px;',
+                            // Asymmetric horizontal padding on purpose: the 💡 emoji carries its own
+                            // left side-bearing that text glyphs don't, so trim the left to make the
+                            // visible gap match the right.
+                            textDecoration: 'none; padding: 1px 8px 1px 5px; border-radius: 10px;',
                             margin: '0 0 0 1rem',
                         },
                     },

@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-/** The after-line cue text: bulb + the Socratic hint (spec §4.1). */
+/** The after-line cue text: bulb + the Socratic hint (spec §4.1). No leading space, so the pill's
+ *  left/right padding stays symmetric; the gap from the code comes from the decoration's margin. */
 export function buildCueText(inlineHint: string): string {
-    return ` 💡 ${inlineHint}`;
+    return `💡 ${inlineHint}`;
 }
 
 /** Repo-relative, forward-slash path of a document relative to the exercise root (portable across OSes). */
