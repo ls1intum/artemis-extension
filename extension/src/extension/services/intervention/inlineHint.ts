@@ -7,18 +7,18 @@ export function buildCueText(inlineHint: string): string {
 }
 
 /** Repo-relative, forward-slash path of a document relative to the exercise root (portable across OSes). */
-function relPath(root: vscode.Uri, uri: vscode.Uri): string {
+export function anchorRelPath(root: vscode.Uri, uri: vscode.Uri): string {
     return path.relative(root.fsPath, uri.fsPath).split(path.sep).join('/');
 }
 
 /** The visible editor whose document is exactly `anchorFile` (repo-relative to the exercise root), or undefined. */
 export function resolveAnchorEditor(editors: readonly vscode.TextEditor[], anchorFile: string, exerciseRoot: vscode.Uri): vscode.TextEditor | undefined {
-    return editors.find(e => relPath(exerciseRoot, e.document.uri) === anchorFile);
+    return editors.find(e => anchorRelPath(exerciseRoot, e.document.uri) === anchorFile);
 }
 
 /** True when `doc` is the anchored file (repo-relative to the exercise root), visible or not. */
 export function isAnchorDocument(doc: vscode.TextDocument, anchorFile: string, exerciseRoot: vscode.Uri): boolean {
-    return relPath(exerciseRoot, doc.uri) === anchorFile;
+    return anchorRelPath(exerciseRoot, doc.uri) === anchorFile;
 }
 
 /** Structural shape of a TextDocumentContentChangeEvent (keeps the line math testable without vscode). */

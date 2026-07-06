@@ -14,6 +14,7 @@ import { IrisEnabledCache } from '@extension/services/iris/irisEnabledCache';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
 import { createProviderRegistry } from '@extension/services/ui';
+import { MOCK_NUDGE_EPISODE_ID } from '@extension/services/ui/nudgeBannerText';
 import { StruggleAlertStatusBar } from '@extension/services/ui/struggleAlertStatusBar';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
@@ -241,9 +242,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 	// Route a nudge-banner button back to the engine outcome, and open the chat on "Show me".
+	// A dev mock banner (sentinel id) is visual only: its buttons neither record an outcome nor
+	// open the chat.
 	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction(({ action, episodeId }) => {
 		handleBannerAction?.(action, episodeId);
-		if (action === 'showMe') { void vscode.commands.executeCommand('iris.chatView.focus'); }
+		if (action === 'showMe' && episodeId !== MOCK_NUDGE_EPISODE_ID) { void vscode.commands.executeCommand('iris.chatView.focus'); }
 	}));
 
 	// Developer-only: surface the engine's live alert decision (firing / gated /

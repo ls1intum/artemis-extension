@@ -101,7 +101,7 @@
       },
       {
         "command": "artemis.forceStruggleIntervention",
-        "title": "Artemis: Force Struggle Intervention (Developer)",
+        "title": "Artemis: Struggle Intervention Menu (Developer)",
         "icon": "$(zap)"
       }
     ],

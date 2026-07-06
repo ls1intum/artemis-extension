@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
-import { isAnchorDocument } from '@extension/services/intervention/inlineHint';
+import { anchorRelPath, isAnchorDocument } from '@extension/services/intervention/inlineHint';
 import { InlineHintDecoration } from '@extension/services/intervention/inlineHintDecoration';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { BackoffGate } from '@extension/services/struggle/alerting/backoffGate';
@@ -18,10 +18,14 @@ import { InterventionEventLog } from '@extension/services/struggleIntervention/i
 import { ProactiveEgressConsent } from '@extension/services/struggleIntervention/proactiveEgressConsent';
 import { subscribeStruggleEvents } from '@extension/services/struggleIntervention/struggleEventSubscription';
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
-import { pickNudgeText } from '@extension/services/ui/nudgeBannerText';
+import { MOCK_NUDGE_EPISODE_ID, pickNudgeText } from '@extension/services/ui/nudgeBannerText';
 
 import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, StruggleEngineHandle } from './contract';
 import { formatTick } from './formatTick';
+
+/** Fixed hint text for the dev-only mocked active surface (visual only, carries no real analysis). */
+const MOCK_INLINE_HINT = 'Check your loop bounds here';
+const MOCK_INLINE_MESSAGE = 'Mocked proactive hint (developer preview). This is a visual-only surface — it carries no real analysis and touches no episode state.';
 
 /**
  * Real struggle-detection engine + proactive intervention (full / Marketplace /
@@ -232,12 +236,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // bypassing the engine gates (warmup / θ / B2 / B4) and the Tier-2 throttle that make
     // a real alert slow + flaky to provoke. decideOutcome still runs, so egress consent /
     // exercise presence stay realistic: with egress on you get the full POST → Pyris →
-    // bubble round-trip, otherwise it ends silently (logged, no local surface). Palette entry is dev-gated.
-    deps.context.subscriptions.push(vscode.commands.registerCommand('artemis.forceStruggleIntervention', () => {
-        if (!isDevMode()) {
-            void vscode.window.showWarningMessage('Artemis: "Force Struggle Intervention" is developer-mode only.');
-            return;
-        }
+    // bubble round-trip, otherwise it ends silently (logged, no local surface).
+    const forceFullPipeline = (): void => {
         const snap = coordinator.getSnapshot();
         const forced: AlertRecord = {
             kind: 'edit',
@@ -254,6 +254,64 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         devLog('▶ FORCED intervention (dev command): synthetic edit alert boundary=STATE urgency=1 → orchestrator.deliver()');
         orchestrator.deliver(forced);
         void vscode.window.showInformationMessage('Artemis (Dev): forced a struggle intervention — watch the [Struggle] output channel.');
+    };
+
+    // The mock surfaces below call the visual sinks (banner / lamp / badge / inline) DIRECTLY and
+    // never touch the orchestrator or its slot, so nothing is persisted and the slot stays FREE for
+    // a real alert. The inline/gutter cue is best-effort: it renders only when an exercise is active
+    // and an editor is open, anchored at the current cursor line (same coord system as real anchors).
+    const mockActive = (): void => {
+        const t = pickNudgeText(lastNudgeTitle);
+        lastNudgeTitle = t.title;
+        // Sentinel episodeId: the banner's action buttons are gated on it downstream, so a mock
+        // banner never mutates real backoff/episode state (see MOCK_NUDGE_EPISODE_ID).
+        deps.showNudgeBanner(t, MOCK_NUDGE_EPISODE_ID, 10_000);
+        const root = coordinator.activeExerciseRoot;
+        const editor = vscode.window.activeTextEditor;
+        if (root && editor) {
+            const line = editor.selection.active.line + 1;
+            inline.show(anchorRelPath(root, editor.document.uri), line, MOCK_INLINE_HINT, MOCK_INLINE_MESSAGE);
+            lamp.showJump(editor.document.uri, line);
+        }
+        devLog('▶ MOCK active proactivity (dev): banner + inline cue (visual only, no slot, no persist)');
+    };
+    const mockAmbient = (): void => {
+        lamp.showLamp();
+        deps.setProactiveBadge(true);
+        const root = coordinator.activeExerciseRoot;
+        const editor = vscode.window.activeTextEditor;
+        if (root && editor) {
+            inline.showGutterOnly(anchorRelPath(root, editor.document.uri), editor.selection.active.line + 1);
+        }
+        devLog('▶ MOCK ambient proactivity (dev): lamp + badge + gutter cue (visual only, no slot, no persist)');
+    };
+    const clearMockedSurfaces = (): void => {
+        deps.hideNudgeBanner();
+        lamp.reset();
+        inline.clear();
+        deps.setProactiveBadge(false);
+        devLog('▶ Cleared mocked proactivity surfaces (dev command)');
+    };
+
+    // The command is now a submenu: the real force path plus purely-visual ambient/active mocks.
+    // Palette entry is dev-gated (config.artemis.developerMode) but re-check here in case it is
+    // invoked programmatically.
+    deps.context.subscriptions.push(vscode.commands.registerCommand('artemis.forceStruggleIntervention', async () => {
+        if (!isDevMode()) {
+            void vscode.window.showWarningMessage('Artemis: the struggle-intervention dev menu is developer-mode only.');
+            return;
+        }
+        type MenuItem = vscode.QuickPickItem & { run: () => void };
+        const pick = await vscode.window.showQuickPick<MenuItem>(
+            [
+                { label: '$(zap) Force struggle intervention', description: 'full pipeline — real deliver, POSTs to Iris, occupies the slot', run: forceFullPipeline },
+                { label: '$(comment-discussion) Mock active proactivity', description: 'banner + inline cue · visual only (no slot, no persist)', run: mockActive },
+                { label: '$(lightbulb) Mock ambient proactivity', description: 'lamp + badge + gutter cue · visual only (no slot, no persist)', run: mockAmbient },
+                { label: '$(clear-all) Clear mocked surfaces', description: 'hide the banner and remove the lamp / badge / inline cue', run: clearMockedSurfaces },
+            ],
+            { title: 'Artemis: Struggle Intervention (Developer)', placeHolder: 'Pick an action' },
+        );
+        pick?.run();
     }));
 
     return {
@@ -272,6 +330,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         getEpisodeHistory: () => orchestrator.getEpisodeHistory(),
         setSlotChangeSink: (fn: () => void) => { slotChangeSink = fn; },
         handleBannerAction: (action, episodeId) => {
+            // Dev mock banner: purely visual, so its buttons must not touch real backoff/episode state.
+            if (episodeId === MOCK_NUDGE_EPISODE_ID) { return; }
             if (action === 'showMe') { orchestrator.recordOutcome('clicked'); }
             else if (action === 'dismiss') { orchestrator.recordOutcome('dismissed'); orchestrator.dismissEpisode(episodeId); }
             // 'timeout' → no outcome (episode stays active)
