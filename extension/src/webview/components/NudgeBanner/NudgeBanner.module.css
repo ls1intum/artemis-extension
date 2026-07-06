@@ -3,6 +3,9 @@
   left: 8px;
   right: 8px;
   bottom: 8px;
+  /* Cap the width on a wide sidebar; auto margins centre it within the 8px gutters. */
+  max-width: 480px;
+  margin: 0 auto;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -113,6 +116,12 @@
   animation-name: nudgeDraining;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
+}
+
+/* Pause the auto-close countdown while the student is interacting with the banner.
+   Freezing the drain animation also defers its animationend, so the timeout never fires on hover. */
+.banner:hover .countdown {
+  animation-play-state: paused;
 }
 
 @keyframes nudgeDraining {
