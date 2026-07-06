@@ -110,7 +110,19 @@ export class InlineHintDecoration implements vscode.Disposable {
             if (anchored) {
                 anchored.editor.setDecorations(this.type, [{
                     range: anchored.range,
-                    renderOptions: { after: { contentText: buildCueText(c.hint), color: '#007fcf', fontWeight: 'bold' } },
+                    renderOptions: {
+                        after: {
+                            contentText: buildCueText(c.hint),
+                            color: '#eaffff',
+                            fontWeight: 'bold',
+                            backgroundColor: '#0c6a7c',
+                            border: '1px solid #3aa8c1',
+                            // Smuggle padding + rounded corners through textDecoration (rendered as inline CSS),
+                            // turning the live dynamic hint into a colourful pill without a fixed-width SVG.
+                            textDecoration: 'none; padding: 1px 8px; border-radius: 10px;',
+                            margin: '0 0 0 1rem',
+                        },
+                    },
                     hoverMessage: buildHoverMarkdown(c.message),
                 }]);
             }
