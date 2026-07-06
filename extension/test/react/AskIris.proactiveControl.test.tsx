@@ -6,23 +6,26 @@ import { AskIris } from '@webview/components/AskIris/AskIris';
 describe('AskIris proactive control', () => {
     const base = { description: 'd', onClick: () => {} };
 
-    it('renders an On/Off switch when control is provided and toggles it', () => {
-        const onToggle = vi.fn();
-        render(<AskIris {...base} proactiveControl={{ preference: 'on', autoPaused: false, cardState: 'available', onToggle, onResume: () => {} }} />);
-        fireEvent.click(screen.getByRole('switch', { name: /proactive/i }));
-        expect(onToggle).toHaveBeenCalledWith(false);   // on -> off
+    it('renders the Off/Less/More segments, marks the current level, and reports a pick', () => {
+        const onLevelChange = vi.fn();
+        render(<AskIris {...base} proactiveControl={{ level: 'more', autoPaused: false, cardState: 'available', onLevelChange, onResume: () => {} }} />);
+        expect(screen.getAllByRole('radio').map(s => s.textContent)).toEqual(['Off', 'Less', 'More']);
+        expect(screen.getByRole('radio', { name: 'More' })).toHaveAttribute('aria-checked', 'true');
+        fireEvent.click(screen.getByRole('radio', { name: 'Off' }));
+        expect(onLevelChange).toHaveBeenCalledWith('off');
     });
 
     it('shows the dismiss-caused pause + a Resume action', () => {
         const onResume = vi.fn();
-        render(<AskIris {...base} proactiveControl={{ preference: 'on', autoPaused: true, cardState: 'available', onToggle: () => {}, onResume }} />);
+        render(<AskIris {...base} proactiveControl={{ level: 'more', autoPaused: true, cardState: 'available', onLevelChange: () => {}, onResume }} />);
         expect(screen.getByText(/dismissing recent hints/i)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: /resume/i }));
         expect(onResume).toHaveBeenCalled();
     });
 
-    it('renders no control when the prop is absent (unchanged AskIris)', () => {
+    it('renders no proactive section when the prop is absent (plain AskIris)', () => {
         render(<AskIris {...base} />);
-        expect(screen.queryByRole('switch')).toBeNull();
+        expect(screen.queryByRole('radiogroup')).toBeNull();
+        expect(screen.queryByText('Proactive help')).toBeNull();
     });
 });

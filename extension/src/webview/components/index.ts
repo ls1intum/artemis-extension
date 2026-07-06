@@ -13,6 +13,7 @@ export { Container } from './Container';
 export { ListItem } from './ListItem';
 
 // Composite components
+export type { ProactiveLevel } from './AskIris';
 export { AskIris } from './AskIris';
 export { ServiceHealth } from './ServiceHealth';
 

@@ -12,6 +12,7 @@ import {
     Container,
     ErrorMessage,
     IconButton,
+    type ProactiveLevel,
     SkeletonList,
 } from '@webview/components';
 import { BuildStatusStrip, ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
@@ -77,6 +78,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const [showCommitMessage, setShowCommitMessage] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
+
+    // Proactive-help level shown in the AskIris segmented control. UI-only for now:
+    // the host still persists a binary on/off, so the wenig/viel choice is remembered
+    // here and re-applied when proactive help is enabled (behaviour comes later).
+    const [proactiveLevelPref, setProactiveLevelPref] = useState<Exclude<ProactiveLevel, 'off'>>('more');
 
     // EduIDE (managed Theia): the exercise repo is already the workspace, so
     // clone affordances are hidden in favor of an "Open in Artemis" button.
@@ -241,6 +247,28 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const exercise = exerciseData.exercise;
     const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
+
+    // View-model for the standalone Proactive-help card (spec §12.2), built only when the host has
+    // supplied the control for THIS exercise. UI-only: the host still persists a binary on/off, so
+    // the wenig/viel split lives in `proactiveLevelPref` and is re-applied when proactive is enabled.
+    const proactiveVM = proactiveControl && proactiveControl.exerciseId === exercise.id ? {
+        level: (proactiveControl.preference === 'on' ? proactiveLevelPref : 'off') as ProactiveLevel,
+        autoPaused: proactiveControl.autoPaused,
+        cardState: proactiveControl.cardState,
+        reason: proactiveControl.reason,
+        onLevelChange: (level: ProactiveLevel) => {
+            if (level === 'off') {
+                postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled: false, courseId: exercise.course?.id });
+                return;
+            }
+            // Remember the visual level; the wenig/viel split is UI-only until the per-level behaviour is wired.
+            setProactiveLevelPref(level);
+            if (proactiveControl.preference !== 'on') {
+                postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled: true, courseId: exercise.course?.id });
+            }
+        },
+        onResume: () => postCommand(vscodeApi, 'resumeProactive', { exerciseId: exercise.id!, courseId: exercise.course?.id }),
+    } : undefined;
 
     // Extract participation data
     // Select participation matching the current workspace mode (practice vs graded)
@@ -646,18 +674,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 </div>
             )}
 
-            {/* Ask Iris Section */}
+            {/* Ask Iris Section, with the proactive-help control divided off inside the same card (spec §12.2). */}
             <AskIris
                 description="Open the Iris chat to discuss this exercise or get guidance."
                 onClick={handleAskIris}
-                proactiveControl={proactiveControl && proactiveControl.exerciseId === exercise.id ? {
-                    preference: proactiveControl.preference,
-                    autoPaused: proactiveControl.autoPaused,
-                    cardState: proactiveControl.cardState,
-                    reason: proactiveControl.reason,
-                    onToggle: (enabled) => postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled, courseId: exercise.course?.id }),
-                    onResume: () => postCommand(vscodeApi, 'resumeProactive', { exerciseId: exercise.id!, courseId: exercise.course?.id }),
-                } : undefined}
+                proactiveControl={proactiveVM}
             />
 
             {/* Problem Statement */}

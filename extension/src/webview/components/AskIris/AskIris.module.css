@@ -1,4 +1,5 @@
-.layout {
+/* Top row: Iris logo, chat blurb, Ask button. */
+.main {
   display: flex;
   align-items: center;
   gap: var(--theme-container-padding);
@@ -17,6 +18,7 @@
   align-items: flex-start;
   text-align: left;
   gap: 4px;
+  min-width: 0;
 }
 
 .buttonCol {
@@ -26,8 +28,8 @@
 }
 
 .logo {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   object-fit: contain;
 }
@@ -40,44 +42,93 @@
   margin: 0;
 }
 
-/* Proactive struggle on/off control (spec §12.2) */
-.proactiveControl {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 0.85em;
-  color: var(--vscode-descriptionForeground);
+/* Divider between the chat access above and the proactive control below. */
+.divider {
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--theme-border);
+  margin: 4px 0;
 }
 
-.toggleGroup {
-  display: inline-flex;
-  align-items: center;
+/* Proactive struggle level control (spec §12.2) */
+.proactive {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
-.proactiveLabel {
+.proactiveRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.proactiveText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proactiveTitle {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.proactiveDescription {
+  margin: 0;
+  font-size: 0.9em;
   color: var(--vscode-descriptionForeground);
 }
 
-.proactiveSwitch {
+.segmented {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.segment {
   cursor: pointer;
-  padding: 1px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--vscode-descriptionForeground);
+  padding: 5px 16px;
+  border: none;
   background: transparent;
-  color: var(--vscode-descriptionForeground);
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-weight: 500;
 }
 
-.proactiveSwitch[data-state='on'] {
-  border-color: var(--vscode-focusBorder);
-  color: var(--vscode-focusBorder);
+.segment:not(:last-child) {
+  border-right: 1px solid var(--vscode-focusBorder);
+}
+
+/* Hover feedback so the choices read as interactive, not just static labels. */
+.segment:not([aria-checked='true']):not(:disabled):hover {
+  background: color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent);
+}
+
+.segment[aria-checked='true'] {
+  background: var(--vscode-focusBorder);
+  color: var(--vscode-button-foreground);
+  font-weight: 700;
+}
+
+.segment:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .autoPaused {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
 }
 
 .resume {
@@ -90,6 +141,7 @@
 }
 
 .cardNote {
+  font-size: 0.9em;
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }
