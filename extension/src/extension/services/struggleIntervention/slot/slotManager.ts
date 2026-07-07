@@ -123,6 +123,20 @@ export class SlotManager {
         return this.snapshot();
     }
 
+    /**
+     * DELIVERED -> DELIVERED (consented follow-up, spec B+). Appends the hint to the SAME episode.
+     * Unlike escalate, NOT gated on the current level and driven by an explicit help_request reply.
+     */
+    appendFollowup(hint: EpisodeHint): SlotSnapshot {
+        if (this._state.kind !== 'delivered') {
+            throw new Error(`appendFollowup: illegal in state '${this._state.kind}' (requires delivered)`);
+        }
+        const ep = addHint(this._state.episode, hint);
+        this._gen++;
+        this._state = { kind: 'delivered', episode: ep, level: 'active', generation: this._gen };
+        return this.snapshot();
+    }
+
     /** -> FREE from any state. */
     free(): SlotSnapshot {
         this._gen++;
