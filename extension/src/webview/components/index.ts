@@ -13,9 +13,9 @@ export { Container } from './Container';
 export { ListItem } from './ListItem';
 
 // Composite components
-export type { ProactiveLevel } from './AskIris';
 export { AskIris } from './AskIris';
 export { ServiceHealth } from './ServiceHealth';
+export type { ProactiveLevel } from '@shared/messageContracts';
 
 // UI primitives for Phase 4
 export { EmptyState } from './EmptyState';

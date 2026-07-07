@@ -1,15 +1,8 @@
-import type { ProactiveCardReason, ProactiveCardState } from '@shared/messageContracts';
+import type { ProactiveCardReason, ProactiveCardState, ProactiveLevel } from '@shared/messageContracts';
 
 import { Button, Container } from '@webview/components';
 
 import styles from './AskIris.module.css';
-
-/**
- * Proactivity level shown in the segmented control. UI-only for now: `off` is the
- * persisted binary off, while `less` and `more` both mean "enabled" until the
- * per-level behaviour is wired (the wenig/viel split lives in webview state only).
- */
-export type ProactiveLevel = 'off' | 'less' | 'more';
 
 /** The three segments of the proactive-help control, in display order. */
 const PROACTIVE_SEGMENTS: readonly { level: ProactiveLevel; label: string }[] = [
