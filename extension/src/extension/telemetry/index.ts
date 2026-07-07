@@ -125,7 +125,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         showActiveBanner: (episodeId) => {
             const t = pickNudgeText(lastNudgeTitle);
             lastNudgeTitle = t.title;
-            deps.showNudgeBanner(t, episodeId, 10_000);
+            deps.showNudgeBanner(t, episodeId, 15_000);
         },
         hideActiveBanner: () => deps.hideNudgeBanner(),
         // C2: reveal + episode-outcome (seam-threaded; webview reconcile wired via deps)
@@ -268,7 +268,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         lastNudgeTitle = t.title;
         // Sentinel episodeId: the banner's action buttons are gated on it downstream, so a mock
         // banner never mutates real backoff/episode state (see MOCK_NUDGE_EPISODE_ID).
-        deps.showNudgeBanner(t, MOCK_NUDGE_EPISODE_ID, 10_000);
+        deps.showNudgeBanner(t, MOCK_NUDGE_EPISODE_ID, 15_000);
         const root = coordinator.activeExerciseRoot;
         const editor = vscode.window.activeTextEditor;
         if (root && editor) {
