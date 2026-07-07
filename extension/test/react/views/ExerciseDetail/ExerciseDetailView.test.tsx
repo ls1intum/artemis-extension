@@ -437,7 +437,7 @@ describe('ExerciseDetailView', () => {
 		const postMessageMock = vi.mocked(mockApi.postMessage);
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: 'Results' }));
+		await userEvent.click(screen.getByRole('button', { name: 'See test results' }));
 
 		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'testResultsOverviewOpened');
 		expect(openedCall).toBeDefined();
@@ -489,7 +489,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: 'Results' }));
+		await userEvent.click(screen.getByRole('button', { name: 'See test results' }));
 
 		expect(screen.queryByText('No test results available.')).not.toBeInTheDocument();
 		expect(screen.getByText('Failed (2)')).toBeInTheDocument();

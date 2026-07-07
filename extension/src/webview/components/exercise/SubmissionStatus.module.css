@@ -160,11 +160,12 @@
 .testBadgeError { border-color: var(--vscode-errorForeground, #f48771); color: var(--vscode-errorForeground, #f48771); }
 
 .scoreExpr {
-  flex: 1;
-  min-width: 0;
-  text-align: right;
   font-size: 13px;
   font-weight: 600;
+}
+/* Push the results link to the right edge; badge + score stay left-aligned together. */
+.resultsLink {
+  margin-left: auto;
 }
 .scorePercentDim {
   color: var(--vscode-descriptionForeground, var(--vscode-foreground));

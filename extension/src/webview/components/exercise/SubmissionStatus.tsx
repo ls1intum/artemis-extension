@@ -111,10 +111,10 @@ export function SubmissionStatus({
     scoreColorClass = styles.scoreWarning;
   }
 
-  // "23.1/101 p (22.9%)" when the exercise has points, else just "22.9%".
+  // "23.1/101 points (22.9%)" when the exercise has points, else just "22.9%".
   const scoreExpr = maxScore > 0 ? (
     <>
-      {parseFloat(score.toFixed(1))}/{maxScore} p{' '}
+      {parseFloat(score.toFixed(1))}/{maxScore} points{' '}
       <span className={styles.scorePercentDim}>({scorePercentage.toFixed(1)}%)</span>
     </>
   ) : (
@@ -134,7 +134,7 @@ export function SubmissionStatus({
             <Button variant="primary" onClick={onGoToSource}>Go to source</Button>
             <Button variant="link" onClick={onViewBuildLog}>Open log</Button>
             {hasTestInfo && (
-              <Button variant="link" onClick={onOpenTestResults}>Results</Button>
+              <Button variant="link" onClick={onOpenTestResults}>See test results</Button>
             )}
           </div>
         </div>
@@ -154,7 +154,7 @@ export function SubmissionStatus({
               {passedTests}/{totalTests} tests
             </span>
             <span className={clsx(styles.scoreExpr, scoreColorClass)}>{scoreExpr}</span>
-            <Button variant="link" onClick={onOpenTestResults}>Results</Button>
+            <Button variant="link" className={styles.resultsLink} onClick={onOpenTestResults}>See test results</Button>
           </div>
         </div>
       );

@@ -37,7 +37,7 @@ describe('SubmissionStatus', () => {
 		expect(screen.getByText('Build failed')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Go to source' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Open log' })).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: 'Results' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'See test results' })).not.toBeInTheDocument();
 	});
 
 	it('appends a Results link when buildFailed and hasTestInfo', () => {
@@ -54,7 +54,7 @@ describe('SubmissionStatus', () => {
 			/>
 		);
 		expect(screen.getByText('Build failed')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Results' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'See test results' })).toBeInTheDocument();
 	});
 
 	it('displays score fraction in programming exercise', () => {
@@ -89,7 +89,7 @@ describe('SubmissionStatus', () => {
 				scorePercentage={100}
 			/>
 		);
-		expect(screen.getByRole('button', { name: 'Results' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'See test results' })).toBeInTheDocument();
 	});
 
 	it('calls onOpenTestResults when Results link is clicked', async () => {
@@ -106,7 +106,7 @@ describe('SubmissionStatus', () => {
 				onOpenTestResults={onOpen}
 			/>
 		);
-		await userEvent.click(screen.getByRole('button', { name: 'Results' }));
+		await userEvent.click(screen.getByRole('button', { name: 'See test results' }));
 		expect(onOpen).toHaveBeenCalledOnce();
 	});
 
@@ -122,7 +122,7 @@ describe('SubmissionStatus', () => {
 				scorePercentage={22.9}
 			/>
 		);
-		expect(screen.getByText(/23\.1\/101 p/)).toBeInTheDocument();
+		expect(screen.getByText(/23\.1\/101 points/)).toBeInTheDocument();
 		expect(screen.getByText(/\(22\.9%\)/)).toBeInTheDocument();
 	});
 
@@ -139,7 +139,7 @@ describe('SubmissionStatus', () => {
 			/>
 		);
 		expect(screen.getByText('22.9%')).toBeInTheDocument();
-		expect(screen.queryByText(/ p /)).not.toBeInTheDocument();
+		expect(screen.queryByText(/points/)).not.toBeInTheDocument();
 	});
 
 	it('shows Submitted badge for non-programming success state', () => {
