@@ -3,7 +3,7 @@ import type * as vscode from 'vscode';
 
 import { isSafeAnchorPath } from '@extension/services/intervention/anchorPath';
 import type { AnchorLineChange } from '@extension/services/intervention/inlineHint';
-import { buildCueText, buildHoverMarkdown, isAnchorDocument, resolveAnchorEditor, shiftAnchorLine } from '@extension/services/intervention/inlineHint';
+import { buildCueText, buildHoverMarkdown, firstSentence, isAnchorDocument, resolveAnchorEditor, shiftAnchorLine } from '@extension/services/intervention/inlineHint';
 
 /** A fake visible TextEditor at `<root>/<relFsPath>`. */
 function fakeEditor(rootFsPath: string, relFsPath: string): vscode.TextEditor {
@@ -113,7 +113,38 @@ describe('inlineHint helpers', () => {
         });
     });
 
+    describe('firstSentence', () => {
+        it('keeps a single short sentence intact', () => {
+            expect(firstSentence('Look at the loop bound.')).toBe('Look at the loop bound.');
+        });
+        it('returns only the first sentence when the message has several', () => {
+            expect(firstSentence('Your bound is off. Check the last index. Then rerun.')).toBe('Your bound is off.');
+        });
+        it('handles ? and ! terminators', () => {
+            expect(firstSentence('Off by one? Look again.')).toBe('Off by one?');
+        });
+        it('falls back to the whole (trimmed) text when there is no sentence terminator', () => {
+            expect(firstSentence('  no terminator here  ')).toBe('no terminator here');
+        });
+        it('caps an over-long first sentence at a word boundary with an ellipsis', () => {
+            // one long sentence (> 160 chars) of distinct tokens alpha0 alpha1 ...
+            const long = `${Array.from({ length: 60 }, (_, i) => `alpha${i}`).join(' ')} end.`;
+            const out = firstSentence(long);
+            expect(out.length).toBeLessThanOrEqual(161); // 160 + the single ellipsis char
+            expect(out.endsWith('…')).toBe(true);
+            // Cut at whitespace, so the last kept token is a COMPLETE alphaN (never a partial like "alph…").
+            expect(out).toMatch(/alpha\d+…$/);
+        });
+    });
+
     describe('buildHoverMarkdown', () => {
+        it('shows only the first-sentence teaser, not the whole message (full text lives in the chat)', () => {
+            const md = buildHoverMarkdown('Your bound is off. Check the last index carefully.');
+            expect(md.value).toContain('Your bound is off.');
+            expect(md.value).not.toContain('Check the last index');
+            expect(md.value).not.toContain('💡'); // no emoji in the hover
+        });
+
         it('hover carries Open chat + Dismiss links, trusting ONLY those two commands (not the server hint)', () => {
             const md = buildHoverMarkdown('Look at the loop bound.');
             // Scoped trust: a malicious/injected hint cannot smuggle an executable command: link.
@@ -121,6 +152,10 @@ describe('inlineHint helpers', () => {
             expect(md.value).toContain('command:iris.intervention.inlineOpen');
             expect(md.value).toContain('command:iris.intervention.inlineDismiss');
             expect(md.value).not.toContain('command:iris.intervention.inlineHide');
+            // Codicon labels render only when theme-icon support is on.
+            expect(md.supportThemeIcons).toBe(true);
+            expect(md.value).toContain('$(comment-discussion)');
+            expect(md.value).toContain('$(close)');
         });
     });
 });

@@ -61,13 +61,42 @@ export function shiftAnchorLine(line: number, change: AnchorLineChange): number 
 }
 
 /**
- * Whole-line hover: the fuller message + Open chat / Dismiss command links (spec §4.1, §5.2).
+ * Medium teaser for the hover: the hint's first sentence, capped at `maxLen` (word-boundary + ellipsis).
+ * The hover is a pull surface that should invite the chat, not reproduce the whole message — the full
+ * hint stays in the chat bubble. Iris ships exactly two texts (short `inlineHint`, full `message`); this
+ * derives the middle tier client-side so no third server field is needed.
+ */
+export function firstSentence(text: string, maxLen = 160): string {
+    const trimmed = text.trim();
+    const match = trimmed.match(/^[\s\S]*?[.!?](?=\s|$)/);
+    let sentence = match ? match[0] : trimmed;
+    if (sentence.length > maxLen) {
+        sentence = sentence.slice(0, maxLen).replace(/\s+\S*$/, '').trimEnd() + '…';
+    }
+    return sentence;
+}
+
+/**
+ * Whole-line hover (spec §4.1, §5.2): a first-sentence teaser of the hint + Open chat / Dismiss actions.
+ * An `---` rule separates the teaser from the actions, and each action is a codicon + bold label so the
+ * two commands read as actions rather than thin theme-coloured link text. A hover is VS Code's own
+ * theme-rendered markdown: the frame, the link colour, and inline `style` are all stripped/owned by the
+ * workbench, so bold + codicons are the ceiling for styling here. The codicon sits inside the link so the
+ * whole target is clickable.
+ *
  * `message` is server-provided (the LLM gate's hint), so trust is scoped to ONLY these two intervention
  * commands — a hint carrying its own `command:` link can never execute arbitrary VS Code commands from this
- * trusted hover. Dismiss removes the editor cue (the hint stays in the chat).
+ * trusted hover. `supportThemeIcons` only renders `$(...)` as codicons; it grants no execution, so the
+ * command scoping above is unaffected. Dismiss removes the editor cue (the hint stays in the chat).
  */
 export function buildHoverMarkdown(message: string): vscode.MarkdownString {
-    const md = new vscode.MarkdownString(`${message}\n\n[Open chat](command:iris.intervention.inlineOpen) · [Dismiss](command:iris.intervention.inlineDismiss)`);
+    const md = new vscode.MarkdownString(
+        `${firstSentence(message)}\n\n---\n\n`
+        + '[$(comment-discussion) **Open chat**](command:iris.intervention.inlineOpen)'
+        + '  ·  '
+        + '[$(close) **Dismiss**](command:iris.intervention.inlineDismiss)'
+    );
     md.isTrusted = { enabledCommands: ['iris.intervention.inlineOpen', 'iris.intervention.inlineDismiss'] };
+    md.supportThemeIcons = true;
     return md;
 }
