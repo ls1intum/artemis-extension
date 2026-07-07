@@ -167,6 +167,24 @@ describe('StruggleInterventionService', () => {
         expect(deps.postIntervention).toHaveBeenCalledTimes(1);
     });
 
+    it('decide POST carries proactivityMode mapped from the exercise level (less -> pull, more -> push)', async () => {
+        const more = fakeDeps({ getProactiveLevel: () => 'more' });
+        const svcMore = new StruggleInterventionService(more);
+        svcMore.onTick(tick(530));
+        svcMore.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        const bodyMore = (more.postIntervention as ReturnType<typeof vi.fn>).mock.calls[0][1] as StruggleInterventionRequest;
+        expect(bodyMore.proactivityMode).toBe('push');
+
+        const less = fakeDeps({ getProactiveLevel: () => 'less' });
+        const svcLess = new StruggleInterventionService(less);
+        svcLess.onTick(tick(530));
+        svcLess.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        const bodyLess = (less.postIntervention as ReturnType<typeof vi.fn>).mock.calls[0][1] as StruggleInterventionRequest;
+        expect(bodyLess.proactivityMode).toBe('pull');
+    });
+
     it('two alerts fired concurrently (before file collection resolves) still POST only once (in-flight TOCTOU)', async () => {
         // collectFiles is async; the in-flight slot must be claimed synchronously BEFORE that await so the
         // second alert, arriving while the first is still collecting, is skipped rather than racing a 2nd POST.
@@ -1399,6 +1417,36 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc.onNewBuildResult(true);
         await new Promise(r => setTimeout(r, 0));
         expect(postSpy).toHaveBeenCalledTimes(0);
+    });
+
+    it('confirmClose POST carries proactivityMode mapped from the exercise level (less -> pull, more -> push)', async () => {
+        const morePost = vi.fn(async () => 'accepted' as const);
+        const more = fakeDeps({ postIntervention: morePost, getProactiveLevel: () => 'more' });
+        const svcMore = new StruggleInterventionService(more);
+        simulateDecidePending(svcMore, 'ep-del-more', false);
+        svcMore._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svcMore.onServerActive(7);
+        await new Promise(r => setTimeout(r, 0));
+        morePost.mockClear();
+        svcMore.onNewBuildResult(true);
+        await new Promise(r => setTimeout(r, 0));
+        expect(morePost).toHaveBeenCalledTimes(1);
+        const moreBody = (morePost.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
+        expect(moreBody.proactivityMode).toBe('push');
+
+        const lessPost = vi.fn(async () => 'accepted' as const);
+        const less = fakeDeps({ postIntervention: lessPost, getProactiveLevel: () => 'less' });
+        const svcLess = new StruggleInterventionService(less);
+        simulateDecidePending(svcLess, 'ep-del-less', false);
+        svcLess._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svcLess.onServerActive(7);
+        await new Promise(r => setTimeout(r, 0));
+        lessPost.mockClear();
+        svcLess.onNewBuildResult(true);
+        await new Promise(r => setTimeout(r, 0));
+        expect(lessPost).toHaveBeenCalledTimes(1);
+        const lessBody = (lessPost.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1];
+        expect(lessBody.proactivityMode).toBe('pull');
     });
 
     it('owed confirmClose is NOT posted while Iris is disabled (defense-in-depth _drainOwed gate)', async () => {

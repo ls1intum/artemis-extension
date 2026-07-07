@@ -42,6 +42,12 @@ export interface StruggleInterventionRequest {
     confirmReason?: 'progress' | 'parked_progress';
     /** Per-POST scoped-cancel uuid; forwarded to Artemis so the exact job can be cancelled by token. */
     requestToken: string;
+    /**
+     * Client's current proactive-help level for this exercise (Off/Less/More, spec §12.2), mapped to the
+     * server's Pull/Push vocabulary: `less` -> `pull`, `more` -> `push`. Optional so old servers ignore it;
+     * `off` never reaches a POST (gated upstream), so only `pull`/`push` are ever sent.
+     */
+    proactivityMode?: 'pull' | 'push';
 }
 
 /** 202 response body of the trigger (Plan 2 StruggleInterventionAcceptedDTO). */

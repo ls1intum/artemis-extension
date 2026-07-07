@@ -651,6 +651,7 @@ export class StruggleInterventionService implements AlertSink {
                 intent: 'decide',
                 episode: requestEpisode,
                 requestToken,
+                proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
             });
 
             this._dbg(`  -> POST result: ${result}`);
@@ -1250,6 +1251,7 @@ export class StruggleInterventionService implements AlertSink {
                     episode: requestEpisode,
                     confirmReason,
                     requestToken,
+                    proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
                 });
                 if (result === 'accepted') {
                     this._continuedEpisodeIds.add(ep.episodeId);
