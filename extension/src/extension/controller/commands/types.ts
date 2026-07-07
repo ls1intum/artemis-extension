@@ -48,13 +48,11 @@ export interface CommandContext {
      * per-panel identity rather than a transient closure.
      */
     getCurrentSender(): (m: ExtensionToWebviewMessage) => void;
-    /** Durable per-exercise proactive on/off preference (client-side, spec §12.2). Absent in tests that don't need it. */
+    /** Durable per-exercise proactive-help level (client-side, spec §12.2). Absent in tests that don't need it. */
     proactivePreference?: ProactivePreferenceService;
     /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. */
     proactiveControl?: {
-        isProactivePaused(exerciseId: number): boolean;
         setStudentProactive(exerciseId: number, on: boolean): void;
-        resumeProactive(exerciseId: number): void;
         /** True iff proactive is degraded (no egress consent / 404). Session-global → no exercise id (spec §14). */
         isProactiveDegraded(): boolean;
     };

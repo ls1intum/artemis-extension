@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-import { postCommand, type ProactiveCardReason, type ProactiveCardState, type VsCodeApi } from '@shared/messageContracts';
+import { postCommand, type ProactiveCardReason, type ProactiveCardState, type ProactiveLevel, type VsCodeApi } from '@shared/messageContracts';
 import type {
     ExerciseDetailsResponse,
     ParticipationSummary,
@@ -19,8 +19,7 @@ interface RepoStatus {
 /** AskIris proactive control + its §14 availability card, tagged with the exercise it belongs to (spec §12.2). */
 type ProactiveControlState = {
     exerciseId: number;
-    preference: 'on' | 'off';
-    autoPaused: boolean;
+    level: ProactiveLevel;
     cardState: ProactiveCardState;
     reason?: ProactiveCardReason;
 };
@@ -53,7 +52,7 @@ interface ExerciseDetailState {
     repoStatus: RepoStatus | null;
     clonedNotice: { exerciseTitle: string; participationId: number } | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
-    /** AskIris proactive on/off control + availability card (spec §12.2 / §14), tagged with its exercise so a late update can't paint the wrong card. */
+    /** AskIris proactive Off/Less/More control + availability card (spec §12.2 / §14), tagged with its exercise so a late update can't paint the wrong card. */
     proactiveControl: ProactiveControlState | null;
 
     // Actions

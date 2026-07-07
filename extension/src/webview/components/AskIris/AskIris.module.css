@@ -123,23 +123,6 @@
   opacity: 0.6;
 }
 
-.autoPaused {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9em;
-  color: var(--vscode-descriptionForeground);
-}
-
-.resume {
-  cursor: pointer;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--vscode-textLink-foreground);
-  text-decoration: underline;
-}
-
 .cardNote {
   font-size: 0.9em;
   color: var(--vscode-descriptionForeground);

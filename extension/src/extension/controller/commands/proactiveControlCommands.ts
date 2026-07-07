@@ -6,7 +6,7 @@ import { deriveProactiveCardState } from '@extension/services/proactiveCardState
 
 import type { CommandContext, CommandMap } from './types';
 
-/** AskIris On/Off switch + 4-state availability card (spec §12.2 / §14). Preference is client-side; pause + degraded come from the engine seam. */
+/** AskIris Off/Less/More level + 4-state availability card (spec §12.2 / §14). Level is client-side; degraded comes from the engine seam. */
 export class ProactiveControlCommandModule {
     constructor(private readonly context: CommandContext) {}
 
@@ -16,8 +16,7 @@ export class ProactiveControlCommandModule {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.RequestProactiveControl]: this.handleRequest,
-            [WebviewCmd.SetProactiveEnabled]: this.handleSetEnabled,
-            [WebviewCmd.ResumeProactive]: this.handleResume,
+            [WebviewCmd.SetProactiveLevel]: this.handleSetLevel,
         };
     }
 
@@ -26,16 +25,10 @@ export class ProactiveControlCommandModule {
         await this._push(exerciseId, courseId);
     };
 
-    private handleSetEnabled = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exerciseId, enabled, courseId } = getPayload<WebCmd<'setProactiveEnabled'>>(message);
-        this.context.proactivePreference?.setProactiveOn(exerciseId, enabled);
-        this.context.proactiveControl?.setStudentProactive(exerciseId, enabled);
-        await this._push(exerciseId, courseId);
-    };
-
-    private handleResume = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exerciseId, courseId } = getPayload<WebCmd<'resumeProactive'>>(message);
-        this.context.proactiveControl?.resumeProactive(exerciseId);
+    private handleSetLevel = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { exerciseId, level, courseId } = getPayload<WebCmd<'setProactiveLevel'>>(message);
+        this.context.proactivePreference?.setLevel(exerciseId, level);
+        this.context.proactiveControl?.setStudentProactive(exerciseId, level !== 'off');
         await this._push(exerciseId, courseId);
     };
 
@@ -46,9 +39,7 @@ export class ProactiveControlCommandModule {
             return;
         }
         const seq = ++this._pushSeq;
-        const on = this.context.proactivePreference?.isProactiveOn(exerciseId) ?? true;
-        // Off wins over Auto-paused in the badge: a backoff pause only shows while the student still has it On.
-        const autoPaused = on && (this.context.proactiveControl.isProactivePaused(exerciseId) ?? false);
+        const level = this.context.proactivePreference?.getLevel(exerciseId) ?? 'more';
 
         // §14 availability — shared classifier (profile + course settings). courseId absent → optimistic enabled
         // (self-heals on the next push that carries it; the webview always has exercise.course?.id at every call site).
@@ -90,8 +81,7 @@ export class ProactiveControlCommandModule {
         const msg: ExtensionToWebviewMessage = {
             type: ExtensionMsg.UpdateProactiveControl,
             exerciseId,
-            preference: on ? 'on' : 'off',
-            autoPaused,
+            level,
             cardState,
             cardReason,
         };

@@ -11,6 +11,7 @@ import type {
 import type { ChatContextType } from '@shared/types/context';
 
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
+import type { ProactiveLevel } from './proactiveLevel';
 
 // ---------------------------------------------------------------------------
 // Shared boundary union (mirrors engine's BOUNDARY_PRIORITY order)
@@ -461,8 +462,7 @@ interface ExtensionMsgPayloads {
     };
     updateProactiveControl: {
         exerciseId: number;
-        preference: 'on' | 'off';
-        autoPaused: boolean;
+        level: ProactiveLevel;
         /** Which availability card the AskIris control renders (spec §12.2 / §14). */
         cardState: ProactiveCardState;
         /** Why a non-"available" card is in that state (drives the §14 banner / note copy). */

@@ -8,19 +8,24 @@ describe('AskIris proactive control', () => {
 
     it('renders the Off/Less/More segments, marks the current level, and reports a pick', () => {
         const onLevelChange = vi.fn();
-        render(<AskIris {...base} proactiveControl={{ level: 'more', autoPaused: false, cardState: 'available', onLevelChange, onResume: () => {} }} />);
+        render(<AskIris {...base} proactiveControl={{ level: 'more', cardState: 'available', onLevelChange }} />);
         expect(screen.getAllByRole('radio').map(s => s.textContent)).toEqual(['Off', 'Less', 'More']);
         expect(screen.getByRole('radio', { name: 'More' })).toHaveAttribute('aria-checked', 'true');
         fireEvent.click(screen.getByRole('radio', { name: 'Off' }));
         expect(onLevelChange).toHaveBeenCalledWith('off');
     });
 
-    it('shows the dismiss-caused pause + a Resume action', () => {
-        const onResume = vi.fn();
-        render(<AskIris {...base} proactiveControl={{ level: 'more', autoPaused: true, cardState: 'available', onLevelChange: () => {}, onResume }} />);
-        expect(screen.getByText(/dismissing recent hints/i)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: /resume/i }));
-        expect(onResume).toHaveBeenCalled();
+    it('reports a pick of "less" too (both non-off levels post the real level, no local shim)', () => {
+        const onLevelChange = vi.fn();
+        render(<AskIris {...base} proactiveControl={{ level: 'off', cardState: 'available', onLevelChange }} />);
+        fireEvent.click(screen.getByRole('radio', { name: 'Less' }));
+        expect(onLevelChange).toHaveBeenCalledWith('less');
+    });
+
+    it('never renders a Resume affordance (Paused/Resume was removed with the level rework)', () => {
+        render(<AskIris {...base} proactiveControl={{ level: 'more', cardState: 'available', onLevelChange: () => {} }} />);
+        expect(screen.queryByRole('button', { name: /resume/i })).toBeNull();
+        expect(screen.queryByText(/paused/i)).toBeNull();
     });
 
     it('renders no proactive section when the prop is absent (plain AskIris)', () => {

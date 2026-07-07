@@ -14,13 +14,11 @@ const PROACTIVE_SEGMENTS: readonly { level: ProactiveLevel; label: string }[] = 
 /** View-model for the per-exercise proactive struggle control (spec §12.2 / §14): rendered only when the host supplies it. */
 interface ProactiveControlVM {
   level: ProactiveLevel;
-  autoPaused: boolean;
   /** Which availability state to render (Available / Off-course / Unavailable / Degraded). */
   cardState: ProactiveCardState;
   /** Why a non-"available" card is in that state (host-derived). */
   reason?: ProactiveCardReason;
   onLevelChange: (level: ProactiveLevel) => void;
-  onResume: () => void;
 }
 
 interface AskIrisProps {
@@ -96,15 +94,6 @@ export function AskIris({ description, onClick, proactiveControl }: AskIrisProps
                 </span>
               )}
             </div>
-            {proactiveControl.autoPaused && state === 'available' && (
-              <span
-                className={styles.autoPaused}
-                title="Iris paused proactive help because you dismissed its recent hints. Click Resume to turn it back on."
-              >
-                Paused after dismissing recent hints
-                <button type="button" className={styles.resume} onClick={proactiveControl.onResume}>Resume</button>
-              </span>
-            )}
             {state && NOTE[state] && <span className={styles.cardNote}>{NOTE[state]}</span>}
           </div>
         </>

@@ -47,14 +47,6 @@ export class ProactivePreferenceService {
         return this.getLevel(exerciseId) !== 'off';
     }
 
-    /**
-     * Boolean adapter kept for the existing on/off command wiring (`proactiveControlCommands.ts`), which
-     * this task does not touch. `on` maps to the `more` default, `off` to the `off` level.
-     */
-    setProactiveOn(exerciseId: number, on: boolean): void {
-        this.setLevel(exerciseId, on ? 'more' : 'off');
-    }
-
     private _map(key: string): PreferenceMap {
         const cached = this._shadow.get(key);
         if (cached) { return cached; }

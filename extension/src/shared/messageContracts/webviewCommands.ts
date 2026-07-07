@@ -4,6 +4,8 @@
 
 import type { ChatContextType } from '@shared/types/context';
 
+import type { ProactiveLevel } from './proactiveLevel';
+
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
     Ready: 'ready',
@@ -91,10 +93,9 @@ export const WebviewCmd = {
     ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
     MessageProactiveOutcome: 'messageProactiveOutcome',
-    // Proactive control (AskIris On/Off switch + 3-state badge, spec §12.2)
+    // Proactive control (AskIris Off/Less/More level, spec §12.2)
     RequestProactiveControl: 'requestProactiveControl',
-    SetProactiveEnabled: 'setProactiveEnabled',
-    ResumeProactive: 'resumeProactive',
+    SetProactiveLevel: 'setProactiveLevel',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
     DebugSessions: 'debugSessions',
@@ -199,10 +200,9 @@ interface WebviewCmdPayloads {
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED'; proactiveEpisodeId?: string };
-    // courseId lets every _push (init AND toggle/resume) re-derive §14 availability with the course id (slice 5c).
+    // courseId lets every _push (init AND toggle) re-derive §14 availability with the course id (slice 5c).
     requestProactiveControl: { exerciseId: number; courseId?: number };
-    setProactiveEnabled: { exerciseId: number; enabled: boolean; courseId?: number };
-    resumeProactive: { exerciseId: number; courseId?: number };
+    setProactiveLevel: { exerciseId: number; level: ProactiveLevel; courseId?: number };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;
@@ -302,8 +302,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.MessageFeedback,
     WebviewCmd.MessageProactiveOutcome,
     WebviewCmd.RequestProactiveControl,
-    WebviewCmd.SetProactiveEnabled,
-    WebviewCmd.ResumeProactive,
+    WebviewCmd.SetProactiveLevel,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.FreshSsrPreview,

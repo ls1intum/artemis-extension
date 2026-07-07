@@ -24,9 +24,9 @@ describe('ProactivePreferenceService', () => {
     });
 
     it('persists an explicit Off and reads it back', () => {
-        svc.setProactiveOn(42, false);
+        svc.setLevel(42, 'off');
         expect(svc.isProactiveOn(42)).toBe(false);
-        svc.setProactiveOn(42, true);
+        svc.setLevel(42, 'more');
         expect(svc.isProactiveOn(42)).toBe(true);   // back to default-on
     });
 

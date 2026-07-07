@@ -79,11 +79,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const [showCommitMessage, setShowCommitMessage] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
 
-    // Proactive-help level shown in the AskIris segmented control. UI-only for now:
-    // the host still persists a binary on/off, so the wenig/viel choice is remembered
-    // here and re-applied when proactive help is enabled (behaviour comes later).
-    const [proactiveLevelPref, setProactiveLevelPref] = useState<Exclude<ProactiveLevel, 'off'>>('more');
-
     // EduIDE (managed Theia): the exercise repo is already the workspace, so
     // clone affordances are hidden in favor of an "Open in Artemis" button.
     // Session constant delivered on the exerciseDetailInit message.
@@ -142,8 +137,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         if (msg.type === ExtensionMsg.UpdateProactiveControl) {
             setProactiveControl({
                 exerciseId: msg.exerciseId,
-                preference: msg.preference,
-                autoPaused: msg.autoPaused,
+                level: msg.level,
                 cardState: msg.cardState,
                 reason: msg.cardReason,
             });
@@ -249,25 +243,13 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const isProgramming = exerciseType === 'programming';
 
     // View-model for the standalone Proactive-help card (spec §12.2), built only when the host has
-    // supplied the control for THIS exercise. UI-only: the host still persists a binary on/off, so
-    // the wenig/viel split lives in `proactiveLevelPref` and is re-applied when proactive is enabled.
+    // supplied the control for THIS exercise.
     const proactiveVM = proactiveControl && proactiveControl.exerciseId === exercise.id ? {
-        level: (proactiveControl.preference === 'on' ? proactiveLevelPref : 'off') as ProactiveLevel,
-        autoPaused: proactiveControl.autoPaused,
+        level: proactiveControl.level,
         cardState: proactiveControl.cardState,
         reason: proactiveControl.reason,
-        onLevelChange: (level: ProactiveLevel) => {
-            if (level === 'off') {
-                postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled: false, courseId: exercise.course?.id });
-                return;
-            }
-            // Remember the visual level; the wenig/viel split is UI-only until the per-level behaviour is wired.
-            setProactiveLevelPref(level);
-            if (proactiveControl.preference !== 'on') {
-                postCommand(vscodeApi, 'setProactiveEnabled', { exerciseId: exercise.id!, enabled: true, courseId: exercise.course?.id });
-            }
-        },
-        onResume: () => postCommand(vscodeApi, 'resumeProactive', { exerciseId: exercise.id!, courseId: exercise.course?.id }),
+        onLevelChange: (level: ProactiveLevel) =>
+            postCommand(vscodeApi, 'setProactiveLevel', { exerciseId: exercise.id!, level, courseId: exercise.course?.id }),
     } : undefined;
 
     // Extract participation data

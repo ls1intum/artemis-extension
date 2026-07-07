@@ -5,8 +5,8 @@ import { AskIris } from '@webview/components/AskIris/AskIris';
 
 const base = { description: 'd', onClick: vi.fn() };
 const control = (over: object) => ({
-    level: 'more' as const, autoPaused: false, cardState: 'available' as const,
-    onLevelChange: vi.fn(), onResume: vi.fn(), ...over,
+    level: 'more' as const, cardState: 'available' as const,
+    onLevelChange: vi.fn(), ...over,
 });
 
 describe('AskIris card states (§12.2)', () => {
@@ -37,13 +37,10 @@ describe('AskIris card states (§12.2)', () => {
         expect(screen.getByRole('button', { name: /ask/i })).not.toBeDisabled();
     });
 
-    it('auto-pause names the dismiss reason and only shows on the available card', () => {
-        const { rerender } = render(<AskIris {...base} proactiveControl={control({ autoPaused: true })} />);
-        // Transparency (§12.2): the pause spells out WHY it paused (an explicit dismiss), not a bare "paused".
-        expect(screen.getByText(/dismissing recent hints/i)).toBeInTheDocument();
-        // Degraded hides the segments entirely (proactive is off), so the auto-pause affordance never shows either.
-        rerender(<AskIris {...base} proactiveControl={control({ cardState: 'degraded', reason: 'limited', autoPaused: true })} />);
-        expect(screen.queryByText(/dismissing recent hints/i)).toBeNull();
+    it('never renders a Paused/Resume affordance (removed with the level rework)', () => {
+        render(<AskIris {...base} proactiveControl={control({})} />);
+        expect(screen.queryByText(/paused/i)).toBeNull();
+        expect(screen.queryByRole('button', { name: /resume/i })).toBeNull();
     });
 
     it('labels the control so its purpose is visible, not just opaque segments (§12.2 awareness)', () => {
