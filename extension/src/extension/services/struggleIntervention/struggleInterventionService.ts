@@ -131,9 +131,6 @@ export interface StruggleInterventionDeps {
     clearInline(): void;
     /** Durable per-exercise student opt-out (spec §12.2): false -> the orchestrator suppresses proactive for it. */
     isStudentProactiveOn(exerciseId: number): boolean;
-    /** Reject-backoff thresholds (spec §5.2). */
-    softThreshold: number;
-    pauseStrikes: number;
     setBadge(on: boolean): void;
     /** Show the proactive nudge banner for the given (out-of-session, DELIVERED) episode. */
     showActiveBanner(episodeId: string | undefined): void;
@@ -235,10 +232,6 @@ export class StruggleInterventionService implements AlertSink {
     private readonly _buffer = new TickRingBuffer(12);
     private _serverAvailable = true;
     private _courseProactiveOff = false;
-    // Reject backoff (delivery-layer, spec §5.2). Only an explicit dismiss moves these; engagement/new exercise clear them.
-    private _annoyance = 0;
-    private _dismissStrikes = 0;
-    private _softSkipBudget = 0;
 
     /**
      * Generation counter for reveal-persist retries. Incremented by resetSession (exercise switch) to
@@ -350,12 +343,6 @@ export class StruggleInterventionService implements AlertSink {
             pendingOutcomes: this._pendingOutcomes.size,
             awaitingEvidence: this._awaitingEvidence,
             suppression: {
-                dismissStrikes: this._dismissStrikes,
-                pauseStrikes: this._deps.pauseStrikes,
-                hardPaused: this.isPaused(),
-                annoyance: this._annoyance,
-                softThreshold: this._deps.softThreshold,
-                softSkipBudget: this._softSkipBudget,
                 serverAvailable: this._serverAvailable,
                 courseProactiveOff: this._courseProactiveOff,
                 studentProactiveOn: (() => {
@@ -1304,43 +1291,6 @@ export class StruggleInterventionService implements AlertSink {
         this.notifySlotDebugChanged();
     }
 
-    // ---------------------------------------------------------------------------
-    // recordOutcome / backoff (C3: _lastSurface removed; backoff latches kept)
-    // ---------------------------------------------------------------------------
-
-    /**
-     * A surfaced intervention was engaged (lamp click / banner action / inline command).
-     * Feeds the reject backoff (dismiss escalates, click clears).
-     */
-    recordOutcome(outcome: 'clicked' | 'dismissed'): void {
-        if (outcome === 'clicked') {
-            this._annoyance = 0;
-            this._dismissStrikes = 0;
-            this._softSkipBudget = 0;
-        } else {
-            this._dismissStrikes += 1;
-            this._annoyance += 2;
-            if (this._annoyance >= this._deps.softThreshold) {
-                this._softSkipBudget += 1;
-            }
-        }
-        // The inline-dismiss caller mutates backoff with NO slot transition afterwards, so the
-        // suppression panel only refreshes if the mutator itself notifies.
-        this.notifySlotDebugChanged();
-    }
-
-    /**
-     * An explicit chat-bubble dismiss (spec §6.3). Bumps the Slice-4a counters directly.
-     */
-    recordChatDismiss(): void {
-        this._dismissStrikes += 1;
-        this._annoyance += 2;
-        if (this._annoyance >= this._deps.softThreshold) {
-            this._softSkipBudget += 1;
-        }
-        this.notifySlotDebugChanged();
-    }
-
     /**
      * C8: Episode-scoped dismiss. Called by the card Dismiss button (via the provider callback
      * seam) and by the active banner's "Not now" action (via the telemetry closure).
@@ -1354,10 +1304,6 @@ export class StruggleInterventionService implements AlertSink {
      *
      * If the slot is already FREE (double-dismiss) or PARKED: idempotent outcome write only for
      * the passed `episodeId` (A10 first-terminal-wins rejects any duplicate write).
-     *
-     * Backoff is NOT bumped here. Callers handle it to avoid double-counting:
-     *   Card: _onDidDismissProactive.fire() -> recordProactiveDismiss() -> recordChatDismiss()
-     *   Banner: recordOutcome('dismissed') kept alongside in the telemetry seam closure.
      */
     public dismissEpisode(episodeId?: string): void {
         const snapState = this._slot.snapshot().state;
@@ -1387,16 +1333,6 @@ export class StruggleInterventionService implements AlertSink {
         }
     }
 
-    /** True while proactive is paused for this exercise (only an explicit dismiss can trigger this, spec §5.2). */
-    isPaused(): boolean {
-        return this._dismissStrikes >= this._deps.pauseStrikes;
-    }
-
-    /** True iff the delivery backoff is currently paused for the active exercise. */
-    isProactivePaused(exerciseId: number): boolean {
-        return this._deps.getExerciseId() === exerciseId && this.isPaused();
-    }
-
     /**
      * True iff proactive is running in a degraded mode (spec §14 cases 4-5): no proactive-egress consent
      * OR a 404-latched server.
@@ -1405,23 +1341,9 @@ export class StruggleInterventionService implements AlertSink {
         return !this._deps.isEgressEnabled() || !this._serverAvailable;
     }
 
-    private _clearBackoff(): void {
-        const changed = this._dismissStrikes !== 0 || this._annoyance !== 0 || this._softSkipBudget !== 0;
-        this._dismissStrikes = 0;
-        this._annoyance = 0;
-        this._softSkipBudget = 0;
-        if (changed) { this.notifySlotDebugChanged(); }
-    }
-
-    resumeProactive(exerciseId: number): void {
-        if (this._deps.getExerciseId() !== exerciseId) { return; }
-        this._clearBackoff();
-    }
-
     setStudentProactive(exerciseId: number, on: boolean): void {
         if (this._deps.getExerciseId() !== exerciseId) { return; }
         if (on) {
-            this._clearBackoff();
             // Flipping the toggle back on is a deliberate user action (student is present).
             this._setAwaitingEvidence(false, 'proactive re-enabled');
         } else {
@@ -1430,15 +1352,6 @@ export class StruggleInterventionService implements AlertSink {
             this._deps.setBadge(false);
             this._deps.hideActiveBanner();
         }
-    }
-
-    tryConsumeSoftSkip(): boolean {
-        if (this._softSkipBudget > 0) {
-            this._softSkipBudget -= 1;
-            this.notifySlotDebugChanged();
-            return true;
-        }
-        return false;
     }
 
     /**
@@ -1458,14 +1371,11 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * New-exercise reset: clear the per-exercise backoff AND the per-session latches (404 / course-off),
-     * then the UI/session state. Also frees the slot, clears the frozen session id, and clears pending
-     * outcomes (C2: new exercise = clean state).
+     * New-exercise reset: clear the per-session latches (404 / course-off), then the UI/session state.
+     * Also frees the slot, clears the frozen session id, and clears pending outcomes (C2: new exercise
+     * = clean state).
      */
     resetSession(): void {
-        this._annoyance = 0;
-        this._dismissStrikes = 0;
-        this._softSkipBudget = 0;
         this._setServerAvailable(true);
         this._courseProactiveOff = false;
         // C2: cancel any in-flight reveal-persist retry (generation bump invalidates stale closures)

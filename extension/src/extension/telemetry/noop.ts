@@ -15,12 +15,11 @@ export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineH
         coordinator: new NoopStruggleCoordinator(),
         // No engine in the clean build, so there is nothing to consent to.
         promptConsentIfAsk: async () => { /* no proactive egress in the clean build */ },
-        recordProactiveDismiss: () => { /* no backoff in the clean build */ },
         // No engine (and no active exercise concept) in the clean build: always the default level.
         getActiveProactiveLevel: () => 'more',
-        // isProactivePaused / setStudentProactive / resumeProactive / isProactiveDegraded are intentionally OMITTED:
+        // setStudentProactive / isProactiveDegraded are intentionally OMITTED:
         // the clean build has no proactive engine, so extension.ts builds no proactiveControl capability and the
-        // AskIris card stays plain (no switch, no four-state availability — the "hidden" case is "no card sent").
+        // AskIris card stays plain (no control, no four-state availability — the "hidden" case is "no card sent").
     };
 }
 

@@ -95,7 +95,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref: the nudge-banner deps below (showNudgeBanner/hideNudgeBanner) are only ever invoked
 	// lazily (well after the provider is constructed below), so reading it through a mutable binding is safe.
 	let artemisWebviewProvider: ArtemisWebviewProvider | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, recordProactiveDismiss, isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded, setInSession, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink, handleBannerAction } = createStruggleEngine({
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, setStudentProactive, isProactiveDegraded, setInSession, dismissEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink, handleBannerAction } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
@@ -168,8 +168,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
 	// The behind-the-seam proactive control surface the AskIris command module drives (spec §12.2). Built ONLY when
 	// the engine provides the methods (the clean/no-engine build omits them), so that build never shows the switch.
-	const proactiveControl = isProactivePaused && setStudentProactive && resumeProactive && isProactiveDegraded
-		? { isProactivePaused, setStudentProactive, resumeProactive, isProactiveDegraded }
+	const proactiveControl = setStudentProactive && isProactiveDegraded
+		? { setStudentProactive, isProactiveDegraded }
 		: undefined;
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
@@ -305,7 +305,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
 	chatWebviewProvider.setStruggleCallbacks({ onEpisodeDismiss: dismissEpisode });
-	context.subscriptions.push(chatWebviewProvider.onDidDismissProactive(() => recordProactiveDismiss()));
 	// C3: in-session flag: toggle the slot's quiet/loud escalation branch as the chat view opens/closes.
 	if (setInSession) {
 		context.subscriptions.push(chatWebviewProvider.onDidChangePanelVisibility(open => setInSession(open)));

@@ -113,8 +113,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         postBubble: (text, id, episodeId) => deps.postOptimisticBubble(text, id, episodeId),
         setChatLiveEpisode: episodeId => deps.postLiveEpisode(episodeId),
         isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
-        softThreshold: TUNING.softThreshold,
-        pauseStrikes: TUNING.pauseStrikes,
         // Slot + progress-close tuning live in config.ts (TUNING.slot). TUNING.slot is a superset that
         // satisfies both StaleConfig and ProgressCloseCfg, so it feeds both deps; the orchestrator's
         // DEFAULT_SLOT_CFG / DEFAULT_PROGRESS_CFG remain fallbacks for test stubs that omit these.
@@ -150,28 +148,25 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         onSlotChange: () => slotChangeSink(),
     });
 
-    // Inline-hover action links (spec §4.1, §5.2): Open chat engages (clears backoff) and KEEPS the cue as a
-    // standing reference; Hide inline removes the cue with NO backoff (pure visual); Dismiss (→ backoff)
-    // removes it. The cue also retires on its other lifecycle events (new episode, terminal episode
-    // exit); typing does NOT retire it. Registered behind the seam so extension.ts never imports the
+    // Inline-hover action links (spec §4.1, §5.2): Open chat reveals the parked hint and KEEPS the cue as a
+    // standing reference; Hide inline and Dismiss both remove the cue (pure visual, no episode outcome) --
+    // the hint stays in the chat. The cue also retires on its other lifecycle events (new episode, terminal
+    // episode exit); typing does NOT retire it. Registered behind the seam so extension.ts never imports the
     // intervention surface.
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
-            orchestrator.recordOutcome('clicked');
             // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
             // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
             void orchestrator.revealParkedHint();
             void vscode.commands.executeCommand('iris.chatView.focus');
         }),
         vscode.commands.registerCommand('iris.intervention.inlineHide', () => {
-            // Pure visual hide: remove the in-editor cue only. Unlike Dismiss it records NO outcome
-            // (no reject-backoff) and does not touch the episode -- the hint stays in the chat.
-            // The jump lamp points at the same cue, so retire it too (mode-guarded: leaves fallback).
+            // Pure visual hide: remove the in-editor cue only. It does not touch the episode -- the hint
+            // stays in the chat. The jump lamp points at the same cue, so retire it too (mode-guarded: leaves fallback).
             inline.clear();
             lamp.clearEpisodeLamp();
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
-            orchestrator.recordOutcome('dismissed');
             inline.clear();
             lamp.clearEpisodeLamp();
         }),
@@ -180,8 +175,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // Tier-2 delivery throttle wraps the orchestrator (downstream of the recorded
     // alert path, so goldens/research are unaffected). Reads TUNING defaults.
     const throttledSink = new ThrottledAlertSink(orchestrator, TUNING);
-    // Reject backoff sits ABOVE the throttle so a paused/soft-skipped alert is dropped before the throttle counts
-    // it (the orchestrator owns the counters and satisfies BackoffSource via isPaused/tryConsumeSoftSkip).
+    // The suppression gate sits ABOVE the throttle so a provably-discarded alert (course-off / student-opt-out /
+    // evidence-gate / delivered-slot) is dropped before the throttle counts it (orchestrator satisfies BackoffSource).
     const backoffGate = new BackoffGate(throttledSink, orchestrator);
     coordinator = new StruggleCoordinator({
         hub: deps.hub,
@@ -197,11 +192,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         // throttle/grace/fN2 timers (same data source the dev dashboard renders from).
         if (isDevMode()) { devLog(formatTick(t, coordinator.getDebugSnapshot())); }
     }));
-    // A lamp click on a surfaced hint is an engagement signal for the local eval log.
-    // C2 spec §5.2 pull reveal: also reveal the parked ambient hint. Safe unconditional call --
-    // revealParkedHint is a no-op when the slot is not PARKED.
+    // A lamp click on a surfaced hint reveals the parked ambient hint (C2 spec §5.2 pull reveal).
+    // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
     deps.context.subscriptions.push(lamp.onDidClick(() => {
-        orchestrator.recordOutcome('clicked');
         void orchestrator.revealParkedHint();
     }));
     // Inbound per-user struggle events (ambient/active) from the server -> orchestrator.
@@ -317,15 +310,12 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     return {
         coordinator,
         promptConsentIfAsk: () => consent.promptIfAsk(),
-        recordProactiveDismiss: () => orchestrator.recordChatDismiss(),
         // Single source of truth for "what level is the ACTIVE exercise on" (later read by the
         // delivery throttle and the Pull re-route). Resolves through the caller-provided level
         // lookup, keyed by the coordinator's own activeExerciseId (undefined between sessions).
         getActiveProactiveLevel: () =>
             coordinator.activeExerciseId === undefined ? 'more' : deps.getProactiveLevel(coordinator.activeExerciseId),
-        isProactivePaused: exerciseId => orchestrator.isProactivePaused(exerciseId),
         setStudentProactive: (exerciseId, on) => orchestrator.setStudentProactive(exerciseId, on),
-        resumeProactive: exerciseId => orchestrator.resumeProactive(exerciseId),
         isProactiveDegraded: () => orchestrator.isProactiveDegraded(),
         setInSession: (open: boolean) => orchestrator.setInSession(open),
         // C8: episode-scoped dismiss (seam callback threaded to setStruggleCallbacks.onEpisodeDismiss)
@@ -335,11 +325,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         getEpisodeHistory: () => orchestrator.getEpisodeHistory(),
         setSlotChangeSink: (fn: () => void) => { slotChangeSink = fn; },
         handleBannerAction: (action, episodeId) => {
-            // Dev mock banner: purely visual, so its buttons must not touch real backoff/episode state.
+            // Dev mock banner: purely visual, so its buttons must not touch real episode state.
             if (episodeId === MOCK_NUDGE_EPISODE_ID) { return; }
-            if (action === 'showMe') { orchestrator.recordOutcome('clicked'); }
-            else if (action === 'dismiss') { orchestrator.recordOutcome('dismissed'); orchestrator.dismissEpisode(episodeId); }
-            // 'timeout' → no outcome (episode stays active)
+            // 'showMe' opens the chat (wired in extension.ts); 'dismiss' closes the episode; 'timeout' → no outcome.
+            if (action === 'dismiss') { orchestrator.dismissEpisode(episodeId); }
         },
     };
 }

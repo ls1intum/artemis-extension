@@ -114,10 +114,6 @@ export const TUNING = {
      *  + production enable. No golden to break. ENG */
     testStagnationN: 3,
     enableTestStagnation: true,
-    /** Proactive reject backoff (delivery-layer, spec §5.2). annoyance >= softThreshold owes an escalating soft
-     *  skip; dismissStrikes >= pauseStrikes hard-pauses proactive for the exercise. ENG. */
-    softThreshold: 3,
-    pauseStrikes: 5,
     /**
      * Slot continuity knobs (spec §5 / §9 "idle watchdog + re-arm"). All ENG (provisional
      * engineering defaults; no study sweep exists yet).

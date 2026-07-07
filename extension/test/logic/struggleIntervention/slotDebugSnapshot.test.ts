@@ -36,8 +36,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showGutterOnly: vi.fn(),
         clearInline: vi.fn(),
         isStudentProactiveOn: () => true,
-        softThreshold: 3,
-        pauseStrikes: 5,
         setBadge: vi.fn(),
         showActiveBanner: vi.fn(),
         hideActiveBanner: vi.fn(),
@@ -204,29 +202,6 @@ describe('StruggleInterventionService - slot debug snapshot + episode history', 
         expect(onSlotChange).not.toHaveBeenCalled();
     });
 
-    it('suppression group: backoff rises via recordOutcome/recordChatDismiss (NOT dismissEpisode) and hard-pauses at pauseStrikes', () => {
-        const { svc } = makeService();
-        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({
-            dismissStrikes: 0, annoyance: 0, softSkipBudget: 0, hardPaused: false,
-            pauseStrikes: 5, softThreshold: 3,
-        });
-
-        svc.recordOutcome('dismissed');
-        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({ dismissStrikes: 1, annoyance: 2, softSkipBudget: 0 });
-
-        svc.recordChatDismiss();  // annoyance 4 >= softThreshold 3 -> owes a soft skip
-        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({ dismissStrikes: 2, annoyance: 4, softSkipBudget: 1 });
-
-        for (let i = 0; i < 3; i++) { svc.recordOutcome('dismissed'); }
-        expect(svc.getSlotDebugSnapshot().suppression.dismissStrikes).toBe(5);
-        expect(svc.getSlotDebugSnapshot().suppression.hardPaused).toBe(true);
-
-        svc.recordOutcome('clicked');  // engagement clears the backoff
-        expect(svc.getSlotDebugSnapshot().suppression).toMatchObject({
-            dismissStrikes: 0, annoyance: 0, softSkipBudget: 0, hardPaused: false,
-        });
-    });
-
     it('suppression group: server/course latches and the student toggle surface on the snapshot', async () => {
         const { svc } = makeService({ postIntervention: vi.fn(async () => 'unavailable' as const) });
         expect(svc.getSlotDebugSnapshot().suppression.serverAvailable).toBe(true);
@@ -241,19 +216,6 @@ describe('StruggleInterventionService - slot debug snapshot + episode history', 
 
         const { svc: svc3 } = makeService({ isStudentProactiveOn: () => false });
         expect(svc3.getSlotDebugSnapshot().suppression.studentProactiveOn).toBe(false);
-    });
-
-    it('notify regression: recordOutcome alone (inline-dismiss shape, no slot transition) refreshes the panel', async () => {
-        const onSlotChange = vi.fn();
-        const { svc } = makeService({ onSlotChange });
-        svc.recordOutcome('dismissed');
-        await Promise.resolve();
-        expect(onSlotChange).toHaveBeenCalledTimes(1);
-
-        onSlotChange.mockClear();
-        svc.recordChatDismiss();
-        await Promise.resolve();
-        expect(onSlotChange).toHaveBeenCalledTimes(1);
     });
 
     it('notify regression: a guard-early-return server reply still heals serverAvailable and notifies', async () => {

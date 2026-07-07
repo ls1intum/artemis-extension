@@ -106,10 +106,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }>();
     public readonly onDidProvideIrisChatFeedback = this._onDidProvideIrisChatFeedback.event;
 
-    private readonly _onDidDismissProactive = new vscode.EventEmitter<void>();
-    /** Fires when the student dismisses a proactive bubble (drives the Slice-4a delivery backoff in extension.ts). */
-    public readonly onDidDismissProactive = this._onDidDismissProactive.event;
-
     /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode), wired by extension.ts. */
     private _onEpisodeDismiss?: (episodeId?: string) => void;
 
@@ -136,7 +132,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidSendIrisChatMessage);
         this._disposables.push(this._onDidAttemptIrisChatSend);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
-        this._disposables.push(this._onDidDismissProactive);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = contextStore;
         this._disposables.push(
@@ -1027,9 +1022,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         messageId: number,
         proactiveEpisodeId?: string,
     ): void {
-        // Signal the dismiss to the delivery backoff first (drives Slice-4a via onDidDismissProactive).
-        this._onDidDismissProactive.fire();
-
         if (proactiveEpisodeId) {
             // C8 episode-scoped path: route to the orchestrator via the seam callback.
             // The orchestrator frees the slot, tears down runtime, writes DISMISSED, and folds.

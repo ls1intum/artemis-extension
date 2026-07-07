@@ -7,9 +7,9 @@ export interface NudgeText { title: string; sub: string; }
 
 /**
  * Sentinel `episodeId` for the developer-only "mock proactivity" banner. The banner's action
- * buttons route globally back into the orchestrator (`handleBannerAction` -> recordOutcome /
- * dismissEpisode); a purely-visual mock must never mutate real backoff or episode state, so both
- * the telemetry handler and the chat-focus subscription no-op when they see this id.
+ * buttons route globally back into the orchestrator (`handleBannerAction` -> dismissEpisode); a
+ * purely-visual mock must never mutate real episode state, so both the telemetry handler and the
+ * chat-focus subscription no-op when they see this id.
  */
 export const MOCK_NUDGE_EPISODE_ID = '__mock_nudge__';
 

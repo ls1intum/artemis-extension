@@ -45,8 +45,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showGutterOnly: vi.fn(),
         clearInline: vi.fn(),
         isStudentProactiveOn: () => true,
-        softThreshold: 3,
-        pauseStrikes: 5,
         setBadge: vi.fn(),
         showActiveBanner: vi.fn(),
         hideActiveBanner: vi.fn(),
@@ -325,17 +323,6 @@ describe('StruggleInterventionService', () => {
         expect(deps.hideActiveBanner).not.toHaveBeenCalled();
     });
 
-    it('resumeProactive clears an auto-pause for the active exercise, but not for another', () => {
-        const deps = fakeDeps();
-        const svc = new StruggleInterventionService(deps);
-        for (let i = 0; i < 5; i++) { svc.recordChatDismiss(); }   // Slice 4b: drives the backoff to paused
-        expect(svc.isProactivePaused(42)).toBe(true);              // 42 is fakeDeps' active exercise
-        svc.resumeProactive(999);                                  // wrong exercise → no effect
-        expect(svc.isProactivePaused(42)).toBe(true);
-        svc.resumeProactive(42);                                   // active exercise → cleared
-        expect(svc.isProactivePaused(42)).toBe(false);
-    });
-
     // C1/C3: ambient = PARKED pointer only (badge + lamp always; gutter icon if anchor live). No inline text, no banner.
     // Note: C3 routes onServerAmbient through the slot guard; tests use simulateDecidePending to set up the in-flight state.
     it('inbound ambient event (no anchor) → badge + lamp (PARKED pointer); no inline', () => {
@@ -377,56 +364,6 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearInline).toHaveBeenCalled();   // clears any stale cue from a previous active
         expect(deps.showGutterOnly).not.toHaveBeenCalled();
         expect(deps.showInline).not.toHaveBeenCalled();
-    });
-
-    it('hard-pauses after pauseStrikes dismisses; clicked + resetSession clear it; reset() (UI-only) does NOT', () => {
-        const deps = fakeDeps();
-        const svc = new StruggleInterventionService(deps);
-        const surface = () => svc.onServerAmbient('hint', undefined, undefined, undefined); // sets _lastSurface (lamp)
-        for (let i = 0; i < 5; i++) { surface(); svc.recordOutcome('dismissed'); }
-        expect(svc.isPaused()).toBe(true);
-        svc.reset();                                  // settings-toggle UI clear must NOT lift the per-exercise pause
-        expect(svc.isPaused()).toBe(true);
-        svc.resetSession();                           // a new exercise clears it
-        expect(svc.isPaused()).toBe(false);
-        for (let i = 0; i < 5; i++) { surface(); svc.recordOutcome('dismissed'); }
-        surface(); svc.recordOutcome('clicked');      // engagement also clears
-        expect(svc.isPaused()).toBe(false);
-    });
-
-    it('owes an escalating soft skip once annoyance crosses softThreshold (dismiss-driven)', () => {
-        const deps = fakeDeps();
-        const svc = new StruggleInterventionService(deps);
-        const surface = () => svc.onServerAmbient('hint', undefined, undefined, undefined);
-        surface(); svc.recordOutcome('dismissed');   // annoyance 2 (< 3) -> no skip yet
-        expect(svc.tryConsumeSoftSkip()).toBe(false);
-        surface(); svc.recordOutcome('dismissed');   // annoyance 4 (>= 3) -> one skip owed
-        expect(svc.tryConsumeSoftSkip()).toBe(true);  // consumed
-        expect(svc.tryConsumeSoftSkip()).toBe(false); // none left
-    });
-
-    it('recordOutcome: each dismissed call increments the backoff counter (C3: episode-level single-shot tracking replaces surface-level guard)', () => {
-        // C3 removed the _lastSurface single-shot guard; recordOutcome now counts every call.
-        // Episode-level de-duplication (preventing double-close) is C8's responsibility.
-        const deps = fakeDeps();
-        const svc = new StruggleInterventionService(deps);
-        svc.recordOutcome('dismissed');
-        expect(svc.isPaused()).toBe(false);   // pauseStrikes=5; 1 strike is not enough
-    });
-
-    it('single-shot guard removed (C3): recordOutcome counts all calls (episode-level tracking is C8)', () => {
-        // The _lastSurface single-shot guard is removed in C3; repeated recordOutcome calls all count.
-        const deps = fakeDeps();
-        const svc = new StruggleInterventionService(deps);
-        for (let i = 0; i < 5; i++) { svc.recordOutcome('dismissed'); } // 5 calls all count
-        expect(svc.isPaused()).toBe(true);    // 5 dismisses >= pauseStrikes=5 -> paused
-    });
-
-    it('recordChatDismiss feeds the backoff even with no current surface (reloaded bubble)', () => {
-        const deps = fakeDeps();
-        const svc = new StruggleInterventionService(deps);
-        for (let i = 0; i < 5; i++) { svc.recordChatDismiss(); }   // no surface shown beforehand
-        expect(svc.isPaused()).toBe(true);
     });
 
     // C3: active now routes through the slot guard; use simulateDecidePending for test setup.

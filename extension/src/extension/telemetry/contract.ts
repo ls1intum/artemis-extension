@@ -197,8 +197,6 @@ export interface StruggleEngineHandle {
     coordinator: IStruggleCoordinator;
     /** Ask once, post-auth, whether Iris may proactively read code; no-op once decided. */
     promptConsentIfAsk(): Promise<void>;
-    /** Record a chat-bubble dismiss into the delivery backoff (Slice 4a). No-op in the clean build. */
-    recordProactiveDismiss(): void;
     /**
      * The ACTIVE exercise's proactive-help level (Off/Less/More, spec §12.2): `getProactiveLevel` keyed by
      * the coordinator's `activeExerciseId`, `'more'` (the default) when no exercise is active. Present in
@@ -207,16 +205,12 @@ export interface StruggleEngineHandle {
      */
     getActiveProactiveLevel(): ProactiveLevel;
     /**
-     * Proactive control (AskIris On/Off switch, spec §12.2). These three are ABSENT in the clean (no-engine) build:
+     * Proactive control (AskIris Off/Less/More, spec §12.2). These are ABSENT in the clean (no-engine) build:
      * extension.ts only assembles a `proactiveControl` capability when they are present, so the clean build never
-     * surfaces a switch for a feature it doesn't ship.
+     * surfaces a control for a feature it doesn't ship.
      */
-    /** True iff the delivery backoff is paused for this exercise ("Auto-paused" badge). */
-    isProactivePaused?(exerciseId: number): boolean;
-    /** Apply the AskIris switch for an exercise: off clears its live surfaces, on clears any auto-pause. */
+    /** Apply the AskIris level for an exercise: off clears its live surfaces, on marks the student present. */
     setStudentProactive?(exerciseId: number, on: boolean): void;
-    /** "Resume" action: clear the auto-pause backoff for an exercise. */
-    resumeProactive?(exerciseId: number): void;
     /**
      * True iff proactive is degraded (no proactive-egress consent OR a 404-latched server). Drives the AskIris
      * "Degraded" card (spec §14 cases 4-5): manual Ask still works, but the proactive path itself is off (no

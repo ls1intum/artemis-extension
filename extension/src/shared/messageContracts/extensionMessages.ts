@@ -173,16 +173,8 @@ export interface SlotDebugSnapshot {
     pendingOutcomes: number;
     /** Idle-abandon evidence gate: true = no new decide POSTs until fresh student activity. */
     awaitingEvidence: boolean;
-    /** The "why is it silent" state: reject backoff, session latches, and the student toggle. */
+    /** The "why is it silent" state: session latches and the student toggle. */
     suppression: {
-        dismissStrikes: number;
-        pauseStrikes: number;
-        /** dismissStrikes >= pauseStrikes: proactive hard-paused for this exercise (spec §5.2). */
-        hardPaused: boolean;
-        annoyance: number;
-        softThreshold: number;
-        /** Owed soft skips (each swallows one alert above the throttle). */
-        softSkipBudget: number;
         /** false -> POSTs stopped, local fallback templates on the lamp. */
         serverAvailable: boolean;
         /** Session latch: course-level proactive disabled (404/course-off reply). */

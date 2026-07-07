@@ -1,6 +1,8 @@
 /**
  * C8: ChatWebviewProvider _handleProactiveOutcome routes to onEpisodeDismiss when
- * proactiveEpisodeId is present; backoff still fires; legacy path for missing id.
+ * proactiveEpisodeId is present; legacy setProactiveOutcome persist for a missing id.
+ * The dismiss backoff has been removed, so a dismiss records DISMISSED with no
+ * memory that changes future behavior (no pause/rate event).
  */
 import * as vscode from 'vscode';
 import * as assert from 'assert';
@@ -80,23 +82,6 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
         }, 0);
     });
 
-    test('with proactiveEpisodeId: _onDidDismissProactive backoff event still fires', (done) => {
-        const dismissFired = sinon.stub();
-        provider.onDidDismissProactive(dismissFired);
-        provider.setStruggleCallbacks({ onEpisodeDismiss: sinon.stub() });
-
-        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
-            type: 'command',
-            command: 'messageProactiveOutcome',
-            payload: { sessionId: 1, messageId: 10, outcome: 'DISMISSED', proactiveEpisodeId: 'ep-xyz' },
-        });
-
-        setTimeout(() => {
-            assert.ok(dismissFired.calledOnce, '_onDidDismissProactive should fire');
-            done();
-        }, 0);
-    });
-
     test('without proactiveEpisodeId: falls back to legacy setProactiveOutcome (no crash)', (done) => {
         const onEpisodeDismiss = sinon.stub();
         provider.setStruggleCallbacks({ onEpisodeDismiss });
@@ -116,9 +101,15 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
         }, 10);
     });
 
-    test('without proactiveEpisodeId: _onDidDismissProactive backoff event still fires (legacy path)', (done) => {
-        const dismissFired = sinon.stub();
-        provider.onDidDismissProactive(dismissFired);
+    test('legacy dismiss persists DISMISSED with the backoff removed (no dismiss event on the provider)', (done) => {
+        // Regression guard for U4: the hidden dismiss backoff is gone. A dismiss on the legacy
+        // (no episode id) path must STILL persist DISMISSED, and the provider must no longer expose
+        // any backoff-dismiss event (dismissing carries no memory that changes future behavior).
+        assert.strictEqual(
+            (provider as unknown as { onDidDismissProactive?: unknown }).onDidDismissProactive,
+            undefined,
+            'the backoff dismiss event must be removed from the provider',
+        );
 
         (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
             type: 'command',
@@ -127,9 +118,10 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
         });
 
         setTimeout(() => {
-            assert.ok(dismissFired.calledOnce, '_onDidDismissProactive should fire on legacy path');
+            assert.ok(mockApi.setProactiveOutcome.calledOnce, 'legacy setProactiveOutcome should still persist DISMISSED');
+            assert.strictEqual(mockApi.setProactiveOutcome.firstCall.args[2], 'DISMISSED');
             done();
-        }, 0);
+        }, 10);
     });
 
     test('no onEpisodeDismiss callback wired: is a safe no-op (no crash)', () => {

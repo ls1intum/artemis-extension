@@ -13,8 +13,6 @@ import { SlotPanel } from '@webview/views/StruggleDetection/SlotPanel';
 const NOW_MS = 1_700_000_000_000;
 
 const SUPPRESSION_CLEAR: SlotDebugSnapshot['suppression'] = {
-    dismissStrikes: 0, pauseStrikes: 5, hardPaused: false,
-    annoyance: 0, softThreshold: 3, softSkipBudget: 0,
     serverAvailable: true, courseProactiveOff: false, studentProactiveOn: true,
 };
 
@@ -120,7 +118,6 @@ describe('SlotPanel', () => {
             episodes: [],
         }));
         expect(screen.getByText('Suppression status')).toBeInTheDocument();
-        expect(screen.getByText('0 / 5')).toBeInTheDocument();          // dismiss strikes / pauseStrikes
         expect(screen.getByText('available')).toBeInTheDocument();      // server
 
         act(() => dispatchExtensionMessage({
@@ -131,7 +128,7 @@ describe('SlotPanel', () => {
         expect(screen.getByText('Suppression status')).toBeInTheDocument();
     });
 
-    it('shows hard-pause, latches, and the student toggle when suppression is active', () => {
+    it('shows the server/course latches and the student toggle when suppression is active', () => {
         const api = createMockVsCodeApi();
         render(<SlotPanel vscodeApi={api} />);
 
@@ -140,13 +137,11 @@ describe('SlotPanel', () => {
             snapshot: makeFreeSnapshot({
                 suppression: {
                     ...SUPPRESSION_CLEAR,
-                    dismissStrikes: 5, hardPaused: true, annoyance: 10, softSkipBudget: 2,
                     serverAvailable: false, courseProactiveOff: true, studentProactiveOn: false,
                 },
             }),
             episodes: [],
         }));
-        expect(screen.getByText('5 / 5 · hard-paused')).toBeInTheDocument();
         expect(screen.getByText('unavailable (local fallback)')).toBeInTheDocument();
         expect(screen.getByText('latched off')).toBeInTheDocument();    // course proactive
         expect(screen.getByText('off')).toBeInTheDocument();            // student toggle

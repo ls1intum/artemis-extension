@@ -16,9 +16,8 @@ import { useSlotCountdowns } from './useSlotCountdowns';
 // ---------------------------------------------------------------------------
 
 /**
- * The "why is it silent" block: reject backoff, session latches, student toggle, and the
- * idle-abandon evidence gate. Rendered in BOTH the free and occupied branches — the free
- * state is exactly when these matter.
+ * The "why is it silent" block: session latches, student toggle, and the idle-abandon evidence
+ * gate. Rendered in BOTH the free and occupied branches — the free state is exactly when these matter.
  */
 function SuppressionStatus({ snapshot }: { snapshot: SlotDebugSnapshot }) {
     const s = snapshot.suppression;
@@ -28,20 +27,6 @@ function SuppressionStatus({ snapshot }: { snapshot: SlotDebugSnapshot }) {
             <div className={styles.row}>
                 <span className={styles.label}>Evidence gate (idle-abandon)</span>
                 <span className={styles.value}>{snapshot.awaitingEvidence ? 'awaiting fresh evidence' : 'clear'}</span>
-            </div>
-            <div className={styles.row}>
-                <span className={styles.label}>Dismiss strikes</span>
-                <span className={styles.value}>
-                    {s.dismissStrikes} / {s.pauseStrikes}{s.hardPaused ? ' · hard-paused' : ''}
-                </span>
-            </div>
-            <div className={styles.row}>
-                <span className={styles.label}>Annoyance</span>
-                <span className={styles.value}>{s.annoyance} / {s.softThreshold}</span>
-            </div>
-            <div className={styles.row}>
-                <span className={styles.label}>Owed soft skips</span>
-                <span className={styles.value}>{s.softSkipBudget}</span>
             </div>
             <div className={styles.row}>
                 <span className={styles.label}>Server</span>

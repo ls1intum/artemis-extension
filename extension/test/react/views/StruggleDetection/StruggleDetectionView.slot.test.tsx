@@ -56,8 +56,6 @@ const FREE_SNAPSHOT: SlotDebugSnapshot = {
     pendingOutcomes: 0,
     awaitingEvidence: false,
     suppression: {
-        dismissStrikes: 0, pauseStrikes: 5, hardPaused: false,
-        annoyance: 0, softThreshold: 3, softSkipBudget: 0,
         serverAvailable: true, courseProactiveOff: false, studentProactiveOn: true,
     },
 };
