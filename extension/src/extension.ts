@@ -248,9 +248,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
-	// Route a nudge-banner button back to the engine outcome, and open the chat on "Show me".
-	// A dev mock banner (sentinel id) is visual only: its buttons neither record an outcome nor
-	// open the chat.
+	// Route a nudge-banner button back to the engine outcome. "Show me" jumps to the flagged line
+	// (via the jump lamp, inside handleBannerAction) and opens the chat. A dev mock banner (sentinel
+	// id) is visual only: its buttons neither record an outcome nor open the chat.
 	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction(({ action, episodeId }) => {
 		handleBannerAction?.(action, episodeId);
 		if (action === 'showMe' && episodeId !== MOCK_NUDGE_EPISODE_ID) { void vscode.commands.executeCommand('iris.chatView.focus'); }

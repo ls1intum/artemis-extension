@@ -141,6 +141,17 @@ export class InterventionService implements vscode.Disposable {
         // 'none': nothing to do (the item is hidden then).
     }
 
+    /**
+     * Jump to the armed anchor without going through the click path (no onDidClick, no dismissal): the
+     * lamp stays exactly as it is. Lets another surface reuse the jump: the banner's "Show me" button
+     * navigates to the flagged line this way. No-op unless a jump target is currently armed.
+     */
+    revealJumpTarget(): void {
+        if (this._mode === 'jump' && this._jumpTarget) {
+            void this._openAnchor(this._jumpTarget.uri, this._jumpTarget.line);
+        }
+    }
+
     /** Best-effort open + reveal of the anchored line; a missing file / past-EOF line never throws. */
     private async _openAnchor(uri: vscode.Uri, line: number): Promise<void> {
         try {

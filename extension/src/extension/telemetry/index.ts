@@ -332,6 +332,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         getEpisodeHistory: () => orchestrator.getEpisodeHistory(),
         setSlotChangeSink: (fn: () => void) => { slotChangeSink = fn; },
         handleBannerAction: (action, episodeId) => {
+            // 'showMe' also navigates to the flagged line by reusing the already-armed jump lamp (a
+            // no-op when no anchor is armed). Done before the mock guard so the dev mock jumps too and
+            // stays testable; recording an outcome / opening the chat stays real-only.
+            if (action === 'showMe') { lamp.revealJumpTarget(); }
             // Dev mock banner: purely visual, so its buttons must not touch real episode state.
             if (episodeId === MOCK_NUDGE_EPISODE_ID) { return; }
             // 'showMe' opens the chat (wired in extension.ts); 'dismiss' closes the episode; 'timeout' → no outcome.

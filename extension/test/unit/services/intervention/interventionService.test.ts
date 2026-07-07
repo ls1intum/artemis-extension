@@ -146,6 +146,28 @@ suite('InterventionService (ambient lamp)', () => {
         assert.ok(openDoc.notCalled, 'must NOT open a file (no stale jump command)');
     });
 
+    test('revealJumpTarget opens the armed anchor and keeps the lamp visible (Show me)', async () => {
+        const openDoc = sandbox.stub(vscode.workspace, 'openTextDocument').resolves({ lineCount: 200 } as vscode.TextDocument);
+        const showDoc = sandbox.stub(vscode.window, 'showTextDocument').resolves(undefined as unknown as vscode.TextEditor);
+        svc = new InterventionService();
+        const uri = vscode.Uri.file('/ex/ProjectPlanner.java');
+        svc.showJump(uri, 42);
+        svc.revealJumpTarget();
+        await new Promise(resolve => setTimeout(resolve, 0)); // flush the fire-and-forget open
+        assert.ok(openDoc.calledOnce, 'opens the anchored document');
+        assert.strictEqual(openDoc.firstCall.args[0], uri, 'opens the armed anchor Uri');
+        assert.ok(showDoc.calledOnce, 'reveals it');
+        assert.strictEqual(svc.isHintVisible, true, 'the jump lamp stays visible');
+    });
+
+    test('revealJumpTarget is a no-op when no jump target is armed (parked)', () => {
+        const openDoc = sandbox.stub(vscode.workspace, 'openTextDocument').resolves({ lineCount: 200 } as vscode.TextDocument);
+        svc = new InterventionService();
+        svc.showLamp(); // parked, not jump
+        svc.revealJumpTarget();
+        assert.ok(openDoc.notCalled, 'no navigation without an armed jump target');
+    });
+
     test('clearEpisodeLamp clears a parked or jump lamp', () => {
         svc = new InterventionService();
         svc.showLamp();
