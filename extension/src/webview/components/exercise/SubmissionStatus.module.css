@@ -26,14 +26,7 @@
 .buildStatusMessage {
   font-size: 13px;
   color: var(--vscode-foreground);
-}
-
-/* Empty state */
-.buildStatusEmpty .buildStatusInfo {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  opacity: 0.8;
+  margin-top: 8px;
 }
 
 .buildStatusPlaceholder {

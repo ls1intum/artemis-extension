@@ -52,70 +52,7 @@
   font-size: 13px;
 }
 
-/* Workspace status indicator */
-.changesStatus {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--vscode-foreground);
-  opacity: 0.85;
-}
-
-.changesStatusIndicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--vscode-panel-border, #e0e0e0);
-  transition: background 0.15s ease-in-out, transform 0.15s ease-in-out;
-  flex-shrink: 0;
-}
-
-.changesStatus[data-state='dirty'] {
-  color: var(--vscode-editorWarning-foreground, #cca700);
-}
-
-.changesStatus[data-state='dirty'] .changesStatusIndicator {
-  background: var(--vscode-editorWarning-foreground, #cca700);
-  transform: scale(1.1);
-}
-
-.changesStatus[data-state='clean'] {
-  color: var(--vscode-testing-iconPassed, #73c991);
-}
-
-.changesStatus[data-state='clean'] .changesStatusIndicator {
-  background: var(--vscode-testing-iconPassed, #73c991);
-}
-
-.changesStatus[data-state='disconnected'] {
-  color: var(--vscode-errorForeground, #f48771);
-}
-
-.changesStatus[data-state='disconnected'] .changesStatusIndicator {
-  background: var(--vscode-errorForeground, #f48771);
-}
-
-.changesStatus[data-state='wrong-repo'] {
-  color: var(--vscode-editorWarning-foreground, #cca700);
-  font-weight: 600;
-}
-
-.changesStatus[data-state='wrong-repo'] .changesStatusIndicator {
-  background: var(--vscode-editorWarning-foreground, #cca700);
-}
-
-.changesStatus[data-state='checking'] {
-  color: var(--vscode-foreground);
-  opacity: 0.7;
-}
-
-.changesStatus[data-state='checking'] .changesStatusIndicator {
-  background: var(--vscode-panel-border, #e0e0e0);
-  animation: changesPulse 1.2s ease-in-out infinite;
-}
-
+/* changesPulse is reused by the redesigned .workspaceHint[data-state='checking']. */
 @keyframes changesPulse {
   0%, 100% {
     transform: scale(1);
@@ -137,34 +74,6 @@
   background: var(--vscode-inputValidation-infoBackground, rgba(0, 0, 0, 0.03));
   border-radius: 4px;
   text-align: center;
-}
-
-/* Unsaved changes banner */
-.unsavedChangesBanner {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 4px;
-  padding: 10px 12px;
-  background: var(--vscode-inputValidation-warningBackground, rgba(255, 165, 0, 0.1));
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.unsavedChangesIcon {
-  font-size: 16px;
-  line-height: 1;
-  margin-top: 1px;
-}
-
-.unsavedChangesText {
-  flex: 1;
-  color: var(--vscode-foreground);
-  line-height: 1.4;
-}
-
-.unsavedChangesText strong {
-  font-weight: 600;
 }
 
 /* Submit button group */
@@ -238,12 +147,6 @@
 .commitMessageInput::placeholder {
   color: var(--vscode-input-placeholderForeground);
   opacity: 0.5;
-}
-
-/* More menu */
-.moreMenu {
-  position: relative;
-  flex: 1;
 }
 
 .moreDropdown {
