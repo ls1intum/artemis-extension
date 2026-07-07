@@ -45,6 +45,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showGutterOnly: vi.fn(),
         clearInline: vi.fn(),
         isStudentProactiveOn: () => true,
+        getProactiveLevel: () => 'more',
         setBadge: vi.fn(),
         showActiveBanner: vi.fn(),
         hideActiveBanner: vi.fn(),
@@ -455,6 +456,41 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearInline).toHaveBeenCalled();
         expect(deps.clearLamp).toHaveBeenCalled();
         expect(deps.openSession).toHaveBeenCalledWith(8);
+    });
+
+    // Pull re-route (spec §12.2 Off/Less/More): the client-side defence-in-depth that keeps Less
+    // from ever surfacing a bubble/notification, even when the server decided `active`.
+    it('Pull re-route: level=less turns an inbound active event into ambient/PARKED, never a bubble/banner/session-open', () => {
+        const deps = fakeDeps({ getProactiveLevel: () => 'less' });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(7, 'src/B.java', 84, 'check punctuation', 0.9, 'Iris has a suggestion for you.', 123);
+
+        // Re-routed to the ambient/PARKED surface: badge + lamp (+ gutter, since an anchor was sent).
+        expect(deps.setBadge).toHaveBeenCalledWith(true);
+        expect(deps.showLamp).toHaveBeenCalled();
+        expect(deps.showGutterOnly).toHaveBeenCalledWith('src/B.java', 84);
+        // Never the active surface: no session open, no bubble, no banner, no inline text/jump.
+        expect(deps.openSession).not.toHaveBeenCalled();
+        expect(deps.postBubble).not.toHaveBeenCalled();
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
+        expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.showActiveJump).not.toHaveBeenCalled();
+        // The slot itself is PARKED, not DELIVERED.
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
+    });
+
+    it('Pull re-route: level=more delivers the full active push (DELIVERED, bubble/banner) unchanged', () => {
+        const deps = fakeDeps({ getProactiveLevel: () => 'more' });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive(7, 'src/B.java', 84, 'check punctuation', 0.9, 'Iris has a suggestion for you.', 123);
+
+        expect(deps.openSession).toHaveBeenCalledWith(7);
+        expect(deps.setBadge).toHaveBeenCalledWith(true);
+        expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
+        expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
     it('an UNSAFE anchor path (traversal) is treated as no anchor on every surface', () => {

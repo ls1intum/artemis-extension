@@ -1,6 +1,6 @@
 import type { Uri } from 'vscode';
 
-import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, SlotDebugSnapshot } from '@shared/messageContracts';
+import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, ProactiveLevel, SlotDebugSnapshot } from '@shared/messageContracts';
 
 import { ApiError } from '@extension/domain';
 import { isSafeAnchorPath } from '@extension/services/intervention/anchorPath';
@@ -131,6 +131,12 @@ export interface StruggleInterventionDeps {
     clearInline(): void;
     /** Durable per-exercise student opt-out (spec §12.2): false -> the orchestrator suppresses proactive for it. */
     isStudentProactiveOn(exerciseId: number): boolean;
+    /**
+     * Per-exercise proactive-help level (Off/Less/More, spec §12.2). Used by the client-side Pull
+     * re-route: an inbound `active` event for a `less` exercise is downgraded to the ambient/PARKED
+     * path so Less never surfaces a bubble/notification, even when the server decided `active`.
+     */
+    getProactiveLevel(exerciseId: number): ProactiveLevel;
     setBadge(on: boolean): void;
     /** Show the proactive nudge banner for the given (out-of-session, DELIVERED) episode. */
     showActiveBanner(episodeId: string | undefined): void;
@@ -717,6 +723,8 @@ export class StruggleInterventionService implements AlertSink {
      * Inbound active event from the server (delivered, bubble+notification). Routes through reconcile;
      * may take-delivered (FREE), replace-delivered (PARKED), escalate (revealed-ambient DELIVERED +
      * hardEvent), or suppress (already-active DELIVERED, no hardEvent, etc.).
+     * Pull re-route (spec §12.2): when the active exercise's level is `less`, this delegates to
+     * {@link onServerAmbient} instead, so Less never creates a DELIVERED episode/bubble/notification.
      */
     onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
         this._setServerAvailable(true);
@@ -724,6 +732,18 @@ export class StruggleInterventionService implements AlertSink {
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             this._clearInFlight();
+            return;
+        }
+
+        // Pull re-route (spec §12.2 Off/Less/More): Less may only surface quietly (lamp/gutter),
+        // never a bubble/notification, even when the server decided `active`. Check the level BEFORE
+        // _acceptDecide runs and hand the whole event to onServerAmbient, which does its own
+        // _acceptDecide/baseline/_frozenSessionId bookkeeping -- falling through into the active
+        // handling below would double-consume the in-flight marker (its _acceptDecide clears the
+        // marker, so a second call here would read it as stale and silently drop the reply).
+        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        if (level === 'less') {
+            this.onServerAmbient(message ?? '', anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId);
             return;
         }
 

@@ -41,6 +41,7 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         showInline: vi.fn(),
         clearInline: vi.fn(),
         isStudentProactiveOn: vi.fn().mockReturnValue(true),
+        getProactiveLevel: vi.fn().mockReturnValue('more'),
         setBadge: vi.fn(),
         showActiveBanner: vi.fn(),
         hideActiveBanner: vi.fn(),

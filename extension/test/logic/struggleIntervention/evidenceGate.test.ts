@@ -40,6 +40,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         showGutterOnly: vi.fn(),
         clearInline: vi.fn(),
         isStudentProactiveOn: () => true,
+        getProactiveLevel: () => 'more',
         setBadge: vi.fn(),
         showActiveBanner: vi.fn(),
         hideActiveBanner: vi.fn(),

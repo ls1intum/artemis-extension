@@ -115,6 +115,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         postBubble: (text, id, episodeId) => deps.postOptimisticBubble(text, id, episodeId),
         setChatLiveEpisode: episodeId => deps.postLiveEpisode(episodeId),
         isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
+        getProactiveLevel: exerciseId => deps.getProactiveLevel(exerciseId),
         // Slot + progress-close tuning live in config.ts (TUNING.slot). TUNING.slot is a superset that
         // satisfies both StaleConfig and ProgressCloseCfg, so it feeds both deps; the orchestrator's
         // DEFAULT_SLOT_CFG / DEFAULT_PROGRESS_CFG remain fallbacks for test stubs that omit these.
