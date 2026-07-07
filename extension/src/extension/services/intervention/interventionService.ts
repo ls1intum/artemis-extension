@@ -35,6 +35,19 @@ const FLASH_BACKGROUND = new vscode.ThemeColor('statusBarItem.warningBackground'
 /** How long a fresh jump lamp wears the flash background before it settles to the ambient blue text. */
 const FLASH_MS = 15_000;
 
+/**
+ * True when a visible editor for `uri` currently shows the (1-based) `line` in its viewport, i.e. the
+ * flagged cue is already on screen. Injected into {@link InterventionService} so the flash decision is
+ * testable without stubbing the shared VS Code editor state.
+ */
+function anchorInView(uri: vscode.Uri, line: number): boolean {
+    const target = uri.toString();
+    const idx = line - 1;
+    return vscode.window.visibleTextEditors.some(ed =>
+        ed.document.uri.toString() === target
+        && ed.visibleRanges.some(r => idx >= r.start.line && idx <= r.end.line));
+}
+
 type LampMode = 'none' | 'parked' | 'jump';
 
 export class InterventionService implements vscode.Disposable {
@@ -51,7 +64,10 @@ export class InterventionService implements vscode.Disposable {
     /** Fires when the user clicks the status-bar hint (engagement signal for all modes). */
     readonly onDidClick = this._onDidClick.event;
 
-    constructor(private readonly _flashMs: number = FLASH_MS) {
+    constructor(
+        private readonly _flashMs: number = FLASH_MS,
+        private readonly _isAnchorInView: (uri: vscode.Uri, line: number) => boolean = anchorInView,
+    ) {
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this._statusBarItem.command = HINT_COMMAND;
         this._statusBarItem.color = IRIS_BLUE;
@@ -91,9 +107,10 @@ export class InterventionService implements vscode.Disposable {
         const base = uri.path.split('/').pop() || uri.path;
         this._statusBarItem.text = `$(arrow-right) Iris: ${base}:${line}`;
         this._statusBarItem.tooltip = 'Jump to the line Iris flagged.';
-        // A fresh jump lamp flashes amber to draw the eye, then settles to the ambient blue text.
-        // Re-rendering the same jump (already in jump mode) must not restart the flash.
-        if (!wasJump) { this._flash(); }
+        // A fresh jump lamp flashes amber to draw the eye toward an off-screen cue, then settles to the
+        // ambient blue text. Skip the flash when the flagged line is already on screen (nothing to draw
+        // the eye to) or when merely re-rendering the same jump.
+        if (!wasJump && !this._isAnchorInView(uri, line)) { this._flash(); }
         this._statusBarItem.show();
     }
 
