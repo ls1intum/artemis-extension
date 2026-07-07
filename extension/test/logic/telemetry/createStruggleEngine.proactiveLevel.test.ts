@@ -1,0 +1,123 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import type { ProactiveLevel } from '@shared/messageContracts';
+
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { StruggleEngineDeps } from '@extension/telemetry/contract';
+import { createStruggleEngine } from '@extension/telemetry/index';
+import { createStruggleEngine as createNoopStruggleEngine } from '@extension/telemetry/noop';
+import { TestSensorHub } from '@test/__shared__/testSensorHub';
+
+/**
+ * The full engine factory constructs a status-bar lamp, an inline decoration surface and the
+ * struggle-detection grid timer, none of which are provided by vitest's minimal global `vscode`
+ * stub (test/react/__helpers__/vscode.stub.ts). This local mock adds exactly the surface those
+ * constructors touch synchronously, so `createStruggleEngine` builds the SAME real object graph
+ * production does (only `getProactiveLevel`/the active-exercise source are faked).
+ */
+vi.mock('vscode', () => {
+    class EventEmitter<T> {
+        private readonly _listeners = new Set<(e: T) => void>();
+        readonly event = (listener: (e: T) => void): { dispose(): void } => {
+            this._listeners.add(listener);
+            return { dispose: () => { this._listeners.delete(listener); } };
+        };
+        fire(data: T): void { for (const l of [...this._listeners]) { l(data); } }
+        dispose(): void { this._listeners.clear(); }
+    }
+    const disposable = () => ({ dispose: () => {} });
+    return {
+        EventEmitter,
+        Disposable: { from: (...items: { dispose(): void }[]) => ({ dispose: () => items.forEach(i => i.dispose()) }) },
+        Uri: {
+            parse: (v: string) => ({ scheme: '', authority: '', path: v, fsPath: v, toString: () => v }),
+            joinPath: (base: { path: string }, ...segs: string[]) => {
+                const path = [base.path, ...segs].join('/');
+                return { path, fsPath: path, toString: () => path };
+            },
+        },
+        DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
+        StatusBarAlignment: { Left: 1, Right: 2 },
+        window: {
+            createStatusBarItem: () => ({ show: () => {}, hide: () => {}, dispose: () => {} }),
+            createTextEditorDecorationType: () => ({ dispose: () => {} }),
+            onDidChangeVisibleTextEditors: disposable,
+            visibleTextEditors: [],
+        },
+        workspace: {
+            getConfiguration: () => ({ get: (_key: string, def: unknown) => def }),
+            onDidChangeConfiguration: disposable,
+            onDidChangeTextDocument: disposable,
+            workspaceFolders: undefined,
+            textDocuments: [],
+        },
+        commands: {
+            registerCommand: disposable,
+            executeCommand: async () => undefined,
+        },
+    };
+});
+
+/** A fully-formed `StruggleEngineDeps` fake; `getProactiveLevel` is the piece under test. */
+function fakeDeps(getProactiveLevel: (exerciseId: number) => ProactiveLevel): StruggleEngineDeps {
+    return {
+        hub: new TestSensorHub(),
+        exerciseRegistry: new ExerciseRegistry(),
+        isIrisEnabled: () => true,
+        context: {
+            subscriptions: [],
+            globalStorageUri: { fsPath: '/tmp/artemis-test-struggle' },
+            extensionUri: { path: '/ext', fsPath: '/ext' },
+        } as unknown as StruggleEngineDeps['context'],
+        postIntervention: vi.fn(async () => 'accepted' as const),
+        isStudentProactiveOn: () => true,
+        getProactiveLevel,
+        openProactiveSession: vi.fn(async () => undefined),
+        setProactiveBadge: vi.fn(),
+        postOptimisticBubble: vi.fn(),
+        postLiveEpisode: vi.fn(),
+        revealAmbient: vi.fn(async () => ({}) as never),
+        setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
+        postRevealBubble: vi.fn(),
+        reconcileOptimisticBubble: vi.fn(),
+        subscribeStruggleTopic: () => ({ dispose: () => {} }),
+        cancelOutstandingStruggleJob: vi.fn(async () => undefined),
+        foldEpisode: vi.fn(),
+        postRemoveMessage: vi.fn(),
+        deleteSupersededProactiveMessage: vi.fn(async () => undefined),
+        showNudgeBanner: vi.fn(),
+        hideNudgeBanner: vi.fn(),
+    };
+}
+
+describe('full struggle-engine seam: getActiveProactiveLevel', () => {
+    it('falls back to \'more\' when no exercise is active', () => {
+        const getProactiveLevel = vi.fn((): ProactiveLevel => 'off');
+        const handle = createStruggleEngine(fakeDeps(getProactiveLevel));
+        expect(handle.getActiveProactiveLevel()).toBe('more');
+        expect(getProactiveLevel).not.toHaveBeenCalled();
+    });
+
+    it('returns the ACTIVE exercise\'s level, keyed by the coordinator\'s activeExerciseId', () => {
+        const levels: Record<number, ProactiveLevel> = { 42: 'less', 7: 'off' };
+        const getProactiveLevel = vi.fn((exerciseId: number): ProactiveLevel => levels[exerciseId] ?? 'more');
+        const handle = createStruggleEngine(fakeDeps(getProactiveLevel));
+
+        handle.coordinator.startExerciseSession(42);
+        expect(handle.getActiveProactiveLevel()).toBe('less');
+        expect(getProactiveLevel).toHaveBeenLastCalledWith(42);
+
+        // Switching the active exercise re-resolves against the NEW id, not a stale one.
+        handle.coordinator.startExerciseSession(7);
+        expect(handle.getActiveProactiveLevel()).toBe('off');
+
+        // Ending the session clears the active exercise, so the accessor falls back again.
+        handle.coordinator.endExerciseSession();
+        expect(handle.getActiveProactiveLevel()).toBe('more');
+    });
+
+    it('no-op build: always returns \'more\' (no engine, no active-exercise concept)', () => {
+        const handle = createNoopStruggleEngine(fakeDeps(() => 'off'));
+        expect(handle.getActiveProactiveLevel()).toBe('more');
+    });
+});

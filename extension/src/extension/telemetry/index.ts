@@ -318,6 +318,11 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         coordinator,
         promptConsentIfAsk: () => consent.promptIfAsk(),
         recordProactiveDismiss: () => orchestrator.recordChatDismiss(),
+        // Single source of truth for "what level is the ACTIVE exercise on" (later read by the
+        // delivery throttle and the Pull re-route). Resolves through the caller-provided level
+        // lookup, keyed by the coordinator's own activeExerciseId (undefined between sessions).
+        getActiveProactiveLevel: () =>
+            coordinator.activeExerciseId === undefined ? 'more' : deps.getProactiveLevel(coordinator.activeExerciseId),
         isProactivePaused: exerciseId => orchestrator.isProactivePaused(exerciseId),
         setStudentProactive: (exerciseId, on) => orchestrator.setStudentProactive(exerciseId, on),
         resumeProactive: exerciseId => orchestrator.resumeProactive(exerciseId),

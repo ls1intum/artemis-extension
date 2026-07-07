@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-import type { EpisodeHistoryEntry, ExtensionToWebviewMessage, SlotDebugSnapshot } from '@shared/messageContracts';
+import type { EpisodeHistoryEntry, ExtensionToWebviewMessage, ProactiveLevel, SlotDebugSnapshot } from '@shared/messageContracts';
 
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
@@ -117,6 +117,12 @@ export interface StruggleEngineDeps {
     subscribeStruggleTopic(topic: string, onFrame: (data: unknown) => void): { dispose(): void };
     /** Durable per-exercise student opt-out (spec §12.2): false → the orchestrator suppresses proactive for it. */
     isStudentProactiveOn(exerciseId: number): boolean;
+    /**
+     * Per-exercise proactive-help level (Off/Less/More, spec §12.2) — the level-aware form of
+     * `isStudentProactiveOn` above. Threaded through so the {@link StruggleEngineHandle.getActiveProactiveLevel}
+     * accessor can resolve the ACTIVE exercise's level without the caller holding an exercise id.
+     */
+    getProactiveLevel(exerciseId: number): ProactiveLevel;
     // ---- C2: reveal + episode-outcome ----
     /**
      * Reveal a hidden ambient hint by persisting it (A10). Delegates to ArtemisApiService.revealAmbient.
@@ -193,6 +199,13 @@ export interface StruggleEngineHandle {
     promptConsentIfAsk(): Promise<void>;
     /** Record a chat-bubble dismiss into the delivery backoff (Slice 4a). No-op in the clean build. */
     recordProactiveDismiss(): void;
+    /**
+     * The ACTIVE exercise's proactive-help level (Off/Less/More, spec §12.2): `getProactiveLevel` keyed by
+     * the coordinator's `activeExerciseId`, `'more'` (the default) when no exercise is active. Present in
+     * BOTH builds (unlike the optional members below) so later consumers — the delivery throttle and the
+     * Pull re-route — can read it unconditionally. Purely additive for now: nothing calls it yet.
+     */
+    getActiveProactiveLevel(): ProactiveLevel;
     /**
      * Proactive control (AskIris On/Off switch, spec §12.2). These three are ABSENT in the clean (no-engine) build:
      * extension.ts only assembles a `proactiveControl` capability when they are present, so the clean build never

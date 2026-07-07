@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 
+import type { ProactiveLevel } from '@shared/messageContracts';
+
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
@@ -83,6 +85,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
+	// Level-aware read of the same preference (spec §12.2, Off/Less/More); `isStudentProactiveOn`
+	// below derives from this rather than duplicating the lookup, so there is one source of truth
+	// for "is this exercise's proactive help off". Same default-on fallback as above pre-wiring.
+	const getProactiveLevel = (exerciseId: number): ProactiveLevel => proactivePreferenceRef?.getLevel(exerciseId) ?? 'more';
 	// Forward-ref: the Iris-enabled cache is constructed later (after ContextStore exists), but the
 	// engine's gate reads it lazily at alert-time, so a fail-closed default until it is wired.
 	let irisEnabledCache: IrisEnabledCache | undefined;
@@ -95,7 +101,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		context,
 		isIrisEnabled: () => irisEnabledCache?.isEnabled() ?? false,
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
-		isStudentProactiveOn: exerciseId => proactivePreferenceRef?.isProactiveOn(exerciseId) ?? true,
+		isStudentProactiveOn: exerciseId => getProactiveLevel(exerciseId) !== 'off',
+		getProactiveLevel,
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
 		postOptimisticBubble: (text, messageId, episodeId) => chatWebviewProvider?.postOptimisticBubble(text, messageId, episodeId),
