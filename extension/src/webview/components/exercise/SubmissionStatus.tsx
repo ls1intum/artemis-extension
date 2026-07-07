@@ -1,7 +1,6 @@
 import clsx from 'clsx';
 import { ReactNode } from 'react';
 
-import { Badge } from '@webview/components/Badge';
 import { Button } from '@webview/components/Button';
 import { useBuildProgress } from '@webview/hooks/useBuildProgress';
 
@@ -70,12 +69,7 @@ export function SubmissionStatus({
   if (status === 'no-submission' && exerciseType === 'programming') {
     return (
       <div className={clsx(styles.buildStatus, styles.buildStatusEmpty, className)}>
-        <div className={styles.buildStatusTitle}>Latest Build Status</div>
-        <div className={styles.buildStatusInfo}>
-          <div className={styles.buildStatusPlaceholder}>
-            No submissions yet. Submit to see build results.
-          </div>
-        </div>
+        <div className={styles.buildStatusPlaceholder}>No builds yet — submit to see results</div>
       </div>
     );
   }
@@ -95,39 +89,21 @@ export function SubmissionStatus({
 
     return (
       <div className={clsx(styles.buildStatus, styles.buildStatusBuilding, className)}>
-        <div className={styles.buildStatusTitle}>Build in Progress</div>
-        <div className={styles.buildStatusInfo}>
-          <div className={styles.buildStatusMessage}>{message}</div>
-          <div className={styles.buildProgressTrack}>
-            <div
-              className={clsx(styles.buildProgressBar, {
-                [styles.buildProgressBarIndeterminate]: !hasDeterminateProgress,
-              })}
-              style={hasDeterminateProgress ? { width: `${progressPercent}%` } : undefined}
-            />
-          </div>
+        <div className={styles.buildProgressTrack}>
+          <div
+            data-testid="build-progress-bar"
+            className={clsx(styles.buildProgressBar, {
+              [styles.buildProgressBarIndeterminate]: !hasDeterminateProgress,
+            })}
+            style={hasDeterminateProgress ? { width: `${progressPercent}%` } : undefined}
+          />
         </div>
+        <div className={styles.buildStatusMessage}>{message}</div>
       </div>
     );
   }
 
-  // Generate status badge for completed builds
-  let statusBadge: ReactNode = null;
-  if (buildFailed) {
-    statusBadge = <Badge variant="error">Build Failed</Badge>;
-  } else if (hasTestInfo && totalTests > 0) {
-    const passPercentage = (passedTests / totalTests) * 100;
-    const badgeVariant = passPercentage >= 80 ? 'success' : passPercentage >= 40 ? 'warning' : 'error';
-    statusBadge = <Badge variant={badgeVariant}>{passedTests}/{totalTests} tests passed</Badge>;
-  } else {
-    statusBadge = status === 'success' ? (
-      <Badge variant="success">Build Success</Badge>
-    ) : (
-      <Badge variant="error">Tests Failed</Badge>
-    );
-  }
-
-  // Determine score color class
+  // Score colour tier (shared by the programming build rows).
   let scoreColorClass = styles.scoreError;
   if (scorePercentage >= 80) {
     scoreColorClass = styles.scoreSuccess;
@@ -135,43 +111,64 @@ export function SubmissionStatus({
     scoreColorClass = styles.scoreWarning;
   }
 
-  // Programming exercise status
+  // "23.1/101 p (22.9%)" when the exercise has points, else just "22.9%".
+  const scoreExpr = maxScore > 0 ? (
+    <>
+      {parseFloat(score.toFixed(1))}/{maxScore} p{' '}
+      <span className={styles.scorePercentDim}>({scorePercentage.toFixed(1)}%)</span>
+    </>
+  ) : (
+    <>{scorePercentage.toFixed(1)}%</>
+  );
+
   if (exerciseType === 'programming') {
-    return (
-      <div className={clsx(styles.buildStatus, className)}>
-        <div className={styles.buildStatusTitle}>Latest Build Status</div>
-        <div className={styles.buildStatusInfo}>
-          {statusBadge}
-          <div className={styles.scoreInfo}>
-            Score:{' '}
-            <span className={clsx(styles.scorePoints, scoreColorClass)}>
-              {parseFloat(score.toFixed(1))}/{maxScore} ({scorePercentage.toFixed(1)}%)
-            </span>{' '}
-            {maxScore === 1 ? 'point' : 'points'}
+    // Build failed takes precedence (a compile failure usually ran no tests).
+    if (buildFailed) {
+      return (
+        <div className={clsx(styles.buildStatus, className)}>
+          <div className={styles.buildFailedRow}>
+            <span className={styles.buildFailedIcon} aria-hidden="true">✕</span>
+            <span className={styles.buildFailedText}>Build failed</span>
+          </div>
+          <div className={styles.buildFailedActions}>
+            <Button variant="primary" onClick={onGoToSource}>Go to source</Button>
+            <Button variant="link" onClick={onViewBuildLog}>Open log</Button>
+            {hasTestInfo && (
+              <Button variant="link" onClick={onOpenTestResults}>Results</Button>
+            )}
           </div>
         </div>
+      );
+    }
 
-        {/* Action buttons */}
-        {(buildFailed || hasTestInfo) && (
-          <div className={styles.testResultsToggleContainer}>
-            {buildFailed && (
-              <>
-                <Button variant="link" onClick={onViewBuildLog}>
-                  View build log
-                </Button>
-                <Button variant="link" onClick={onGoToSource}>
-                  Go to source →
-                </Button>
-              </>
-            )}
-            {hasTestInfo && (
-              <Button variant="link" onClick={onOpenTestResults}>
-                See test results
-              </Button>
-            )}
+    // Finished with test-case info: outlined test badge + points + Results link.
+    if (hasTestInfo && totalTests > 0) {
+      const passPercentage = (passedTests / totalTests) * 100;
+      const badgeColorClass = passPercentage >= 80 ? styles.testBadgeSuccess
+        : passPercentage >= 40 ? styles.testBadgeWarning
+        : styles.testBadgeError;
+      return (
+        <div className={clsx(styles.buildStatus, className)}>
+          <div className={styles.buildRow}>
+            <span className={clsx(styles.testBadge, badgeColorClass)}>
+              {passedTests}/{totalTests} tests
+            </span>
+            <span className={clsx(styles.scoreExpr, scoreColorClass)}>{scoreExpr}</span>
+            <Button variant="link" onClick={onOpenTestResults}>Results</Button>
           </div>
-        )}
+        </div>
+      );
+    }
 
+    // Finished, no test-case info: status badge (Build Success / Tests Failed) + points, no Results.
+    const statusLabel = status === 'success' ? 'Build Success' : 'Tests Failed';
+    const statusBadgeClass = status === 'success' ? styles.testBadgeSuccess : styles.testBadgeError;
+    return (
+      <div className={clsx(styles.buildStatus, className)}>
+        <div className={styles.buildRow}>
+          <span className={clsx(styles.testBadge, statusBadgeClass)}>{statusLabel}</span>
+          <span className={clsx(styles.scoreExpr, scoreColorClass)}>{scoreExpr}</span>
+        </div>
       </div>
     );
   }

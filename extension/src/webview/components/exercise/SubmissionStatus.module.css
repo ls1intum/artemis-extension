@@ -143,3 +143,44 @@
   flex-wrap: wrap;
 }
 
+/* Redesigned build row */
+.buildRow {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+/* Outlined status/test badge (border + coloured text, transparent fill) */
+.testBadge {
+  display: inline-block;
+  border: 1px solid var(--vscode-panel-border, #e0e0e0);
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.testBadgeSuccess { border-color: var(--vscode-testing-iconPassed, #73c991); color: var(--vscode-testing-iconPassed, #73c991); }
+.testBadgeWarning { border-color: var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-editorWarning-foreground, #cca700); }
+.testBadgeError { border-color: var(--vscode-errorForeground, #f48771); color: var(--vscode-errorForeground, #f48771); }
+
+.scoreExpr {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+}
+.scorePercentDim {
+  color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+  font-weight: 400;
+}
+
+/* Build failed */
+.buildFailedRow { display: flex; align-items: center; gap: 8px; }
+.buildFailedIcon { color: var(--vscode-errorForeground, #f48771); font-weight: 700; }
+.buildFailedText { color: var(--vscode-errorForeground, #f48771); font-weight: 600; }
+.buildFailedActions { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+
