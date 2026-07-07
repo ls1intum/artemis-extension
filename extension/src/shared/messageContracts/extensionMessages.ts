@@ -153,7 +153,7 @@ export interface StruggleDebugSnapshot {
  * In-flight request state for a slot (decision or confirm-close).
  */
 export interface SlotInFlightDebug {
-    intent: 'decide' | 'confirm_close';
+    intent: 'decide' | 'confirm_close' | 'help_request';
     localToken: number;
     episodeId: string;
     generation: number;

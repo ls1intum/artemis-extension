@@ -5,7 +5,7 @@ import type { SlotGeneration } from './episode';
 // ---------------------------------------------------------------------------
 
 /** Wire values for the intent field (spec §17, snake_case on the wire). */
-export type Intent = 'decide' | 'confirm_close';
+export type Intent = 'decide' | 'confirm_close' | 'help_request';
 
 /**
  * Snapshot captured at issue time.

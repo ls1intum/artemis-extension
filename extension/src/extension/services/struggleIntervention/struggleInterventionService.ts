@@ -36,7 +36,7 @@ interface InFlightMarker {
     requestToken: string;
     episodeId: string;
     generation: number;
-    intent: 'decide' | 'confirm_close';
+    intent: 'decide' | 'confirm_close' | 'help_request';
     /** Local token from InFlightGuard.issue() for accept() call. */
     localToken: number;
     /**
@@ -1116,6 +1116,21 @@ export class StruggleInterventionService implements AlertSink {
             snap.generation,
         );
         // Clear the in-flight marker regardless of result (the reply has landed)
+        this._setInFlightMarker(undefined);
+        return stamp;
+    }
+
+    /**
+     * Validate an inbound help_request reply against the current in-flight marker + slot generation.
+     * Returns the PendingStamp on match, null on stale/no-marker; clears the marker.
+     * Package-internal (no `private`) so logic tests can exercise it directly.
+     */
+    _acceptHelpRequest(): PendingStamp | null {
+        if (!this._inFlightMarker || this._inFlightMarker.intent !== 'help_request') {
+            return null;
+        }
+        const snap = this._slot.snapshot();
+        const stamp = this._guard.accept('help_request', this._inFlightMarker.localToken, this._inFlightMarker.episodeId, snap.generation);
         this._setInFlightMarker(undefined);
         return stamp;
     }

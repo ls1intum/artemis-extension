@@ -31,7 +31,7 @@ export interface StruggleInterventionRequest {
     uncommittedFiles: Record<string, string>;
     // C3: slot-continuity fields (camelCase keys, snake enum values per Global Constraints)
     /** Discriminator for the Pyris pipeline mode. */
-    intent: 'decide' | 'confirm_close';
+    intent: 'decide' | 'confirm_close' | 'help_request';
     /** Client-tracked episode, always present (never null). isNew=true until the first accepted POST. */
     episode: {
         episodeId: string;
