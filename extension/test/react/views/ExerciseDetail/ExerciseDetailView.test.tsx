@@ -271,7 +271,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+		await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
 		await userEvent.click(screen.getByRole('button', { name: /Open Repository/i }));
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
@@ -320,7 +320,7 @@ describe('ExerciseDetailView', () => {
 			// The open/connected exercise must not surface "Open in Artemis".
 			expect(screen.queryByRole('button', { name: 'Open in Artemis' })).not.toBeInTheDocument();
 
-			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
 			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
 			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
 		});
@@ -437,7 +437,7 @@ describe('ExerciseDetailView', () => {
 		const postMessageMock = vi.mocked(mockApi.postMessage);
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+		await userEvent.click(screen.getByRole('button', { name: 'Results' }));
 
 		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'testResultsOverviewOpened');
 		expect(openedCall).toBeDefined();
@@ -489,7 +489,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+		await userEvent.click(screen.getByRole('button', { name: 'Results' }));
 
 		expect(screen.queryByText('No test results available.')).not.toBeInTheDocument();
 		expect(screen.getByText('Failed (2)')).toBeInTheDocument();
