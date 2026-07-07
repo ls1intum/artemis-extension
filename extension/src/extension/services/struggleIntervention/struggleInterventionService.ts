@@ -276,6 +276,9 @@ export class StruggleInterventionService implements AlertSink {
     // Episode ids that have had at least one accepted POST (isNew flipped to false for future POSTs)
     private _continuedEpisodeIds = new Set<string>();
 
+    // Per-episode accepted-offer count (the cap: Less 1 / More 3). The opening hint is NOT counted.
+    _offeredHintCounts = new Map<string, number>();
+
     /**
      * The proactive session id from the last inbound ambient event (spec §5, A9).
      * Stored here because the SlotManager does not hold session ids. Cleared on resetSession.
@@ -733,6 +736,33 @@ export class StruggleInterventionService implements AlertSink {
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             this._clearInFlight();
+            return;
+        }
+
+        // Consented follow-up (help_request): an invited delivery. Bypass the Less reroute AND reconcile's
+        // delivered-suppress; append to the open episode as a bubble. Disambiguated by the marker's intent.
+        if (this._inFlightMarker?.intent === 'help_request') {
+            const baseline = this._inFlightMarker.baseline;
+            const accepted = this._acceptHelpRequest();
+            if (accepted === null) {
+                return;
+            }
+            const text = message ?? 'Iris has a suggestion for you.';
+            let effectiveAnchorLine = anchorLine;
+            if (anchorFile !== undefined && anchorLine !== undefined && isSafeAnchorPath(anchorFile)) {
+                const base = baseline?.[anchorFile];
+                const current = base !== undefined ? this._deps.readFileContent(anchorFile) : undefined;
+                if (base !== undefined && current !== undefined) {
+                    effectiveAnchorLine = rebaseAnchorLine(base, current, anchorLine);
+                }
+            }
+            this._slot.appendFollowup({ level: 'active', text, atSessionS: Date.now() / 1000 });
+            const episodeId = this._deliveredEpisodeId();
+            if (episodeId) {
+                this._offeredHintCounts.set(episodeId, (this._offeredHintCounts.get(episodeId) ?? 0) + 1);
+            }
+            this._watchdog?.resetProgress(Date.now());
+            this._applyActiveSurface(text, messageId ?? null, anchorFile, effectiveAnchorLine, inlineHint, sessionId);
             return;
         }
 
@@ -1203,6 +1233,54 @@ export class StruggleInterventionService implements AlertSink {
                 this._setAwaitingEvidence(true, 'idle-abandon free-silent');
                 break;
             }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Consented follow-up (help_request)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * POST a consented follow-up (help_request) for the live DELIVERED episode. Single-flight; the reply
+     * lands in onServerActive (or onServerSilent for the silent edge). Requires a prior struggle signal.
+     */
+    async _sendHelpRequest(): Promise<void> {
+        const snap = this._slot.snapshot();
+        // A local boolean, not a direct narrow on `this._inFlightMarker` (mirrors _handleAlert's
+        // `inFlight` pattern) -- narrowing the field itself here would collapse it to `undefined`
+        // for the rest of the method, breaking the later `this._inFlightMarker?.baseline` write.
+        const inFlight = this._inFlightMarker !== undefined;
+        if (snap.state.kind !== 'delivered' || inFlight || !this._lastSignal) {
+            return;
+        }
+        const exerciseId = this._deps.getExerciseId();
+        if (exerciseId === undefined) {
+            return;
+        }
+        const ep = snap.state.episode;
+        const requestToken = crypto.randomUUID();
+        const requestEpisode = { episodeId: ep.episodeId, isNew: !this._continuedEpisodeIds.has(ep.episodeId), hints: ep.hints };
+        const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
+        const localToken = this._guard.issue('help_request', stamp);
+        this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'help_request', localToken });
+        try {
+            const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
+            if (this._inFlightMarker?.requestToken === requestToken) {
+                this._inFlightMarker.baseline = uncommittedFiles;   // rebase baseline for an anchored follow-up
+            }
+            const result = await this._deps.postIntervention(exerciseId, {
+                struggleSignal: this._lastSignal,
+                uncommittedFiles,
+                intent: 'help_request',
+                episode: requestEpisode,
+                requestToken,
+                proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
+            });
+            if (result !== 'accepted') {
+                this._setInFlightMarker(undefined);
+            }
+        } catch {
+            this._setInFlightMarker(undefined);
         }
     }
 
