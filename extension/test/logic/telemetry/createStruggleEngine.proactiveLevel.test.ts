@@ -25,9 +25,11 @@ vi.mock('vscode', () => {
         fire(data: T): void { for (const l of [...this._listeners]) { l(data); } }
         dispose(): void { this._listeners.clear(); }
     }
+    class ThemeColor { constructor(public readonly id: string) {} }
     const disposable = () => ({ dispose: () => {} });
     return {
         EventEmitter,
+        ThemeColor,
         Disposable: { from: (...items: { dispose(): void }[]) => ({ dispose: () => items.forEach(i => i.dispose()) }) },
         Uri: {
             parse: (v: string) => ({ scheme: '', authority: '', path: v, fsPath: v, toString: () => v }),

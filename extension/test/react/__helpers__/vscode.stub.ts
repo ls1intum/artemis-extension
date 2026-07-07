@@ -34,6 +34,15 @@ export const Disposable = {
 };
 
 /**
+ * Minimal ThemeColor: stores the theme-color id, matching `new vscode.ThemeColor(id)`.
+ * Extension-host code (e.g. the intervention status-bar lamp) constructs these at module
+ * load, so the stub must be `new`-able for those modules to import under vitest.
+ */
+export class ThemeColor {
+    constructor(public readonly id: string) {}
+}
+
+/**
  * Minimal MarkdownString matching the subset extension-host code uses: a mutable `value` set from the
  * constructor and an `isTrusted` flag (so command-link hovers can be asserted under vitest).
  */
