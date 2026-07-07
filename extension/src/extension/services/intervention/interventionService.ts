@@ -25,6 +25,16 @@ const HINT_COMMAND = 'iris.intervention.acceptSubtle';
  */
 const IRIS_BLUE = '#007fcf';
 
+/**
+ * The only "filled" background a status-bar item may wear: VS Code honours just
+ * `statusBarItem.errorBackground` and `statusBarItem.warningBackground` for extension items, so the
+ * attention flash uses the warning (amber) one. An arbitrary Iris-blue fill is not supported by the API.
+ */
+const FLASH_BACKGROUND = new vscode.ThemeColor('statusBarItem.warningBackground');
+
+/** How long a fresh jump lamp wears the flash background before it settles to the ambient blue text. */
+const FLASH_MS = 15_000;
+
 type LampMode = 'none' | 'parked' | 'jump';
 
 export class InterventionService implements vscode.Disposable {
@@ -34,12 +44,14 @@ export class InterventionService implements vscode.Disposable {
     private _mode: LampMode = 'none';
     /** Jump target snapshotted at arm time (absolute Uri + 1-based line); only set in 'jump' mode. */
     private _jumpTarget: { uri: vscode.Uri; line: number } | undefined;
+    /** Pending "settle the flash background back to normal" timer; cleared on re-flash / hide / dispose. */
+    private _flashTimer: ReturnType<typeof setTimeout> | undefined;
 
     private readonly _onDidClick = new vscode.EventEmitter<void>();
     /** Fires when the user clicks the status-bar hint (engagement signal for all modes). */
     readonly onDidClick = this._onDidClick.event;
 
-    constructor() {
+    constructor(private readonly _flashMs: number = FLASH_MS) {
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this._statusBarItem.command = HINT_COMMAND;
         this._statusBarItem.color = IRIS_BLUE;
@@ -73,26 +85,43 @@ export class InterventionService implements vscode.Disposable {
      * snapshotted here at arm time, so a later exercise switch cannot retarget the click.
      */
     showJump(uri: vscode.Uri, line: number): void {
+        const wasJump = this._mode === 'jump';
         this._mode = 'jump';
         this._jumpTarget = { uri, line };
         const base = uri.path.split('/').pop() || uri.path;
         this._statusBarItem.text = `$(arrow-right) Iris: ${base}:${line}`;
         this._statusBarItem.tooltip = 'Jump to the line Iris flagged.';
+        // A fresh jump lamp flashes amber to draw the eye, then settles to the ambient blue text.
+        // Re-rendering the same jump (already in jump mode) must not restart the flash.
+        if (!wasJump) { this._flash(); }
         this._statusBarItem.show();
+    }
+
+    /** Wear the warning background for {@link FLASH_MS}, then settle back to the ambient look. */
+    private _flash(): void {
+        if (this._flashTimer) { clearTimeout(this._flashTimer); }
+        this._statusBarItem.backgroundColor = FLASH_BACKGROUND;
+        this._flashTimer = setTimeout(() => {
+            this._flashTimer = undefined;
+            this._statusBarItem.backgroundColor = undefined;
+        }, this._flashMs);
     }
 
     async handleClick(): Promise<void> {
         const mode = this._mode;
         const jump = this._jumpTarget;
         this._onDidClick.fire();
-        this._hide();
         if (mode === 'jump' && jump) {
+            // The jump lamp is a persistent way back to the flagged line: keep it visible on click
+            // (it clears on episode teardown) so the student can jump back more than once.
             await this._openAnchor(jump.uri, jump.line);
         }
         else if (mode === 'parked') {
+            // Reveal is one-shot: the parked hint moves into the chat, so retire the lamp.
+            this._hide();
             await vscode.commands.executeCommand('iris.chatView.focus');
         }
-        // 'none': nothing to do (should not happen — the item is hidden then).
+        // 'none': nothing to do (the item is hidden then).
     }
 
     /** Best-effort open + reveal of the anchored line; a missing file / past-EOF line never throws. */
@@ -120,6 +149,7 @@ export class InterventionService implements vscode.Disposable {
     private _hide(): void {
         this._mode = 'none';
         this._jumpTarget = undefined;
+        if (this._flashTimer) { clearTimeout(this._flashTimer); this._flashTimer = undefined; }
         this._statusBarItem.backgroundColor = undefined;
         this._statusBarItem.hide();
     }

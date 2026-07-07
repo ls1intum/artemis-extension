@@ -4,6 +4,15 @@ import * as sinon from 'sinon';
 
 import { InterventionService } from '@extension/services/intervention';
 
+/** Minimal stand-in so a test can read the status-bar item's backgroundColor (the flash). */
+function fakeStatusBarItem() {
+    return {
+        text: '', tooltip: '', color: undefined as unknown, command: undefined as unknown,
+        backgroundColor: undefined as vscode.ThemeColor | undefined,
+        show() { /* noop */ }, hide() { /* noop */ }, dispose() { /* noop */ },
+    };
+}
+
 suite('InterventionService (ambient lamp)', () => {
     let svc: InterventionService;
     let sandbox: sinon.SinonSandbox;
@@ -68,6 +77,7 @@ suite('InterventionService (ambient lamp)', () => {
         assert.strictEqual(openDoc.firstCall.args[0], uri, 'opens the snapshotted anchor Uri');
         assert.ok(showDoc.calledOnce, 'reveals the document');
         assert.ok(!exec.calledWith('iris.chatView.focus'), 'jump must not bounce to the chat');
+        assert.strictEqual(svc.isHintVisible, true, 'the jump lamp stays visible after a click');
     });
 
     test('past-EOF anchor line is clamped, click never throws', async () => {
@@ -80,12 +90,37 @@ suite('InterventionService (ambient lamp)', () => {
         assert.strictEqual((opts.selection as vscode.Range).start.line, 9, 'clamped to last line (0-based 9)');
     });
 
-    test('a missing anchor file is swallowed (best-effort), no throw', async () => {
+    test('a missing anchor file is swallowed (best-effort), no throw; the jump lamp stays', async () => {
         sandbox.stub(vscode.workspace, 'openTextDocument').rejects(new Error('cannot open file'));
         svc = new InterventionService();
         svc.showJump(vscode.Uri.file('/ex/Gone.java'), 3);
         await svc.handleClick(); // must not reject
-        assert.strictEqual(svc.isHintVisible, false);
+        assert.strictEqual(svc.isHintVisible, true, 'jump lamp persists even when the open fails');
+    });
+
+    // Real timers only: sinon fake timers hijack the global setTimeout the VS Code extension host
+    // itself uses and break it. A tiny injected flash duration keeps these deterministic.
+    const settle = () => new Promise(resolve => setTimeout(resolve, 40));
+
+    test('a fresh jump lamp flashes the warning background, then settles back', async () => {
+        const item = fakeStatusBarItem();
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns(item as unknown as vscode.StatusBarItem);
+        svc = new InterventionService(5); // 5ms flash
+        svc.showJump(vscode.Uri.file('/ex/A.java'), 1);
+        assert.strictEqual(item.backgroundColor?.id, 'statusBarItem.warningBackground', 'flashes amber on appearance');
+        await settle();
+        assert.strictEqual(item.backgroundColor, undefined, 'settles back to the ambient blue-text look');
+    });
+
+    test('re-rendering the same jump after it settled does not re-flash', async () => {
+        const item = fakeStatusBarItem();
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns(item as unknown as vscode.StatusBarItem);
+        svc = new InterventionService(5);
+        svc.showJump(vscode.Uri.file('/ex/A.java'), 1);
+        await settle();
+        assert.strictEqual(item.backgroundColor, undefined);
+        svc.showJump(vscode.Uri.file('/ex/A.java'), 1); // same jump, re-render -> no re-flash
+        assert.strictEqual(item.backgroundColor, undefined, 'no re-flash on re-render of the same jump');
     });
 
     test('mode dispatch after reset: jump -> reset -> parked click reveals, not jumps', async () => {
