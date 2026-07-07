@@ -24,7 +24,7 @@
   box-shadow: 0 6px 18px var(--vscode-widget-shadow);
   color: var(--vscode-notifications-foreground);
   overflow: hidden;
-  animation: nudgeSlideUp 0.22s ease-out;
+  animation: nudgeSlideUp 0.5s ease-out;
 }
 
 @keyframes nudgeSlideUp {
