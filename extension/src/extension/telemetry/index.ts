@@ -152,10 +152,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     });
 
     // Inline-hover action links (spec §4.1, §5.2): Open chat reveals the parked hint and KEEPS the cue as a
-    // standing reference; Hide inline and Dismiss both remove the cue (pure visual, no episode outcome) --
-    // the hint stays in the chat. The cue also retires on its other lifecycle events (new episode, terminal
-    // episode exit); typing does NOT retire it. Registered behind the seam so extension.ts never imports the
-    // intervention surface.
+    // standing reference; Dismiss removes the cue (pure visual, no episode outcome) -- the hint stays in the
+    // chat. The cue also retires on its other lifecycle events (new episode, terminal episode exit); typing
+    // does NOT retire it. Registered behind the seam so extension.ts never imports the intervention surface.
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
@@ -163,13 +162,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             void orchestrator.revealParkedHint();
             void vscode.commands.executeCommand('iris.chatView.focus');
         }),
-        vscode.commands.registerCommand('iris.intervention.inlineHide', () => {
-            // Pure visual hide: remove the in-editor cue only. It does not touch the episode -- the hint
-            // stays in the chat. The jump lamp points at the same cue, so retire it too (mode-guarded: leaves fallback).
-            inline.clear();
-            lamp.clearEpisodeLamp();
-        }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
+            // Remove the in-editor cue and the jump lamp that points at it. It does not touch the episode --
+            // the hint stays in the chat (mode-guarded: leaves the fallback lamp).
             inline.clear();
             lamp.clearEpisodeLamp();
         }),

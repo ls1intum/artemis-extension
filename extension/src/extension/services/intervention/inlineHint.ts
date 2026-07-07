@@ -61,13 +61,13 @@ export function shiftAnchorLine(line: number, change: AnchorLineChange): number 
 }
 
 /**
- * Whole-line hover: the fuller message + Open chat / Hide inline / Dismiss command links (spec §4.1, §5.2).
- * `message` is server-provided (the LLM gate's hint), so trust is scoped to ONLY these three intervention
+ * Whole-line hover: the fuller message + Open chat / Dismiss command links (spec §4.1, §5.2).
+ * `message` is server-provided (the LLM gate's hint), so trust is scoped to ONLY these two intervention
  * commands — a hint carrying its own `command:` link can never execute arbitrary VS Code commands from this
- * trusted hover. Hide inline just removes the editor cue (no backoff); Dismiss removes it AND feeds backoff.
+ * trusted hover. Dismiss removes the editor cue (the hint stays in the chat).
  */
 export function buildHoverMarkdown(message: string): vscode.MarkdownString {
-    const md = new vscode.MarkdownString(`${message}\n\n[Open chat](command:iris.intervention.inlineOpen) · [Hide inline](command:iris.intervention.inlineHide) · [Dismiss](command:iris.intervention.inlineDismiss)`);
-    md.isTrusted = { enabledCommands: ['iris.intervention.inlineOpen', 'iris.intervention.inlineHide', 'iris.intervention.inlineDismiss'] };
+    const md = new vscode.MarkdownString(`${message}\n\n[Open chat](command:iris.intervention.inlineOpen) · [Dismiss](command:iris.intervention.inlineDismiss)`);
+    md.isTrusted = { enabledCommands: ['iris.intervention.inlineOpen', 'iris.intervention.inlineDismiss'] };
     return md;
 }
