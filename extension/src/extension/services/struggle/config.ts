@@ -95,20 +95,28 @@ export type BoundaryType = typeof BOUNDARY_PRIORITY[number];
 export const SELECTION_DEBOUNCE_MS = 200;
 
 /**
+ * Tier-2 delivery throttle (ThrottledAlertSink), delivery-only, keyed by the
+ * student's proactive-help level (Off/Less/More, spec §12.2). `Off` never reaches
+ * the throttle (proactivity is gated upstream), so only `less`/`more` matter here.
+ * `minDeliveryGapS` is a hard floor BETWEEN DELIVERIES and MUST NOT be conflated
+ * with the SPEC detector cooldown (a Schicht-3 decision guard, 120 s) — both entries'
+ * gaps are deliberately > COOLDOWN_S so they actually bite. Read LIVE on every
+ * `deliver()` call (not captured once), so a mid-session level change takes effect
+ * immediately. All ENG (engineering defaults, no study data on delivery cadence). */
+export const THROTTLE_BY_LEVEL = {
+    less: { maxAlertsPerSession: 3, minDeliveryGapS: 300 },
+    more: { maxAlertsPerSession: 6, minDeliveryGapS: 150 },
+};
+
+/**
  * Version-tunable layer (MUTABLE, deliberately NOT `as const`). None of these
- * feed the golden-pinned decision — they are the downstream Tier-2 delivery
- * throttle plus the unevaluated Tier-3 add-on knobs. All ENG (engineering
- * defaults), safe to re-tune per version without touching held-out F1 or golden
- * parity. The user-facing on/off (`enabled`/`showInterventions`) lives in VS Code
- * settings, not here.
+ * feed the golden-pinned decision — they are the unevaluated Tier-3 add-on knobs
+ * (the Tier-2 delivery throttle lives in {@link THROTTLE_BY_LEVEL} above). All ENG
+ * (engineering defaults), safe to re-tune per version without touching held-out F1
+ * or golden parity. The user-facing on/off (`enabled`/`showInterventions`) lives in
+ * VS Code settings, not here.
  */
 export const TUNING = {
-    /** Tier-2 delivery throttle (ThrottledAlertSink), delivery-only. `minDeliveryGapS`
-     *  is a hard floor BETWEEN DELIVERIES and MUST NOT be conflated with the SPEC
-     *  detector cooldown (a Schicht-3 decision guard, 120 s). ENG */
-    maxAlertsPerMinute: 2,
-    maxAlertsPerSession: 6,
-    minDeliveryGapS: 30,
     /** Tier-3 add-on (Test-Stagnation): no-progress streak length N (a build is
      *  no-progress when passed tests don't reach a new high, incl. failed builds)
      *  + production enable. No golden to break. ENG */

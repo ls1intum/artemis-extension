@@ -79,26 +79,32 @@ export interface LiveTick {
 // Struggle debug snapshot (dev timers/counters dashboard + Phase B log)
 // ---------------------------------------------------------------------------
 
-/** Raw Tier-2 delivery-throttle state (counters + absolute ms timestamps). The
+/** Raw Tier-2 delivery-throttle state (counters + absolute ms timestamps) PLUS the
+ *  currently-active per-level caps (THROTTLE_BY_LEVEL, ENG) it is being enforced
+ *  against. The caps live here (not in {@link StruggleDebugCaps}) because they are
+ *  read live per delivery and can change mid-session on a proactive-level flip; the
  *  consumer computes every "remaining" locally against the snapshot's `nowMs`, so
  *  this stays pure state with no derived countdowns baked in. */
 export interface StruggleThrottleState {
-    /** Alerts DELIVERED so far this session (vs caps.maxAlertsPerSession). */
+    /** Alerts DELIVERED so far this session (vs maxAlertsPerSession below). */
     deliveredThisSession: number;
-    /** Absolute ms timestamps of delivered alerts this session (the rolling per-minute window). */
+    /** Absolute ms timestamps of delivered alerts this session. */
     deliveredAtMs: number[];
     /** Absolute ms of the most recent delivery, or null if none yet (the min-gap floor). */
     lastDeliveryMs: number | null;
+    /** ACTIVE per-session delivery cap for the current proactive-help level. */
+    maxAlertsPerSession: number;
+    /** ACTIVE hard floor (seconds) between deliveries for the current level. */
+    minDeliveryGapS: number;
 }
 
-/** SPEC/TUNING caps echoed once so the client computes "remaining" without re-importing config. */
+/** SPEC caps echoed once so the client computes "remaining" without re-importing config.
+ *  The Tier-2 delivery-throttle caps are NOT here (they are level-dependent and live on
+ *  {@link StruggleThrottleState} instead, read live from the sink). */
 export interface StruggleDebugCaps {
     warmupS: number;
     cooldownS: number;
     graceS: number;
-    minDeliveryGapS: number;
-    maxAlertsPerMinute: number;
-    maxAlertsPerSession: number;
     n2MinActiveS: number;
     gapNormS: number;
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import { type ThrottleConfig, ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
+import { THROTTLE_BY_LEVEL } from '@extension/services/struggle/config';
 import type { AlertRecord } from '@extension/services/struggle/types';
 
 function mkAlert(t: number): AlertRecord {
@@ -23,11 +24,14 @@ function spy() {
     return { sink, delivered, calls };
 }
 
-/** A throttle over a mutable fake clock; `at(ms)` sets the clock before delivering. */
-function make(cfg: ThrottleConfig) {
+/** A throttle over a mutable fake clock; `at(ms)` sets the clock before delivering.
+ *  Accepts either a fixed config or a live getter, so a single helper covers both the
+ *  static-config tests and the mid-session-flip test. */
+function make(cfg: ThrottleConfig | (() => ThrottleConfig)) {
     const inner = spy();
     let nowMs = 0;
-    const sink = new ThrottledAlertSink(inner.sink, cfg, () => nowMs);
+    const getConfig = typeof cfg === 'function' ? cfg : () => cfg;
+    const sink = new ThrottledAlertSink(inner.sink, getConfig, () => nowMs);
     return {
         inner,
         deliverAt(ms: number, t = ms / 1000) { nowMs = ms; sink.deliver(mkAlert(t)); },
@@ -37,7 +41,7 @@ function make(cfg: ThrottleConfig) {
     };
 }
 
-const LOOSE = { maxAlertsPerMinute: 100, maxAlertsPerSession: 100, minDeliveryGapS: 0 };
+const LOOSE = { maxAlertsPerSession: 100, minDeliveryGapS: 0 };
 
 describe('ThrottledAlertSink', () => {
     it('forwards a delivered alert to the inner sink', () => {
@@ -60,15 +64,6 @@ describe('ThrottledAlertSink', () => {
         expect(h.inner.delivered.map(a => a.t)).toEqual([0, 10]);
     });
 
-    it('enforces the rolling per-minute cap', () => {
-        const h = make({ ...LOOSE, maxAlertsPerMinute: 2 });
-        h.deliverAt(0);            // 1 in window -> ok
-        h.deliverAt(1_000);        // 2 in window -> ok
-        h.deliverAt(2_000);        // 3rd within 60s -> dropped
-        h.deliverAt(70_000);       // window slid past 0 and 1 -> ok
-        expect(h.inner.delivered.map(a => a.t)).toEqual([0, 1, 70]);
-    });
-
     it('reset() clears the inner UI but KEEPS the per-session budget', () => {
         const h = make({ ...LOOSE, maxAlertsPerSession: 1 });
         h.deliverAt(0);            // count -> 1
@@ -87,17 +82,67 @@ describe('ThrottledAlertSink', () => {
         expect(h.inner.calls.resetSession).toBe(1);
     });
 
+    describe('per-level config (THROTTLE_BY_LEVEL)', () => {
+        it('less enforces 3/session and a 300s gap', () => {
+            const h = make(THROTTLE_BY_LEVEL.less);
+            h.deliverAt(0);
+            h.deliverAt(299_000);       // gap 299s < 300s -> dropped
+            h.deliverAt(300_000);       // gap 300s -> ok
+            h.deliverAt(600_000);       // ok
+            h.deliverAt(900_000);       // 4th delivery would exceed the 3/session cap -> dropped
+            expect(h.inner.delivered.map(a => a.t)).toEqual([0, 300, 600]);
+        });
+
+        it('more enforces 6/session and a 150s gap', () => {
+            const h = make(THROTTLE_BY_LEVEL.more);
+            const deliveredTimes: number[] = [];
+            for (let i = 0; i < 8; i++) {
+                const ms = i * 150_000;
+                h.deliverAt(ms);
+                if (h.inner.delivered.length > deliveredTimes.length) { deliveredTimes.push(ms / 1000); }
+            }
+            expect(deliveredTimes).toEqual([0, 150, 300, 450, 600, 750]);   // capped at 6
+            expect(h.inner.delivered).toHaveLength(6);
+        });
+
+        it('flipping the getter mid-session switches enforcement WHILE budget/history are preserved', () => {
+            let level: 'less' | 'more' = 'more';
+            const h = make(() => THROTTLE_BY_LEVEL[level]);
+            h.deliverAt(0);              // more: gap 150s -> delivered #1
+            h.deliverAt(150_000);        // more: gap 150s -> delivered #2
+            expect(h.inner.delivered).toHaveLength(2);
+
+            level = 'less';              // mid-session flip: now needs a 300s gap, 3/session cap
+            h.deliverAt(300_000);        // gap since last delivery (150_000) is only 150s < 300s -> dropped
+            expect(h.inner.delivered).toHaveLength(2);   // budget/history preserved, NOT reset by the flip
+            h.deliverAt(450_000);        // gap since last DELIVERED (150_000) is 300s -> ok, 3rd delivery
+            expect(h.inner.delivered).toHaveLength(3);
+            h.deliverAt(750_000);        // would be a 4th delivery -> exceeds less's 3/session cap -> dropped
+            expect(h.inner.delivered).toHaveLength(3);
+
+            level = 'more';              // flip back: budget stays at 3 (more's cap is 6, still room)
+            h.deliverAt(900_000);        // gap since last delivered (450_000) is 450s >= more's 150s -> ok
+            expect(h.inner.delivered).toHaveLength(4);
+        });
+    });
+
     describe('getThrottleState (dev debug snapshot)', () => {
-        it('reports zero state before any delivery', () => {
+        it('reports zero state + the active caps before any delivery', () => {
             const h = make(LOOSE);
-            expect(h.state()).toEqual({ deliveredThisSession: 0, deliveredAtMs: [], lastDeliveryMs: null });
+            expect(h.state()).toEqual({
+                deliveredThisSession: 0, deliveredAtMs: [], lastDeliveryMs: null,
+                maxAlertsPerSession: LOOSE.maxAlertsPerSession, minDeliveryGapS: LOOSE.minDeliveryGapS,
+            });
         });
 
         it('tracks delivered count + timestamps + last delivery after deliveries', () => {
             const h = make(LOOSE);
             h.deliverAt(0);
             h.deliverAt(5_000);
-            expect(h.state()).toEqual({ deliveredThisSession: 2, deliveredAtMs: [0, 5_000], lastDeliveryMs: 5_000 });
+            expect(h.state()).toEqual({
+                deliveredThisSession: 2, deliveredAtMs: [0, 5_000], lastDeliveryMs: 5_000,
+                maxAlertsPerSession: LOOSE.maxAlertsPerSession, minDeliveryGapS: LOOSE.minDeliveryGapS,
+            });
         });
 
         it('does NOT count alerts the throttle dropped', () => {
@@ -115,7 +160,9 @@ describe('ThrottledAlertSink', () => {
             h.reset();
             expect(h.state().deliveredThisSession).toBe(1);   // budget kept
             h.resetSession();
-            expect(h.state()).toEqual({ deliveredThisSession: 0, deliveredAtMs: [], lastDeliveryMs: null });
+            expect(h.state().deliveredThisSession).toBe(0);
+            expect(h.state().deliveredAtMs).toEqual([]);
+            expect(h.state().lastDeliveryMs).toBeNull();
         });
 
         it('returns a COPY of the timestamp array (consumer cannot mutate the window)', () => {
@@ -123,6 +170,16 @@ describe('ThrottledAlertSink', () => {
             h.deliverAt(0);
             h.state().deliveredAtMs.push(999_999);
             expect(h.state().deliveredAtMs).toEqual([0]);
+        });
+
+        it('reflects the CURRENT active caps live (reads the getter each call, not a captured snapshot)', () => {
+            let level: 'less' | 'more' = 'more';
+            const h = make(() => THROTTLE_BY_LEVEL[level]);
+            expect(h.state().maxAlertsPerSession).toBe(6);
+            expect(h.state().minDeliveryGapS).toBe(150);
+            level = 'less';
+            expect(h.state().maxAlertsPerSession).toBe(3);
+            expect(h.state().minDeliveryGapS).toBe(300);
         });
     });
 });

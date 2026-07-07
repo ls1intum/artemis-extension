@@ -93,24 +93,16 @@ export function TimersPanel({ debug, collapsible, defaultCollapsed }: TimersPane
                     <Row label="Post-build grace window" title="Just after a failing build, only build-related moments may nudge for a short grace window (~33 s).">
                         <Value>{c.graceLeft === null ? <span className={styles.muted}>inactive</span> : c.graceLeft > 0 ? `${Math.ceil(c.graceLeft)}s` : 'clear'}</Value>
                     </Row>
-                    <Row label="Minimum gap between hints" title="Hard floor between two delivered hints (30 s), independent of the detector cooldown.">
+                    <Row label="Minimum gap between hints" title="Hard floor between two delivered hints (level-dependent: Less 300 s / More 150 s), independent of the detector cooldown.">
                         <Value>{c.minGapLeft === null ? <span className={styles.muted}>no delivery yet</span> : c.minGapLeft > 0 ? `${Math.ceil(c.minGapLeft)}s` : 'ready'}</Value>
-                    </Row>
-                    <Row label="Per-minute slot frees in" title="When the rolling 60 s delivery window next drops below its cap.">
-                        <Value>{c.perMinFreesIn === null ? <span className={styles.muted}>slot open</span> : mmss(c.perMinFreesIn)}</Value>
                     </Row>
                 </div>
 
                 <div className={styles.group}>
                     <div className={styles.groupTitle}>Hints delivered</div>
-                    <Row label="This session" title="Hints delivered so far vs the per-session cap.">
-                        <Badge variant={throttle && throttle.deliveredThisSession >= caps.maxAlertsPerSession ? 'error' : 'muted'}>
-                            {throttle ? `${throttle.deliveredThisSession} / ${caps.maxAlertsPerSession}` : 'n/a'}
-                        </Badge>
-                    </Row>
-                    <Row label="This minute" title="Hints delivered within the rolling 60 s window vs the per-minute cap.">
-                        <Badge variant={c.perMinBlocked ? 'error' : 'muted'}>
-                            {throttle ? `${c.inWindow.length} / ${caps.maxAlertsPerMinute}` : 'n/a'}
+                    <Row label="This session" title="Hints delivered so far vs the per-session cap for the active proactive-help level (Less 3 / More 6).">
+                        <Badge variant={throttle && throttle.deliveredThisSession >= throttle.maxAlertsPerSession ? 'error' : 'muted'}>
+                            {throttle ? `${throttle.deliveredThisSession} / ${throttle.maxAlertsPerSession}` : 'n/a'}
                         </Badge>
                     </Row>
                     <Row label="Last delivered" title="When the most recent hint was actually delivered to the student.">

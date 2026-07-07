@@ -34,9 +34,6 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
             warmupS: 480,
             cooldownS: 120,
             graceS: 32.94,
-            minDeliveryGapS: 30,
-            maxAlertsPerMinute: 2,
-            maxAlertsPerSession: 6,
             n2MinActiveS: 60,
             gapNormS: 40,
         },
@@ -95,10 +92,12 @@ describe('TimersPanel', () => {
 
     it('renders the delivery counters and last-delivered time from the throttle state', () => {
         render(<TimersPanel debug={snapshot({
-            throttle: { deliveredThisSession: 2, deliveredAtMs: [BASE - 5_000], lastDeliveryMs: BASE - 5_000 },
+            throttle: {
+                deliveredThisSession: 2, deliveredAtMs: [BASE - 5_000], lastDeliveryMs: BASE - 5_000,
+                maxAlertsPerSession: 6, minDeliveryGapS: 150,
+            },
         })} />);
-        expect(screen.getByText('2 / 6')).toBeInTheDocument();   // session
-        expect(screen.getByText('1 / 2')).toBeInTheDocument();   // last minute (one delivery in window)
+        expect(screen.getByText('2 / 6')).toBeInTheDocument();   // session, active level's cap
         expect(screen.getByText('at 1:35')).toBeInTheDocument(); // delivered 95 s into the session
     });
 

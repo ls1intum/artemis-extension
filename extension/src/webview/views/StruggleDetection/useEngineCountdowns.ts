@@ -43,12 +43,6 @@ export interface EngineCountdowns {
     graceLeft: number | null;
     /** Min-gap seconds remaining before the next delivery, or null if nothing delivered yet. */
     minGapLeft: number | null;
-    /** Delivery timestamps within the rolling 60 s window (the per-minute counter). */
-    inWindow: number[];
-    /** Whether the per-minute delivery cap is currently reached. */
-    perMinBlocked: boolean;
-    /** Seconds until the per-minute window next frees a slot, or null when a slot is open. */
-    perMinFreesIn: number | null;
 }
 
 /**
@@ -66,11 +60,7 @@ export function useEngineCountdowns(debug: StruggleDebugSnapshot): EngineCountdo
     const graceLeft = debug.lastFmBadMs === null ? null : Math.max(0, caps.graceS - (now - debug.lastFmBadMs) / 1000);
     const minGapLeft = !throttle || throttle.lastDeliveryMs === null
         ? null
-        : Math.max(0, caps.minDeliveryGapS - (now - throttle.lastDeliveryMs) / 1000);
+        : Math.max(0, throttle.minDeliveryGapS - (now - throttle.lastDeliveryMs) / 1000);
 
-    const inWindow = throttle ? throttle.deliveredAtMs.filter((t) => now - t < 60_000) : [];
-    const perMinBlocked = inWindow.length >= caps.maxAlertsPerMinute && inWindow.length > 0;
-    const perMinFreesIn = perMinBlocked ? Math.max(0, 60 - (now - Math.min(...inWindow)) / 1000) : null;
-
-    return { now, elapsedS, warmupLeft, cooldownLeft, graceLeft, minGapLeft, inWindow, perMinBlocked, perMinFreesIn };
+    return { now, elapsedS, warmupLeft, cooldownLeft, graceLeft, minGapLeft };
 }

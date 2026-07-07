@@ -84,9 +84,6 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
             warmupS: SPEC.WARMUP_S,
             cooldownS: SPEC.COOLDOWN_S,
             graceS: SPEC.GRACE_S,
-            minDeliveryGapS: 30,
-            maxAlertsPerMinute: 2,
-            maxAlertsPerSession: 6,
             n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
             gapNormS: SPEC.GAP_NORM_S,
         },
@@ -185,25 +182,33 @@ describe('formatTick — Phase B tail (throttle / grace / fN2)', () => {
         expect(line).toContain('| throttle[n/a] grace=– fN2=clear');
     });
 
-    it('renders the delivery counters + per-minute window + min-gap remaining', () => {
-        // now=100s; deliveries at 40s (60s ago → outside window) and 95s (5s ago → inside);
-        // min-gap remaining = 30 − 5 = 25s.
+    it('renders the delivery counters + min-gap remaining, keyed by the ACTIVE level caps', () => {
+        // now=100s; last delivery at 95s (5s ago); level cap 6/session, 30s gap → remaining = 30 − 5 = 25s.
         const line = formatTick(tick(), snapshot({
-            throttle: { deliveredThisSession: 2, deliveredAtMs: [40_000, 95_000], lastDeliveryMs: 95_000 },
+            throttle: {
+                deliveredThisSession: 2, deliveredAtMs: [40_000, 95_000], lastDeliveryMs: 95_000,
+                maxAlertsPerSession: 6, minDeliveryGapS: 30,
+            },
         }));
-        expect(line).toContain('throttle[sess=2/6 min=1/2 gap=25s]');
+        expect(line).toContain('throttle[sess=2/6 gap=25s]');
     });
 
     it('shows gap=– when nothing has been delivered yet', () => {
         const line = formatTick(tick(), snapshot({
-            throttle: { deliveredThisSession: 0, deliveredAtMs: [], lastDeliveryMs: null },
+            throttle: {
+                deliveredThisSession: 0, deliveredAtMs: [], lastDeliveryMs: null,
+                maxAlertsPerSession: 6, minDeliveryGapS: 30,
+            },
         }));
         expect(line).toContain('gap=–');
     });
 
     it('clamps the min-gap remaining to 0 once the floor has elapsed', () => {
         const line = formatTick(tick(), snapshot({
-            throttle: { deliveredThisSession: 1, deliveredAtMs: [0], lastDeliveryMs: 0 },
+            throttle: {
+                deliveredThisSession: 1, deliveredAtMs: [0], lastDeliveryMs: 0,
+                maxAlertsPerSession: 6, minDeliveryGapS: 30,
+            },
         }));
         expect(line).toContain('gap=0s');
     });

@@ -7,7 +7,7 @@ import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
 import { shouldAcceptBuildResult } from '@extension/services/sensing/buildResultGuard';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
-import { SPEC, TUNING } from '@extension/services/struggle/config';
+import { SPEC } from '@extension/services/struggle/config';
 import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, EngineClock, StruggleSnapshot, TickRecord } from '@extension/services/struggle/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
@@ -267,9 +267,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
                 warmupS: SPEC.WARMUP_S,
                 cooldownS: SPEC.COOLDOWN_S,
                 graceS: SPEC.GRACE_S,
-                minDeliveryGapS: TUNING.minDeliveryGapS,
-                maxAlertsPerMinute: TUNING.maxAlertsPerMinute,
-                maxAlertsPerSession: TUNING.maxAlertsPerSession,
                 n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
                 gapNormS: SPEC.GAP_NORM_S,
             },

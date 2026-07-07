@@ -6,7 +6,7 @@ import type { StruggleDebugSnapshot } from '@shared/messageContracts';
 
 import type { ResultDTO } from '@extension/domain/submissions';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
-import { SPEC, TUNING } from '@extension/services/struggle/config';
+import { SPEC, THROTTLE_BY_LEVEL, TUNING } from '@extension/services/struggle/config';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { AlertRecord } from '@extension/services/struggle/types';
 import { asEditAlert } from '@test/__shared__/alertNarrow';
@@ -246,7 +246,7 @@ suite('StruggleCoordinator', () => {
         }
     });
 
-    test('getDebugSnapshot echoes the SPEC/TUNING caps + session anchors, no alert/build yet', () => {
+    test('getDebugSnapshot echoes the SPEC caps + session anchors, no alert/build yet', () => {
         coord.startExerciseSession(1);
         coord.advanceTo(coord.sessionStartMs + 20_000);
         const dbg = coord.getDebugSnapshot();
@@ -259,9 +259,6 @@ suite('StruggleCoordinator', () => {
             warmupS: SPEC.WARMUP_S,
             cooldownS: SPEC.COOLDOWN_S,
             graceS: SPEC.GRACE_S,
-            minDeliveryGapS: TUNING.minDeliveryGapS,
-            maxAlertsPerMinute: TUNING.maxAlertsPerMinute,
-            maxAlertsPerSession: TUNING.maxAlertsPerSession,
             n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
             gapNormS: SPEC.GAP_NORM_S,
         });
@@ -310,7 +307,7 @@ suite('StruggleCoordinator', () => {
     test('getDebugSnapshot.throttle reflects a ThrottledAlertSink after a delivered alert', () => {
         const c = new StruggleCoordinator({
             hub: new TestSensorHub(),
-            alertSink: new ThrottledAlertSink({ deliver: () => { /* noop UI */ } }, TUNING),
+            alertSink: new ThrottledAlertSink({ deliver: () => { /* noop UI */ } }, () => THROTTLE_BY_LEVEL.more),
             exerciseRegistry: undefined,
         });
         try {

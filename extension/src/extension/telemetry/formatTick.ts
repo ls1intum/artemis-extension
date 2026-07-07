@@ -4,8 +4,6 @@ import type { StruggleDebugSnapshot } from '@shared/messageContracts';
 import { SPEC } from '@extension/services/struggle/config';
 import type { TickRecord } from '@extension/services/struggle/types';
 
-const ONE_MINUTE_MS = 60_000;
-
 /** boolean → '1'/'0' for a compact, greppable gate flag. */
 const flag = (on: boolean): string => (on ? '1' : '0');
 
@@ -22,13 +20,11 @@ function phaseBSegment(snap: StruggleDebugSnapshot): string {
         throttle = 'throttle[n/a]';
     }
     else {
-        const inWindow = tr.deliveredAtMs.filter(t => now - t < ONE_MINUTE_MS).length;
         // ceil for "time remaining" (shows 1 until truly elapsed) — matches the dashboard's mmss/ceil.
         const gap = tr.lastDeliveryMs === null
             ? '–'
-            : `${Math.max(0, Math.ceil(snap.caps.minDeliveryGapS - (now - tr.lastDeliveryMs) / 1000))}s`;
-        throttle = `throttle[sess=${tr.deliveredThisSession}/${snap.caps.maxAlertsPerSession}`
-            + ` min=${inWindow}/${snap.caps.maxAlertsPerMinute} gap=${gap}]`;
+            : `${Math.max(0, Math.ceil(tr.minDeliveryGapS - (now - tr.lastDeliveryMs) / 1000))}s`;
+        throttle = `throttle[sess=${tr.deliveredThisSession}/${tr.maxAlertsPerSession} gap=${gap}]`;
     }
     const grace = snap.lastFmBadMs === null
         ? '–'

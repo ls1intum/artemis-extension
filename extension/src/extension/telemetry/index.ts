@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
+import type { ProactiveLevel } from '@shared/messageContracts';
+
 import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
 import { anchorRelPath, isAnchorDocument } from '@extension/services/intervention/inlineHint';
@@ -9,7 +11,7 @@ import { InlineHintDecoration } from '@extension/services/intervention/inlineHin
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { BackoffGate } from '@extension/services/struggle/alerting/backoffGate';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
-import { TUNING } from '@extension/services/struggle/config';
+import { THROTTLE_BY_LEVEL, TUNING } from '@extension/services/struggle/config';
 import { LiveEngineFeed } from '@extension/services/struggle/live/liveEngineFeed';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { AlertRecord } from '@extension/services/struggle/types';
@@ -172,9 +174,21 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         }),
     );
 
+    // Single source of truth for "what level is the ACTIVE exercise on" (spec §12.2).
+    // Hoisted here (rather than only inline in the return object below) so the throttle,
+    // constructed next, can share this SAME getter — keyed by the coordinator's own
+    // activeExerciseId (undefined between sessions, where 'more' is the fallback).
+    const getActiveProactiveLevel = (): ProactiveLevel =>
+        coordinator.activeExerciseId === undefined ? 'more' : deps.getProactiveLevel(coordinator.activeExerciseId);
+
     // Tier-2 delivery throttle wraps the orchestrator (downstream of the recorded
-    // alert path, so goldens/research are unaffected). Reads TUNING defaults.
-    const throttledSink = new ThrottledAlertSink(orchestrator, TUNING);
+    // alert path, so goldens/research are unaffected). Reads THROTTLE_BY_LEVEL live on
+    // every deliver() call, keyed by the ACTIVE proactive-help level, so a mid-session
+    // Less/More flip takes effect immediately without rebuilding the sink.
+    const throttledSink = new ThrottledAlertSink(
+        orchestrator,
+        () => THROTTLE_BY_LEVEL[getActiveProactiveLevel() === 'less' ? 'less' : 'more'],
+    );
     // The suppression gate sits ABOVE the throttle so a provably-discarded alert (course-off / student-opt-out /
     // evidence-gate / delivered-slot) is dropped before the throttle counts it (orchestrator satisfies BackoffSource).
     const backoffGate = new BackoffGate(throttledSink, orchestrator);
@@ -310,11 +324,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     return {
         coordinator,
         promptConsentIfAsk: () => consent.promptIfAsk(),
-        // Single source of truth for "what level is the ACTIVE exercise on" (later read by the
-        // delivery throttle and the Pull re-route). Resolves through the caller-provided level
-        // lookup, keyed by the coordinator's own activeExerciseId (undefined between sessions).
-        getActiveProactiveLevel: () =>
-            coordinator.activeExerciseId === undefined ? 'more' : deps.getProactiveLevel(coordinator.activeExerciseId),
+        // Same hoisted getter the delivery throttle reads (later also read by the Pull re-route).
+        getActiveProactiveLevel,
         setStudentProactive: (exerciseId, on) => orchestrator.setStudentProactive(exerciseId, on),
         isProactiveDegraded: () => orchestrator.isProactiveDegraded(),
         setInSession: (open: boolean) => orchestrator.setInSession(open),
