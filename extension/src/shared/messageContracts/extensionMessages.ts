@@ -272,6 +272,7 @@ export const ExtensionMsg = {
     FoldEpisode: 'foldEpisode',
     SetLiveEpisode: 'setLiveEpisode',
     RemoveMessage: 'removeMessage',
+    ResolveOffer: 'resolveOffer',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -423,6 +424,7 @@ interface ExtensionMsgPayloads {
             origin?: 'proactive';
             proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
             proactiveEpisodeId?: string;
+            offer?: { offerId: string; moment: 'stuck' | 'abandon'; answered?: 'accept' | 'decline' | 'timeout' };
         };
     };
     loadMessages: {
@@ -539,9 +541,15 @@ interface ExtensionMsgPayloads {
      * chat-ws row with the same id arriving after the drop is never inserted.
      */
     removeMessage: { id: number };
+    /**
+     * Host-authoritative resolution of an offer bubble (spec B+): the webview finds the bubble by
+     * `offerId` and sets its `offer.answered` (renders the condensed line in C10). The offer marker
+     * itself is client-local/ephemeral (see `ChatMessage.offer`), so this is the only wire round-trip.
+     */
+    resolveOffer: { offerId: string; answered: 'accept' | 'decline' | 'timeout' };
 
     // Proactive nudge banner
-    showNudgeBanner: { title: string; sub: string; episodeId?: string; timerMs: number };
+    showNudgeBanner: { title: string; sub: string; episodeId?: string; moment?: 'stuck' | 'abandon'; offerId?: string; timerMs: number };
     hideNudgeBanner: undefined;
 }
 

@@ -185,6 +185,13 @@ export interface StruggleEngineDeps {
     showNudgeBanner(text: import('@extension/services/ui/nudgeBannerText').NudgeText, episodeId: string | undefined, timerMs: number): void;
     /** Hide the proactive nudge banner. Lazy. */
     hideNudgeBanner(): void;
+    // ---- C5: offer-bubble transport (C6-C10 producers) ----
+    /** Post an offer bubble to the open chat (spec B+). Lazy: the chat provider is constructed after the engine. */
+    postOfferBubble(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void;
+    /** Resolve an offer bubble by id (spec B+). Lazy (see {@link postOfferBubble}). */
+    resolveOfferBubble(offerId: string, answered: 'accept' | 'decline' | 'timeout'): void;
+    /** Show the proactive nudge banner as an offer (spec B+), revealing the sidebar if hidden. Lazy (see {@link postOfferBubble}). */
+    showOfferBanner(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void;
 }
 
 /**

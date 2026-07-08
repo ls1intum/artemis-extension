@@ -39,6 +39,11 @@ export interface ChatMessage {
      * Used by C6 to render episode groups and by C7 for fold animation targeting.
      */
     proactiveEpisodeId?: string;
+    /**
+     * Ephemeral client-local offer marker (spec B+). Never persisted / round-tripped from the server.
+     * When set (and `answered` unset), the bubble renders answer buttons; once `answered`, the condensed line.
+     */
+    offer?: { offerId: string; moment: 'stuck' | 'abandon'; answered?: 'accept' | 'decline' | 'timeout' };
 }
 
 // Chat session summary (from extension)

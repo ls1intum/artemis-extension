@@ -89,6 +89,9 @@ function fakeDeps(getProactiveLevel: (exerciseId: number) => ProactiveLevel): St
         deleteSupersededProactiveMessage: vi.fn(async () => undefined),
         showNudgeBanner: vi.fn(),
         hideNudgeBanner: vi.fn(),
+        postOfferBubble: vi.fn(),
+        resolveOfferBubble: vi.fn(),
+        showOfferBanner: vi.fn(),
     };
 }
 

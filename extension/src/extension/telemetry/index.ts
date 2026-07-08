@@ -128,6 +128,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             deps.showNudgeBanner(t, episodeId, 15_000);
         },
         hideActiveBanner: () => deps.hideNudgeBanner(),
+        // C5: offer-bubble transport (delegated to the chat/nudge providers via extension.ts)
+        postOfferBubble: (o) => deps.postOfferBubble(o),
+        resolveOfferBubble: (offerId, answered) => deps.resolveOfferBubble(offerId, answered),
+        showOfferBanner: (o) => deps.showOfferBanner(o),
         // C2: reveal + episode-outcome (seam-threaded; webview reconcile wired via deps)
         generateLocalId: () => crypto.randomUUID(),
         postRevealBubble: (text, localId) => deps.postRevealBubble(text, localId),

@@ -143,6 +143,22 @@ export interface StruggleInterventionDeps {
     /** Hide the proactive nudge banner. */
     hideActiveBanner(): void;
     /**
+     * Post an offer bubble (spec B+): an assistant row carrying a client-local `offer` marker
+     * (no content) that renders with answer buttons until resolved. `episodeId` threads the row
+     * into its episode group, same as `postBubble`.
+     */
+    postOfferBubble(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void;
+    /**
+     * Resolve an offer bubble (spec B+): the webview finds the bubble by `offerId` and sets its
+     * `offer.answered` (renders the condensed line in C10).
+     */
+    resolveOfferBubble(offerId: string, answered: 'accept' | 'decline' | 'timeout'): void;
+    /**
+     * Show the proactive nudge banner as an offer (spec B+): carries `moment`/`offerId` context
+     * so the banner can render offer-specific copy and echo the answer back on resolution.
+     */
+    showOfferBanner(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void;
+    /**
      * Post an optimistic proactive bubble to the open chat. When `messageId` is set, a later server
      * message with the same id deduplicates on the webview side. When `messageId` is null
      * (server persist failed, A9), the bubble is runtime-only and carries no dedup tag.

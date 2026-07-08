@@ -129,6 +129,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		postRemoveMessage: (id) => chatWebviewProvider?.postRemoveMessage(id),
 		deleteSupersededProactiveMessage: (exerciseId, messageId) =>
 			artemisApiService.deleteSupersededProactiveMessage(exerciseId, messageId),
+		// C5: offer-bubble transport (C6-C10 producers). Bubble + resolve go to the chat provider
+		// (like postOptimisticBubble / postRemoveMessage); the offer banner mirrors showNudgeBanner's
+		// reveal-if-hidden wrapper below so an offer shown while the sidebar is collapsed still surfaces.
+		postOfferBubble: (o) => chatWebviewProvider?.postOfferBubble(o),
+		resolveOfferBubble: (offerId, answered) => chatWebviewProvider?.resolveOfferBubble(offerId, answered),
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
 		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
 		subscribeStruggleTopic: (topic, onFrame) => {
@@ -159,6 +164,20 @@ export async function activate(context: vscode.ExtensionContext) {
 			void vscode.commands.executeCommand('artemis.loginView.focus').then(() => {
 				if (prev) { void vscode.window.showTextDocument(prev.document, { viewColumn: prev.viewColumn, preserveFocus: false, selection: prev.selection }); }
 				artemisWebviewProvider?.showNudgeBanner(text, episodeId, timerMs);
+			});
+		},
+		// Offer banner: same reveal-if-hidden structure as showNudgeBanner above (an offer shown while
+		// the sidebar is collapsed must reveal the panel before its countdown starts), but the copy +
+		// timer are derived inside the provider from `moment`, so the wrapper just forwards the offer.
+		showOfferBanner: (o) => {
+			if (artemisWebviewProvider?.getCurrentVisibility()) {
+				artemisWebviewProvider.showOfferBanner(o);
+				return;
+			}
+			const prev = vscode.window.activeTextEditor;
+			void vscode.commands.executeCommand('artemis.loginView.focus').then(() => {
+				if (prev) { void vscode.window.showTextDocument(prev.document, { viewColumn: prev.viewColumn, preserveFocus: false, selection: prev.selection }); }
+				artemisWebviewProvider?.showOfferBanner(o);
 			});
 		},
 		hideNudgeBanner: () => artemisWebviewProvider?.hideNudgeBanner(),

@@ -125,6 +125,13 @@ interface ChatState {
      * is never inserted. Drives the C4 stale-row suppression on both arrival orders.
      */
     removeMessageById: (id: number) => void;
+    /**
+     * Resolve a client-local offer bubble (spec B+): finds the message with the matching
+     * `offer.offerId` and sets its `offer.answered`. No-op when no message matches (stale/foreign
+     * offerId). The offer marker is ephemeral and never round-tripped from the server, so this is
+     * the only writer of `answered`.
+     */
+    resolveOffer: (offerId: string, answered: 'accept' | 'decline' | 'timeout') => void;
     clearMessages: () => void;
     /**
      * Record a fold instruction for an episode (C7). Called when the host sends
@@ -297,6 +304,14 @@ export const useChatStore = create<ChatState>()(
                         suppressedIds: next,
                     };
                 }, false, 'removeMessageById');
+            },
+
+            resolveOffer: (offerId, answered) => {
+                set((state) => ({
+                    messages: state.messages.map((m) =>
+                        m.offer?.offerId === offerId ? { ...m, offer: { ...m.offer, answered } } : m,
+                    ),
+                }), false, 'resolveOffer');
             },
 
             foldEpisode: (episodeId, outcome, praise) => {

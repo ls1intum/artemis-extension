@@ -496,6 +496,33 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * Post an offer bubble (spec B+): an assistant row carrying a client-local `offer` marker
+     * (no content) that the webview renders with answer buttons. `episodeId` threads the row
+     * into its episode group, mirroring `postOptimisticBubble`.
+     */
+    postOfferBubble(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void {
+        this._postMessageSafe({
+            type: ExtensionMsg.AddMessage,
+            message: {
+                role: 'assistant',
+                content: '',
+                timestamp: Date.now(),
+                origin: 'proactive',
+                proactiveEpisodeId: o.episodeId,
+                offer: { offerId: o.offerId, moment: o.moment },
+            }
+        });
+    }
+
+    /**
+     * Resolve an offer bubble (spec B+): posts a host->webview `resolveOffer` so the webview
+     * finds the bubble by `offerId` and sets its `offer.answered` (condensed line rendered in C10).
+     */
+    resolveOfferBubble(offerId: string, answered: 'accept' | 'decline' | 'timeout'): void {
+        this._postMessageSafe({ type: ExtensionMsg.ResolveOffer, offerId, answered });
+    }
+
+    /**
      * Post the host-authoritative live-episode snapshot (SetLiveEpisode state frame) and cache
      * it, so `resendLiveEpisode` can replay it to a freshly created webview. Sent by the
      * struggle engine on every slot transition: the DELIVERED episode's id, or null when no

@@ -766,6 +766,38 @@ describe('useChatStore', () => {
 		});
 	});
 
+	describe('resolveOffer', () => {
+		it('marks the offer as answered on the message with the matching offerId', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'p-1', id: 1, role: 'assistant', origin: 'proactive',
+					offer: { offerId: 'offer-1', moment: 'stuck' },
+				}));
+			});
+
+			act(() => { result.current.resolveOffer('offer-1', 'accept'); });
+
+			expect(result.current.messages[0].offer?.answered).toBe('accept');
+		});
+
+		it('is a no-op when no message has a matching offerId', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'p-1', id: 1, role: 'assistant', origin: 'proactive',
+					offer: { offerId: 'offer-1', moment: 'stuck' },
+				}));
+			});
+
+			act(() => { result.current.resolveOffer('offer-does-not-exist', 'decline'); });
+
+			expect(result.current.messages[0].offer?.answered).toBeUndefined();
+		});
+	});
+
 	describe('setLiveEpisode (host-authoritative live-episode frame)', () => {
 		it('replaces the live set with the given episode id', () => {
 			const { result } = renderHook(() => useChatStore());

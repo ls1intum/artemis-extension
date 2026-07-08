@@ -94,7 +94,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _navigationFacade: WebviewNavigationFacade;
 
     /** Authoritative nudge-banner state, replayed to a freshly-resolved view (see `_bannerNeedsReplay`). */
-    private _currentBanner: { title: string; sub: string; episodeId?: string; timerMs: number } | null = null;
+    private _currentBanner: { title: string; sub: string; episodeId?: string; moment?: 'stuck' | 'abandon'; offerId?: string; timerMs: number } | null = null;
     /** One-shot flag armed in `resolveWebviewView`: replay `_currentBanner` on the NEXT ready, but only once per resolve. */
     private _bannerNeedsReplay = false;
 
@@ -538,6 +538,23 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     public hideNudgeBanner(): void {
         this._currentBanner = null;
         this._postMessageSafe({ type: ExtensionMsg.HideNudgeBanner });
+    }
+
+    /**
+     * Show the proactive nudge banner as an offer (spec B+): mirrors `showNudgeBanner`
+     * (same caching/replay behaviour) but carries `moment`/`offerId` context and renders
+     * offer-specific copy. `abandon` gets a longer timer since it is the last-chance nudge
+     * before the episode gives up; `stuck` reuses the existing default timer.
+     */
+    public showOfferBanner(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void {
+        const timerMs = o.moment === 'abandon' ? 60_000 : 15_000;
+        const { title, sub } = o.moment === 'stuck'
+            ? { title: 'Still stuck here?', sub: 'Want another hint?' }
+            : { title: 'Still on this?', sub: "I'll step back soon otherwise." };
+        this._currentBanner = { title, sub, episodeId: o.episodeId, moment: o.moment, offerId: o.offerId, timerMs };
+        if (!this._bannerNeedsReplay) {
+            this._postMessageSafe({ type: ExtensionMsg.ShowNudgeBanner, ...this._currentBanner });
+        }
     }
 
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
