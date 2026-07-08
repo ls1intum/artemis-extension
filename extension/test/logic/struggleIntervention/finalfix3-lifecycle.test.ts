@@ -21,6 +21,26 @@ describe('Fix B: honest note on a non-accepted help_request POST', () => {
         expect(deps.postBubble).toHaveBeenCalledWith('Nothing more I can add right now.', null, 'ep-1');
         expect(svc._inFlightMarker).toBeUndefined();
     });
+
+    it('does NOT post the fallback note if the episode terminated (marker changed) while the POST was pending', async () => {
+        let svc!: StruggleInterventionService;
+        const deps = fakeDeps({
+            postIntervention: vi.fn().mockImplementation(async () => {
+                // Simulate the episode terminating mid-POST: _clearEpisodeRuntime clears the in-flight marker.
+                svc._inFlightMarker = undefined;
+                return 'failed';
+            }),
+        });
+        svc = new StruggleInterventionService(deps);
+        simulateDelivered(svc, 'ep-1');
+
+        await svc._sendHelpRequest();
+
+        // The request is no longer the live one, so the fallback note must NOT post -- it could land on a
+        // different/absent episode. (simulateDelivered posts the opening hint bubble, so assert only that the
+        // fallback note specifically was never posted.)
+        expect(deps.postBubble).not.toHaveBeenCalledWith('Nothing more I can add right now.', null, expect.anything());
+    });
 });
 
 // ---------------------------------------------------------------------------

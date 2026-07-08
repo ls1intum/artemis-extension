@@ -1348,13 +1348,18 @@ export class StruggleInterventionService implements AlertSink {
                 requestToken,
                 proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
             });
-            if (result !== 'accepted') {
+            // Only clear + surface the fallback if THIS request is still the live one. The episode may
+            // have terminated (marker cleared by _clearEpisodeRuntime) or been superseded during the
+            // await -- posting to _deliveredEpisodeId() then would land on a different/absent episode.
+            if (result !== 'accepted' && this._inFlightMarker?.requestToken === requestToken) {
                 this._setInFlightMarker(undefined);
                 this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
             }
         } catch {
-            this._setInFlightMarker(undefined);
-            this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
+            if (this._inFlightMarker?.requestToken === requestToken) {
+                this._setInFlightMarker(undefined);
+                this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
+            }
         }
     }
 
