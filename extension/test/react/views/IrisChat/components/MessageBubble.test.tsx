@@ -213,4 +213,23 @@ describe('MessageBubble', () => {
 			expect(screen.getByRole('button', { name: 'Retry sending this message' })).toBeInTheDocument();
 		});
 	});
+
+	describe('offer buttons (C9)', () => {
+		it('renders Show me / Not now on a stuck offer bubble and reports accept', () => {
+			const onOfferAnswer = vi.fn();
+			render(
+				<MessageBubble
+					message={{
+						localId: 'l1', role: 'assistant', content: '', timestamp: 0,
+						origin: 'proactive', proactiveEpisodeId: 'ep-1',
+						offer: { offerId: 'off-1', moment: 'stuck' },
+					}}
+					onFeedback={vi.fn()}
+					onOfferAnswer={onOfferAnswer}
+				/>,
+			);
+			fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
+			expect(onOfferAnswer).toHaveBeenCalledWith('off-1', 'ep-1', 'stuck', 'accept');
+		});
+	});
 });

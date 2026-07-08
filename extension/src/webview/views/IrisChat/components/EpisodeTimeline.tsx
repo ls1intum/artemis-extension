@@ -14,6 +14,8 @@ interface EpisodeTimelineProps {
     dismissable: boolean;
     /** Dismiss the episode (only offered on the latest row of a live episode). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
+    /** Invoked when the student answers a consented offer bubble on the latest row of a live episode. */
+    onOfferAnswer?: (offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => void;
     renderRowBody: (m: ChatMessage, isLatest: boolean) => ReactNode;
 }
 
@@ -22,7 +24,7 @@ interface EpisodeTimelineProps {
  * plus one hint node per message. The row body (the bubble) is supplied by the caller so this
  * component stays presentational.
  */
-export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, renderRowBody }: EpisodeTimelineProps) {
+export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, onOfferAnswer, renderRowBody }: EpisodeTimelineProps) {
     const foldStates = useChatStore((s) => s.foldStates);
     const fold = foldStates.get(episodeId);
     const latest = messages[messages.length - 1];
@@ -39,6 +41,9 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
                 const isClosingRow = m.id !== undefined && fold?.closeMessageId === m.id;
                 const showDismiss = dismissable && isLatest && m.id !== undefined && !!onDismiss
                     && !isClosingRow && m.proactiveOutcome !== 'DISMISSED';
+                // Consented offer buttons on the latest row only (mirrors the Dismiss ownership above).
+                const offer = m.offer;
+                const showOfferButtons = isLatest && !!offer && !offer.answered && !!onOfferAnswer;
                 return (
                     <div key={m.localId} data-episode-row className={clsx(styles.row, isLatest && styles.rowLast, single && styles.rowSingle)}>
                         {!single && (
@@ -52,6 +57,24 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, r
                                 Collapsed at rest; the row expands it open with a short animation (see CSS). */}
                             <div className={styles.foot}>
                                 <span className={styles.time} data-testid="row-time">{formatRelativeTime(m.timestamp)}</span>
+                                {showOfferButtons && offer && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className={styles.dismiss}
+                                            onClick={() => onOfferAnswer?.(offer.offerId, m.proactiveEpisodeId, offer.moment, 'decline')}
+                                        >
+                                            {offer.moment === 'abandon' ? "I'm still on it" : 'Not now'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={styles.dismiss}
+                                            onClick={() => onOfferAnswer?.(offer.offerId, m.proactiveEpisodeId, offer.moment, 'accept')}
+                                        >
+                                            {offer.moment === 'abandon' ? 'I need more help' : 'Show me'}
+                                        </button>
+                                    </>
+                                )}
                                 {showDismiss && (
                                     <button
                                         type="button"

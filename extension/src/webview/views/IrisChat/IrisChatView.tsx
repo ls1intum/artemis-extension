@@ -1,10 +1,10 @@
 import clsx from 'clsx';
 import Info from 'lucide-react/dist/esm/icons/info';
 import Menu from 'lucide-react/dist/esm/icons/menu';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
-import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { ExtensionMsg, postCommand, WebviewCmd } from '@shared/messageContracts';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
@@ -310,6 +310,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             proactiveEpisodeId,
         });
     };
+
+    const handleOfferAnswer = useCallback((offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => {
+        postCommand(vscodeApi, WebviewCmd.NudgeBannerAction, { moment, action, episodeId, offerId });
+    }, [vscodeApi]);
 
     const handleOpenFile = (path: string) => {
         postCommand(vscodeApi, 'openFile', { filePath: path });
@@ -625,6 +629,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         activeStage={activeStage}
                         onFeedback={handleFeedback}
                         onDismiss={handleDismissProactive}
+                        onOfferAnswer={handleOfferAnswer}
                         onSendPrompt={handleSendMessage}
                         hasContext={store.context !== null}
                         isChatDisabled={isChatDisabled}

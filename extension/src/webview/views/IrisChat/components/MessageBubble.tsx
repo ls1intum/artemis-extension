@@ -26,6 +26,12 @@ interface MessageBubbleProps {
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes, spec §6.3). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
     /**
+     * Invoked when the student answers a consented offer bubble (Moment-1 "stuck" / Moment-3
+     * "abandon"): 'accept' opens the suggestion, 'decline' waits it out. Only a proactive bubble
+     * carrying an unanswered `message.offer` renders the two buttons.
+     */
+    onOfferAnswer?: (offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => void;
+    /**
      * True when this bubble is rendered inside an episode group (EpisodeBlock): suppresses the
      * per-message "Iris reached out" caption and the tinted card (the block owns both) and never
      * collapses a DISMISSED row (the episode-level fold is the only collapse).
@@ -39,6 +45,7 @@ function MessageBubbleComponent({
     onRetry,
     retryDisabled,
     onDismiss,
+    onOfferAnswer,
     grouped,
 }: MessageBubbleProps) {
     const [hovering, setHovering] = useState(false);
@@ -68,6 +75,11 @@ function MessageBubbleComponent({
     // non-grouped proactive bubble (proactive without an episode) still shows its Dismiss.
     const showDismiss = isProactive && !grouped && !isDismissed
         && message.id !== undefined && !!onDismiss && bodyVisible && !isFailed;
+    // A consented offer bubble (Moment-1 "stuck" / Moment-3 "abandon") renders its own accept/decline
+    // buttons until answered. Same ownership split as Dismiss: a grouped (timeline) row never renders
+    // its own buttons — the EpisodeTimeline footer owns the grouped case.
+    const offer = message.offer;
+    const showOfferButtons = isProactive && !grouped && !!offer && !offer.answered && !!onOfferAnswer;
 
     return (
         <div
@@ -129,7 +141,7 @@ function MessageBubbleComponent({
                         </>
                     )}
 
-                    {(showThumbs || showDismiss) && (
+                    {(showThumbs || showDismiss || showOfferButtons) && (
                         <div className={clsx(styles.actionRow, { [styles.actionRowCard]: isProactive })}>
                             {/* Hover-revealed floating bar: absolutely positioned so it reserves no
                                 space in the resting state (no empty gap) and overhangs the bubble's
@@ -161,6 +173,26 @@ function MessageBubbleComponent({
                                         />
                                     </button>
                                 </div>
+                            )}
+                            {/* Consented offer buttons on a non-grouped proactive bubble (a grouped/timeline row's
+                                buttons live in the EpisodeTimeline footer instead). */}
+                            {showOfferButtons && offer && (
+                                <>
+                                    <button
+                                        type="button"
+                                        className={styles.dismissButton}
+                                        onClick={() => onOfferAnswer?.(offer.offerId, message.proactiveEpisodeId, offer.moment, 'decline')}
+                                    >
+                                        {offer.moment === 'abandon' ? "I'm still on it" : 'Not now'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.dismissButton}
+                                        onClick={() => onOfferAnswer?.(offer.offerId, message.proactiveEpisodeId, offer.moment, 'accept')}
+                                    >
+                                        {offer.moment === 'abandon' ? 'I need more help' : 'Show me'}
+                                    </button>
+                                </>
                             )}
                             {/* Dismiss on a non-grouped proactive bubble (a grouped/timeline row's Dismiss lives
                                 in the EpisodeTimeline footer instead). */}
@@ -229,10 +261,13 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.proactiveOutcome === next.message.proactiveOutcome &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
+        prev.message.offer?.offerId === next.message.offer?.offerId &&
+        prev.message.offer?.answered === next.message.offer?.answered &&
         prev.grouped === next.grouped &&
         prev.retryDisabled === next.retryDisabled &&
         prev.onRetry === next.onRetry &&
         prev.onDismiss === next.onDismiss &&
+        prev.onOfferAnswer === next.onOfferAnswer &&
         prev.onFeedback === next.onFeedback
     );
 };

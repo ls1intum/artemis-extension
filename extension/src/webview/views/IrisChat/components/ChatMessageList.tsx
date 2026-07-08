@@ -32,10 +32,12 @@ function EpisodeFoldLine({
     messages,
     foldState,
     renderBubble,
+    onOfferAnswer,
 }: {
     messages: ChatMessage[];
     foldState: { folded: boolean; episodeLabel?: string; outcome?: EpisodeOutcome } | undefined;
     renderBubble: (message: ChatMessage, isLatest: boolean, grouped: boolean) => ReactNode;
+    onOfferAnswer?: (offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => void;
 }) {
     const [expanded, setExpanded] = useState(false);
     const meta = outcomeMeta(foldState?.outcome ?? rowOutcome(messages));
@@ -80,6 +82,7 @@ function EpisodeFoldLine({
                     messages={messages}
                     episodeId={messages[0]?.proactiveEpisodeId ?? ''}
                     dismissable={false}
+                    onOfferAnswer={onOfferAnswer}
                     renderRowBody={timelineRowBody(renderBubble)}
                 />
             )}
@@ -106,6 +109,8 @@ interface ChatMessageListProps {
     isRetryDisabled?: (message: ChatMessage) => boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
+    /** Invoked when the student answers a consented offer bubble (accept/decline). */
+    onOfferAnswer?: (offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => void;
 }
 
 /** Delay (ms) between the close row arriving and the episode folding (C7). */
@@ -122,6 +127,7 @@ export function ChatMessageList({
     onRetry,
     isRetryDisabled,
     onDismiss,
+    onOfferAnswer,
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
 
@@ -183,6 +189,7 @@ export function ChatMessageList({
                 onFeedback={onFeedback}
                 onRetry={onRetry}
                 onDismiss={canDismiss ? onDismiss : undefined}
+                onOfferAnswer={onOfferAnswer}
                 retryDisabled={isRetryDisabled ? isRetryDisabled(message) : false}
                 grouped={grouped}
             />
@@ -227,6 +234,7 @@ export function ChatMessageList({
                             messages={[item.message]}
                             foldState={foldStates.get(episodeId)}
                             renderBubble={renderBubble}
+                            onOfferAnswer={onOfferAnswer}
                         />
                     );
                 }
@@ -238,6 +246,7 @@ export function ChatMessageList({
                         episodeId={episodeId}
                         dismissable
                         onDismiss={onDismiss}
+                        onOfferAnswer={onOfferAnswer}
                         renderRowBody={timelineRowBody(renderBubble)}
                     />
                 );
@@ -252,6 +261,7 @@ export function ChatMessageList({
                     messages={item.messages}
                     foldState={foldStates.get(item.episodeId)}
                     renderBubble={renderBubble}
+                    onOfferAnswer={onOfferAnswer}
                 />
             );
         }
@@ -263,6 +273,7 @@ export function ChatMessageList({
                 episodeId={item.episodeId}
                 dismissable
                 onDismiss={onDismiss}
+                onOfferAnswer={onOfferAnswer}
                 renderRowBody={timelineRowBody(renderBubble)}
             />
         );
