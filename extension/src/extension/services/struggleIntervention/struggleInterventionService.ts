@@ -1253,7 +1253,13 @@ export class StruggleInterventionService implements AlertSink {
             case 'pre-abandon-warn': {
                 this._dbg('  -> WATCHDOG pre-abandon-warn: Moment-3 offer');
                 const ep = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
-                if (ep && this._outstandingOffer === undefined && this._inFlightMarker === undefined) {
+                if (!ep || this._inFlightMarker !== undefined) { break; }
+                // A stale stuck offer (an ignored in-session bubble has no countdown) must not block the
+                // more-urgent Moment-3 presence check -- supersede it, then raise the abandon offer.
+                if (this._outstandingOffer?.moment === 'stuck') {
+                    this._clearOutstandingOffer();
+                }
+                if (this._outstandingOffer === undefined) {
                     this._raiseAbandonOffer(ep.episodeId);
                 }
                 break;
@@ -1344,9 +1350,11 @@ export class StruggleInterventionService implements AlertSink {
             });
             if (result !== 'accepted') {
                 this._setInFlightMarker(undefined);
+                this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
             }
         } catch {
             this._setInFlightMarker(undefined);
+            this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
         }
     }
 
@@ -1472,10 +1480,7 @@ export class StruggleInterventionService implements AlertSink {
         // An offer still outstanding when the episode terminates (RECOVERED / DISMISSED / any
         // force-free) must be resolved + cleared here, the single terminal chokepoint. Otherwise
         // _outstandingOffer strands and _canRaiseStuckOfferNow blocks every future offer this exercise.
-        if (this._outstandingOffer) {
-            this._deps.resolveOfferBubble(this._outstandingOffer.offerId, 'timeout');
-            this._outstandingOffer = undefined;
-        }
+        this._clearOutstandingOffer();
         this.notifySlotDebugChanged();
     }
 
@@ -1498,12 +1503,23 @@ export class StruggleInterventionService implements AlertSink {
         return this._outstandingOffer === undefined && this._inFlightMarker === undefined && this._canOfferStuck(episodeId);
     }
 
+    /** Resolve (as timeout) + clear any outstanding offer. Idempotent. Used on teardown, supersede, opt-out. */
+    private _clearOutstandingOffer(): void {
+        if (this._outstandingOffer) {
+            this._deps.resolveOfferBubble(this._outstandingOffer.offerId, 'timeout');
+            this._outstandingOffer = undefined;
+        }
+    }
+
     private _raiseStuckOffer(): void {
         const snap = this._slot.snapshot();
         if (snap.state.kind !== 'delivered') { return; }
         const episodeId = snap.state.episode.episodeId;
         const exId = this._deps.getExerciseId();
         const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        // Off = 0 offers. _raiseStuckOffer is already gated upstream via _suppressReason, but keep
+        // this guard for defence and symmetry with _raiseAbandonOffer.
+        if (level === 'off') { return; }
         // Less + chat closed: stay fully quiet. A badge-only offer can never be answered (opening the
         // chat later does not surface it) and would strand the single-offer slot -- so skip it entirely.
         if (!snap.inSession && level === 'less') { return; }
@@ -1555,6 +1571,8 @@ export class StruggleInterventionService implements AlertSink {
     private _raiseAbandonOffer(episodeId: string): void {
         const exId = this._deps.getExerciseId();
         const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        // Off = 0 offers.
+        if (level === 'off') { return; }
         const inSession = this._slot.snapshot().inSession;
         // Less + chat closed: stay fully quiet (see _raiseStuckOffer).
         if (!inSession && level === 'less') { return; }
@@ -1646,6 +1664,7 @@ export class StruggleInterventionService implements AlertSink {
             this._deps.clearInline();
             this._deps.setBadge(false);
             this._deps.hideActiveBanner();
+            this._clearOutstandingOffer();
         }
     }
 
