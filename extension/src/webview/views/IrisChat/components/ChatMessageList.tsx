@@ -109,6 +109,8 @@ interface ChatMessageListProps {
     isRetryDisabled?: (message: ChatMessage) => boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
+    /** Invoked when the student marks a proactive episode "Solved it" (positive close, records RECOVERED). */
+    onResolve?: (messageId: number, proactiveEpisodeId?: string) => void;
     /** Invoked when the student answers a consented offer bubble (accept/decline). */
     onOfferAnswer?: (offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => void;
 }
@@ -127,6 +129,7 @@ export function ChatMessageList({
     onRetry,
     isRetryDisabled,
     onDismiss,
+    onResolve,
     onOfferAnswer,
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
@@ -246,6 +249,7 @@ export function ChatMessageList({
                         episodeId={episodeId}
                         dismissable
                         onDismiss={onDismiss}
+                        onResolve={onResolve}
                         onOfferAnswer={onOfferAnswer}
                         renderRowBody={timelineRowBody(renderBubble)}
                     />
@@ -273,6 +277,7 @@ export function ChatMessageList({
                 episodeId={item.episodeId}
                 dismissable
                 onDismiss={onDismiss}
+                onResolve={onResolve}
                 onOfferAnswer={onOfferAnswer}
                 renderRowBody={timelineRowBody(renderBubble)}
             />

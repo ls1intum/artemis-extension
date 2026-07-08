@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useChatStore } from '@webview/stores/useChatStore';
@@ -121,6 +121,43 @@ describe('EpisodeTimeline', () => {
         const foots = screen.getAllByTestId('row-foot');
         expect(foots[foots.length - 1]).toHaveClass(styles.footPersistent);   // offer row (latest)
         expect(foots[0]).not.toHaveClass(styles.footPersistent);              // earlier hint stays hover-only
+    });
+
+    it('shows "Solved it" on the latest live row and calls onResolve with the message + episode id', () => {
+        const onResolve = vi.fn();
+        const messages = [msg(1), msg(2)];
+        render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable onResolve={onResolve} renderRowBody={(m) => <div>{m.content}</div>} />);
+        const btn = screen.getByRole('button', { name: 'Solved it' });
+        expect(btn).toBeInTheDocument();
+        fireEvent.click(btn);
+        expect(onResolve).toHaveBeenCalledWith(2, 'ep');
+    });
+
+    it('shows exactly one "Solved it", on the latest row, only when dismissable (live)', () => {
+        const messages = [msg(1), msg(2)];
+        const { rerender } = render(
+            <EpisodeTimeline messages={messages} episodeId="ep" dismissable onResolve={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.getAllByRole('button', { name: 'Solved it' }).length).toBe(1);
+
+        rerender(
+            <EpisodeTimeline messages={messages} episodeId="ep" dismissable={false} onResolve={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.queryByRole('button', { name: 'Solved it' })).toBeNull();
+    });
+
+    it('a row that already carries a terminal outcome shows neither "Solved it" nor "Dismiss" (no double-close)', () => {
+        const { rerender } = render(
+            <EpisodeTimeline messages={[msg(1, { proactiveOutcome: 'RECOVERED' })]} episodeId="ep" dismissable onDismiss={vi.fn()} onResolve={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.queryByRole('button', { name: 'Solved it' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).toBeNull();
+
+        rerender(
+            <EpisodeTimeline messages={[msg(1, { proactiveOutcome: 'DISMISSED' })]} episodeId="ep" dismissable onDismiss={vi.fn()} onResolve={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.queryByRole('button', { name: 'Solved it' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).toBeNull();
     });
 
     it('pins Dismiss open at rest on the latest hint row (persistent foot)', () => {

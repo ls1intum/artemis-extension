@@ -42,6 +42,8 @@ interface EpisodeTimelineProps {
     dismissable: boolean;
     /** Dismiss the episode (only offered on the latest row of a live episode). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
+    /** Positive close: the student self-reports "Solved it" (records RECOVERED). Same gating as onDismiss. */
+    onResolve?: (messageId: number, proactiveEpisodeId?: string) => void;
     /** Invoked when the student answers a consented offer bubble on the latest row of a live episode. */
     onOfferAnswer?: (offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => void;
     renderRowBody: (m: ChatMessage, isLatest: boolean) => ReactNode;
@@ -52,7 +54,7 @@ interface EpisodeTimelineProps {
  * plus one hint node per message. The row body (the bubble) is supplied by the caller so this
  * component stays presentational.
  */
-export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, onOfferAnswer, renderRowBody }: EpisodeTimelineProps) {
+export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, onResolve, onOfferAnswer, renderRowBody }: EpisodeTimelineProps) {
     const foldStates = useChatStore((s) => s.foldStates);
     const fold = foldStates.get(episodeId);
     const latest = messages[messages.length - 1];
@@ -67,8 +69,12 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, o
                 // Dismiss shows only on the latest live row, and never on the close/praise row or an
                 // already-dismissed row.
                 const isClosingRow = m.id !== undefined && fold?.closeMessageId === m.id;
-                const showDismiss = dismissable && isLatest && m.id !== undefined && !!onDismiss
-                    && !isClosingRow && m.proactiveOutcome !== 'DISMISSED';
+                // Both terminal actions vanish the instant ANY outcome lands (the optimistic RECOVERED/
+                // DISMISSED store write, or a host fold) so the student can never fire a second,
+                // contradictory close on the same row (the backend is first-terminal-wins).
+                const noOutcomeYet = m.proactiveOutcome === undefined;
+                const showDismiss = dismissable && isLatest && m.id !== undefined && !!onDismiss && !isClosingRow && noOutcomeYet;
+                const showResolve = dismissable && isLatest && m.id !== undefined && !!onResolve && !isClosingRow && noOutcomeYet;
                 // Consented offer buttons on the latest row only (mirrors the Dismiss ownership above).
                 const offer = m.offer;
                 const showOfferButtons = dismissable && isLatest && !!offer && !offer.answered && !!onOfferAnswer;
@@ -90,7 +96,7 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, o
                             {/* Hover/focus chrome: per-message timestamp, plus Dismiss only on the latest live row.
                                 Collapsed at rest; the row expands it open with a short animation (see CSS). */}
                             <div
-                                className={clsx(styles.foot, (showOfferButtons || showDismiss) && styles.footPersistent)}
+                                className={clsx(styles.foot, (showOfferButtons || showDismiss || showResolve) && styles.footPersistent)}
                                 data-testid="row-foot"
                             >
                                 <span className={styles.time} data-testid="row-time">{formatRelativeTime(m.timestamp)}</span>
@@ -111,6 +117,15 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, o
                                             {offer.moment === 'abandon' ? 'I need more help' : 'Show me'}
                                         </button>
                                     </>
+                                )}
+                                {showResolve && (
+                                    <button
+                                        type="button"
+                                        className={styles.dismiss}
+                                        onClick={() => onResolve?.(m.id as number, m.proactiveEpisodeId)}
+                                    >
+                                        Solved it
+                                    </button>
                                 )}
                                 {showDismiss && (
                                     <button

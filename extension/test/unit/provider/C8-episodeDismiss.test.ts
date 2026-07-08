@@ -134,4 +134,39 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
             });
         });
     });
+
+    test('with proactiveEpisodeId + RECOVERED ("Solved it"): routes to onEpisodeResolve, NOT onEpisodeDismiss', (done) => {
+        const onEpisodeDismiss = sinon.stub();
+        const onEpisodeResolve = sinon.stub();
+        provider.setStruggleCallbacks({ onEpisodeDismiss, onEpisodeResolve });
+
+        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+            type: 'command',
+            command: 'messageProactiveOutcome',
+            payload: { sessionId: 1, messageId: 10, outcome: 'RECOVERED', proactiveEpisodeId: 'ep-solved' },
+        });
+
+        setTimeout(() => {
+            assert.ok(onEpisodeResolve.calledOnce, 'onEpisodeResolve should be called for RECOVERED');
+            assert.strictEqual(onEpisodeResolve.firstCall.args[0], 'ep-solved');
+            assert.ok(!onEpisodeDismiss.called, 'onEpisodeDismiss must NOT be called for RECOVERED');
+            done();
+        }, 0);
+    });
+
+    test('without proactiveEpisodeId + RECOVERED: legacy setProactiveOutcome persists RECOVERED', (done) => {
+        provider.setStruggleCallbacks({ onEpisodeDismiss: sinon.stub(), onEpisodeResolve: sinon.stub() });
+
+        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+            type: 'command',
+            command: 'messageProactiveOutcome',
+            payload: { sessionId: 5, messageId: 77, outcome: 'RECOVERED' },
+        });
+
+        setTimeout(() => {
+            assert.ok(mockApi.setProactiveOutcome.calledOnce, 'legacy setProactiveOutcome should persist RECOVERED');
+            assert.strictEqual(mockApi.setProactiveOutcome.firstCall.args[2], 'RECOVERED');
+            done();
+        }, 10);
+    });
 });

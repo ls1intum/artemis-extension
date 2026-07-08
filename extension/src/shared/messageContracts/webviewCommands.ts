@@ -199,7 +199,7 @@ interface WebviewCmdPayloads {
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
-    messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED'; proactiveEpisodeId?: string };
+    messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED' | 'RECOVERED'; proactiveEpisodeId?: string };
     // courseId lets every _push (init AND toggle) re-derive §14 availability with the course id (slice 5c).
     requestProactiveControl: { exerciseId: number; courseId?: number };
     setProactiveLevel: { exerciseId: number; level: ProactiveLevel; courseId?: number };

@@ -109,6 +109,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /** C8: episode-scoped dismiss callback (seam to the orchestrator's dismissEpisode), wired by extension.ts. */
     private _onEpisodeDismiss?: (episodeId?: string) => void;
 
+    /** "Solved it" positive-close callback (seam to the orchestrator's resolveEpisode), wired by extension.ts. */
+    private _onEpisodeResolve?: (episodeId?: string) => void;
+
     /** Last live-episode snapshot posted (SetLiveEpisode); replayed to re-created webviews on init. */
     private _liveEpisodeId: string | null = null;
 
@@ -581,8 +584,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public setStruggleCallbacks(callbacks: {
         /** C8: episode-scoped dismiss; routes to orchestrator.dismissEpisode. */
         onEpisodeDismiss?: (episodeId?: string) => void;
+        /** "Solved it" positive close; routes to orchestrator.resolveEpisode. */
+        onEpisodeResolve?: (episodeId?: string) => void;
     }): void {
         this._onEpisodeDismiss = callbacks.onEpisodeDismiss;
+        this._onEpisodeResolve = callbacks.onEpisodeResolve;
     }
 
     /**
@@ -729,8 +735,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     break;
                 }
                 case WebviewCmd.MessageProactiveOutcome: {
-                    const { sessionId, messageId, proactiveEpisodeId } = getPayload<WebCmd<'messageProactiveOutcome'>>(message);
-                    this._handleProactiveOutcome(sessionId, messageId, proactiveEpisodeId);
+                    const { sessionId, messageId, proactiveEpisodeId, outcome } = getPayload<WebCmd<'messageProactiveOutcome'>>(message);
+                    this._handleProactiveOutcome(sessionId, messageId, proactiveEpisodeId, outcome);
                     break;
                 }
                 case WebviewCmd.OpenHelpPopup:
@@ -1055,12 +1061,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _handleProactiveOutcome(
         sessionId: number,
         messageId: number,
-        proactiveEpisodeId?: string,
+        proactiveEpisodeId: string | undefined,
+        outcome: 'DISMISSED' | 'RECOVERED',
     ): void {
         if (proactiveEpisodeId) {
-            // C8 episode-scoped path: route to the orchestrator via the seam callback.
-            // The orchestrator frees the slot, tears down runtime, writes DISMISSED, and folds.
-            this._onEpisodeDismiss?.(proactiveEpisodeId);
+            // C8 episode-scoped path: route to the orchestrator via the seam callback. The orchestrator
+            // frees the slot, tears down runtime, writes the outcome, and folds. RECOVERED = "Solved it".
+            if (outcome === 'RECOVERED') { this._onEpisodeResolve?.(proactiveEpisodeId); }
+            else { this._onEpisodeDismiss?.(proactiveEpisodeId); }
             return;
         }
 
@@ -1070,7 +1078,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             logger.warn('Artemis API service not available for proactive outcome', LogCategory.IRIS_CHAT);
             return;
         }
-        void this._artemisApiService.setProactiveOutcome(sessionId, messageId, 'DISMISSED').catch(error => {
+        void this._artemisApiService.setProactiveOutcome(sessionId, messageId, outcome).catch(error => {
             logger.error('Failed to persist proactive outcome', LogCategory.IRIS_CHAT, error);
         });
     }

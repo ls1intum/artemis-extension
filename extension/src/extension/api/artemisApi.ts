@@ -589,7 +589,7 @@ export class ArtemisApiService {
     }
 
     // Record how the student reacted to a proactive Iris message (spec §7.5).
-    async setProactiveOutcome(sessionId: number, messageId: number, outcome: 'DISMISSED'): Promise<void> {
+    async setProactiveOutcome(sessionId: number, messageId: number, outcome: 'DISMISSED' | 'RECOVERED'): Promise<void> {
         await this.makeRequest(
             `/api/iris/sessions/${sessionId}/messages/${messageId}/proactive-outcome`,
             {

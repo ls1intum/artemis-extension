@@ -138,4 +138,40 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         expect(outcomeCall).toBeDefined();
         expect(outcomeCall![0].payload?.proactiveEpisodeId).toBeUndefined();
     });
+
+    it('"Solved it" posts messageProactiveOutcome with outcome RECOVERED + proactiveEpisodeId', async () => {
+        useChatStore.setState(HYDRATED);
+        const mockApi = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={mockApi} />);
+
+        await act(async () => {
+            dispatchExtensionMessage({
+                type: 'addMessage',
+                message: {
+                    id: 88,
+                    role: 'assistant',
+                    origin: 'proactive',
+                    proactiveEpisodeId: 'ep-solved',
+                    content: 'Check your loop exit condition',
+                    timestamp: Date.now(),
+                },
+            });
+        });
+
+        const solvedBtn = screen.getByRole('button', { name: 'Solved it' });
+        fireEvent.click(solvedBtn);
+
+        expect(mockApi.postMessage).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'command',
+                command: 'messageProactiveOutcome',
+                payload: expect.objectContaining({
+                    sessionId: 42,
+                    messageId: 88,
+                    outcome: 'RECOVERED',
+                    proactiveEpisodeId: 'ep-solved',
+                }),
+            })
+        );
+    });
 });

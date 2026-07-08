@@ -244,6 +244,12 @@ export interface StruggleEngineHandle {
      */
     dismissEpisode?(episodeId?: string): void;
     /**
+     * Manual "Solved it" close: like {@link dismissEpisode} but records a RECOVERED (success) outcome.
+     * Called by the chat-card "Solved it" action (via setStruggleCallbacks.onEpisodeResolve).
+     * ABSENT in the clean (no-engine) build; callers guard with optional chaining.
+     */
+    resolveEpisode?(episodeId?: string): void;
+    /**
      * Slot debug: return the current slot state snapshot (Task 3 orchestrator). ABSENT in the
      * clean (no-engine) build; callers guard with optional chaining or presence checks.
      */

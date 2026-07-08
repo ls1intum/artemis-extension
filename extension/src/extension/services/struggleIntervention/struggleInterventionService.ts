@@ -1624,10 +1624,31 @@ export class StruggleInterventionService implements AlertSink {
      * the passed `episodeId` (A10 first-terminal-wins rejects any duplicate write).
      */
     public dismissEpisode(episodeId?: string): void {
+        this._manualCloseEpisode(episodeId, 'DISMISSED');
+    }
+
+    /**
+     * Manual "Solved it" close: the student self-reports success, so the episode terminates with a
+     * RECOVERED outcome (positive — the fold line is a success summary and Pyris/eval see the hint as
+     * having helped). Mirrors {@link dismissEpisode} exactly except for the outcome; both share
+     * {@link _manualCloseEpisode}. Unlike the auto-detected RECOVERED close there is no LLM praise row,
+     * so the fold carries no praise.
+     */
+    public resolveEpisode(episodeId?: string): void {
+        this._manualCloseEpisode(episodeId, 'RECOVERED');
+    }
+
+    /**
+     * Shared manual-close path for the two chat-card actions (DISMISSED / RECOVERED). For the live
+     * DELIVERED episode it frees the slot, tears down episode runtime, writes the outcome (best-effort,
+     * A10 first-terminal-wins) and folds without praise; on a mismatch / already-free / PARKED slot it
+     * only writes the idempotent outcome for the passed id (no slot free, no fold).
+     */
+    private _manualCloseEpisode(episodeId: string | undefined, outcome: 'DISMISSED' | 'RECOVERED'): void {
         const snapState = this._slot.snapshot().state;
         const liveEpisodeId = snapState.kind === 'delivered' ? snapState.episode.episodeId : undefined;
         const exerciseId = this._deps.getExerciseId();
-        this._dbg(`  -> DISMISS episode=${episodeId ?? liveEpisodeId ?? 'n/a'} (slot=${snapState.kind})`);
+        this._dbg(`  -> MANUAL CLOSE (${outcome}) episode=${episodeId ?? liveEpisodeId ?? 'n/a'} (slot=${snapState.kind})`);
 
         // Determine the target for the outcome write (passed arg wins; fall back to live)
         const targetEpisodeId = episodeId ?? liveEpisodeId;
@@ -1638,16 +1659,16 @@ export class StruggleInterventionService implements AlertSink {
 
         if (shouldFreeSlot) {
             // Full DELIVERED resolution: free + runtime teardown + outcome + fold (no praise)
-            this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'delivered' }>).episode, 'DISMISSED');
+            this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'delivered' }>).episode, outcome);
             this._slot.free();
             this._clearEpisodeRuntime();
             if (targetEpisodeId && exerciseId !== undefined) {
-                this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, 'DISMISSED');
-                this._deps.foldEpisode(targetEpisodeId, 'DISMISSED');
+                this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, outcome);
+                this._deps.foldEpisode(targetEpisodeId, outcome);
             }
         } else if (targetEpisodeId && exerciseId !== undefined) {
             // Slot already FREE, PARKED, or episodeId mismatch: idempotent outcome write only.
-            this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, 'DISMISSED');
+            this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, outcome);
         }
     }
 

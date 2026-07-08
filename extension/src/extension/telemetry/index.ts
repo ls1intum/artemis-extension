@@ -331,6 +331,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         setInSession: (open: boolean) => orchestrator.setInSession(open),
         // C8: episode-scoped dismiss (seam callback threaded to setStruggleCallbacks.onEpisodeDismiss)
         dismissEpisode: (episodeId?: string) => orchestrator.dismissEpisode(episodeId),
+        // "Solved it" positive close (RECOVERED); seam callback to setStruggleCallbacks.onEpisodeResolve.
+        resolveEpisode: (episodeId?: string) => orchestrator.resolveEpisode(episodeId),
         // Slot debug (Task 4): expose orchestrator snapshot/history + register the change sink.
         getSlotDebugSnapshot: () => orchestrator.getSlotDebugSnapshot(),
         getEpisodeHistory: () => orchestrator.getEpisodeHistory(),

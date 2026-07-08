@@ -315,6 +315,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         });
     };
 
+    const handleResolveProactive = (messageId: number, proactiveEpisodeId?: string) => {
+        const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
+        if (typeof activeSession?.artemisSessionId !== 'number') { return; }
+        store.setProactiveOutcome(messageId, 'RECOVERED');
+        postCommand(vscodeApi, 'messageProactiveOutcome', {
+            sessionId: activeSession.artemisSessionId,
+            messageId,
+            outcome: 'RECOVERED',
+            proactiveEpisodeId,
+        });
+    };
+
     const handleOfferAnswer = useCallback((offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => {
         postCommand(vscodeApi, WebviewCmd.NudgeBannerAction, { moment, action, episodeId, offerId });
     }, [vscodeApi]);
@@ -633,6 +645,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         activeStage={activeStage}
                         onFeedback={handleFeedback}
                         onDismiss={handleDismissProactive}
+                        onResolve={handleResolveProactive}
                         onOfferAnswer={handleOfferAnswer}
                         onSendPrompt={handleSendMessage}
                         hasContext={store.context !== null}
