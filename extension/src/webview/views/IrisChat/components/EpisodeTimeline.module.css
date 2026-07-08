@@ -124,3 +124,30 @@
 .dismiss:hover {
     color: var(--vscode-foreground);
 }
+
+/* An offer's invitation text, shown in place of a hint body until the student answers. */
+.offerPrompt {
+    color: var(--vscode-foreground);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* An offer (or a Dismiss row) keeps its actions visible at rest — an offer you must hover to find
+   is no offer. The persistent variant pins the foot open regardless of hover/focus. */
+.foot.footPersistent {
+    max-height: 28px;
+    opacity: 1;
+    margin-top: 6px;
+    transition: none;
+}
+
+/* In the persistent state the actions are the primary content, so they read as real buttons
+   (visible border + hover fill) rather than the subtle hover-chrome links. */
+.footPersistent .dismiss {
+    border-color: var(--vscode-button-border, var(--vscode-widget-border, var(--vscode-panel-border)));
+    color: var(--vscode-foreground);
+}
+
+.footPersistent .dismiss:hover {
+    background: var(--vscode-list-hoverBackground);
+}

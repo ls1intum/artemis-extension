@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useChatStore } from '@webview/stores/useChatStore';
 import { EpisodeTimeline } from '@webview/views/IrisChat/components/EpisodeTimeline';
+import styles from '@webview/views/IrisChat/components/EpisodeTimeline.module.css';
 import type { ChatMessage } from '@webview/views/IrisChat/types';
 
 function msg(id: number, extra: Partial<ChatMessage> = {}): ChatMessage {
@@ -100,5 +101,33 @@ describe('EpisodeTimeline', () => {
         );
         expect(screen.queryByRole('button', { name: 'Show me' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull();
+    });
+
+    it('renders the invitation prompt for an unanswered stuck offer (not an empty body)', () => {
+        const messages = [msg(1), msg(2, { content: '', offer: { offerId: 'off-4', moment: 'stuck' } })];
+        render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable onOfferAnswer={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />);
+        expect(screen.getByText('Still stuck on this? I can offer another hint.')).toBeInTheDocument();
+    });
+
+    it('renders the invitation prompt for an unanswered abandon offer', () => {
+        const messages = [msg(1), msg(2, { content: '', offer: { offerId: 'off-5', moment: 'abandon' } })];
+        render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable onOfferAnswer={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />);
+        expect(screen.getByText('Still working on this? Want a hand?')).toBeInTheDocument();
+    });
+
+    it('pins the offer actions open at rest (persistent foot on the offer row, not the earlier hint)', () => {
+        const messages = [msg(1), msg(2, { content: '', offer: { offerId: 'off-6', moment: 'stuck' } })];
+        render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable onOfferAnswer={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />);
+        const foots = screen.getAllByTestId('row-foot');
+        expect(foots[foots.length - 1]).toHaveClass(styles.footPersistent);   // offer row (latest)
+        expect(foots[0]).not.toHaveClass(styles.footPersistent);              // earlier hint stays hover-only
+    });
+
+    it('pins Dismiss open at rest on the latest hint row (persistent foot)', () => {
+        const messages = [msg(1), msg(2)];
+        render(<EpisodeTimeline messages={messages} episodeId="ep" dismissable onDismiss={vi.fn()} renderRowBody={(m) => <div>{m.content}</div>} />);
+        const foots = screen.getAllByTestId('row-foot');
+        expect(foots[1]).toHaveClass(styles.footPersistent);                  // latest row carries Dismiss
+        expect(foots[0]).not.toHaveClass(styles.footPersistent);
     });
 });

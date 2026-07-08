@@ -25,6 +25,16 @@ const OFFER_DECISION_LINE: Record<'stuck' | 'abandon', Record<'accept' | 'declin
     },
 };
 
+/**
+ * The offer's invitation copy, shown in place of a hint body until the student answers. Static
+ * lookup (mirrors {@link OFFER_DECISION_LINE}) so the wording stays reviewable and typo-proof.
+ * Without it the offer bubble is posted with empty content and reads as a blank row.
+ */
+const OFFER_PROMPT: Record<'stuck' | 'abandon', string> = {
+    stuck: 'Still stuck on this? I can offer another hint.',
+    abandon: 'Still working on this? Want a hand?',
+};
+
 interface EpisodeTimelineProps {
     messages: ChatMessage[];
     episodeId: string;
@@ -72,12 +82,17 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, o
                         <div className={styles.body}>
                             {offer?.answered ? (
                                 <div className={styles.decisionRow}>{OFFER_DECISION_LINE[offer.moment][offer.answered]}</div>
+                            ) : offer ? (
+                                <div className={styles.offerPrompt}>{OFFER_PROMPT[offer.moment]}</div>
                             ) : (
                                 renderRowBody(m, dismissable && isLatest)
                             )}
                             {/* Hover/focus chrome: per-message timestamp, plus Dismiss only on the latest live row.
                                 Collapsed at rest; the row expands it open with a short animation (see CSS). */}
-                            <div className={styles.foot}>
+                            <div
+                                className={clsx(styles.foot, (showOfferButtons || showDismiss) && styles.footPersistent)}
+                                data-testid="row-foot"
+                            >
                                 <span className={styles.time} data-testid="row-time">{formatRelativeTime(m.timestamp)}</span>
                                 {showOfferButtons && offer && (
                                     <>
