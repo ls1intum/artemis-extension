@@ -62,6 +62,19 @@ describe('AlertStateMachine (Python run_state_machine port)', () => {
         m.tick({ t: 70, urgency: 0.9, boundaries: [], typingRate: 0, graceActive: false });
         expect(m.lastTrace.gates).toMatchObject({ warmup: false, belowThreshold: false });
     });
+    it('setWarmupS(0) lifts the D1 warm-up gate live (dev skip-warmup)', () => {
+        // Default warm-up (SPEC.WARMUP_S = 480 s): a STATE boundary at t=10 is inside it.
+        const m = new AlertStateMachine({ thetaFull: 0.6, cooldownS: 0 });
+        const input = { urgency: 0.7, boundaries: ['STATE'] as BoundaryType[], typingRate: null, graceActive: false };
+        expect(m.tick({ t: 10, ...input })).toBeNull();
+        expect(m.lastTrace.reason).toBe('d1-warmup');
+        // Skipping warm-up makes the next in-window tick fire.
+        m.setWarmupS(0);
+        const alert = m.tick({ t: 20, ...input });
+        expect(alert).not.toBeNull();
+        expect(alert?.primary).toBe('STATE');
+        expect(alert?.inWarmup).toBe(false);
+    });
     it('T3b: 0.45 < theta-0.1 -> re-arm + alert', () => {
         const vs = [0.7, 0.45, 0.7];
         const alerts = drive(30, { urgency: (_t, i) => vs[i], params: { warmupS: 0, cooldownS: 0 } });

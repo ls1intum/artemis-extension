@@ -94,6 +94,9 @@ export class StruggleEngine implements vscode.Disposable {
     private _testStagnation = new TestStagnationTracker(TUNING.testStagnationN);
     private _boundaries = new BoundaryTracker();
     private _decision = new DecisionEngine();
+    /** Dev skip-warmup (D1). When true the engine uses warmupS=0 for BOTH the
+     *  STATE-boundary emission and the decision D1 gate. */
+    private _skipWarmup = false;
     private _selectionDebounce: TrailingDebouncer<{ tsS: number; uriKey: string; endLine: number }> | undefined;
     /** Replay feeds already-debounced recorded streams (Decision 5). */
     private readonly _preDebounced: boolean;
@@ -108,6 +111,17 @@ export class StruggleEngine implements vscode.Disposable {
         this._clock = clock;
         this._opts = options;
         this._preDebounced = options?.preDebouncedIntake ?? false;
+    }
+
+    /** Effective D1 warm-up window (s): 0 when dev skip-warmup is on. Read live
+     *  each tick by the STATE-boundary path and by the decision D1 gate. */
+    private get _warmupS(): number { return this._skipWarmup ? 0 : SPEC.WARMUP_S; }
+
+    /** Dev command: skip (or restore) the D1 warm-up window. Applies live to the
+     *  running session (STATE boundaries + decision gate) and to every future one. */
+    setSkipWarmup(skip: boolean): void {
+        this._skipWarmup = skip;
+        this._decision.setWarmupS(this._warmupS);
     }
 
     start(session: EngineSessionContext): void {
@@ -339,7 +353,7 @@ export class StruggleEngine implements vscode.Disposable {
         const fA8: 0 | 1 = this._a8.activeAt(tS) ? 1 : 0;
         const fN2: 0 | 1 = this._n2.activeAt(tS) ? 1 : 0;
         const { sBase, s } = severityFrom(wf, { fFb, fA8, fN2 });
-        const boundaries = this._boundaries.flagsAt(tS, wf.tsState);
+        const boundaries = this._boundaries.flagsAt(tS, wf.tsState, this._warmupS);
         const graceActive = this._lastFmBadS !== null
             && this._lastFmBadS <= tS
             && tS - this._lastFmBadS <= SPEC.GRACE_S;
@@ -391,7 +405,7 @@ export class StruggleEngine implements vscode.Disposable {
         // Golden-replay overrides with validated-base mode; production defaults
         // the ablation from TUNING (add-ons on).
         this._decision = new DecisionEngine(
-            undefined,
+            this._skipWarmup ? { warmupS: 0 } : undefined,
             this._opts?.decision ?? { enableTestStagnation: TUNING.enableTestStagnation },
         );
     }

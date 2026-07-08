@@ -103,6 +103,11 @@
         "command": "artemis.forceStruggleIntervention",
         "title": "Artemis: Struggle Intervention Menu (Developer)",
         "icon": "$(zap)"
+      },
+      {
+        "command": "artemis.toggleStruggleWarmupSkip",
+        "title": "Artemis: Toggle Skip Struggle Warm-up (Developer)",
+        "icon": "$(watch)"
       }
     ],
     "menus": {
@@ -125,6 +130,10 @@
         },
         {
           "command": "artemis.forceStruggleIntervention",
+          "when": "config.artemis.developerMode"
+        },
+        {
+          "command": "artemis.toggleStruggleWarmupSkip",
           "when": "config.artemis.developerMode"
         }
       ]

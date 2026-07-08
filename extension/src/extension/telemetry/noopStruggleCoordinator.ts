@@ -39,6 +39,8 @@ export class NoopStruggleCoordinator implements IStruggleCoordinator {
     public startExerciseSession(_exerciseId: number, _exerciseRoot?: vscode.Uri): void { /* no-op */ }
     public endExerciseSession(): void { /* no-op */ }
     public isEnabled(): boolean { return false; }
+    public toggleSkipWarmup(): boolean { return false; }
+    public isSkipWarmup(): boolean { return false; }
     public getSnapshot(): StruggleSnapshot {
         return {
             isStruggling: false,

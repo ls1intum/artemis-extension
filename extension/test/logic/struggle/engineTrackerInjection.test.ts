@@ -103,3 +103,36 @@ describe('StruggleEngine — injectable A8/N2 trackers', () => {
         engine.dispose();
     });
 });
+
+describe('StruggleEngine — dev skip-warmup', () => {
+    it('setSkipWarmup(true) before start: idle session alerts STATE inside the 480 s warm-up', () => {
+        const hub = new TestSensorHub();
+        const engine = new StruggleEngine(hub);
+        const alerts: AlertRecord[] = [];
+        engine.onDidAlert(a => alerts.push(a));
+        engine.setSkipWarmup(true);                    // dev command, applied before the session starts
+        engine.start({ sessionStartMs: START });
+        engine.advanceTo(START + 60_000);              // 6 ticks, all well inside the default 480 s warm-up
+        expect(alerts.length).toBeGreaterThan(0);
+        const first = asEditAlert(alerts[0]);
+        expect(first.primary).toBe('STATE');           // STATE boundary emitted despite being pre-warm-up
+        expect(first.inWarmup).toBe(false);            // D1 gate lifted
+        expect(alerts[0].t).toBeLessThanOrEqual(60);
+        engine.dispose();
+    });
+
+    it('setSkipWarmup(true) mid-session takes effect live without a restart', () => {
+        const hub = new TestSensorHub();
+        const engine = new StruggleEngine(hub);
+        const alerts: AlertRecord[] = [];
+        engine.onDidAlert(a => alerts.push(a));
+        engine.start({ sessionStartMs: START });
+        engine.advanceTo(START + 100_000);             // 10 ticks, default warm-up -> silent
+        expect(alerts).toHaveLength(0);
+        engine.setSkipWarmup(true);                    // toggle mid-session
+        engine.advanceTo(START + 110_000);             // the next tick fires
+        expect(alerts.length).toBeGreaterThan(0);
+        expect(alerts[0].t).toBe(110);
+        engine.dispose();
+    });
+});

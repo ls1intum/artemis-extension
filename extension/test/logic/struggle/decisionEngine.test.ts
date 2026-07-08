@@ -35,6 +35,16 @@ describe('DecisionEngine (Schicht 3 — urgency-threshold owner)', () => {
         expect(a.urgency).toBe(0.8);
     });
 
+    it('setWarmupS(0) lifts the D1 warm-up gate live (dev skip-warmup)', () => {
+        const d = new DecisionEngine({ cooldownS: 0 });        // warmupS defaults to SPEC.WARMUP_S
+        // Inside the default warm-up a STATE boundary is D1-suppressed.
+        expect(d.decide(mkTick(10, 0.8))).toBeNull();
+        d.setWarmupS(0);
+        const a = asEditAlert(d.decide(mkTick(20, 0.8)));
+        expect(a.primary).toBe('STATE');
+        expect(a.inWarmup).toBe(false);
+    });
+
     it('stays silent when urgency < θ (boundary present)', () => {
         const d = new DecisionEngine({ warmupS: 0, cooldownS: 0 });
         expect(d.decide(mkTick(10, 0.69))).toBeNull();

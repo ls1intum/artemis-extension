@@ -378,7 +378,16 @@ export function createLiveEngineFeed(
 
 /** Registers the struggle-score debug command (full build only). */
 export function registerDebugCommands(coordinator: IStruggleCoordinator): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
+    const showScore = vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
         await showStruggleScoreDialog(coordinator.getSnapshot());
     });
+    const toggleWarmup = vscode.commands.registerCommand('artemis.toggleStruggleWarmupSkip', () => {
+        const skipped = coordinator.toggleSkipWarmup();
+        void vscode.window.showInformationMessage(
+            skipped
+                ? 'Artemis: struggle warm-up SKIPPED — D1 off, alerts can fire immediately (dev).'
+                : 'Artemis: struggle warm-up restored to the default (8 min).',
+        );
+    });
+    return vscode.Disposable.from(showScore, toggleWarmup);
 }

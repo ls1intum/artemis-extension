@@ -63,6 +63,8 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private _lastAlert: AlertRecord | undefined;
     private _isEnabled = true;
     private _showInterventions = true;
+    /** Dev-only: D1 warm-up skip (toggled by the developer command). */
+    private _skipWarmup = false;
     /** Maximum passed-test count seen in the active session (-1 = no build yet). Reset on each new session. */
     private _maxPassedTestCount = -1;
     /** Test-set size (denominator) the current max was measured against (-1 = none yet). A changed
@@ -274,6 +276,16 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     }
 
     isEnabled(): boolean { return this._isEnabled; }
+
+    /** Dev command: toggle the D1 warm-up skip on the engine. Returns the new state. */
+    toggleSkipWarmup(): boolean {
+        this._skipWarmup = !this._skipWarmup;
+        this._engine.setSkipWarmup(this._skipWarmup);
+        return this._skipWarmup;
+    }
+
+    /** Whether dev skip-warmup is currently active. */
+    isSkipWarmup(): boolean { return this._skipWarmup; }
 
     private _loadConfiguration(): void {
         const cfg = vscode.workspace.getConfiguration('artemis.struggleDetection');

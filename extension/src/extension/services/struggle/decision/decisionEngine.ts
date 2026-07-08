@@ -104,4 +104,11 @@ export class DecisionEngine {
         this._editMachine.reset();
         this._lastTrace = { ...this._editMachine.lastTrace, outcome: 'suppressed', discreteTrigger: null };
     }
+
+    /** Dev override: live-set the D1 warm-up window (0 = skip). Keeps `_params` in
+     *  sync so the discrete path's `inWarmup` telemetry stays honest. */
+    setWarmupS(s: number): void {
+        this._params.warmupS = s;
+        this._editMachine.setWarmupS(s);
+    }
 }

@@ -26,6 +26,8 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
     | 'getSnapshot'
     | 'getDebugSnapshot'
     | 'isEnabled'
+    | 'toggleSkipWarmup'
+    | 'isSkipWarmup'
     | 'dispose'
     | 'onDidTick'
     | 'onDidAlert'

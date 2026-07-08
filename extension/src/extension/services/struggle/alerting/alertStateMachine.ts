@@ -167,4 +167,8 @@ export class AlertStateMachine {
         this._lastAlert = Number.NEGATIVE_INFINITY;
         this._lastTrace = this._emptyTrace();
     }
+
+    /** Dev override: live-set the D1 warm-up window (0 = skip). Mutates only
+     *  warmupS on the params; all machine bookkeeping is left untouched. */
+    setWarmupS(s: number): void { this._p.warmupS = s; }
 }
