@@ -61,7 +61,7 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, o
                     && !isClosingRow && m.proactiveOutcome !== 'DISMISSED';
                 // Consented offer buttons on the latest row only (mirrors the Dismiss ownership above).
                 const offer = m.offer;
-                const showOfferButtons = isLatest && !!offer && !offer.answered && !!onOfferAnswer;
+                const showOfferButtons = dismissable && isLatest && !!offer && !offer.answered && !!onOfferAnswer;
                 return (
                     <div key={m.localId} data-episode-row className={clsx(styles.row, isLatest && styles.rowLast, single && styles.rowSingle)}>
                         {!single && (

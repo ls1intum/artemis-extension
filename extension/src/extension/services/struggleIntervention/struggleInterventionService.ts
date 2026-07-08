@@ -1504,21 +1504,26 @@ export class StruggleInterventionService implements AlertSink {
         const episodeId = snap.state.episode.episodeId;
         const exId = this._deps.getExerciseId();
         const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        // Less + chat closed: stay fully quiet. A badge-only offer can never be answered (opening the
+        // chat later does not surface it) and would strand the single-offer slot -- so skip it entirely.
+        if (!snap.inSession && level === 'less') { return; }
         const offerId = crypto.randomUUID();
         this._outstandingOffer = { offerId, episodeId, moment: 'stuck' };
         if (snap.inSession) {
             this._deps.postOfferBubble({ offerId, episodeId, moment: 'stuck' });
-        } else if (level === 'more') {
-            this._deps.showOfferBanner({ offerId, episodeId, moment: 'stuck' });
-            this._deps.setBadge(true);
         } else {
-            this._deps.setBadge(true);   // Less, chat closed: badge only; the offer waits in the chat
+            this._deps.showOfferBanner({ offerId, episodeId, moment: 'stuck' });   // level === 'more' here
+            this._deps.setBadge(true);
         }
     }
 
     /** Moment-1 "Show me": generate + deliver the next hint. Guarded to the outstanding offer + live episode. */
     acceptOffer(offerId: string, episodeId: string): void {
         if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
+        // A request is already in flight (e.g. a concurrent escalation decide): single-flight
+        // _sendHelpRequest would drop this. Leave the offer outstanding for a retry rather than
+        // resolving to a false "accepted" with no follow-up hint.
+        if (this._inFlightMarker !== undefined) { return; }
         this._outstandingOffer = undefined;
         this._deps.resolveOfferBubble(offerId, 'accept');
         void this._sendHelpRequest();
@@ -1550,14 +1555,15 @@ export class StruggleInterventionService implements AlertSink {
     private _raiseAbandonOffer(episodeId: string): void {
         const exId = this._deps.getExerciseId();
         const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        const inSession = this._slot.snapshot().inSession;
+        // Less + chat closed: stay fully quiet (see _raiseStuckOffer).
+        if (!inSession && level === 'less') { return; }
         const offerId = crypto.randomUUID();
         this._outstandingOffer = { offerId, episodeId, moment: 'abandon' };
-        if (this._slot.snapshot().inSession) {
+        if (inSession) {
             this._deps.postOfferBubble({ offerId, episodeId, moment: 'abandon' });
-        } else if (level === 'more') {
-            this._deps.showOfferBanner({ offerId, episodeId, moment: 'abandon' });
-            this._deps.setBadge(true);
         } else {
+            this._deps.showOfferBanner({ offerId, episodeId, moment: 'abandon' });   // level === 'more' here
             this._deps.setBadge(true);
         }
     }
@@ -1573,9 +1579,10 @@ export class StruggleInterventionService implements AlertSink {
     /** Moment-3 "I need more help": deliver on demand, overriding an exhausted cap; reset idle. */
     needMoreHelp(offerId: string, episodeId: string): void {
         if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
+        this._watchdog?.resetProgress(Date.now());   // student is present -> keep the episode alive even if the send defers
+        if (this._inFlightMarker !== undefined) { return; }   // in flight: leave the offer outstanding for a retry
         this._outstandingOffer = undefined;
         this._deps.resolveOfferBubble(offerId, 'accept');
-        this._watchdog?.resetProgress(Date.now());
         void this._sendHelpRequest();
     }
 

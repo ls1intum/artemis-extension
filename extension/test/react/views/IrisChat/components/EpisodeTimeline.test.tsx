@@ -85,4 +85,20 @@ describe('EpisodeTimeline', () => {
         expect(screen.queryByRole('button', { name: "I'm still on it" })).toBeNull();
         expect(screen.queryByRole('button', { name: 'I need more help' })).toBeNull();
     });
+
+    it('renders offer buttons only when dismissable (live episode); never in a folded/closed episode', () => {
+        const onOfferAnswer = vi.fn();
+        const messages = [msg(1, { offer: { offerId: 'off-3', moment: 'stuck' } })];
+        const { rerender } = render(
+            <EpisodeTimeline messages={messages} episodeId="ep" dismissable onOfferAnswer={onOfferAnswer} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.getByRole('button', { name: 'Show me' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Not now' })).toBeInTheDocument();
+
+        rerender(
+            <EpisodeTimeline messages={messages} episodeId="ep" dismissable={false} onOfferAnswer={onOfferAnswer} renderRowBody={(m) => <div>{m.content}</div>} />,
+        );
+        expect(screen.queryByRole('button', { name: 'Show me' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull();
+    });
 });
