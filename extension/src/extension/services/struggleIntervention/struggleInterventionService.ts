@@ -295,6 +295,12 @@ export class StruggleInterventionService implements AlertSink {
     // Per-episode accepted-offer count (the cap: Less 1 / More 3). The opening hint is NOT counted.
     _offeredHintCounts = new Map<string, number>();
 
+    // Episodes for which a Moment-1 stuck offer was declined (no re-offer for that episode).
+    _offersDeclined = new Set<string>();
+
+    // The single in-flight Moment-1 offer awaiting an answer (accept/decline/timeout), if any.
+    _outstandingOffer: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' } | undefined;
+
     /**
      * The proactive session id from the last inbound ambient event (spec §5, A9).
      * Stored here because the SlotManager does not hold session ids. Cleared on resetSession.
@@ -558,6 +564,9 @@ export class StruggleInterventionService implements AlertSink {
         // When no result could surface, don't pay for the server pipeline run at all.
         const slot = this._slot.snapshot().state;
         if (slot.kind === 'delivered' && !(slot.level === 'ambient' && isHardAlert(alert))) {
+            if (this._canRaiseStuckOfferNow(slot.episode.episodeId)) {
+                return null;
+            }
             return '  -> SKIP (delivered slot: reconcile would suppress any result, POST saved)';
         }
         return null;
@@ -576,6 +585,14 @@ export class StruggleInterventionService implements AlertSink {
         const suppressed = this._suppressReason(alert);
         if (suppressed !== null) {
             this._dbg(suppressed);
+            return;
+        }
+
+        const preSlot = this._slot.snapshot().state;
+        if (preSlot.kind === 'delivered'
+            && !(preSlot.level === 'ambient' && isHardAlert(alert))
+            && this._canRaiseStuckOfferNow(preSlot.episode.episodeId)) {
+            this._raiseStuckOffer();
             return;
         }
 
@@ -1434,6 +1451,70 @@ export class StruggleInterventionService implements AlertSink {
         this.notifySlotDebugChanged();
     }
 
+    // ---------------------------------------------------------------------------
+    // Moment-1 "still stuck" offer (delivered-slot cap, one outstanding offer at a time)
+    // ---------------------------------------------------------------------------
+
+    private _offerCapForLevel(level: ProactiveLevel): number {
+        return level === 'more' ? 3 : level === 'less' ? 1 : 0;
+    }
+
+    _canOfferStuck(episodeId: string): boolean {
+        if (this._offersDeclined.has(episodeId)) { return false; }
+        const exId = this._deps.getExerciseId();
+        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        return (this._offeredHintCounts.get(episodeId) ?? 0) < this._offerCapForLevel(level);
+    }
+
+    private _canRaiseStuckOfferNow(episodeId: string): boolean {
+        return this._outstandingOffer === undefined && this._inFlightMarker === undefined && this._canOfferStuck(episodeId);
+    }
+
+    private _raiseStuckOffer(): void {
+        const snap = this._slot.snapshot();
+        if (snap.state.kind !== 'delivered') { return; }
+        const episodeId = snap.state.episode.episodeId;
+        const exId = this._deps.getExerciseId();
+        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        const offerId = crypto.randomUUID();
+        this._outstandingOffer = { offerId, episodeId, moment: 'stuck' };
+        if (snap.inSession) {
+            this._deps.postOfferBubble({ offerId, episodeId, moment: 'stuck' });
+        } else if (level === 'more') {
+            this._deps.showOfferBanner({ offerId, episodeId, moment: 'stuck' });
+            this._deps.setBadge(true);
+        } else {
+            this._deps.setBadge(true);   // Less, chat closed: badge only; the offer waits in the chat
+        }
+    }
+
+    /** Moment-1 "Show me": generate + deliver the next hint. Guarded to the outstanding offer + live episode. */
+    acceptOffer(offerId: string, episodeId: string): void {
+        if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
+        this._outstandingOffer = undefined;
+        this._deps.resolveOfferBubble(offerId, 'accept');
+        void this._sendHelpRequest();
+    }
+
+    /** Moment-1 "Not now": quiet for this episode. */
+    declineOffer(offerId: string, episodeId: string): void {
+        if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
+        this._outstandingOffer = undefined;
+        this._offersDeclined.add(episodeId);
+        this._deps.resolveOfferBubble(offerId, 'decline');
+    }
+
+    /**
+     * A stuck offer's out-of-session banner auto-closed (ignored). Clear the outstanding offer so a later
+     * alert may offer again (spec: "Ignored -> short cooldown, may offer again"); NOT added to declined.
+     * (An in-session stuck bubble has no countdown, so this only fires for the banner path.)
+     */
+    offerTimedOut(offerId: string, episodeId: string): void {
+        if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
+        this._outstandingOffer = undefined;
+        this._deps.resolveOfferBubble(offerId, 'timeout');
+    }
+
     /**
      * C8: Episode-scoped dismiss. Called by the card Dismiss button (via the provider callback
      * seam) and by the active banner's "Not now" action (via the telemetry closure).
@@ -1535,6 +1616,9 @@ export class StruggleInterventionService implements AlertSink {
         this._continuedEpisodeIds.clear();
         this._frozenSessionId = undefined;
         this._clearPendingOutcomes();
+        this._offeredHintCounts.clear();
+        this._offersDeclined.clear();
+        this._outstandingOffer = undefined;
         this._setAwaitingEvidence(false, 'new exercise');
         this.reset();
         this.notifySlotDebugChanged();

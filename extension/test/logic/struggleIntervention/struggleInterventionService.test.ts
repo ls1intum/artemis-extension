@@ -635,44 +635,50 @@ describe('StruggleInterventionService', () => {
 // ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService delivered-slot POST gating', () => {
-    // While the slot is DELIVERED, reconcile suppresses every inbound result except the
-    // escalation case (revealed-ambient level + hard boundary). A decide POST whose result
-    // is provably discarded must not be sent at all: it costs a full server pipeline run
-    // (LLM call) only to be thrown away on arrival.
+    // While the slot is DELIVERED, reconcile suppresses every inbound decide result except the
+    // escalation case (revealed-ambient level + hard boundary), so a decide POST whose result is
+    // provably discarded must not be sent (it costs a full server pipeline run only to be thrown
+    // away on arrival). Since C6 the same delivered-slot hook, when an offer is still available for
+    // the episode (under cap, not declined), raises a client-local Moment-1 offer INSTEAD of
+    // suppressing: shouldSuppress() therefore returns false (the alert flows through), but the
+    // POST-saving invariant is preserved either way -- raising an offer sends no decide POST.
 
     function stateAlert(t = 610): AlertRecord {
         return { kind: 'edit', t, ts: t * 1000, urgency: 0.9, typesPreGate: ['STATE'], types: ['STATE'], primary: 'STATE', path: 'e6', inWarmup: false, inGrace: false };
     }
 
-    it('soft (STATE) alert while DELIVERED-active: suppressed above the throttle, no POST', async () => {
+    it('soft (STATE) alert while DELIVERED-active: raises a Moment-1 offer, no POST', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive(7);                                       // slot -> DELIVERED, level active
         vi.mocked(deps.postIntervention).mockClear();
 
-        expect(svc.shouldSuppress(stateAlert())).toBe(true);         // BackoffSource: no delivery budget burned
+        expect(svc.shouldSuppress(stateAlert())).toBe(false);        // C6: an offer is available, so it flows through
         svc.onTick(tick(610));
         svc.deliver(stateAlert());
         await new Promise(r => setTimeout(r, 0));
-        expect(deps.postIntervention).not.toHaveBeenCalled();
+        expect(svc._outstandingOffer).toBeDefined();                 // a Moment-1 offer was raised, not a POST
+        expect(deps.postIntervention).not.toHaveBeenCalled();        // raising an offer sends no decide POST
     });
 
-    it('hard (FM) alert while DELIVERED-active: still no POST (no escalation from active level)', async () => {
+    it('hard (FM) alert while DELIVERED-active: raises a Moment-1 offer, no POST (no escalation from active level)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive(7);
         vi.mocked(deps.postIntervention).mockClear();
 
-        expect(svc.shouldSuppress(alert())).toBe(true);              // FM is hard, but level is 'active'
+        // FM is hard, but level is 'active' (no escalation), so C6 raises an offer instead of suppressing.
+        expect(svc.shouldSuppress(alert())).toBe(false);
         svc.onTick(tick(620));
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
-        expect(deps.postIntervention).not.toHaveBeenCalled();
+        expect(svc._outstandingOffer).toBeDefined();                 // a Moment-1 offer was raised, not a POST
+        expect(deps.postIntervention).not.toHaveBeenCalled();        // raising an offer sends no decide POST
     });
 
-    it('soft (STATE) alert while DELIVERED-ambient (revealed): no POST (escalation needs a hard boundary)', async () => {
+    it('soft (STATE) alert while DELIVERED-ambient (revealed): raises a Moment-1 offer, no POST (escalation needs a hard boundary)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb'), { level: 'ambient', text: 'hint', atSessionS: 100 });
@@ -680,11 +686,13 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
         await svc.revealParkedHint();                                // slot -> DELIVERED, level ambient
         vi.mocked(deps.postIntervention).mockClear();
 
-        expect(svc.shouldSuppress(stateAlert())).toBe(true);
+        // A soft alert cannot escalate the revealed-ambient slot, so C6 raises an offer instead of suppressing.
+        expect(svc.shouldSuppress(stateAlert())).toBe(false);
         svc.onTick(tick(620));
         svc.deliver(stateAlert());
         await new Promise(r => setTimeout(r, 0));
-        expect(deps.postIntervention).not.toHaveBeenCalled();
+        expect(svc._outstandingOffer).toBeDefined();                 // a Moment-1 offer was raised, not a POST
+        expect(deps.postIntervention).not.toHaveBeenCalled();        // raising an offer sends no decide POST
     });
 
     it('hard (FM) alert while DELIVERED-ambient (revealed): POST proceeds (escalation candidate) with the live episode', async () => {
