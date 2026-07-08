@@ -811,6 +811,18 @@ export class StruggleInterventionService implements AlertSink {
             return;
         }
 
+        // Consented follow-up that resolved silent: clear the help_request marker so the wire is not wedged,
+        // and give an honest note. No cap slot is consumed.
+        if (this._inFlightMarker?.intent === 'help_request') {
+            const accepted = this._acceptHelpRequest();
+            if (accepted === null) {
+                if (messageId !== undefined) { this._dropStaleRow(messageId); }
+                return;
+            }
+            this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
+            return;
+        }
+
         const accepted = this._acceptDecide();
         if (accepted === null) {
             // Generation/token mismatch: stale. The marker was already cleared by _acceptDecide.
