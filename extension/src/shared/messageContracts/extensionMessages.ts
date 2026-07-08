@@ -273,6 +273,7 @@ export const ExtensionMsg = {
     SetLiveEpisode: 'setLiveEpisode',
     RemoveMessage: 'removeMessage',
     ResolveOffer: 'resolveOffer',
+    CollapseProactiveEpisodes: 'collapseProactiveEpisodes',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -547,6 +548,12 @@ interface ExtensionMsgPayloads {
      * itself is client-local/ephemeral (see `ChatMessage.offer`), so this is the only wire round-trip.
      */
     resolveOffer: { offerId: string; answered: 'accept' | 'decline' | 'timeout' };
+    /**
+     * Posted when the student switches proactive help to Off: the webview collapses every proactive
+     * episode in the transcript to a fold line (Off = get out of the way). No payload — the store folds
+     * every episode it holds.
+     */
+    collapseProactiveEpisodes: undefined;
 
     // Proactive nudge banner
     showNudgeBanner: { title: string; sub: string; episodeId?: string; moment?: 'stuck' | 'abandon'; offerId?: string; timerMs: number };

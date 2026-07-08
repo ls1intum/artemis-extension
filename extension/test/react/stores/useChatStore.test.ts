@@ -841,5 +841,27 @@ describe('useChatStore', () => {
 
 			act(() => { result.current.setLiveEpisode(null); });
 		});
+
+		it('foldAllEpisodes folds every proactive episode in the transcript', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				useChatStore.setState({
+					messages: [
+						makeMessage({ localId: 'a', role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep1', content: 'h1' }),
+						makeMessage({ localId: 'b', role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep2', content: 'h2' }),
+						makeMessage({ localId: 'c', role: 'user', content: 'not proactive' }),
+					],
+					foldStates: new Map(),
+					liveEpisodeIds: new Set(['ep1', 'ep2']),
+				});
+			});
+
+			act(() => { result.current.foldAllEpisodes(); });
+
+			// Off collapses every proactive episode to a fold line (folded=true is authoritative).
+			expect(result.current.foldStates.get('ep1')?.folded).toBe(true);
+			expect(result.current.foldStates.get('ep2')?.folded).toBe(true);
+		});
 	});
 });

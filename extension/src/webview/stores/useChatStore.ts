@@ -145,6 +145,8 @@ interface ChatState {
      * `ChatMessageList` when the close row is present and the delay has elapsed.
      */
     setEpisodeFolded: (episodeId: string) => void;
+    /** Collapse every proactive episode in the transcript to a fold line (student switched proactive help to Off). */
+    foldAllEpisodes: () => void;
     /**
      * Host-authoritative live-episode snapshot: replaces `liveEpisodeIds`
      * wholesale (single slot => at most one live episode). Sent by the host on
@@ -339,6 +341,24 @@ export const useChatStore = create<ChatState>()(
                     nextFoldStates.set(episodeId, { ...existing, folded: true });
                     return { foldStates: nextFoldStates };
                 }, false, 'setEpisodeFolded');
+            },
+
+            foldAllEpisodes: () => {
+                set((state) => {
+                    // Collapse every proactive episode to a fold line. folded=true is authoritative in the
+                    // closed-ness check (independent of liveEpisodeIds), so this is durable; the outcome is
+                    // left undefined and the fold line falls back to the neutral "Earlier hint" summary.
+                    const nextFoldStates = new Map(state.foldStates);
+                    let changed = false;
+                    for (const m of state.messages) {
+                        if (m.origin !== 'proactive' || !m.proactiveEpisodeId) { continue; }
+                        const existing = nextFoldStates.get(m.proactiveEpisodeId);
+                        if (existing?.folded) { continue; }
+                        nextFoldStates.set(m.proactiveEpisodeId, existing ? { ...existing, folded: true } : { folded: true });
+                        changed = true;
+                    }
+                    return changed ? { foldStates: nextFoldStates } : state;
+                }, false, 'foldAllEpisodes');
             },
 
             setLiveEpisode: (episodeId) => {

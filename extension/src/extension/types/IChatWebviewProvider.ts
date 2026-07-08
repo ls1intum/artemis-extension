@@ -28,4 +28,6 @@ export interface IChatWebviewProvider {
     isNoAiEnabled(): boolean;
     /** Resolves once the initial `.noai` workspace scan has completed, so `isNoAiEnabled()` is authoritative. */
     whenNoAiReady(): Promise<void>;
+    /** Collapse every proactive episode in the transcript to a fold line (student switched proactive help to Off). */
+    collapseProactiveEpisodes(): void;
 }

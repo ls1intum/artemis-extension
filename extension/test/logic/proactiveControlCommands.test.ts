@@ -22,12 +22,13 @@ function harness(over: {
         getIrisCourseChatSettings: vi.fn(async () =>
             over.settings ?? { settings: { enabled: true, proactiveStruggleEnabled: true } }),
     };
+    const collapse = vi.fn();
     const providerRegistry = {
-        getChatWebviewProvider: vi.fn(() => ({ isNoAiEnabled: () => over.noAi ?? false, whenNoAiReady: async () => {} })),
+        getChatWebviewProvider: vi.fn(() => ({ isNoAiEnabled: () => over.noAi ?? false, whenNoAiReady: async () => {}, collapseProactiveEpisodes: collapse })),
     };
     const sent: any[] = [];
     const ctx = { proactivePreference: pref, proactiveControl: control, artemisApi, providerRegistry, sendMessage: (m: any) => sent.push(m) } as any;
-    return { mod: new ProactiveControlCommandModule(ctx), pref, control, artemisApi, sent };
+    return { mod: new ProactiveControlCommandModule(ctx), pref, control, artemisApi, sent, collapse };
 }
 const cmd = (command: string, payload: any) => ({ command, payload } as any);
 
@@ -51,6 +52,18 @@ describe('ProactiveControlCommandModule', () => {
         await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level: 'less' }));
         expect(h.pref.setLevel).toHaveBeenCalledWith(42, 'less');
         expect(h.control.setStudentProactive).toHaveBeenCalledWith(42, true);
+    });
+
+    it('setLevel(off) collapses the proactive episodes in the chat', async () => {
+        const h = harness({ level: 'off' });
+        await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level: 'off' }));
+        expect(h.collapse).toHaveBeenCalledTimes(1);
+    });
+
+    it('setLevel(less/more) does NOT collapse the chat episodes', async () => {
+        const h = harness({ level: 'more' });
+        await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level: 'more' }));
+        expect(h.collapse).not.toHaveBeenCalled();
     });
 
     it('pushes nothing when there is no proactive engine (clean build → switch stays hidden)', async () => {

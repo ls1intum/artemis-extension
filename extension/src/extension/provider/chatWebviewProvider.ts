@@ -523,6 +523,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * Collapse every proactive episode in the transcript to a fold line. Sent when the student
+     * switches proactive help to Off (spec §12.2): the hints stay in history but get out of the way.
+     */
+    collapseProactiveEpisodes(): void {
+        this._postMessageSafe({ type: ExtensionMsg.CollapseProactiveEpisodes });
+    }
+
+    /**
      * Post the host-authoritative live-episode snapshot (SetLiveEpisode state frame) and cache
      * it, so `resendLiveEpisode` can replay it to a freshly created webview. Sent by the
      * struggle engine on every slot transition: the DELIVERED episode's id, or null when no

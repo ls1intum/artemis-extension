@@ -29,6 +29,10 @@ export class ProactiveControlCommandModule {
         const { exerciseId, level, courseId } = getPayload<WebCmd<'setProactiveLevel'>>(message);
         this.context.proactivePreference?.setLevel(exerciseId, level);
         this.context.proactiveControl?.setStudentProactive(exerciseId, level !== 'off');
+        // Off = get out of the way: collapse any proactive hints already in the chat to fold lines.
+        if (level === 'off') {
+            this.context.providerRegistry.getChatWebviewProvider()?.collapseProactiveEpisodes();
+        }
         await this._push(exerciseId, courseId);
     };
 
