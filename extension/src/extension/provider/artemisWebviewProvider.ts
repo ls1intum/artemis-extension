@@ -35,6 +35,7 @@ import {
     ViewInitDataService,
 } from '@extension/services/ui';
 import type { NudgeText } from '@extension/services/ui/nudgeBannerText';
+import { OFFER_TEXTS } from '@extension/services/ui/nudgeBannerText';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { ILiveEngineFeed, IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
@@ -111,7 +112,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
-    private readonly _onDidNudgeBannerAction = new vscode.EventEmitter<{ action: 'showMe' | 'dismiss' | 'timeout'; episodeId?: string }>();
+    private readonly _onDidNudgeBannerAction = new vscode.EventEmitter<WebCmd<typeof WebviewCmd.NudgeBannerAction>['payload']>();
     public readonly onDidNudgeBannerAction = this._onDidNudgeBannerAction.event;
 
     private readonly _onDidOpenTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewOpenedPayload>();
@@ -548,9 +549,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      */
     public showOfferBanner(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void {
         const timerMs = o.moment === 'abandon' ? 60_000 : 15_000;
-        const { title, sub } = o.moment === 'stuck'
-            ? { title: 'Still stuck here?', sub: 'Want another hint?' }
-            : { title: 'Still on this?', sub: "I'll step back soon otherwise." };
+        const { title, sub } = OFFER_TEXTS[o.moment];
         this._currentBanner = { title, sub, episodeId: o.episodeId, moment: o.moment, offerId: o.offerId, timerMs };
         if (!this._bannerNeedsReplay) {
             this._postMessageSafe({ type: ExtensionMsg.ShowNudgeBanner, ...this._currentBanner });

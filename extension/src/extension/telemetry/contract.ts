@@ -1,6 +1,7 @@
 import type * as vscode from 'vscode';
 
-import type { EpisodeHistoryEntry, ExtensionToWebviewMessage, ProactiveLevel, SlotDebugSnapshot } from '@shared/messageContracts';
+import type { EpisodeHistoryEntry, ExtensionToWebviewMessage, ProactiveLevel, SlotDebugSnapshot, WebCmd } from '@shared/messageContracts';
+import { WebviewCmd } from '@shared/messageContracts';
 
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { SensorHub } from '@extension/services/sensing';
@@ -257,5 +258,5 @@ export interface StruggleEngineHandle {
      */
     setSlotChangeSink?(fn: () => void): void;
     /** Route a nudge-banner button back to the engine outcome (full build only; omitted by the noop). */
-    handleBannerAction?(action: 'showMe' | 'dismiss' | 'timeout', episodeId?: string): void;
+    handleBannerAction?(payload: WebCmd<typeof WebviewCmd.NudgeBannerAction>['payload']): void;
 }

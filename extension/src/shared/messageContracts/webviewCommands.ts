@@ -270,7 +270,9 @@ interface WebviewCmdPayloads {
     };
 
     // Proactive nudge banner
-    nudgeBannerAction: { action: 'showMe' | 'dismiss' | 'timeout'; episodeId?: string };
+    nudgeBannerAction:
+        | { action: 'showMe' | 'dismiss' | 'timeout'; episodeId?: string }                                                   // legacy active banner (unchanged)
+        | { moment: 'stuck' | 'abandon'; action: 'accept' | 'decline' | 'timeout'; episodeId?: string; offerId?: string };    // offer banner
 }
 
 /** Commands that require a non-undefined payload object. */

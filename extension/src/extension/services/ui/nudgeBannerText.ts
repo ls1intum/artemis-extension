@@ -25,3 +25,9 @@ export function pickNudgeText(prevTitle?: string, rand: () => number = Math.rand
     const src = pool.length ? pool : NUDGE_TEXTS;
     return src[Math.floor(rand() * src.length) % src.length];
 }
+
+/** Fixed copy for the offer banner, keyed by moment (Moment-1 "stuck" / Moment-3 "abandon"). */
+export const OFFER_TEXTS: Record<'stuck' | 'abandon', NudgeText> = {
+    stuck: { title: 'Still stuck here?', sub: 'Want another hint?' },
+    abandon: { title: 'Still on this?', sub: "I'll step back soon otherwise." },
+};

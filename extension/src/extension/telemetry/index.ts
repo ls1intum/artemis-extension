@@ -335,7 +335,23 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         getSlotDebugSnapshot: () => orchestrator.getSlotDebugSnapshot(),
         getEpisodeHistory: () => orchestrator.getEpisodeHistory(),
         setSlotChangeSink: (fn: () => void) => { slotChangeSink = fn; },
-        handleBannerAction: (action, episodeId) => {
+        handleBannerAction: (payload) => {
+            if ('moment' in payload) {
+                const { moment, action, episodeId, offerId } = payload;
+                if (episodeId === MOCK_NUDGE_EPISODE_ID || !episodeId) { return; }
+                if (moment === 'stuck') {
+                    if (action === 'accept') { orchestrator.acceptOffer(offerId ?? '', episodeId); }
+                    else if (action === 'decline') { orchestrator.declineOffer(offerId ?? '', episodeId); }
+                    else if (action === 'timeout') { orchestrator.offerTimedOut(offerId ?? '', episodeId); }
+                } else {
+                    if (action === 'accept') { orchestrator.needMoreHelp(offerId ?? '', episodeId); }
+                    else if (action === 'decline') { orchestrator.stillOnIt(offerId ?? '', episodeId); }
+                    // abandon/timeout: no action here; the watchdog force-free owns it (C7).
+                }
+                return;
+            }
+            // LEGACY active banner (unchanged behaviour):
+            const { action, episodeId } = payload;
             // 'showMe' also navigates to the flagged line by reusing the already-armed jump lamp (a
             // no-op when no anchor is armed). Done before the mock guard so the dev mock jumps too and
             // stays testable; recording an outcome / opening the chat stays real-only.

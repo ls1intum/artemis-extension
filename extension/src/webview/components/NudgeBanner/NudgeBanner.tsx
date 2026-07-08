@@ -15,10 +15,12 @@ interface BannerState {
     title: string;
     sub: string;
     episodeId?: string;
+    moment?: 'stuck' | 'abandon';
+    offerId?: string;
     timerMs: number;
 }
 
-type BannerAction = 'showMe' | 'dismiss' | 'timeout';
+type BannerAction = 'showMe' | 'dismiss' | 'timeout' | 'accept' | 'decline';
 
 /**
  * Bottom-fixed "glass" overlay nudging a struggling student towards Iris. Hidden until a
@@ -35,7 +37,14 @@ export function NudgeBanner({ vscodeApi }: NudgeBannerProps) {
         switch (msg.type) {
             case ExtensionMsg.ShowNudgeBanner: {
                 showCounter.current += 1;
-                setBanner({ title: msg.title, sub: msg.sub, episodeId: msg.episodeId, timerMs: msg.timerMs });
+                setBanner({
+                    title: msg.title,
+                    sub: msg.sub,
+                    episodeId: msg.episodeId,
+                    moment: msg.moment,
+                    offerId: msg.offerId,
+                    timerMs: msg.timerMs,
+                });
                 break;
             }
             case ExtensionMsg.HideNudgeBanner: {
@@ -49,14 +58,33 @@ export function NudgeBanner({ vscodeApi }: NudgeBannerProps) {
         return null;
     }
 
+    // Offer mode (Moment-1 "stuck" / Moment-3 "abandon") carries `banner.moment`; the legacy active
+    // banner (`showActiveBanner`) never sets it. Both label sets and both action-string sets are kept
+    // side by side and selected by `moment` -- the legacy path must stay byte-for-byte unchanged.
+    const { moment } = banner;
+
     const act = (action: BannerAction) => {
         setBanner(null);
-        postCommand(vscodeApi, WebviewCmd.NudgeBannerAction, { action, episodeId: banner.episodeId });
+        if (moment) {
+            postCommand(vscodeApi, WebviewCmd.NudgeBannerAction, {
+                moment,
+                action: action as 'accept' | 'decline' | 'timeout',
+                episodeId: banner.episodeId,
+                offerId: banner.offerId,
+            });
+        } else {
+            postCommand(vscodeApi, WebviewCmd.NudgeBannerAction, { action: action as 'showMe' | 'dismiss' | 'timeout', episodeId: banner.episodeId });
+        }
     };
+
+    const primaryAction: BannerAction = moment ? 'accept' : 'showMe';
+    const secondaryAction: BannerAction = moment ? 'decline' : 'dismiss';
+    const primaryLabel = moment === 'abandon' ? 'I need more help' : 'Show me';
+    const secondaryLabel = moment === 'abandon' ? "I'm still on it" : 'Not now';
 
     return (
         <div className={styles.banner}>
-            <button type="button" className={styles.closeBtn} aria-label="Dismiss nudge" onClick={() => act('dismiss')}>
+            <button type="button" className={styles.closeBtn} aria-label="Dismiss nudge" onClick={() => act(secondaryAction)}>
                 &times;
             </button>
             <div className={styles.row}>
@@ -67,8 +95,8 @@ export function NudgeBanner({ vscodeApi }: NudgeBannerProps) {
                 </div>
             </div>
             <div className={styles.actions}>
-                <button type="button" className={styles.ghostBtn} onClick={() => act('dismiss')}>Not now</button>
-                <button type="button" className={styles.primaryBtn} onClick={() => act('showMe')}>Show me</button>
+                <button type="button" className={styles.ghostBtn} onClick={() => act(secondaryAction)}>{secondaryLabel}</button>
+                <button type="button" className={styles.primaryBtn} onClick={() => act(primaryAction)}>{primaryLabel}</button>
             </div>
             <div
                 key={`${banner.episodeId ?? 'none'}-${showCounter.current}`}

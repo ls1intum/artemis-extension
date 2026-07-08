@@ -108,6 +108,29 @@ describe('NudgeBanner', () => {
         expect(screen.queryByText('Hit a wall?')).toBeNull();
     });
 
+    it('an abandon-moment banner shows the presence-check labels and posts accept', async () => {
+        const vscodeApi = createMockVsCodeApi();
+        render(<NudgeBanner vscodeApi={vscodeApi} />);
+        dispatchExtensionMessage({
+            type: ExtensionMsg.ShowNudgeBanner,
+            title: 'Still on this?',
+            sub: "I'll step back soon otherwise.",
+            episodeId: 'ep-1',
+            offerId: 'off-1',
+            moment: 'abandon',
+            timerMs: 60_000,
+        });
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'I need more help' })).toBeInTheDocument();
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'I need more help' }));
+        expect(vscodeApi.postMessage).toHaveBeenCalledWith({
+            type: 'command',
+            command: WebviewCmd.NudgeBannerAction,
+            payload: { moment: 'abandon', action: 'accept', episodeId: 'ep-1', offerId: 'off-1' },
+        });
+    });
+
     describe('with a #root data-iris-logo-uri attribute', () => {
         let root: HTMLDivElement;
 

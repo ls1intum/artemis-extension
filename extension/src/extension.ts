@@ -270,9 +270,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Route a nudge-banner button back to the engine outcome. "Show me" jumps to the flagged line
 	// (via the jump lamp, inside handleBannerAction) and opens the chat. A dev mock banner (sentinel
 	// id) is visual only: its buttons neither record an outcome nor open the chat.
-	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction(({ action, episodeId }) => {
-		handleBannerAction?.(action, episodeId);
-		if (action === 'showMe' && episodeId !== MOCK_NUDGE_EPISODE_ID) { void vscode.commands.executeCommand('iris.chatView.focus'); }
+	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction((payload) => {
+		handleBannerAction?.(payload);
+		// Legacy active banner only (offer banners never carry a 'showMe' action): jump into the chat.
+		if (!('moment' in payload) && payload.action === 'showMe' && payload.episodeId !== MOCK_NUDGE_EPISODE_ID) {
+			void vscode.commands.executeCommand('iris.chatView.focus');
+		}
 	}));
 
 	// Developer-only: surface the engine's live alert decision (firing / gated /
