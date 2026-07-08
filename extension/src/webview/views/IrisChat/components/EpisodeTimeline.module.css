@@ -104,6 +104,13 @@
     font-size: 11px;
 }
 
+/* Condensed line an answered offer collapses to, in place of the (now-gone) answer buttons. */
+.decisionRow {
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+    font-style: italic;
+}
+
 .dismiss {
     color: var(--vscode-descriptionForeground);
     font-size: 11px;

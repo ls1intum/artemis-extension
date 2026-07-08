@@ -7,6 +7,24 @@ import type { ChatMessage } from '@webview/views/IrisChat/types';
 
 import styles from './EpisodeTimeline.module.css';
 
+/**
+ * Condensed grey line an answered offer collapses to, once the buttons are gone (spec B+/C10).
+ * Static lookup only (never dynamic string concatenation) so every combination stays reviewable
+ * and typo-proof.
+ */
+const OFFER_DECISION_LINE: Record<'stuck' | 'abandon', Record<'accept' | 'decline' | 'timeout', string>> = {
+    stuck: {
+        accept: 'Offered another hint · You: Show me',
+        decline: 'Offered another hint · You: Not now',
+        timeout: 'Offered another hint · no response',
+    },
+    abandon: {
+        accept: 'Checked in · You: I need more help',
+        decline: "Checked in · You: I'm still on it",
+        timeout: 'Offered a hand · no response',
+    },
+};
+
 interface EpisodeTimelineProps {
     messages: ChatMessage[];
     episodeId: string;
@@ -52,7 +70,11 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, o
                             </div>
                         )}
                         <div className={styles.body}>
-                            {renderRowBody(m, dismissable && isLatest)}
+                            {offer?.answered ? (
+                                <div className={styles.decisionRow}>{OFFER_DECISION_LINE[offer.moment][offer.answered]}</div>
+                            ) : (
+                                renderRowBody(m, dismissable && isLatest)
+                            )}
                             {/* Hover/focus chrome: per-message timestamp, plus Dismiss only on the latest live row.
                                 Collapsed at rest; the row expands it open with a short animation (see CSS). */}
                             <div className={styles.foot}>

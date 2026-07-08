@@ -53,4 +53,36 @@ describe('EpisodeTimeline', () => {
         );
         expect(screen.queryByRole('button', { name: 'Dismiss this suggestion' })).toBeNull();
     });
+
+    it('renders the condensed decision line for an answered stuck offer, and no answer buttons', () => {
+        const messages = [msg(1, { offer: { offerId: 'off-1', moment: 'stuck', answered: 'accept' } })];
+        render(
+            <EpisodeTimeline
+                messages={messages}
+                episodeId="ep"
+                dismissable
+                onOfferAnswer={vi.fn()}
+                renderRowBody={(m) => <div>{m.content}</div>}
+            />,
+        );
+        expect(screen.getByText('Offered another hint · You: Show me')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Show me' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull();
+    });
+
+    it('renders the condensed decision line for an answered abandon offer that was declined', () => {
+        const messages = [msg(1, { offer: { offerId: 'off-2', moment: 'abandon', answered: 'decline' } })];
+        render(
+            <EpisodeTimeline
+                messages={messages}
+                episodeId="ep"
+                dismissable
+                onOfferAnswer={vi.fn()}
+                renderRowBody={(m) => <div>{m.content}</div>}
+            />,
+        );
+        expect(screen.getByText("Checked in · You: I'm still on it")).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: "I'm still on it" })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'I need more help' })).toBeNull();
+    });
 });
