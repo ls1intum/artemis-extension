@@ -1262,10 +1262,6 @@ export class StruggleInterventionService implements AlertSink {
                 // DELIVERED terminal: free + ABANDONED + clearEpisodeRuntime + foldEpisode (no praise)
                 // Scoped cancel is now hoisted into _clearEpisodeRuntime.
                 this._dbg('  -> WATCHDOG force-free: DELIVERED -> FREE (ABANDONED)');
-                if (this._outstandingOffer?.moment === 'abandon') {
-                    this._deps.resolveOfferBubble(this._outstandingOffer.offerId, 'timeout');
-                    this._outstandingOffer = undefined;
-                }
                 const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
                 const episodeId = deliveredEp?.episodeId;
 
@@ -1313,6 +1309,18 @@ export class StruggleInterventionService implements AlertSink {
         }
         const exerciseId = this._deps.getExerciseId();
         if (exerciseId === undefined) {
+            return;
+        }
+        // Egress gates can change between delivery and this consented click. An explicit "Show me"
+        // never overrides a hard privacy block (.noai) or withdrawn consent / disabled course /
+        // proactive-off / offline server (mirrors the decide path's decideOutcome gates). If blocked,
+        // give an honest note instead of egressing the workspace.
+        if (!this._deps.isIrisEnabled()
+            || !this._deps.isEgressEnabled()
+            || this._deps.hasNoaiMarker()
+            || !this._deps.isStudentProactiveOn(exerciseId)
+            || !this._serverAvailable) {
+            this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
             return;
         }
         const ep = snap.state.episode;
@@ -1461,6 +1469,13 @@ export class StruggleInterventionService implements AlertSink {
         this._setInFlightMarker(undefined);
         // Null the candidate (always overwritten before next use, but cleaner to be explicit)
         this._candidate = undefined;
+        // An offer still outstanding when the episode terminates (RECOVERED / DISMISSED / any
+        // force-free) must be resolved + cleared here, the single terminal chokepoint. Otherwise
+        // _outstandingOffer strands and _canRaiseStuckOfferNow blocks every future offer this exercise.
+        if (this._outstandingOffer) {
+            this._deps.resolveOfferBubble(this._outstandingOffer.offerId, 'timeout');
+            this._outstandingOffer = undefined;
+        }
         this.notifySlotDebugChanged();
     }
 
