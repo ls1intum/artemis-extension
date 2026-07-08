@@ -137,6 +137,7 @@ export const TUNING = {
      */
     slot: {
         idleAbandonMs: 600_000,     // [ENG] continuous-idle silent-free backstop (~10 min)
+        warnLeadMs: 60_000,         // [ENG] Moment-3 presence-check lead before idle-abandon force-free
         reArmSBase: 0.6,            // [ENG]
         reArmHoldMs: 30_000,        // [ENG]
     },

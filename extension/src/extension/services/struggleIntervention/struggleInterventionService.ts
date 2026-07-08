@@ -233,6 +233,7 @@ export interface StruggleInterventionDeps {
 
 const DEFAULT_SLOT_CFG: StaleConfig = {
     idleAbandonMs: 600_000,
+    warnLeadMs: 60_000,
 };
 
 const DEFAULT_PROGRESS_CFG: ProgressCloseCfg = {
@@ -1249,10 +1250,22 @@ export class StruggleInterventionService implements AlertSink {
         const exerciseId = this._deps.getExerciseId();
 
         switch (event.kind) {
+            case 'pre-abandon-warn': {
+                this._dbg('  -> WATCHDOG pre-abandon-warn: Moment-3 offer');
+                const ep = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
+                if (ep && this._outstandingOffer === undefined && this._inFlightMarker === undefined) {
+                    this._raiseAbandonOffer(ep.episodeId);
+                }
+                break;
+            }
             case 'force-free': {
                 // DELIVERED terminal: free + ABANDONED + clearEpisodeRuntime + foldEpisode (no praise)
                 // Scoped cancel is now hoisted into _clearEpisodeRuntime.
                 this._dbg('  -> WATCHDOG force-free: DELIVERED -> FREE (ABANDONED)');
+                if (this._outstandingOffer?.moment === 'abandon') {
+                    this._deps.resolveOfferBubble(this._outstandingOffer.offerId, 'timeout');
+                    this._outstandingOffer = undefined;
+                }
                 const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
                 const episodeId = deliveredEp?.episodeId;
 
@@ -1513,6 +1526,42 @@ export class StruggleInterventionService implements AlertSink {
         if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
         this._outstandingOffer = undefined;
         this._deps.resolveOfferBubble(offerId, 'timeout');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Moment-3 "Still on this?" presence check (60s before the idle-abandon force-free)
+    // ---------------------------------------------------------------------------
+
+    private _raiseAbandonOffer(episodeId: string): void {
+        const exId = this._deps.getExerciseId();
+        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        const offerId = crypto.randomUUID();
+        this._outstandingOffer = { offerId, episodeId, moment: 'abandon' };
+        if (this._slot.snapshot().inSession) {
+            this._deps.postOfferBubble({ offerId, episodeId, moment: 'abandon' });
+        } else if (level === 'more') {
+            this._deps.showOfferBanner({ offerId, episodeId, moment: 'abandon' });
+            this._deps.setBadge(true);
+        } else {
+            this._deps.setBadge(true);
+        }
+    }
+
+    /** Moment-3 "I'm still on it": keep watching, reset the idle clock, no hint, no POST. */
+    stillOnIt(offerId: string, episodeId: string): void {
+        if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
+        this._outstandingOffer = undefined;
+        this._deps.resolveOfferBubble(offerId, 'decline');
+        this._watchdog?.resetProgress(Date.now());
+    }
+
+    /** Moment-3 "I need more help": deliver on demand, overriding an exhausted cap; reset idle. */
+    needMoreHelp(offerId: string, episodeId: string): void {
+        if (this._outstandingOffer?.offerId !== offerId || episodeId !== this._deliveredEpisodeId()) { return; }
+        this._outstandingOffer = undefined;
+        this._deps.resolveOfferBubble(offerId, 'accept');
+        this._watchdog?.resetProgress(Date.now());
+        void this._sendHelpRequest();
     }
 
     /**

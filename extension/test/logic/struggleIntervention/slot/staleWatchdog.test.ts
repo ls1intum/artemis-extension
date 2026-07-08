@@ -54,4 +54,13 @@ describe('StaleWatchdog (continuous-idle timeout)', () => {
         wd.arm(1_000, false);
         expect(wd.staleDeadlineMs()).toBe(7_000);
     });
+
+    it('fires pre-abandon-warn once, 60s before force-free, and pins the window to 60s', () => {
+        const wd = new StaleWatchdog({ idleAbandonMs: 600_000, warnLeadMs: 60_000 });
+        wd.arm(0, false /* delivered */);
+        expect(wd.tick(539_000)).toBeNull();
+        expect(wd.tick(540_000)).toEqual({ kind: 'pre-abandon-warn' });
+        expect(wd.tick(560_000)).toBeNull();
+        expect(wd.tick(600_000)).toEqual({ kind: 'force-free' });
+    });
 });
