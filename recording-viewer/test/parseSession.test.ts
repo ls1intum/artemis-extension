@@ -98,11 +98,18 @@ describe('V2 basic fixture (schemaVersion 2, new event types)', () => {
     });
 
     it('contains an intervention event with action "blocked"', () => {
+        // `intervention` was retired from the canonical schema (EQ engine
+        // removal, commit 87fd6578, synced into the generated types by
+        // 36fbe503) and is no longer part of `EventType`/`RecordedEvent`.
+        // This v2-basic fixture predates that removal and still has an
+        // `intervention` row on disk; loosen the comparison/cast below to
+        // keep exercising it (the loader itself is cast-based, not
+        // schema-validated, see parseSession.ts).
         const text = readFixture('v2-basic', 'events.jsonl');
         const events = parseEventsFile(text);
-        const intervention = events.find(e => e.type === 'intervention');
+        const intervention = events.find(e => (e.type as string) === 'intervention');
         expect(intervention).toBeDefined();
-        expect((intervention as { action: string }).action).toBe('blocked');
+        expect((intervention as unknown as { action: string }).action).toBe('blocked');
     });
 
     it('contains fileSnapshotError, irisChatSendAttempt, fileCreate, textDocumentOpen, textDocumentClose, fileDelete, fileRename', () => {

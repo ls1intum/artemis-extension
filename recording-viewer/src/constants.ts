@@ -68,6 +68,55 @@ export const ALL_EVENT_TYPES = [
 type _MissingEventTypes = Exclude<EventType, (typeof ALL_EVENT_TYPES)[number]>;
 void (true satisfies (_MissingEventTypes extends never ? true : never));
 
-/** Event types displayed as swim lanes. Used to exclude aggregate/engine-state
- *  types handled elsewhere; currently every remaining EventType qualifies. */
-export const SWIM_LANE_TYPES = ALL_EVENT_TYPES;
+/**
+ * Event types the EQ engine used to emit (`eqSnapshot`, `eqEngineState`,
+ * `intervention`). Retired from the canonical schema by the EQ-removal
+ * commit 87fd6578 and synced into this viewer's generated types by 36fbe503,
+ * so these string literals can no longer be members of `EventType` (==
+ * `RecordedEvent['type']`), so they are declared as a fixed constant instead.
+ * Old recordings on disk still contain rows of these types (the loader casts
+ * raw JSON rather than schema-validating it, see parseSession.ts), and the
+ * event-stream list, canvas timeline, and EQ chart (SessionTimeline.tsx) all
+ * still render them via the same viewer-local Legacy*Event pattern used in
+ * eventDisplay.tsx. Colors match what MARKER_COLORS held for these keys
+ * before the sync.
+ */
+export const LEGACY_EVENT_TYPES = ['eqSnapshot', 'eqEngineState', 'intervention'] as const;
+type LegacyEventType = (typeof LEGACY_EVENT_TYPES)[number];
+
+export const LEGACY_MARKER_COLORS: Record<LegacyEventType, string> = {
+    eqSnapshot: '#818cf8',
+    eqEngineState: '#6366f1',
+    intervention: '#f97316',
+};
+
+/** Colors for every renderable type, including the legacy ones above.
+ *  Consulted by EventBadge and the canvas dots (canvasDraw.ts) so old
+ *  recordings' EQ/intervention rows keep their own distinct color instead of
+ *  silently falling back to the "unknown type" CSS-only look. */
+export const ALL_MARKER_COLORS: Record<string, string> = { ...MARKER_COLORS, ...LEGACY_MARKER_COLORS };
+
+/**
+ * Every event type enabled by default in the event-stream list view and the
+ * canvas timeline (see App.tsx's `ALL_ENABLED`). There is no user-facing
+ * toggle to re-enable a type once excluded, so all three legacy types must
+ * be included here or old recordings' EQ/intervention rows silently vanish
+ * from both views. The cast is required because the legacy string literals
+ * above are not members of the schema-derived `EventType` union.
+ */
+export const ALL_EVENT_TYPES_WITH_LEGACY = [
+    ...ALL_EVENT_TYPES, ...LEGACY_EVENT_TYPES,
+] as unknown as readonly EventType[];
+
+/**
+ * Event types displayed as swim lanes on the canvas timeline, plus the
+ * legacy `eqSnapshot` type: the pre-sync code gave `eqSnapshot` its own swim
+ * lane, while `eqEngineState`/`intervention` were deliberately excluded from
+ * swim lanes (aggregate/engine-state types, handled elsewhere; see
+ * SessionTimeline.tsx's EQ chart and eventDisplay.tsx's detail row). This
+ * restores that same split. The cast is required for the same reason as
+ * ALL_EVENT_TYPES_WITH_LEGACY above.
+ */
+export const SWIM_LANE_TYPES = [
+    ...ALL_EVENT_TYPES, 'eqSnapshot',
+] as unknown as readonly EventType[];
