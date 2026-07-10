@@ -82,11 +82,8 @@ export const RECORDING_INFO_CATEGORIES: RecordingInfoCategory[] = [
     {
         title: 'Struggle Detection',
         items: [
-            { badge: 'struggleScore', label: 'StruggleScore', desc: 'Engine per-tick score sample (every 10 s): severity S and the per-boundary feature activations (study-era rows also carry the since-removed peak-hold V)' },
+            { badge: 'struggleScore', label: 'StruggleScore', desc: 'Engine per-tick score sample (every 10 s): the two-feature typing/gap activations (study-era rows also carry the since-removed severity score S and the per-boundary bonus features)' },
             { badge: 'alert', label: 'Alert', desc: 'Engine emitted alert: urgency, boundary types, primary boundary, delivery path (armed/e6), warmup/grace flags and threshold' },
-            { badge: 'eqSnapshot', label: 'EqSnapshot', desc: 'EQ score (0–1) + confidence (sufficient/insufficient)' },
-            { badge: 'eqEngineState', label: 'EqEngineState', desc: 'Full EQ engine state (snapshots, pairs, confidence)' },
-            { badge: 'intervention', label: 'Intervention', desc: 'Shown/accepted/dismissed interventions with level and EQ context' },
             { badge: 'configurationSnapshot', label: 'ConfigurationSnapshot', desc: 'Provenance: struggle-detection + intervention settings captured at session start (used to classify control vs treatment runs)' },
             { badge: 'configurationChange', label: 'ConfigurationChange', desc: 'Provenance: struggle-detection or intervention setting flipped mid-session (only changed keys are recorded)' },
         ],

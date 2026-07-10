@@ -758,7 +758,8 @@ suite('parseRecordedEvent — removed-schema backward compatibility', () => {
         assert.ok(!('buildErrorFamilies' in parsed), 'buildErrorFamilies dropped from output');
     });
 
-    test('legacy struggleScore.fN4/n4Ratio/v (v2 features + removed V telemetry) are ignored, event still parses', () => {
+    test('legacy struggleScore.fN4/n4Ratio/v/s/fFb/fA8/fN2 (v2 features, removed V telemetry, removed '
+        + 'bonus-severity fields) are ignored, event still parses', () => {
         const legacy = {
             type: 'struggleScore', timestamp: ts, t: 10, s: 0.7, v: 0.7,
             fTyping: 1, fGap: 1, fN4: 0.1, fFb: 0, fA8: 0, fN2: 0,
@@ -769,6 +770,10 @@ suite('parseRecordedEvent — removed-schema backward compatibility', () => {
         assert.ok(!('fN4' in parsed), 'fN4 dropped from output');
         assert.ok(!('n4Ratio' in parsed), 'n4Ratio dropped from output');
         assert.ok(!('v' in parsed), 'v (removed V(t) telemetry) dropped from output');
+        assert.ok(!('s' in parsed), 's (removed bonus-severity score) dropped from output');
+        assert.ok(!('fFb' in parsed), 'fFb (removed bonus-severity feature) dropped from output');
+        assert.ok(!('fA8' in parsed), 'fA8 (removed bonus-severity feature) dropped from output');
+        assert.ok(!('fN2' in parsed), 'fN2 (removed bonus-severity feature) dropped from output');
     });
 
     test('legacy configurationSnapshot.engineVersion="v2" still parses', () => {

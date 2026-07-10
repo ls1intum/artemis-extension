@@ -612,14 +612,14 @@ function parseSubmission(d: Record<string, unknown>, timestamp: number): Submiss
 
 function parseStruggleScore(d: Record<string, unknown>, timestamp: number): StruggleScoreEvent | null {
     // Legacy fields from older recordings are ignored (not copied to the output):
-    // the v2 fN4/n4Ratio features and the removed V(t) peak-hold telemetry (`v`).
-    const nums = ['t', 's', 'fTyping', 'fGap', 'fFb', 'fA8', 'fN2', 'typingRate', 'longestGapS'] as const;
+    // the v2 fN4/n4Ratio features, the removed V(t) peak-hold telemetry (`v`), and
+    // the removed bonus-severity fields (`s`, `fFb`, `fA8`, `fN2`).
+    const nums = ['t', 'fTyping', 'fGap', 'typingRate', 'longestGapS'] as const;
     for (const k of nums) { if (!isFiniteNumber(d[k])) { return null; } }
     return {
         type: 'struggleScore', timestamp,
-        t: d.t as number, s: d.s as number,
+        t: d.t as number,
         fTyping: d.fTyping as number, fGap: d.fGap as number,
-        fFb: d.fFb as number, fA8: d.fA8 as number, fN2: d.fN2 as number,
         typingRate: d.typingRate as number, longestGapS: d.longestGapS as number,
     };
 }

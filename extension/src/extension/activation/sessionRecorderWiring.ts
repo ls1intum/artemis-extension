@@ -91,9 +91,8 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // so the coordinator never imports the recorder (Decision 1).
     disposables.push(struggleCoordinator.onDidTick(tick => {
         sessionRecorder.recordStruggleScore({
-            t: tick.t, s: tick.s,
+            t: tick.t,
             fTyping: tick.features.fTyping, fGap: tick.features.fGap,
-            fFb: tick.features.fFb, fA8: tick.features.fA8, fN2: tick.features.fN2,
             typingRate: tick.features.typingRate, longestGapS: tick.features.longestGapS,
         });
     }));

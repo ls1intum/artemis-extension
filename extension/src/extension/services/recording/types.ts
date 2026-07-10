@@ -452,18 +452,15 @@ export type SubmissionPayload = Pick<SubmissionEvent, 'status' | 'participationI
 export type RecordedBoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE';
 
 /** Engine per-tick score sample (every 10 s). v3 2-feature substrate: the v2
- *  N4 (fN4/n4Ratio) fields were dropped. */
+ *  N4 (fN4/n4Ratio) fields were dropped; the removed bonus-severity fields
+ *  (s/fFb/fA8/fN2) parse as ignored legacy keys. */
 export interface StruggleScoreEvent {
     type: 'struggleScore';
     timestamp: number;
     /** Session-relative tick time (s). */
     t: number;
-    s: number;
     fTyping: number;
     fGap: number;
-    fFb: number;
-    fA8: number;
-    fN2: number;
     typingRate: number;
     longestGapS: number;
 }

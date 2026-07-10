@@ -5,12 +5,26 @@ import { parseRecordedEvent } from '@extension/services/recording/parseRecordedD
 suite('schema v3: struggleScore + alert events', () => {
     test('parseRecordedEvent accepts a well-formed struggleScore', () => {
         const ev = parseRecordedEvent({
+            type: 'struggleScore', timestamp: 1000, t: 10,
+            fTyping: 1, fGap: 1,
+            typingRate: 0, longestGapS: 60,
+        });
+        assert.ok(ev);
+        assert.strictEqual(ev!.type, 'struggleScore');
+    });
+    test('parseRecordedEvent accepts a study-era struggleScore, dropping the legacy s/v/fFb/fA8/fN2 keys', () => {
+        const ev = parseRecordedEvent({
             type: 'struggleScore', timestamp: 1000, t: 10, s: 1, v: 1,
             fTyping: 1, fGap: 1, fFb: 0, fA8: 0, fN2: 0,
             typingRate: 0, longestGapS: 60,
         });
         assert.ok(ev);
         assert.strictEqual(ev!.type, 'struggleScore');
+        assert.ok(!('s' in ev!), 's dropped from output');
+        assert.ok(!('v' in ev!), 'v dropped from output');
+        assert.ok(!('fFb' in ev!), 'fFb dropped from output');
+        assert.ok(!('fA8' in ev!), 'fA8 dropped from output');
+        assert.ok(!('fN2' in ev!), 'fN2 dropped from output');
     });
     test('parseRecordedEvent accepts a well-formed alert (legacy v2: no urgency)', () => {
         const ev = parseRecordedEvent({
@@ -31,8 +45,11 @@ suite('schema v3: struggleScore + alert events', () => {
         assert.ok(ev);
         assert.strictEqual((ev as { urgency?: number }).urgency, 0.72);
     });
-    test('rejects struggleScore with a non-finite score', () => {
-        assert.strictEqual(parseRecordedEvent({ type: 'struggleScore', timestamp: 1, t: 10, s: NaN, v: 0 }), null);
+    test('rejects struggleScore with a non-finite fTyping', () => {
+        assert.strictEqual(parseRecordedEvent({
+            type: 'struggleScore', timestamp: 1, t: 10, fTyping: NaN,
+            fGap: 0, typingRate: 0, longestGapS: 0,
+        }), null);
     });
     test('rejects alert with an invalid path', () => {
         assert.strictEqual(parseRecordedEvent({

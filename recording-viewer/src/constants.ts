@@ -4,8 +4,6 @@ import type { EventType } from './types';
 // (utils/canvasDraw.ts) and the badge pills (components/EventBadge.tsx). Every
 // type has a distinct value so no two event types are visually indistinguishable.
 export const MARKER_COLORS: Record<EventType, string> = {
-    eqSnapshot: '#818cf8',
-    eqEngineState: '#6366f1',
     buildResult: '#4ade80',
     textChange: '#94a3b8',
     save: '#60a5fa',
@@ -22,7 +20,6 @@ export const MARKER_COLORS: Record<EventType, string> = {
     irisChatMessage: '#f472b6',
     irisChatSendAttempt: '#fb923c',
     irisChatFeedback: '#c4b5fd',
-    intervention: '#f97316',
     viewNavigation: '#a78bfa',
     panelVisibility: '#a3e635',
     testResultsOverviewView: '#2dd4bf',
@@ -49,7 +46,7 @@ export const MARKER_COLORS: Record<EventType, string> = {
 export const ALL_EVENT_TYPES = [
     'sessionStart', 'sessionEnd', 'consentChange', 'startupPhaseComplete',
     'configurationSnapshot', 'configurationChange',
-    'eqSnapshot', 'eqEngineState', 'intervention', 'buildResult', 'submission',
+    'buildResult', 'submission',
     'struggleScore', 'alert',
     'textChange', 'save',
     'diagnostics',
@@ -71,8 +68,6 @@ export const ALL_EVENT_TYPES = [
 type _MissingEventTypes = Exclude<EventType, (typeof ALL_EVENT_TYPES)[number]>;
 void (true satisfies (_MissingEventTypes extends never ? true : never));
 
-/** Event types displayed as swim lanes (excludes engine state / intervention handled separately) */
-export const SWIM_LANE_TYPES = ALL_EVENT_TYPES.filter(
-    (t): t is Exclude<EventType, 'eqEngineState' | 'intervention'> =>
-        t !== 'eqEngineState' && t !== 'intervention'
-);
+/** Event types displayed as swim lanes. Used to exclude aggregate/engine-state
+ *  types handled elsewhere; currently every remaining EventType qualifies. */
+export const SWIM_LANE_TYPES = ALL_EVENT_TYPES;

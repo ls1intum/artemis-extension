@@ -583,8 +583,8 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             harness.coordinator.fireTick(makeTick());
             sinon.assert.calledOnce(stub);
             sinon.assert.calledWithExactly(stub, {
-                t: 10, s: 0.35,
-                fTyping: 0.4, fGap: 0.2, fFb: 0, fA8: 0, fN2: 0,
+                t: 10,
+                fTyping: 0.4, fGap: 0.2,
                 typingRate: 12, longestGapS: 8,
             });
         } finally {
@@ -596,14 +596,13 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
             await harness.recorder.startSession(42);
-            harness.coordinator.fireTick(makeTick({ t: 20, s: 0.5 }));
+            harness.coordinator.fireTick(makeTick({ t: 20 }));
             await harness.recorder.endSession();
 
             const events = await readAllRecordedEvents(harness.tmpDir);
             const score = events.find(e => e.type === 'struggleScore') as StruggleScoreEvent | undefined;
             assert.ok(score, 'struggleScore event missing');
             assert.strictEqual(score!.t, 20);
-            assert.strictEqual(score!.s, 0.5);
             assert.strictEqual(score!.typingRate, 12);
         } finally {
             await harness.dispose();

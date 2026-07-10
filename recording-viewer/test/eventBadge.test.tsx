@@ -30,12 +30,17 @@ describe('EventBadge', () => {
         expect((span as HTMLElement).style.color).not.toBe('');
     });
 
-    it('renders a custom label while keeping the type-driven color', () => {
+    it('renders a custom label; falls back to CSS for the retired "eqSnapshot" legacy type', () => {
+        // eqSnapshot was retired from the canonical schema (EQ engine removal)
+        // and is no longer a MARKER_COLORS key, so this exercises the same
+        // "unknown type" fallback path as the 'annotation' case below — old
+        // recordings still render this badge (SessionTimeline legacy display),
+        // just without an inline color.
         const { container } = render(<EventBadge type="eqSnapshot" label="EQ" />);
         const span = container.querySelector('span.event-badge')!;
         expect(span.textContent).toBe('EQ');
         expect(span.classList.contains('eqSnapshot')).toBe(true);
-        expect((span as HTMLElement).style.color).not.toBe('');
+        expect(span.hasAttribute('style')).toBe(false);
     });
 
     it('falls back to the CSS class (no inline color) for an unknown type like "annotation"', () => {
