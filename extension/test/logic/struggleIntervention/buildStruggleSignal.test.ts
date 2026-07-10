@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AlertRecord, FeatureVector, TickRecord } from '@extension/services/struggle/types';
 import { buildStruggleSignal } from '@extension/services/struggleIntervention/buildStruggleSignal';
-import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
+import { emptyDecisionTrace, tickRecord } from '@test/__shared__/tickRecordFixture';
 
 function features(over: Partial<FeatureVector>): FeatureVector {
     return {
@@ -15,7 +15,7 @@ function tick(t: number, s: number, f: FeatureVector): TickRecord {
 }
 
 describe('buildStruggleSignal', () => {
-    it('maps alert + ticks to the wire signal and ranks dominant components', () => {
+    it('maps alert + ticks to the wire signal', () => {
         const f = features({ fTyping: 0.9, fGap: 0.3, fFb: 1, fA8: 0, fN2: 0 });
         const ticks: TickRecord[] = [tick(520, 0.5, features({})), tick(530, 0.7, f)];
         const alert: AlertRecord = { kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM', 'STATE'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
@@ -29,14 +29,11 @@ describe('buildStruggleSignal', () => {
         expect(sig.trajectory).toHaveLength(2);
         expect(sig.trajectory[0]).toMatchObject({ t: 520 });
         expect(sig.sessionSeconds).toBe(530);
-        // v3 core /2: fTyping (0.9/2=0.45) dominates fFb (0.25·1=0.25) dominates fGap (0.3/2=0.15); zero-contribution ones dropped.
-        expect(sig.dominantComponents.map(c => c.name)).toEqual(['typing', 'feedbackViewing', 'gap']);
     });
 
-    it('tolerates an empty tick buffer (no dominant components, sessionSeconds from alert)', () => {
+    it('tolerates an empty tick buffer (sessionSeconds from alert)', () => {
         const alert: AlertRecord = { kind: 'edit', t: 100, ts: 100000, urgency: 0.5, typesPreGate: ['N1'], types: ['N1'], primary: 'N1', path: 'armed', inWarmup: true, inGrace: false };
         const sig = buildStruggleSignal(alert, []);
-        expect(sig.dominantComponents).toEqual([]);
         expect(sig.trajectory).toEqual([]);
         expect(sig.sessionSeconds).toBe(100);
     });
@@ -56,9 +53,25 @@ describe('buildStruggleSignal', () => {
         expect(sig.alert.inWarmup).toBe(true);
         // The discrete path bypasses B4, so inGrace is always false on the wire.
         expect(sig.alert.inGrace).toBe(false);
-        // Trajectory/components come from the tick buffer exactly as for edit alerts.
+        // Trajectory comes from the tick buffer exactly as for edit alerts.
         expect(sig.trajectory).toHaveLength(2);
-        expect(sig.dominantComponents.map(c => c.name)).toEqual(['typing', 'gap']);
         expect(sig.sessionSeconds).toBe(530);
+    });
+
+    it('trajectory carries rounded sBase, not the legacy bonus value s (s !== sBase)', () => {
+        // TickRecord still has both `s` (decision-inert bonus, removed in a later task) and `sBase`
+        // (the decision signal). The wire row must use sBase even when the two diverge.
+        const ticks: TickRecord[] = [
+            tickRecord({ t: 10, sBase: 0.4, s: 0.65 }),
+            tickRecord({ t: 20, sBase: 0.512, s: 0.9 }),
+        ];
+        const alert: AlertRecord = { kind: 'edit', t: 20, ts: 20000, urgency: 0.512, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
+
+        const sig = buildStruggleSignal(alert, ticks);
+
+        expect(sig.trajectory).toEqual([
+            { t: 10, s: 0.4 },
+            { t: 20, s: 0.51 },
+        ]);
     });
 });

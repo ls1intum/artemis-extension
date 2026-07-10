@@ -1407,7 +1407,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Set up DELIVERED slot + lastSignal
         simulateDecidePending(svc, 'ep-del', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive(7);
         await new Promise(r => setTimeout(r, 0));
 
@@ -1435,7 +1435,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const more = fakeDeps({ postIntervention: morePost, getProactiveLevel: () => 'more' });
         const svcMore = new StruggleInterventionService(more);
         simulateDecidePending(svcMore, 'ep-del-more', false);
-        svcMore._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svcMore._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svcMore.onServerActive(7);
         await new Promise(r => setTimeout(r, 0));
         morePost.mockClear();
@@ -1449,7 +1449,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const less = fakeDeps({ postIntervention: lessPost, getProactiveLevel: () => 'less' });
         const svcLess = new StruggleInterventionService(less);
         simulateDecidePending(svcLess, 'ep-del-less', false);
-        svcLess._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svcLess._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svcLess.onServerActive(7);
         await new Promise(r => setTimeout(r, 0));
         lessPost.mockClear();
@@ -1470,7 +1470,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         // Set up DELIVERED slot + lastSignal directly (bypasses the gated alert path on purpose,
         // so this test isolates the _drainOwed guard from the _suppressReason guard).
         simulateDecidePending(svc, 'ep-del', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive(7);
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
 
@@ -1517,7 +1517,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Set up DELIVERED slot with lastSignal
         simulateDecidePending(svc, 'ep-del', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive(7);
         // Slot is DELIVERED, wire is free now; set up an artificial busy wire
         postSpy.mockClear();
@@ -1552,7 +1552,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Set up PARKED slot + lastSignal
         simulateDecidePending(svc, 'ep-pcc', false);
-        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
+        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
         svc.onServerAmbient('Hint', undefined, undefined, undefined);
         expect(svc._slot.snapshot().state.kind).toBe('parked');
         postSpy.mockClear();
@@ -1579,7 +1579,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Set up PARKED slot + lastSignal
         simulateDecidePending(svc, 'ep-pcc2', false);
-        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
+        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
         svc.onServerAmbient('Hint', undefined, undefined, undefined);
         postSpy.mockClear();
 
@@ -1613,7 +1613,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Set up DELIVERED slot
         simulateDecidePending(svc, 'ep-sc', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive(7); // wire cleared by _acceptDecide
 
         // A fresh request B is now in flight (e.g. a queued confirmClose)
@@ -1665,7 +1665,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const ep = newEpisode(0, () => 'ep-rev');
         svc._slot.takeParked(0, ep, { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
-        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'STATE', boundaryTypes: ['STATE'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
+        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'STATE', boundaryTypes: ['STATE'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
 
         // Simulate an in-flight parked_progress confirmClose
         const reqToken = 'parked-tok';
@@ -1694,7 +1694,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const ep = newEpisode(0, () => 'ep-rev2');
         svc._slot.takeParked(0, ep, { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
-        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'STATE', boundaryTypes: ['STATE'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
+        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'STATE', boundaryTypes: ['STATE'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
 
         const tokenA = 'token-A';
         const stampA = { episodeId: 'ep-rev2', generation: svc._slot.generation(), hardEvent: false, requestToken: tokenA };
@@ -1744,7 +1744,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Set up DELIVERED slot
         simulateDecidePending(svc, 'ep-fold', false);
-        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 530 };
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive(7);
         const episodeId = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode.episodeId;
 
@@ -1785,7 +1785,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Set up DELIVERED slot
         simulateDecidePending(svc, 'ep-wdog', false);
-        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], dominantComponents: [], sessionSeconds: 100 };
+        svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
         svc.onServerActive(7);
 
         // Watchdog with a tiny idle window, armed in the past so the next tick is past the deadline.

@@ -2,9 +2,6 @@
  *  for the discrete test-stagnation path. Mirrored by the Pyris BoundaryType literal. */
 export type BoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | 'TPS';
 
-/** Interpretable severity-driver names (spec §5.1), derived from engine feature fields. */
-export type ComponentName = 'feedbackViewing' | 'regionPersistence' | 'errorDistance' | 'typing' | 'gap' | 'n4';
-
 export type StruggleAction = 'silent' | 'ambient' | 'active';
 
 export interface StruggleSignal {
@@ -19,9 +16,9 @@ export interface StruggleSignal {
         inWarmup: boolean;
         inGrace: boolean;
     };
-    /** last ≤12 ticks, oldest→newest */
+    /** last ≤12 ticks, oldest→newest; s is the severity sBase at tick t
+     *  (the same signal the alert's `severity` reports at the firing tick). */
     trajectory: Array<{ t: number; s: number }>;
-    dominantComponents: Array<{ name: ComponentName; value: number }>;
     sessionSeconds: number;
 }
 

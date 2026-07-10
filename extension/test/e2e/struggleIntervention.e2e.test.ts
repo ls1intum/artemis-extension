@@ -68,10 +68,6 @@ function buildStuckRequest(): StruggleInterventionRequest {
                 { t: 520, s: 0.62 },
                 { t: 540, s: 0.74 },
             ],
-            dominantComponents: [
-                { name: 'feedbackViewing', value: 0.9 },
-                { name: 'regionPersistence', value: 0.7 },
-            ],
             sessionSeconds: 540,
         },
         uncommittedFiles: {
