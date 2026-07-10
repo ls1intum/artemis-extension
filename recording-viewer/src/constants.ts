@@ -84,6 +84,12 @@ void (true satisfies (_MissingEventTypes extends never ? true : never));
 export const LEGACY_EVENT_TYPES = ['eqSnapshot', 'eqEngineState', 'intervention'] as const;
 type LegacyEventType = (typeof LEGACY_EVENT_TYPES)[number];
 
+/** Every event type this viewer can display: the live schema's `EventType`
+ *  plus the three retired-but-still-in-study-recordings legacy types above.
+ *  Used where a consumer needs to type-check against "anything renderable",
+ *  e.g. the recording-info catalog (`recordingInfoData.ts`). */
+export type DisplayEventType = EventType | LegacyEventType;
+
 export const LEGACY_MARKER_COLORS: Record<LegacyEventType, string> = {
     eqSnapshot: '#818cf8',
     eqEngineState: '#6366f1',
