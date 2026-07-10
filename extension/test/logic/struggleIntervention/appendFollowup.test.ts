@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { SlotManager } from '@extension/services/struggleIntervention/slot/slotManager';
 import { newEpisode } from '@extension/services/struggleIntervention/slot/episode';
+import { SlotManager } from '@extension/services/struggleIntervention/slot/slotManager';
 
 function delivered(sm: SlotManager): void {
     const ep = newEpisode(0, () => 'ep-1');

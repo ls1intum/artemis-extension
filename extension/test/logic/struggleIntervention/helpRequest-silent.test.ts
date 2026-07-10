@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
+
 import { fakeDeps, simulateDelivered } from './helpers';
 
 describe('help_request silent completion', () => {
