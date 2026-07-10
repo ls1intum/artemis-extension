@@ -5,8 +5,7 @@ import { DecisionEngine } from '@extension/services/struggle/decision/decisionEn
 import type { EngineTick } from '@extension/services/struggle/types';
 import { asEditAlert } from '@test/__shared__/alertNarrow';
 
-/** Build an EngineTick. Telemetry (s) mirrors urgency; the decision never reads it
- *  (the former V telemetry curve is gone from the tick entirely). */
+/** Build an EngineTick. */
 function mkTick(t: number, urgency: number, opts: {
     boundaries?: BoundaryType[];
     typingRate?: number | null;
@@ -22,7 +21,6 @@ function mkTick(t: number, urgency: number, opts: {
             graceActive: opts.graceActive ?? false,
         },
         discreteTriggers: { testStagnation: opts.testStagnation ?? false },
-        telemetry: { s: urgency },
     };
 }
 
@@ -175,7 +173,6 @@ describe('DecisionEngine — lastTrace', () => {
             t: 600, urgency: 0.9,
             editCandidate: { boundaries: ['FM'], typingRate: 0, graceActive: false },
             discreteTriggers: { testStagnation: false },
-            telemetry: { s: 0 },
             ...over,
         };
     }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { FeatureWindowTracker } from '@extension/services/struggle/signals/featureWindow';
-import { severityFrom } from '@extension/services/struggle/signals/severity';
 
 describe('FeatureWindowTracker (Python compute_features core port)', () => {
     it('effective window: max(10, min(60, t))', () => {
@@ -57,17 +56,5 @@ describe('FeatureWindowTracker (Python compute_features core port)', () => {
         expect(w.computeAt(60).tsState).toBe(true);       // 0/min
         for (let i = 0; i < 5; i++) { w.ingestTextChange(61 + i, 1); }
         expect(w.computeAt(70).tsState).toBe(false);      // 5 in 60s window = 5/min
-    });
-});
-
-describe('severityFrom (spec §1 formula, v3 2-feature mean)', () => {
-    it('combines the 2-feature core mean with capped bonuses', () => {
-        const s = severityFrom({ fTyping: 0.6, fGap: 0.3 }, { fFb: 1, fA8: 1, fN2: 1 });
-        expect(s.sBase).toBeCloseTo(0.45, 12);                          // (0.6 + 0.3) / 2
-        expect(s.s).toBeCloseTo(Math.min(1, 0.45 + 0.25 + 0.15 + 0.10), 12);
-    });
-    it('caps S at 1', () => {
-        const s = severityFrom({ fTyping: 1, fGap: 1 }, { fFb: 1, fA8: 0, fN2: 0 });
-        expect(s.s).toBe(1);
     });
 });

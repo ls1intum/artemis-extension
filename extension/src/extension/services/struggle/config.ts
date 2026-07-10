@@ -31,17 +31,6 @@ export const SPEC = {
     GAP_NORM_S: 40,
     /** TS state: typing_rate < 5/min. Signal [D] (A5 rho -0.37, 6/6); value 5 = ENG (closest ABS grid budget to REL-z's 26 among coarse label-free grid {5,10,15,20}, but a poor match: 57 vs 26, ~2.2x overshoot; no grid point truly matches). D4 in-sample: recall 0.74 with precision 0.29-0.73, ~8-10 alerts/h */
     TS_TYPING_THRESH_PER_MIN: 5,
-    /** A8 region persistence: >= 80 % of changes of the last 5 min in one method, >= 30 changes. [D] weak (F1 enrichment 1.10, CI [0.89,1.35] crosses 1, 5/6 TN; lead NEGATIVE -197.9 s = flags ongoing, not incipient; loose collapses to 0.98). 300/30/0.8 hand-set, no sweep. [L] dropped: no paper defines this same-method edit-persistence construct (Jadud=compilation pairs, Watson=error-resolution-time); conceptual analogy only, parameters not from literature. */
-    A8_WINDOW_S: 300,
-    A8_MIN_CHANGES: 30,
-    A8_SHARE: 0.8,
-    /** N2: error > 3 lines from cursor, continuously active > 60 s. ENG (both values: 3 a-priori, no sweep; 60 s has zero analysis); feature direction weak-conditional [D] (S5 primary endpoint Cliff's d 0.14, 4/6, fails 5/6 bar, CI crosses 0) */
-    N2_DIST_LINES: 3,
-    N2_MIN_ACTIVE_S: 60,
-    /** Severity bonuses. ENG (weights); spread tracks S1 pre-onset strength (f_fb d=1.29 +6/6), NOT MM betas (where f_fb beta 0.166 is the lowest of the 3; A8/N2 not in MM); A8/N2 kept small per their weak/conditional support; no weight-sensitivity check exists */
-    W_FB: 0.25,
-    W_A8: 0.15,
-    W_N2: 0.10,
     /** D1 warmup; FM/E4 break through. [L] ENG (non-primary X=8min sweep arm chosen over the pre-registered primary X=5min/300s; cost 0 structurally guaranteed - 0 true alerts in first 8min, 4/6 TN) */
     WARMUP_S: 480,
     /** B2 soft gate: no alert while typing_rate >= 20/min (fail-open). [L]+ENG (fail-open timing gate from Pu 2025 / Nakada & Miura 2024; absolute 20/min cut is ENG. F4's +0.31 uplift at 4/6 was measured on a PERSON-RELATIVE typing-z>1 gate, not this absolute cut; F4 never swept an absolute threshold and F2 C1 rejected the relative rule 0/6 -> directional only) */
@@ -84,15 +73,6 @@ export const SPEC = {
 /** Boundary types in audit priority order (spec §3: FM > FM+ > E4 > N1 > STATE). ENG */
 export const BOUNDARY_PRIORITY = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
 export type BoundaryType = typeof BOUNDARY_PRIORITY[number];
-
-/**
- * Intake debounce mirroring the recorder (ObservationRegistry.SELECTION_DEBOUNCE_MS):
- * the frozen feature derivations ran on the recorder's debounced selection stream,
- * so the live engine must see the same stream shape. struggle/ must not import
- * recording/ (clean bundle), hence the duplicated value; a unit parity test asserts
- * equality (test/unit/services/struggle/debounceParity.test.ts).
- */
-export const SELECTION_DEBOUNCE_MS = 200;
 
 /**
  * Tier-2 delivery throttle (ThrottledAlertSink), delivery-only, keyed by the

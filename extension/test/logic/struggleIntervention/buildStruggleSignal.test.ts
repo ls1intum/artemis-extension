@@ -7,16 +7,16 @@ import { emptyDecisionTrace, tickRecord } from '@test/__shared__/tickRecordFixtu
 function features(over: Partial<FeatureVector>): FeatureVector {
     return {
         t: 0, effectiveWindowS: 10, nOneCharInserts: 0, typingRate: 0, longestGapS: 0,
-        fTyping: 0, fGap: 0, fFb: 0, fA8: 0, fN2: 0, tsState: false, ...over,
+        fTyping: 0, fGap: 0, tsState: false, ...over,
     };
 }
-function tick(t: number, s: number, f: FeatureVector): TickRecord {
-    return { t, ts: t * 1000, features: f, sBase: s, s, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
+function tick(t: number, sBase: number, f: FeatureVector): TickRecord {
+    return { t, ts: t * 1000, features: f, sBase, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
 describe('buildStruggleSignal', () => {
     it('maps alert + ticks to the wire signal', () => {
-        const f = features({ fTyping: 0.9, fGap: 0.3, fFb: 1, fA8: 0, fN2: 0 });
+        const f = features({ fTyping: 0.9, fGap: 0.3 });
         const ticks: TickRecord[] = [tick(520, 0.5, features({})), tick(530, 0.7, f)];
         const alert: AlertRecord = { kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM', 'STATE'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
 
@@ -58,12 +58,10 @@ describe('buildStruggleSignal', () => {
         expect(sig.sessionSeconds).toBe(530);
     });
 
-    it('trajectory carries rounded sBase, not the legacy bonus value s (s !== sBase)', () => {
-        // TickRecord still has both `s` (decision-inert bonus, removed in a later task) and `sBase`
-        // (the decision signal). The wire row must use sBase even when the two diverge.
+    it('trajectory carries rounded sBase', () => {
         const ticks: TickRecord[] = [
-            tickRecord({ t: 10, sBase: 0.4, s: 0.65 }),
-            tickRecord({ t: 20, sBase: 0.512, s: 0.9 }),
+            tickRecord({ t: 10, sBase: 0.4 }),
+            tickRecord({ t: 20, sBase: 0.512 }),
         ];
         const alert: AlertRecord = { kind: 'edit', t: 20, ts: 20000, urgency: 0.512, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false };
 

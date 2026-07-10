@@ -11,9 +11,6 @@ export interface FeatureVector {
     readonly longestGapS: number;
     readonly fTyping: number;
     readonly fGap: number;
-    readonly fFb: number;
-    readonly fA8: number;
-    readonly fN2: number;
     readonly tsState: boolean;
 }
 
@@ -25,7 +22,6 @@ export interface TickRecord {
     readonly ts: number;
     readonly features: FeatureVector;
     readonly sBase: number;
-    readonly s: number;
     /** Boundary types pending at this tick BEFORE gates (audit). */
     readonly boundariesPreGate: readonly BoundaryType[];
     readonly alert: AlertRecord | null;
@@ -35,10 +31,8 @@ export interface TickRecord {
 
 /**
  * Schicht-2 → Schicht-3 hand-off, one per 10-s tick. The DecisionEngine reads
- * `urgency` + `editCandidate` + `discreteTriggers` ONLY; `telemetry` (S) is
- * recorder/regression substrate that the decision NEVER reads — the v3 threshold
- * is `urgency = S_base = (f_typing + f_gap)/2` (the `alerts_full_u`
- * configuration).
+ * `urgency` + `editCandidate` + `discreteTriggers` ONLY — the v3 threshold is
+ * `urgency = S_base = (f_typing + f_gap)/2` (the `alerts_full_u` configuration).
  */
 export interface EngineTick {
     /** Session-relative tick time (s). */
@@ -55,10 +49,6 @@ export interface EngineTick {
      *  B2/B4-gated). (Prüf-Stagnation deferred until a real attempt signal exists.) */
     readonly discreteTriggers: {
         readonly testStagnation: boolean;
-    };
-    /** Recorder/regression substrate only — never read by the DecisionEngine. */
-    readonly telemetry: {
-        readonly s: number;
     };
 }
 

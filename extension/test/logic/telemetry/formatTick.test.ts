@@ -27,9 +27,6 @@ function features(over: Partial<FeatureVector> = {}): FeatureVector {
         longestGapS: 18,
         fTyping: 0.4,
         fGap: 0.45,
-        fFb: 0,
-        fA8: 0,
-        fN2: 0,
         tsState: false,
         ...over,
     };
@@ -59,7 +56,6 @@ function tick(over: Partial<TickRecord> = {}): TickRecord {
         ts: 1_000_000,
         features: f,
         sBase: 0.42,
-        s: 0.42,
         boundariesPreGate: [],
         alert: null,
         decisionTrace: trace(),

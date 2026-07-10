@@ -8,7 +8,7 @@ const BASE_TRACE = {
 
 function fakeTick(over: any = {}, traceOver: any = {}): any {
     return {
-        t: 10, ts: 10000, sBase: 0.4, s: 0.4,
+        t: 10, ts: 10000, sBase: 0.4,
         boundariesPreGate: [], alert: null,
         ...over,
         decisionTrace: { ...BASE_TRACE, ...traceOver },

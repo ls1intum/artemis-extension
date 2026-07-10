@@ -39,7 +39,7 @@ export const SCENARIOS: Scenario[] = [
             { at: 200, type: 'build', failed: [] },
         ],
         // typing 120/min (v3 2-feature): fTyping 0; gap 0.5/40 ~ 0.0125 -> S ~ 0.006.
-        expected: { noAlerts: true, finalSBelow: 0.2 },
+        expected: { noAlerts: true, finalSBaseBelow: 0.2 },
     },
     {
         id: 'warmup-quiet-session',
@@ -106,24 +106,6 @@ export const SCENARIOS: Scenario[] = [
         // in_state_since=40) would only fire at tick 610 -- BEYOND this 560 s session.
         // So the only alert within the session is 490.
         expected: { alertTimes: [490] },
-    },
-    {
-        id: 'feedback-view-pushes-severity',
-        category: 'edge',
-        description: 'The +0.25 feedback-view bonus must NOT lift moderate-activity severity over theta (no fabricated alerts).',
-        durationS: 600,
-        events: [
-            // ~10 chars/min (final window has 9 inserts): typingRate 9 -> fTyping
-            // 0.55; longestGap ~6 s -> fGap 0.15.
-            { at: 0, type: 'typing', durationS: 600, charsPerSecond: 1 / 6 },
-            { at: 480, type: 'feedbackView', action: 'opened', viewId: 'v1' },
-        ],
-        // Derivation (v3 2-feature): base S ~ (0.55 + 0.15)/2 = 0.35; with +0.25
-        // from 490 on: S = 0.6 exactly — still < theta(0.7), so no alert. Typing
-        // at ~10/min also keeps tsState false, so no STATE boundary either. The
-        // bonus alone must not fabricate alerts or push severity to alert level.
-        // Bound pinned just above 0.6 so a real upward drift (e.g. to 0.62) fails.
-        expected: { noAlerts: true, finalSBelow: 0.61 },
     },
     {
         id: 'test-stagnation-while-typing',

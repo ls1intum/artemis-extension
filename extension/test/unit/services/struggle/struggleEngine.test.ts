@@ -62,7 +62,7 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         assert.strictEqual(a0.path, 'armed');
         // idle severity (v3 2-feature): fTyping=1, fGap=1 -> S = (1+1)/2 = 1.0 >= theta(0.7)
         const tick49 = ticks.find(t => t.t === 490)!;
-        assert.ok(Math.abs(tick49.s - 1.0) < 1e-9);
+        assert.ok(Math.abs(tick49.sBase - 1.0) < 1e-9);
         // The alert payload carries the firing tick's decision signal.
         assert.strictEqual(a0.urgency, tick49.sBase);
     });
@@ -121,12 +121,23 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         assert.strictEqual(ticks[ticks.length - 1].features.nOneCharInserts, 1);
     });
 
-    test('feedback view bonus raises S by 0.25 while open in the window', () => {
-        hub.emit.taskFeedbackView.fire({ ts: START + 5_000, action: 'opened', viewId: 'v1' });
-        engine.advanceTo(START + 10_000);
-        const t10 = ticks[0];
-        assert.strictEqual(t10.features.fFb, 1);
-        assert.ok(Math.abs(t10.s - Math.min(1, t10.sBase + 0.25)) < 1e-9);
+    test('severity: fTyping=0.6, fGap=0.3 -> sBase=0.45 (spec §1 formula, moved from featureWindow.test.ts)', () => {
+        // 8 one-char inserts spaced 12 s apart within the 60 s effective window (t=70,
+        // eff=60, w0=10): typingRate = 60*8/60 = 8/min -> fTyping = clip(1-8/20) = 0.6;
+        // longestGapS = 12 (every consecutive gap, incl. w0..first and last..t) ->
+        // fGap = clip(12/40) = 0.3. sBase = (0.6 + 0.3) / 2 = 0.45.
+        const times = [22, 34, 46, 58, 70];
+        const chars = [2, 2, 2, 1, 1];
+        times.forEach((t, i) => {
+            const sig = fakeTextChange('file:///ws/Main.java', Array(chars[i]).fill('a'), 'class A {}');
+            (sig as { ts: number }).ts = START + t * 1000;
+            hub.emit.textChange.fire(sig as never);
+        });
+        engine.advanceTo(START + 70_000);
+        const t70 = ticks.find(t => t.t === 70)!;
+        assert.strictEqual(t70.features.typingRate, 8);
+        assert.strictEqual(t70.features.longestGapS, 12);
+        assert.ok(Math.abs(t70.sBase - 0.45) < 1e-9);
     });
 
     test('stop() halts ticking; restart resets all state', () => {

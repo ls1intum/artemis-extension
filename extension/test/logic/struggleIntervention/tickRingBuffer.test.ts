@@ -5,7 +5,7 @@ import { TickRingBuffer } from '@extension/services/struggleIntervention/tickRin
 import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 function tick(t: number): TickRecord {
-    return { t, ts: t * 1000, features: {} as TickRecord['features'], sBase: 0, s: 0, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
+    return { t, ts: t * 1000, features: {} as TickRecord['features'], sBase: 0, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
 describe('TickRingBuffer', () => {

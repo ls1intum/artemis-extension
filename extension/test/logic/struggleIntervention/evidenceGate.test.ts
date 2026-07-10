@@ -83,7 +83,6 @@ function tick(ts: number, sBase: number, typingRate = 0): TickRecord {
         ts,
         features: { typingRate } as TickRecord['features'],
         sBase,
-        s: sBase,
         boundariesPreGate: [],
         alert: null,
         decisionTrace: emptyDecisionTrace,

@@ -73,7 +73,7 @@ function alertRecord(): AlertRecord {
 }
 
 function tickRecord(): TickRecord {
-    return { t: 530, ts: 530_000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
+    return { t: 530, ts: 530_000, features: {} as TickRecord['features'], sBase: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
 // NOTE: the simulate*/arm* helpers below set `_inFlightMarker` by DIRECT field write for fast

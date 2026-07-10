@@ -82,7 +82,7 @@ function discreteAlert(): AlertRecord {
     return { kind: 'discrete', t: 530, ts: 530000, urgency: 0.72, trigger: 'test-stagnation', inWarmup: false };
 }
 function tick(t: number): TickRecord {
-    return { t, ts: t * 1000, features: {} as TickRecord['features'], sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
+    return { t, ts: t * 1000, features: {} as TickRecord['features'], sBase: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace };
 }
 
 describe('StruggleInterventionService', () => {
@@ -1327,7 +1327,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
         const svc = new StruggleInterventionService(deps);
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
 
         // First decide: FREE slot, preallocates a candidate, isNew=true
         svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
@@ -1361,7 +1361,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const svc = new StruggleInterventionService(deps);
 
         // Deliver an alert -> will POST with a preallocated episode
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
         svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
 
@@ -1383,7 +1383,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const deps = fakeDeps({ postIntervention: postSpy });
         const svc = new StruggleInterventionService(deps);
 
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, s: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.5, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
         svc.deliver({ kind: 'edit', t: 530, ts: 530000, urgency: 0.72, typesPreGate: ['FM'], types: ['FM'], primary: 'FM', path: 'armed', inWarmup: false, inGrace: false });
         await new Promise(r => setTimeout(r, 0));
 
@@ -1826,7 +1826,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
 
         // DEFAULT_PROGRESS_CFG.reArmSBase = 0.6; feed sBase = 0.3 (below threshold)
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.3, s: 0.3, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.3, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
 
         expect(resetSpy).toHaveBeenCalledTimes(1);
     });
@@ -1841,7 +1841,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
 
         // sBase = 0.8 (above reArmSBase threshold of 0.6)
-        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.8, s: 0.8, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
+        svc.onTick({ t: 530, ts: 530000, features: {} as any, sBase: 0.8, boundariesPreGate: [], alert: null, decisionTrace: emptyDecisionTrace });
 
         expect(resetSpy).not.toHaveBeenCalled();
     });

@@ -17,10 +17,7 @@ export type ScenarioEvent =
     | { at: number; type: 'typing'; durationS: number; charsPerSecond: number; uri?: string }
     | { at: number; type: 'build'; failed: string[]; buildFailed?: boolean; passed?: number; total?: number }
     | { at: number; type: 'terminalRun' }
-    | { at: number; type: 'paste'; chars: number; lines: number; uri?: string }
-    | { at: number; type: 'feedbackView'; action: 'opened' | 'closed'; viewId: string }
-    | { at: number; type: 'diagnostics'; errors: Array<{ line: number; code: string; message: string }>; uri?: string }
-    | { at: number; type: 'selection'; line: number; uri?: string };
+    | { at: number; type: 'paste'; chars: number; lines: number; uri?: string };
 
 export interface Scenario {
     id: string;
@@ -34,8 +31,8 @@ export interface Scenario {
         /** Exact alert kinds, positionally aligned with alertTimes (edit|discrete). */
         alertKinds?: Array<'edit' | 'discrete'>;
         noAlerts?: boolean;
-        /** Optional invariant on the final tick's V. */
-        finalSBelow?: number;
+        /** Optional invariant on the final tick's sBase. */
+        finalSBaseBelow?: number;
     };
 }
 
@@ -44,7 +41,7 @@ const START = 1_750_000_000_000;
 
 /** Manual clock: the runner drives engine.advanceTo itself so that events at
  *  exactly a grid time are enqueued BEFORE that tick runs (drain rule: tick T
- *  includes ts <= T). The sinon clock still drives the intake debouncers. */
+ *  includes ts <= T). */
 const NOOP_ENGINE_CLOCK = {
     now: () => Date.now(),
     setInterval: () => 0 as unknown,
@@ -112,43 +109,17 @@ export function runScenario(scenario: Scenario): ScenarioResult {
                         ts: START + ev.at * 1000, uri, chars: ev.chars, lines: ev.lines,
                     }) });
                     break;
-                case 'feedbackView':
-                    atomic.push({ at: ev.at, fire: () => hub.emit.taskFeedbackView.fire({
-                        ts: START + ev.at * 1000, action: ev.action, viewId: ev.viewId,
-                    }) });
-                    break;
-                case 'diagnostics': {
-                    atomic.push({ at: ev.at, fire: () => {
-                        hub.stub.diagnosticsByUri.set(uri.toString(), ev.errors.map(e => ({
-                            severity: vscode.DiagnosticSeverity.Error,
-                            range: new vscode.Range(e.line, 0, e.line, 1),
-                            message: e.message,
-                            code: e.code,
-                        } as vscode.Diagnostic)));
-                        hub.emit.diagnostics.fire({ ts: START + ev.at * 1000, uris: [uri] });
-                    } });
-                    break;
-                }
-                case 'selection':
-                    atomic.push({ at: ev.at, fire: () => hub.emit.selection.fire({
-                        ts: START + ev.at * 1000,
-                        event: {
-                            textEditor: { document: { uri } },
-                            selections: [{ end: { line: ev.line } }],
-                        },
-                    } as never) });
-                    break;
             }
         }
         atomic.sort((a, b) => a.at - b.at);
 
         // Ordering per timestamp (tick contract): (1) advance the sinon clock to
-        // the event time — intake debouncers flush and ENQUEUE, the engine does
-        // NOT tick (noop interval); (2) fire ALL events at this timestamp so any
-        // event at exactly a grid time is enqueued before its tick runs (events
-        // sharing a timestamp must all enqueue before that tick — otherwise the
-        // first one's advanceTo runs the tick before the rest are enqueued and
-        // they drain one tick late); (3) advanceTo(time) processes every due tick.
+        // the event time (the engine does NOT tick — noop interval); (2) fire ALL
+        // events at this timestamp so any event at exactly a grid time is enqueued
+        // before its tick runs (events sharing a timestamp must all enqueue before
+        // that tick — otherwise the first one's advanceTo runs the tick before the
+        // rest are enqueued and they drain one tick late); (3) advanceTo(time)
+        // processes every due tick.
         let currentS = 0;
         let i = 0;
         while (i < atomic.length) {

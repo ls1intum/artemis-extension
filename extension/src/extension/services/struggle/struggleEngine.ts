@@ -1,8 +1,8 @@
 // extension/src/extension/services/struggle/struggleEngine.ts
 /**
  * Engine-v3 orchestrator (spec §0-§5): consumes ONLY the sensorHub, computes
- * S/V/boundaries/gates/alerting on a strict 10-s grid (first tick at +10 s,
- * never at 0). One code path for live and replay (spec §5):
+ * severity/boundaries/gates/alerting on a strict 10-s grid (first tick at
+ * +10 s, never at 0). One code path for live and replay (spec §5):
  *
  *   - every subscription pushes a timestamped thunk into one queue;
  *   - advanceTo(now) processes each due grid tick: apply all thunks with
@@ -11,9 +11,9 @@
  *     jitter and missed timers are harmless (catch-up loop, nominal times).
  *
  * Sensor policy at intake mirrors the recorder (the frozen parameters were
- * derived on recorded streams): shouldRecordUri(uri, exerciseRoot) filtering;
- * selection trailing debounce (Decision 5). v3 no longer consumes the editor
- * visibleRange stream (the dropped N4 scroll feature).
+ * derived on recorded streams): shouldRecordUri(uri, exerciseRoot) filtering.
+ * v3 no longer consumes the editor visibleRange stream (the dropped N4 scroll
+ * feature).
  */
 import * as vscode from 'vscode';
 
@@ -21,19 +21,10 @@ import type { ResultDTO } from '@extension/domain/submissions';
 import type { SensorHub } from '@extension/services/sensing';
 import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
 import { BoundaryTracker } from '@extension/services/struggle/boundaries/boundaryTracker';
-import {
-    SELECTION_DEBOUNCE_MS, SPEC, TUNING,
-} from '@extension/services/struggle/config';
+import { SPEC, TUNING } from '@extension/services/struggle/config';
 import { type DecisionAblation, DecisionEngine } from '@extension/services/struggle/decision/decisionEngine';
-import { TrailingDebouncer } from '@extension/services/struggle/intake/trailingDebouncer';
 import { BuildDeltaTracker } from '@extension/services/struggle/signals/buildDelta';
-import { DocumentShadowTracker } from '@extension/services/struggle/signals/documentShadow';
-import { N2Tracker, normalizeDiagnosticCode } from '@extension/services/struggle/signals/errorDistance';
 import { FeatureWindowTracker } from '@extension/services/struggle/signals/featureWindow';
-import { FeedbackViewTracker } from '@extension/services/struggle/signals/feedbackViewState';
-import { methodAtLine, parseMethods } from '@extension/services/struggle/signals/javaMethods';
-import { A8Tracker } from '@extension/services/struggle/signals/regionPersistence';
-import { severityFrom } from '@extension/services/struggle/signals/severity';
 import { TestStagnationTracker } from '@extension/services/struggle/signals/testStagnation';
 import type {
     AlertRecord, EngineClock, EngineSessionContext, EngineTick, TickRecord,
@@ -47,19 +38,7 @@ const DEFAULT_CLOCK: EngineClock = {
 
 interface QueuedEvent { tsS: number; apply: () => void }
 
-/** The A8-tracker subset the engine drives. Lets golden-replay (PR 3) inject a
- *  scripted A8 signal in exact mode instead of deriving it online. Widen this
- *  if the engine ever calls another A8Tracker method. */
-export type A8TrackerLike = Pick<A8Tracker, 'recordChange' | 'activeAt'>;
-/** The N2-tracker subset the engine drives (see A8TrackerLike). */
-export type N2TrackerLike = Pick<N2Tracker, 'ingestSelection' | 'ingestSnapshot' | 'activeAt'>;
-
 interface StruggleEngineOptions {
-    /** Replay feeds already-debounced recorded streams (Decision 5). */
-    preDebouncedIntake?: boolean;
-    /** Factories for scripted A8/N2 trackers (golden-replay exact mode, PR 3).
-     *  Omitted factories fall back to the real online trackers. */
-    trackers?: { a8?: () => A8TrackerLike; n2?: () => N2TrackerLike };
     /** Ablation toggles for the DecisionEngine add-ons. The golden-replay harness
      *  passes validated-base mode (add-ons OFF); production leaves them ON. */
     decision?: DecisionAblation;
@@ -86,10 +65,6 @@ export class StruggleEngine implements vscode.Disposable {
     private _pendingTestStagnation = false;
 
     private _features = new FeatureWindowTracker();
-    private _feedback = new FeedbackViewTracker();
-    private _shadow = new DocumentShadowTracker();
-    private _a8: A8TrackerLike = new A8Tracker();
-    private _n2: N2TrackerLike = new N2Tracker();
     private _buildDelta = new BuildDeltaTracker();
     private _testStagnation = new TestStagnationTracker(TUNING.testStagnationN);
     private _boundaries = new BoundaryTracker();
@@ -97,9 +72,6 @@ export class StruggleEngine implements vscode.Disposable {
     /** Dev skip-warmup (D1). When true the engine uses warmupS=0 for BOTH the
      *  STATE-boundary emission and the decision D1 gate. */
     private _skipWarmup = false;
-    private _selectionDebounce: TrailingDebouncer<{ tsS: number; uriKey: string; endLine: number }> | undefined;
-    /** Replay feeds already-debounced recorded streams (Decision 5). */
-    private readonly _preDebounced: boolean;
     private readonly _opts: StruggleEngineOptions | undefined;
 
     constructor(
@@ -110,7 +82,6 @@ export class StruggleEngine implements vscode.Disposable {
         this._hub = hub;
         this._clock = clock;
         this._opts = options;
-        this._preDebounced = options?.preDebouncedIntake ?? false;
     }
 
     /** Effective D1 warm-up window (s): 0 when dev skip-warmup is on. Read live
@@ -133,22 +104,15 @@ export class StruggleEngine implements vscode.Disposable {
         this._session = session;
         this._resetState();
         this._attach();
-        // Seed document shadows from the already-open documents (A8 before-text).
-        for (const doc of this._hub.readTextDocuments()) {
-            if (this._passesUriFilter(doc.uri)) {
-                this._shadow.seed(doc.uri.toString(), doc.getText());
-            }
-        }
         this._timer = this._clock.setInterval(() => this.advanceTo(this._clock.now()), SPEC.TICK_S * 1000);
     }
 
     /** Normal session end: final drain, then teardown. A grid tick that is
-     *  already DUE at stop time must not lose events to timer jitter (flush
-     *  the debouncers, run every due tick); events after the last due tick
-     *  lapse (Python rule, Decision 1). */
+     *  already DUE at stop time must not lose events to timer jitter (run
+     *  every due tick); events after the last due tick lapse (Python rule,
+     *  Decision 1). */
     stop(): void {
         if (this._session !== undefined) {
-            this._selectionDebounce?.flush();
             this.advanceTo(this._clock.now());
         }
         this._teardown();
@@ -165,7 +129,6 @@ export class StruggleEngine implements vscode.Disposable {
         for (const sub of this._subscriptions.splice(0)) {
             sub.dispose();
         }
-        this._selectionDebounce?.dispose();
         this._session = undefined;
     }
 
@@ -222,9 +185,6 @@ export class StruggleEngine implements vscode.Disposable {
 
     private _attach(): void {
         const subs = this._subscriptions;
-        this._selectionDebounce = new TrailingDebouncer(SELECTION_DEBOUNCE_MS, p => {
-            this._enqueue(p.tsS, () => this._n2.ingestSelection(p.tsS, p.uriKey, p.endLine));
-        });
 
         subs.push(this._hub.onDidChangeTextDocument(signal => {
             const uri = signal.event.document.uri;
@@ -232,64 +192,9 @@ export class StruggleEngine implements vscode.Disposable {
                 return;
             }
             const tsS = this._relS(signal.ts);
-            const uriKey = uri.toString();
-            const changes = signal.event.contentChanges.map(c => ({
-                oneChar: c.rangeLength === 0 && c.text.length === 1,
-                startLine: c.range.start.line,
-            }));
-            const before = this._shadow.beforeText(uriKey);
-            const afterText = signal.event.document.getText();
-            this._shadow.sync(uriKey, afterText);
-            this._enqueue(tsS, () => {
-                this._features.ingestTextChange(tsS, changes.filter(c => c.oneChar).length);
-                if (before !== undefined) {
-                    const methods = parseMethods(before);     // once per event
-                    for (const c of changes) {
-                        this._a8.recordChange(tsS, uriKey, methodAtLine(methods, c.startLine)?.name ?? null);
-                    }
-                }
-            });
-        }));
-
-        subs.push(this._hub.onDidOpenTextDocument(({ document }) => {
-            if (this._passesUriFilter(document.uri)) {
-                this._shadow.seed(document.uri.toString(), document.getText());
-            }
-        }));
-
-        subs.push(this._hub.onDidChangeTextEditorSelection(signal => {
-            const uri = signal.event.textEditor.document.uri;
-            if (!this._passesUriFilter(uri) || signal.event.selections.length === 0) {
-                return;
-            }
-            const payload = {
-                tsS: this._relS(signal.ts),
-                uriKey: uri.toString(),
-                endLine: signal.event.selections[0].end.line,
-            };
-            if (this._preDebounced) {
-                this._enqueue(payload.tsS, () => this._n2.ingestSelection(payload.tsS, payload.uriKey, payload.endLine));
-            } else {
-                this._selectionDebounce!.push(payload.uriKey, payload);
-            }
-        }));
-
-        subs.push(this._hub.onDidChangeDiagnostics(signal => {
-            const tsS = this._relS(signal.ts);
-            for (const uri of signal.uris) {
-                if (!this._passesUriFilter(uri)) {
-                    continue;
-                }
-                const errors = this._hub.readDiagnostics(uri)
-                    .filter(d => d.severity === vscode.DiagnosticSeverity.Error)
-                    .map(d => ({
-                        line: d.range.start.line,
-                        code: normalizeDiagnosticCode(d.code),
-                        message: d.message,
-                    }));
-                const uriKey = uri.toString();
-                this._enqueue(tsS, () => this._n2.ingestSnapshot(tsS, uriKey, errors));
-            }
+            const nOneChar = signal.event.contentChanges
+                .filter(c => c.rangeLength === 0 && c.text.length === 1).length;
+            this._enqueue(tsS, () => this._features.ingestTextChange(tsS, nOneChar));
         }));
 
         subs.push(this._hub.onDidEndTerminalShellExecution(signal => {
@@ -324,17 +229,12 @@ export class StruggleEngine implements vscode.Disposable {
                 }
             });
         }));
-
-        subs.push(this._hub.onTaskFeedbackView(signal => {
-            const tsS = this._relS(signal.ts);
-            this._enqueue(tsS, () => this._feedback.ingest(tsS, signal.action, signal.viewId));
-        }));
     }
 
     // ── tick ───────────────────────────────────────────────────────────
 
     private _drainUpTo(tS: number): void {
-        // Stable order by ts: debounced emissions enqueue out of arrival order.
+        // Stable order by ts: events still enqueue out of arrival order across sensors.
         this._queue.sort((a, b) => a.tsS - b.tsS);
         let consumed = 0;
         while (consumed < this._queue.length && this._queue[consumed].tsS <= tS) {
@@ -348,24 +248,18 @@ export class StruggleEngine implements vscode.Disposable {
         this._drainUpTo(tS);
 
         const wf = this._features.computeAt(tS);
-        const w0 = tS - wf.effectiveWindowS;
-        const fFb: 0 | 1 = this._feedback.openOverlapping(w0, tS) ? 1 : 0;
-        const fA8: 0 | 1 = this._a8.activeAt(tS) ? 1 : 0;
-        const fN2: 0 | 1 = this._n2.activeAt(tS) ? 1 : 0;
-        const { sBase, s } = severityFrom(wf, { fFb, fA8, fN2 });
+        // The one severity: sBase = (f_typing + f_gap) / 2 — the value the decision thresholds on.
+        const sBase = (wf.fTyping + wf.fGap) / 2;
         const boundaries = this._boundaries.flagsAt(tS, wf.tsState, this._warmupS);
         const graceActive = this._lastFmBadS !== null
             && this._lastFmBadS <= tS
             && tS - this._lastFmBadS <= SPEC.GRACE_S;
 
-        // Schicht 3: the DecisionEngine owns the alert decision. It thresholds on
-        // urgency = sBase; s (bonus severity) travels as telemetry only.
         const engineTick: EngineTick = {
             t: tS,
             urgency: sBase,
             editCandidate: { boundaries, typingRate: wf.typingRate, graceActive },
             discreteTriggers: { testStagnation: this._pendingTestStagnation },
-            telemetry: { s },
         };
         this._pendingTestStagnation = false;            // consumed by this tick
         const decision = this._decision.decide(engineTick);
@@ -376,9 +270,8 @@ export class StruggleEngine implements vscode.Disposable {
         const record: TickRecord = {
             t: tS,
             ts: tsMs,
-            features: { t: tS, ...wf, fFb, fA8, fN2 },
+            features: { t: tS, ...wf },
             sBase,
-            s,
             boundariesPreGate: boundaries,
             alert,
             decisionTrace,
@@ -395,10 +288,6 @@ export class StruggleEngine implements vscode.Disposable {
         this._lastFmBadS = null;
         this._pendingTestStagnation = false;
         this._features = new FeatureWindowTracker();
-        this._feedback = new FeedbackViewTracker();
-        this._shadow = new DocumentShadowTracker();
-        this._a8 = this._opts?.trackers?.a8?.() ?? new A8Tracker();
-        this._n2 = this._opts?.trackers?.n2?.() ?? new N2Tracker();
         this._buildDelta = new BuildDeltaTracker();
         this._testStagnation = new TestStagnationTracker(TUNING.testStagnationN);
         this._boundaries = new BoundaryTracker();
