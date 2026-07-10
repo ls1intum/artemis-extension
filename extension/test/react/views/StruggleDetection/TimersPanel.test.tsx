@@ -25,7 +25,6 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
         lastAlertMs: null,
         lastFmBadMs: null,
         throttle: null,
-        fN2Active: false,
         effectiveWindowS: 60,
         longestGapS: 18,
         decisionTrace: null,
@@ -34,7 +33,6 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
             warmupS: 480,
             cooldownS: 120,
             graceS: 32.94,
-            n2MinActiveS: 60,
             gapNormS: 40,
         },
         ...over,
@@ -107,9 +105,8 @@ describe('TimersPanel', () => {
         expect(screen.getByText('none yet')).toBeInTheDocument();
     });
 
-    it('renders the off-screen-error and re-arm metrics in plain language (no codes)', () => {
-        render(<TimersPanel debug={snapshot({ fN2Active: true, decisionTrace: trace({ gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: false, notRearmed: true } }) })} />);
-        expect(screen.getByText('active')).toBeInTheDocument();
+    it('renders the re-arm metric in plain language (no codes)', () => {
+        render(<TimersPanel debug={snapshot({ decisionTrace: trace({ gates: { fluentTyping: false, grace: false, warmup: false, belowThreshold: false, cooldown: false, notRearmed: true } }) })} />);
         expect(screen.getByText('waiting')).toBeInTheDocument();   // re-arm pending (was "gated")
         expect(screen.queryByText('gated')).not.toBeInTheDocument();
     });

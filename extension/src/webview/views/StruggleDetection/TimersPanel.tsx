@@ -34,7 +34,7 @@ function Value({ children, sub }: { children: React.ReactNode; sub?: string }) {
  * {@link StruggleDebugSnapshot} (the SAME source the `[Struggle]` log and the decision-flow
  * pipeline use) and derives every "remaining" locally via {@link useEngineCountdowns}, so the
  * readouts stay live between the 10 s engine ticks. All internal codes are spelled out in plain
- * language (no B4/E6/fN2 on screen); deeper detail lives in hover tooltips.
+ * language (no B4/E6 on screen); deeper detail lives in hover tooltips.
  */
 export function TimersPanel({ debug, collapsible, defaultCollapsed }: TimersPanelProps) {
     const { caps, throttle } = debug;
@@ -123,9 +123,6 @@ export function TimersPanel({ debug, collapsible, defaultCollapsed }: TimersPane
                     </Row>
                     <Row label="Typing rate" title="Keystrokes per minute over the analysis window. Drives the typing-deficit severity feature, the fluent-typing gate (suppresses at 20/min or more), and the low-typing boundary (below 5/min after warm-up).">
                         <Value sub="(fluent ≥ 20/min)">{typingRate === null ? <span className={styles.muted}>n/a</span> : `${Math.round(typingRate)}/min`}</Value>
-                    </Row>
-                    <Row label="Error far from your cursor" title="Whether an error sits more than 3 lines from the cursor and has been active long enough to raise severity.">
-                        <Badge variant={debug.fN2Active ? 'default' : 'muted'}>{debug.fN2Active ? 'active' : 'clear'}</Badge>
                     </Row>
                     <Row label="Test stagnation" title="Discrete add-on: fires on the Nth consecutive build without a strict new high in passed tests. Bypasses the moment gates; shares only the cooldown.">
                         {tps === null || !tps.enabled

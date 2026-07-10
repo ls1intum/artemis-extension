@@ -20,14 +20,13 @@ export type EditTraceReason = LiveDecisionTrace['reason'];
  *   - boundary codes (FM, FM_PLUS, E4, N1, STATE)
  *   - decision reasons (EditTraceReason)
  *   - the discrete trigger (test-stagnation)
- *   - metric names (urgency, s, theta)
+ *   - metric names (urgency, theta)
  */
 export type GlossaryKey =
     | BoundaryType
     | EditTraceReason
     | 'test-stagnation'
     | 'urgency'
-    | 's'
     | 'theta';
 
 export interface GlossaryEntry {
@@ -166,12 +165,6 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
         text: 'Current struggle severity right now, 0.00–1.00 (0 = none … 1 = severe)',
         code: 'urgency',
         tooltip: 'S_base: the live threshold signal for this single 10-second moment, computed as the average of the typing-deficit score and the longest-gap score. The alert threshold θ is checked against exactly this number.',
-    },
-
-    s: {
-        text: 'Raw per-moment severity signal, 0.00–1.00',
-        code: 's',
-        tooltip: 'The per-moment severity including bonus weight for active feedback errors, A8 method-persistence, and N2 distant-error signals. Telemetry only: the alert threshold does NOT use this value.',
     },
 
     theta: {

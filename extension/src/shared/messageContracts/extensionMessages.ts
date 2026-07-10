@@ -67,7 +67,6 @@ export interface LiveTick {
     t: number;
     /** S_base urgency score. */
     urgency: number;
-    s: number;
     theta: number;
     boundariesPreGate: BoundaryType[];
     alertKind: 'edit' | 'discrete' | null;
@@ -105,7 +104,6 @@ export interface StruggleDebugCaps {
     warmupS: number;
     cooldownS: number;
     graceS: number;
-    n2MinActiveS: number;
     gapNormS: number;
 }
 
@@ -131,8 +129,6 @@ export interface StruggleDebugSnapshot {
     lastFmBadMs: number | null;
     /** Delivery-throttle state, or null when the sink does not expose it. */
     throttle: StruggleThrottleState | null;
-    /** fN2 "off-screen error" currently active (metric; a true countdown needs a tracker getter, deferred). */
-    fN2Active: boolean;
     /** Effective feature window at the last tick: max(10, min(60, sessionSeconds)). */
     effectiveWindowS: number;
     /** Longest pause in the last window (s), shown against caps.gapNormS. */

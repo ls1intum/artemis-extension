@@ -259,7 +259,6 @@ suite('StruggleCoordinator', () => {
             warmupS: SPEC.WARMUP_S,
             cooldownS: SPEC.COOLDOWN_S,
             graceS: SPEC.GRACE_S,
-            n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
             gapNormS: SPEC.GAP_NORM_S,
         });
     });
@@ -270,7 +269,6 @@ suite('StruggleCoordinator', () => {
         const dbg = coord.getDebugSnapshot();
         assert.strictEqual(dbg.effectiveWindowS, 20, 'max(10, min(60, 20)) = 20');
         assert.strictEqual(typeof dbg.longestGapS, 'number');
-        assert.strictEqual(typeof dbg.fN2Active, 'boolean');
         assert.ok(dbg.decisionTrace, 'decision trace is present once a tick has run');
         assert.strictEqual(typeof dbg.decisionTrace!.outcome, 'string');
         assert.strictEqual(typeof dbg.decisionTrace!.gates.notRearmed, 'boolean');

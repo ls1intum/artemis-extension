@@ -75,7 +75,6 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
         lastAlertMs: null,
         lastFmBadMs: null,
         throttle: null,
-        fN2Active: false,
         effectiveWindowS: 60,
         longestGapS: 18,
         decisionTrace: null,
@@ -84,7 +83,6 @@ function snapshot(over: Partial<StruggleDebugSnapshot> = {}): StruggleDebugSnaps
             warmupS: SPEC.WARMUP_S,
             cooldownS: SPEC.COOLDOWN_S,
             graceS: SPEC.GRACE_S,
-            n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
             gapNormS: SPEC.GAP_NORM_S,
         },
         ...over,
@@ -112,14 +110,13 @@ describe('formatTick — Phase A per-tick debug line', () => {
         expect(line).toContain('boundaries=[FM]');
     });
 
-    it('renders the full severity decomposition (typ/gap + fb/a8/n2 bonuses)', () => {
+    it('renders the severity decomposition (typ/gap)', () => {
         const line = formatTick(tick({
             sBase: 0.55,
-            s: 0.78,
-            features: features({ fTyping: 0.5, fGap: 0.6, fFb: 1, fA8: 0.3, fN2: 0.2 }),
+            features: features({ fTyping: 0.5, fGap: 0.6 }),
         }));
-        expect(line).toContain('sBase=0.55 s=0.78');
-        expect(line).toContain('sev[typ=0.50 gap=0.60 fb=1.00 a8=0.30 n2=0.20]');
+        expect(line).toContain('sBase=0.55');
+        expect(line).toContain('sev[typ=0.50 gap=0.60]');
     });
 
     it('renders every gate as a 1/0 flag in a fixed order', () => {
@@ -170,16 +167,15 @@ describe('formatTick — Phase A per-tick debug line', () => {
     });
 });
 
-describe('formatTick — Phase B tail (throttle / grace / fN2)', () => {
+describe('formatTick — Phase B tail (throttle / grace)', () => {
     it('omits the Phase B tail entirely when no snapshot is passed', () => {
         const line = formatTick(tick());
         expect(line).not.toContain('throttle');
-        expect(line).not.toContain('fN2=');
     });
 
-    it('renders throttle[n/a] grace=– fN2=clear for an empty snapshot', () => {
+    it('renders throttle[n/a] grace=– for an empty snapshot', () => {
         const line = formatTick(tick(), snapshot());
-        expect(line).toContain('| throttle[n/a] grace=– fN2=clear');
+        expect(line).toContain('| throttle[n/a] grace=–');
     });
 
     it('renders the delivery counters + min-gap remaining, keyed by the ACTIVE level caps', () => {
@@ -217,9 +213,5 @@ describe('formatTick — Phase B tail (throttle / grace / fN2)', () => {
         // now=100s, armed at 80s → 32.94 − 20 ≈ 13s.
         const line = formatTick(tick(), snapshot({ lastFmBadMs: 80_000 }));
         expect(line).toContain('grace=13s');
-    });
-
-    it('shows fN2=active when the off-screen-error metric is set', () => {
-        expect(formatTick(tick(), snapshot({ fN2Active: true }))).toContain('fN2=active');
     });
 });

@@ -174,7 +174,6 @@ export interface StruggleSnapshot {
     isStruggling: boolean;
     /** Live threshold signal (S_base); isStruggling = urgency >= θ. */
     urgency: number;
-    s: number;
     primaryBoundary: BoundaryType | null;
     lastAlert: { t: number; kind: 'edit' | 'discrete'; summary: string } | null;
     sessionSeconds: number;

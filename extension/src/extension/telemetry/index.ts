@@ -203,7 +203,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     deps.context.subscriptions.push(coordinator.onDidTick(t => {
         orchestrator.onTick(t);
         // Phase B: pass the live debug snapshot so the one-line tick log also carries the
-        // throttle/grace/fN2 timers (same data source the dev dashboard renders from).
+        // throttle/grace timers (same data source the dev dashboard renders from).
         if (isDevMode()) { devLog(formatTick(t, coordinator.getDebugSnapshot())); }
     }));
     // A lamp click on a surfaced hint reveals the parked ambient hint (C2 spec §5.2 pull reveal).

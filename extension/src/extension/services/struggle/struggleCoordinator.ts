@@ -219,14 +219,13 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         // endExerciseSession(), so without this guard the snapshot — and the developer urgency
         // meter that renders from it — would surface stale data from the previous session.
         if (this._activeExerciseId === undefined) {
-            return { isStruggling: false, urgency: 0, s: 0, primaryBoundary: null, lastAlert: null, sessionSeconds: 0 };
+            return { isStruggling: false, urgency: 0, primaryBoundary: null, lastAlert: null, sessionSeconds: 0 };
         }
         const tick = this._lastTick;
         // v3: isStruggling thresholds on urgency = S_base (the live decision signal).
         return {
             isStruggling: tick ? tick.sBase >= SPEC.THETA_FULL : false,
             urgency: tick?.sBase ?? 0,
-            s: tick?.s ?? 0,
             primaryBoundary: tick && tick.boundariesPreGate.length > 0 ? tick.boundariesPreGate[0] : null,
             lastAlert: this._lastAlert ? summarizeAlert(this._lastAlert) : null,
             sessionSeconds: tick?.t ?? 0,
@@ -256,7 +255,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
             lastAlertMs,
             lastFmBadMs: lastFmBadS === null ? null : this._sessionStartMs + lastFmBadS * 1000,
             throttle: this._alertSink.getThrottleState?.() ?? null,
-            fN2Active: tick ? tick.features.fN2 > 0 : false,
             effectiveWindowS: tick?.features.effectiveWindowS ?? 0,
             longestGapS: tick?.features.longestGapS ?? 0,
             // Decision trace for the dev pipeline. Null when inactive: `_lastTick` outlives the
@@ -269,7 +267,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
                 warmupS: SPEC.WARMUP_S,
                 cooldownS: SPEC.COOLDOWN_S,
                 graceS: SPEC.GRACE_S,
-                n2MinActiveS: SPEC.N2_MIN_ACTIVE_S,
                 gapNormS: SPEC.GAP_NORM_S,
             },
         };
