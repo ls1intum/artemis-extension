@@ -4,7 +4,7 @@ import type { RecordedEvent } from '@extension/services/recording/types';
 import { SPEC } from '@extension/services/struggle/config';
 
 import { parseGoldenSession } from './goldenTypes';
-import { assertEveryChangeHasSnapshot, assertFeedbackViewMatched, assertSpecConstants } from './invariants';
+import { assertEveryChangeHasSnapshot, assertSpecConstants } from './invariants';
 
 // ── Minimal valid fixture ─────────────────────────────────────────────────────
 
@@ -136,38 +136,6 @@ describe('assertSpecConstants', () => {
 
     it('confirms SPEC.GRACE_S === 32.94', () => {
         expect(SPEC.GRACE_S).toBe(32.94);
-    });
-});
-
-// ── assertFeedbackViewMatched ─────────────────────────────────────────────────
-
-describe('assertFeedbackViewMatched', () => {
-    it('passes for an empty event stream', () => {
-        expect(() => assertFeedbackViewMatched([])).not.toThrow();
-    });
-
-    it('passes for a properly matched open/close pair', () => {
-        const events: RecordedEvent[] = [
-            { type: 'taskFeedbackView', action: 'opened', timestamp: 1000, viewId: 'v1', exerciseId: 1, taskName: 'task1', testIds: [], totalTests: 1, passedTests: 0, failedTests: 1 },
-            { type: 'taskFeedbackView', action: 'closed', timestamp: 2000, viewId: 'v1', exerciseId: 1, taskName: 'task1', durationMs: 1000, closeReason: 'button' },
-        ];
-        expect(() => assertFeedbackViewMatched(events)).not.toThrow();
-    });
-
-    it('throws on a closed event with no prior opened for that viewId', () => {
-        const events: RecordedEvent[] = [
-            { type: 'taskFeedbackView', action: 'closed', timestamp: 2000, viewId: 'v1', exerciseId: 1, taskName: 'task1', durationMs: 1000, closeReason: 'button' },
-        ];
-        expect(() => assertFeedbackViewMatched(events)).toThrow();
-    });
-
-    it('throws when closing a viewId that was already closed', () => {
-        const events: RecordedEvent[] = [
-            { type: 'taskFeedbackView', action: 'opened', timestamp: 1000, viewId: 'v1', exerciseId: 1, taskName: 'task1', testIds: [], totalTests: 1, passedTests: 0, failedTests: 1 },
-            { type: 'taskFeedbackView', action: 'closed', timestamp: 2000, viewId: 'v1', exerciseId: 1, taskName: 'task1', durationMs: 1000, closeReason: 'button' },
-            { type: 'taskFeedbackView', action: 'closed', timestamp: 3000, viewId: 'v1', exerciseId: 1, taskName: 'task1', durationMs: 2000, closeReason: 'escape' },
-        ];
-        expect(() => assertFeedbackViewMatched(events)).toThrow();
     });
 });
 

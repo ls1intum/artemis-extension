@@ -11,11 +11,16 @@ export interface GoldenTick {
     readonly longestGapS: number;
     readonly fTyping: number;
     readonly fGap: number;
+    /** Study-era bonus-severity telemetry; still present in the frozen
+     *  fixtures, no longer recomputed or compared/injected. */
     readonly fFb: 0 | 1;
     readonly fA8: 0 | 1;
     readonly fN2: 0 | 1;
     readonly tsState: boolean;
     readonly sBase: number;
+    /** Study-era bonus-severity telemetry; still present in the frozen
+     *  fixtures, no longer recomputed or compared/injected. sBase is the
+     *  decision surface and stays pinned. */
     readonly s: number;
     /** Study-era V(t) telemetry. Still present in the frozen fixtures, but no
      *  longer recomputed or compared since the live engine dropped the curve. */
@@ -39,9 +44,9 @@ export interface GoldenAlert {
 }
 
 export interface GoldenInject {
-    /** [tickTime, value] pairs for the fA8 binary signal. */
+    /** Study-era bonus-severity telemetry; still present in the frozen
+     *  fixtures, no longer recomputed or compared/injected. */
     readonly fA8: [number, 0 | 1][];
-    /** [tickTime, value] pairs for the fN2 binary signal. */
     readonly fN2: [number, 0 | 1][];
     /** Session-relative seconds where the reference fired an N1 paste. */
     readonly pasteEventTimes: number[];

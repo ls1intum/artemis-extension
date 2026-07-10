@@ -49,23 +49,6 @@ describe('replaySession — causal mode', () => {
 });
 
 describe('replaySession — exact mode', () => {
-    it('injects the scripted fA8 at the mapped ticks regardless of (absent) edits', () => {
-        const result = replaySession(idleEvents(), {
-            mode: 'exact',
-            inject: { fA8: [[20, 1], [30, 1]], fN2: [], pasteEventTimes: [] },
-            sessionStartMs: SESSION_START_MS,
-            durationS: 60,
-            resolveSnapshotText,
-        });
-
-        const byT = new Map(result.ticks.map(t => [t.t, t]));
-        expect(byT.get(20)!.features.fA8).toBe(1);
-        expect(byT.get(30)!.features.fA8).toBe(1);
-        // Unmapped ticks stay inactive.
-        expect(byT.get(10)!.features.fA8).toBe(0);
-        expect(byT.get(40)!.features.fA8).toBe(0);
-    });
-
     it('injects a paste producing an N1 boundary at the mapped tick', () => {
         const result = replaySession(idleEvents(), {
             mode: 'exact',

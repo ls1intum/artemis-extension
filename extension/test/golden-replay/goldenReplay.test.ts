@@ -3,13 +3,13 @@
 // GOLDEN_DIR (the Python-exported goldens from 26_export_ts_goldens.py) are set.
 //
 // exact mode: replays each recorded session through the TS engine with the
-// reference's f_a8/f_n2/paste injected, and asserts tick-for-tick equality with
-// the frozen Python reference (6-decimal S/V, exact boundaries/alerts).
+// reference's N1 paste times injected, and asserts tick-for-tick equality with
+// the frozen Python reference (exact decision surface: sBase, boundaries, alerts).
 //
 // causal mode: replays with the TS engine deriving everything online, and
 // REPORTS (does not assert) the divergence from the offline reference — the
-// magnitude of the three declared live deviations (A8/N2/N1). Numbers are
-// printed locally and intentionally never committed.
+// N1 paste-boundary deviation. Numbers are printed locally and intentionally
+// never committed.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -25,7 +25,6 @@ import {
 } from './index';
 import {
     assertEveryChangeHasSnapshot,
-    assertFeedbackViewMatched,
     assertSpecConstants,
 } from './invariants';
 
@@ -78,7 +77,6 @@ describe('golden replay (local, study dataset)', () => {
             const events = readEvents(path.join(folder, 'events.jsonl'));
 
             // Invariants the harness depends on (fail loud, not silently wrong).
-            assertFeedbackViewMatched(events);
             assertEveryChangeHasSnapshot(events);
 
             const resolveSnapshotText = (snapshotPath: string): string => {
@@ -89,7 +87,7 @@ describe('golden replay (local, study dataset)', () => {
                 return text;
             };
 
-            // exact: inject the reference's f_a8/f_n2/paste; the engine math must match.
+            // exact: inject the reference's N1 paste times; the decision surface must match.
             const exact = replaySession(events, {
                 mode: 'exact', inject: golden.inject, sessionStartMs, durationS, resolveSnapshotText,
             });
@@ -118,9 +116,7 @@ describe('golden replay (local, study dataset)', () => {
              
             console.log(
                 `${pid}: ticks=${summary.ticksCompared} (Δcount ${summary.tickCountDelta}) ` +
-                `fA8≠ ${summary.fA8DisagreeTicks} fN2≠ ${summary.fN2DisagreeTicks} ` +
                 `N1≠ ${summary.pasteBoundaryDisagreeTicks} ` +
-                `maxΔS ${summary.maxAbsSDelta.toFixed(4)} ` +
                 `alerts ts=${summary.alertCountReplay}/ref=${summary.alertCountGolden} (Δ ${summary.alertCountDelta}) ` +
                 `alert-only ts/ref ${summary.alertTimesOnlyInReplay}/${summary.alertTimesOnlyInGolden} ` +
                 `fieldΔ ${summary.alertSharedTimeFieldMismatches}`,

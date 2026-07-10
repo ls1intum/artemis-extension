@@ -29,40 +29,15 @@ export function assertSpecConstants(g: GoldenSession): void {
 }
 
 /**
- * Scans taskFeedbackView events and throws if a 'closed' event is encountered
- * for a viewId with no prior 'opened' (or that was already closed).
- * Mirrors engine_v2.py behaviour which raises on close-without-open.
- */
-export function assertFeedbackViewMatched(events: readonly RecordedEvent[]): void {
-    const openViewIds = new Set<string>();
-    for (const event of events) {
-        if (event.type !== 'taskFeedbackView') {
-            continue;
-        }
-        if (event.action === 'opened') {
-            openViewIds.add(event.viewId);
-        } else {
-            // action === 'closed'
-            if (!openViewIds.has(event.viewId)) {
-                throw new Error(
-                    `invariant: taskFeedbackView 'closed' for viewId "${event.viewId}" ` +
-                    'at timestamp ' + event.timestamp + ' has no prior opened event. ' +
-                    'Close-without-open indicates a corrupt or truncated event stream.'
-                );
-            }
-            openViewIds.delete(event.viewId);
-        }
-    }
-}
-
-/**
  * Asserts that every URI with a textChange also has a fileSnapshot somewhere in
  * the stream. A fileSnapshot is REQUIRED (a textDocumentOpen carries no text, so
- * the replay would reconstruct against an empty document and silently mis-derive
- * causal A8). Membership — not stream order — is the contract: the recorder
- * writes a snapshot's event only after async I/O, so it can legitimately land
- * after an early edit, and the replay hub pre-seeds FileTextState from ALL
- * fileSnapshots up front regardless of position.
+ * the replay would reconstruct against an empty document): `ReplaySensorHub`
+ * applies every textChange to the seeded FileTextState (throwing on an unseeded
+ * URI) and causal-mode paste derivation reads that same reconstructed text.
+ * Membership — not stream order — is the contract: the recorder writes a
+ * snapshot's event only after async I/O, so it can legitimately land after an
+ * early edit, and the replay hub pre-seeds FileTextState from ALL fileSnapshots
+ * up front regardless of position.
  */
 export function assertEveryChangeHasSnapshot(events: readonly RecordedEvent[]): void {
     const snapshotUris = new Set<string>();

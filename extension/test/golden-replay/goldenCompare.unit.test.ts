@@ -113,32 +113,32 @@ describe('compareExact', () => {
     });
 
     it('returns ok:true when numeric difference is within TOL (1e-7)', () => {
-        const gt = makeTick({ s: 0.5 });
+        const gt = makeTick({ sBase: 0.5 });
         const golden = makeGolden({ ticks: [gt] });
         const replayTick = makeReplayTick(gt);
-        // perturb s by 1e-7, which is within TOL=1e-6
+        // perturb sBase by 1e-7, which is within TOL=1e-6
         const replay = {
             durationS: 600,
-            ticks: [{ ...replayTick, s: replayTick.s + 1e-7 }],
+            ticks: [{ ...replayTick, sBase: replayTick.sBase + 1e-7 }],
             alerts: [],
         };
         expect(compareExact(replay, golden)).toEqual({ ok: true });
     });
 
-    it('returns ok:false with tickField divergence when s differs by 1e-5', () => {
-        const gt = makeTick({ s: 0.5 });
+    it('returns ok:false with tickField divergence when sBase differs by 1e-5', () => {
+        const gt = makeTick({ sBase: 0.5 });
         const golden = makeGolden({ ticks: [gt] });
         const replayTick = makeReplayTick(gt);
         const replay = {
             durationS: 600,
-            ticks: [{ ...replayTick, s: replayTick.s + 1e-5 }],
+            ticks: [{ ...replayTick, sBase: replayTick.sBase + 1e-5 }],
             alerts: [],
         };
         const result = compareExact(replay, golden);
         expect(result.ok).toBe(false);
         expect(result.firstDivergence?.kind).toBe('tickField');
         expect(result.firstDivergence?.t).toBe(10);
-        expect(result.firstDivergence?.field).toBe('s');
+        expect(result.firstDivergence?.field).toBe('sBase');
     });
 
     it('returns ok:false with tickCount divergence when tick counts differ', () => {
@@ -201,26 +201,18 @@ describe('compareExact', () => {
 // ── summarizeCausal ───────────────────────────────────────────────────────────
 
 describe('summarizeCausal', () => {
-    it('returns correct counts and maxAbsSDelta without throwing', () => {
-        const gt1 = makeTick({ t: 10, fA8: 0, s: 0.2, v: 0.5 });
-        const gt2 = makeTick({ t: 20, fA8: 1, s: 0.4, v: 0.6 });
+    it('returns correct tick and alert counts without throwing', () => {
+        const gt1 = makeTick({ t: 10 });
+        const gt2 = makeTick({ t: 20 });
         const golden = makeGolden({ ticks: [gt1, gt2] });
 
-        // replay: fA8 disagrees at t=20, s differs by 0.1 at t=20
         const rt1 = makeReplayTick(gt1);
-        const rt2: TickRecord = {
-            ...makeReplayTick(gt2),
-            features: { ...makeReplayTick(gt2).features, fA8: 0 }, // disagrees
-            s: 0.3, // delta = 0.1
-        };
+        const rt2 = makeReplayTick(gt2);
         const replay = { durationS: 600, ticks: [rt1, rt2], alerts: [] };
 
         const report = summarizeCausal(replay, golden);
         expect(report.ticksCompared).toBe(2);
         expect(report.tickCountDelta).toBe(0);
-        expect(report.fA8DisagreeTicks).toBe(1);
-        expect(report.fN2DisagreeTicks).toBe(0);
-        expect(report.maxAbsSDelta).toBeCloseTo(0.1, 10);
         expect(report.alertCountReplay).toBe(0);
         expect(report.alertCountGolden).toBe(0);
         expect(report.alertCountDelta).toBe(0);

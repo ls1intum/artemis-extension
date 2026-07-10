@@ -4,9 +4,8 @@
  * against the frozen Python reference.
  *
  * Two modes:
- *   - 'exact'  — inject the golden's binary fA8/fN2 streams (scripted trackers)
- *                and the golden's N1 paste times, so severity + alerting run on
- *                exactly the reference's feature inputs.
+ *   - 'exact'  — inject the golden's N1 paste times, so N1-boundary detection
+ *                and alerting run on exactly the reference's paste input.
  *   - 'causal' — the engine derives A8/N2/paste online from the recorded events.
  *
  * Determinism (one intake path, struggleEngine.ts §5): per grid tick we (1)
@@ -24,9 +23,8 @@ import { StruggleEngine } from '@extension/services/struggle/struggleEngine';
 import type { AlertRecord, EngineClock, TickRecord } from '@extension/services/struggle/types';
 
 import type { GoldenInject } from './goldenTypes';
-import { assertEveryChangeHasSnapshot, assertFeedbackViewMatched } from './invariants';
+import { assertEveryChangeHasSnapshot } from './invariants';
 import { ReplaySensorHub } from './replaySensorHub';
-import { scriptedA8, scriptedN2 } from './scriptedTrackers';
 
 export interface ReplayResult {
     readonly durationS: number;
@@ -61,7 +59,6 @@ function ticksFor(durationS: number): number[] {
 
 export function replaySession(events: RecordedEvent[], opts: ReplayOpts): ReplayResult {
     // Fail loud on a corrupt stream before driving the engine.
-    assertFeedbackViewMatched(events);
     assertEveryChangeHasSnapshot(events);
 
     const hub = new ReplaySensorHub(events, {
@@ -70,10 +67,6 @@ export function replaySession(events: RecordedEvent[], opts: ReplayOpts): Replay
         injectedPasteEventTimes: opts.mode === 'exact' ? opts.inject.pasteEventTimes : undefined,
         sessionStartMs: opts.sessionStartMs,
     });
-
-    const trackers = opts.mode === 'exact'
-        ? { a8: () => scriptedA8(opts.inject.fA8), n2: () => scriptedN2(opts.inject.fN2) }
-        : undefined;
 
     // Fake clock: the harness owns time. setInterval never fires (the engine's
     // live auto-tick is disabled); advanceTo is driven manually below.
@@ -88,7 +81,7 @@ export function replaySession(events: RecordedEvent[], opts: ReplayOpts): Replay
     // Validated-base mode: discrete add-ons OFF so the replay matches the
     // alerts_full_u golden surface (edit path only).
     const engine = new StruggleEngine(hub, clock, {
-        preDebouncedIntake: true, trackers, decision: { enableTestStagnation: false },
+        decision: { enableTestStagnation: false },
     });
     const ticks: TickRecord[] = [];
     const alerts: AlertRecord[] = [];

@@ -166,10 +166,11 @@ export class ReplaySensorHub implements SensorHub {
      * The recorder snapshots files LAZILY on first open/switch — observed AFTER
      * the startupPhaseComplete marker, not before it — so a "snapshots before the
      * marker" notion is empty in practice. We therefore treat every snapshotted
-     * URI as an already-open doc for readTextDocuments(): the engine's shadow only
-     * feeds A8, and A8 reads `before` at the first textChange, where the seeded
-     * baseline is the snapshot content either way. Any snapshot URI is also a
-     * valid in-root anchor for an injected N1 paste.
+     * URI as an already-open doc for readTextDocuments(): the engine's document
+     * shadow reads `before` at the first textChange regardless, where the seeded
+     * baseline is the snapshot content either way, so readTextDocuments() timing
+     * cannot change what the engine observes. Any snapshot URI is also a valid
+     * in-root anchor for an injected N1 paste.
      */
     private _seedSnapshots(events: RecordedEvent[]): void {
         const seeded = new Set<string>();

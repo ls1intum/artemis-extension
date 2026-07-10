@@ -23,10 +23,7 @@ export interface ExactReport {
 export interface CausalReport {
     readonly ticksCompared: number;
     readonly tickCountDelta: number;
-    readonly fA8DisagreeTicks: number;
-    readonly fN2DisagreeTicks: number;
     readonly pasteBoundaryDisagreeTicks: number;
-    readonly maxAbsSDelta: number;
     readonly alertCountReplay: number;
     readonly alertCountGolden: number;
     readonly alertCountDelta: number;
@@ -72,14 +69,11 @@ function compareTickFields(
         { field: 'longestGapS', replay: rt.features.longestGapS, golden: gt.longestGapS },
         { field: 'fTyping', replay: rt.features.fTyping, golden: gt.fTyping },
         { field: 'fGap', replay: rt.features.fGap, golden: gt.fGap },
-        { field: 'fFb', replay: rt.features.fFb, golden: gt.fFb },
-        { field: 'fA8', replay: rt.features.fA8, golden: gt.fA8 },
-        { field: 'fN2', replay: rt.features.fN2, golden: gt.fN2 },
-        // The golden fixtures still carry v/fastDecay from the study engine; the
-        // live engine dropped the V(t) telemetry curve, so those fields are no
-        // longer recomputed or compared. sBase/s and the alert stream stay pinned.
+        // The golden fixtures still carry fFb/fA8/fN2/s/v/fastDecay from the
+        // study engine; the live engine dropped the bonus-severity context
+        // signals and the V(t) telemetry curve, so those fields are no longer
+        // recomputed or compared. sBase and the alert stream stay pinned.
         { field: 'sBase', replay: rt.sBase, golden: gt.sBase },
-        { field: 's', replay: rt.s, golden: gt.s },
     ];
 
     for (const { field, replay, golden } of numericFields) {
@@ -323,24 +317,15 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
     const ticksCompared = Math.min(replay.ticks.length, golden.ticks.length);
     const tickCountDelta = replay.ticks.length - golden.ticks.length;
 
-    let fA8DisagreeTicks = 0;
-    let fN2DisagreeTicks = 0;
     let pasteBoundaryDisagreeTicks = 0;
-    let maxAbsSDelta = 0;
 
     for (let i = 0; i < ticksCompared; i++) {
         const rt = replay.ticks[i];
         const gt = golden.ticks[i];
 
-        if (rt.features.fA8 !== gt.fA8) {fA8DisagreeTicks++;}
-        if (rt.features.fN2 !== gt.fN2) {fN2DisagreeTicks++;}
-
         const replayHasN1 = rt.boundariesPreGate.includes('N1');
         const goldenHasN1 = gt.boundaries.includes('N1');
         if (replayHasN1 !== goldenHasN1) {pasteBoundaryDisagreeTicks++;}
-
-        const sDelta = Math.abs(rt.s - gt.s);
-        if (sDelta > maxAbsSDelta) {maxAbsSDelta = sDelta;}
     }
 
     const alertCountReplay = replay.alerts.length;
@@ -365,10 +350,7 @@ export function summarizeCausal(replay: ReplayResult, golden: GoldenSession): Ca
     return {
         ticksCompared,
         tickCountDelta,
-        fA8DisagreeTicks,
-        fN2DisagreeTicks,
         pasteBoundaryDisagreeTicks,
-        maxAbsSDelta,
         alertCountReplay,
         alertCountGolden,
         alertCountDelta: alertCountReplay - alertCountGolden,

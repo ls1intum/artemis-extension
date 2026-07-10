@@ -3,9 +3,10 @@
  *
  * Recorded `textDocumentOpen` events carry no text, so the harness must
  * rebuild each file's text from the startup `fileSnapshot` plus the applied
- * `textChange` deltas. This class holds the per-URI current text and exposes
- * the before/after text the struggle engine's onDidChangeTextDocument handler
- * needs (before-text for A8 Java-method parsing, after-text for the shadow).
+ * `textChange` deltas. This class holds the per-URI current text and supplies
+ * it to the struggle engine's onDidChangeTextDocument handler (whose own
+ * document shadow derives before/after text for its feature computations) and,
+ * in causal mode, to the paste-detection heuristic that decides N1 boundaries.
  *
  * The delta-application logic is ported from `scripts/roundtrip-recording.ts`
  * (`replayUri`, the `content.slice(0, off) + text + content.slice(off + len)`
