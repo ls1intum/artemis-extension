@@ -6,7 +6,7 @@
  * Two modes:
  *   - 'exact'  — inject the golden's N1 paste times, so N1-boundary detection
  *                and alerting run on exactly the reference's paste input.
- *   - 'causal' — the engine derives A8/N2/paste online from the recorded events.
+ *   - 'causal' — the engine derives paste online from the recorded events.
  *
  * Determinism (one intake path, struggleEngine.ts §5): per grid tick we (1)
  * pump every hub signal with time <= tS so the engine ENQUEUES it, THEN (2)

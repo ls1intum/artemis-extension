@@ -611,6 +611,9 @@ this design adds. Java records on the Artemis side, mirrored as Pydantic on the 
 
 **Two request hops + the `confirmReason` discriminator (ratified).** The block above is the **Artemis → Pyris** request. The **extension → Artemis** request carries the same `intent` + `episode`, **plus one extra field** `confirmReason` (set only on a `confirmClose` POST) — `confirm_reason ∈ { "progress", "stale_solved", "parked_progress" }`. It is **NOT forwarded to Pyris** (Artemis stamps it on the in-flight job and acts on it); Pyris stays slot-stateless (§11). It is the **minimal** discriminator the stateless server needs because a bare `resolved` boolean cannot express three spec-distinct behaviours of one `confirmClose` mode: `progress` = §7.1 quiet-on-`false`; `stale_solved` = §7.3 gentle-offer-on-`false`; `parked_progress` = §4/§8 silent-on-both (a never-delivered PARKED close persists no row and writes no outcome). Without it the server cannot tell a PARKED close (persist nothing) from a delivered one (persist closing row + `RECOVERED`). This is the one slot-derived value on the extension→Artemis hop; everything else slot-related stays client-side.
 
+*Historical snapshot — the wire contract has since changed: trajectory rows are
+`{t, s}` with s = sBase, and `dominantComponents` was removed (2026-07-10).*
+
 ```
 // existing, unchanged:
 PyrisStruggleSignalDTO {

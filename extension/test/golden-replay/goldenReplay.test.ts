@@ -97,7 +97,7 @@ describe('golden replay (local, study dataset)', () => {
             }
             expect(report.ok).toBe(true);
 
-            // causal: TS derives A8/N2/paste online; report (do not assert) the divergence.
+            // causal: TS derives paste online; report (do not assert) the divergence.
             const causal = replaySession(events, {
                 mode: 'causal', sessionStartMs, durationS, resolveSnapshotText,
             });

@@ -16,5 +16,13 @@ describe('frozen Engine-v3 constants (2-feature substrate; derived_params.json)'
         expect([...BOUNDARY_PRIORITY]).toEqual(['FM', 'FM_PLUS', 'E4', 'N1', 'STATE']);
         expect('N4_RATIO_THRESH' in SPEC).toBe(false);   // v3: scroll/N4 feature dropped
         expect('HL_DEFAULT_S' in SPEC).toBe(false);      // V(t) peak-hold telemetry removed
+        expect('W_FB' in SPEC).toBe(false);              // bonus-severity weights removed
+        expect('W_A8' in SPEC).toBe(false);              // bonus-severity weights removed
+        expect('W_N2' in SPEC).toBe(false);              // bonus-severity weights removed
+        expect('A8_WINDOW_S' in SPEC).toBe(false);       // A8 tracker removed
+        expect('A8_MIN_CHANGES' in SPEC).toBe(false);    // A8 tracker removed
+        expect('A8_SHARE' in SPEC).toBe(false);          // A8 tracker removed
+        expect('N2_DIST_LINES' in SPEC).toBe(false);     // N2 tracker removed
+        expect('N2_MIN_ACTIVE_S' in SPEC).toBe(false);   // N2 tracker removed
     });
 });

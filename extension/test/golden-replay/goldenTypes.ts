@@ -47,6 +47,8 @@ export interface GoldenInject {
     /** Study-era bonus-severity telemetry; still present in the frozen
      *  fixtures, no longer recomputed or compared/injected. */
     readonly fA8: [number, 0 | 1][];
+    /** Study-era bonus-severity telemetry; still present in the frozen
+     *  fixtures, no longer recomputed or compared/injected. */
     readonly fN2: [number, 0 | 1][];
     /** Session-relative seconds where the reference fired an N1 paste. */
     readonly pasteEventTimes: number[];

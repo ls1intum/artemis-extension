@@ -6,8 +6,8 @@ const round2 = (x: number): number => Math.round(x * 100) / 100;
 
 /**
  * Build the wire StruggleSignal from a fired alert and the recent tick buffer (oldest->newest). The
- * alert's own FeatureVector is the latest buffered tick (the tick fires synchronously just before the
- * alert in the same engine tick).
+ * alert's own tick is the latest buffered one (the tick fires synchronously just before the alert in
+ * the same engine tick); it feeds only `sessionSeconds`.
  *
  * Edit-path alerts carry their boundary/path fields onto the wire directly. A discrete alert (the
  * test-stagnation add-on) is not boundary-shaped, so it maps to the wire-only 'TPS' boundary with
