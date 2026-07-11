@@ -65,7 +65,7 @@ const MAX_REVEAL_RETRIES = 12;
 const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404, 422]);
 
 /** Boundary types that constitute a hard event (drive the escalation path). */
-const HARD_BOUNDARIES = new Set<string>(['FM', 'FM_PLUS', 'E4', 'N1']);
+const HARD_BOUNDARIES = new Set<string>(['FM', 'E4', 'N1']);
 
 /**
  * A hard alert is anchored on a student ACTION (build/terminal/paste), not on passive state:

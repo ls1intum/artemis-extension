@@ -44,14 +44,13 @@ describe('BuildDeltaTracker (build_episodes delta_vs_prev + engine classificatio
         const b = new BuildDeltaTracker();
         expect(b.ingest(10, result([])).isFM).toBe(false);
     });
-    it('FM+ = improved AND failures remain', () => {
+    it('improved-but-failing does not trigger (no FM+ boundary in v4)', () => {
         const b = new BuildDeltaTracker();
         b.ingest(10, result(['a', 'b', 'c']));
-        const r = b.ingest(20, result(['a']));
+        const r = b.ingest(20, result(['a']));                             // 3 failing -> 1 failing
         expect(r.delta).toBe('improved');
-        expect(r.isFMPlus).toBe(true);
-        b.ingest(30, result(['a']));                                       // identical
-        expect(b.ingest(40, result([])).isFMPlus).toBe(false);             // improved to clean
+        expect(r.improved).toBe(true);
+        expect(r.isFM).toBe(false);                                        // progress: no trigger
     });
     it('improved/non-improved split: every non-improved delta counts as non-improved', () => {
         const b = new BuildDeltaTracker();

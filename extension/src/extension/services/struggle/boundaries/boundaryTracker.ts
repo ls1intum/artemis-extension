@@ -1,6 +1,6 @@
 // extension/src/extension/services/struggle/boundaries/boundaryTracker.ts
 /**
- * Boundary bookkeeping (spec §3): FM/FM+/E4/N1 events are assigned to the
+ * Boundary bookkeeping (spec §3): FM/E4/N1 events are assigned to the
  * FIRST tick >= event time and evaluated exactly once there; the STATE
  * boundary has interval semantics (pending at every tick with an active TS
  * state after warmup — this realizes the "synthetic warmup entry" without an
@@ -57,7 +57,7 @@ type EventBoundary = Exclude<BoundaryType, 'STATE'>;
 
 export class BoundaryTracker {
     private readonly _buffers = new Map<EventBoundary, number[]>([
-        ['FM', []], ['FM_PLUS', []], ['E4', []], ['N1', []],
+        ['FM', []], ['E4', []], ['N1', []],
     ]);
 
     /** Buffer an event boundary at session-relative time ts (seconds). */

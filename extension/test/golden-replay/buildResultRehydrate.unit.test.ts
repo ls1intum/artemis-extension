@@ -67,7 +67,6 @@ describe('rehydrateResultDTO + buildDelta classification', () => {
         const c = tracker.ingest(2, rehydrateResultDTO(buildResultEvent({ buildFailed: false, failedDetails: ['a'] })));
         expect(c.delta).toBe('improved');
         expect(c.improved).toBe(true);
-        expect(c.isFMPlus).toBe(true); // improved AND still has a failure
     });
 
     it('classifies a WORSE build (more failures)', () => {

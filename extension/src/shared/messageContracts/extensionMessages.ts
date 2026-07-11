@@ -17,7 +17,7 @@ import type { ProactiveLevel } from './proactiveLevel';
 // Shared boundary union (mirrors engine's BOUNDARY_PRIORITY order)
 // ---------------------------------------------------------------------------
 
-export const BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+export const BOUNDARY_TYPES = ['FM', 'E4', 'N1', 'STATE'] as const;
 export type BoundaryType = typeof BOUNDARY_TYPES[number];
 
 // ---------------------------------------------------------------------------

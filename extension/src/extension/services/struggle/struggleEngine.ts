@@ -219,9 +219,6 @@ export class StruggleEngine implements vscode.Disposable {
                     this._boundaries.ingest('FM', tsS);
                     this._lastFmBadS = tsS;
                 }
-                if (c.isFMPlus) {
-                    this._boundaries.ingest('FM_PLUS', tsS);
-                }
                 // Discrete add-on: a Test-Stagnation fire is assigned to this
                 // build's tick (the drain runs before the tick computes).
                 if (this._testStagnation.ingest(c)) {

@@ -12,10 +12,10 @@ export function isFluentTyping(typingRate: number | null): boolean {
     return typingRate !== null && typingRate >= SPEC.B2_TYPING_PER_MIN;
 }
 
-/** B4 grace filter: inside the grace window only FM/FM+ survive (the feedback
+/** B4 grace filter: inside the grace window only FM survives (the feedback
  *  moment itself is the canonical intervention point; spec §4). */
 export function applyGraceFilter(present: readonly BoundaryType[]): BoundaryType[] {
-    return present.filter(k => k === 'FM' || k === 'FM_PLUS');
+    return present.filter(k => k === 'FM');
 }
 
 /** D1 warmup: inside warmup only FM/E4 break through (N16 conflict resolution). */

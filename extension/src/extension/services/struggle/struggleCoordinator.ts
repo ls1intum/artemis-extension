@@ -103,7 +103,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     onNewResult(result: ResultDTO): void {
         if (!this._isEnabled) { return; }
         if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) { return; }
-        this._hub.emitBuildResult(result);          // engine (FM/FM+/improved + test stagnation)
+        this._hub.emitBuildResult(result);          // engine (FM/improved + test stagnation)
         // Detect a strict new high in passed tests and notify the alert sink so the orchestrator's
         // progress-close latch can observe the green-test path. Mirror the guards the engine applies
         // to its own trackers so a raw backend field can never fake progress and wrongly stand down a

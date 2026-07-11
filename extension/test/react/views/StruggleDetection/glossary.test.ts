@@ -2,7 +2,7 @@ import type { GlossaryKey } from '@webview/views/StruggleDetection/glossary';
 import { boundaryText, discreteText, GLOSSARY, reasonText } from '@webview/views/StruggleDetection/glossary';
 
 const ALL_KEYS: GlossaryKey[] = [
-    'FM', 'FM_PLUS', 'E4', 'N1', 'STATE',
+    'FM', 'E4', 'N1', 'STATE',
     'fired', 'no-candidate', 'b2-fluent-typing', 'b4-grace-filter', 'd1-warmup', 'below-threshold', 'cooldown', 'not-rearmed',
     'test-stagnation', 'urgency', 'theta',
 ];
@@ -21,7 +21,7 @@ test('reasonText returns the spelled-out wording', () => {
 });
 
 test('boundaryText returns text and code for all boundary types', () => {
-    const boundaries = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+    const boundaries = ['FM', 'E4', 'N1', 'STATE'] as const;
     for (const b of boundaries) {
         const result = boundaryText(b);
         expect(result.text.length).toBeGreaterThanOrEqual(12);
@@ -41,7 +41,7 @@ test('GLOSSARY is exhaustive — all keys from ALL_KEYS resolve', () => {
 });
 
 test('every boundary has a short pipeline label, no longer than its full text', () => {
-    const boundaries = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+    const boundaries = ['FM', 'E4', 'N1', 'STATE'] as const;
     for (const b of boundaries) {
         const entry = GLOSSARY[b];
         expect(entry.short, `${b} short label`).toBeDefined();

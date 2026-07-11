@@ -624,6 +624,7 @@ function parseStruggleScore(d: Record<string, unknown>, timestamp: number): Stru
     };
 }
 
+// FM_PLUS is legacy (no longer emitted by the live engine); kept so historical recordings parse.
 const RECORDED_BOUNDARY_TYPES = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
 
 function parseAlert(d: Record<string, unknown>, timestamp: number): AlertEvent | null {

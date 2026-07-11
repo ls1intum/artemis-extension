@@ -13,7 +13,7 @@ describe('frozen Engine-v3 constants (2-feature substrate; derived_params.json)'
             GRACE_S: 32.94, THETA_FULL: 0.7,
         });
         expect([...SPEC.FM_DELTAS_BAD]).toEqual(['worse', 'same-count', 'identical-set']);
-        expect([...BOUNDARY_PRIORITY]).toEqual(['FM', 'FM_PLUS', 'E4', 'N1', 'STATE']);
+        expect([...BOUNDARY_PRIORITY]).toEqual(['FM', 'E4', 'N1', 'STATE']);
         expect('N4_RATIO_THRESH' in SPEC).toBe(false);   // v3: scroll/N4 feature dropped
         expect('HL_DEFAULT_S' in SPEC).toBe(false);      // V(t) peak-hold telemetry removed
         expect('W_FB' in SPEC).toBe(false);              // bonus-severity weights removed

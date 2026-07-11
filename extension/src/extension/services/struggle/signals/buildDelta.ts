@@ -5,8 +5,9 @@
  * derivation — detailText of feedbacks with positive === false — because the
  * frozen reference compared exactly those strings (PR 2b plan, Decision 11).
  *
- * Port of build_episodes_for (02_event_tables.py) + the FM/FM+/improved
- * classification of build_inputs (engine_v2.py).
+ * Port of build_episodes_for (02_event_tables.py) + the FM/improved
+ * classification of build_inputs (engine_v2.py). FM fires on a failing build
+ * with no progress; an improved-but-still-failing build no longer triggers.
  */
 import type { ResultDTO } from '@extension/domain/submissions';
 import { SPEC } from '@extension/services/struggle/config';
@@ -18,7 +19,6 @@ export interface BuildClassification {
     readonly delta: BuildDelta;
     readonly failedCount: number | null;
     readonly isFM: boolean;
-    readonly isFMPlus: boolean;
     readonly improved: boolean;
     /** Passing/total test-case counts (from ResultDTO). Both null for a
      *  compile-error build (buildFailed) — no test info — so a stale backend
@@ -85,7 +85,6 @@ export class BuildDeltaTracker {
             delta,
             failedCount,
             isFM,
-            isFMPlus: delta === 'improved' && hasFailed,
             improved: delta === 'improved',
             passedTestCaseCount,
             testCaseCount,

@@ -59,7 +59,7 @@ export type EditTraceReason =
 	| 'fired'              // an edit alert fired this tick
 	| 'no-candidate'       // no boundary was pending
 	| 'b2-fluent-typing'   // B2: typing fluently
-	| 'b4-grace-filter'    // B4: grace window removed all (non-FM/FM+) boundaries
+	| 'b4-grace-filter'    // B4: grace window removed all (non-FM) boundaries
 	| 'd1-warmup'          // D1: warmup removed all (non-FM/E4) boundaries
 	| 'below-threshold'    // urgency < theta
 	| 'cooldown'           // within COOLDOWN_S of the last alert

@@ -70,8 +70,8 @@ export const SPEC = {
      * derivation is not on the golden-pinned path). */
 } as const;
 
-/** Boundary types in audit priority order (spec §3: FM > FM+ > E4 > N1 > STATE). ENG */
-export const BOUNDARY_PRIORITY = ['FM', 'FM_PLUS', 'E4', 'N1', 'STATE'] as const;
+/** Boundary types in audit priority order (spec §3: FM > E4 > N1 > STATE). ENG */
+export const BOUNDARY_PRIORITY = ['FM', 'E4', 'N1', 'STATE'] as const;
 export type BoundaryType = typeof BOUNDARY_PRIORITY[number];
 
 /**

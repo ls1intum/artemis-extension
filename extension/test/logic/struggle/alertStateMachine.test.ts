@@ -109,7 +109,7 @@ describe('AlertStateMachine (Python run_state_machine port)', () => {
         });
         expect(alerts[0]?.t).toBe(130);
     });
-    for (const [type, expected] of [['FM', true], ['E4', true], ['N1', false], ['FM_PLUS', false]] as const) {
+    for (const [type, expected] of [['FM', true], ['E4', true], ['N1', false]] as const) {
         it(`T7 warmup: ${type} ${expected ? 'breaks through' : 'is blocked'}`, () => {
             const alerts = drive(480, {
                 urgency: () => 0.8,
@@ -164,14 +164,6 @@ test('lastTrace reports b4-grace-filter when grace removes a non-FM STATE bounda
     const m = new AlertStateMachine();
     m.tick({ t: 600, urgency: 0.9, boundaries: ['STATE'], typingRate: 0, graceActive: true });
     expect(m.lastTrace.reason).toBe('b4-grace-filter');
-});
-
-// Interaction: grace keeps FM_PLUS (non-empty), but warmup then empties it.
-test('grace keeps FM_PLUS yet warmup clears it -> d1-warmup, and the alert output matches the original (null)', () => {
-    const m = new AlertStateMachine();
-    const alert = m.tick({ t: 100, urgency: 0.9, boundaries: ['FM_PLUS'], typingRate: 0, graceActive: true });
-    expect(alert).toBeNull();            // FM_PLUS is not in survivesWarmup {FM,E4}
-    expect(m.lastTrace.reason).toBe('d1-warmup');
 });
 
 // Interaction: FM survives both grace and warmup -> fires even inside warmup.

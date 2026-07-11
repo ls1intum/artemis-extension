@@ -448,7 +448,8 @@ export interface SubmissionEvent {
 export type SubmissionPayload = Pick<SubmissionEvent, 'status' | 'participationId' | 'commitMessage' | 'failureReason'>;
 
 // ── Block L: Engine score + alert events (schemaVersion 3) ────────
-/** Boundary types as recorded (mirror of services/struggle BoundaryType). */
+/** Boundary types as recorded. FM_PLUS is legacy (no longer emitted by the live
+ *  engine) but retained so historical recordings still parse. */
 export type RecordedBoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE';
 
 /** Engine per-tick score sample (every 10 s). v3 2-feature substrate: the v2

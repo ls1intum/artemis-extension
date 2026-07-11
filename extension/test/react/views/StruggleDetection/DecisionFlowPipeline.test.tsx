@@ -93,7 +93,7 @@ describe('DecisionFlowPipeline', () => {
     it('shows the fired outcome, clears every gate row, and never claims delivery (FM broke through warm-up + grace)', () => {
         render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({
             outcome: 'fired-edit', reason: 'fired', boundariesPresent: ['FM'],
-            // FM/E4 break through warm-up and FM/FM+ survive the grace filter, so these flags can
+            // FM/E4 break through warm-up and FM survives the grace filter, so these flags can
             // still be true on a fired tick — but the flow stopped nowhere, so no gate row may read
             // "engaged" (that would contradict the green "all clear" Gates stage box).
             gates: { fluentTyping: false, grace: true, warmup: true, belowThreshold: false, cooldown: false, notRearmed: false },

@@ -6,7 +6,7 @@ import { TestStagnationTracker } from '@extension/services/struggle/signals/test
 /** Minimal BuildClassification — the tracker reads ONLY passed/testCaseCount. */
 function cls(passed: number | null, total: number | null): BuildClassification {
     return {
-        tsS: 0, delta: 'first', failedCount: null, isFM: false, isFMPlus: false,
+        tsS: 0, delta: 'first', failedCount: null, isFM: false,
         improved: false, passedTestCaseCount: passed, testCaseCount: total,
     };
 }

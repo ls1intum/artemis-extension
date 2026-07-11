@@ -26,7 +26,7 @@ The reference consumes whole-session, retrospective artifacts for three signals;
 2. **N2** (`f_n2`, distant-active-error bonus) — reference uses each error's last-seen time and eventual-resolution flag (look-ahead); live is active-until-removal.
 3. **N1** (paste boundary) — reference uses the recorded v1 paste-trigger set; live uses the deterministic paste heuristic.
 
-Everything else (base severity `f_typing`/`f_gap`/`f_n4`, the `FM`/`FM_PLUS`/`E4`/`STATE` boundaries, the decay `V(t)`, the gates, and the alert state machine) is deviation-free.
+Everything else (base severity `f_typing`/`f_gap`/`f_n4`, the `FM`/`E4`/`STATE` boundaries, the decay `V(t)`, the gates, and the alert state machine) is deviation-free.
 
 ## Two comparison modes
 

@@ -80,7 +80,7 @@ function stageClass(status: StageStatus): string {
  * One gate row. A gate only counts as the blocker when it is the engine's recorded decision
  * reason; otherwise an active condition (e.g. warm-up while there is no boundary) is just
  * "engaged". On a FIRED tick the flow stopped nowhere, so a still-true warm-up/grace flag
- * (FM/E4 broke through warm-up, FM/FM+ survived the grace filter) is NOT "engaged" — it is clear.
+ * (FM/E4 broke through warm-up, FM survived the grace filter) is NOT "engaged" — it is clear.
  */
 function renderGate(
     { reason: r, flag }: { reason: EditTraceReason; flag: keyof LiveDecisionTrace['gates'] },

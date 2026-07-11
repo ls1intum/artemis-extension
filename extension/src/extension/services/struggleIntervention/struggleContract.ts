@@ -1,6 +1,6 @@
 /** Boundary codenames — the engine's edit-path set (constants.ts) plus the wire-only 'TPS'
  *  for the discrete test-stagnation path. Mirrored by the Pyris BoundaryType literal. */
-export type BoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE' | 'TPS';
+export type BoundaryType = 'FM' | 'E4' | 'N1' | 'STATE' | 'TPS';
 
 export type StruggleAction = 'silent' | 'ambient' | 'active';
 

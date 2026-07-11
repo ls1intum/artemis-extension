@@ -13,7 +13,7 @@ export type Intent = 'decide' | 'confirm_close' | 'help_request';
  * - `episodeId` + `generation`: reply-correlation pair; the inbound websocket
  *   response is accepted only if these match the live slot state.
  * - `hardEvent`: captured from the triggering alert's boundaryTypes
- *   (FM/FM_PLUS/E4/N1) because the async websocket reply does not carry
+ *   (FM/E4/N1) because the async websocket reply does not carry
  *   boundary info; reconcile reads it back.
  * - `requestToken`: the scoped-cancel id (A6/A10); minted per POST (C3) and
  *   carried here so the in-flight identity is single-source. NOT a correlation

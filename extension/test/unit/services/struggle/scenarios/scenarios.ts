@@ -75,7 +75,7 @@ export const SCENARIOS: Scenario[] = [
             { at: 560, type: 'build', failed: [] },           // improved (2 -> 0)
             { at: 620, type: 'terminalRun' },
         ],
-        // Derivation (v3 2-feature, idle S = 1.0): alert 490 (FM+STATE present,
+        // Derivation (v3 2-feature, idle S = 1.0): alert 490 (FM and STATE present,
         // armed; FM is primary). Improved at 560: fast decay (hl 30). V(560)~1.0
         // idle; ticks 570..620: S stays 1.0 (still idle!) -> V = max(S, decayed)
         // = 1.0. Fast decay does NOT drop V below theta while the user stays idle
@@ -98,7 +98,7 @@ export const SCENARIOS: Scenario[] = [
         // CORRECTED derivation (the original [490, 610] over-derived past the
         // session end): alert 490 (FM primary, armed; FM survives grace). Paste at
         // EXACTLY 500 -> first tick >= 500 is tick 500 (not 510). At tick 500 N1 +
-        // STATE are present but grace (500-485=15 <= 32.94) keeps only FM/FM+, so
+        // STATE are present but grace (500-485=15 <= 32.94) keeps only FM, so
         // both N1 and STATE are filtered -> no alert. Tick 510 still in grace (25 <=
         // 32.94): STATE filtered -> no alert. Ticks 520-560: grace over, STATE
         // survives, V 1.0 >= theta(0.7), but cooldown blocks every tick (t-490 < 120 for

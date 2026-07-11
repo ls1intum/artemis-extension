@@ -17,7 +17,7 @@ export type EditTraceReason = LiveDecisionTrace['reason'];
 
 /**
  * Union of every key that the live view needs a label/tooltip for:
- *   - boundary codes (FM, FM_PLUS, E4, N1, STATE)
+ *   - boundary codes (FM, E4, N1, STATE)
  *   - decision reasons (EditTraceReason)
  *   - the discrete trigger (test-stagnation)
  *   - metric names (urgency, theta)
@@ -46,12 +46,6 @@ export interface GlossaryEntry {
  * Exhaustive glossary. Because this is `Record<GlossaryKey, ...>`, TypeScript
  * will refuse to compile if any key from the union is missing.
  *
- * FM+ semantics (verified against signals/buildDelta.ts):
- *   isFMPlus = delta === 'improved' && hasFailed
- *   i.e. the build improved (fewer failing tests than the previous run) but
- *   still has at least one failing test. The spec's glossary table says "worse
- *   than the one before", which contradicts the code; the code is authoritative.
- *
  * STATE semantics (verified against signals/featureWindow.ts + boundaries/boundaryTracker.ts):
  *   tsState = typingRate < 5 keystrokes/min (TS_TYPING_THRESH_PER_MIN)
  *   STATE is present at every tick where tsState is true AND the tick is past the
@@ -65,13 +59,6 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
         code: 'FM',
         short: 'Build failed',
         tooltip: 'The canonical moment to offer help. Fires on compile errors, on a first build with failures, or on builds whose failure set is unchanged or larger.',
-    },
-
-    FM_PLUS: {
-        text: 'A build just improved but still has failing tests',
-        code: 'FM+',
-        short: 'Build improved',
-        tooltip: 'Fewer tests are failing than in the previous run, but at least one test is still failing. The student made progress yet still needs support.',
     },
 
     E4: {
@@ -106,7 +93,7 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     'no-candidate': {
         text: 'No boundary event was pending this tick, so no nudge was possible',
         code: 'no-candidate',
-        tooltip: 'The engine only alerts at boundary moments (FM, FM+, E4, N1, STATE). Without a pending boundary there is nothing to alert on.',
+        tooltip: 'The engine only alerts at boundary moments (FM, E4, N1, STATE). Without a pending boundary there is nothing to alert on.',
     },
 
     'b2-fluent-typing': {
@@ -120,7 +107,7 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
         text: 'Not nudging: inside the short grace window just after a failed build, where only build-related moments may nudge',
         code: 'B4',
         gate: 'Post-build grace window',
-        tooltip: 'After a bad build result, non-FM/FM+ boundaries are suppressed for ~33 s so the FM moment itself is the primary intervention point.',
+        tooltip: 'After a bad build result, non-FM boundaries are suppressed for ~33 s so the FM moment itself is the primary intervention point.',
     },
 
     'd1-warmup': {
