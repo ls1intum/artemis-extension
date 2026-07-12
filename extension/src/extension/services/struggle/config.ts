@@ -79,13 +79,16 @@ export type BoundaryType = typeof BOUNDARY_PRIORITY[number];
  * student's proactive-help level (Off/Less/More, spec §12.2). `Off` never reaches
  * the throttle (proactivity is gated upstream), so only `less`/`more` matter here.
  * `minDeliveryGapS` is a hard floor BETWEEN DELIVERIES and MUST NOT be conflated
- * with the SPEC detector cooldown (a Schicht-3 decision guard, 120 s) — both entries'
- * gaps are deliberately > COOLDOWN_S so they actually bite. Read LIVE on every
- * `deliver()` call (not captured once), so a mid-session level change takes effect
- * immediately. All ENG (engineering defaults, no study data on delivery cadence). */
+ * with the SPEC detector cooldown (a Schicht-3 decision guard, 120 s). The layers
+ * deliberately do NOT overlap: `more` has no delivery gap of its own (0) — the
+ * decision-layer cooldown is the only spacing, the throttle contributes only the
+ * session budget; `less` adds real extra spacing (600 s > COOLDOWN_S, so it bites).
+ * Read LIVE on every `deliver()` call (not captured once), so a mid-session level
+ * change takes effect immediately. All ENG (engineering defaults, no study data on
+ * delivery cadence). */
 export const THROTTLE_BY_LEVEL = {
-    less: { maxAlertsPerSession: 3, minDeliveryGapS: 300 },
-    more: { maxAlertsPerSession: 6, minDeliveryGapS: 150 },
+    less: { maxAlertsPerSession: 5, minDeliveryGapS: 600 },
+    more: { maxAlertsPerSession: 10, minDeliveryGapS: 0 },
 };
 
 /**

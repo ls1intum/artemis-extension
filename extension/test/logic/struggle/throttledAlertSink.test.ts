@@ -83,46 +83,51 @@ describe('ThrottledAlertSink', () => {
     });
 
     describe('per-level config (THROTTLE_BY_LEVEL)', () => {
-        it('less enforces 3/session and a 300s gap', () => {
+        it('less enforces 5/session and a 600s gap', () => {
             const h = make(THROTTLE_BY_LEVEL.less);
             h.deliverAt(0);
-            h.deliverAt(299_000);       // gap 299s < 300s -> dropped
-            h.deliverAt(300_000);       // gap 300s -> ok
-            h.deliverAt(600_000);       // ok
-            h.deliverAt(900_000);       // 4th delivery would exceed the 3/session cap -> dropped
-            expect(h.inner.delivered.map(a => a.t)).toEqual([0, 300, 600]);
+            h.deliverAt(599_000);       // gap 599s < 600s -> dropped
+            h.deliverAt(600_000);       // gap 600s -> ok
+            h.deliverAt(1_200_000);     // ok
+            h.deliverAt(1_800_000);     // ok
+            h.deliverAt(2_400_000);     // ok (5th delivery, cap reached)
+            h.deliverAt(3_000_000);     // 6th delivery would exceed the 5/session cap -> dropped
+            expect(h.inner.delivered.map(a => a.t)).toEqual([0, 600, 1200, 1800, 2400]);
         });
 
-        it('more enforces 6/session and a 150s gap', () => {
+        it('more enforces only the 10/session cap (no delivery gap of its own)', () => {
             const h = make(THROTTLE_BY_LEVEL.more);
             const deliveredTimes: number[] = [];
-            for (let i = 0; i < 8; i++) {
-                const ms = i * 150_000;
+            for (let i = 0; i < 12; i++) {
+                const ms = i * 10_000;  // dense stream: gap 0 never drops, only the cap does
                 h.deliverAt(ms);
                 if (h.inner.delivered.length > deliveredTimes.length) { deliveredTimes.push(ms / 1000); }
             }
-            expect(deliveredTimes).toEqual([0, 150, 300, 450, 600, 750]);   // capped at 6
-            expect(h.inner.delivered).toHaveLength(6);
+            expect(deliveredTimes).toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);   // capped at 10
+            expect(h.inner.delivered).toHaveLength(10);
         });
 
         it('flipping the getter mid-session switches enforcement WHILE budget/history are preserved', () => {
             let level: 'less' | 'more' = 'more';
             const h = make(() => THROTTLE_BY_LEVEL[level]);
-            h.deliverAt(0);              // more: gap 150s -> delivered #1
-            h.deliverAt(150_000);        // more: gap 150s -> delivered #2
+            h.deliverAt(0);              // more: no gap -> delivered #1
+            h.deliverAt(10_000);         // more: no gap -> delivered #2
             expect(h.inner.delivered).toHaveLength(2);
 
-            level = 'less';              // mid-session flip: now needs a 300s gap, 3/session cap
-            h.deliverAt(300_000);        // gap since last delivery (150_000) is only 150s < 300s -> dropped
+            level = 'less';              // mid-session flip: now needs a 600s gap, 5/session cap
+            h.deliverAt(100_000);        // gap since last delivery (10_000) is only 90s < 600s -> dropped
             expect(h.inner.delivered).toHaveLength(2);   // budget/history preserved, NOT reset by the flip
-            h.deliverAt(450_000);        // gap since last DELIVERED (150_000) is 300s -> ok, 3rd delivery
+            h.deliverAt(610_000);        // gap since last DELIVERED (10_000) is 600s -> ok, 3rd delivery
             expect(h.inner.delivered).toHaveLength(3);
-            h.deliverAt(750_000);        // would be a 4th delivery -> exceeds less's 3/session cap -> dropped
-            expect(h.inner.delivered).toHaveLength(3);
+            h.deliverAt(1_210_000);      // gap 600s -> 4th delivery
+            h.deliverAt(1_810_000);      // gap 600s -> 5th delivery (less's cap reached)
+            expect(h.inner.delivered).toHaveLength(5);
+            h.deliverAt(2_410_000);      // would be a 6th delivery -> exceeds less's 5/session cap -> dropped
+            expect(h.inner.delivered).toHaveLength(5);
 
-            level = 'more';              // flip back: budget stays at 3 (more's cap is 6, still room)
-            h.deliverAt(900_000);        // gap since last delivered (450_000) is 450s >= more's 150s -> ok
-            expect(h.inner.delivered).toHaveLength(4);
+            level = 'more';              // flip back: budget stays at 5 (more's cap is 10, still room)
+            h.deliverAt(2_420_000);      // more has no gap -> ok
+            expect(h.inner.delivered).toHaveLength(6);
         });
     });
 
@@ -175,11 +180,11 @@ describe('ThrottledAlertSink', () => {
         it('reflects the CURRENT active caps live (reads the getter each call, not a captured snapshot)', () => {
             let level: 'less' | 'more' = 'more';
             const h = make(() => THROTTLE_BY_LEVEL[level]);
-            expect(h.state().maxAlertsPerSession).toBe(6);
-            expect(h.state().minDeliveryGapS).toBe(150);
+            expect(h.state().maxAlertsPerSession).toBe(10);
+            expect(h.state().minDeliveryGapS).toBe(0);
             level = 'less';
-            expect(h.state().maxAlertsPerSession).toBe(3);
-            expect(h.state().minDeliveryGapS).toBe(300);
+            expect(h.state().maxAlertsPerSession).toBe(5);
+            expect(h.state().minDeliveryGapS).toBe(600);
         });
     });
 });
