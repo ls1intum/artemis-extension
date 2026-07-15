@@ -1,13 +1,13 @@
-// Produce a clean package.json (no consent setting, no recording commands, no
-// rebuild-on-package hook) and apply the cloud/Theia setting-default overrides,
-// WITHOUT mutating the source manifest. CLI writes to argv[2]. See docs/adr/002.
+// Produce a clean package.json WITHOUT mutating the source manifest. Two fail-closed
+// profiles select what is dropped:
+//   desktop  drop the recorder group only (struggle detection stays)
+//   openvsx  drop recorder + struggle groups and apply cloud/Theia setting defaults
+// CLI: generate-clean-manifest.js <out-path> --profile=desktop|openvsx. See docs/adr/002.
 const fs = require('fs');
 const path = require('path');
 
-// Cloud/Theia-tailored setting defaults (clean variant only). See ADR 002.
-// NOTE: the two struggleDetection.* entries are temporary — remove them once the
-// cloud intervention pipeline is live.
-const OPENVSX_SETTING_DEFAULTS = {
+// Cloud/Theia-tailored setting defaults (openvsx profile only). See ADR 002.
+const CLOUD_SETTING_DEFAULTS = {
     'artemis.startPage': 'workspace-exercise',
     'artemis.showStartPageSuggestion': false,
     'artemis.struggleDetection.enabled': false,
@@ -15,43 +15,97 @@ const OPENVSX_SETTING_DEFAULTS = {
     'artemis.showSetDefaultClonePathPrompt': false,
 };
 
-// Commands whose backing feature is excluded from the clean build.
-const DROPPED_COMMANDS = new Set([
-    'artemis.replaySession',
-    'artemis.openRecordingsFolder',
-    'artemis.showStruggleScore',
-]);
+const RECORDER_COMMANDS = new Set(['artemis.replaySession', 'artemis.openRecordingsFolder']);
+const STRUGGLE_COMMANDS = new Set(['artemis.showStruggleScore']);
 
-function cleanManifest(m) {
+function dropCommandsAndMenuRefs(m, commandSet) {
+    const c = m.contributes || {};
+    if (Array.isArray(c.commands)) {
+        c.commands = c.commands.filter(cmd => !commandSet.has(cmd.command));
+    }
+    const cp = c.menus && c.menus.commandPalette;
+    if (Array.isArray(cp)) {
+        c.menus.commandPalette = cp.filter(e => !commandSet.has(e.command));
+    }
+}
+
+function dropRecorderGroup(m) {
     const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
     if (props) { delete props['artemis.dataCollectionConsent']; }
+    dropCommandsAndMenuRefs(m, RECORDER_COMMANDS);
+}
 
-    for (const [key, value] of Object.entries(OPENVSX_SETTING_DEFAULTS)) {
+function dropStruggleGroup(m) {
+    dropCommandsAndMenuRefs(m, STRUGGLE_COMMANDS);
+}
+
+function applyCloudDefaults(m) {
+    const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
+    for (const [key, value] of Object.entries(CLOUD_SETTING_DEFAULTS)) {
         if (!props || !props[key]) {
             throw new Error(`generate-clean-manifest: cannot override unknown setting '${key}'`);
         }
         props[key].default = value;
     }
+}
 
-    if (Array.isArray(m.contributes && m.contributes.commands)) {
-        m.contributes.commands = m.contributes.commands.filter(c => !DROPPED_COMMANDS.has(c.command));
+// Fail-closed hardening: after dropping a command, no remaining menu/keybinding
+// contribution may still reference it. `removed` is the exact set that was dropped.
+function assertNoDanglingCommandRefs(m, removed) {
+    const c = m.contributes || {};
+    const refs = [];
+    for (const [menuKey, entries] of Object.entries(c.menus || {})) {
+        if (!Array.isArray(entries)) { continue; }
+        for (const e of entries) {
+            // A menu entry can reference a command via `command` OR `alt`.
+            if (removed.has(e.command)) { refs.push(`menus.${menuKey}: ${e.command}`); }
+            if (removed.has(e.alt)) { refs.push(`menus.${menuKey}.alt: ${e.alt}`); }
+        }
     }
+    for (const kb of c.keybindings || []) {
+        if (removed.has(kb.command)) { refs.push(`keybindings: ${kb.command}`); }
+    }
+    if (refs.length) {
+        throw new Error(`generate-clean-manifest: dangling command refs after drop: ${refs.join(', ')}`);
+    }
+}
 
+function cleanManifest(m, profile) {
+    const removed = new Set();
+    switch (profile) {
+        case 'desktop':
+            dropRecorderGroup(m);
+            RECORDER_COMMANDS.forEach(c => removed.add(c));
+            break;
+        case 'openvsx':
+            dropRecorderGroup(m);
+            dropStruggleGroup(m);
+            applyCloudDefaults(m);
+            RECORDER_COMMANDS.forEach(c => removed.add(c));
+            STRUGGLE_COMMANDS.forEach(c => removed.add(c));
+            break;
+        default:
+            throw new Error(`generate-clean-manifest: unknown profile '${profile}' (expected desktop | openvsx)`);
+    }
     if (m.scripts) { delete m.scripts['vscode:prepublish']; }
-
+    assertNoDanglingCommandRefs(m, removed);
     return m;
 }
 
 function main() {
-    const srcManifest = path.join(__dirname, '..', 'package.json');
-    const outPath = process.argv[2];
-    if (!outPath) { throw new Error('usage: generate-clean-manifest.js <out-path>'); }
+    const args = process.argv.slice(2);
+    const outPath = args.find(a => !a.startsWith('--'));
+    const profileFlag = args.find(a => a.startsWith('--profile='));
+    const profile = profileFlag ? profileFlag.slice('--profile='.length) : undefined;
+    if (!outPath) { throw new Error('usage: generate-clean-manifest.js <out-path> --profile=desktop|openvsx'); }
+    if (!profile) { throw new Error('generate-clean-manifest: --profile=desktop|openvsx is required'); }
 
-    const m = cleanManifest(JSON.parse(fs.readFileSync(srcManifest, 'utf8')));
+    const srcManifest = path.join(__dirname, '..', 'package.json');
+    const m = cleanManifest(JSON.parse(fs.readFileSync(srcManifest, 'utf8')), profile);
 
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, JSON.stringify(m, null, 2) + '\n');
-    console.log(`[clean-manifest] wrote ${outPath}`);
+    console.log(`[clean-manifest] wrote ${outPath} (profile=${profile})`);
 }
 
 module.exports = { cleanManifest };
