@@ -219,8 +219,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		websocketStatusBarService.setAuthenticated(false);
 	}
 
-	// Data collection (consent + recorder + recording commands). Excluded from the
-	// Open VSX build via the @dataCollection alias swap.
+	// Data collection (consent + recorder + recording commands). Noop for both shipped
+	// variants (Desktop full + Open VSX) via the @dataCollection alias swap; real only
+	// for the local-recording build.
 	activeDataCollection = wireDataCollection({
 		context,
 		artemisWebsocketService,

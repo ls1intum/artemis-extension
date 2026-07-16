@@ -21,3 +21,7 @@ export const Uri = {
         return { scheme: url.protocol.replace(':', ''), authority: url.host, path, fsPath: path, toString: () => value };
     },
 };
+
+export const commands = {
+    executeCommand: async (..._args: unknown[]): Promise<undefined> => undefined,
+};
