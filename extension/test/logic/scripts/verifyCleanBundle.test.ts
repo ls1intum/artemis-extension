@@ -14,6 +14,13 @@ function metaWith(inputs: string[]): string {
     return file;
 }
 
+function writeRawMeta(content: unknown): string {
+    const dir = mkdtempSync(join(tmpdir(), 'meta-'));
+    const file = join(dir, 'meta.json');
+    writeFileSync(file, JSON.stringify(content));
+    return file;
+}
+
 describe('verify-clean-bundle', () => {
     it('throws on an unknown profile', () => {
         expect(() => forbiddenInputs(metaWith([]), 'bogus')).toThrow(/unknown profile 'bogus'/);
@@ -79,6 +86,21 @@ describe('verify-clean-bundle', () => {
                 'src/webview/views/StruggleDetection/hooks/useSlotCountdowns.ts',
                 'src/webview/views/StruggleDetection/glossary.ts',
             ]);
+        });
+    });
+
+    describe('fail-closed on a malformed metafile', () => {
+        it('throws on empty inputs', () => {
+            expect(() => forbiddenInputs(writeRawMeta({ inputs: {} }), 'desktop')).toThrow(/no usable 'inputs'/);
+        });
+        it('throws on missing inputs', () => {
+            expect(() => forbiddenInputs(writeRawMeta({}), 'desktop')).toThrow(/no usable 'inputs'/);
+        });
+        it('throws on null inputs', () => {
+            expect(() => forbiddenInputs(writeRawMeta({ inputs: null }), 'desktop')).toThrow(/no usable 'inputs'/);
+        });
+        it('throws on array inputs', () => {
+            expect(() => forbiddenInputs(writeRawMeta({ inputs: [] }), 'openvsx')).toThrow(/no usable 'inputs'/);
         });
     });
 });

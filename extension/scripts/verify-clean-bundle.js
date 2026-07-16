@@ -63,7 +63,14 @@ function forbiddenInputs(metafilePath, profile) {
         default: throw new Error(`verify-clean-bundle: unknown profile '${profile}' (expected desktop | openvsx)`);
     }
     const meta = JSON.parse(fs.readFileSync(metafilePath, 'utf8'));
-    return Object.keys(meta.inputs || {}).filter(input => check(input.replace(/\\/g, '/')));
+    const inputs = meta && meta.inputs;
+    // Fail-closed: a real esbuild metafile always has a populated `inputs` object. An
+    // empty/missing/array `inputs` means the file is malformed or not a metafile at all
+    // (e.g. a plain package.json), so refuse it rather than pass vacuously.
+    if (typeof inputs !== 'object' || inputs === null || Array.isArray(inputs) || Object.keys(inputs).length === 0) {
+        throw new Error(`verify-clean-bundle: '${metafilePath}' has no usable 'inputs' (malformed or not an esbuild metafile)`);
+    }
+    return Object.keys(inputs).filter(input => check(input.replace(/\\/g, '/')));
 }
 
 function main() {
