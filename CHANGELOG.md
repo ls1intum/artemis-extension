@@ -6,13 +6,16 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Changed
 
-- The session recorder and its data-collection consent are now excluded from every shipped build (Desktop/Marketplace and Open VSX). Struggle detection is unaffected on Desktop. The recorder remains available for local development via a dedicated build (`npm run package:rec` or the "Run Extension (Recording)" launch config). The `Artemis: Replay Session` and `Artemis: Open Recordings Folder` commands no longer appear in shipped builds; any existing `artemis.dataCollectionConsent` setting becomes inert (it is not removed from your settings).
 - **WebSocket status bar:** Removed the `artemis.showWebSocketStatusBar` setting. The connection indicator now appears automatically only when there is a problem; enable `artemis.developerMode` to keep it always visible with full diagnostics on hover. When the connection drops, students now see a plain-language explanation (no "WS" jargon) instead of a technical label.
 - **Server URL change:** Removed the manual "Clear Credentials" prompts that appeared when the Artemis server URL changed. Changing the server while logged in now logs you out automatically and returns you to the login view (a session is not valid across servers); the logout command remains for clearing credentials on demand.
 
 ### Fixed
 
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
+
+### Internal
+
+- **Session Recorder Retired From Shipped Builds**: The recorder and its consent flow are now also excluded from the Desktop/Marketplace VSIX (previously Open VSX only); they remain available through a local-only build variant that CI refuses to build.
 
 ## [0.4.8] - 2026-06-24
 
