@@ -29,6 +29,11 @@ reports/**
 .github/**
 CONTRIBUTING.md
 renovate.json
+knip.json
+vitest*.config.mts
+.mocharc.ui.yml
+.superpowers/**
+**/.DS_Store
 dist/meta-*.json
 .env
 .env.*

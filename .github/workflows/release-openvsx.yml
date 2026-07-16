@@ -218,8 +218,6 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run package
-
       # Pin vsce explicitly (instead of npx resolving through transitive deps)
       # for bit-for-bit reproducible packaging. Same install pattern as publish
       # jobs (under RUNNER_TEMP, --ignore-scripts).
@@ -234,7 +232,7 @@ jobs:
         id: vsix
         run: |
           set -euo pipefail
-          vsce package --no-dependencies
+          node scripts/package-desktop.js
           shopt -s nullglob
           files=( *.vsix )
           if [[ ${#files[@]} -ne 1 ]]; then
@@ -252,7 +250,6 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/package-openvsx.js
-          node scripts/verify-clean-bundle.js
           name=$(ls *-openvsx.vsix)
           sha256=$(sha256sum "$name" | cut -d' ' -f1)
           echo "name=$name" >> "$GITHUB_OUTPUT"

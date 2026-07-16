@@ -135,6 +135,10 @@
         {
           "command": "artemis.toggleStruggleWarmupSkip",
           "when": "config.artemis.developerMode"
+        },
+        {
+          "command": "artemis.openRecordingsFolder",
+          "when": "iris.recorder.active"
         }
       ]
     },
@@ -229,7 +233,7 @@
         "artemis.struggleDetection.showInterventions": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show help suggestions when struggle is detected (an in-editor inline cue and a sidebar banner). When **disabled**, no UI prompts will appear during struggle, but data collection continues unchanged. Use this if you prefer to work without interruptions while still contributing to research data."
+          "markdownDescription": "Show help suggestions when struggle is detected (an in-editor inline cue and a sidebar banner). When **disabled**, no UI prompts will appear during struggle. Use this if you prefer to work without interruptions."
         },
         "artemis.startPage": {
           "type": "string",
@@ -280,7 +284,9 @@
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "dev": "node esbuild.js --watch",
     "package": "npm run check-types && npm run lint:src && node esbuild.js --production",
-    "package:vsix": "npm run package && vsce package",
+    "package:vsix": "node scripts/package-desktop.js",
+    "package:openvsx": "node scripts/package-openvsx.js",
+    "package:rec": "node scripts/package-recording.js",
     "analyze": "esbuild-visualizer --metadata=dist/meta-webview.json --open",
     "analyze:text": "node -e \"const e=require('esbuild'),f=require('fs'); e.analyzeMetafile(JSON.parse(f.readFileSync('dist/meta-webview.json','utf8'))).then(console.log)\"",
     "analyze:ext": "esbuild-visualizer --metadata=dist/meta-extension.json --open",

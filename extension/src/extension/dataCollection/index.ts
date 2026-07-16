@@ -8,7 +8,7 @@ import type { SessionRecorder } from '@extension/services/recording';
 
 import type { DataCollectionDeps, DataCollectionHandle } from './types';
 
-/** Webview command handlers for opening recordings (full build only). */
+/** Webview command handlers for opening recordings (recording build only). */
 export function createRecordingWebviewHandlers(globalStorageUri: vscode.Uri): CommandMap {
     return {
         openRecordingsFolder: async () => {
@@ -18,7 +18,7 @@ export function createRecordingWebviewHandlers(globalStorageUri: vscode.Uri): Co
     };
 }
 
-/** Wire consent + recorder + recording palette commands. Full build only. */
+/** Wire consent + recorder + recording palette commands. Recording build only. */
 export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHandle {
     const { context } = deps;
     const consentService = new ConsentService();

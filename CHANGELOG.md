@@ -13,6 +13,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
 
+### Internal
+
+- **Session Recorder Retired From Shipped Builds**: The recorder and its consent flow are now also excluded from the Desktop/Marketplace VSIX (previously Open VSX only); they remain available through a local-only build variant that CI refuses to build.
+
 ## [0.4.8] - 2026-06-24
 
 ### Changed

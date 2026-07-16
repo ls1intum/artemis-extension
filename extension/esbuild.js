@@ -6,15 +6,14 @@ const cssModulesPlugin = require('esbuild-css-modules-plugin');
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
-const variantArg = process.argv.find(a => a.startsWith('--variant='));
-const variant = variantArg ? variantArg.split('=')[1] : (process.env.IRIS_BUILD_VARIANT || 'full');
-const isOpenVsx = variant === 'openvsx';
-const recordingEnabled = isOpenVsx ? 'false' : 'true';
-const telemetryEnabled = isOpenVsx ? 'false' : 'true';
+const { resolveBuildVariant } = require('./scripts/resolveBuildVariant');
+const { variant, isOpenVsx, recording } = resolveBuildVariant({ argv: process.argv, env: process.env });
+const recordingEnabled = String(recording);
+const telemetryEnabled = String(!isOpenVsx);
 const seamAliases = {
-    '@dataCollection': path.join(__dirname, isOpenVsx
-        ? 'src/extension/dataCollection/noop.ts'
-        : 'src/extension/dataCollection/index.ts'),
+    '@dataCollection': path.join(__dirname, recording
+        ? 'src/extension/dataCollection/recording.ts'
+        : 'src/extension/dataCollection/noop.ts'),
     '@telemetry': path.join(__dirname, isOpenVsx
         ? 'src/extension/telemetry/noop.ts'
         : 'src/extension/telemetry/index.ts'),
@@ -24,7 +23,7 @@ const webviewAliases = {
         ? 'src/webview/views/StruggleDetection/stub.tsx'
         : 'src/webview/views/StruggleDetection/index.ts'),
 };
-console.log(`[build] variant: ${variant}`);
+console.log(`[build] variant: ${variant} (recording=${recording})`);
 
 const formatSize = (bytes) => {
 	const kb = bytes / 1024;

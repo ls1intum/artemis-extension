@@ -12,10 +12,8 @@ const run = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', cwd: root, ...
 run('npm run check-types && npm run lint:src');
 run('node esbuild.js --production --variant=openvsx');
 
-// 1b. Fail-closed proof: the clean bundle must contain NO struggle/intervention
-//     engine, recorder, or consent code (reads the openvsx metafiles esbuild just
-//     wrote). Aborts packaging if any forbidden input reappears.
-run('node scripts/verify-clean-bundle.js');
+// Fail-closed: abort before staging if any recorder/struggle input leaked in.
+run('node scripts/verify-clean-bundle.js --profile=openvsx');
 
 // 2. Reset the staging dir.
 fs.rmSync(staging, { recursive: true, force: true });
@@ -43,7 +41,7 @@ for (const doc of ['README.md', 'CHANGELOG.md']) {
 }
 
 // 4. Generate the clean manifest into staging.
-run(`node scripts/generate-clean-manifest.js ${path.join(staging, 'package.json')}`);
+run(`node scripts/generate-clean-manifest.js ${path.join(staging, 'package.json')} --profile=openvsx`);
 
 // 5. Package from staging (no rebuild: clean manifest has no vscode:prepublish).
 const pkg = JSON.parse(fs.readFileSync(path.join(staging, 'package.json'), 'utf8'));

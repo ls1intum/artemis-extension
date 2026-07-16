@@ -4,6 +4,7 @@
     "src/extension.ts",
     "src/webview/index.tsx",
     "src/extension/telemetry/noop.ts",
+    "src/extension/dataCollection/recording.ts",
     "src/webview/views/StruggleDetection/stub.tsx",
     "test/**/*.{ts,tsx}",
     ".mocharc.ui.yml",

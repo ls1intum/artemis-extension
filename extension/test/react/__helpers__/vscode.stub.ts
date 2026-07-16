@@ -22,6 +22,10 @@ export const Uri = {
     },
 };
 
+export const commands = {
+    executeCommand: async (..._args: unknown[]): Promise<undefined> => undefined,
+};
+
 /** Minimal disposable matching the vscode.Disposable shape. */
 export interface Disposable {
     dispose(): void;

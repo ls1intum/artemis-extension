@@ -49,6 +49,19 @@
       "label": "Build Extension (Full)",
       "group": "build",
       "problemMatcher": []
+    },
+    {
+      "label": "watch (recording) - extension",
+      "type": "shell",
+      "command": "node esbuild.js && npm run watch",
+      "options": {
+        "cwd": "${workspaceFolder}/extension",
+        "env": { "IRIS_BUILD_VARIANT": "local-recording" }
+      },
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": "$tsc-watch",
+      "presentation": { "reveal": "never" }
     }
   ]
 }

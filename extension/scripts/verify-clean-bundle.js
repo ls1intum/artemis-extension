@@ -1,70 +1,99 @@
-// Fail-closed proof that the Open VSX (EduIDE/cloud) bundle excludes the
-// struggle-detection engine, intervention delivery, the session recorder, and
-// consent. Reads the variant metafiles and asserts no forbidden input is present.
+// Fail-closed proof that a shipped bundle excludes forbidden inputs. Two profiles:
+//   desktop  forbids the recorder feature only (struggle detection is ALLOWED)
+//   openvsx  forbids the recorder feature AND the struggle engine + struggle view
+// Reads the variant metafiles and asserts no forbidden input path is present.
+// CLI: verify-clean-bundle.js --profile=desktop|openvsx.
 const fs = require('fs');
 const path = require('path');
 
-// The struggle engine + intervention delivery + session recorder are excluded
-// from the clean build via the @telemetry and @dataCollection seams. Deny these
-// subtrees by DEFAULT (fail-closed): ANY file under them is forbidden. The
-// @telemetry contract (src/extension/telemetry/*) is type-only and erased, so it
-// never appears as a bundle input.
-const FORBIDDEN_SUBTREES = [
+// Recorder feature entry points. Both recorder layouts are listed so the set stays
+// correct after the struggle-v3 rebase (dev nests it under services/telemetry/; the
+// struggle branch splits it into services/recording/). NOTE: services/sensing/ is the
+// SHARED SensorHub used by the Desktop struggle engine and is deliberately NOT here.
+const RECORDER_FORBIDDEN = [
+    'src/extension/services/telemetry/recording/',
+    'src/extension/services/telemetry/replay/',
+    'src/extension/services/recording/',
+    'src/extension/services/auth/consentService.ts',
+    'src/extension/activation/sessionRecorderWiring.ts',
+    'src/extension/dataCollection/index.ts',
+    'src/extension/dataCollection/recording.ts',
+];
+
+// Struggle engine (Open VSX only). On dev the engine is the whole services/telemetry/
+// subtree (deny by default, allow types.ts); the struggle branch splits it out.
+const TELEMETRY_SUBTREE = 'src/extension/services/telemetry/';
+const TELEMETRY_ALLOWED = ['src/extension/services/telemetry/types.ts'];
+const STRUGGLE_SUBTREES = [
     'src/extension/services/struggle/',
     'src/extension/services/intervention/',
     'src/extension/services/struggleIntervention/',
-    'src/extension/services/recording/',
 ];
-
-// Excluded code that lives OUTSIDE the forbidden subtrees.
-const FORBIDDEN = [
-    'src/extension/services/auth/consentService.ts',
-    'src/extension/activation/sessionRecorderWiring.ts',
-];
-
-// Files under src/webview/views/StruggleDetection/ that ARE allowed in the
-// clean bundle: stub.tsx is the no-op the @struggleView alias resolves to;
-// types.ts and index.ts are type/re-export only.
-const STRUGGLE_VIEW_ALLOWED = ['stub.tsx', 'types.ts', 'index.ts'];
+// The struggle-detection webview lives under this prefix. Only the alias stub and the
+// type/re-export files are allowed in the clean bundle; every OTHER file (view, hook,
+// nested module) is forbidden. Prefix+allowlist (not an explicit file list) so new view
+// files added on the struggle branch are still caught after the rebase.
 const STRUGGLE_VIEW_PREFIX = 'src/webview/views/StruggleDetection/';
+const STRUGGLE_VIEW_ALLOWED = ['stub.tsx', 'types.ts', 'index.ts'];
+const STRUGGLE_MODULES = ['node_modules/recharts'];
 
-// recharts must never enter the clean bundle (it is a dev-only live-view dep).
-const FORBIDDEN_MODULES = ['node_modules/recharts'];
-
-function isForbiddenInput(input) {
-    const p = input.replace(/\\/g, '/');
-    if (FORBIDDEN_SUBTREES.some(s => p.includes(s))) { return true; }
-    if (FORBIDDEN.some(f => p.includes(f))) { return true; }
-    if (FORBIDDEN_MODULES.some(m => p.includes(m))) { return true; }
-    // Forbid every file under StruggleDetection/ except the three allowed stubs.
-    const sdIdx = p.indexOf(STRUGGLE_VIEW_PREFIX);
-    if (sdIdx !== -1) {
-        const filename = p.slice(sdIdx + STRUGGLE_VIEW_PREFIX.length);
-        // Only allow the explicitly whitelisted filenames (no subdirectories).
-        if (!STRUGGLE_VIEW_ALLOWED.includes(filename)) { return true; }
-    }
-    return false;
+function isRecorderForbidden(p) {
+    return RECORDER_FORBIDDEN.some(f => p.includes(f));
 }
 
-function forbiddenInputs(metafilePath) {
+function isStruggleForbidden(p) {
+    if (p.includes(TELEMETRY_SUBTREE)) {
+        // ...recorder sub-paths under here are already covered by RECORDER_FORBIDDEN.
+        return !TELEMETRY_ALLOWED.some(a => p.endsWith(a));
+    }
+    const viewIdx = p.indexOf(STRUGGLE_VIEW_PREFIX);
+    if (viewIdx !== -1) {
+        const rest = p.slice(viewIdx + STRUGGLE_VIEW_PREFIX.length);
+        return !STRUGGLE_VIEW_ALLOWED.includes(rest); // any nested/other view file is forbidden
+    }
+    return STRUGGLE_SUBTREES.some(s => p.includes(s))
+        || STRUGGLE_MODULES.some(m => p.includes(m));
+}
+
+function forbiddenInputs(metafilePath, profile) {
+    let check;
+    switch (profile) {
+        case 'desktop': check = isRecorderForbidden; break;
+        case 'openvsx': check = p => isRecorderForbidden(p) || isStruggleForbidden(p); break;
+        default: throw new Error(`verify-clean-bundle: unknown profile '${profile}' (expected desktop | openvsx)`);
+    }
     const meta = JSON.parse(fs.readFileSync(metafilePath, 'utf8'));
-    return Object.keys(meta.inputs || {}).filter(isForbiddenInput);
+    const inputs = meta && meta.inputs;
+    // Fail-closed: a real esbuild metafile always has a populated `inputs` object. An
+    // empty/missing/array `inputs` means the file is malformed or not a metafile at all
+    // (e.g. a plain package.json), so refuse it rather than pass vacuously.
+    if (typeof inputs !== 'object' || inputs === null || Array.isArray(inputs) || Object.keys(inputs).length === 0) {
+        throw new Error(`verify-clean-bundle: '${metafilePath}' has no usable 'inputs' (malformed or not an esbuild metafile)`);
+    }
+    return Object.keys(inputs).filter(input => check(input.replace(/\\/g, '/')));
 }
 
 function main() {
+    const profileFlag = process.argv.slice(2).find(a => a.startsWith('--profile='));
+    const profile = profileFlag ? profileFlag.slice('--profile='.length) : undefined;
+    if (profile !== 'desktop' && profile !== 'openvsx') {
+        throw new Error(`verify-clean-bundle: --profile=desktop|openvsx is required (got '${profile}')`);
+    }
+
+    const suffix = profile === 'openvsx' ? '-openvsx' : '';
     const root = path.join(__dirname, '..');
-    const metas = ['dist/meta-extension-openvsx.json', 'dist/meta-webview-openvsx.json']
+    const metas = [`dist/meta-extension${suffix}.json`, `dist/meta-webview${suffix}.json`]
         .map(p => path.join(root, p));
     const hits = metas.flatMap(m => {
-        if (!fs.existsSync(m)) { throw new Error(`missing metafile: ${m} (build openvsx variant first)`); }
-        return forbiddenInputs(m).map(i => `${path.basename(m)}: ${i}`);
+        if (!fs.existsSync(m)) { throw new Error(`missing metafile: ${m} (build the ${profile} bundle first)`); }
+        return forbiddenInputs(m, profile).map(i => `${path.basename(m)}: ${i}`);
     });
     if (hits.length > 0) {
-        console.error('FAIL: forbidden inputs in clean bundle:\n' + hits.join('\n'));
+        console.error(`FAIL (${profile}): forbidden inputs in bundle:\n` + hits.join('\n'));
         process.exit(1);
     }
-    console.log('OK: clean bundle contains no struggle-engine, intervention, recorder, consent, struggle-view, or recharts inputs');
+    console.log(`OK (${profile}): bundle contains no forbidden inputs`);
 }
 
-module.exports = { forbiddenInputs, FORBIDDEN, FORBIDDEN_SUBTREES, FORBIDDEN_MODULES, STRUGGLE_VIEW_ALLOWED };
+module.exports = { forbiddenInputs, RECORDER_FORBIDDEN };
 if (require.main === module) { main(); }
