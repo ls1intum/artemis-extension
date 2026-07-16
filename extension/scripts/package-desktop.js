@@ -16,10 +16,6 @@ run('node esbuild.js --production --variant=full');
 // 1b. Fail-closed: the Desktop bundle must contain NO recorder/consent code.
 run('node scripts/verify-clean-bundle.js --profile=desktop');
 
-// 1c. Sync the single-sourced marketplace docs (normally done in vscode:prepublish,
-//     which the staged manifest drops).
-run('node scripts/sync-marketplace-docs.js');
-
 // 2. Reset the staging dir.
 fs.rmSync(staging, { recursive: true, force: true });
 fs.mkdirSync(staging, { recursive: true });

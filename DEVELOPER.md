@@ -102,6 +102,7 @@ Run from `extension/`:
 
 - **Run Extension** (recommended) - starts watch mode and recompiles on change.
 - **Run Extension (No Watch)** - runs without auto-recompilation.
+- **Run Extension (Recording)** - starts the local-recording watch build (session recorder and consent flow present) for recorder/replay development. Not for release builds.
 - **Extension Tests** - compiles tests, then runs the suite.
 
 ### Debugging
