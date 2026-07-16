@@ -36,6 +36,18 @@
         "${workspaceFolder}/extension/out/test/**/*.js"
       ],
       "preLaunchTask": "npm: pretest - extension"
+    },
+    {
+      "name": "Run Extension (Recording)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/extension"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/extension/dist/**/*.js"
+      ],
+      "preLaunchTask": "watch (recording) - extension"
     }
   ]
 }

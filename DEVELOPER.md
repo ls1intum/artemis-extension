@@ -113,12 +113,13 @@ Run from `extension/`:
 
 ## Build Variants & Deployment
 
-### Two VSIX variants
+### Three build variants
 
-The release builds **two** packages from the same source:
+The release ships **two** packages from the same source, plus a third **local-only** variant for recorder development:
 
-- **Full build** (VS Marketplace) - `vsce package`, the complete feature set.
+- **Full build** (VS Marketplace) - built by `scripts/package-desktop.js` from a staging directory using `scripts/generate-clean-manifest.js`. The Desktop VSIX now also **excludes** the session recorder and the data-collection consent flow while keeping the struggle-detection engine; `scripts/verify-clean-bundle.js` fails the build if the recorder reappears in the bundle.
 - **Clean build** (Open VSX, bundled into EduIDE) - built by `scripts/package-openvsx.js` from a staging directory using `scripts/generate-clean-manifest.js`. The clean variant **excludes** the struggle-detection engine, the recording pipeline, and the data-collection consent flow; their settings (`artemis.struggleDetection.*`, `artemis.dataCollectionConsent`) and commands (`artemis.replaySession`, `artemis.openRecordingsFolder`, `artemis.showStruggleScore`) are removed from its manifest, and `scripts/verify-clean-bundle.js` fails the build if any excluded code reappears in the bundle.
+- **Local recording build** (not shipped) - keeps the session recorder and consent flow for local development, via `npm run package:rec` or the "Run Extension (Recording)" launch config. It is refused under CI (`resolveBuildVariant` fails closed when `GITHUB_ACTIONS` is set), so it never reaches a release.
 
 ### EduIDE / Theia integration
 
