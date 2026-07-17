@@ -1998,20 +1998,26 @@ export class StruggleInterventionService implements AlertSink {
         localId: string,
         attempt = 0,
     ): Promise<void> {
-        // #349 Finding 3: never egress a reveal after a consent revoke. Guard at entry (the retry
-        // is scheduled async, so consent may have flipped since it was queued)...
+        // #349 wave 2: epoch capture. Everything that happens after the await below (success
+        // reconciliation, outcome flush, retry scheduling) is scoped to the consent epoch that
+        // STARTED this request: a revoke bumps _revealRetryGen (as does resetSession), so a
+        // request that was in flight across the boundary settles into a no-op.
+        const revealGeneration = this._revealRetryGen;
+        // #349 Finding 3: never egress a reveal after a consent revoke (the retry is scheduled
+        // async, so consent may have flipped since it was queued).
         if (!this._deps.isEgressEnabled()) {
             this._dbg('  -> reveal persist skipped: egress disabled (consent revoked)');
             return;
         }
         try {
-            // ...and again immediately before the POST (its awaits create the same TOCTOU window
-            // as the decide path: consent can flip between entry and the network call).
-            if (!this._deps.isEgressEnabled()) {
-                this._dbg('  -> reveal persist aborted before POST: egress disabled (consent revoked)');
+            const dto = await this._deps.revealAmbient(exerciseId, episodeId, hintText, level, localId);
+            // #349 wave 2: post-await epoch boundary. A success that lands after a revoke (or a
+            // revoke->regrant, which bumped the generation) must not reconcile the bubble or
+            // flush an outcome - return silently, the episode was terminated locally.
+            if (this._revealRetryGen !== revealGeneration || !this._deps.isEgressEnabled()) {
+                this._dbg('  -> reveal reply dropped: consent epoch changed during the POST');
                 return;
             }
-            const dto = await this._deps.revealAmbient(exerciseId, episodeId, hintText, level, localId);
             if (dto.id === undefined) {
                 throw new Error('revealAmbient returned a DTO with no message id');
             }
@@ -2040,11 +2046,20 @@ export class StruggleInterventionService implements AlertSink {
                 this._dbg(`  -> reveal persist: max retries (${MAX_REVEAL_RETRIES}) reached, giving up`);
                 return;
             }
+            // #349 wave 2: no retry across a consent epoch boundary. If a revoke (or a
+            // revoke->regrant) happened while the request was in flight, the generation captured
+            // BEFORE the request no longer matches, so scheduling a retry would smuggle stale
+            // pre-revoke hint content into the new epoch. The closure also keeps the CAPTURED
+            // generation (not a fresh read), so a revoke between scheduling and firing still
+            // invalidates it.
+            if (this._revealRetryGen !== revealGeneration || !this._deps.isEgressEnabled()) {
+                this._dbg('  -> reveal persist failed after a consent epoch change; no retry scheduled');
+                return;
+            }
             this._dbg(`  -> reveal persist failed (attempt ${attempt + 1}/${MAX_REVEAL_RETRIES}), scheduling retry in ${REVEAL_RETRY_MS}ms`);
-            const myGen = this._revealRetryGen;
             const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
             schedule(() => {
-                if (this._revealRetryGen !== myGen) { return; }
+                if (this._revealRetryGen !== revealGeneration) { return; }
                 void this._persistReveal(exerciseId, episodeId, hintText, level, localId, attempt + 1);
             }, REVEAL_RETRY_MS);
         }

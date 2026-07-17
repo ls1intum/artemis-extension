@@ -2238,4 +2238,68 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
         expect(deps.showLamp).not.toHaveBeenCalled();
     });
 
+    // Wave 2 Finding 2a: a reveal POST that settles successfully AFTER a revoke must not
+    // reconcile the optimistic bubble or flush a pending outcome.
+    it('in-flight reveal settling after a revoke reconciles nothing and flushes no outcome', async () => {
+        let egress = true;
+        let resolveReveal!: (v: IrisChatMessage) => void;
+        const revealAmbient = vi.fn(() => new Promise<IrisChatMessage>(r => { resolveReveal = r; }));
+        const deps = fakeDeps({ isEgressEnabled: () => egress, revealAmbient });
+        const svc = new StruggleInterventionService(deps);
+
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-fl'), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._frozenSessionId = 55;
+        // Seed a pending outcome so the flush path is observable too.
+        svc._pendingOutcomes.set('ep-fl', { outcome: 'DISMISSED' });
+
+        const p = svc.revealParkedHint();          // hangs inside revealAmbient
+        await new Promise(r => setTimeout(r, 0));
+        expect(revealAmbient).toHaveBeenCalledTimes(1);
+
+        egress = false;
+        svc.onConsentRevoked();                    // epoch boundary while the POST is in flight
+
+        resolveReveal({ id: 7, sentAt: 'T', proactiveEpisodeId: 'srv' } as IrisChatMessage);
+        await p;
+
+        expect(deps.reconcileOptimisticBubble).not.toHaveBeenCalled();
+        expect(deps.setEpisodeOutcome).not.toHaveBeenCalled();
+    });
+
+    // Wave 2 Finding 2b: a reveal POST that REJECTS after a revoke must not schedule a retry
+    // (the old code captured the already-bumped generation, so a regrant would replay stale content).
+    it('reveal rejecting after a revoke schedules no retry', async () => {
+        let egress = true;
+        let rejectReveal!: (e: Error) => void;
+        const revealAmbient = vi.fn(() => new Promise<IrisChatMessage>((_res, rej) => { rejectReveal = rej; }));
+        const setTimeoutFn = vi.fn();
+        const deps = fakeDeps({ isEgressEnabled: () => egress, revealAmbient, setTimeoutFn });
+        const svc = new StruggleInterventionService(deps);
+
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-rj'), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._frozenSessionId = 55;
+
+        const p = svc.revealParkedHint();          // hangs inside revealAmbient
+        await new Promise(r => setTimeout(r, 0));
+
+        egress = false;
+        svc.onConsentRevoked();                    // revoke while in flight (bumps the generation)
+
+        rejectReveal(new Error('network'));
+        await p;
+
+        expect(setTimeoutFn).not.toHaveBeenCalled();   // no retry crosses the epoch boundary
+    });
+
+    // Sanity: the epoch guard must not over-block the normal same-epoch flow.
+    it('sanity: a normal reveal still reconciles the optimistic bubble', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-ok'), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._frozenSessionId = 55;
+
+        await svc.revealParkedHint();
+
+        expect(deps.reconcileOptimisticBubble).toHaveBeenCalledWith('test-local-id', 7, 'server-ep-id', '2024-01-01T00:00:00Z');
+    });
 });
