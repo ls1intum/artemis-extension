@@ -1751,8 +1751,11 @@ export class StruggleInterventionService implements AlertSink {
 
     /**
      * AlertSink.onConsentRevoked (#349) - the consent-revocation path. Terminates the
-     * local episode/slot/in-flight state (no egress) and clears every visible surface,
-     * but KEEPS the per-session latches (404 / course-off) and the delivery budget:
+     * local episode/slot/in-flight state and clears every visible surface. "No egress"
+     * means no STUDENT-CODE egress: when a request is in flight, _clearEpisodeRuntime
+     * deliberately still sends the scoped control-plane cancel (requestToken only, no
+     * code/signal) so the server abandons the job it already holds - privacy-positive.
+     * KEEPS the per-session latches (404 / course-off) and the delivery budget:
      * revoking and regranting must not refill the throttle or lift a latch. Compare
      * resetSession() (new exercise: latches + budget DO reset) and reset() (surfaces
      * only: a DELIVERED slot would survive and suppress fresh alerts after a regrant).
