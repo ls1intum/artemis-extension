@@ -1982,4 +1982,103 @@ describe('onConsentRevoked (#349)', () => {
         svc.onConsentRevoked();
         expect(svc.shouldSuppress(alert())).toBe(true);      // revoke did NOT lift the latch
     });
+    it('TOCTOU (decide): consent revoked while collectFiles is in flight -> no POST', async () => {
+        let egress = true;
+        let resolveCollect!: (v: Record<string, string>) => void;
+        const deps = fakeDeps({
+            isEgressEnabled: () => egress,
+            collectFiles: vi.fn(() => new Promise<Record<string, string>>(r => { resolveCollect = r; })),
+        });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));       // reach the collectFiles await
+        egress = false;                                  // revoke mid-collection...
+        svc.onConsentRevoked();                          // ...as the coordinator would
+        resolveCollect({ 'src/A.java': 'class A {}' });
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+    });
+    it('TOCTOU (help_request): consent revoked while collecting -> no second POST', async () => {
+        let egress = true;
+        const pending: Array<(v: Record<string, string>) => void> = [];
+        const deps = fakeDeps({
+            isEgressEnabled: () => egress,
+            collectFiles: vi.fn(() => new Promise<Record<string, string>>(r => { pending.push(r); })),
+        });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(alert());                            // decide path...
+        await new Promise(r => setTimeout(r, 0));
+        pending.shift()!({ 'src/A.java': 'x' });         // ...completes normally
+        await new Promise(r => setTimeout(r, 0));
+        svc.onServerActive(7, undefined, undefined, undefined, undefined, undefined, undefined);  // slot -> DELIVERED
+        expect(deps.postIntervention).toHaveBeenCalledTimes(1);
+        void svc._sendHelpRequest();                     // help_request hangs in collectFiles
+        await new Promise(r => setTimeout(r, 0));
+        egress = false;
+        svc.onConsentRevoked();                          // revoke mid-collection
+        pending.shift()!({ 'src/A.java': 'x' });
+        await new Promise(r => setTimeout(r, 0));
+        expect(deps.postIntervention).toHaveBeenCalledTimes(1);   // no help_request POST
+    });
+    it('confirm_close drain: no consent at entry -> no collection, no POST', async () => {
+        let egress = true;
+        const deps = fakeDeps({ isEgressEnabled: () => egress });   // collectFiles resolves immediately
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
+        svc.onServerAmbient('hint', undefined, undefined, undefined);   // slot -> PARKED (with consent)
+        svc.onTick(tick(530));
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.8, path: 'armed' }, trajectory: [] } as never;
+        const drainable = svc as unknown as { _owedConfirmClose?: { confirmReason: string }; _drainOwed(): Promise<void> };
+        drainable._owedConfirmClose = { confirmReason: 'parked_progress' };
+        (deps.collectFiles as ReturnType<typeof vi.fn>).mockClear();
+        egress = false;                                  // consent gone at drain time
+        await drainable._drainOwed();
+        expect(deps.collectFiles).not.toHaveBeenCalled();    // entry gate: not even collected
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+    });
+    it('confirm_close drain: consent revoked mid-collection -> no POST', async () => {
+        let egress = true;
+        const pending: Array<(v: Record<string, string>) => void> = [];
+        const deps = fakeDeps({
+            isEgressEnabled: () => egress,
+            collectFiles: vi.fn(() => new Promise<Record<string, string>>(r => { pending.push(r); })),
+        });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
+        svc.onServerAmbient('hint', undefined, undefined, undefined);   // slot -> PARKED
+        svc.onTick(tick(530));
+        svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.8, path: 'armed' }, trajectory: [] } as never;
+        const drainable = svc as unknown as { _owedConfirmClose?: { confirmReason: string }; _drainOwed(): Promise<void> };
+        drainable._owedConfirmClose = { confirmReason: 'parked_progress' };
+        const p = drainable._drainOwed();                // hangs in collectFiles
+        await new Promise(r => setTimeout(r, 0));
+        egress = false;
+        svc.onConsentRevoked();                          // revoke mid-collection
+        pending.shift()?.({ 'src/A.java': 'x' });        // collection completes anyway
+        await p;
+        expect(deps.postIntervention).not.toHaveBeenCalled();
+    });
+    it('an inbound ambient frame after revocation surfaces nothing', () => {
+        let egress = true;
+        const deps = fakeDeps({ isEgressEnabled: () => egress });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
+        egress = false;
+        svc.onServerAmbient('late hint', undefined, undefined, undefined);
+        expect(deps.showLamp).not.toHaveBeenCalled();
+        expect(svc._slot.isFree()).toBe(true);
+    });
+    it('an inbound ACTIVE frame after revocation surfaces nothing', () => {
+        let egress = true;
+        const deps = fakeDeps({ isEgressEnabled: () => egress });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
+        egress = false;
+        svc.onServerActive(7, undefined, undefined, undefined, undefined, undefined, undefined);
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
+        expect(deps.postBubble).not.toHaveBeenCalled();
+        expect(svc._slot.isFree()).toBe(true);
+    });
 });

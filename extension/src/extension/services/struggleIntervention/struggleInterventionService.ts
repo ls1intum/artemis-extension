@@ -682,6 +682,16 @@ export class StruggleInterventionService implements AlertSink {
             }
             await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'server', signal });
 
+            // #349 TOCTOU (spec 3.5): consent may have been revoked while awaiting the
+            // file collection - nothing may leave the machine after a revoke. A revoke
+            // clears the in-flight marker (onConsentRevoked -> reset), so a token
+            // mismatch equally means this request was superseded. A POST already on
+            // the wire below cannot be recalled; that residual window is accepted.
+            if (!this._deps.isEgressEnabled() || this._inFlightMarker?.requestToken !== requestToken) {
+                this._dbg('  -> ABORT (consent revoked or request superseded during collection)');
+                return;
+            }
+
             const result = await this._deps.postIntervention(exerciseId, {
                 struggleSignal: signal,
                 uncommittedFiles,
@@ -728,6 +738,13 @@ export class StruggleInterventionService implements AlertSink {
      * sessionId is stored for the reveal flow (C2).
      */
     onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number): void {
+        // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
+        // surface (mirrors the student-opt-out guard). Silent/Close stay ungated - they
+        // only finalize state and never open a surface.
+        if (!this._deps.isEgressEnabled()) {
+            this._clearInFlight();
+            return;
+        }
         this._setServerAvailable(true);
 
         if (sessionId !== undefined) {
@@ -765,6 +782,13 @@ export class StruggleInterventionService implements AlertSink {
      * {@link onServerAmbient} instead, so Less never creates a DELIVERED episode/bubble/notification.
      */
     onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
+        // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
+        // surface (mirrors the student-opt-out guard). Silent/Close stay ungated - they
+        // only finalize state and never open a surface.
+        if (!this._deps.isEgressEnabled()) {
+            this._clearInFlight();
+            return;
+        }
         this._setServerAvailable(true);
 
         const exId = this._deps.getExerciseId();
@@ -1340,6 +1364,10 @@ export class StruggleInterventionService implements AlertSink {
             if (this._inFlightMarker?.requestToken === requestToken) {
                 this._inFlightMarker.baseline = uncommittedFiles;   // rebase baseline for an anchored follow-up
             }
+            // #349 TOCTOU: re-validate consent + in-flight ownership after the await.
+            if (!this._deps.isEgressEnabled() || this._inFlightMarker?.requestToken !== requestToken) {
+                return;
+            }
             const result = await this._deps.postIntervention(exerciseId, {
                 struggleSignal: this._lastSignal,
                 uncommittedFiles,
@@ -1385,8 +1413,15 @@ export class StruggleInterventionService implements AlertSink {
     private async _drainOwed(): Promise<void> {
         // Defense-in-depth: never egress code while Iris is disabled, mirrors the _suppressReason gate.
         if (!this._deps.isIrisEnabled()) { return; }
-        // Wire must be free to drain
-        if (this._inFlightMarker !== undefined) { return; }
+        // Defense-in-depth (#349): confirm_close carries uncommitted files - never egress
+        // without the proactive consent (mirrors the isIrisEnabled gate above).
+        if (!this._deps.isEgressEnabled()) { return; }
+        // Wire must be free to drain. A local boolean, not a direct narrow on `this._inFlightMarker`
+        // (mirrors _sendHelpRequest's `inFlight` pattern) -- narrowing the field itself here would
+        // collapse it to `undefined` for the rest of the method, breaking the later #349 TOCTOU
+        // re-read of `this._inFlightMarker?.requestToken` after the collectFiles await.
+        const wireBusy = this._inFlightMarker !== undefined;
+        if (wireBusy) { return; }
 
         const snap = this._slot.snapshot();
         if (snap.state.kind === 'free') { return; }
@@ -1416,6 +1451,10 @@ export class StruggleInterventionService implements AlertSink {
 
             try {
                 const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
+                // #349 TOCTOU: re-validate consent + in-flight ownership after the await.
+                if (!this._deps.isEgressEnabled() || this._inFlightMarker?.requestToken !== requestToken) {
+                    return;
+                }
                 const result = await this._deps.postIntervention(exerciseId, {
                     struggleSignal: this._lastSignal,
                     uncommittedFiles,
