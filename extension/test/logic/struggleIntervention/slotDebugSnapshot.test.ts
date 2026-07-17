@@ -89,7 +89,7 @@ function simulateDelivered(svc: StruggleInterventionService, _level: 'active' | 
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
     svc._candidate = { episodeId, hints: [], createdAtMs: Date.now() };
-    svc.onServerActive(1, undefined, undefined, undefined, 0.9, 'hint text', 99);
+    svc.onServerActive(episodeId, 1, undefined, undefined, undefined, 0.9, 'hint text', 99);
 }
 
 /** Drive the service into PARKED state via onServerAmbient (take-parked path). */
@@ -100,7 +100,7 @@ function simulateParked(svc: StruggleInterventionService, episodeId = 'ep-parked
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
     svc._candidate = { episodeId, hints: [], createdAtMs: Date.now() };
-    svc.onServerAmbient('ambient hint', undefined, undefined, undefined, 0.9, 99);
+    svc.onServerAmbient(episodeId, 'ambient hint', undefined, undefined, undefined, 0.9, 99);
 }
 
 

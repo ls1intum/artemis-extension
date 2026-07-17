@@ -111,7 +111,7 @@ function simulateDelivered(svc: StruggleInterventionService, episodeId = 'ep-tes
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
     svc._candidate = { episodeId, hints: [], createdAtMs: Date.now() };
-    svc.onServerActive(1, undefined, undefined, undefined, 0.9, 'hint text', 99);
+    svc.onServerActive(episodeId, 1, undefined, undefined, undefined, 0.9, 'hint text', 99);
 }
 
 /** Drive the service into PARKED state via onServerAmbient (take-parked path). */
@@ -122,7 +122,7 @@ function simulateParked(svc: StruggleInterventionService, episodeId = 'ep-parked
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
     svc._candidate = { episodeId, hints: [], createdAtMs: Date.now() };
-    svc.onServerAmbient('ambient hint', undefined, undefined, undefined, 0.9, 99);
+    svc.onServerAmbient(episodeId, 'ambient hint', undefined, undefined, undefined, 0.9, 99);
 }
 
 /** Idle past the watchdog deadline (high sBase so resetProgress does not defer it). */
@@ -288,11 +288,11 @@ describe('StruggleInterventionService - evidence gate after idle-abandon', () =>
         expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(true);
 
         // Late replies from the pre-abandon POST must not deliver anything.
-        svc.onServerActive(1, undefined, undefined, undefined, 0.9, 'late hint', 123);
+        svc.onServerActive('ep-race', 1, undefined, undefined, undefined, 0.9, 'late hint', 123);
         expect(svc.getSlotDebugSnapshot().state).toBe('free');
         expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(true);
 
-        svc.onServerAmbient('late ambient', undefined, undefined, undefined, 0.9, 124);
+        svc.onServerAmbient('ep-race', 'late ambient', undefined, undefined, undefined, 0.9, 124);
         expect(svc.getSlotDebugSnapshot().state).toBe('free');
         expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(true);
         expect(deps.showLamp).not.toHaveBeenCalled();

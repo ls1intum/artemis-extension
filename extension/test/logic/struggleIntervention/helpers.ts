@@ -65,6 +65,6 @@ export function simulateDelivered(svc: StruggleInterventionService, episodeId = 
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
     svc._candidate = { episodeId, hints: [], createdAtMs: 0 };
     // Simulate an active server response, which takes the slot and sets delivered
-    svc.onServerActive(1, undefined, undefined, undefined, 0.9, 'hint text', 99);
+    svc.onServerActive(episodeId, 1, undefined, undefined, undefined, 0.9, 'hint text', 99);
     svc._lastSignal = {} as never;
 }

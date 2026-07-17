@@ -21,7 +21,7 @@ describe('help_request delivery', () => {
         const localToken = svc._guard.issue('help_request', stamp);
         svc._inFlightMarker = { requestToken: 'tok', episodeId: 'ep-hr', generation: gen, intent: 'help_request', localToken };
 
-        svc.onServerActive(1, undefined, undefined, undefined, 0.9, 'next concrete step', 200);
+        svc.onServerActive('ep-hr', 1, undefined, undefined, undefined, 0.9, 'next concrete step', 200);
 
         expect(deps.postBubble).toHaveBeenCalledWith('next concrete step', 200, 'ep-hr');
         const st = svc._slot.snapshot().state as Extract<ReturnType<typeof svc._slot.snapshot>['state'], { kind: 'delivered' }>;

@@ -602,6 +602,8 @@ export class StruggleInterventionService implements AlertSink {
             this._setAwaitingEvidence(false, 'hard-boundary alert');
         }
 
+        // Hoisted so the catch's #349 Finding 2 token guard can see it (set just before the POST).
+        let requestToken: string | undefined;
         try {
             const signal = buildStruggleSignal(alert, this._buffer.snapshot());
             const snap = this._slot.snapshot();
@@ -661,7 +663,7 @@ export class StruggleInterventionService implements AlertSink {
             }
 
             this._lastSignal = signal;
-            const requestToken = crypto.randomUUID();
+            requestToken = crypto.randomUUID();
 
             // Stamp the guard BEFORE async collection (TOCTOU: a second alert must see in-flight)
             const stamp: PendingStamp = {
@@ -707,7 +709,17 @@ export class StruggleInterventionService implements AlertSink {
                 // This episode has now been seen by Pyris: record it so later requests send isNew=false.
                 this._continuedEpisodeIds.add(requestEpisode.episodeId);
                 // _inFlightMarker stays set until the websocket reply arrives (onServerAmbient/Active/Silent)
-            } else if (result === 'course-off') {
+                return;
+            }
+            // #349 Finding 2: token-scoped settlement (mirror _sendHelpRequest ~L1382). If a
+            // revoke->regrant issued a fresh marker while this POST was on the wire, a stale
+            // completion must not clear or latch onto the new request's in-flight state. Only the
+            // clearing/latching branches are gated; 'accepted' above deliberately keeps the marker.
+            if (this._inFlightMarker?.requestToken !== requestToken) {
+                this._dbg('  -> POST settled but request superseded (token mismatch); leaving live marker untouched');
+                return;
+            }
+            if (result === 'course-off') {
                 // Panel refresh: the _setInFlightMarker below notifies, covering this latch flip.
                 this._courseProactiveOff = true;
                 this._setInFlightMarker(undefined);
@@ -723,8 +735,12 @@ export class StruggleInterventionService implements AlertSink {
             }
         } catch (err) {
             this._dbg(`  -> ERROR during intervention: ${err instanceof Error ? err.message : String(err)}`);
-            this._setInFlightMarker(undefined);
-            this._candidate = undefined;
+            // #349 Finding 2: only clear when THIS request still owns the wire (a throw after a
+            // supersession must not kill the new request's marker).
+            if (this._inFlightMarker?.requestToken === requestToken) {
+                this._setInFlightMarker(undefined);
+                this._candidate = undefined;
+            }
         }
     }
 
@@ -737,7 +753,14 @@ export class StruggleInterventionService implements AlertSink {
      * Routes through reconcile; may take-parked (FREE), replace-parked (PARKED), or suppress (DELIVERED).
      * sessionId is stored for the reveal flow (C2).
      */
-    onServerAmbient(hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number): void {
+    onServerAmbient(episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number): void {
+        // #349 Finding 1: inbound stale-frame correlation. Drop a late reply whose echoed
+        // episodeId does not match the in-flight request (e.g. a pre-revoke POST landing after
+        // a regrant issued a fresh marker) WITHOUT clearing the marker, so the current request's
+        // wire survives. Runs before the consent guard below (that one clears on revoke).
+        if (this._isUncorrelatedFrame(episodeId)) {
+            return;
+        }
         // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
         // surface (mirrors the student-opt-out guard). Silent/Close stay ungated - they
         // only finalize state and never open a surface.
@@ -781,7 +804,12 @@ export class StruggleInterventionService implements AlertSink {
      * Pull re-route (spec §12.2): when the active exercise's level is `less`, this delegates to
      * {@link onServerAmbient} instead, so Less never creates a DELIVERED episode/bubble/notification.
      */
-    onServerActive(sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
+    onServerActive(episodeId: string | undefined, sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
+        // #349 Finding 1: inbound stale-frame correlation (see onServerAmbient). Drop a late
+        // reply for a superseded request without clearing the current request's marker.
+        if (this._isUncorrelatedFrame(episodeId)) {
+            return;
+        }
         // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
         // surface (mirrors the student-opt-out guard). Silent/Close stay ungated - they
         // only finalize state and never open a surface.
@@ -832,7 +860,7 @@ export class StruggleInterventionService implements AlertSink {
         // marker, so a second call here would read it as stale and silently drop the reply).
         const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
         if (level === 'less') {
-            this.onServerAmbient(message ?? '', anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId);
+            this.onServerAmbient(episodeId, message ?? '', anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId);
             return;
         }
 
@@ -1200,6 +1228,26 @@ export class StruggleInterventionService implements AlertSink {
     // ---------------------------------------------------------------------------
 
     /**
+     * #349 Finding 1: inbound stale-frame correlation for the AMBIENT/ACTIVE surface handlers.
+     * While a request is in flight, a late reply must echo the same episodeId as the live marker;
+     * otherwise it belongs to a superseded request (e.g. a pre-revoke POST landing after a
+     * revoke->regrant issued a fresh marker) and must be dropped WITHOUT clearing the marker, so the
+     * live request's wire is never killed by a foreign frame. A frame that carries NO episodeId fails
+     * closed the same way: the current C4 server echoes episodeId on every new-style frame (mirroring
+     * onServerSilent/onServerClose, which already drop on a missing/mismatched echo), so an absent id
+     * means a stale or foreign frame. When no marker is in flight, correlation is skipped and today's
+     * behaviour applies (the exercise-id filter and consent guard still run).
+     * Returns true when the frame should be dropped.
+     */
+    private _isUncorrelatedFrame(frameEpisodeId: string | undefined): boolean {
+        const marker = this._inFlightMarker;
+        if (!marker) { return false; }
+        if (frameEpisodeId !== undefined && frameEpisodeId === marker.episodeId) { return false; }
+        this._dbg(`  -> DROP uncorrelated inbound frame (episodeId=${frameEpisodeId ?? 'none'} != in-flight ${marker.episodeId}); marker preserved`);
+        return true;
+    }
+
+    /**
      * Validate an inbound decide reply against the current in-flight marker + slot generation.
      * Returns the PendingStamp on match, null on stale/no-marker (stale drop).
      * Side effect: clears _inFlightMarker when accepted or when stale.
@@ -1464,6 +1512,12 @@ export class StruggleInterventionService implements AlertSink {
                     requestToken,
                     proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
                 });
+                // #349 Finding 2: token-scoped settlement (mirror _sendHelpRequest). A stale
+                // completion from a superseded confirm_close (revoke->regrant issued a fresh marker)
+                // must not latch onto or clear the new request's in-flight state.
+                if (this._inFlightMarker?.requestToken !== requestToken) {
+                    return;
+                }
                 if (result === 'accepted') {
                     this._continuedEpisodeIds.add(ep.episodeId);
                     this._setOwedConfirmClose(undefined);
@@ -1473,7 +1527,9 @@ export class StruggleInterventionService implements AlertSink {
                     this._setInFlightMarker(undefined);
                 }
             } catch {
-                this._setInFlightMarker(undefined);
+                if (this._inFlightMarker?.requestToken === requestToken) {
+                    this._setInFlightMarker(undefined);
+                }
             }
             return;
         }
@@ -1761,6 +1817,10 @@ export class StruggleInterventionService implements AlertSink {
      * only: a DELIVERED slot would survive and suppress fresh alerts after a regrant).
      */
     onConsentRevoked(): void {
+        // #349 Finding 3: invalidate any scheduled reveal-persist retry (same generation bump
+        // resetSession uses). Without this, a retry scheduled before the revoke would fire and
+        // egress episode + hint content through revealAmbient while consent is disabled.
+        this._revealRetryGen++;
         if (!this._slot.isFree()) {
             const st = this._slot.snapshot().state;
             if (st.kind === 'delivered') { this.recordTerminalEpisode(st.episode, 'INTERRUPTED'); }
@@ -1920,7 +1980,19 @@ export class StruggleInterventionService implements AlertSink {
         localId: string,
         attempt = 0,
     ): Promise<void> {
+        // #349 Finding 3: never egress a reveal after a consent revoke. Guard at entry (the retry
+        // is scheduled async, so consent may have flipped since it was queued)...
+        if (!this._deps.isEgressEnabled()) {
+            this._dbg('  -> reveal persist skipped: egress disabled (consent revoked)');
+            return;
+        }
         try {
+            // ...and again immediately before the POST (its awaits create the same TOCTOU window
+            // as the decide path: consent can flip between entry and the network call).
+            if (!this._deps.isEgressEnabled()) {
+                this._dbg('  -> reveal persist aborted before POST: egress disabled (consent revoked)');
+                return;
+            }
             const dto = await this._deps.revealAmbient(exerciseId, episodeId, hintText, level, localId);
             if (dto.id === undefined) {
                 throw new Error('revealAmbient returned a DTO with no message id');

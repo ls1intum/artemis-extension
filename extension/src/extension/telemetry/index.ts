@@ -230,17 +230,29 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // exerciseId is not the one currently active: a late frame for a previous exercise
     // must never surface in (or consume the per-session budget of) the new session.
     deps.context.subscriptions.push(subscribeStruggleEvents(deps.subscribeStruggleTopic, {
-        onServerAmbient: (exerciseId, hint, anchorFile, anchorLine, inlineHint, c, messageId) => {
+        onServerAmbient: (exerciseId, episodeId, hint, anchorFile, anchorLine, inlineHint, c, messageId) => {
+            // #349 Finding 4: never surface late inbound hint content (even to the dev log) once
+            // consent is revoked; log only redacted metadata and drop the frame before the
+            // orchestrator (whose own consent guard stays as defence in depth).
+            if (!consent.isEnabled) {
+                devLog(`◀ Iris AMBIENT dropped (consent revoked) exercise=${exerciseId}`);
+                return;
+            }
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris AMBIENT exercise=${exerciseId} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}: "${hint}"`);
-            if (active) { orchestrator.onServerAmbient(hint, anchorFile, anchorLine, inlineHint, c, messageId); }
+            if (active) { orchestrator.onServerAmbient(episodeId, hint, anchorFile, anchorLine, inlineHint, c, messageId); }
         },
-        onServerActive: (exerciseId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId) => {
+        onServerActive: (exerciseId, episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId) => {
+            // #349 Finding 4: as onServerAmbient - drop late content once consent is revoked.
+            if (!consent.isEnabled) {
+                devLog(`◀ Iris ACTIVE dropped (consent revoked) exercise=${exerciseId}`);
+                return;
+            }
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris ACTIVE exercise=${exerciseId} session=${sid} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
-            if (active) { orchestrator.onServerActive(sid, anchorFile, anchorLine, inlineHint, c, message, messageId); }
+            if (active) { orchestrator.onServerActive(episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId); }
         },
         onServerSilent: (episodeId, messageId) => {
             devLog(`◀ Iris SILENT episodeId=${episodeId ?? '–'}`);

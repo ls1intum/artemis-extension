@@ -77,7 +77,7 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
 function simulateDeliveredWithClosePending(svc: StruggleInterventionService, episodeId = 'ep-close'): void {
     // First put slot in DELIVERED via the decide path
     simulateDecidePending(svc, episodeId);
-    svc.onServerActive(42, undefined, undefined, undefined, undefined, 'Iris has a hint.', 100);
+    svc.onServerActive(episodeId, 42, undefined, undefined, undefined, undefined, 'Iris has a hint.', 100);
     // Now set up the confirm_close in-flight
     const gen = svc._slot.generation();
     const requestToken = 'close-request-token';
@@ -92,7 +92,7 @@ function simulateDeliveredWithClosePending(svc: StruggleInterventionService, epi
 function simulateParkedWithClosePending(svc: StruggleInterventionService, episodeId = 'ep-parked'): void {
     // Put slot in PARKED via ambient decide path
     simulateDecidePending(svc, episodeId);
-    svc.onServerAmbient('Ambient hint', undefined, undefined, undefined, undefined, null);
+    svc.onServerAmbient(episodeId, 'Ambient hint', undefined, undefined, undefined, undefined, null);
     // Now set up the confirm_close in-flight
     const gen = svc._slot.generation();
     const requestToken = 'close-parked-token';
@@ -152,28 +152,28 @@ describe('classifyStruggleEvent', () => {
 // ---------------------------------------------------------------------------
 
 describe('subscribeStruggleEvents dispatch', () => {
-    it('threads exerciseId + messageId through to the ambient/active handlers', () => {
+    it('threads exerciseId + episodeId + messageId through to the ambient/active handlers', () => {
         let onFrame: ((d: unknown) => void) | undefined;
         const subscribe = (_topic: string, f: (d: unknown) => void) => { onFrame = f; return { dispose() { /* noop */ } }; };
         const onServerAmbient = vi.fn();
         const onServerActive = vi.fn();
         subscribeStruggleEvents(subscribe, { onServerAmbient, onServerActive, onServerSilent: vi.fn(), onServerClose: vi.fn() });
 
-        // Ambient: messageId absent -> null
-        onFrame!({ exerciseId: 42, action: 'ambient', message: 'Re-check the logic.', anchorFile: 'src/A.java', anchorLine: 42, inlineHint: 'off-by-one?' });
-        expect(onServerAmbient).toHaveBeenCalledWith(42, 'Re-check the logic.', 'src/A.java', 42, 'off-by-one?', undefined, null);
+        // Ambient: episodeId threaded (#349 Finding 1), messageId absent -> null
+        onFrame!({ exerciseId: 42, action: 'ambient', episodeId: 'ep-a', message: 'Re-check the logic.', anchorFile: 'src/A.java', anchorLine: 42, inlineHint: 'off-by-one?' });
+        expect(onServerAmbient).toHaveBeenCalledWith(42, 'ep-a', 'Re-check the logic.', 'src/A.java', 42, 'off-by-one?', undefined, null);
 
-        // Active without anchor: messageId absent -> null, message absent -> undefined
-        onFrame!({ exerciseId: 99, action: 'active', sessionId: 7, confidence: 0.5 });
-        expect(onServerActive).toHaveBeenCalledWith(99, 7, undefined, undefined, undefined, 0.5, undefined, null);
+        // Active without anchor: episodeId threaded, messageId absent -> null, message absent -> undefined
+        onFrame!({ exerciseId: 99, action: 'active', episodeId: 'ep-b', sessionId: 7, confidence: 0.5 });
+        expect(onServerActive).toHaveBeenCalledWith(99, 'ep-b', 7, undefined, undefined, undefined, 0.5, undefined, null);
 
         // Active with anchor and messageId
-        onFrame!({ exerciseId: 99, action: 'active', sessionId: 8, anchorFile: 'src/B.java', anchorLine: 84, inlineHint: 'check punctuation', confidence: 0.9 });
-        expect(onServerActive).toHaveBeenCalledWith(99, 8, 'src/B.java', 84, 'check punctuation', 0.9, undefined, null);
+        onFrame!({ exerciseId: 99, action: 'active', episodeId: 'ep-c', sessionId: 8, anchorFile: 'src/B.java', anchorLine: 84, inlineHint: 'check punctuation', confidence: 0.9 });
+        expect(onServerActive).toHaveBeenCalledWith(99, 'ep-c', 8, 'src/B.java', 84, 'check punctuation', 0.9, undefined, null);
 
-        // Active with messageId set: threads through
+        // Active with messageId set: threads through; frame with NO episodeId forwards undefined
         onFrame!({ exerciseId: 5, action: 'active', sessionId: 3, message: 'Try X.', messageId: 556 });
-        expect(onServerActive).toHaveBeenCalledWith(5, 3, undefined, undefined, undefined, undefined, 'Try X.', 556);
+        expect(onServerActive).toHaveBeenCalledWith(5, undefined, 3, undefined, undefined, undefined, undefined, 'Try X.', 556);
     });
 });
 
@@ -187,7 +187,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
-        svc.onServerAmbient('Try checking bounds.', 'Sort.java', 10, 'off-by-one?');
+        svc.onServerAmbient('ep-test', 'Try checking bounds.', 'Sort.java', 10, 'off-by-one?');
 
         expect(deps.showGutterOnly).toHaveBeenCalledWith('Sort.java', 10);
         expect(deps.setBadge).toHaveBeenCalledWith(true);
@@ -203,7 +203,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
-        svc.onServerAmbient('Try checking bounds.', undefined, undefined, undefined);
+        svc.onServerAmbient('ep-test', 'Try checking bounds.', undefined, undefined, undefined);
 
         expect(deps.showLamp).toHaveBeenCalled();
         expect(deps.setBadge).toHaveBeenCalledWith(true);
@@ -217,7 +217,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
-        svc.onServerActive(42, 'Sort.java', 10, 'off-by-one?', undefined, 'Try checking array bounds.', 556);
+        svc.onServerActive('ep-test', 42, 'Sort.java', 10, 'off-by-one?', undefined, 'Try checking array bounds.', 556);
 
         // Optimistic bubble with messageId for dedup
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556, 'ep-test');
@@ -239,7 +239,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
-        svc.onServerActive(42, undefined, undefined, undefined, undefined, 'Try checking bounds.', null);
+        svc.onServerActive('ep-test', 42, undefined, undefined, undefined, undefined, 'Try checking bounds.', null);
 
         // Fallback bubble with null id (runtime-only, no dedup tag)
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking bounds.', null, 'ep-test');
@@ -252,7 +252,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
-        svc.onServerActive(42, undefined, undefined, undefined, undefined, undefined, 123);
+        svc.onServerActive('ep-test', 42, undefined, undefined, undefined, undefined, undefined, 123);
 
         // postBubble still called even if message is undefined
         expect(deps.postBubble).toHaveBeenCalled();
@@ -417,7 +417,7 @@ describe('StruggleInterventionService -- C4 silent dispatch', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-parked');
         // Put slot in PARKED via ambient
-        svc.onServerAmbient('Ambient hint.', undefined, undefined, undefined, undefined, null);
+        svc.onServerAmbient('ep-parked', 'Ambient hint.', undefined, undefined, undefined, undefined, null);
         expect(svc._slot.snapshot().state.kind).toBe('parked');
 
         // Now set up a new decide in-flight for the parked episode
