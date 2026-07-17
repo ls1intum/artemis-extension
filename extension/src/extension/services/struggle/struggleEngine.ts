@@ -118,6 +118,14 @@ export class StruggleEngine implements vscode.Disposable {
         this._teardown();
     }
 
+    /** Consent revoked mid-session (#349): teardown WITHOUT the final drain. stop()
+     *  would still process every due tick (and could emit a final alert) from
+     *  observations up to the revoke moment; a revoke must not compute anything.
+     *  Same teardown dispose() uses, but without disposing the event emitters. */
+    abort(): void {
+        this._teardown();
+    }
+
     /** Abort path: teardown WITHOUT the final drain (used by dispose; also
      *  what tests with a real default clock rely on — a drain against real
      *  Date.now() would catch up across the whole fake-session span). */

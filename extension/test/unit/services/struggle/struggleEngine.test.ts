@@ -214,6 +214,21 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
             engine.dispose();
         }
     });
+
+    test('abort() tears down WITHOUT the final drain (#349 revoke path)', () => {
+        engine.dispose();
+        hub = new TestSensorHub();
+        let nowMs = START;
+        engine = new StruggleEngine(hub, { now: () => nowMs, setInterval: () => 0, clearInterval: () => { /* manual */ } });
+        ticks = [];
+        engine.onDidTick(t => ticks.push(t));
+        engine.start({ sessionStartMs: START });
+        nowMs = START + 25_000;                  // grid ticks 10 s and 20 s are DUE but unprocessed
+        engine.abort();                          // stop() would drain them; a consent revoke must not
+        assert.deepStrictEqual(ticks, [], 'abort must not compute ticks from pending observations');
+        engine.advanceTo(START + 60_000);        // torn down: no session survives an abort
+        assert.deepStrictEqual(ticks, [], 'advanceTo after abort is a no-op');
+    });
 });
 
 suite('StruggleEngine — dev skip-warmup', () => {
