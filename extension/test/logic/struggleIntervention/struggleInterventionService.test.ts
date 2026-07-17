@@ -2189,3 +2189,53 @@ describe('StruggleInterventionService revoke->regrant epoch races (#349)', () =>
         expect(revealAmbient).toHaveBeenCalledTimes(1);   // still 1 -> no post-revoke egress
     });
 });
+
+// ---------------------------------------------------------------------------
+// #349 wave 2: persisted-row retirement on correlation drops + reveal epoch boundary
+// ---------------------------------------------------------------------------
+
+describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoch (#349)', () => {
+    // Wave 2 Finding 1: a correlation-dropped frame's chat row is already persisted server-side
+    // and could surface via chat history; it must be retired (like the suppress path does),
+    // while the live marker still survives untouched.
+    it('correlation-mismatch frame with a persisted messageId retires the row and preserves the marker', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-B');
+
+        svc.onServerAmbient('ep-A', 'stale hint', undefined, undefined, undefined, undefined, 777);
+
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(777);
+        expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 777);
+        expect(svc._inFlightMarker?.episodeId).toBe('ep-B');   // marker untouched
+        expect(svc._slot.isFree()).toBe(true);                 // nothing surfaced
+        expect(deps.showLamp).not.toHaveBeenCalled();
+    });
+
+    it('missing-episodeId ACTIVE frame while a marker is live retires the row and preserves the marker', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-B');
+
+        svc.onServerActive(undefined, 7, undefined, undefined, undefined, undefined, undefined, 888);
+
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(888);
+        expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 888);
+        expect(svc._inFlightMarker?.episodeId).toBe('ep-B');
+        expect(deps.postBubble).not.toHaveBeenCalled();
+    });
+
+    it('a late frame with NO in-flight marker retires its persisted row and surfaces nothing', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+
+        // No marker at all: the frame is by definition late (stale reply after teardown).
+        svc.onServerAmbient('ep-old', 'late hint', undefined, undefined, undefined, undefined, 555);
+
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(555);
+        expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 555);
+        expect(svc._slot.isFree()).toBe(true);
+        expect(deps.showLamp).not.toHaveBeenCalled();
+    });
+
+});

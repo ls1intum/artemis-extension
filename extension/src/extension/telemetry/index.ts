@@ -238,9 +238,12 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
                 devLog(`◀ Iris AMBIENT dropped (consent revoked) exercise=${exerciseId}`);
                 return;
             }
+            // #349 wave 2: metadata only - never log hint content here. The orchestrator has not
+            // correlated the frame yet, so this could be a stale pre-revoke hint; content logging
+            // lives in the orchestrator AFTER its correlation guard passes.
             const active = exerciseId === coordinator.activeExerciseId;
-            devLog(`◀ Iris AMBIENT exercise=${exerciseId} conf=${c ?? '–'}`
-                + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}: "${hint}"`);
+            devLog(`◀ Iris AMBIENT exercise=${exerciseId} conf=${c ?? 'n/a'}`
+                + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
             if (active) { orchestrator.onServerAmbient(episodeId, hint, anchorFile, anchorLine, inlineHint, c, messageId); }
         },
         onServerActive: (exerciseId, episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId) => {

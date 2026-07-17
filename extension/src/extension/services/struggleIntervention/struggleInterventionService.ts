@@ -758,7 +758,10 @@ export class StruggleInterventionService implements AlertSink {
         // episodeId does not match the in-flight request (e.g. a pre-revoke POST landing after
         // a regrant issued a fresh marker) WITHOUT clearing the marker, so the current request's
         // wire survives. Runs before the consent guard below (that one clears on revoke).
+        // Wave 2: the stale frame's chat row is already persisted server-side and would surface
+        // via chat history, so retire it (mirrors the suppress path's _dropStaleRow).
         if (this._isUncorrelatedFrame(episodeId)) {
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
         }
         // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
@@ -787,8 +790,16 @@ export class StruggleInterventionService implements AlertSink {
         // Validate against the pending decide stamp (drop stale replies)
         const accepted = this._acceptDecide();
         if (accepted === null) {
-            return; // stale: slot moved since POST, or no decide was outstanding
+            // Stale: slot moved since POST, or no decide was outstanding (a frame with no live
+            // marker is by definition late). Retire its persisted row too (#349 wave 2).
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
+            return;
         }
+
+        // Content logging only AFTER every guard (correlation/consent/opt-out/accept) passed:
+        // the telemetry wrapper logs metadata only, so stale or revoked hint text never reaches
+        // the dev channel (#349 wave 2).
+        this._dbg(`  <- AMBIENT accepted conf=${confidence ?? 'n/a'}: "${hint}"`);
 
         const snap = this._slot.snapshot();
         const decision = { action: 'ambient' as const, text: hint, hardEvent: accepted.hardEvent };
@@ -806,8 +817,10 @@ export class StruggleInterventionService implements AlertSink {
      */
     onServerActive(episodeId: string | undefined, sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
         // #349 Finding 1: inbound stale-frame correlation (see onServerAmbient). Drop a late
-        // reply for a superseded request without clearing the current request's marker.
+        // reply for a superseded request without clearing the current request's marker; retire
+        // the stale frame's persisted chat row so it cannot surface via history (wave 2).
         if (this._isUncorrelatedFrame(episodeId)) {
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
         }
         // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
@@ -831,6 +844,8 @@ export class StruggleInterventionService implements AlertSink {
             const baseline = this._inFlightMarker.baseline;
             const accepted = this._acceptHelpRequest();
             if (accepted === null) {
+                // Stale (generation moved): retire the persisted row (#349 wave 2, mirrors onServerSilent).
+                if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
                 return;
             }
             const text = message ?? 'Iris has a suggestion for you.';
@@ -869,6 +884,9 @@ export class StruggleInterventionService implements AlertSink {
 
         const accepted = this._acceptDecide();
         if (accepted === null) {
+            // Stale: no live marker (a markerless frame is by definition late) or the slot
+            // generation moved. Retire its persisted row too (#349 wave 2).
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
         }
 
