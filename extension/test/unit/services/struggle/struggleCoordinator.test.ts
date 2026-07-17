@@ -16,6 +16,23 @@ function failingBuild(buildFailed = true): ResultDTO {
     return { id: 1, submission: { id: 1, buildFailed }, feedbacks: [] } as unknown as ResultDTO;
 }
 
+/** Always-granted detection consent for tests that are not about the gate (#349). */
+function grantedConsent() {
+    return { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event };
+}
+
+/** Flippable consent whose set() also fires the change event (#349 gate tests). */
+class TestConsent {
+    private readonly _em = new vscode.EventEmitter<void>();
+    private _granted: boolean;
+    readonly consent: { isGranted: () => boolean; onDidChange: vscode.Event<void> };
+    constructor(granted: boolean) {
+        this._granted = granted;
+        this.consent = { isGranted: () => this._granted, onDidChange: this._em.event };
+    }
+    set(granted: boolean): void { this._granted = granted; this._em.fire(); }
+}
+
 suite('StruggleCoordinator', () => {
     let hub: TestSensorHub;
     let delivered: AlertRecord[];
@@ -28,6 +45,7 @@ suite('StruggleCoordinator', () => {
             hub,
             alertSink: { deliver: a => delivered.push(a) },
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
     });
     teardown(() => coord.dispose());
@@ -47,6 +65,7 @@ suite('StruggleCoordinator', () => {
             hub: new TestSensorHub(),
             alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
         try {
             c.startExerciseSession(1);
@@ -74,6 +93,7 @@ suite('StruggleCoordinator', () => {
             hub: new TestSensorHub(),
             alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
         try {
             c.startExerciseSession(1);
@@ -96,6 +116,7 @@ suite('StruggleCoordinator', () => {
             hub: new TestSensorHub(),
             alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
         try {
             c.startExerciseSession(1);
@@ -118,6 +139,7 @@ suite('StruggleCoordinator', () => {
             hub: new TestSensorHub(),
             alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
         try {
             c.startExerciseSession(1);
@@ -142,6 +164,7 @@ suite('StruggleCoordinator', () => {
             hub: new TestSensorHub(),
             alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: (v: boolean) => calls.push(v) },
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
         try {
             c.startExerciseSession(1);
@@ -216,6 +239,7 @@ suite('StruggleCoordinator', () => {
                 hub: new TestSensorHub(),
                 alertSink: { deliver: a => seen.push(a) },
                 exerciseRegistry: undefined,
+                detectionConsent: grantedConsent(),
             });
             try {
                 assert.strictEqual(disabled.isEnabled(), false);
@@ -236,6 +260,7 @@ suite('StruggleCoordinator', () => {
             hub: new TestSensorHub(),
             alertSink: { deliver: () => { /* noop */ }, reset: () => { calls.reset++; }, resetSession: () => { calls.resetSession++; } },
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
         try {
             c.startExerciseSession(1);
@@ -307,6 +332,7 @@ suite('StruggleCoordinator', () => {
             hub: new TestSensorHub(),
             alertSink: new ThrottledAlertSink({ deliver: () => { /* noop UI */ } }, () => THROTTLE_BY_LEVEL.more),
             exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
         });
         try {
             c.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
@@ -380,6 +406,7 @@ suite('StruggleCoordinator', () => {
                 hub: new TestSensorHub(),
                 alertSink: { deliver: () => { /* noop */ }, reset: () => { calls.reset++; }, resetSession: () => { calls.resetSession++; } },
                 exerciseRegistry: undefined,
+                detectionConsent: grantedConsent(),
             });
             try {
                 c.startExerciseSession(1);                       // resetSession -> 1
@@ -395,5 +422,227 @@ suite('StruggleCoordinator', () => {
             onChangeStub.restore();
             getStub.restore();
         }
+    });
+});
+
+suite('StruggleCoordinator consent gate (#349)', () => {
+    /** Manual clock: engine timer is inert; tests drive via coordinator.advanceTo. */
+    function manualClock(startMs: number) {
+        let now = startMs;
+        return {
+            clock: { now: () => now, setInterval: () => 0, clearInterval: () => { /* manual */ } },
+            advance: (ms: number) => { now += ms; },
+        };
+    }
+
+    /** 1-char-insert text change for the hub (mirrors the engine test's fakeTextChange). */
+    function oneCharInsert(uri: string, ts: number): { ts: number; event: unknown } {
+        return {
+            ts,
+            event: {
+                document: { uri: vscode.Uri.parse(uri), getText: () => 'x' },
+                contentChanges: [{ text: 'a', rangeLength: 0, range: { start: { line: 0 }, isEmpty: true, isSingleLine: true } }],
+            },
+        };
+    }
+
+    test('no consent: no engine, no ticks, no start event, inactive snapshots, onNewResult inert', () => {
+        const T0 = 1_000_000_000_000;
+        const { clock, advance } = manualClock(T0);
+        const tc = new TestConsent(false);
+        const hub = new TestSensorHub();
+        const latch: boolean[] = [];
+        const seen: unknown[] = [];
+        const ticks: number[] = [];
+        let started = 0;
+        const c = new StruggleCoordinator({
+            hub,
+            alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: v => latch.push(v) },
+            detectionConsent: tc.consent,
+            exerciseRegistry: undefined,
+            clock,
+        });
+        try {
+            c.onDidStartSession(() => started++);
+            c.onDidTick(t => ticks.push(t.t));
+            const sub = hub.onBuildResult(s => seen.push(s));
+            c.startExerciseSession(1);
+            // The engine never started: editor activity + time produce NO ticks.
+            hub.emit.textChange.fire(oneCharInsert('file:///work/ex1/src/A.java', T0 + 1_000) as never);
+            advance(30_000);
+            c.advanceTo(T0 + 30_000);
+            assert.deepStrictEqual(ticks, [], 'no engine ticks without consent');
+            assert.strictEqual(started, 0, 'no start event without consent');
+            assert.strictEqual(c.activeExerciseId, 1, 'bookkeeping still records the exercise');
+            assert.strictEqual(c.getSnapshot().isStruggling, false);
+            assert.strictEqual(c.getDebugSnapshot().sessionActive, false, 'debug snapshot reports no live session');
+            c.onNewResult({ id: 1, passedTestCaseCount: 3, testCaseCount: 10 } as ResultDTO);
+            assert.deepStrictEqual(seen, [], 'no hub emit without consent');
+            assert.deepStrictEqual(latch, [], 'no progress-latch signal without consent');
+            sub.dispose();
+        } finally { c.dispose(); }
+    });
+
+    test('mid-session grant: engine starts NOW (fresh sessionStartMs), start event fires once', () => {
+        const T0 = 1_000_000_000_000;
+        const { clock, advance } = manualClock(T0);
+        const tc = new TestConsent(false);
+        let started = 0;
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ } },
+            detectionConsent: tc.consent,
+            exerciseRegistry: undefined,
+            clock,
+        });
+        try {
+            c.onDidStartSession(() => started++);
+            c.startExerciseSession(1);
+            advance(600_000);                       // student worked 10 min unconsented
+            tc.set(true);                           // grant
+            assert.strictEqual(started, 1, 'start event fires on grant');
+            assert.strictEqual(c.sessionStartMs, T0 + 600_000, 'fresh session start = grant time (fresh warmup)');
+            assert.strictEqual(c.getDebugSnapshot().sessionActive, true);
+            tc.set(true);                           // duplicate event: reconciliation is idempotent
+            assert.strictEqual(started, 1);
+        } finally { c.dispose(); }
+    });
+
+    test('mid-session revoke: abort without drain, end event, onConsentRevoked on the sink', () => {
+        const T0 = 1_000_000_000_000;
+        const { clock, advance } = manualClock(T0);
+        const tc = new TestConsent(true);
+        const sinkCalls: string[] = [];
+        const ticks: number[] = [];
+        let ended = 0;
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: {
+                deliver: () => { /* noop */ },
+                reset: () => sinkCalls.push('reset'),
+                onConsentRevoked: () => sinkCalls.push('onConsentRevoked'),
+            },
+            detectionConsent: tc.consent,
+            exerciseRegistry: undefined,
+            clock,
+        });
+        try {
+            c.onDidTick(t => ticks.push(t.t));
+            c.onDidEndSession(() => ended++);
+            c.startExerciseSession(1);
+            advance(25_000);                        // two grid ticks are DUE but unprocessed
+            tc.set(false);                          // revoke
+            assert.deepStrictEqual(ticks, [], 'no final drain: due ticks are not computed on revoke');
+            assert.strictEqual(ended, 1, 'end event fires on revoke');
+            assert.ok(sinkCalls.includes('onConsentRevoked'), 'consent-revocation reset reaches the sink');
+            assert.strictEqual(c.getDebugSnapshot().sessionActive, false);
+            assert.strictEqual(c.activeExerciseId, 1, 'bookkeeping survives the revoke');
+        } finally { c.dispose(); }
+    });
+
+    test('revoke -> regrant: engine restarts fresh; throttle budget is never touched by flips', () => {
+        const T0 = 1_000_000_000_000;
+        const { clock, advance } = manualClock(T0);
+        const tc = new TestConsent(true);
+        let sessionResets = 0;
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, resetSession: () => sessionResets++ },
+            detectionConsent: tc.consent,
+            exerciseRegistry: undefined,
+            clock,
+        });
+        try {
+            c.startExerciseSession(1);
+            assert.strictEqual(sessionResets, 1, 'exercise open resets the throttle session');
+            advance(60_000);
+            tc.set(false);
+            advance(60_000);
+            tc.set(true);
+            assert.strictEqual(sessionResets, 1, 'consent flips never reset the throttle session');
+            assert.strictEqual(c.sessionStartMs, T0 + 120_000, 'regrant restarts the engine fresh');
+        } finally { c.dispose(); }
+    });
+
+    test('same-exercise call while consent pending updates the root the ENGINE starts with', () => {
+        const T0 = 1_000_000_000_000;
+        const { clock } = manualClock(T0);
+        const tc = new TestConsent(false);
+        const hub = new TestSensorHub();
+        const ticks: Array<{ n: number }> = [];
+        const c = new StruggleCoordinator({
+            hub,
+            alertSink: { deliver: () => { /* noop */ } },
+            detectionConsent: tc.consent,
+            exerciseRegistry: undefined,
+            clock,
+        });
+        try {
+            c.onDidTick(t => ticks.push({ n: t.features.nOneCharInserts }));
+            c.startExerciseSession(1);                                       // no root known yet
+            c.startExerciseSession(1, vscode.Uri.parse('file:///work/ex1')); // repeat call carries the root
+            tc.set(true);                                                    // engine starts NOW with that root
+            assert.strictEqual(c.activeExerciseRoot?.path, '/work/ex1');
+            // Prove the ENGINE received the root: its URI filter keeps the in-root edit
+            // and drops the out-of-root one (2 fired, 1 counted).
+            hub.emit.textChange.fire(oneCharInsert('file:///work/ex1/src/A.java', T0 + 1_000) as never);
+            hub.emit.textChange.fire(oneCharInsert('file:///elsewhere/B.java', T0 + 2_000) as never);
+            c.advanceTo(T0 + 10_000);
+            assert.strictEqual(ticks.length, 1, 'the engine runs after the grant');
+            assert.strictEqual(ticks[0].n, 1, 'URI filter uses the updated root (in-root counted, out-of-root dropped)');
+        } finally { c.dispose(); }
+    });
+
+    test('exercise end while the engine never ran fires no end event', () => {
+        const tc = new TestConsent(false);
+        let ended = 0;
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ } },
+            detectionConsent: tc.consent,
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.onDidEndSession(() => ended++);
+            c.startExerciseSession(1);
+            c.endExerciseSession();
+            assert.strictEqual(ended, 0, 'no unmatched engine-end event');
+            assert.strictEqual(c.activeExerciseId, undefined, 'bookkeeping cleared');
+        } finally { c.dispose(); }
+    });
+
+    test('baseline asymmetry: denied builds never enter the coordinator baseline; the engine tracker restarts', () => {
+        // DEFAULT clock deliberately: TestSensorHub stamps build events with the real
+        // Date.now(), and they only enter the engine's stagnation tracker when a grid
+        // tick drains the queue - so the session must live in real time and be drained
+        // with advanceTo. (The engine's live interval is irrelevant at test speed.)
+        const tc = new TestConsent(true);
+        const latch: boolean[] = [];
+        const c = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ }, onNewBuildResult: v => latch.push(v) },
+            detectionConsent: tc.consent,
+            exerciseRegistry: undefined,
+        });
+        try {
+            c.startExerciseSession(1);
+            c.onNewResult({ id: 1, passedTestCaseCount: 3, testCaseCount: 10 } as ResultDTO);
+            c.onNewResult({ id: 2, passedTestCaseCount: 3, testCaseCount: 10 } as ResultDTO);  // no new high
+            assert.deepStrictEqual(latch, [true, false], 'consented builds set the baseline (max=3)');
+            c.advanceTo(c.sessionStartMs + 10_000);    // tick 10 drains both queued builds
+            // Tracker semantics: the first build establishes the streak at 1, the equal
+            // second increments it (see testStagnation.ts).
+            assert.strictEqual(c.getDebugSnapshot().testStagnation?.streak, 2, 'engine stagnation streak grew');
+            tc.set(false);
+            c.onNewResult({ id: 3, passedTestCaseCount: 5, testCaseCount: 10 } as ResultDTO);
+            assert.deepStrictEqual(latch, [true, false], 'denied-period build is fully ignored');
+            tc.set(true);
+            // The intentional asymmetry (spec 6.4): the coordinator baseline is SESSION-scoped
+            // and survives the flip; the engine's own test-stagnation tracker is ENGINE-scoped
+            // and restarts fresh with the new engine.
+            assert.strictEqual(c.getDebugSnapshot().testStagnation?.streak, 0, 'engine tracker restarted on regrant');
+            c.onNewResult({ id: 4, passedTestCaseCount: 4, testCaseCount: 10 } as ResultDTO);
+            assert.deepStrictEqual(latch, [true, false, true], '4 > retained max 3 is a new high; the denied 5 never counted');
+        } finally { c.dispose(); }
     });
 });

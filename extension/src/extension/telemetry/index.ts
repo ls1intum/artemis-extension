@@ -21,6 +21,7 @@ import { ProactiveEgressConsent } from '@extension/services/struggleIntervention
 import { subscribeStruggleEvents } from '@extension/services/struggleIntervention/struggleEventSubscription';
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 import { MOCK_NUDGE_EPISODE_ID, pickNudgeText } from '@extension/services/ui/nudgeBannerText';
+import { VSCODE_CONFIG } from '@extension/utils';
 
 import type { ILiveEngineFeed, IStruggleCoordinator, StruggleEngineDeps, StruggleEngineHandle } from './contract';
 import { formatTick } from './formatTick';
@@ -61,6 +62,17 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     }, () => Date.now());
 
     const consent = new ProactiveEgressConsent();
+
+    // #349: the coordinator's detection-consent gate. Detection observes only while
+    // the egress consent is explicitly 'enabled'; the emitter relays every change of
+    // the underlying setting so grant/revoke reconcile mid-session.
+    const consentChanged = new vscode.EventEmitter<void>();
+    deps.context.subscriptions.push(consentChanged);
+    deps.context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration(`${VSCODE_CONFIG.IRIS.SECTION}.${VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY}`)) {
+            consentChanged.fire();
+        }
+    }));
 
     // Forward ref: the orchestrator's deps read the coordinator lazily (only when
     // an alert fires, well after construction), so the cycle resolves by order.
@@ -195,6 +207,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     coordinator = new StruggleCoordinator({
         hub: deps.hub,
         alertSink: backoffGate,
+        detectionConsent: { isGranted: () => consent.isEnabled, onDidChange: consentChanged.event },
         exerciseRegistry: deps.exerciseRegistry,
     });
 

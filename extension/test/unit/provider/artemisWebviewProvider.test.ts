@@ -135,7 +135,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } } });
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
         provider = new ArtemisWebviewProvider({
@@ -201,7 +201,7 @@ suite('Panel hide/show state persistence', () => {
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } } });
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
         provider = new ArtemisWebviewProvider({
@@ -350,7 +350,7 @@ suite('Nudge banner replay and cache-clear', () => {
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } } });
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
         provider = new ArtemisWebviewProvider({

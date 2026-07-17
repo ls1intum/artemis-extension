@@ -47,7 +47,7 @@ vi.mock('vscode', () => {
             visibleTextEditors: [],
         },
         workspace: {
-            getConfiguration: () => ({ get: (_key: string, def: unknown) => def }),
+            getConfiguration: () => ({ get: (key: string, def: unknown) => key === 'proactiveCodeEgress' ? 'enabled' : def }),
             onDidChangeConfiguration: disposable,
             onDidChangeTextDocument: disposable,
             workspaceFolders: undefined,

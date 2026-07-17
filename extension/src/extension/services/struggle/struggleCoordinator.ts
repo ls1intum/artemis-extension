@@ -29,9 +29,19 @@ const DEFAULT_CLOCK: EngineClock = {
     clearInterval: handle => clearInterval(handle as Parameters<typeof clearInterval>[0]),
 };
 
+/** #349: the coordinator's detection-consent gate. isGranted() is true exactly while
+ *  the proactive-egress consent is 'enabled'; onDidChange fires on any change of the
+ *  underlying setting. REQUIRED (fail-closed): detection must never run unconsented
+ *  because a construction site forgot the gate. */
+export interface DetectionConsent {
+    isGranted(): boolean;
+    onDidChange: vscode.Event<void>;
+}
+
 export interface StruggleCoordinatorDeps {
     hub: SensorHub;
     alertSink: AlertSink;
+    detectionConsent: DetectionConsent;
     exerciseRegistry?: ExerciseRegistry;
     clock?: EngineClock;
 }
@@ -51,6 +61,10 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private readonly _hub: SensorHub;
     private readonly _alertSink: AlertSink;
     private readonly _exerciseRegistry: ExerciseRegistry | undefined;
+    private readonly _detectionConsent: DetectionConsent;
+    /** #349: true only while the engine observes (started under consent). Exercise
+     *  bookkeeping (_activeExerciseId/_activeExerciseRoot) exists independently. */
+    private _engineRunning = false;
     private readonly _engine: StruggleEngine;
     private readonly _clock: EngineClock;
     private readonly _disposables: vscode.Disposable[] = [];
@@ -76,6 +90,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._hub = deps.hub;
         this._alertSink = deps.alertSink;
         this._exerciseRegistry = deps.exerciseRegistry;
+        this._detectionConsent = deps.detectionConsent;
         this._clock = deps.clock ?? DEFAULT_CLOCK;
         this._engine = new StruggleEngine(this._hub, this._clock);
         this._disposables.push(this._onDidStartSession, this._onDidEndSession);
@@ -97,11 +112,15 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._disposables.push(vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('artemis.struggleDetection')) { this._loadConfiguration(); }
         }));
+        this._disposables.push(this._detectionConsent.onDidChange(() => this._reconcileConsent()));
     }
 
     // ── WebSocket handler (build-result producer) ──────────────────────
     onNewResult(result: ResultDTO): void {
         if (!this._isEnabled) { return; }
+        // #349: without a running (= consented) engine a build result must not be
+        // observed - no hub emit, no baseline mutation, no progress-latch signal.
+        if (!this._engineRunning) { return; }
         if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) { return; }
         this._hub.emitBuildResult(result);          // engine (FM/improved + test stagnation)
         // Detect a strict new high in passed tests and notify the alert sink so the orchestrator's
@@ -168,26 +187,69 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
 
     // ── Session lifecycle ──────────────────────────────────────────────
     startExerciseSession(exerciseId: number, exerciseRoot?: vscode.Uri): void {
-        if (this._activeExerciseId === exerciseId) { return; }
+        if (this._activeExerciseId === exerciseId) {
+            // #349: while consent is pending the engine has not started, so a repeat
+            // call may carry a better root - remember it for the eventual start.
+            if (!this._engineRunning && exerciseRoot !== undefined) {
+                this._activeExerciseRoot = exerciseRoot;
+            }
+            return;
+        }
         if (this._activeExerciseId !== undefined) { this.endExerciseSession(); }
         this._activeExerciseId = exerciseId;
         this._activeExerciseRoot = exerciseRoot;
-        this._sessionStartMs = this._clock.now();
         this._maxPassedTestCount = -1;  // reset per-exercise baseline
         this._refTestCaseCount = -1;
-        // New session: reset the sink's per-session throttle budget AND clear any
-        // stale intervention (resetSession falls back to reset when unsupported).
+        // New exercise session: reset the sink's per-session throttle budget AND clear
+        // any stale intervention (resetSession falls back to reset when unsupported).
+        // The budget is exercise-scoped: consent flips (below) never touch it.
         if (this._alertSink.resetSession) {
             this._alertSink.resetSession();
         } else {
             this._alertSink.reset?.();
         }
-        this._engine.start({ sessionStartMs: this._sessionStartMs, exerciseRoot });
+        if (this._detectionConsent.isGranted()) {
+            this._startEngine();
+        }
+        // #349: without consent this is bookkeeping only - the engine (and the start
+        // event) waits for _reconcileConsent. Nothing is observed before opt-in.
+    }
+
+    /** Start the engine for the already-recorded exercise. sessionStartMs is the
+     *  ACTUAL engine start (= grant time on a mid-session grant), so D1 warmup and
+     *  all session-relative timing restart fresh - nothing was observed before. */
+    private _startEngine(): void {
+        this._sessionStartMs = this._clock.now();
+        this._engine.start({ sessionStartMs: this._sessionStartMs, exerciseRoot: this._activeExerciseRoot });
+        this._engineRunning = true;
         this._lastTick = undefined;
         this._lastAlert = undefined;
-        // New session is live: notify activation so the live-feed buffer clears
+        // Session is live: notify activation so the live-feed buffer clears
         // (fired last so the clear lands once the new session is fully started).
         this._onDidStartSession.fire();
+    }
+
+    /** #349: idempotent consent reconciliation (subscribed to detectionConsent.onDidChange). */
+    private _reconcileConsent(): void {
+        if (this._detectionConsent.isGranted()) {
+            // Mid-session grant: start now, fresh. No exercise open -> nothing to do.
+            if (this._activeExerciseId !== undefined && !this._engineRunning) {
+                this._startEngine();
+            }
+            return;
+        }
+        // Mid-session revoke: fail closed FIRST, then abort WITHOUT the final drain
+        // (stop() would still compute due ticks from just-revoked observations).
+        if (this._engineRunning) {
+            this._engineRunning = false;
+            this._engine.abort();
+            if (this._alertSink.onConsentRevoked) {
+                this._alertSink.onConsentRevoked();
+            } else {
+                this._alertSink.reset?.();
+            }
+            this._onDidEndSession.fire();
+        }
     }
 
     /** ms epoch of the active session start (test/replay helper). */
@@ -207,18 +269,28 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
 
     endExerciseSession(): void {
         if (this._activeExerciseId === undefined) { return; }
-        this._engine.stop();
+        const engineRan = this._engineRunning;
+        if (engineRan) {
+            // Normal end keeps the final-drain semantics. stop() BEFORE flipping
+            // _engineRunning: the drain can synchronously emit ticks/alerts, and
+            // consumers reading the snapshot inside those events must still see a
+            // live session. (Revocation is the opposite: fail closed first, abort.)
+            this._engine.stop();
+            this._engineRunning = false;
+        }
         this._activeExerciseId = undefined;
         this._activeExerciseRoot = undefined;
-        this._onDidEndSession.fire();
+        // #349: the session events mean ENGINE transitions (status bar, live feed,
+        // Iris cache). A session whose engine never ran ends without an end event.
+        if (engineRan) { this._onDidEndSession.fire(); }
     }
 
     // ── Debug snapshot ─────────────────────────────────────────────────
     getSnapshot(): StruggleSnapshot {
-        // No active session: return a clean inactive state. `_lastTick` persists after
+        // No running engine: return a clean inactive state. `_lastTick` persists after
         // endExerciseSession(), so without this guard the snapshot — and the developer urgency
         // meter that renders from it — would surface stale data from the previous session.
-        if (this._activeExerciseId === undefined) {
+        if (!this._engineRunning) {
             return { isStruggling: false, urgency: 0, primaryBoundary: null, lastAlert: null, sessionSeconds: 0 };
         }
         const tick = this._lastTick;
@@ -249,7 +321,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         // delivery is downstream of the decision and runs on onDidAlert, after this snapshot is read.)
         const lastAlertMs = tick?.alert?.ts ?? this._lastAlert?.ts ?? null;
         return {
-            sessionActive: this._activeExerciseId !== undefined,
+            sessionActive: this._engineRunning,
             nowMs: this._clock.now(),
             sessionStartMs: this._sessionStartMs,
             lastAlertMs,
@@ -259,10 +331,10 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
             longestGapS: tick?.features.longestGapS ?? 0,
             // Decision trace for the dev pipeline. Null when inactive: `_lastTick` outlives the
             // session, but the snapshot contract treats all fields as stale when !sessionActive.
-            decisionTrace: (this._activeExerciseId !== undefined && tick) ? toLiveDecisionTrace(tick.decisionTrace) : null,
+            decisionTrace: (this._engineRunning && tick) ? toLiveDecisionTrace(tick.decisionTrace) : null,
             // Same inactive-session guard: the tracker is only recreated on start(), so reading it
             // unconditionally would leak the previous session's streak after the session ends.
-            testStagnation: this._activeExerciseId !== undefined ? this._engine.getTestStagnationState() : null,
+            testStagnation: this._engineRunning ? this._engine.getTestStagnationState() : null,
             caps: {
                 warmupS: SPEC.WARMUP_S,
                 cooldownS: SPEC.COOLDOWN_S,
