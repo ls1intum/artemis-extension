@@ -197,7 +197,7 @@
             "No proactive help: no local struggle detection runs and no code is ever sent proactively"
           ],
           "default": "ask",
-          "markdownDescription": "Controls proactive help. When **enabled**, the extension runs local struggle detection (typing/pause analysis) during programming exercises and may send your current exercise code to Iris **only** when the detector flags that you may be stuck. When **disabled** (or while undecided), no local detection runs and nothing is sent. Separate from `artemis.dataCollectionConsent`."
+          "markdownDescription": "Controls proactive help. When **enabled**, the extension runs local struggle detection (typing/pause analysis) during programming exercises and may send your current exercise code to Iris **only** when the detector flags that you may be stuck. When **disabled** (or while undecided), no local detection runs and no exercise observations or code are sent proactively. Separate from `artemis.dataCollectionConsent`."
         },
         "artemis.developerMode": {
           "type": "boolean",
