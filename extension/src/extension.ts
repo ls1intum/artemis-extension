@@ -419,8 +419,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
 			});
-			// Ask once (only while undecided) whether Iris may proactively read code
-			// when the student appears stuck. No-op in the clean build.
+			// Ask once (only while undecided) whether to enable proactive help: local
+			// struggle detection plus code reading when it triggers (#349). No-op in
+			// the clean build.
 			void promptConsentIfAsk();
 		}
 	} catch (error) {

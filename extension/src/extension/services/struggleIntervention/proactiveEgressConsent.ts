@@ -32,7 +32,7 @@ export class ProactiveEgressConsent {
             return;
         }
         const choice = await vscode.window.showInformationMessage(
-            'Allow Iris to proactively read your current code to offer help when you appear stuck? Your code is only sent when the struggle detector triggers.',
+            'Allow Iris to detect when you might be stuck and proactively offer help? This enables local typing/pause analysis during programming exercises; your code is only sent to Iris when the detector triggers.',
             'Enable', 'Not now', 'Settings',
         );
         if (choice === 'Enable') {

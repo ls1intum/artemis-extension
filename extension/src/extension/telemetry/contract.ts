@@ -205,7 +205,8 @@ export interface StruggleEngineDeps {
  */
 export interface StruggleEngineHandle {
     coordinator: IStruggleCoordinator;
-    /** Ask once, post-auth, whether Iris may proactively read code; no-op once decided. */
+    /** Ask once, post-auth, whether to enable proactive help (local struggle detection +
+     *  trigger-gated code reading, #349); no-op once decided. */
     promptConsentIfAsk(): Promise<void>;
     /**
      * The ACTIVE exercise's proactive-help level (Off/Less/More, spec §12.2): `getProactiveLevel` keyed by

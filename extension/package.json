@@ -192,12 +192,12 @@
           "type": "string",
           "enum": ["ask", "enabled", "disabled"],
           "enumDescriptions": [
-            "Ask once whether to allow proactive code reading",
-            "Allow Iris to proactively read your current code when you appear stuck",
-            "Never send code proactively (a local hint is shown instead)"
+            "Ask once whether to enable proactive help (local struggle detection plus code reading when it triggers)",
+            "Enable proactive help: local typing/pause analysis runs during programming exercises, and Iris may read your current code when the detector triggers",
+            "No proactive help: no local struggle detection runs and no code is ever sent proactively"
           ],
           "default": "ask",
-          "markdownDescription": "Controls whether Iris may proactively read your current exercise code to offer help when the struggle detector flags that you may be stuck. Separate from `artemis.dataCollectionConsent`."
+          "markdownDescription": "Controls proactive help. When **enabled**, the extension runs local struggle detection (typing/pause analysis) during programming exercises and may send your current exercise code to Iris **only** when the detector flags that you may be stuck. When **disabled** (or while undecided), no local detection runs and nothing is sent. Separate from `artemis.dataCollectionConsent`."
         },
         "artemis.developerMode": {
           "type": "boolean",
