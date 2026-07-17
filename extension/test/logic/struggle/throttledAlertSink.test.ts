@@ -191,17 +191,21 @@ describe('ThrottledAlertSink', () => {
     describe('onConsentRevoked (#349)', () => {
         it('forwards to the inner sink and PRESERVES the delivery budget', () => {
             const revoked: string[] = [];
+            let innerDeliveries = 0;
             const inner = {
-                deliver: () => { /* noop */ },
+                deliver: () => { innerDeliveries++; },
                 onConsentRevoked: () => revoked.push('inner'),
             };
             const sink = new ThrottledAlertSink(inner, () => ({ maxAlertsPerSession: 2, minDeliveryGapS: 0 }), () => 1000);
-            sink.deliver(mkAlert(10));         // budget 1/2 (mkAlert is the file's existing fixture)
+            sink.deliver(mkAlert(10));         // budget 1/2
             sink.onConsentRevoked();
             expect(revoked).toEqual(['inner']);
-            // Budget survived the revoke: one more delivery fits, the third is capped.
+            // Budget survived the revoke: exactly ONE more delivery fits. A buggy
+            // budget-resetting revoke would let BOTH post-revoke deliveries through
+            // (innerDeliveries === 3).
             sink.deliver(mkAlert(20));
             sink.deliver(mkAlert(30));
+            expect(innerDeliveries).toBe(2);
             expect(sink.getThrottleState().deliveredThisSession).toBe(2);
         });
         it('falls back to reset() when the inner sink lacks onConsentRevoked', () => {
