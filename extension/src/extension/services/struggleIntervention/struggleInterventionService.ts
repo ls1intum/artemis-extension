@@ -1711,6 +1711,29 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
+     * AlertSink.onConsentRevoked (#349) - the consent-revocation path. Terminates the
+     * local episode/slot/in-flight state (no egress) and clears every visible surface,
+     * but KEEPS the per-session latches (404 / course-off) and the delivery budget:
+     * revoking and regranting must not refill the throttle or lift a latch. Compare
+     * resetSession() (new exercise: latches + budget DO reset) and reset() (surfaces
+     * only: a DELIVERED slot would survive and suppress fresh alerts after a regrant).
+     */
+    onConsentRevoked(): void {
+        if (!this._slot.isFree()) {
+            const st = this._slot.snapshot().state;
+            if (st.kind === 'delivered') { this.recordTerminalEpisode(st.episode, 'INTERRUPTED'); }
+            else if (st.kind === 'parked') { this.recordTerminalEpisode(st.episode, 'DISCARDED'); }
+            this._dbg('  -> CONSENT REVOKED: slot -> FREE');
+            this._slot.free();
+        }
+        this._clearEpisodeRuntime();
+        this._clearOutstandingOffer();
+        this._setAwaitingEvidence(false, 'consent revoked');
+        this.reset();
+        this.notifySlotDebugChanged();
+    }
+
+    /**
      * New-exercise reset: clear the per-session latches (404 / course-off), then the UI/session state.
      * Also frees the slot, clears the frozen session id, and clears pending outcomes (C2: new exercise
      * = clean state).

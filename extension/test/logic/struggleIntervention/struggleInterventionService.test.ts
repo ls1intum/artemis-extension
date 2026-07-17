@@ -1950,3 +1950,36 @@ describe('StruggleInterventionService live-episode chat frame', () => {
         expect(deps.setChatLiveEpisode).toHaveBeenLastCalledWith(null);
     });
 });
+
+describe('onConsentRevoked (#349)', () => {
+    it('frees a PARKED slot, clears every surface, keeps the latches', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
+        svc.onServerAmbient('hint', undefined, undefined, undefined);   // slot -> PARKED
+        expect(svc._slot.isFree()).toBe(false);
+        svc.onConsentRevoked();
+        expect(svc._slot.isFree()).toBe(true);
+        expect(deps.clearLamp).toHaveBeenCalled();
+        expect(deps.clearInline).toHaveBeenCalled();
+        expect(deps.setBadge).toHaveBeenCalledWith(false);
+        expect(deps.hideActiveBanner).toHaveBeenCalled();
+        expect(svc._inFlightMarker).toBeUndefined();
+    });
+    it('is idempotent on a FREE slot', () => {
+        const svc = new StruggleInterventionService(fakeDeps());
+        svc.onConsentRevoked();
+        svc.onConsentRevoked();
+        expect(svc._slot.isFree()).toBe(true);
+    });
+    it('KEEPS the course-off latch across a revoke (only resetSession lifts latches)', async () => {
+        const deps = fakeDeps({ postIntervention: vi.fn(async () => 'course-off' as const) });
+        const svc = new StruggleInterventionService(deps);
+        svc.onTick(tick(530));
+        svc.deliver(alert());                                // POST -> 'course-off' latches
+        await new Promise(r => setTimeout(r, 0));
+        expect(svc.shouldSuppress(alert())).toBe(true);      // latched
+        svc.onConsentRevoked();
+        expect(svc.shouldSuppress(alert())).toBe(true);      // revoke did NOT lift the latch
+    });
+});
