@@ -97,6 +97,15 @@ export class ThrottledAlertSink implements AlertSink {
         }
     }
 
+    /** Consent revoked (#349): forward. Budget/rate history are DELIBERATELY preserved. */
+    onConsentRevoked(): void {
+        if (this._inner.onConsentRevoked) {
+            this._inner.onConsentRevoked();
+        } else {
+            this._inner.reset?.();
+        }
+    }
+
     /** Forward the build-result signal straight through (not throttled). */
     onNewBuildResult(hasNewGreenTest: boolean): void {
         this._inner.onNewBuildResult?.(hasNewGreenTest);

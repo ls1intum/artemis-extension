@@ -42,6 +42,15 @@ export class BackoffGate implements AlertSink {
         }
     }
 
+    /** Consent revoked (#349): forward (nothing to clear at this layer). */
+    onConsentRevoked(): void {
+        if (this.inner.onConsentRevoked) {
+            this.inner.onConsentRevoked();
+        } else {
+            this.inner.reset?.();
+        }
+    }
+
     /** Forward the throttle state from the inner sink (the throttle lives below this gate). */
     getThrottleState(): StruggleThrottleState | undefined {
         return this.inner.getThrottleState?.();

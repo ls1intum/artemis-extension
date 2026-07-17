@@ -42,4 +42,19 @@ describe('BackoffGate', () => {
         const gate = new BackoffGate(inner as any, source());
         expect(gate.getThrottleState()).toBeUndefined();
     });
+
+    describe('onConsentRevoked (#349)', () => {
+        it('forwards to the inner sink', () => {
+            const calls: string[] = [];
+            const gate = new BackoffGate({ deliver: () => {}, onConsentRevoked: () => calls.push('inner') }, { shouldSuppress: () => false });
+            gate.onConsentRevoked();
+            expect(calls).toEqual(['inner']);
+        });
+        it('falls back to reset()', () => {
+            const calls: string[] = [];
+            const gate = new BackoffGate({ deliver: () => {}, reset: () => calls.push('reset') }, { shouldSuppress: () => false });
+            gate.onConsentRevoked();
+            expect(calls).toEqual(['reset']);
+        });
+    });
 });
