@@ -35,8 +35,8 @@ export class IrisEnabledCache {
 
     constructor(private readonly _deps: IrisEnabledCacheDeps) {
         this._retryDelays = _deps.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
-        this._subs.push(_deps.onSessionStart(() => this._onSessionChange()));
-        this._subs.push(_deps.onSessionEnd(() => this._onSessionChange()));
+        this._subs.push(_deps.onSessionStart(() => this._onSessionStart()));
+        this._subs.push(_deps.onSessionEnd(() => this._onSessionEnd()));
         this._subs.push(_deps.onReconnect(() => {
             // Only refill the recovery budget + re-dispatch when idle: if a retry classify is already
             // in-flight, resetting _retryIndex here would let that in-flight result consume a refilled
@@ -47,7 +47,7 @@ export class IrisEnabledCache {
             }
         }));
         // Backstop: a session may already be active when we are constructed.
-        if (_deps.getActiveExerciseId() !== undefined) { this._onSessionChange(); }
+        if (_deps.getActiveExerciseId() !== undefined) { this._onSessionStart(); }
     }
 
     isEnabled(): boolean {
@@ -63,16 +63,28 @@ export class IrisEnabledCache {
         this._subs.forEach((d) => { d.dispose(); });
     }
 
-    /** Any session transition: invalidate in-flight work, reset fail-closed, re-kick. */
-    private _onSessionChange(): void {
+    /** Engine session started: invalidate in-flight work, reset fail-closed, classify. */
+    private _onSessionStart(): void {
+        this._resetForTransition();
+        if (this._deps.getActiveExerciseId() !== undefined) {
+            this._refresh(this._token);
+        }
+    }
+
+    /** Engine session ended (exercise end OR consent revoke, #349): reset WITHOUT
+     *  re-kicking - on a revoke the exercise bookkeeping stays active, but Iris
+     *  availability is only needed again once an engine session starts. */
+    private _onSessionEnd(): void {
+        this._resetForTransition();
+    }
+
+    /** Any session transition: invalidate in-flight work and reset fail-closed. */
+    private _resetForTransition(): void {
         this._token++;
         this._state = 'unknown';
         this._retryIndex = 0;
         this._cancelRetry?.();
         this._cancelRetry = undefined;
-        if (this._deps.getActiveExerciseId() !== undefined) {
-            this._refresh(this._token);
-        }
     }
 
     private _refresh(token: number): void {

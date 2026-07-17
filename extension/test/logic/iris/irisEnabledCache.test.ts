@@ -147,3 +147,20 @@ describe('IrisEnabledCache', () => {
         expect(h.cache.isEnabled()).toBe(false);
     });
 });
+
+describe('engine-keyed session events (#349)', () => {
+    it('onSessionEnd resets WITHOUT re-kicking a classify even while an exercise is still active', async () => {
+        const classify = vi.fn(async () => 'enabled' as const);
+        const h = harness({ classify, getActiveExerciseId: () => 42 });   // bookkeeping survives a revoke
+        await tick();                                 // constructor backstop classify settles
+        const callsAfterConstruction = classify.mock.calls.length;
+        h.end.fire();                                 // consent revoke: engine ended, exercise still open
+        await tick();
+        expect(classify.mock.calls.length).toBe(callsAfterConstruction);        // no re-kick
+        expect(h.cache.isEnabled()).toBe(false);       // reset fail-closed
+        h.start.fire();                                // regrant: engine session starts
+        await tick();
+        expect(classify.mock.calls.length).toBe(callsAfterConstruction + 1);    // start classifies
+        h.cache.dispose();
+    });
+});
