@@ -93,9 +93,9 @@ describe('ProactiveControlCommandModule', () => {
     });
 
     it('course proactive off → off-course', async () => {
-        const h = harness({ settings: { settings: { enabled: true, proactiveStruggleEnabled: false } } });
+        const h = harness({ level: 'more', settings: { settings: { enabled: true, proactiveStruggleEnabled: false } } });
         await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
-        expect(h.sent.at(-1)).toMatchObject({ cardState: 'off-course', cardReason: 'course-off' });
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'off-course', cardReason: 'course-off', level: 'more' });
     });
 
     it('iris disabled (settings.enabled=false) → unavailable/iris-off', async () => {
@@ -105,9 +105,9 @@ describe('ProactiveControlCommandModule', () => {
     });
 
     it('404-latched server → degraded/limited', async () => {
-        const h = harness({ serverUnavailable: true });
+        const h = harness({ level: 'more', serverUnavailable: true });
         await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
-        expect(h.sent.at(-1)).toMatchObject({ cardState: 'degraded', cardReason: 'limited' });
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'degraded', cardReason: 'limited', level: 'more' });
     });
 
     it('no courseId → optimistic available (availability fetch skipped, self-heals next push)', async () => {
