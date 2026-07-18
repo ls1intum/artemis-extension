@@ -250,6 +250,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         reason: proactiveControl.reason,
         onLevelChange: (level: ProactiveLevel) =>
             postCommand(vscodeApi, 'setProactiveLevel', { exerciseId: exercise.id!, level, courseId: exercise.course?.id }),
+        // #342: the consent-missing hint's enable path; AskIris stays presentational.
+        onOpenConsentSettings: () =>
+            postCommand(vscodeApi, 'openSettings', { setting: 'artemis.iris.proactiveCodeEgress' }),
     } : undefined;
 
     // Extract participation data

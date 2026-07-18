@@ -19,6 +19,8 @@ interface ProactiveControlVM {
   /** Why a non-"available" card is in that state (host-derived). */
   reason?: ProactiveCardReason;
   onLevelChange: (level: ProactiveLevel) => void;
+  /** #342: opens the settings UI at the code-reading consent; only used for reason `consent-missing`. */
+  onOpenConsentSettings?: () => void;
 }
 
 interface AskIrisProps {
@@ -37,10 +39,13 @@ export function AskIris({ description, onClick, proactiveControl }: AskIrisProps
   const state = proactiveControl?.cardState;
   // Unavailable (§14 cases 2-3) is a full shut-off: Iris is off for this repo/exercise, so disable Ask too.
   const askDisabled = state === 'unavailable';
-  // The segments show only where proactive can actually run right now (available), or read-only for off-course.
-  // Degraded has no proactive path to toggle (see NOTE.degraded), so it gets no segments either.
-  const showSegments = state === 'available' || state === 'off-course';
-  const segmentsDisabled = state === 'off-course';
+  // #342: missing code-reading consent renders as a forced Off — segments visible but disabled, with an
+  // enable path below. The other degraded cause (404-latched server) keeps its segment-free note.
+  const consentMissing = state === 'degraded' && proactiveControl?.reason === 'consent-missing';
+  // The segments show where proactive can run (available) or where the OFF state itself is the message
+  // (off-course, consent-missing); read-only in the latter two.
+  const showSegments = state === 'available' || state === 'off-course' || consentMissing;
+  const segmentsDisabled = state === 'off-course' || consentMissing;
 
   return (
     <Container padding="cozy">
@@ -94,7 +99,14 @@ export function AskIris({ description, onClick, proactiveControl }: AskIrisProps
                 </span>
               )}
             </div>
-            {state && NOTE[state] && <span className={styles.cardNote}>{NOTE[state]}</span>}
+            {consentMissing ? (
+              <span className={styles.cardNote}>
+                Proactive help needs your consent to let Iris read your code.{' '}
+                <button type="button" className={styles.consentLink} onClick={() => proactiveControl.onOpenConsentSettings?.()}>
+                  Enable in Settings
+                </button>
+              </span>
+            ) : (state && NOTE[state] && <span className={styles.cardNote}>{NOTE[state]}</span>)}
           </div>
         </>
       )}

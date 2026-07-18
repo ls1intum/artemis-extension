@@ -128,3 +128,13 @@
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }
+
+.consentLink {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+}

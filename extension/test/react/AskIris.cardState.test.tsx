@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AskIris } from '@webview/components/AskIris/AskIris';
@@ -35,6 +35,23 @@ describe('AskIris card states (§12.2)', () => {
         expect(screen.queryByRole('radiogroup')).toBeNull();
         expect(screen.getByText('Proactive help is unavailable right now.')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /ask/i })).not.toBeDisabled();
+    });
+
+    it('degraded/consent-missing → disabled segments with Off active, hint + settings link, Ask enabled (#342)', () => {
+        const onOpen = vi.fn();
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'degraded', reason: 'consent-missing', level: 'off', onOpenConsentSettings: onOpen })} />);
+        screen.getAllByRole('radio').forEach(seg => expect(seg).toBeDisabled());
+        expect(screen.getByRole('radio', { name: 'Off' })).toHaveAttribute('aria-checked', 'true');
+        expect(screen.getByText(/needs your consent/i)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /enable in settings/i }));
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: /ask/i })).not.toBeDisabled();
+    });
+
+    it('degraded/limited stays segment-free (only the consent case gets the forced-Off control)', () => {
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'degraded', reason: 'limited' })} />);
+        expect(screen.queryByRole('radiogroup')).toBeNull();
+        expect(screen.getByText('Proactive help is unavailable right now.')).toBeInTheDocument();
     });
 
     it('never renders a Paused/Resume affordance (removed with the level rework)', () => {

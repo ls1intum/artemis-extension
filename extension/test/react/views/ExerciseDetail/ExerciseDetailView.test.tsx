@@ -143,6 +143,24 @@ describe('ExerciseDetailView', () => {
 		);
 	});
 
+	it('consent-missing settings link posts openSettings with the egress key (#342)', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseData(),
+			isLoading: false,
+			proactiveControl: { exerciseId: 42, level: 'off', cardState: 'degraded', reason: 'consent-missing' },
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+		fireEvent.click(screen.getByRole('button', { name: /enable in settings/i }));
+		expect(vi.mocked(mockApi.postMessage)).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'openSettings',
+				payload: { setting: 'artemis.iris.proactiveCodeEgress' },
+			})
+		);
+	});
+
 	it('renders exercise title from store data', () => {
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
 		const mockApi = createMockVsCodeApi();
