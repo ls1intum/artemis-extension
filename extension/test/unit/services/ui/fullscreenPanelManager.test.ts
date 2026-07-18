@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { WebviewMsgType } from '@shared/messageContracts';
@@ -76,5 +77,73 @@ suite('FullscreenPanelManager.openStruggleFullscreen', () => {
         refresh();   // a late tick after disposal must not post to the dead webview
 
         sinon.assert.notCalled(postMessage);
+    });
+});
+
+suite('FullscreenPanelManager.openExerciseFullscreen - #342 consent flip', () => {
+    let sandbox: sinon.SinonSandbox;
+    let postMessage: sinon.SinonStub;
+    let messageHandler: (m: unknown) => void;
+    let disposeHandler: () => void;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        postMessage = sandbox.stub();
+        const panel = {
+            webview: {
+                html: '',
+                cspSource: 'vscode-resource:',
+                asWebviewUri: (u: vscode.Uri) => u,
+                postMessage,
+                onDidReceiveMessage: (cb: (m: unknown) => void) => { messageHandler = cb; return { dispose() { /* noop */ } }; },
+            },
+            onDidDispose: (cb: () => void) => { disposeHandler = cb; return { dispose() { /* noop */ } }; },
+            dispose() { /* noop */ },
+        };
+        sandbox.stub(vscode.window, 'createWebviewPanel').returns(panel as unknown as vscode.WebviewPanel);
+    });
+    teardown(() => sandbox.restore());
+
+    function makeManager(): FullscreenPanelManager {
+        const ctx = { subscriptions: [] } as unknown as vscode.ExtensionContext;
+        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never));
+    }
+
+    test('a real config flip repaints an open fullscreen exercise panel, and the listener is disposed on close', async () => {
+        const cfg = () => vscode.workspace.getConfiguration('artemis.iris');
+        const prev = cfg().get('proactiveCodeEgress');
+
+        const awaitConsentMsg = async (deadlineMs: number): Promise<boolean> => {
+            const deadline = Date.now() + deadlineMs;
+            while (Date.now() < deadline) {
+                if (postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateProactiveConsent')) {
+                    return true;
+                }
+                await new Promise(r => setTimeout(r, 50));
+            }
+            return false;
+        };
+
+        try {
+            // Normalize first (no assertion): a leaked value from another test would make the
+            // flip below a config no-op that fires no event.
+            await cfg().update('proactiveCodeEgress', 'ask', vscode.ConfigurationTarget.Global);
+
+            const exerciseData = { exercise: { title: 'Test Exercise', studentParticipations: [] } };
+            makeManager().openExerciseFullscreen(exerciseData as never);
+            messageHandler({ type: WebviewMsgType.Ready });
+
+            postMessage.resetHistory();
+            await cfg().update('proactiveCodeEgress', 'enabled', vscode.ConfigurationTarget.Global);
+            assert.ok(await awaitConsentMsg(2000), 'expected updateProactiveConsent to be posted to the fullscreen panel after a consent flip');
+
+            // Panel close disposes the config subscription: a further flip must not post again.
+            disposeHandler();
+            postMessage.resetHistory();
+            await cfg().update('proactiveCodeEgress', 'disabled', vscode.ConfigurationTarget.Global);
+            assert.ok(!(await awaitConsentMsg(300)), 'the disposed panel must not receive further consent updates');
+        } finally {
+            await cfg().update('proactiveCodeEgress', prev, vscode.ConfigurationTarget.Global);
+        }
     });
 });

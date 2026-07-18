@@ -10,6 +10,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import { collectExerciseSources, detectWorkspaceExercise, detectWorkspaceForRepoUris } from '@extension/services/workspace/workspaceDetectionService';
 import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { ExerciseDetailsResponse } from '@extension/types';
+import { VSCODE_CONFIG } from '@extension/utils';
 
 import { getReactWebviewHtml } from './webviewHtml';
 
@@ -22,6 +23,10 @@ export class FullscreenPanelManager {
 
     public openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): void {
         const exerciseTitle = exerciseData?.exercise?.title || 'Exercise';
+        // #342: the sidebar provider's own config listener re-pushes the proactive-help card on a
+        // consent flip, but it posts through the sidebar's own transport and can never reach this
+        // panel's independent webview - so this panel needs its own listener to stay in sync.
+        let consentSub: vscode.Disposable | undefined;
         this._openFullscreenPanel({
             viewType: 'artemis.exerciseFullscreen',
             title: `Exercise: ${exerciseTitle}`,
@@ -57,7 +62,17 @@ export class FullscreenPanelManager {
                         isManagedEnvironment,
                     });
                 }
+
+                // onReady can fire again on a RequestInit; only wire the subscription once.
+                if (!consentSub) {
+                    consentSub = vscode.workspace.onDidChangeConfiguration((event) => {
+                        if (event.affectsConfiguration(`${VSCODE_CONFIG.IRIS.SECTION}.${VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY}`)) {
+                            postSafe({ type: ExtensionMsg.UpdateProactiveConsent });
+                        }
+                    });
+                }
             },
+            onDispose: () => { consentSub?.dispose(); consentSub = undefined; },
         });
     }
 

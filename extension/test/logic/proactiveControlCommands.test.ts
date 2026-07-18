@@ -136,14 +136,16 @@ describe('ProactiveControlCommandModule', () => {
         expect(h.sent.at(-1)).toMatchObject({ level: 'off', cardState: 'off-course', cardReason: 'course-off' });
     });
 
-    it('setLevel while consent missing: dropped (no store write, no engine call, no collapse) but re-pushed', async () => {
-        const h = harness({ level: 'more', consentMissing: true });
-        await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level: 'off', courseId: 7 }));
-        expect(h.pref.setLevel).not.toHaveBeenCalled();
-        expect(h.control.setStudentProactive).not.toHaveBeenCalled();
-        expect(h.collapse).not.toHaveBeenCalled();
-        expect(h.sent.at(-1)).toMatchObject({ level: 'off', cardReason: 'consent-missing' });
-    });
+    for (const level of ['off', 'less', 'more'] as const) {
+        it(`setLevel(${level}) while consent missing: dropped (no store write, no engine call, no collapse) but re-pushed`, async () => {
+            const h = harness({ level: 'more', consentMissing: true });
+            await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level, courseId: 7 }));
+            expect(h.pref.setLevel).not.toHaveBeenCalled();
+            expect(h.control.setStudentProactive).not.toHaveBeenCalled();
+            expect(h.collapse).not.toHaveBeenCalled();
+            expect(h.sent.at(-1)).toMatchObject({ level: 'off', cardReason: 'consent-missing' });
+        });
+    }
 
     it('grant restores the remembered level (store was never overwritten)', async () => {
         const h = harness({ level: 'more', consentMissing: true });
