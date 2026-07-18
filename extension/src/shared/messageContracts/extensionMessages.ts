@@ -263,6 +263,7 @@ export const ExtensionMsg = {
     HideUnavailableState: 'hideUnavailableState',
     UpdateNoAiStatus: 'updateNoAiStatus',
     UpdateProactiveControl: 'updateProactiveControl',
+    UpdateProactiveConsent: 'updateProactiveConsent',
     UpdateIrisStages: 'updateIrisStages',
     SendRejected: 'sendRejected',
     FoldEpisode: 'foldEpisode',
@@ -465,6 +466,8 @@ interface ExtensionMsgPayloads {
         /** Why a non-"available" card is in that state (drives the §14 banner / note copy). */
         cardReason?: ProactiveCardReason;
     };
+    /** Posted when the proactive code-egress consent setting changes; the exercise view re-requests its control (#342). */
+    updateProactiveConsent: undefined;
     updateIrisStages: {
         stages: IrisStageDTO[];
     };

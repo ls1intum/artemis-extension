@@ -328,6 +328,35 @@ suite('Panel hide/show state persistence', () => {
             'state should transition to login when auth has expired on re-show'
         );
     });
+
+    test('a proactiveCodeEgress change posts updateProactiveConsent to the webview (both directions)', async () => {
+        const cfg = () => vscode.workspace.getConfiguration('artemis.iris');
+        const prev = cfg().get('proactiveCodeEgress');
+        const awaitConsentMsg = async () => {
+            // Poll: the config event is async in the extension host.
+            const deadline = Date.now() + 2000;
+            while (Date.now() < deadline) {
+                if (spyWebview.sentMessages.some(m => m.type === 'updateProactiveConsent')) { return true; }
+                await new Promise(r => setTimeout(r, 50));
+            }
+            return false;
+        };
+        try {
+            // Normalize first (no assertion): a leaked 'enabled' from another test would make the
+            // grant-flip below a config no-op that fires no event.
+            await cfg().update('proactiveCodeEgress', 'ask', vscode.ConfigurationTarget.Global);
+
+            spyWebview.sentMessages.length = 0;
+            await cfg().update('proactiveCodeEgress', 'enabled', vscode.ConfigurationTarget.Global);
+            assert.ok(await awaitConsentMsg(), 'expected updateProactiveConsent after granting the consent');
+
+            spyWebview.sentMessages.length = 0;
+            await cfg().update('proactiveCodeEgress', 'disabled', vscode.ConfigurationTarget.Global);
+            assert.ok(await awaitConsentMsg(), 'expected updateProactiveConsent after revoking the consent');
+        } finally {
+            await cfg().update('proactiveCodeEgress', prev, vscode.ConfigurationTarget.Global);
+        }
+    });
 });
 
 suite('Nudge banner replay and cache-clear', () => {

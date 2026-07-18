@@ -440,6 +440,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             if (event.affectsConfiguration('artemis.developerMode')) {
                 this.refreshTheme();
             }
+            // #342: a consent flip must repaint the AskIris proactive card live (grant restores the remembered
+            // level, revoke parks it at Off). Harmless in the clean build: the webview's re-request hits the
+            // command module's early return (no proactive capability) and no card is sent.
+            if (event.affectsConfiguration(`${VSCODE_CONFIG.IRIS.SECTION}.${VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY}`)) {
+                this._postMessageSafe({ type: ExtensionMsg.UpdateProactiveConsent });
+            }
         });
         this._viewDisposables.push(configListener);
     }

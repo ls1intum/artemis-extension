@@ -143,6 +143,24 @@ describe('ExerciseDetailView', () => {
 		);
 	});
 
+	it('UpdateProactiveConsent re-requests the proactive control with the live exercise (#342)', () => {
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+		const post = vi.mocked(mockApi.postMessage);
+		post.mockClear();
+		act(() => {
+			dispatchExtensionMessage({ type: ExtensionMsg.UpdateProactiveConsent });
+		});
+		expect(post).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'requestProactiveControl',
+				payload: { exerciseId: 42, courseId: 1 },
+			})
+		);
+	});
+
 	it('consent-missing settings link posts openSettings with the egress key (#342)', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData(),

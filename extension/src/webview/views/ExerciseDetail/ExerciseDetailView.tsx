@@ -151,6 +151,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 postCommand(vscodeApi, 'requestProactiveControl', { exerciseId: current.id, courseId: current.course?.id });
             }
         }
+        // Consent flip (#342): repaint the proactive card so a grant restores the remembered level and a
+        // revoke parks the control at Off. Same live-store read as the .noai path above.
+        if (msg.type === ExtensionMsg.UpdateProactiveConsent) {
+            const current = useExerciseDetailStore.getState().exerciseData?.exercise;
+            if (current?.id !== undefined) {
+                postCommand(vscodeApi, 'requestProactiveControl', { exerciseId: current.id, courseId: current.course?.id });
+            }
+        }
     }, [vscodeApi, setExerciseData, setError, setProactiveControl]);
 
     // Listen for exercise-related extension messages
