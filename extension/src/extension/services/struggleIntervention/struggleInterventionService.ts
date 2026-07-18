@@ -767,8 +767,11 @@ export class StruggleInterventionService implements AlertSink {
         // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
         // surface (mirrors the student-opt-out guard). Silent/Close stay ungated - they
         // only finalize state and never open a surface.
+        // Wave 3: this frame's chat row is already persisted server-side; retire it too so it
+        // cannot surface via chat history (same-exercise path, so getExerciseId is correct).
         if (!this._deps.isEgressEnabled()) {
             this._clearInFlight();
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
         }
         this._setServerAvailable(true);
@@ -780,6 +783,7 @@ export class StruggleInterventionService implements AlertSink {
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             this._clearInFlight();
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
         }
 
@@ -826,8 +830,11 @@ export class StruggleInterventionService implements AlertSink {
         // #349: after a consent revoke, a reply to a pre-revoke POST must not open any
         // surface (mirrors the student-opt-out guard). Silent/Close stay ungated - they
         // only finalize state and never open a surface.
+        // Wave 3: retire this frame's already-persisted chat row so it cannot surface via
+        // chat history (same-exercise path, so getExerciseId is correct).
         if (!this._deps.isEgressEnabled()) {
             this._clearInFlight();
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
         }
         this._setServerAvailable(true);
@@ -835,6 +842,7 @@ export class StruggleInterventionService implements AlertSink {
         const exId = this._deps.getExerciseId();
         if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
             this._clearInFlight();
+            if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
         }
 

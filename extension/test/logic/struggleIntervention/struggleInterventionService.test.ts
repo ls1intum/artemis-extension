@@ -325,6 +325,43 @@ describe('StruggleInterventionService', () => {
         expect(deps.showActiveBanner).not.toHaveBeenCalled();
     });
 
+    it('consent-guard drop (mid-flight revoke) retires the persisted row for ambient AND active (#349 wave 3)', () => {
+        // Correlated in-flight marker so the frame passes the correlation guard and lands on the
+        // consent guard specifically (not the wave-2 uncorrelated-drop retirement).
+        const deps = fakeDeps({ isEgressEnabled: () => false });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-x');
+        svc.onServerAmbient('ep-x', 'hint', undefined, undefined, undefined, undefined, 71);
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(71);
+        expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 71);
+        expect(deps.showInline).not.toHaveBeenCalled();
+        // The guard's pre-existing marker handling is unchanged: _clearInFlight releases it.
+        expect(svc._inFlightMarker).toBeUndefined();
+
+        const deps2 = fakeDeps({ isEgressEnabled: () => false });
+        const svc2 = new StruggleInterventionService(deps2);
+        simulateDecidePending(svc2, 'ep-y');
+        svc2.onServerActive('ep-y', 99, undefined, undefined, undefined, undefined, undefined, 72);
+        expect(deps2.postRemoveMessage).toHaveBeenCalledWith(72);
+        expect(deps2.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 72);
+        expect(deps2.showActiveBanner).not.toHaveBeenCalled();
+        expect(deps2.postBubble).not.toHaveBeenCalled();
+        expect(svc2._inFlightMarker).toBeUndefined();
+    });
+
+    it('student-opt-out drop retires the persisted row for ambient AND active (#349 wave 3)', () => {
+        const deps = fakeDeps({ isStudentProactiveOn: () => false });
+        const svc = new StruggleInterventionService(deps);
+        svc.onServerAmbient('ep-x', 'hint', undefined, undefined, undefined, undefined, 81);
+        svc.onServerActive('ep-x', 99, undefined, undefined, undefined, undefined, undefined, 82);
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(81);
+        expect(deps.postRemoveMessage).toHaveBeenCalledWith(82);
+        expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 81);
+        expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 82);
+        expect(deps.showInline).not.toHaveBeenCalled();
+        expect(deps.showActiveBanner).not.toHaveBeenCalled();
+    });
+
     it('setStudentProactive(active exercise, false) clears a standing inline cue + lamp + badge + banner', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
