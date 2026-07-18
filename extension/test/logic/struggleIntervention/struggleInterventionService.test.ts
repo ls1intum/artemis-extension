@@ -242,17 +242,17 @@ describe('StruggleInterventionService', () => {
         expect(post).toHaveBeenCalledTimes(2);
     });
 
-    it('isProactiveDegraded: true when egress consent is off', () => {
+    it('getProactiveGateState: consentMissing when egress consent is off', () => {
         const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => false }));
-        expect(svc.isProactiveDegraded()).toBe(true);
+        expect(svc.getProactiveGateState()).toEqual({ consentMissing: true, serverUnavailable: false });
     });
 
-    it('isProactiveDegraded: false when consent on and server up', () => {
+    it('getProactiveGateState: all clear when consent on and server up', () => {
         const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => true }));
-        expect(svc.isProactiveDegraded()).toBe(false);
+        expect(svc.getProactiveGateState()).toEqual({ consentMissing: false, serverUnavailable: false });
     });
 
-    it('isProactiveDegraded: true after a 404 latches the server unavailable', async () => {
+    it('getProactiveGateState: serverUnavailable after a 404 latches the server', async () => {
         const svc = new StruggleInterventionService(fakeDeps({
             isEgressEnabled: () => true,
             postIntervention: vi.fn(async () => 'unavailable' as const),
@@ -260,7 +260,24 @@ describe('StruggleInterventionService', () => {
         svc.onTick(tick(530));
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
-        expect(svc.isProactiveDegraded()).toBe(true);   // _serverAvailable latched false by the 404
+        expect(svc.getProactiveGateState()).toEqual({ consentMissing: false, serverUnavailable: true });
+    });
+
+    it('getProactiveGateState: consent off AND 404 latch → both flags set independently', async () => {
+        // No POST leaves without consent, so latch first (consent on), THEN revoke via the mutable dep.
+        let consentOn = true;
+        const svc = new StruggleInterventionService(fakeDeps({
+            isEgressEnabled: () => consentOn,
+            postIntervention: vi.fn(async () => 'unavailable' as const),
+        }));
+        svc.onTick(tick(530));
+        svc.deliver(alert());
+        await new Promise(r => setTimeout(r, 0));
+        consentOn = false;
+        expect(svc.getProactiveGateState()).toEqual({ consentMissing: true, serverUnavailable: true });
+        // resetSession (new exercise) clears ONLY the server latch; the consent flag is independent of it.
+        svc.resetSession();
+        expect(svc.getProactiveGateState()).toEqual({ consentMissing: true, serverUnavailable: false });
     });
 
     it('a 404 server-unavailable latch survives reset() (settings toggle) and clears only on resetSession() (new exercise)', async () => {
@@ -268,11 +285,11 @@ describe('StruggleInterventionService', () => {
         svc.onTick(tick(530));
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
-        expect(svc.isProactiveDegraded()).toBe(true);
+        expect(svc.getProactiveGateState().serverUnavailable).toBe(true);
         svc.reset();
-        expect(svc.isProactiveDegraded()).toBe(true);   // settings-toggle clear KEEPS the per-session 404 latch
+        expect(svc.getProactiveGateState().serverUnavailable).toBe(true);   // settings-toggle clear KEEPS the per-session 404 latch
         svc.resetSession();
-        expect(svc.isProactiveDegraded()).toBe(false);  // a new exercise re-probes the server
+        expect(svc.getProactiveGateState()).toEqual({ consentMissing: false, serverUnavailable: false });  // a new exercise re-probes
     });
 
     it('course-off latches (survives the in-flight watchdog + a settings-toggle reset): no re-POST until resetSession (spec §13)', async () => {

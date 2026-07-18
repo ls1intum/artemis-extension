@@ -6,7 +6,8 @@ import { ProactiveControlCommandModule } from '@extension/controller/commands/pr
 
 function harness(over: {
     level?: 'off' | 'less' | 'more';
-    degraded?: boolean;
+    consentMissing?: boolean;
+    serverUnavailable?: boolean;
     noAi?: boolean;
     settings?: unknown;
     profileActive?: boolean;
@@ -14,7 +15,10 @@ function harness(over: {
     const pref = { getLevel: vi.fn(() => over.level ?? 'more'), setLevel: vi.fn() };
     const control = {
         setStudentProactive: vi.fn(),
-        isProactiveDegraded: vi.fn(() => over.degraded ?? false),
+        getProactiveGateState: vi.fn(() => ({
+            consentMissing: over.consentMissing ?? false,
+            serverUnavailable: over.serverUnavailable ?? false,
+        })),
     };
     const artemisApi = {
         getProfileInfo: vi.fn(async () => ({})),
@@ -100,8 +104,8 @@ describe('ProactiveControlCommandModule', () => {
         expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'iris-off' });
     });
 
-    it('degraded seam → degraded', async () => {
-        const h = harness({ degraded: true });
+    it('404-latched server → degraded/limited', async () => {
+        const h = harness({ serverUnavailable: true });
         await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
         expect(h.sent.at(-1)).toMatchObject({ cardState: 'degraded', cardReason: 'limited' });
     });

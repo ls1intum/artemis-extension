@@ -370,7 +370,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         // Same hoisted getter the delivery throttle reads (later also read by the Pull re-route).
         getActiveProactiveLevel,
         setStudentProactive: (exerciseId, on) => orchestrator.setStudentProactive(exerciseId, on),
-        isProactiveDegraded: () => orchestrator.isProactiveDegraded(),
+        getProactiveGateState: () => orchestrator.getProactiveGateState(),
         setInSession: (open: boolean) => orchestrator.setInSession(open),
         // C8: episode-scoped dismiss (seam callback threaded to setStruggleCallbacks.onEpisodeDismiss)
         dismissEpisode: (episodeId?: string) => orchestrator.dismissEpisode(episodeId),

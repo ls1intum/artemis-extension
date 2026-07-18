@@ -67,7 +67,8 @@ export class ProactiveControlCommandModule {
         const chat = this.context.providerRegistry.getChatWebviewProvider();
         await chat?.whenNoAiReady();
         const noAi = chat?.isNoAiEnabled() ?? false;
-        const degraded = this.context.proactiveControl.isProactiveDegraded() ?? false;
+        const gate = this.context.proactiveControl.getProactiveGateState();
+        const degraded = gate.consentMissing || gate.serverUnavailable;
 
         const { state: cardState, reason: cardReason } = deriveProactiveCardState({
             irisAvailability,

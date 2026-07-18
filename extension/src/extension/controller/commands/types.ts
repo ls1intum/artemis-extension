@@ -53,7 +53,7 @@ export interface CommandContext {
     /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. */
     proactiveControl?: {
         setStudentProactive(exerciseId: number, on: boolean): void;
-        /** True iff proactive is degraded (no egress consent / 404). Session-global → no exercise id (spec §14). */
-        isProactiveDegraded(): boolean;
+        /** The two §14 gate causes, independently (consent vs 404 latch). Session-global → no exercise id. */
+        getProactiveGateState(): { consentMissing: boolean; serverUnavailable: boolean };
     };
 }

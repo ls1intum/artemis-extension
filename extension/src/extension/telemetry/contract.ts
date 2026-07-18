@@ -223,12 +223,12 @@ export interface StruggleEngineHandle {
     /** Apply the AskIris level for an exercise: off clears its live surfaces, on marks the student present. */
     setStudentProactive?(exerciseId: number, on: boolean): void;
     /**
-     * True iff proactive is degraded (no proactive-egress consent OR a 404-latched server). Drives the AskIris
-     * "Degraded" card (spec §14 cases 4-5): manual Ask still works, but the proactive path itself is off (no
-     * local fallback). Session-global, no exercise id. ABSENT in the clean build (like the three above), so
-     * extension.ts assembles no `proactiveControl` capability there.
+     * The two §14 gate causes, independently (spec §14 cases 4-5): `consentMissing` = no proactive-egress
+     * consent (student-fixable → consent-missing card + forced-Off level, #342), `serverUnavailable` =
+     * 404-latched server (→ limited card). Session-global, no exercise id. ABSENT in the clean build
+     * (like the members above), so extension.ts assembles no `proactiveControl` capability there.
      */
-    isProactiveDegraded?(): boolean;
+    getProactiveGateState?(): { consentMissing: boolean; serverUnavailable: boolean };
     /**
      * C3: toggle the in-session flag on the slot (NON-semantic, no generation bump).
      * Called by extension.ts when the chat-view visibility changes so escalation can

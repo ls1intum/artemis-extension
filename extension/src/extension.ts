@@ -95,7 +95,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Forward-ref: the nudge-banner deps below (showNudgeBanner/hideNudgeBanner) are only ever invoked
 	// lazily (well after the provider is constructed below), so reading it through a mutable binding is safe.
 	let artemisWebviewProvider: ArtemisWebviewProvider | undefined;
-	const { coordinator: struggleCoordinator, promptConsentIfAsk, setStudentProactive, isProactiveDegraded, setInSession, dismissEpisode, resolveEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink, handleBannerAction } = createStruggleEngine({
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, setStudentProactive, getProactiveGateState, setInSession, dismissEpisode, resolveEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink, handleBannerAction } = createStruggleEngine({
 		hub: sensorHub,
 		exerciseRegistry,
 		context,
@@ -187,8 +187,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
 	// The behind-the-seam proactive control surface the AskIris command module drives (spec §12.2). Built ONLY when
 	// the engine provides the methods (the clean/no-engine build omits them), so that build never shows the switch.
-	const proactiveControl = setStudentProactive && isProactiveDegraded
-		? { setStudentProactive, isProactiveDegraded }
+	const proactiveControl = setStudentProactive && getProactiveGateState
+		? { setStudentProactive, getProactiveGateState }
 		: undefined;
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);

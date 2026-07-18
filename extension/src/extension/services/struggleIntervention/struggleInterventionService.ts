@@ -1794,11 +1794,12 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * True iff proactive is running in a degraded mode (spec §14 cases 4-5): no proactive-egress consent
-     * OR a 404-latched server.
+     * The two §14 gate causes, independently (spec §14 cases 4-5): `consentMissing` = no proactive-egress
+     * consent (student-fixable, drives the consent-missing card + the forced-Off level, #342);
+     * `serverUnavailable` = 404-latched server (drives the limited card). Session-global, no exercise id.
      */
-    isProactiveDegraded(): boolean {
-        return !this._deps.isEgressEnabled() || !this._serverAvailable;
+    getProactiveGateState(): { consentMissing: boolean; serverUnavailable: boolean } {
+        return { consentMissing: !this._deps.isEgressEnabled(), serverUnavailable: !this._serverAvailable };
     }
 
     setStudentProactive(exerciseId: number, on: boolean): void {
