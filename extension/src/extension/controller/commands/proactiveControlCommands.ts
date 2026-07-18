@@ -27,6 +27,12 @@ export class ProactiveControlCommandModule {
 
     private handleSetLevel = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { exerciseId, level, courseId } = getPayload<WebCmd<'setProactiveLevel'>>(message);
+        // #342: while the code-reading consent is missing the control is a forced Off — a level change must
+        // neither touch the stored preference nor the engine; re-push so the webview repaints the forced state.
+        if (this.context.proactiveControl?.getProactiveGateState().consentMissing) {
+            await this._push(exerciseId, courseId);
+            return;
+        }
         this.context.proactivePreference?.setLevel(exerciseId, level);
         this.context.proactiveControl?.setStudentProactive(exerciseId, level !== 'off');
         // Off = get out of the way: collapse any proactive hints already in the chat to fold lines.
@@ -43,7 +49,11 @@ export class ProactiveControlCommandModule {
             return;
         }
         const seq = ++this._pushSeq;
-        const level = this.context.proactivePreference?.getLevel(exerciseId) ?? 'more';
+        const gate = this.context.proactiveControl.getProactiveGateState();
+        const stored = this.context.proactivePreference?.getLevel(exerciseId) ?? 'more';
+        // #342 effective-level mask: missing consent always forces the DISPLAYED level to Off, orthogonal to
+        // which card reason wins precedence below. The stored preference is never written by this gate.
+        const level = gate.consentMissing ? 'off' : stored;
 
         // §14 availability — shared classifier (profile + course settings). courseId absent → optimistic enabled
         // (self-heals on the next push that carries it; the webview always has exercise.course?.id at every call site).
@@ -67,14 +77,13 @@ export class ProactiveControlCommandModule {
         const chat = this.context.providerRegistry.getChatWebviewProvider();
         await chat?.whenNoAiReady();
         const noAi = chat?.isNoAiEnabled() ?? false;
-        const gate = this.context.proactiveControl.getProactiveGateState();
-        const degraded = gate.consentMissing || gate.serverUnavailable;
 
         const { state: cardState, reason: cardReason } = deriveProactiveCardState({
             irisAvailability,
             noAi,
             courseProactiveEnabled,
-            degraded,
+            consentMissing: gate.consentMissing,
+            serverUnavailable: gate.serverUnavailable,
         });
 
         // A newer _push superseded this one mid-await → drop the stale paint (cross-exercise staleness is the

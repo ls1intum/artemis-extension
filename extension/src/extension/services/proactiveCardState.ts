@@ -13,11 +13,10 @@ export interface ProactiveCardSignals {
     noAi: boolean;
     /** Course-level `proactiveStruggleEnabled` (§13). `undefined` = unknown this tick (settings unread). */
     courseProactiveEnabled: boolean | undefined;
-    /**
-     * No proactive-egress consent OR a 404-latched server (§14 cases 4-5): manual Ask still works, but the
-     * proactive path itself is off (there is no local fallback to fall back to).
-     */
-    degraded: boolean;
+    /** No proactive-egress consent (§14 case 4, #342): student-fixable → its own card reason with a settings link. */
+    consentMissing: boolean;
+    /** 404-latched server (§14 case 5): not student-fixable → the limited card. */
+    serverUnavailable: boolean;
 }
 
 /**
@@ -37,9 +36,14 @@ export function deriveProactiveCardState(s: ProactiveCardSignals): { state: Proa
     if (s.courseProactiveEnabled === false) {
         return { state: 'off-course', reason: 'course-off' };
     }
-    // §14 cases 4-5: no egress consent / 404 → proactive is off (Ask still works, no proactive surfacing).
-    if (s.degraded) {
+    // §14 case 5: 404-latched server → proactive is off and nothing the student does changes that. Checked
+    // BEFORE the consent case: a consent hint must not promise a feature the server does not have.
+    if (s.serverUnavailable) {
         return { state: 'degraded', reason: 'limited' };
+    }
+    // §14 case 4 / #342: missing code-reading consent → forced-Off control with an enable path.
+    if (s.consentMissing) {
+        return { state: 'degraded', reason: 'consent-missing' };
     }
     // Happy path AND §14 case 6 (transient `unavailable` blip self-heals on the next refresh; never a false "off").
     return { state: 'available', reason: undefined };

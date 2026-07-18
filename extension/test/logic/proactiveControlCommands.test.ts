@@ -116,4 +116,41 @@ describe('ProactiveControlCommandModule', () => {
         expect(h.artemisApi.getIrisCourseChatSettings).not.toHaveBeenCalled();
         expect(h.sent.at(-1)).toMatchObject({ cardState: 'available' });
     });
+
+    it('missing consent → forced Off + consent-missing reason (stored preference untouched)', async () => {
+        const h = harness({ level: 'more', consentMissing: true });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ level: 'off', cardState: 'degraded', cardReason: 'consent-missing' });
+        expect(h.pref.setLevel).not.toHaveBeenCalled();
+    });
+
+    it('missing consent + 404 latch → limited reason wins, mask still forces Off (orthogonality end-to-end)', async () => {
+        const h = harness({ level: 'more', consentMissing: true, serverUnavailable: true });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ level: 'off', cardState: 'degraded', cardReason: 'limited' });
+    });
+
+    it('course-off + missing consent → course reason wins, mask still forces Off', async () => {
+        const h = harness({ level: 'more', consentMissing: true, settings: { settings: { enabled: true, proactiveStruggleEnabled: false } } });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ level: 'off', cardState: 'off-course', cardReason: 'course-off' });
+    });
+
+    it('setLevel while consent missing: dropped (no store write, no engine call, no collapse) but re-pushed', async () => {
+        const h = harness({ level: 'more', consentMissing: true });
+        await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level: 'off', courseId: 7 }));
+        expect(h.pref.setLevel).not.toHaveBeenCalled();
+        expect(h.control.setStudentProactive).not.toHaveBeenCalled();
+        expect(h.collapse).not.toHaveBeenCalled();
+        expect(h.sent.at(-1)).toMatchObject({ level: 'off', cardReason: 'consent-missing' });
+    });
+
+    it('grant restores the remembered level (store was never overwritten)', async () => {
+        const h = harness({ level: 'more', consentMissing: true });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ level: 'off' });
+        h.control.getProactiveGateState.mockReturnValue({ consentMissing: false, serverUnavailable: false });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ level: 'more', cardState: 'available' });
+    });
 });

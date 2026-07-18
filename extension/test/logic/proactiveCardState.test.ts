@@ -6,7 +6,8 @@ const base: ProactiveCardSignals = {
     irisAvailability: 'enabled',
     noAi: false,
     courseProactiveEnabled: true,
-    degraded: false,
+    consentMissing: false,
+    serverUnavailable: false,
 };
 
 describe('deriveProactiveCardState (§14 matrix)', () => {
@@ -29,9 +30,24 @@ describe('deriveProactiveCardState (§14 matrix)', () => {
             .toEqual({ state: 'off-course', reason: 'course-off' });
     });
 
-    it('no consent / 404 → degraded (§14 cases 4-5)', () => {
-        expect(deriveProactiveCardState({ ...base, degraded: true }))
+    it('missing consent → degraded/consent-missing (#342, student-fixable)', () => {
+        expect(deriveProactiveCardState({ ...base, consentMissing: true }))
+            .toEqual({ state: 'degraded', reason: 'consent-missing' });
+    });
+
+    it('404-latched server → degraded/limited (§14 case 5)', () => {
+        expect(deriveProactiveCardState({ ...base, serverUnavailable: true }))
             .toEqual({ state: 'degraded', reason: 'limited' });
+    });
+
+    it('precedence: 404 beats missing consent (a consent hint must not promise an absent feature)', () => {
+        expect(deriveProactiveCardState({ ...base, consentMissing: true, serverUnavailable: true }))
+            .toEqual({ state: 'degraded', reason: 'limited' });
+    });
+
+    it('precedence: course-off beats missing consent (reason only; the level mask is orthogonal)', () => {
+        expect(deriveProactiveCardState({ ...base, courseProactiveEnabled: false, consentMissing: true }))
+            .toEqual({ state: 'off-course', reason: 'course-off' });
     });
 
     it('transient unavailable (§14 case 6) self-heals → available (no false "off")', () => {
@@ -47,7 +63,7 @@ describe('deriveProactiveCardState (§14 matrix)', () => {
     });
 
     it('precedence: noai beats course-off and degraded too', () => {
-        expect(deriveProactiveCardState({ ...base, noAi: true, courseProactiveEnabled: false, degraded: true }))
+        expect(deriveProactiveCardState({ ...base, noAi: true, courseProactiveEnabled: false, consentMissing: true, serverUnavailable: true }))
             .toEqual({ state: 'unavailable', reason: 'noai' });
     });
 });

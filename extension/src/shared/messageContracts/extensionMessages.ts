@@ -31,7 +31,7 @@ export type BoundaryType = typeof BOUNDARY_TYPES[number];
  */
 export type ProactiveCardState = 'available' | 'off-course' | 'unavailable' | 'degraded';
 /** Why a non-"available" card is in that state (drives the §14 banner / note copy). */
-export type ProactiveCardReason = 'noai' | 'iris-off' | 'course-off' | 'limited';
+export type ProactiveCardReason = 'noai' | 'iris-off' | 'course-off' | 'limited' | 'consent-missing';
 
 // ---------------------------------------------------------------------------
 // Live-tick wire types (extension → struggle-detection webview)
