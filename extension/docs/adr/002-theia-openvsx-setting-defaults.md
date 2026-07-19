@@ -76,7 +76,7 @@ No changes to `esbuild.js`, `package-openvsx.js`, the source `package.json`, or 
 
 - The managed Theia/cloud build gets the tailored defaults; local VS Code (Marketplace) behaviour is unchanged.
 - These are defaults, not forced values — a user or workspace setting still overrides them at runtime.
-- **Revisit when the cloud intervention pipeline goes live:** remove the two `struggleDetection.*` overrides so cloud detection turns back on.
+- **Revisit when the cloud intervention pipeline goes live:** remove the two `struggleDetection.*` overrides so cloud detection turns back on. (Superseded by #352, 2026-07-19: the settings and their overrides were removed entirely; nothing to revisit.)
 - Adding/removing future cloud-specific defaults is a one-line edit to `OPENVSX_SETTING_DEFAULTS`.
 
 ## Alternatives considered
