@@ -89,7 +89,7 @@ describe('ProactiveControlCommandModule', () => {
     it('.noai → unavailable/noai', async () => {
         const h = harness({ noAi: true });
         await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
-        expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'noai' });
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'noai', level: 'off' });
     });
 
     it('course proactive off → off-course (level masked to Off: proactive cannot run)', async () => {
@@ -101,7 +101,7 @@ describe('ProactiveControlCommandModule', () => {
     it('iris disabled (settings.enabled=false) → unavailable/iris-off', async () => {
         const h = harness({ settings: { settings: { enabled: false } } });
         await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
-        expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'iris-off' });
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'iris-off', level: 'off' });
     });
 
     it('404-latched server → degraded/limited (level masked to Off: proactive cannot run)', async () => {
