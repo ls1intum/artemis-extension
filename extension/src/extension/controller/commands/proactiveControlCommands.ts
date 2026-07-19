@@ -43,13 +43,13 @@ export class ProactiveControlCommandModule {
     };
 
     private async _push(exerciseId: number, courseId?: number): Promise<void> {
-        // No proactive engine (clean/Open VSX build) → never surface a card for a feature that isn't shipped.
-        // First statement so the clean build does ZERO work (no profile/settings fetch) and sends nothing.
-        if (!this.context.proactiveControl) {
-            return;
-        }
         const seq = ++this._pushSeq;
-        const gate = this.context.proactiveControl.getProactiveGateState();
+        // Chat-availability (.noai / iris-off) is engine-independent, so the card renders in every build. The
+        // proactive control (segments/level) needs the engine seam; when it is absent (clean/Open VSX build) we
+        // mask the proactive-only inputs so derive can only yield noai/iris-off/available, and flag the card as
+        // control-less so the webview hides the level control.
+        const control = this.context.proactiveControl;
+        const gate = control?.getProactiveGateState() ?? { consentMissing: false, serverUnavailable: false };
         const stored = this.context.proactivePreference?.getLevel(exerciseId) ?? 'more';
 
         // §14 availability — shared classifier (profile + course settings). courseId absent → optimistic enabled
@@ -78,7 +78,7 @@ export class ProactiveControlCommandModule {
         const { state: cardState, reason: cardReason } = deriveProactiveCardState({
             irisAvailability,
             noAi,
-            courseProactiveEnabled,
+            courseProactiveEnabled: control ? courseProactiveEnabled : undefined,
             consentMissing: gate.consentMissing,
             serverUnavailable: gate.serverUnavailable,
         });
@@ -100,6 +100,7 @@ export class ProactiveControlCommandModule {
             level,
             cardState,
             cardReason,
+            proactiveControlAvailable: !!control,
         };
         this.context.sendMessage(msg);
     }

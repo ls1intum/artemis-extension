@@ -140,6 +140,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 level: msg.level,
                 cardState: msg.cardState,
                 reason: msg.cardReason,
+                proactiveControlAvailable: msg.proactiveControlAvailable,
             });
         }
         // .noai can be created/deleted mid-session and the proactive card derives from it (§14), so re-request the
@@ -256,6 +257,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         level: proactiveControl.level,
         cardState: proactiveControl.cardState,
         reason: proactiveControl.reason,
+        controlAvailable: proactiveControl.proactiveControlAvailable,
         onLevelChange: (level: ProactiveLevel) =>
             postCommand(vscodeApi, 'setProactiveLevel', { exerciseId: exercise.id!, level, courseId: exercise.course?.id }),
         // #342: the consent-missing hint's enable path; AskIris stays presentational.
@@ -656,15 +658,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     passedTests={passedTests}
                     onScrollToCard={() => submissionStatusEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 />
-            )}
-
-            {/* §14 availability banner (cases 2-3): the whole feature, incl. the manual chat, is off for this exercise. */}
-            {proactiveControl && proactiveControl.exerciseId === exercise.id && proactiveControl.cardState === 'unavailable' && (
-                <div className={styles.banner} data-variant="warning">
-                    {proactiveControl.reason === 'noai'
-                        ? 'A .noai file disables Iris for this repository, including the chat.'
-                        : 'Iris is not available for this exercise right now.'}
-                </div>
             )}
 
             {/* Ask Iris Section, with the proactive-help control divided off inside the same card (spec §12.2). */}

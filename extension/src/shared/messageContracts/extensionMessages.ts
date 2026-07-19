@@ -26,11 +26,11 @@ export type BoundaryType = typeof BOUNDARY_TYPES[number];
 
 /**
  * Which proactive-availability state the AskIris card renders (spec §12.2, one term per §14 row).
- * The clean (no-engine) build never sends a card at all — its "hidden" case is the ABSENCE of the
- * `proactiveControl` capability, not a state here (see `proactiveControlCommands._push`).
+ * The clean (no-engine) build sends a chat-availability card too (`proactiveControlAvailable: false`,
+ * no level control) — it is never the "no card sent" case (see `proactiveControlCommands._push`).
  */
 export type ProactiveCardState = 'available' | 'off-course' | 'unavailable' | 'degraded';
-/** Why a non-"available" card is in that state (drives the §14 banner / note copy). */
+/** Why a non-"available" card is in that state (drives the §14 notice / note copy). */
 export type ProactiveCardReason = 'noai' | 'iris-off' | 'course-off' | 'limited' | 'consent-missing';
 
 // ---------------------------------------------------------------------------
@@ -463,8 +463,10 @@ interface ExtensionMsgPayloads {
         level: ProactiveLevel;
         /** Which availability card the AskIris control renders (spec §12.2 / §14). */
         cardState: ProactiveCardState;
-        /** Why a non-"available" card is in that state (drives the §14 banner / note copy). */
+        /** Why a non-"available" card is in that state (drives the §14 notice / note copy). */
         cardReason?: ProactiveCardReason;
+        /** False in the clean/no-engine build: the card is a chat-availability reflection with no level control. */
+        proactiveControlAvailable: boolean;
     };
     /** Posted when the proactive code-egress consent setting changes; the exercise view re-requests its control (#342). */
     updateProactiveConsent: undefined;

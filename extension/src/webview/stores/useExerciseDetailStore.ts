@@ -22,6 +22,7 @@ type ProactiveControlState = {
     level: ProactiveLevel;
     cardState: ProactiveCardState;
     reason?: ProactiveCardReason;
+    proactiveControlAvailable: boolean;
 };
 
 interface DirtyPagesStatus {

@@ -2,10 +2,12 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AskIris } from '@webview/components/AskIris/AskIris';
+import styles from '@webview/components/AskIris/AskIris.module.css';
 
 const base = { description: 'd', onClick: vi.fn() };
 const control = (over: object) => ({
     level: 'more' as const, cardState: 'available' as const,
+    controlAvailable: true as const,
     onLevelChange: vi.fn(), ...over,
 });
 
@@ -52,6 +54,49 @@ describe('AskIris card states (§12.2)', () => {
         render(<AskIris {...base} proactiveControl={control({ cardState: 'degraded', reason: 'limited' })} />);
         expect(screen.queryByRole('radiogroup')).toBeNull();
         expect(screen.getByText('Proactive help is unavailable right now.')).toBeInTheDocument();
+    });
+
+    it('unavailable/iris-off → neutral notice, honest description, no proactive section, Ask disabled', () => {
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'unavailable', reason: 'iris-off' })} />);
+        expect(screen.getByText('Iris is not available for this exercise.')).toBeInTheDocument();
+        expect(screen.getByText('The Iris chat is turned off here.')).toBeInTheDocument();
+        expect(screen.queryByText(/Open the Iris chat/i)).toBeNull();
+        expect(screen.queryByRole('radiogroup')).toBeNull();
+        expect(screen.getByRole('button', { name: /ask/i })).toBeDisabled();
+    });
+    it('unavailable/noai → the .noai notice', () => {
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'unavailable', reason: 'noai' })} />);
+        expect(screen.getByText('A .noai file disables Iris for this repository, including the chat.')).toBeInTheDocument();
+    });
+    it('unavailable with no reason → generic notice fallback', () => {
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'unavailable', reason: undefined })} />);
+        expect(screen.getByText('Iris is not available for this exercise.')).toBeInTheDocument();
+    });
+    it.each([
+        { cardState: 'available' as const, reason: undefined },
+        { cardState: 'off-course' as const, reason: 'course-off' as const },
+        { cardState: 'degraded' as const, reason: 'limited' as const },
+        { cardState: 'degraded' as const, reason: 'consent-missing' as const },
+    ])('chat-active $cardState/$reason keeps the passed description and renders no notice', ({ cardState, reason }) => {
+        render(<AskIris {...base} proactiveControl={control({ cardState, reason, level: reason === 'consent-missing' ? 'off' : 'more', onOpenConsentSettings: vi.fn() })} />);
+        expect(screen.getByText('d')).toBeInTheDocument();
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+    it('unavailable → the disabled Ask carries the neutral unavailableAsk class', () => {
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'unavailable', reason: 'noai' })} />);
+        expect(screen.getByRole('button', { name: /ask/i })).toHaveClass(styles.unavailableAsk);
+    });
+    it('clean build (controlAvailable false) + available → bare card, no segments, Ask enabled', () => {
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'available', controlAvailable: false })} />);
+        expect(screen.queryByRole('radiogroup')).toBeNull();
+        expect(screen.queryByText('Proactive help')).toBeNull();
+        expect(screen.getByText('d')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /ask/i })).not.toBeDisabled();
+    });
+    it('clean build (controlAvailable false) + unavailable/noai → off-card still renders', () => {
+        render(<AskIris {...base} proactiveControl={control({ cardState: 'unavailable', reason: 'noai', controlAvailable: false })} />);
+        expect(screen.getByText('A .noai file disables Iris for this repository, including the chat.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /ask/i })).toBeDisabled();
     });
 
     it('never renders a Paused/Resume affordance (removed with the level rework)', () => {

@@ -18,8 +18,9 @@ export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineH
         // No engine (and no active exercise concept) in the clean build: always the default level.
         getActiveProactiveLevel: () => 'more',
         // setStudentProactive / getProactiveGateState are intentionally OMITTED:
-        // the clean build has no proactive engine, so extension.ts builds no proactiveControl capability and the
-        // AskIris card stays plain (no control, no four-state availability — the "hidden" case is "no card sent").
+        // the clean build has no proactive engine, so extension.ts builds no proactiveControl capability. The
+        // clean build still sends a control-less availability card (the `proactiveControl` seam is omitted, so
+        // the AskIris level control stays hidden).
     };
 }
 

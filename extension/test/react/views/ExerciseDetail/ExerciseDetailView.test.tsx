@@ -165,7 +165,7 @@ describe('ExerciseDetailView', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData(),
 			isLoading: false,
-			proactiveControl: { exerciseId: 42, level: 'off', cardState: 'degraded', reason: 'consent-missing' },
+			proactiveControl: { exerciseId: 42, level: 'off', cardState: 'degraded', reason: 'consent-missing', proactiveControlAvailable: true },
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
@@ -177,6 +177,22 @@ describe('ExerciseDetailView', () => {
 				payload: { setting: 'artemis.iris.proactiveCodeEgress' },
 			})
 		);
+	});
+
+	it('unavailable/noai renders the notice inside the AskIris card, not a standalone banner', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseData(),
+			isLoading: false,
+			proactiveControl: { exerciseId: 42, level: 'off', cardState: 'unavailable', reason: 'noai', proactiveControlAvailable: false },
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+		const card = screen.getByTestId('ask-iris-card');
+		const notice = 'A .noai file disables Iris for this repository, including the chat.';
+		expect(screen.getAllByText(notice)).toHaveLength(1);
+		expect(within(card).getByText(notice)).toBeInTheDocument();
+		expect(screen.queryByText(/Open the Iris chat/i)).toBeNull();
+		expect(document.querySelector('[data-variant="warning"]')).toBeNull();
 	});
 
 	it('renders exercise title from store data', () => {

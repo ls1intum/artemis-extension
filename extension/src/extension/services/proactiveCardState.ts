@@ -2,9 +2,9 @@ import type { ProactiveCardReason, ProactiveCardState } from '@shared/messageCon
 
 /**
  * Inputs to the AskIris card-state decision (spec §12.2 / §14). All gathered host-side in
- * {@link ProactiveControlCommandModule}. There is no `enginePresent` input: the clean (no-engine)
- * build never reaches this function — its `_push` early-returns on an absent `proactiveControl`
- * capability, so a missing engine is "no card sent", not a state here.
+ * {@link ProactiveControlCommandModule}. The clean (no-engine) build DOES reach this function now
+ * (its chat-availability card renders too) — but its `_push` masks the proactive-only inputs, so
+ * only `noai`/`iris-off`/`available` can result. There is still no `enginePresent` input here.
  */
 export interface ProactiveCardSignals {
     /** The chat's §14 classification: enabled / disabled (iris-off OR no LLM opt-in) / unavailable (transient). */
@@ -24,7 +24,7 @@ export interface ProactiveCardSignals {
  * Order encodes precedence: a more total shut-off wins over a partial one.
  */
 export function deriveProactiveCardState(s: ProactiveCardSignals): { state: ProactiveCardState; reason?: ProactiveCardReason } {
-    // §14 case 3: a `.noai` marker turns the whole feature (incl. manual chat) off → Unavailable + banner.
+    // §14 case 3: a `.noai` marker turns the whole feature (incl. manual chat) off → Unavailable (in-card notice).
     if (s.noAi) {
         return { state: 'unavailable', reason: 'noai' };
     }

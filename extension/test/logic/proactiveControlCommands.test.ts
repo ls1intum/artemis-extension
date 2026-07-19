@@ -11,6 +11,7 @@ function harness(over: {
     noAi?: boolean;
     settings?: unknown;
     profileActive?: boolean;
+    noEngine?: boolean;
 } = {}) {
     const pref = { getLevel: vi.fn(() => over.level ?? 'more'), setLevel: vi.fn() };
     const control = {
@@ -31,7 +32,7 @@ function harness(over: {
         getChatWebviewProvider: vi.fn(() => ({ isNoAiEnabled: () => over.noAi ?? false, whenNoAiReady: async () => {}, collapseProactiveEpisodes: collapse })),
     };
     const sent: any[] = [];
-    const ctx = { proactivePreference: pref, proactiveControl: control, artemisApi, providerRegistry, sendMessage: (m: any) => sent.push(m) } as any;
+    const ctx = { proactivePreference: pref, proactiveControl: over.noEngine ? undefined : control, artemisApi, providerRegistry, sendMessage: (m: any) => sent.push(m) } as any;
     return { mod: new ProactiveControlCommandModule(ctx), pref, control, artemisApi, sent, collapse };
 }
 const cmd = (command: string, payload: any) => ({ command, payload } as any);
@@ -70,13 +71,31 @@ describe('ProactiveControlCommandModule', () => {
         expect(h.collapse).not.toHaveBeenCalled();
     });
 
-    it('pushes nothing when there is no proactive engine (clean build → switch stays hidden)', async () => {
-        const sent: any[] = [];
-        const pref = { getLevel: vi.fn(() => 'more'), setLevel: vi.fn() };
-        const ctx = { proactivePreference: pref, proactiveControl: undefined, sendMessage: (m: any) => sent.push(m) } as any;
-        const mod = new ProactiveControlCommandModule(ctx);
-        await mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42 }));
-        expect(sent).toHaveLength(0);
+    it('no proactive engine (clean build) → still sends an availability card, control-less', async () => {
+        const h = harness({ noEngine: true });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42 }));
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'available', proactiveControlAvailable: false });
+    });
+
+    it('clean build: .noai → unavailable/noai, proactiveControlAvailable false', async () => {
+        const h = harness({ noEngine: true, noAi: true });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'noai', proactiveControlAvailable: false });
+    });
+    it('clean build: Iris disabled → unavailable/iris-off', async () => {
+        const h = harness({ noEngine: true, settings: { settings: { enabled: false, proactiveStruggleEnabled: true } } });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'iris-off', proactiveControlAvailable: false });
+    });
+    it('clean build: course-proactive-off is masked → available', async () => {
+        const h = harness({ noEngine: true, settings: { settings: { enabled: true, proactiveStruggleEnabled: false } } });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'available', proactiveControlAvailable: false });
+    });
+    it('full build: sends proactiveControlAvailable true', async () => {
+        const h = harness({});
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'available', proactiveControlAvailable: true });
     });
 
     // ── Slice 5c: card-state derivation ────────────────────────────────────

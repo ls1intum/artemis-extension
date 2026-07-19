@@ -1,8 +1,35 @@
+/* §14 chat-off notice, neutral (no warning colour, no accent line). Spaced from .main by Container's flex gap. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--theme-border);
+  background: var(--vscode-editorWidget-background, transparent);
+  border-radius: 5px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+.noticeIcon { flex: none; opacity: 0.8; }
+
 /* Top row: Iris logo, chat blurb, Ask button. */
 .main {
   display: flex;
   align-items: center;
   gap: var(--theme-container-padding);
+}
+
+/* Chat-off: dim the row, leaving the notice sharp. */
+.mainMuted .logo { filter: grayscale(0.6); opacity: 0.7; }
+.mainMuted .title { color: var(--vscode-descriptionForeground); }
+.mainMuted .description { color: var(--vscode-descriptionForeground); opacity: 0.85; }
+
+/* Neutral disabled Ask — higher specificity than the shared .btn:disabled so it reads as a deliberate off-state. */
+.buttonCol .unavailableAsk:disabled {
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--theme-border);
+  opacity: 1;
 }
 
 .logoCol {
