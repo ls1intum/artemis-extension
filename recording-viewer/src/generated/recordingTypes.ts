@@ -124,8 +124,10 @@ export interface StartupPhaseCompleteEvent {
 
 /**
  * Provenance event emitted once during the startup-contributor phase before
- * `startupPhaseComplete`. Captures the values of struggle-detection settings
- * at session start so analysis can classify control vs treatment sessions.
+ * `startupPhaseComplete`. `struggleDetectionEnabled` / `showInterventions` are
+ * legacy compatibility fields: the settings they used to read were removed
+ * (#352), so both are pinned `true` and no longer carry a control/treatment
+ * measurement. Kept only so old and new recordings share one schema.
  */
 export interface ConfigurationSnapshotEvent {
     type: 'configurationSnapshot';
@@ -138,9 +140,10 @@ export interface ConfigurationSnapshotEvent {
 }
 
 /**
- * Provenance event emitted whenever one of the recorded struggle-detection
- * settings changes mid-session. Each property is only present when its value
- * changed in the triggering configuration event.
+ * Legacy-only event: the settings it tracked were removed (#352), so it is no
+ * longer produced. Parsed only for backward compatibility with old
+ * recordings, where each property was present only when its value changed in
+ * the triggering configuration event.
  */
 export interface ConfigurationChangeEvent {
     type: 'configurationChange';
@@ -443,7 +446,8 @@ export interface SubmissionEvent {
 export type SubmissionPayload = Pick<SubmissionEvent, 'status' | 'participationId' | 'commitMessage' | 'failureReason'>;
 
 // ── Block L: Engine score + alert events (schemaVersion 3) ────────
-/** Boundary types as recorded (mirror of services/struggle BoundaryType). */
+/** Boundary types as recorded. FM_PLUS is legacy (no longer emitted by the live
+ *  engine) but retained so historical recordings still parse. */
 export type RecordedBoundaryType = 'FM' | 'FM_PLUS' | 'E4' | 'N1' | 'STATE';
 
 /** Engine per-tick score sample (every 10 s). v3 2-feature substrate: the v2

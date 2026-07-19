@@ -103,8 +103,8 @@ Not everything recorder-related lives here. The core is self-contained, but:
 
 - `activation/sessionRecorderWiring.ts` — wires the recorder into the extension
   (instantiates it, registers the three startup contributors: panel
-  visibility, struggle-detection configuration, and the initial breakpoint
-  snapshot).
+  visibility, the pinned legacy configuration snapshot, and the initial
+  breakpoint snapshot).
 - `sensing/buildResultGuard.ts` — shared `shouldAcceptBuildResult()` used by
   both the struggle coordinator and the recorder's `onNewResult` path.
 

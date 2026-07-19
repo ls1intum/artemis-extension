@@ -8,7 +8,8 @@
  *
  * Whitebox brittleness:
  *  - Drives the coordinator's recorder-feed EventEmitters via a stub.
- *  - Stubs vscode.workspace.onDidChangeConfiguration to capture the listener.
+ *  - Stubs vscode.workspace.onDidChangeConfiguration as a call-counting spy:
+ *    the wiring must register zero listeners on it (#352).
  *  - Stubs vscode.workspace.getConfiguration with mutable backing values.
  */
 
@@ -36,7 +37,6 @@ import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type {
     AlertEvent,
     BreakpointChangeEvent,
-    ConfigurationChangeEvent,
     ConfigurationSnapshotEvent,
     PanelVisibilityEvent,
     RecordedEvent,
@@ -51,8 +51,6 @@ import { TestSensorHub } from '@test/__shared__/testSensorHub';
 import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
 interface MutableConfigState {
-    enabled: boolean;
-    showInterventions: unknown;   // unknown so tests can simulate non-boolean
     developerMode: boolean;
 }
 
@@ -86,12 +84,6 @@ function installConfigStub(sandbox: sinon.SinonSandbox, state: MutableConfigStat
         return {
             ...real,
             get: <T>(key: string, def?: T): T => {
-                if (section === 'artemis.struggleDetection' && key === 'enabled') {
-                    return state.enabled as unknown as T;
-                }
-                if (section === 'artemis.struggleDetection' && key === 'showInterventions') {
-                    return state.showInterventions as T;
-                }
                 if (section === 'artemis' && key === 'developerMode') {
                     return state.developerMode as unknown as T;
                 }
@@ -266,8 +258,9 @@ interface WiringHarness {
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatProvider: ChatProviderStub;
     tmpDir: string;
-    configState: MutableConfigState;
-    capturedConfigListener: () => ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
+    /** Number of times the wiring registered a `vscode.workspace.onDidChangeConfiguration`
+     *  listener during construction. Must be 0 since #352 (legacy settings removed). */
+    configurationListenerRegistrations: () => number;
     clickRecord: () => Promise<void>;
     dispose: () => Promise<void>;
 }
@@ -288,11 +281,8 @@ async function makeWiringHarness(
 
     installConfigStub(sandbox, configState);
 
-    let captured: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
-    sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake((listener: (e: vscode.ConfigurationChangeEvent) => void) => {
-        captured = listener;
-        return new vscode.Disposable(() => { /* noop */ });
-    });
+    const onDidChangeConfigurationStub = sandbox.stub(vscode.workspace, 'onDidChangeConfiguration')
+        .returns(new vscode.Disposable(() => { /* noop */ }));
 
     // The extension under test is already activated by the test runner and has
     // registered `artemis.toggleRecording`. Stub registerCommand so the wiring's
@@ -338,8 +328,7 @@ async function makeWiringHarness(
         artemisWebviewProvider: artemisProvider,
         chatProvider,
         tmpDir,
-        configState,
-        capturedConfigListener: () => captured,
+        configurationListenerRegistrations: () => onDidChangeConfigurationStub.callCount,
         clickRecord: async () => {
             if (!capturedRecordHandler) {
                 throw new Error('Record-toggle handler was not registered');
@@ -367,8 +356,8 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         sandbox.restore();
     });
 
-    test('configurationSnapshot is emitted at startup with engineVersion v3', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: false, developerMode: false });
+    test('configuration snapshot records the pinned legacy values', async () => {
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             await harness.recorder.startSession(42);
             await harness.recorder.endSession();
@@ -377,15 +366,24 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             const snap = events.find(e => e.type === 'configurationSnapshot') as ConfigurationSnapshotEvent | undefined;
             assert.ok(snap, 'configurationSnapshot missing — startup contributor not registered?');
             assert.strictEqual(snap!.struggleDetectionEnabled, true);
-            assert.strictEqual(snap!.showInterventions, false);
+            assert.strictEqual(snap!.showInterventions, true);
             assert.strictEqual(snap!.engineVersion, 'v3');
         } finally {
             await harness.dispose();
         }
     });
 
+    test('registers no configuration listener (legacy settings removed, #352)', async () => {
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
+        try {
+            assert.strictEqual(harness.configurationListenerRegistrations(), 0, 'wiring must not watch configuration anymore');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
     test('initial breakpoint snapshot is emitted at startup for in-root breakpoints only', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         const exerciseRoot = vscode.Uri.file(path.join(harness.tmpDir, 'ex'));
         const inRootUri = vscode.Uri.file(path.join(exerciseRoot.fsPath, 'Main.java'));
         const outOfRootUri = vscode.Uri.file(path.join(os.tmpdir(), `wiring-bp-out-${process.pid}.java`));
@@ -414,7 +412,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidOpenTestResultsOverview to the recorder', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const recordStub = sandbox.stub(harness.recorder, 'recordTestResultsOverviewOpened');
             const payload: TestResultsOverviewOpenedPayload = { viewId: 'v', exerciseId: 1, totalTests: 2, passedTests: 1, failedTests: 1 };
@@ -427,7 +425,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidCloseTestResultsOverview to the recorder', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const recordStub = sandbox.stub(harness.recorder, 'recordTestResultsOverviewClosed');
             const payload: TestResultsOverviewClosedPayload = { viewId: 'v', exerciseId: 1, durationMs: 100, closeReason: 'button' };
@@ -440,7 +438,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidOpenTaskFeedback to the recorder', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const recordStub = sandbox.stub(harness.recorder, 'recordTaskFeedbackOpened');
             const payload: TaskFeedbackOpenedPayload = { viewId: 'v', exerciseId: 1, taskName: 't', testIds: [1, 2], totalTests: 2, passedTests: 1, failedTests: 1 };
@@ -453,7 +451,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidCloseTaskFeedback to the recorder', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const recordStub = sandbox.stub(harness.recorder, 'recordTaskFeedbackClosed');
             const payload: TaskFeedbackClosedPayload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 100, closeReason: 'button' };
@@ -466,7 +464,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidSubmission to the recorder', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const recordStub = sandbox.stub(harness.recorder, 'recordSubmission');
             const payload: SubmissionPayload = { status: 'started', participationId: 99, commitMessage: 'wip' };
@@ -478,37 +476,10 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         }
     });
 
-    test('configurationChange is recorded when the listener fires', async () => {
-        // Initial config: showInterventions=true. Listener caches that on construction.
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
-        try {
-            await harness.recorder.startSession(42);
-            const listener = harness.capturedConfigListener();
-            assert.ok(listener, 'wireSessionRecorder did not register an onDidChangeConfiguration listener');
-
-            // Mutate the backing state; the configStub's get() will now return false.
-            harness.configState.showInterventions = false;
-            listener!({
-                affectsConfiguration: (k: string) => k === 'artemis.struggleDetection',
-            } as vscode.ConfigurationChangeEvent);
-
-            await harness.recorder.endSession();
-
-            const events = await readAllRecordedEvents(harness.tmpDir);
-            const change = events.find(e => e.type === 'configurationChange') as ConfigurationChangeEvent | undefined;
-            assert.ok(change, 'configurationChange missing');
-            assert.deepStrictEqual(change!.changes, { showInterventions: false });
-        } finally {
-            await harness.dispose();
-        }
-    });
-
     test('recorder gate reads from contextStore.getWorkspaceExerciseId; chat getter is unused', async () => {
         const workspaceGetter = sinon.spy(() => 99);
         const contextStore = { getWorkspaceExerciseId: workspaceGetter } as unknown as ContextStore;
         const initial: MutableConfigState = {
-            enabled: true,
-            showInterventions: true,
             developerMode: false,
         };
         const harness = await makeWiringHarness(sandbox, initial, contextStore);
@@ -524,7 +495,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     // ── Forwarding: Iris chat ──────────────────────────────────────────────
 
     test('forwards onDidSendIrisChatMessage to recordIrisChatSent', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordIrisChatSent');
             (harness.chatProvider as unknown as { fireSendIris: (t: string) => void }).fireSendIris('hello iris');
@@ -535,7 +506,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidReceiveIrisChatMessage to recordIrisChatReceived', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordIrisChatReceived');
             (harness.chatProvider as unknown as { fireReceiveIris: (m: { content: string; messageId?: string; sessionId?: string; sentAt?: number }) => void })
@@ -547,7 +518,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidAttemptIrisChatSend to recordIrisChatSendAttempt', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordIrisChatSendAttempt');
             (harness.chatProvider as unknown as { fireAttemptIris: (p: { content: string; status: 'pending' | 'sent' | 'failed'; errorMessage?: string }) => void })
@@ -559,7 +530,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidProvideIrisChatFeedback to recordIrisChatFeedback', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordIrisChatFeedback');
             (harness.chatProvider as unknown as { fireFeedbackIris: (p: { messageId: string; helpful: boolean }) => void })
@@ -573,7 +544,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     // ── Forwarding: recorder feed (tick, alert) ──────
 
     test('forwards onDidTick to recordStruggleScore with the feature row', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordStruggleScore');
             harness.coordinator.fireTick(makeTick());
@@ -589,7 +560,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('onDidTick is recorded as a struggleScore event on disk', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             await harness.recorder.startSession(42);
             harness.coordinator.fireTick(makeTick({ t: 20 }));
@@ -606,7 +577,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidAlert to recordAlert with theta=THETA_FULL', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordAlert');
             harness.coordinator.fireAlert(makeAlert());
@@ -620,7 +591,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('onDidAlert is recorded as an alert event on disk', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             await harness.recorder.startSession(42);
             harness.coordinator.fireAlert(makeAlert({ t: 45, primary: 'E4', types: ['E4', 'N1'], path: 'e6' }));
@@ -641,7 +612,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('a discrete Test-Stagnation alert is recorded with its kind + trigger and round-trips', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             await harness.recorder.startSession(7);
             harness.coordinator.fireAlert(makeDiscreteAlert());
@@ -662,7 +633,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     // ── Forwarding: navigation + panel visibility ──────────────────────────
 
     test('forwards onDidChangeViewNavigation to recordViewNavigation', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordViewNavigation');
             (harness.artemisWebviewProvider as unknown as { fireViewNavigation: (p: { from: string; to: string }) => void })
@@ -674,7 +645,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards artemis onDidChangePanelVisibility to recordPanelVisibility(artemis)', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordPanelVisibility');
             (harness.artemisWebviewProvider as unknown as { fireArtemisPanelVisibility: (v: boolean) => void }).fireArtemisPanelVisibility(true);
@@ -685,7 +656,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards chat onDidChangePanelVisibility to recordPanelVisibility(chat)', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordPanelVisibility');
             (harness.chatProvider as unknown as { fireChatPanelVisibility: (v: boolean) => void }).fireChatPanelVisibility(false);
@@ -696,7 +667,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidProblemStatementScroll to recordProblemStatementScroll', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordProblemStatementScroll');
             const payload: ProblemStatementScrollPayload = { scrollTop: 10, scrollHeight: 2000, viewportHeight: 700, statementTop: 800, statementHeight: 900 };
@@ -709,7 +680,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     });
 
     test('forwards onDidProblemStatementSelection to recordProblemStatementSelection', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             const stub = sandbox.stub(harness.recorder, 'recordProblemStatementSelection');
             const payload: ProblemStatementSelectionPayload = {
@@ -727,7 +698,7 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
     // ── Startup contributors: panelVisibility seeds ─────────
 
     test('startup seeds panelVisibility for both artemis and chat from getCurrentVisibility()', async () => {
-        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
             // Reassign each provider's getter so the seed value is genuinely READ, not
             // hardcoded. Artemis returns a non-default `true`; chat keeps `false` but via a

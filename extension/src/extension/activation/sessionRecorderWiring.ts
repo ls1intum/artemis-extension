@@ -18,7 +18,6 @@ import { SPEC } from '@extension/services/struggle/config';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { PlatformCapabilities } from '@extension/theia';
-import { VSCODE_CONFIG } from '@extension/utils/constants';
 
 interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
@@ -174,18 +173,15 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         ];
     }));
 
-    // Configuration snapshot — captures struggle-detection setting values at
-    // session start so analysis can classify control vs treatment sessions.
+    // Configuration snapshot: legacy compatibility fields (#352). The settings were
+    // removed, so both values are pinned true; kept only so old and new recordings
+    // share one schema. engineVersion remains meaningful.
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
-        const struggleConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
-        const enabled = struggleConfig.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
-        const rawShow = struggleConfig.get<unknown>(VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY, true);
-        const showInterventions = typeof rawShow === 'boolean' ? rawShow : true;
         return [{
             type: 'configurationSnapshot',
             timestamp: ctx.timestamp,
-            struggleDetectionEnabled: enabled,
-            showInterventions,
+            struggleDetectionEnabled: true,
+            showInterventions: true,
             engineVersion: 'v3',
         }];
     }));
@@ -197,40 +193,6 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         const root = ctx.exerciseRoot ? vscode.Uri.parse(ctx.exerciseRoot) : undefined;
         const snapshot = collectInitialBreakpointSnapshot(sensorHub.readBreakpoints(), root, ctx.timestamp);
         return snapshot ? [snapshot] : [];
-    }));
-
-    // Runtime configuration changes for struggle-detection settings — recorded
-    // so mid-session flips can be reconciled with intervention events by timestamp.
-    const readStruggleEnabled = (): boolean => {
-        const cfg = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
-        return cfg.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
-    };
-    const readShowInterventions = (): boolean => {
-        const cfg = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
-        const raw = cfg.get<unknown>(VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY, true);
-        return typeof raw === 'boolean' ? raw : true;
-    };
-    let lastStruggleEnabled = readStruggleEnabled();
-    let lastShowInterventions = readShowInterventions();
-
-    disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
-        if (!event.affectsConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION)) {
-            return;
-        }
-        const newEnabled = readStruggleEnabled();
-        const newShow = readShowInterventions();
-        const changes: { struggleDetectionEnabled?: boolean; showInterventions?: boolean } = {};
-        if (newEnabled !== lastStruggleEnabled) {
-            changes.struggleDetectionEnabled = newEnabled;
-            lastStruggleEnabled = newEnabled;
-        }
-        if (newShow !== lastShowInterventions) {
-            changes.showInterventions = newShow;
-            lastShowInterventions = newShow;
-        }
-        if (Object.keys(changes).length > 0) {
-            sessionRecorder.recordConfigurationChange(changes);
-        }
     }));
 
     // Recording status bar button
