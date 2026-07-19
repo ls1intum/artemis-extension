@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
-import * as sinon from 'sinon';
 
 import type { StruggleDebugSnapshot } from '@shared/messageContracts';
 
@@ -182,7 +181,7 @@ suite('StruggleCoordinator', () => {
         }
     });
 
-    test('an idle session drives the engine to an alert and the sink receives it', () => {
+    test('delivery is ungated by configuration: an idle STATE alert reaches the sink (#352)', () => {
         coord.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
         coord.advanceTo(coord.sessionStartMs + 520_000);   // test-only passthrough to engine.advanceTo
         assert.ok(delivered.length >= 1);
@@ -223,34 +222,25 @@ suite('StruggleCoordinator', () => {
         assert.strictEqual(snap.sessionSeconds, 0);
     });
 
-    test('struggleDetection.enabled=false suppresses intervention delivery (engine still ticks)', () => {
-        // Stub the config so the coordinator reads enabled=false at construction.
-        const realGet = vscode.workspace.getConfiguration;
-        const stub = sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
-            const cfg = realGet.call(vscode.workspace, section);
-            if (section === 'artemis.struggleDetection') {
-                return { ...cfg, get: (key: string, dflt?: unknown) => (key === 'enabled' ? false : cfg.get(key, dflt)) } as vscode.WorkspaceConfiguration;
-            }
-            return cfg;
+    test('isConsentGranted reflects the consent dep', () => {
+        const granted = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ } },
+            exerciseRegistry: undefined,
+            detectionConsent: grantedConsent(),
+        });
+        const denied = new StruggleCoordinator({
+            hub: new TestSensorHub(),
+            alertSink: { deliver: () => { /* noop */ } },
+            exerciseRegistry: undefined,
+            detectionConsent: { isGranted: () => false, onDidChange: () => new vscode.Disposable(() => { /* noop */ }) },
         });
         try {
-            const seen: AlertRecord[] = [];
-            const disabled = new StruggleCoordinator({
-                hub: new TestSensorHub(),
-                alertSink: { deliver: a => seen.push(a) },
-                exerciseRegistry: undefined,
-                detectionConsent: grantedConsent(),
-            });
-            try {
-                assert.strictEqual(disabled.isEnabled(), false);
-                disabled.startExerciseSession(1, vscode.Uri.parse('file:///ws'));
-                disabled.advanceTo(disabled.sessionStartMs + 520_000);   // would alert at t=490 if enabled
-                assert.strictEqual(seen.length, 0, 'no intervention delivered while disabled');
-            } finally {
-                disabled.dispose();
-            }
+            assert.strictEqual(granted.isConsentGranted(), true);
+            assert.strictEqual(denied.isConsentGranted(), false);
         } finally {
-            stub.restore();
+            granted.dispose();
+            denied.dispose();
         }
     });
 
@@ -384,45 +374,6 @@ suite('StruggleCoordinator', () => {
         assert.strictEqual(coord.getDebugSnapshot().sessionActive, false);
     });
 
-    test('turning showInterventions off mid-session clears the UI (reset) WITHOUT resetting the throttle budget (resetSession)', () => {
-        let showInterventions = true;
-        const realGet = vscode.workspace.getConfiguration;
-        const getStub = sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
-            const cfg = realGet.call(vscode.workspace, section);
-            if (section === 'artemis.struggleDetection') {
-                return { ...cfg, get: (key: string, dflt?: unknown) => (key === 'showInterventions' ? showInterventions : cfg.get(key, dflt)) } as vscode.WorkspaceConfiguration;
-            }
-            return cfg;
-        });
-        let configHandler: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
-        const onChangeStub = sinon.stub(vscode.workspace, 'onDidChangeConfiguration')
-            .callsFake(((h: (e: vscode.ConfigurationChangeEvent) => void) => {
-                configHandler = h;
-                return new vscode.Disposable(() => { /* noop */ });
-            }) as typeof vscode.workspace.onDidChangeConfiguration);
-        try {
-            const calls = { reset: 0, resetSession: 0 };
-            const c = new StruggleCoordinator({
-                hub: new TestSensorHub(),
-                alertSink: { deliver: () => { /* noop */ }, reset: () => { calls.reset++; }, resetSession: () => { calls.resetSession++; } },
-                exerciseRegistry: undefined,
-                detectionConsent: grantedConsent(),
-            });
-            try {
-                c.startExerciseSession(1);                       // resetSession -> 1
-                const sessionResetsBefore = calls.resetSession;
-                showInterventions = false;                       // toggle delivery off mid-session
-                configHandler?.({ affectsConfiguration: () => true } as vscode.ConfigurationChangeEvent);
-                assert.strictEqual(calls.reset, 1, 'config-off clears the UI via reset');
-                assert.strictEqual(calls.resetSession, sessionResetsBefore, 'config-off must NOT reset the throttle budget');
-            } finally {
-                c.dispose();
-            }
-        } finally {
-            onChangeStub.restore();
-            getStub.restore();
-        }
-    });
 });
 
 suite('StruggleCoordinator consent gate (#349)', () => {

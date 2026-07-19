@@ -25,7 +25,7 @@ export type IStruggleCoordinator = Pick<StruggleCoordinator,
     | 'endExerciseSession'
     | 'getSnapshot'
     | 'getDebugSnapshot'
-    | 'isEnabled'
+    | 'isConsentGranted'
     | 'toggleSkipWarmup'
     | 'isSkipWarmup'
     | 'dispose'

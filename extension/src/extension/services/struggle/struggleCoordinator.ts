@@ -75,8 +75,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     private _sessionStartMs = 0;
     private _lastTick: TickRecord | undefined;
     private _lastAlert: AlertRecord | undefined;
-    private _isEnabled = true;
-    private _showInterventions = true;
     /** Dev-only: D1 warm-up skip (toggled by the developer command). */
     private _skipWarmup = false;
     /** Maximum passed-test count seen in the active session (-1 = no build yet). Reset on each new session. */
@@ -95,29 +93,20 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._engine = new StruggleEngine(this._hub, this._clock);
         this._disposables.push(this._onDidStartSession, this._onDidEndSession);
 
-        // Engine alert → sink (UI gated) + snapshot bookkeeping.
-        // The alert is ALWAYS recorded via the engine's onDidAlert (the recorder
-        // wiring subscribes the engine directly); only UI delivery is gated.
-        // Delivery requires BOTH struggle detection enabled AND interventions
-        // shown: disabling detection (enabled=false) must suppress interventions.
+        // Engine alert → sink + snapshot bookkeeping. Delivery is ungated here (#352):
+        // consent gates the engine itself (#349), and the per-exercise level plus the
+        // throttle gate the surfaces downstream.
         this._disposables.push(this._engine.onDidAlert(alert => {
             this._lastAlert = alert;
-            if (this._isEnabled && this._showInterventions) {
-                this._alertSink.deliver(alert);
-            }
+            this._alertSink.deliver(alert);
         }));
         this._disposables.push(this._engine.onDidTick(tick => { this._lastTick = tick; }));
 
-        this._loadConfiguration();
-        this._disposables.push(vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('artemis.struggleDetection')) { this._loadConfiguration(); }
-        }));
         this._disposables.push(this._detectionConsent.onDidChange(() => this._reconcileConsent()));
     }
 
     // ── WebSocket handler (build-result producer) ──────────────────────
     onNewResult(result: ResultDTO): void {
-        if (!this._isEnabled) { return; }
         // #349: without a running (= consented) engine a build result must not be
         // observed - no hub emit, no baseline mutation, no progress-latch signal.
         if (!this._engineRunning) { return; }
@@ -344,7 +333,8 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         };
     }
 
-    isEnabled(): boolean { return this._isEnabled; }
+    /** Consent state for the debug view (#352): sampled at init/tick/start/end refreshes. */
+    isConsentGranted(): boolean { return this._detectionConsent.isGranted(); }
 
     /** Dev command: toggle the D1 warm-up skip on the engine. Returns the new state. */
     toggleSkipWarmup(): boolean {
@@ -355,19 +345,6 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
 
     /** Whether dev skip-warmup is currently active. */
     isSkipWarmup(): boolean { return this._skipWarmup; }
-
-    private _loadConfiguration(): void {
-        const cfg = vscode.workspace.getConfiguration('artemis.struggleDetection');
-        const prevDeliver = this._isEnabled && this._showInterventions;
-        this._isEnabled = cfg.get<boolean>('enabled', true);
-        this._showInterventions = cfg.get<boolean>('showInterventions', true);
-        // On any transition that turns delivery off (detection disabled OR
-        // interventions hidden), clear a visible hint immediately. The engine
-        // keeps computing/recording — only UI delivery is suppressed.
-        if (prevDeliver && !(this._isEnabled && this._showInterventions)) {
-            this._alertSink.reset?.();
-        }
-    }
 
     dispose(): void {
         this._websocketService?.unregisterMessageHandler(this);   // parity with v1 TelemetryManager.dispose

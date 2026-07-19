@@ -91,15 +91,15 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                             margin: '0 0 8px 0',
                             color: 'var(--vscode-foreground)'
                         }}>
-                            Struggle Detection Disabled
+                            Struggle Detection Inactive
                         </p>
                         <p style={{
                             margin: 0,
                             fontSize: '14px',
                             color: 'var(--vscode-descriptionForeground)'
                         }}>
-                            This feature is currently disabled in your settings. Enable it under
-                            &quot;Artemis: Struggle Detection&quot; to start monitoring your development patterns.
+                            Struggle detection needs your consent to run. Grant it via the setting
+                            &quot;Artemis › Iris: Proactive Code Egress&quot; to start local typing/pause analysis.
                         </p>
                     </div>
                 </Container>

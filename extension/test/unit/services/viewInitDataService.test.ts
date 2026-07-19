@@ -6,7 +6,7 @@ import { ViewInitDataService } from '@extension/services/ui/viewInitDataService'
 
 type Posted = ExtensionToWebviewMessage | undefined;
 
-function buildService(coursesData: { courses: Array<{ course: { id?: number; title?: string; exercises?: unknown[] } }> }) {
+function buildService(coursesData: { courses: Array<{ course: { id?: number; title?: string; exercises?: unknown[] } }> }, coordinator?: unknown) {
     let posted: Posted = undefined;
     const appState = {
         coursesData,
@@ -19,7 +19,7 @@ function buildService(coursesData: { courses: Array<{ course: { id?: number; tit
     const courseAccessStorage = { getLastAccessedCourses: () => [] } as never;
     const service = new ViewInitDataService(
         appState,
-        undefined,
+        coordinator as never,
         messageHandler,
         (msg: ExtensionToWebviewMessage) => { posted = msg; },
         courseAccessStorage,
@@ -88,6 +88,17 @@ suite('ViewInitDataService.buildStruggleDetectionInit', () => {
         const { service } = buildService({ courses: [] });
         const msg = service.buildStruggleDetectionInit({ embedded: true }) as Record<string, unknown>;
         assert.strictEqual(msg.embedded, true);
+    });
+
+    test('isEnabled is sourced from the coordinator consent state (#352)', () => {
+        const coordinator = {
+            isConsentGranted: () => true,
+            getSnapshot: () => ({}),
+            getDebugSnapshot: () => undefined,
+        };
+        const { service } = buildService({ courses: [] }, coordinator);
+        const msg = service.buildStruggleDetectionInit() as Record<string, unknown>;
+        assert.strictEqual(msg.isEnabled, true, 'granted consent surfaces as isEnabled');
     });
 });
 

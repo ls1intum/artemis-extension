@@ -253,7 +253,7 @@ export class ViewInitDataService {
         return {
             type: ExtensionMsg.StruggleDetectionInit,
             urgency: snapshot?.urgency ?? 0,
-            isEnabled: coordinator?.isEnabled() ?? false,
+            isEnabled: coordinator?.isConsentGranted() ?? false,
             developerMode,
             // Dev dashboard only: the full timers/counters snapshot. Omitted for normal students.
             debug: developerMode ? coordinator?.getDebugSnapshot() : undefined,

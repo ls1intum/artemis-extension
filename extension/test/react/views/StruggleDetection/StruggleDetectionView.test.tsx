@@ -99,4 +99,12 @@ describe('StruggleDetectionView', () => {
         expect(screen.getByText('Decision flow')).toBeInTheDocument();   // pipeline fed by init data
         expect(screen.getByText(/Engine timers/i)).toBeInTheDocument();
     });
+
+    it('shows the consent-needed inactive copy when isEnabled is false (#352)', () => {
+        const api = createMockVsCodeApi();
+        render(<StruggleDetectionView vscodeApi={api} />);
+        act(() => dispatchExtensionMessage(init({ isEnabled: false })));
+        expect(screen.getByText(/needs your consent/i)).toBeInTheDocument();
+        expect(screen.getByText(/proactive code egress/i)).toBeInTheDocument();
+    });
 });
