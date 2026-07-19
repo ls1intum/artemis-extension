@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 
 import type { StruggleDebugSnapshot } from '@shared/messageContracts';
 
@@ -372,6 +373,32 @@ suite('StruggleCoordinator', () => {
         assert.strictEqual(coord.getDebugSnapshot().sessionActive, true);
         coord.endExerciseSession();
         assert.strictEqual(coord.getDebugSnapshot().sessionActive, false);
+    });
+
+    test('construction touches no legacy struggleDetection configuration or config listeners (#352)', () => {
+        const getConfigSpy = sinon.spy(vscode.workspace, 'getConfiguration');
+        const onDidChangeConfigSpy = sinon.spy(vscode.workspace, 'onDidChangeConfiguration');
+        try {
+            const c = new StruggleCoordinator({
+                hub: new TestSensorHub(),
+                alertSink: { deliver: () => { /* noop */ } },
+                exerciseRegistry: undefined,
+                detectionConsent: grantedConsent(),
+            });
+            try {
+                const struggleDetectionCalls = getConfigSpy.getCalls()
+                    .filter(call => call.args[0] === 'artemis.struggleDetection');
+                assert.deepStrictEqual(struggleDetectionCalls, [],
+                    'the coordinator must never read the removed artemis.struggleDetection configuration section');
+                assert.strictEqual(onDidChangeConfigSpy.callCount, 0,
+                    'the coordinator registers no vscode configuration listener; its only listener is the consent dep\'s own onDidChange, stubbed here');
+            } finally {
+                c.dispose();
+            }
+        } finally {
+            getConfigSpy.restore();
+            onDidChangeConfigSpy.restore();
+        }
     });
 
 });

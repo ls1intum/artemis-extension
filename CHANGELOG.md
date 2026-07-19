@@ -9,6 +9,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **WebSocket status bar:** Removed the `artemis.showWebSocketStatusBar` setting. The connection indicator now appears automatically only when there is a problem; enable `artemis.developerMode` to keep it always visible with full diagnostics on hover. When the connection drops, students now see a plain-language explanation (no "WS" jargon) instead of a technical label.
 - **Server URL change:** Removed the manual "Clear Credentials" prompts that appeared when the Artemis server URL changed. Changing the server while logged in now logs you out automatically and returns you to the login view (a session is not valid across servers); the logout command remains for clearing credentials on demand.
 - **Proactive help consent:** Struggle detection now starts only after the proactive-help consent (`artemis.iris.proactiveCodeEgress`) is explicitly enabled. Without consent nothing is observed or computed locally (previously only sending was blocked); granting mid-session starts detection fresh, and revoking stops it immediately and clears any visible hint.
+- Removed the legacy settings `artemis.struggleDetection.enabled` and `artemis.struggleDetection.showInterventions`; proactive help is now controlled solely by the code-reading consent (`artemis.iris.proactiveCodeEgress`) and the per-exercise Off/Less/More level. An existing `false` value of the old settings no longer has any effect.
 
 ### Fixed
 

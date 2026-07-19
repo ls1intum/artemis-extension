@@ -112,6 +112,13 @@ describe('generate-clean-manifest: cleanManifest', () => {
 describe('generate-clean-manifest against the real package.json', () => {
     const realManifest = (): Manifest => JSON.parse(readFileSync(join(__dirname, '../../../package.json'), 'utf8'));
 
+    it('neither profile emits any artemis.struggleDetection.* property (settings removed, #352)', () => {
+        for (const profile of ['desktop', 'openvsx'] as const) {
+            const props = cleanManifest(realManifest(), profile).contributes.configuration.properties;
+            expect(Object.keys(props).filter(k => k.startsWith('artemis.struggleDetection'))).toEqual([]);
+        }
+    });
+
     it('desktop: drops recorder + consent, keeps struggle', () => {
         const m = cleanManifest(realManifest(), 'desktop');
         const cmds = m.contributes.commands.map(c => c.command);
