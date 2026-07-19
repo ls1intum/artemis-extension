@@ -36,11 +36,6 @@ export const VSCODE_CONFIG = {
     START_PAGE_KEY: 'startPage',
     SHOW_START_PAGE_SUGGESTION_KEY: 'showStartPageSuggestion',
     DATA_COLLECTION_CONSENT_KEY: 'dataCollectionConsent',
-    STRUGGLE_DETECTION: {
-        SECTION: 'artemis.struggleDetection',
-        ENABLED_KEY: 'enabled',
-        SHOW_INTERVENTIONS_KEY: 'showInterventions',
-    },
     IRIS: {
         SECTION: 'artemis.iris',
         PROACTIVE_EGRESS_KEY: 'proactiveCodeEgress',

@@ -1,7 +1,7 @@
 // Produce a clean package.json WITHOUT mutating the source manifest. Two fail-closed
 // profiles select what is dropped:
 //   desktop  drop the recorder group only (struggle detection stays)
-//   openvsx  drop recorder + struggle groups and apply cloud/Theia setting defaults
+//   openvsx  drop recorder + struggle command groups and apply cloud/Theia setting defaults
 // CLI: generate-clean-manifest.js <out-path> --profile=desktop|openvsx. See docs/adr/002 + 003.
 const fs = require('fs');
 const path = require('path');
@@ -12,15 +12,6 @@ const CLOUD_SETTING_DEFAULTS = {
     'artemis.showStartPageSuggestion': false,
     'artemis.showSetDefaultClonePathPrompt': false,
 };
-
-// Struggle settings whose backing feature is excluded from the clean build. Removed
-// ENTIRELY (not just defaulted) so the manifest advertises no absent feature: the
-// struggle engine is provably absent from the EduIDE bundle (verify-clean-bundle.js),
-// so its settings must not appear either.
-const STRUGGLE_SETTINGS = [
-    'artemis.struggleDetection.enabled',
-    'artemis.struggleDetection.showInterventions',
-];
 
 const RECORDER_COMMANDS = new Set(['artemis.replaySession', 'artemis.openRecordingsFolder']);
 const STRUGGLE_COMMANDS = new Set(['artemis.showStruggleScore']);
@@ -43,10 +34,8 @@ function dropRecorderGroup(m) {
 }
 
 function dropStruggleGroup(m) {
-    const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
-    if (props) {
-        for (const key of STRUGGLE_SETTINGS) { delete props[key]; }
-    }
+    // The legacy struggle settings were removed from the source manifest (#352);
+    // only the struggle-score command remains to drop for the clean build.
     dropCommandsAndMenuRefs(m, STRUGGLE_COMMANDS);
 }
 

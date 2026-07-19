@@ -225,16 +225,6 @@
           "default": true,
           "description": "Ask to set a default clone folder when cloning for the first time (if no default is configured)"
         },
-        "artemis.struggleDetection.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable struggle detection to receive helpful hints when you might be stuck on a problem"
-        },
-        "artemis.struggleDetection.showInterventions": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Show help suggestions when struggle is detected (an in-editor inline cue and a sidebar banner). When **disabled**, no UI prompts will appear during struggle. Use this if you prefer to work without interruptions."
-        },
         "artemis.startPage": {
           "type": "string",
           "enum": [

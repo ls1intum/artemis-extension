@@ -23,8 +23,6 @@ function baseManifest(): Manifest {
                 properties: {
                     'artemis.startPage': { type: 'string', default: 'dashboard' },
                     'artemis.showStartPageSuggestion': { type: 'boolean', default: true },
-                    'artemis.struggleDetection.enabled': { type: 'boolean', default: true },
-                    'artemis.struggleDetection.showInterventions': { type: 'boolean', default: true },
                     'artemis.showSetDefaultClonePathPrompt': { type: 'boolean', default: true },
                     'artemis.dataCollectionConsent': { type: 'string', default: 'pending' },
                     'artemis.serverUrl': { type: 'string', default: 'https://artemis.tum.de' },
@@ -59,14 +57,12 @@ describe('generate-clean-manifest: cleanManifest', () => {
     });
 
     describe('desktop profile', () => {
-        it('drops the recorder group but keeps struggle', () => {
+        it('drops the recorder group, keeps the struggle-score command', () => {
             const m = cleanManifest(baseManifest(), 'desktop');
             expect(m.contributes.configuration.properties['artemis.dataCollectionConsent']).toBeUndefined();
             expect(m.contributes.commands.map(c => c.command)).toEqual([
                 'artemis.login', 'artemis.showStruggleScore',
             ]);
-            // struggle settings keep their real defaults on Desktop
-            expect(m.contributes.configuration.properties['artemis.struggleDetection.enabled'].default).toBe(true);
         });
         it('drops the recorder commandPalette entries (no dangling ref)', () => {
             const cp = cleanManifest(baseManifest(), 'desktop').contributes.menus!.commandPalette!;
@@ -78,11 +74,6 @@ describe('generate-clean-manifest: cleanManifest', () => {
         it('applies the cloud setting-default overrides', () => {
             const props = cleanManifest(baseManifest(), 'openvsx').contributes.configuration.properties;
             expect(props['artemis.startPage'].default).toBe('workspace-exercise');
-        });
-        it('removes the struggle settings ENTIRELY (no absent feature advertised)', () => {
-            const props = cleanManifest(baseManifest(), 'openvsx').contributes.configuration.properties;
-            expect(props['artemis.struggleDetection.enabled']).toBeUndefined();
-            expect(props['artemis.struggleDetection.showInterventions']).toBeUndefined();
         });
         it('removes consent + recording + struggle-score commands', () => {
             const m = cleanManifest(baseManifest(), 'openvsx');
@@ -137,6 +128,5 @@ describe('generate-clean-manifest against the real package.json', () => {
         const cmds = m.contributes.commands.map(c => c.command);
         expect(cmds).not.toContain('artemis.replaySession');
         expect(cmds).not.toContain('artemis.showStruggleScore');
-        expect(m.contributes.configuration.properties['artemis.struggleDetection.enabled']).toBeUndefined();
     });
 });
