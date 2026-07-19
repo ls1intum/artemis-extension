@@ -187,6 +187,36 @@ Change `_push` (`extension/src/extension/controller/commands/proactiveControlCom
   a few `.banner[data-variant]` selectors become dead CSS; leaving them is
   harmless (out of scope to prune).
 
+### 6. Live `.noai` refresh (both exercise surfaces) — fixes a latent #342 gap
+
+Today `ExerciseDetailView` re-requests the card on an `UpdateNoAiStatus` message
+(`ExerciseDetailView.tsx:148`), but the only producer posts that message through
+`ChatWebviewProvider` to its **own** chat webview (`chatWebviewProvider.ts:245/882`,
+`_postMessageSafe` is provider-local). Neither the sidebar exercise view
+(`ArtemisWebviewProvider`) nor the fullscreen exercise panel ever receives it, so
+creating/deleting `.noai` while the exercise stays open leaves the card stale.
+The initial render is already correct (the view requests the card on init); this
+closes the live-toggle gap. Mirror #342's consent live-refresh, which wired both
+surfaces for exactly this reason:
+
+- **Sidebar** — `ArtemisWebviewProvider`: add `noAiDetectionService` to
+  `ArtemisWebviewProviderDeps` (wired in `extension.ts:243`; the shared instance
+  already exists at `extension.ts:214`). Subscribe to `onNoAiStatusChanged` and
+  `this._postMessageSafe({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected })`,
+  mirroring the existing consent config-listener (`artemisWebviewProvider.ts:439-447`).
+  Register the subscription as a disposable.
+- **Fullscreen** — `FullscreenPanelManager`: the provider already constructs it
+  (`artemisWebviewProvider.ts:189`), so pass the `noAiDetectionService` in (a new
+  constructor param). In `openExerciseFullscreen`, add a `noAiSub` beside the
+  existing `consentSub` (`fullscreenPanelManager.ts:29`): in `onReady`, guarded
+  `if (!noAiSub)`, subscribe to `onNoAiStatusChanged` and
+  `postSafe({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected })`; dispose in
+  `onDispose` alongside `consentSub`.
+
+The `UpdateNoAiStatus` handler in the view ignores the payload (it only
+re-requests), so posting `isNoAiDetected` is sufficient. Applies to full and
+clean builds alike.
+
 ## Out of scope
 
 - The chat-active card states (`available`, `off-course`, `degraded/limited`,
@@ -215,7 +245,9 @@ Change `_push` (`extension/src/extension/controller/commands/proactiveControlCom
    (`proactiveControlAvailable === true`).
 6. The proactive sub-section is absent whenever `unavailable` OR
    `!controlAvailable`.
-7. Lint, `check-types`, vitest (`npm run test:react`), mocha
+7. Creating/deleting `.noai` while an exercise stays open live-refreshes the card
+   in both the sidebar exercise view and the fullscreen exercise panel.
+8. Lint, `check-types`, vitest (`npm run test:react`), mocha
    (`npm run compile-tests && npm run test:unit`), and the Open VSX clean-bundle
    verifier (`npm run package:openvsx`) are green; no new
    `services/struggleIntervention/` import enters the clean bundle.
@@ -243,12 +275,20 @@ section):
   `[data-testid="ask-iris-card"]`, the old static description is absent, and no
   `[data-variant="warning"]` banner element exists above the card.
 
-`extension/test/react/AskIris.proactiveControl.test.tsx` (or the card-state file):
 - Assert the disabled Ask carries the `unavailableAsk` class in `unavailable`
-  (class-level check for the neutral restyle).
+  (class-level check for the neutral restyle) — in the card-state file above.
 
-`extension/test/unit/…/proactiveControlCommands` (mocha; whichever existing file
-covers this module, else a new one):
+**Fixture migration (`controlAvailable` is required on the VM/state):** add
+`controlAvailable: true` to the existing fixtures so they keep exercising the
+full-build path — `AskIris.proactiveControl.test.tsx:11`,
+`useExerciseDetailStore.proactiveControl.test.ts:8`,
+`ExerciseDetailView.test.tsx:168`, and the `control()` helper in
+`AskIris.cardState.test.tsx`. (`check-types` catches omissions, but list them so
+the plan is complete.)
+
+`extension/test/logic/proactiveControlCommands.test.ts` (**Vitest**, run by
+`npm run test:react`; this is the existing home of the `_push` tests — NOT a
+mocha `test/unit` file):
 - With `context.proactiveControl` **absent**, a `requestProactiveControl` push
   under `.noai` posts `UpdateProactiveControl` with
   `cardState: 'unavailable', cardReason: 'noai', proactiveControlAvailable: false`.
@@ -258,3 +298,13 @@ covers this module, else a new one):
 - With the engine present, the full path still posts
   `proactiveControlAvailable: true` and the existing derived state (regression
   guard).
+
+`extension/test/unit/provider/artemisWebviewProvider.test.ts` (**Mocha**;
+`npm run compile-tests && npm run test:unit`):
+- Firing the injected `noAiDetectionService.onNoAiStatusChanged` posts
+  `UpdateNoAiStatus` to the sidebar exercise webview.
+
+`extension/test/unit/services/ui/fullscreenPanelManager.test.ts` (**Mocha**):
+- A `.noai` flip posts `UpdateNoAiStatus` to the fullscreen panel (both
+  directions), and the subscription is disposed on panel dispose — mirroring the
+  existing #342 consent-listener coverage in this file.
