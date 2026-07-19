@@ -20,7 +20,7 @@ Three settings overlap on one concern. `artemis.struggleDetection.enabled` and `
 - Delete the two configuration properties `artemis.struggleDetection.enabled` and `artemis.struggleDetection.showInterventions` (single shared package.json).
 - The Open VSX manifest generator DOES reference these keys: `scripts/generate-clean-manifest.js` (`STRUGGLE_SETTINGS` ~line 16, `dropStruggleGroup` deletion loop ~line 45). Remove `STRUGGLE_SETTINGS` and its deletion loop; KEEP the generator's removal of `artemis.showStruggleScore`. Update `test/logic/scripts/generateCleanManifest.test.ts` so neither profile assumes the legacy settings exist.
 - Delete the `STRUGGLE_DETECTION` block from `VSCODE_CONFIG` (`extension/src/extension/utils/constants.ts:39-43`).
-- Users with a `false` value keep a harmless orphaned entry in their settings.json; no migration.
+- Users with a `false` value keep an orphaned entry in their settings.json; no migration. **Accepted compatibility break, deliberately:** both settings shipped on main (marketplace), so an explicit `false` opt-out exists in the wild and its effect disappears. This is mitigated by the consent gate itself: when this branch ships, every existing user starts at consent `ask` — the engine does not run until they explicitly grant the NEW consent prompt, which supersedes the old toggle as a fresher, better-informed choice. Declining keeps them off. The old `showInterventions=false` promise ("data collection continues unchanged") described the study recorder, which is being retired (#336).
 
 ### 2. StruggleCoordinator (`extension/src/extension/services/struggle/struggleCoordinator.ts`)
 
@@ -47,12 +47,15 @@ Three settings overlap on one concern. `artemis.struggleDetection.enabled` and `
 
 Living text that becomes wrong with the removal is updated in the same change:
 - `services/struggle/config.ts` ~line 94 (claims the settings as the user-facing source).
-- `struggleInterventionService.ts` ~lines 248, 535 (coordinator-gating comments) and ~1819 (the "settings-toggle" reset description — reword to the surviving trigger).
+- `struggleInterventionService.ts` ~lines 248, 535 (coordinator-gating comments) and ~1819 (the "settings-toggle" reset description — reword `reset()` as the shared surface-clearing helper invoked by the consent/session teardown paths; it has no standalone production caller anymore, and level-Off does NOT route through it).
 - `sessionRecorderWiring.ts` ~line 177 and `recording/types.ts` ~line 130 (control/treatment classification claims).
 - ADR `docs/adr/002-theia-openvsx-setting-defaults.md` (~line 28) and `003-theia-openvsx-telemetry-seam.md` (~line 29): mark the affected decisions superseded by #352. Historical docs/superpowers plans stay untouched.
 - `recording/types.ts` ~line 145: mark `ConfigurationChangeEvent` as legacy-only (no longer produced).
 - `recording/README.md` ~line 104: reword the startup-contributor description.
 - `recording-viewer/src/components/recordingInfoData.ts` ~line 94: update the control/treatment and live-setting descriptions (fields are pinned legacy values now).
+- `recording-viewer/src/utils/eventDisplay.tsx` ~lines 251, 401: the timeline/tooltip renderer presents the pinned fields as live state (`struggleDetection:on | interventions:on`) — label them as legacy compatibility fields there too.
+
+Intentionally RETAINED references (compatibility, do not remove): `recording/sessionRecorder.ts` ~452 (`recordConfigurationSnapshot`), `test/e2e/recording.e2e.test.ts` ~680, `test/unit/services/recording/sessionRecorder.test.ts` ~924, `recording-viewer/src/generated/recordingTypes.ts` ~131, and the parser acceptance of snapshot + configuration-change events (`parseRecordedData.ts` ~278/~290). `recording/types.ts` ~145 additionally marks `ConfigurationChangeEvent` as legacy-only (no longer produced).
 
 ## Out of scope
 
@@ -63,7 +66,7 @@ Living text that becomes wrong with the removal is updated in the same change:
 
 1. Neither setting appears in the settings UI (search "struggle" shows no legacy toggle); `package.json` has no `artemis.struggleDetection.*` contribution.
 2. No reference to the removed keys or `VSCODE_CONFIG.STRUGGLE_DETECTION` anywhere in `src/`, `package.json`, `scripts/`, or `test/` (recording legacy-schema tests and historical docs excepted).
-3. Alert delivery behavior is unchanged for consented users (level + throttle still gate); a build result is still ignored while the engine is not running.
+3. For consented users who never touched the legacy toggles, alert delivery behavior is unchanged (level + throttle still gate); a build result is still ignored while the engine is not running. A pre-existing legacy `false` no longer has any effect (accepted break, see section 1).
 4. The struggle debug view shows its inactive hint when the consent is missing at sampling time (init/tick/start/end refreshes), with consent-oriented copy.
 5. New recordings carry `struggleDetectionEnabled: true, showInterventions: true`; existing recordings and goldens parse unchanged; the recorder registers no configuration listener.
 6. Lint, `check-types`, vitest, mocha green; `npm run package:openvsx` + clean-bundle verifier pass.
