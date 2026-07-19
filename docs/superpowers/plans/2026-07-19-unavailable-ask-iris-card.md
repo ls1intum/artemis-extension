@@ -45,6 +45,7 @@ The host decoupling and the webview UI land as ONE commit so every build stays c
   - `proactiveControlCommands.ts` — add `proactiveControlAvailable: !!this.context.proactiveControl,` to the `msg` literal (`:97-103`). (Past the current early return `control` is truthy, so this is `true` for now; the clean-build path is enabled in Step 5.)
   - `useExerciseDetailStore.ts` — add `proactiveControlAvailable: boolean;` to `ProactiveControlState` (`:20-25`).
   - `AskIris.tsx` — add `controlAvailable: boolean;` to `ProactiveControlVM` (`:15-24`). (Rendering unchanged this step.)
+  - `ExerciseDetailView.tsx` — the required fields need their consumers NOW or `check-types` fails: in the `UpdateProactiveControl` handler (`:138-143`) add `proactiveControlAvailable: msg.proactiveControlAvailable,`; in `proactiveVM` (`:255-264`) add `controlAvailable: proactiveControl.proactiveControlAvailable,`. (The banner removal stays in Step 7.)
 
 - [ ] **Step 2: Migrate every existing fixture to the required fields** (so the suites still compile and pass):
   - `AskIris.cardState.test.tsx` — add `controlAvailable: true as const` to the `control()` helper defaults; add `import styles from '@webview/components/AskIris/AskIris.module.css';` at the top.
@@ -207,7 +208,7 @@ Expected: the clean-build `_push` cases FAIL (early return still sends nothing);
   - `extensionMessages.ts:33` (the `cardReason` comment) — change "drives the §14 banner / note copy" to "…notice / note copy".
   - `telemetry/noop.ts:20-22` — reword "the 'hidden' case is 'no card sent'" to: the clean build sends a control-less availability card (the `proactiveControl` seam is omitted, so the AskIris level control stays hidden).
 
-- [ ] **Step 7: Thread the store + view.** `ExerciseDetailView.tsx`: in the `UpdateProactiveControl` handler (`:138-143`) add `proactiveControlAvailable: msg.proactiveControlAvailable,`; in `proactiveVM` (`:255-264`) add `controlAvailable: proactiveControl.proactiveControlAvailable,`; delete the standalone banner block at `:661-668` (comment + the `{proactiveControl && … cardState === 'unavailable' && (<div className={styles.banner} …>…</div>)}`).
+- [ ] **Step 7: Remove the standalone banner.** In `ExerciseDetailView.tsx` delete the standalone §14 banner block at `:661-668` (the comment + the `{proactiveControl && … cardState === 'unavailable' && (<div className={styles.banner} …>…</div>)}`). (The store/VM threading already landed in Step 1.)
 
 - [ ] **Step 8: Rewrite `AskIris.tsx`.** Add `import clsx from 'clsx';`. Replace the derivation block:
 
@@ -338,7 +339,7 @@ Closes the latent #342 gap: `ExerciseDetailView` re-requests the card on `Update
 - [ ] **Step 6: Compile + green baseline** — `cd extension && npm run compile-tests && npm run test:unit` (read `extension/reports/mocha-results.xml`) and `npm run check-types`. Expected: compiles, existing tests pass (no behaviour added, no unused symbols).
 
 - [ ] **Step 7: Add the failing behavioural tests** (introduce the controllable fakes HERE, where they are read):
-  - Provider (`artemisWebviewProvider.test.ts`, in the suite whose setup resolves the view — mirror the `updateProactiveConsent` test at `:332`): replace that suite's `fakeNoAi` with a capturing one — suite-scoped `let noAiCb: (v: boolean) => void = () => {};` and `onNoAiStatusChanged: (cb) => { noAiCb = cb; return { dispose() {} }; }`. Then:
+  - Provider (`artemisWebviewProvider.test.ts`, in the suite whose setup resolves the view — mirror the `updateProactiveConsent` test at `:332`): replace that suite's `fakeNoAi` with a capturing one — suite-scoped `let noAiCb: (v: boolean) => void = () => {};` and `onNoAiStatusChanged: (cb: (value: boolean) => void) => { noAiCb = cb; return { dispose() {} }; }` (type the `cb` param explicitly — an enclosing `as any` does not contextually type it, so strict TS would flag implicit-any). Then:
     ```ts
     test('a .noai status change posts updateNoAiStatus to the webview (both directions)', async () => {
         spyWebview.sentMessages.length = 0;
@@ -355,7 +356,7 @@ Closes the latent #342 gap: `ExerciseDetailView` re-requests the card on `Update
         const exerciseData = { exercise: { id: 1, title: 'X', studentParticipations: [] } };
         let noAiCb: (v: boolean) => void = () => {};
         const disposeSpy = sinon.spy();
-        // makeManager()'s 4th arg here: { onNoAiStatusChanged: (cb) => { noAiCb = cb; return { dispose: disposeSpy }; } }
+        // makeManager()'s 4th arg here: { onNoAiStatusChanged: (cb: (value: boolean) => void) => { noAiCb = cb; return { dispose: disposeSpy }; } }
         const awaitNoAiMsg = async (deadlineMs: number): Promise<boolean> => {
             const start = Date.now();
             while (Date.now() - start < deadlineMs) {
