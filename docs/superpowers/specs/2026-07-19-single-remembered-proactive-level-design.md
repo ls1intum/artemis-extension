@@ -108,8 +108,11 @@ declared and called:
   `setStudentProactive(exerciseId, …)`, and `collapseProactiveEpisodes()`.
 
 **Deliberately NOT stripped:** `setStudentProactive(exerciseId, on)` keeps its
-id. It is the engine's transient surface-clear, genuinely per-exercise, not a
-level read.
+id. It is not a level read but the engine's transient surface-clear, and after
+Component 2b its id carries *mixed* semantics: the **On** branch still needs the
+id (reset the active exercise's evidence gate only when the triggering exercise
+is the active one), while the **Off** branch ignores it (clear the active
+exercise's surfaces regardless of which view triggered the global Off).
 
 ### Component 2b — Cross-exercise Off must clear the active exercise's surfaces
 
@@ -194,8 +197,18 @@ storage just ignores it now.
 - **`test/logic/proactiveControlCommands.test.ts`** — update: the existing
   `expect(h.pref.setLevel).toHaveBeenCalledWith(42, 'off' | 'less')` assertions
   must drop the id (`toHaveBeenCalledWith('off')` / `('less')`), or `test:react`
-  fails to compile. Add a mismatch test for Component 2b: an Off set while a
-  *different* exercise is active still clears the active exercise's surfaces.
+  fails to compile. (This file mocks `setStudentProactive`, so it verifies the
+  command wiring only, not surface clearing — the 2b behavior is tested in the
+  intervention-service file below.)
+- **`test/logic/struggleIntervention/struggleInterventionService.test.ts`** —
+  the existing test *"setStudentProactive on a NON-active exercise does not touch
+  live surfaces"* (currently asserting `setStudentProactive(999, false)` clears
+  **nothing**) asserts the *old* behavior and must be **inverted**: an Off on a
+  non-active exercise now **clears** the active exercise's surfaces (global Off).
+  The sibling test *"setStudentProactive(active, false) clears …"* stays as-is.
+  **Add** the On-half guard test: `setStudentProactive(999, true)` (non-active)
+  must **not** reset the active exercise's awaiting-evidence gate (the On branch
+  keeps its id guard).
 - **`test/logic/telemetry/createStruggleEngine.proactiveLevel.test.ts`** —
   rewrite: its premise (level keyed by exercise, `fakeDeps` faking
   `getProactiveLevel: (exerciseId) => …`, asserting
@@ -234,12 +247,20 @@ storage just ignores it now.
 - `extension/src/extension/controller/commands/types.ts:51`
   (the exercise-tagged webview state stays; only "per-exercise preference"
   wording changes)
+- `extension/src/extension/services/struggle/struggleCoordinator.ts:96`
+  (per-exercise wording)
+- Any residual "per-exercise (level/preference)" wording in the already-modified
+  `extension.ts`, `telemetry/contract.ts`, and `struggleInterventionService.ts`
+  (fix in passing while editing those files).
 
 **Tests:**
 - `extension/test/logic/proactivePreferenceService.test.ts` (rewrite)
 - `extension/test/logic/telemetry/createStruggleEngine.proactiveLevel.test.ts`
   (rewrite — drop the per-exercise premise)
 - `extension/test/logic/proactiveControlCommands.test.ts` (drop the id from the
-  `setLevel` expectations; add the Component 2b mismatch test)
+  `setLevel` expectations)
+- `extension/test/logic/struggleIntervention/struggleInterventionService.test.ts`
+  (invert the non-active-Off surface test for Component 2b; add the non-active-On
+  guard test)
 - `extension/test/logic/struggleIntervention/helpers.ts` (confirm/adjust the
   no-arg `_deps` stubs to the new signatures)
