@@ -22,15 +22,26 @@
 ### Task 1: Decouple `_push` from the engine + carry `proactiveControlAvailable`
 
 **Files:**
-- Modify: `extension/src/shared/messageContracts/extensionMessages.ts:461-468` (payload)
+- Modify: `extension/src/shared/messageContracts/extensionMessages.ts:461-468` (payload) + stale comment `:27-31`
 - Modify: `extension/src/extension/controller/commands/proactiveControlCommands.ts:45-105` (`_push`) + comment `:46-47`
-- Modify: `extension/src/extension/services/proactiveCardState.ts:3-7` (stale comment)
+- Modify: `extension/src/extension/services/proactiveCardState.ts` (stale comments `:3-7` and `:27`)
+- Modify: `extension/src/extension/telemetry/noop.ts:20-22` (stale comment)
 - Test: `extension/test/logic/proactiveControlCommands.test.ts`
 
 **Interfaces:**
 - Produces: `updateProactiveControl` payload gains `proactiveControlAvailable: boolean`; `_push` sends it (`!!control`). Consumed by Task 2 (store/VM).
 
-- [ ] **Step 1: Add the failing tests** (append inside the existing `describe('ProactiveControlCommandModule', …)` in `extension/test/logic/proactiveControlCommands.test.ts`; extend the `harness` `over` type with `noEngine?: boolean` and set `proactiveControl: over.noEngine ? undefined : control` in the `ctx`).
+- [ ] **Step 1: Update the existing no-engine test + add the failing tests** in `extension/test/logic/proactiveControlCommands.test.ts`. Extend the `harness` `over` type with `noEngine?: boolean` and set `proactiveControl: over.noEngine ? undefined : control` in the `ctx`. First **rewrite** the existing test at `:73-80` (`'pushes nothing when there is no proactive engine …'`) — the clean build now sends a chat-availability card, so it must use the full harness and assert the new behaviour:
+
+```ts
+it('no proactive engine (clean build) → still sends an availability card, control-less', async () => {
+    const h = harness({ noEngine: true });
+    await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42 }));
+    expect(h.sent.at(-1)).toMatchObject({ cardState: 'available', proactiveControlAvailable: false });
+});
+```
+
+Then append inside the same `describe`:
 
 ```ts
 it('clean build (no engine): .noai → unavailable/noai, proactiveControlAvailable false', async () => {
@@ -126,13 +137,17 @@ Expected: the 4 new tests FAIL (`proactiveControlAvailable` undefined / early-re
     }
 ```
 
-- [ ] **Step 5: Update the stale comment** in `extension/src/extension/services/proactiveCardState.ts` (replace the `:3-7` sentence about the clean build never reaching the function):
-
-```ts
- * {@link ProactiveControlCommandModule}. There is no `enginePresent` input: the clean (no-engine) build DOES
- * reach this function now (so its chat-availability card renders), but its `_push` masks the proactive-only
- * inputs (courseProactiveEnabled undefined, both gates false), so only noai/iris-off/available can result.
-```
+- [ ] **Step 5: Comment sweep** — four spots now describe the removed early-return behaviour:
+  - `proactiveControl​Commands.ts:46-47` is already replaced by the Step 4 rewrite.
+  - `proactiveCardState.ts:3-7` header — replace the "clean build never reaches this function" sentence:
+    ```ts
+     * {@link ProactiveControlCommandModule}. There is no `enginePresent` input: the clean (no-engine) build DOES
+     * reach this function now (so its chat-availability card renders), but its `_push` masks the proactive-only
+     * inputs (courseProactiveEnabled undefined, both gates false), so only noai/iris-off/available can result.
+    ```
+  - `proactiveCardState.ts:27` — the §14 case-3 note says "→ Unavailable + banner"; change "banner" to "in-card notice".
+  - `extensionMessages.ts:27-31` — the block comment says the clean build "never sends a card at all"; reword to: the clean build DOES send a chat-availability card, but with `proactiveControlAvailable: false` (no level control).
+  - `telemetry/noop.ts:20-22` — the OMITTED-methods comment says "no card sent"; reword to: the clean build sends a control-less availability card (the `proactiveControl` seam is omitted, so the AskIris level control stays hidden).
 
 - [ ] **Step 6: Run the tests, verify they pass**
 
@@ -147,7 +162,7 @@ Expected: no errors.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add extension/src/shared/messageContracts/extensionMessages.ts extension/src/extension/controller/commands/proactiveControlCommands.ts extension/src/extension/services/proactiveCardState.ts extension/test/logic/proactiveControlCommands.test.ts
+git add extension/src/shared/messageContracts/extensionMessages.ts extension/src/extension/controller/commands/proactiveControlCommands.ts extension/src/extension/services/proactiveCardState.ts extension/src/extension/telemetry/noop.ts extension/test/logic/proactiveControlCommands.test.ts
 git commit -m "feat(struggle): render the AskIris availability card without the engine (#334)"
 ```
 
@@ -167,7 +182,7 @@ git commit -m "feat(struggle): render the AskIris availability card without the 
 - Consumes: `proactiveControlAvailable` from Task 1's payload.
 - Produces: AskIris VM field `controlAvailable: boolean`; `Container` gets `data-testid="ask-iris-card"`.
 
-- [ ] **Step 1: Migrate the shared fixture + add failing tests** in `extension/test/react/AskIris.cardState.test.tsx`. First add `controlAvailable: true as const` to the `control()` helper's defaults. Then add:
+- [ ] **Step 1: Migrate the shared fixture + add failing tests** in `extension/test/react/AskIris.cardState.test.tsx`. Add the CSS-module import at the top (`import styles from '@webview/components/AskIris/AskIris.module.css';`) for the class assertion. Add `controlAvailable: true as const` to the `control()` helper's defaults. Then add:
 
 ```ts
 it('unavailable/iris-off → neutral notice, honest description, no proactive section, Ask disabled', () => {
@@ -189,10 +204,20 @@ it('unavailable with no reason → generic notice fallback', () => {
     expect(screen.getByText('Iris is not available for this exercise.')).toBeInTheDocument();
 });
 
-it('chat-active state keeps the passed description and shows no notice', () => {
-    render(<AskIris {...base} proactiveControl={control({ cardState: 'available' })} />);
+it.each([
+    { cardState: 'available' as const, reason: undefined },
+    { cardState: 'off-course' as const, reason: 'course-off' as const },
+    { cardState: 'degraded' as const, reason: 'limited' as const },
+    { cardState: 'degraded' as const, reason: 'consent-missing' as const },
+])('chat-active state $cardState/$reason keeps the passed description and renders no notice', ({ cardState, reason }) => {
+    render(<AskIris {...base} proactiveControl={control({ cardState, reason, level: reason === 'consent-missing' ? 'off' : 'more', onOpenConsentSettings: vi.fn() })} />);
     expect(screen.getByText('d')).toBeInTheDocument();
-    expect(screen.queryByText(/turned off here/i)).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+});
+
+it('unavailable → the disabled Ask carries the neutral unavailableAsk class', () => {
+    render(<AskIris {...base} proactiveControl={control({ cardState: 'unavailable', reason: 'noai' })} />);
+    expect(screen.getByRole('button', { name: /ask/i })).toHaveClass(styles.unavailableAsk);
 });
 
 it('clean build (controlAvailable false) + available → bare card, no segments, Ask enabled', () => {
@@ -269,15 +294,18 @@ JSX (Container gets the testId; notice before `.main`; `.main` gains `mainMuted`
         </div>
       </div>
 
-      {showProactive && (
+      {showProactive && proactiveControl && (
         <>
-          {/* …the existing proactive block, unchanged… */}
+          {/* …the existing proactive block, unchanged (only the guard condition changes from
+              `proactiveControl && state !== 'unavailable'` to `showProactive && proactiveControl`)… */}
         </>
       )}
     </Container>
 ```
 
-Also update the stale `NOTE`/section comment at `AskIris.tsx:32` to say the unavailable notice now lives in-card (no longer in the exercise view).
+The explicit `&& proactiveControl` is required — `Boolean(proactiveControl?.controlAvailable)` does not narrow `proactiveControl` non-null for the dereferences inside the block (`proactiveControl.level`, `.onLevelChange`, `.onOpenConsentSettings`).
+
+Also update **two** stale comments in `AskIris.tsx`: the `NOTE`/section comment near `:32` ("the full §14 banner for `unavailable` lives in the exercise view") and the proactive-block comment near `:69` ("Hidden on the full shut-off (unavailable), which the exercise view's §14 banner already explains") — both must reflect that the notice now lives in-card and the block is hidden when `unavailable` OR the engine is absent.
 
 - [ ] **Step 6: Add the CSS** to `extension/src/webview/components/AskIris/AskIris.module.css`:
 
@@ -314,7 +342,7 @@ Also update the stale `NOTE`/section comment at `AskIris.tsx:32` to say the unav
 }
 ```
 
-- [ ] **Step 7: Add the containment test** in `extension/test/react/views/ExerciseDetail/ExerciseDetailView.test.tsx` (import `within` from `@testing-library/react` if not already imported; mirror the existing proactive-card seeding around `:164-168`; add `proactiveControlAvailable: false` to that seed too). Seed an `unavailable/noai` card and assert:
+- [ ] **Step 7: Add the containment test** in `extension/test/react/views/ExerciseDetail/ExerciseDetailView.test.tsx` (import `within` from `@testing-library/react` if not already imported). The EXISTING proactive-card/consent seed at `:168` must get `proactiveControlAvailable: true` (a `false` there would hide the consent control and break that test). Then add a NEW test that seeds an `unavailable/noai` card with `proactiveControlAvailable: false` and asserts:
 
 ```ts
 const card = screen.getByTestId('ask-iris-card');
@@ -325,7 +353,7 @@ expect(screen.queryByText(/Open the Iris chat/i)).toBeNull();
 expect(document.querySelector('[data-variant="warning"]')).toBeNull();
 ```
 
-- [ ] **Step 8: Migrate the remaining fixtures.** Add `proactiveControlAvailable: false` (or `controlAvailable`, matching the object's role) where `check-types`/tests require it: `extension/test/react/AskIris.proactiveControl.test.tsx:11` (VM → `controlAvailable: true`), `extension/test/react/useExerciseDetailStore.proactiveControl.test.ts:8` (state → `proactiveControlAvailable: true`).
+- [ ] **Step 8: Migrate the remaining fixtures** (all set to `true` so they keep exercising the full-build path; `check-types` enforces): `extension/test/react/AskIris.proactiveControl.test.tsx` — add `controlAvailable: true` to ALL THREE direct VM literals (`:11`, `:20`, `:26`); `extension/test/react/useExerciseDetailStore.proactiveControl.test.ts:8` — add `proactiveControlAvailable: true` to the state literal.
 
 - [ ] **Step 9: Run tests + types**
 
@@ -353,68 +381,70 @@ git commit -m "feat(struggle): honest in-card off-state for the AskIris card (#3
 **Interfaces:**
 - Consumes: the shared `NoAiDetectionService` (`extension.ts:214`).
 
-- [ ] **Step 1: Add the failing provider test** in `extension/test/unit/provider/artemisWebviewProvider.test.ts` (mirror the `updateProactiveConsent` test at `:332`). Add a controllable fake to each `new ArtemisWebviewProvider({…})` deps object: `noAiDetectionService: fakeNoAi` where `const fakeNoAi = { onNoAiStatusChanged: (cb) => { noAiCb = cb; return { dispose() {} }; }, dispose() {} } as any;` with a suite-scoped `let noAiCb`. Then:
+**Ordering note:** `noAiDetectionService` is a REQUIRED dep + ctor arg, so the type scaffolding and every constructor fixture must land before any test compiles. This task therefore scaffolds types + migrates fixtures FIRST (green baseline), then does red→green on the behaviour.
 
-```ts
-test('a .noai status change posts updateNoAiStatus to the webview (both directions)', async () => {
-    // …resolve the view as the consent test does…
-    spyWebview.sentMessages.length = 0;
-    noAiCb(true);
-    assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai appears');
-    spyWebview.sentMessages.length = 0;
-    noAiCb(false);
-    assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai disappears');
-});
-```
+- [ ] **Step 1: Add the dep to the interface** — `extension/src/extension/provider/artemisWebviewProviderDeps.ts`: add `import type { NoAiDetectionService } from '@extension/services/workspace';` and `noAiDetectionService: NoAiDetectionService;`.
 
-- [ ] **Step 2: Add the failing fullscreen test** in `extension/test/unit/services/ui/fullscreenPanelManager.test.ts` (mirror the `#342 consent flip` suite at `:83`). The `makeManager()` helper must pass a 4th ctor arg — a fake `noAiDetectionService` exposing a controllable `onNoAiStatusChanged` (suite-scoped `let noAiCb: (v: boolean) => void;` set from the fake's `onNoAiStatusChanged`). Add:
+- [ ] **Step 2: Provider scaffolding (no subscription yet)** — `extension/src/extension/provider/artemisWebviewProvider.ts`: add `import type { NoAiDetectionService } from '@extension/services/workspace';` (the provider file needs its OWN import, not just the deps file); add field `private readonly _noAiDetectionService: NoAiDetectionService;`; assign `this._noAiDetectionService = deps.noAiDetectionService;` in the constructor BEFORE the `FullscreenPanelManager` construction (`:189`); pass it as the 4th arg: `new FullscreenPanelManager(this._extensionUri, this._extensionContext, () => this._messageHandler, this._noAiDetectionService)`.
 
-```ts
-suite('FullscreenPanelManager.openExerciseFullscreen - #334 .noai flip', () => {
-    const awaitNoAiMsg = async (deadlineMs: number): Promise<boolean> => {
-        const start = Date.now();
-        while (Date.now() - start < deadlineMs) {
-            if (postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateNoAiStatus')) { return true; }
-            await new Promise(r => setTimeout(r, 20));
-        }
-        return false;
-    };
+- [ ] **Step 3: Fullscreen scaffolding (param stored, unused yet)** — `extension/src/extension/services/ui/fullscreenPanelManager.ts`: add `import type { NoAiDetectionService } from '@extension/services/workspace';` and a 4th ctor param `private readonly _noAiDetectionService: NoAiDetectionService`.
 
-    test('a .noai flip posts updateNoAiStatus to the fullscreen panel (both directions)', async () => {
-        makeManager().openExerciseFullscreen(exerciseData as never);
-        // …await the panel's onReady as the consent test does…
-        postMessage.resetHistory();
+- [ ] **Step 4: Wire extension.ts** — add `noAiDetectionService,` to the `new ArtemisWebviewProvider({ … })` deps object at `extension/src/extension.ts:243`.
+
+- [ ] **Step 5: Migrate ALL constructor fixtures so the suites compile** —
+  - `extension/test/unit/provider/artemisWebviewProvider.test.ts`: every `new ArtemisWebviewProvider({ … })` deps object (`:141`, `:207`, `:385`) gets `noAiDetectionService: fakeNoAi`. Define a suite-scoped fake: `let noAiCb: (v: boolean) => void = () => {}; const fakeNoAi = { onNoAiStatusChanged: (cb: (v: boolean) => void) => { noAiCb = cb; return { dispose() {} }; }, dispose() {} } as any;` (the `() => {}` default keeps `noAiCb(true)` a safe no-op before any subscription exists).
+  - `extension/test/unit/services/ui/fullscreenPanelManager.test.ts`: every `new FullscreenPanelManager(...)` construction (`:35`, and the `openStruggleFullscreen` suite at `:109`) gets a 4th arg — a fake `noAiDetectionService` of the same shape. The `.noai` suite (Step 7) needs its fake to expose a suite-scoped `noAiCb` and a `dispose` spy.
+
+- [ ] **Step 6: Compile + green baseline** — `cd extension && npm run compile-tests && npm run test:unit` (read `extension/reports/mocha-results.xml`) and `npm run check-types`. Expected: everything compiles, existing tests still pass (no behaviour added yet).
+
+- [ ] **Step 7: Add the failing behavioural tests**
+  - Provider (`artemisWebviewProvider.test.ts`, in the suite whose setup already resolves the view — mirror the `updateProactiveConsent` test at `:332`):
+    ```ts
+    test('a .noai status change posts updateNoAiStatus to the webview (both directions)', async () => {
+        spyWebview.sentMessages.length = 0;
         noAiCb(true);
-        assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai appears');
-        postMessage.resetHistory();
+        assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai appears');
+        spyWebview.sentMessages.length = 0;
         noAiCb(false);
-        assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai disappears');
+        assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai disappears');
     });
+    ```
+  - Fullscreen (`fullscreenPanelManager.test.ts`, NEW suite with its OWN `exerciseData` fixture — the consent suite's `exerciseData` is local to its test at `:132` and cannot be reused). The fake returns a `dispose` spy so disposal is provable (the panel's own `disposed` guard at `:181` would otherwise let a missing `noAiSub.dispose()` pass silently):
+    ```ts
+    suite('FullscreenPanelManager.openExerciseFullscreen - #334 .noai flip', () => {
+        const exerciseData = { exercise: { id: 1, title: 'X', studentParticipations: [] } };
+        let noAiCb: (v: boolean) => void = () => {};
+        let disposeSpy: sinon.SinonSpy;
+        // makeManager()'s fake noAiDetectionService: { onNoAiStatusChanged: (cb) => { noAiCb = cb; return { dispose: disposeSpy }; } }
+        const awaitNoAiMsg = async (deadlineMs: number): Promise<boolean> => {
+            const start = Date.now();
+            while (Date.now() - start < deadlineMs) {
+                if (postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateNoAiStatus')) { return true; }
+                await new Promise(r => setTimeout(r, 20));
+            }
+            return false;
+        };
 
-    test('a disposed panel receives no further .noai updates', async () => {
-        // …open then dispose the panel as the consent test's dispose case does (:144)…
-        postMessage.resetHistory();
-        noAiCb(true);
-        assert.ok(!(await awaitNoAiMsg(300)), 'the disposed panel must not receive further .noai updates');
+        test('a .noai flip posts updateNoAiStatus (both directions), and the subscription is disposed once with the panel', async () => {
+            const manager = makeManager();
+            manager.openExerciseFullscreen(exerciseData as never);
+            // …await the panel's onReady as the consent suite does…
+            postMessage.resetHistory();
+            noAiCb(true);
+            assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai appears');
+            postMessage.resetHistory();
+            noAiCb(false);
+            assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai disappears');
+            // …dispose the panel as the consent suite's dispose case does (:144)…
+            assert.ok(disposeSpy.calledOnce, 'the .noai subscription must be disposed exactly once with the panel');
+        });
     });
-});
-```
-(Reuse the suite's existing `postMessage` spy, `exerciseData`, and panel-open/dispose helpers; only the emitter source differs from the consent suite.)
+    ```
+    `sinon` is already imported in this file for the consent coverage.
 
-- [ ] **Step 3: Run, verify failure**
+- [ ] **Step 8: Run, verify failure** — `cd extension && npm run compile-tests && npm run test:unit`; read `extension/reports/mocha-results.xml`. Expected: the new provider + fullscreen tests FAIL (nothing subscribes yet, so `noAiCb` stays the no-op default → no message; `disposeSpy` never called).
 
-Run: `cd extension && npm run compile-tests && npm run test:unit`
-Then read `extension/reports/mocha-results.xml` (the console summary is swallowed by the socket-path quirk). Expected: the new provider + fullscreen tests FAIL.
-
-- [ ] **Step 4: Add the dep** in `extension/src/extension/provider/artemisWebviewProviderDeps.ts`:
-
-```ts
-import type { NoAiDetectionService } from '@extension/services/workspace';
-// …in the interface:
-    noAiDetectionService: NoAiDetectionService;
-```
-
-- [ ] **Step 5: Wire the provider** in `extension/src/extension/provider/artemisWebviewProvider.ts`: add a field `private readonly _noAiDetectionService: NoAiDetectionService;`, assign `this._noAiDetectionService = deps.noAiDetectionService;` in the constructor before the `FullscreenPanelManager` construction (`:189`), and pass it as the 4th arg there. In `resolveWebviewView`, right after `this._viewDisposables.push(configListener);` (`:450`):
+- [ ] **Step 9: Implement the sidebar subscription** — in `resolveWebviewView`, right after `this._viewDisposables.push(configListener);` (`:450`):
 
 ```ts
         // #334: a .noai create/delete must live-refresh the exercise card (the view re-requests on this message).
@@ -424,11 +454,9 @@ import type { NoAiDetectionService } from '@extension/services/workspace';
         this._viewDisposables.push(noAiListener);
 ```
 
-Also fix the now-wrong consent comment at `:444-445` (the clean build no longer early-returns; the re-request now yields a card).
+Also fix the now-wrong consent comment at `artemisWebviewProvider.ts:444-445` (the clean build no longer early-returns; the re-request now yields a card).
 
-- [ ] **Step 6: Wire extension.ts** — add `noAiDetectionService,` to the `new ArtemisWebviewProvider({ … })` deps object at `extension/src/extension.ts:243`.
-
-- [ ] **Step 7: Wire the fullscreen manager** in `extension/src/extension/services/ui/fullscreenPanelManager.ts`: `import type { NoAiDetectionService } from '@extension/services/workspace';`; add a 4th constructor param `private readonly _noAiDetectionService: NoAiDetectionService`. In `openExerciseFullscreen`, add `let noAiSub: vscode.Disposable | undefined;` beside `consentSub`; inside `onReady`, after the `consentSub` guard:
+- [ ] **Step 10: Implement the fullscreen subscription** — in `openExerciseFullscreen`, add `let noAiSub: vscode.Disposable | undefined;` beside `consentSub`; inside `onReady`, after the `consentSub` guard:
 
 ```ts
                 if (!noAiSub) {
@@ -440,12 +468,9 @@ Also fix the now-wrong consent comment at `:444-445` (the clean build no longer 
 
 and extend `onDispose` to `{ consentSub?.dispose(); consentSub = undefined; noAiSub?.dispose(); noAiSub = undefined; }`.
 
-- [ ] **Step 8: Run tests + types**
+- [ ] **Step 11: Run tests + types** — `cd extension && npm run compile-tests && npm run test:unit` (read `extension/reports/mocha-results.xml`); `npm run check-types`. Expected: all PASS.
 
-Run: `cd extension && npm run compile-tests && npm run test:unit` then read `extension/reports/mocha-results.xml`; and `npm run check-types`.
-Expected: new + existing PASS; no type errors.
-
-- [ ] **Step 9: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
 git add extension/src/extension/provider/artemisWebviewProviderDeps.ts extension/src/extension/provider/artemisWebviewProvider.ts extension/src/extension.ts extension/src/extension/services/ui/fullscreenPanelManager.ts extension/test/unit/provider/artemisWebviewProvider.test.ts extension/test/unit/services/ui/fullscreenPanelManager.test.ts
