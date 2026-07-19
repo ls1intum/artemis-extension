@@ -129,14 +129,13 @@ export interface StruggleInterventionDeps {
     showGutterOnly(anchorFile: string, anchorLine: number): void;
     /** Remove any inline cue (session/context reset). */
     clearInline(): void;
-    /** Durable per-exercise student opt-out (spec §12.2): false -> the orchestrator suppresses proactive for it. */
-    isStudentProactiveOn(exerciseId: number): boolean;
+    /** Durable single student opt-out (spec §12.2, issue #341): false -> the orchestrator suppresses proactive. */
+    isStudentProactiveOn(): boolean;
     /**
-     * Per-exercise proactive-help level (Off/Less/More, spec §12.2). Used by the client-side Pull
-     * re-route: an inbound `active` event for a `less` exercise is downgraded to the ambient/PARKED
-     * path so Less never surfaces a bubble/notification, even when the server decided `active`.
+     * The single proactive-help level (Off/Less/More, spec §12.2, issue #341). Used by the client-side Pull
+     * re-route: an inbound `active` event while the level is `less` is downgraded to the ambient/PARKED path.
      */
-    getProactiveLevel(exerciseId: number): ProactiveLevel;
+    getProactiveLevel(): ProactiveLevel;
     setBadge(on: boolean): void;
     /** Show the proactive nudge banner for the given (out-of-session, DELIVERED) episode. */
     showActiveBanner(episodeId: string | undefined): void;
@@ -378,10 +377,7 @@ export class StruggleInterventionService implements AlertSink {
             suppression: {
                 serverAvailable: this._serverAvailable,
                 courseProactiveOff: this._courseProactiveOff,
-                studentProactiveOn: (() => {
-                    const exId = this._deps.getExerciseId();
-                    return exId === undefined ? true : this._deps.isStudentProactiveOn(exId);
-                })(),
+                studentProactiveOn: this._deps.isStudentProactiveOn(),
             },
         };
     }
@@ -554,9 +550,8 @@ export class StruggleInterventionService implements AlertSink {
         if (this._courseProactiveOff) {
             return '  -> SKIP (course proactive disabled for this session)';
         }
-        const exId = this._deps.getExerciseId();
-        if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
-            return '  -> SKIP (student turned proactive off for this exercise)';
+        if (!this._deps.isStudentProactiveOn()) {
+            return '  -> SKIP (student turned proactive off)';
         }
         if (this._awaitingEvidence && !isHardAlert(alert)) {
             return '  -> SKIP (awaiting fresh evidence after idle-abandon)';
@@ -701,7 +696,7 @@ export class StruggleInterventionService implements AlertSink {
                 intent: 'decide',
                 episode: requestEpisode,
                 requestToken,
-                proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
+                proactivityMode: this._deps.getProactiveLevel() === 'less' ? 'pull' : 'push',
             });
 
             this._dbg(`  -> POST result: ${result}`);
@@ -781,8 +776,7 @@ export class StruggleInterventionService implements AlertSink {
             this._frozenSessionId = sessionId;
         }
 
-        const exId = this._deps.getExerciseId();
-        if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
+        if (!this._deps.isStudentProactiveOn()) {
             this._clearInFlight();
             if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
@@ -840,8 +834,7 @@ export class StruggleInterventionService implements AlertSink {
         }
         this._setServerAvailable(true);
 
-        const exId = this._deps.getExerciseId();
-        if (exId !== undefined && !this._deps.isStudentProactiveOn(exId)) {
+        if (!this._deps.isStudentProactiveOn()) {
             this._clearInFlight();
             if (messageId !== undefined && messageId !== null) { this._dropStaleRow(messageId); }
             return;
@@ -882,7 +875,7 @@ export class StruggleInterventionService implements AlertSink {
         // _acceptDecide/baseline/_frozenSessionId bookkeeping -- falling through into the active
         // handling below would double-consume the in-flight marker (its _acceptDecide clears the
         // marker, so a second call here would read it as stale and silently drop the reply).
-        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        const level = this._deps.getProactiveLevel();
         if (level === 'less') {
             this.onServerAmbient(episodeId, message ?? '', anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId);
             return;
@@ -1423,7 +1416,7 @@ export class StruggleInterventionService implements AlertSink {
         if (!this._deps.isIrisEnabled()
             || !this._deps.isEgressEnabled()
             || this._deps.hasNoaiMarker()
-            || !this._deps.isStudentProactiveOn(exerciseId)
+            || !this._deps.isStudentProactiveOn()
             || !this._serverAvailable) {
             this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
             return;
@@ -1449,7 +1442,7 @@ export class StruggleInterventionService implements AlertSink {
                 intent: 'help_request',
                 episode: requestEpisode,
                 requestToken,
-                proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
+                proactivityMode: this._deps.getProactiveLevel() === 'less' ? 'pull' : 'push',
             });
             // Only clear + surface the fallback if THIS request is still the live one. The episode may
             // have terminated (marker cleared by _clearEpisodeRuntime) or been superseded during the
@@ -1537,7 +1530,7 @@ export class StruggleInterventionService implements AlertSink {
                     episode: requestEpisode,
                     confirmReason,
                     requestToken,
-                    proactivityMode: this._deps.getProactiveLevel(exerciseId) === 'less' ? 'pull' : 'push',
+                    proactivityMode: this._deps.getProactiveLevel() === 'less' ? 'pull' : 'push',
                 });
                 // #349 Finding 2: token-scoped settlement (mirror _sendHelpRequest). A stale
                 // completion from a superseded confirm_close (revoke->regrant issued a fresh marker)
@@ -1621,8 +1614,7 @@ export class StruggleInterventionService implements AlertSink {
 
     _canOfferStuck(episodeId: string): boolean {
         if (this._offersDeclined.has(episodeId)) { return false; }
-        const exId = this._deps.getExerciseId();
-        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        const level = this._deps.getProactiveLevel();
         return (this._offeredHintCounts.get(episodeId) ?? 0) < this._offerCapForLevel(level);
     }
 
@@ -1642,8 +1634,7 @@ export class StruggleInterventionService implements AlertSink {
         const snap = this._slot.snapshot();
         if (snap.state.kind !== 'delivered') { return; }
         const episodeId = snap.state.episode.episodeId;
-        const exId = this._deps.getExerciseId();
-        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        const level = this._deps.getProactiveLevel();
         // Off = 0 offers. _raiseStuckOffer is already gated upstream via _suppressReason, but keep
         // this guard for defence and symmetry with _raiseAbandonOffer.
         if (level === 'off') { return; }
@@ -1696,8 +1687,7 @@ export class StruggleInterventionService implements AlertSink {
     // ---------------------------------------------------------------------------
 
     private _raiseAbandonOffer(episodeId: string): void {
-        const exId = this._deps.getExerciseId();
-        const level = exId !== undefined ? this._deps.getProactiveLevel(exId) : 'more';
+        const level = this._deps.getProactiveLevel();
         // Off = 0 offers.
         if (level === 'off') { return; }
         const inSession = this._slot.snapshot().inSession;
@@ -1804,11 +1794,15 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     setStudentProactive(exerciseId: number, on: boolean): void {
-        if (this._deps.getExerciseId() !== exerciseId) { return; }
         if (on) {
-            // Flipping the toggle back on is a deliberate user action (student is present).
+            // On = "the student is present in THIS exercise": only reset the active exercise's evidence
+            // gate when the toggle came from the active exercise (keep the id guard).
+            if (this._deps.getExerciseId() !== exerciseId) { return; }
             this._setAwaitingEvidence(false, 'proactive re-enabled');
         } else {
+            // Off is now a GLOBAL level (#341): clear the active exercise's surfaces regardless of which
+            // exercise view triggered it. The orchestrator already targets the active exercise, so this
+            // is always the right instance to clear.
             this._deps.clearLamp();
             this._deps.clearInline();
             this._deps.setBadge(false);

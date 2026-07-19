@@ -60,8 +60,8 @@ vi.mock('vscode', () => {
     };
 });
 
-/** A fully-formed `StruggleEngineDeps` fake; `getProactiveLevel` is the piece under test. */
-function fakeDeps(getProactiveLevel: (exerciseId: number) => ProactiveLevel): StruggleEngineDeps {
+/** A fully-formed `StruggleEngineDeps` fake; `getProactiveLevel` (now exercise-independent) is under test. */
+function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
     return {
         hub: new TestSensorHub(),
         exerciseRegistry: new ExerciseRegistry(),
@@ -96,29 +96,32 @@ function fakeDeps(getProactiveLevel: (exerciseId: number) => ProactiveLevel): St
 }
 
 describe('full struggle-engine seam: getActiveProactiveLevel', () => {
-    it('falls back to \'more\' when no exercise is active', () => {
-        const getProactiveLevel = vi.fn((): ProactiveLevel => 'off');
-        const handle = createStruggleEngine(fakeDeps(getProactiveLevel));
-        expect(handle.getActiveProactiveLevel()).toBe('more');
-        expect(getProactiveLevel).not.toHaveBeenCalled();
-    });
-
-    it('returns the ACTIVE exercise\'s level, keyed by the coordinator\'s activeExerciseId', () => {
-        const levels: Record<number, ProactiveLevel> = { 42: 'less', 7: 'off' };
-        const getProactiveLevel = vi.fn((exerciseId: number): ProactiveLevel => levels[exerciseId] ?? 'more');
+    it('reflects the single global level, independent of the active exercise (#341)', () => {
+        const getProactiveLevel = vi.fn((): ProactiveLevel => 'less');
         const handle = createStruggleEngine(fakeDeps(getProactiveLevel));
 
+        // No active exercise: the global level already applies (no per-exercise keying / 'more' gate).
+        expect(handle.getActiveProactiveLevel()).toBe('less');
+
+        // Starting/switching/ending a session does NOT re-key the level; it stays the global value.
         handle.coordinator.startExerciseSession(42);
         expect(handle.getActiveProactiveLevel()).toBe('less');
-        expect(getProactiveLevel).toHaveBeenLastCalledWith(42);
-
-        // Switching the active exercise re-resolves against the NEW id, not a stale one.
         handle.coordinator.startExerciseSession(7);
-        expect(handle.getActiveProactiveLevel()).toBe('off');
-
-        // Ending the session clears the active exercise, so the accessor falls back again.
+        expect(handle.getActiveProactiveLevel()).toBe('less');
         handle.coordinator.endExerciseSession();
+        expect(handle.getActiveProactiveLevel()).toBe('less');
+
+        // Every read passes NO exercise id (the strip removed the argument).
+        for (const call of getProactiveLevel.mock.calls) { expect(call).toEqual([]); }
+    });
+
+    it('reads the level live on each call (mid-session flips take effect)', () => {
+        let level: ProactiveLevel = 'more';
+        const handle = createStruggleEngine(fakeDeps(() => level));
+        handle.coordinator.startExerciseSession(42);
         expect(handle.getActiveProactiveLevel()).toBe('more');
+        level = 'off';
+        expect(handle.getActiveProactiveLevel()).toBe('off');
     });
 
     it('no-op build: always returns \'more\' (no engine, no active-exercise concept)', () => {

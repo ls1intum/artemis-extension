@@ -135,6 +135,19 @@ function driveIdleAbandon(svc: StruggleInterventionService): void {
 // ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService - evidence gate after idle-abandon', () => {
+    it('setStudentProactive(true) from a NON-active exercise does NOT clear the active exercise evidence gate (#341)', () => {
+        const { svc } = makeService();
+        simulateDelivered(svc);
+        driveIdleAbandon(svc);
+        expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(true);
+
+        svc.setStudentProactive(999, true);   // non-active On: the id guard keeps the gate
+        expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(true);
+
+        svc.setStudentProactive(42, true);    // active On: resets the gate ("student present")
+        expect(svc.getSlotDebugSnapshot().awaitingEvidence).toBe(false);
+    });
+
     it('force-free (DELIVERED -> ABANDONED) sets the gate; a STATE-only alert no longer POSTs', async () => {
         const { svc, deps } = makeService();
         simulateDelivered(svc);

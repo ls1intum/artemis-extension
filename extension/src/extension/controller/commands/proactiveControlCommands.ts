@@ -33,7 +33,7 @@ export class ProactiveControlCommandModule {
             await this._push(exerciseId, courseId);
             return;
         }
-        this.context.proactivePreference?.setLevel(exerciseId, level);
+        this.context.proactivePreference?.setLevel(level);
         this.context.proactiveControl?.setStudentProactive(exerciseId, level !== 'off');
         // Off = get out of the way: collapse any proactive hints already in the chat to fold lines.
         if (level === 'off') {
@@ -50,7 +50,7 @@ export class ProactiveControlCommandModule {
         // control-less so the webview hides the level control.
         const control = this.context.proactiveControl;
         const gate = control?.getProactiveGateState() ?? { consentMissing: false, serverUnavailable: false };
-        const stored = this.context.proactivePreference?.getLevel(exerciseId) ?? 'more';
+        const stored = this.context.proactivePreference?.getLevel() ?? 'more';
 
         // §14 availability — shared classifier (profile + course settings). courseId absent → optimistic enabled
         // (self-heals on the next push that carries it; the webview always has exercise.course?.id at every call site).

@@ -118,14 +118,13 @@ export interface StruggleEngineDeps {
      *  topic. The seam calls `subscribeStruggleEvents` with this internally, so
      *  `extension.ts` never imports anything from `struggleIntervention/`. */
     subscribeStruggleTopic(topic: string, onFrame: (data: unknown) => void): { dispose(): void };
-    /** Durable per-exercise student opt-out (spec §12.2): false → the orchestrator suppresses proactive for it. */
-    isStudentProactiveOn(exerciseId: number): boolean;
+    /** Durable single student opt-out (spec §12.2, issue #341): false → the orchestrator suppresses proactive. */
+    isStudentProactiveOn(): boolean;
     /**
-     * Per-exercise proactive-help level (Off/Less/More, spec §12.2) — the level-aware form of
-     * `isStudentProactiveOn` above. Threaded through so the {@link StruggleEngineHandle.getActiveProactiveLevel}
-     * accessor can resolve the ACTIVE exercise's level without the caller holding an exercise id.
+     * The single proactive-help level (Off/Less/More, spec §12.2, issue #341) — the level-aware form of
+     * `isStudentProactiveOn` above. Resolves the {@link StruggleEngineHandle.getActiveProactiveLevel} accessor.
      */
-    getProactiveLevel(exerciseId: number): ProactiveLevel;
+    getProactiveLevel(): ProactiveLevel;
     // ---- C2: reveal + episode-outcome ----
     /**
      * Reveal a hidden ambient hint by persisting it (A10). Delegates to ArtemisApiService.revealAmbient.
@@ -209,10 +208,9 @@ export interface StruggleEngineHandle {
      *  trigger-gated code reading, #349); no-op once decided. */
     promptConsentIfAsk(): Promise<void>;
     /**
-     * The ACTIVE exercise's proactive-help level (Off/Less/More, spec §12.2): `getProactiveLevel` keyed by
-     * the coordinator's `activeExerciseId`, `'more'` (the default) when no exercise is active. Present in
-     * BOTH builds (unlike the optional members below) so later consumers — the delivery throttle and the
-     * Pull re-route — can read it unconditionally. Purely additive for now: nothing calls it yet.
+     * The single remembered proactive-help level (Off/Less/More, spec §12.2, issue #341).
+     * The full build reads `getProactiveLevel()` live; the clean/no-op build returns the
+     * default `more`. Used by consumers such as the delivery throttle and Pull re-route.
      */
     getActiveProactiveLevel(): ProactiveLevel;
     /**
@@ -220,7 +218,11 @@ export interface StruggleEngineHandle {
      * extension.ts only assembles a `proactiveControl` capability when they are present, so the clean build never
      * surfaces a control for a feature it doesn't ship.
      */
-    /** Apply the AskIris level for an exercise: off clears its live surfaces, on marks the student present. */
+    /**
+     * Apply the transient effects of a level change: On marks the student present only
+     * when `exerciseId` is active; global Off clears the active exercise's live surfaces
+     * regardless of which exercise triggered it.
+     */
     setStudentProactive?(exerciseId: number, on: boolean): void;
     /**
      * The two §14 gate causes, independently (spec §14 cases 4-5): `consentMissing` = no proactive-egress

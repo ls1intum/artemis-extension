@@ -94,8 +94,8 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         this._disposables.push(this._onDidStartSession, this._onDidEndSession);
 
         // Engine alert → sink + snapshot bookkeeping. Delivery is ungated here (#352):
-        // consent gates the engine itself (#349), and the per-exercise level plus the
-        // throttle gate the surfaces downstream.
+        // consent gates the engine itself (#349), and the single remembered level (#341)
+        // plus the throttle gate the surfaces downstream.
         this._disposables.push(this._engine.onDidAlert(alert => {
             this._lastAlert = alert;
             this._alertSink.deliver(alert);

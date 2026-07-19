@@ -82,13 +82,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	// setProactiveBadge) can reach the chat provider; it is constructed below, well
 	// before any alert or server event fires.
 	let chatWebviewProvider: ChatWebviewProvider | undefined;
-	// Forward-ref to the AskIris provider's per-exercise preference (spec §12.2): the engine reads it lazily at
+	// Forward-ref to the AskIris provider's single remembered preference (spec §12.2): the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
-	// Level-aware read of the same preference (spec §12.2, Off/Less/More); `isStudentProactiveOn`
-	// below derives from this rather than duplicating the lookup, so there is one source of truth
-	// for "is this exercise's proactive help off". Same default-on fallback as above pre-wiring.
-	const getProactiveLevel = (exerciseId: number): ProactiveLevel => proactivePreferenceRef?.getLevel(exerciseId) ?? 'more';
+	// Level-aware read of the single remembered preference (spec §12.2, issue #341, Off/Less/More);
+	// `isStudentProactiveOn` derives from this rather than duplicating the lookup. Default-on until wired.
+	const getProactiveLevel = (): ProactiveLevel => proactivePreferenceRef?.getLevel() ?? 'more';
 	// Forward-ref: the Iris-enabled cache is constructed later (after ContextStore exists), but the
 	// engine's gate reads it lazily at alert-time, so a fail-closed default until it is wired.
 	let irisEnabledCache: IrisEnabledCache | undefined;
@@ -101,7 +100,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		context,
 		isIrisEnabled: () => irisEnabledCache?.isEnabled() ?? false,
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
-		isStudentProactiveOn: exerciseId => getProactiveLevel(exerciseId) !== 'off',
+		isStudentProactiveOn: () => getProactiveLevel() !== 'off',
 		getProactiveLevel,
 		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),

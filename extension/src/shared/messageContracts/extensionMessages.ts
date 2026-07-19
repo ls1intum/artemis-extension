@@ -181,7 +181,7 @@ export interface SlotDebugSnapshot {
         serverAvailable: boolean;
         /** Session latch: course-level proactive disabled (404/course-off reply). */
         courseProactiveOff: boolean;
-        /** Durable per-exercise student toggle (true when no exercise is active). */
+        /** Durable single remembered student toggle (issue #341), independent of the active exercise. */
         studentProactiveOn: boolean;
     };
 }

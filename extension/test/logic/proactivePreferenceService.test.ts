@@ -14,67 +14,87 @@ function fakeMemento(): import('vscode').Memento {
     } as unknown as import('vscode').Memento;
 }
 
+/** Let the private serialized write chain settle before inspecting raw globalState / a fresh instance. */
+const settle = () => new Promise<void>(r => setTimeout(r, 0));
+
 describe('ProactivePreferenceService', () => {
     const scope = { serverUrl: 'https://artemis.example.com', principal: { id: 7, login: 'student1' } };
+    const levelKey = `proactive.level::${normalizeScopeSegment(scope)}`;
     let svc: ProactivePreferenceService;
     beforeEach(() => { svc = new ProactivePreferenceService(fakeMemento(), () => scope); });
 
-    it('defaults to On for an unseen exercise', () => {
-        expect(svc.isProactiveOn(42)).toBe(true);
+    it('defaults to level "more" (and On) when nothing is stored', () => {
+        expect(svc.getLevel()).toBe('more');
+        expect(svc.isProactiveOn()).toBe(true);
     });
 
-    it('persists an explicit Off and reads it back', () => {
-        svc.setLevel(42, 'off');
-        expect(svc.isProactiveOn(42)).toBe(false);
-        svc.setLevel(42, 'more');
-        expect(svc.isProactiveOn(42)).toBe(true);   // back to default-on
+    it.each(['off', 'less', 'more'] as const)('round-trips level %s (same-instance shadow)', level => {
+        svc.setLevel(level);
+        expect(svc.getLevel()).toBe(level);
     });
 
-    // ── Level API (Task A1) ─────────────────────────────────────────────────
-
-    it('defaults to level "more" for an unseen exercise', () => {
-        expect(svc.getLevel(42)).toBe('more');
+    it('is a SINGLE remembered level: a value set once is read back everywhere (no per-exercise keying)', () => {
+        svc.setLevel('less');
+        // There is no exercise dimension anymore — every read returns the one stored level.
+        expect(svc.getLevel()).toBe('less');
+        expect(svc.isProactiveOn()).toBe(true);
     });
 
-    it.each(['off', 'less', 'more'] as const)('round-trips level %s', level => {
-        svc.setLevel(42, level);
-        expect(svc.getLevel(42)).toBe(level);
+    it('isProactiveOn derives from getLevel (off = false, less/more = true)', () => {
+        svc.setLevel('off');
+        expect(svc.isProactiveOn()).toBe(false);
+        svc.setLevel('less');
+        expect(svc.isProactiveOn()).toBe(true);
     });
 
-    it('defaults an unknown exercise id to "more"', () => {
-        expect(svc.getLevel(999)).toBe('more');
-    });
-
-    it('reads a legacy persisted boolean `false` as "off"', () => {
+    it('setLevel("more") reads back "more" synchronously (shadow) and deletes the persisted key', async () => {
         const memento = fakeMemento();
-        const key = `proactive.preference::${normalizeScopeSegment(scope)}`;
-        void memento.update(key, { 42: false });
-        const legacySvc = new ProactivePreferenceService(memento, () => scope);
-        expect(legacySvc.getLevel(42)).toBe('off');
+        const s = new ProactivePreferenceService(memento, () => scope);
+        s.setLevel('off');
+        await settle();
+        expect(memento.get(levelKey)).toBe('off');      // 'off' actually reached persistence first
+
+        s.setLevel('more');
+        expect(s.getLevel()).toBe('more');              // shadow is authoritative, synchronously,
+        //                                                 even though the async delete has not run yet
+        await settle();
+        expect(memento.keys()).not.toContain(levelKey); // persisted key deleted on `more`
     });
 
-    it('normalizes an invalid persisted value back to "more"', () => {
+    it('persists across a fresh service instance over the same globalState', async () => {
         const memento = fakeMemento();
-        const key = `proactive.preference::${normalizeScopeSegment(scope)}`;
-        void memento.update(key, { 42: 'bogus' });
-        const badSvc = new ProactivePreferenceService(memento, () => scope);
-        expect(badSvc.getLevel(42)).toBe('more');
+        new ProactivePreferenceService(memento, () => scope).setLevel('off');
+        await settle();
+        const reloaded = new ProactivePreferenceService(memento, () => scope);
+        expect(reloaded.getLevel()).toBe('off');
     });
 
-    it('setLevel("more") deletes the stored deviation (falls back to default)', () => {
-        svc.setLevel(42, 'less');
-        expect(svc.getLevel(42)).toBe('less');
-        svc.setLevel(42, 'more');
-        expect(svc.getLevel(42)).toBe('more');
+    it('validates a corrupt persisted scalar back to "more"', () => {
+        for (const bogus of ['nonsense', false, 7, { level: 'off' }]) {
+            const memento = fakeMemento();
+            void memento.update(levelKey, bogus);
+            expect(new ProactivePreferenceService(memento, () => scope).getLevel()).toBe('more');
+        }
     });
 
-    it('isProactiveOn stays derived from getLevel (off = false, less/more = true)', () => {
-        svc.setLevel(42, 'less');
-        expect(svc.isProactiveOn(42)).toBe(true);
-        svc.setLevel(42, 'off');
-        expect(svc.isProactiveOn(42)).toBe(false);
-        svc.setLevel(42, 'more');
-        expect(svc.isProactiveOn(42)).toBe(true);
+    it('ignores the legacy per-exercise map key entirely (no migration)', () => {
+        const memento = fakeMemento();
+        void memento.update(`proactive.preference::${normalizeScopeSegment(scope)}`, { 42: 'off' });
+        expect(new ProactivePreferenceService(memento, () => scope).getLevel()).toBe('more');
+    });
+
+    it('isolates levels by server::principal scope', async () => {
+        const memento = fakeMemento();
+        const scopeB = { serverUrl: 'https://artemis.example.com', principal: { id: 9, login: 'student2' } };
+        new ProactivePreferenceService(memento, () => scope).setLevel('off');
+        await settle();
+        expect(new ProactivePreferenceService(memento, () => scopeB).getLevel()).toBe('more');
+    });
+
+    it('unresolved scope → getLevel "more" and setLevel is a no-op', () => {
+        const s = new ProactivePreferenceService(fakeMemento(), () => null);
+        s.setLevel('off');
+        expect(s.getLevel()).toBe('more');
     });
 
     it('imports nothing from services/struggle or services/intervention (clean-bundle boundary)', () => {

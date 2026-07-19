@@ -389,14 +389,14 @@ describe('StruggleInterventionService', () => {
         expect(deps.hideActiveBanner).toHaveBeenCalled();
     });
 
-    it('setStudentProactive on a NON-active exercise does not touch live surfaces (no cross-exercise clobber)', () => {
+    it('setStudentProactive(false) from a NON-active exercise STILL clears the active exercise surfaces (#341 global Off)', () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
-        svc.setStudentProactive(999, false);   // active is 42, not 999
-        expect(deps.clearInline).not.toHaveBeenCalled();
-        expect(deps.clearLamp).not.toHaveBeenCalled();
-        expect(deps.setBadge).not.toHaveBeenCalled();
-        expect(deps.hideActiveBanner).not.toHaveBeenCalled();
+        svc.setStudentProactive(999, false);   // active is 42; a global Off clears regardless of source
+        expect(deps.clearInline).toHaveBeenCalled();
+        expect(deps.clearLamp).toHaveBeenCalled();
+        expect(deps.setBadge).toHaveBeenCalledWith(false);
+        expect(deps.hideActiveBanner).toHaveBeenCalled();
     });
 
     // C1/C3: ambient = PARKED pointer only (badge + lamp always; gutter icon if anchor live). No inline text, no banner.

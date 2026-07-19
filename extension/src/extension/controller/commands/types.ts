@@ -48,7 +48,7 @@ export interface CommandContext {
      * per-panel identity rather than a transient closure.
      */
     getCurrentSender(): (m: ExtensionToWebviewMessage) => void;
-    /** Durable per-exercise proactive-help level (client-side, spec §12.2). Absent in tests that don't need it. */
+    /** Durable single remembered proactive-help level (client-side, spec §12.2, issue #341). Absent in tests that don't need it. */
     proactivePreference?: ProactivePreferenceService;
     /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. */
     proactiveControl?: {

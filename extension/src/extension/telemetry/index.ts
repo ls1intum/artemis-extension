@@ -126,8 +126,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         clearInline: () => inline.clear(),
         postBubble: (text, id, episodeId) => deps.postOptimisticBubble(text, id, episodeId),
         setChatLiveEpisode: episodeId => deps.postLiveEpisode(episodeId),
-        isStudentProactiveOn: exerciseId => deps.isStudentProactiveOn(exerciseId),
-        getProactiveLevel: exerciseId => deps.getProactiveLevel(exerciseId),
+        isStudentProactiveOn: () => deps.isStudentProactiveOn(),
+        getProactiveLevel: () => deps.getProactiveLevel(),
         // Slot + progress-close tuning live in config.ts (TUNING.slot). TUNING.slot is a superset that
         // satisfies both StaleConfig and ProgressCloseCfg, so it feeds both deps; the orchestrator's
         // DEFAULT_SLOT_CFG / DEFAULT_PROGRESS_CFG remain fallbacks for test stubs that omit these.
@@ -186,12 +186,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         }),
     );
 
-    // Single source of truth for "what level is the ACTIVE exercise on" (spec §12.2).
-    // Hoisted here (rather than only inline in the return object below) so the throttle,
-    // constructed next, can share this SAME getter — keyed by the coordinator's own
-    // activeExerciseId (undefined between sessions, where 'more' is the fallback).
-    const getActiveProactiveLevel = (): ProactiveLevel =>
-        coordinator.activeExerciseId === undefined ? 'more' : deps.getProactiveLevel(coordinator.activeExerciseId);
+    // Single source of truth for the proactive-help level (spec §12.2, issue #341). The level is one
+    // remembered setting now, so there is no active-exercise keying; getProactiveLevel() already
+    // defaults to 'more' when unset. Read live so a mid-session Off/Less/More flip takes effect at once.
+    const getActiveProactiveLevel = (): ProactiveLevel => deps.getProactiveLevel();
 
     // Tier-2 delivery throttle wraps the orchestrator (downstream of the recorded
     // alert path, so goldens/research are unaffected). Reads THROTTLE_BY_LEVEL live on

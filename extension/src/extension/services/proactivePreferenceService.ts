@@ -5,19 +5,20 @@ import type { ProactiveLevel } from '@shared/messageContracts';
 import { type CourseAccessScope, normalizeScopeSegment } from '@extension/services/courseAccessStorageService';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
-const STORAGE_KEY_PREFIX = 'proactive.preference';
+const STORAGE_KEY_PREFIX = 'proactive.level';
 
-/** Exercise id -> deviation from the `more` default. Default-level exercises are ABSENT (keeps the map small). */
-type PreferenceMap = Record<number, 'less' | 'off'>;
+const LEVELS: readonly ProactiveLevel[] = ['off', 'less', 'more'];
 
 /**
- * Durable per-exercise proactive-help level (spec §12.2), stored in VS Code globalState keyed by
- * server + principal. Default level is `more`: a never-set exercise reads `more`, and only `less`/`off`
- * deviations are persisted. Plain client service — imports NOTHING from services/struggle|intervention,
- * so it stays in the clean bundle.
+ * Durable single proactive-help level (spec §12.2, Off/Less/More), stored in VS Code globalState
+ * keyed by server + principal. The level is remembered ONCE per user (issue #341), not per exercise:
+ * every exercise reads the same value. Default is `more`, so proactive help exists without any setup.
+ * Plain client service — imports NOTHING from services/struggle|intervention, so it stays in the
+ * clean bundle. The legacy per-exercise map key (`proactive.preference::…`) is deliberately never
+ * read or written (the feature was unreleased when this landed, so there is nothing to migrate).
  */
 export class ProactivePreferenceService {
-    private readonly _shadow = new Map<string, PreferenceMap>();
+    private readonly _shadow = new Map<string, ProactiveLevel>();
     private _writeChain: Promise<unknown> = Promise.resolve();
 
     constructor(
@@ -25,48 +26,36 @@ export class ProactivePreferenceService {
         private readonly _getScope: () => CourseAccessScope | null,
     ) {}
 
-    getLevel(exerciseId: number): ProactiveLevel {
+    getLevel(): ProactiveLevel {
         const key = this._scopeKey();
-        if (!key || !Number.isFinite(exerciseId)) { return 'more'; }
-        return this._map(key)[exerciseId] ?? 'more';
-    }
-
-    setLevel(exerciseId: number, level: ProactiveLevel): void {
-        const key = this._scopeKey();
-        if (!key || !Number.isFinite(exerciseId)) { return; }
-        const next: PreferenceMap = { ...this._map(key) };
-        if (level === 'more') { delete next[exerciseId]; } else { next[exerciseId] = level; }
-        this._shadow.set(key, next);
-        const snapshot = { ...next };
-        this._writeChain = this._writeChain.catch(() => undefined)
-            .then(() => this._globalState.update(key, snapshot))
-            .catch((err: unknown) => logger.warn('Failed to persist proactive preference', LogCategory.VIEW, err));
-    }
-
-    isProactiveOn(exerciseId: number): boolean {
-        return this.getLevel(exerciseId) !== 'off';
-    }
-
-    private _map(key: string): PreferenceMap {
+        if (!key) { return 'more'; }
         const cached = this._shadow.get(key);
         if (cached) { return cached; }
-        const persisted = this._globalState.get<Record<number, unknown>>(key, {});
-        const copy: PreferenceMap = {};
-        for (const [id, v] of Object.entries(persisted)) {
-            const numId = Number(id);
-            if (!Number.isFinite(numId)) { continue; }
-            const level = this._normalizeLegacy(v);
-            if (level !== 'more') { copy[numId] = level; }
-        }
-        this._shadow.set(key, copy);
-        return copy;
+        const level = this._validate(this._globalState.get<unknown>(key));
+        this._shadow.set(key, level);
+        return level;
     }
 
-    /** Legacy `false` (pre-level boolean store) -> `off`; valid level strings kept; anything else -> `more` (the default). */
-    private _normalizeLegacy(v: unknown): ProactiveLevel {
-        if (v === false) { return 'off'; }
-        if (v === 'off' || v === 'less') { return v; }
-        return 'more';
+    setLevel(level: ProactiveLevel): void {
+        const key = this._scopeKey();
+        if (!key) { return; }
+        // The shadow always holds the current level (incl. `more`) so a read right after this write is
+        // correct even while the async persistence below is still queued.
+        this._shadow.set(key, level);
+        // Persist `off`/`less`; delete the key on `more` (keeps the "absent = default" convention).
+        const persisted = level === 'more' ? undefined : level;
+        this._writeChain = this._writeChain.catch(() => undefined)
+            .then(() => this._globalState.update(key, persisted))
+            .catch((err: unknown) => logger.warn('Failed to persist proactive level', LogCategory.VIEW, err));
+    }
+
+    isProactiveOn(): boolean {
+        return this.getLevel() !== 'off';
+    }
+
+    /** globalState is runtime-untyped: accept only a valid level scalar, default everything else to `more`. */
+    private _validate(v: unknown): ProactiveLevel {
+        return typeof v === 'string' && (LEVELS as readonly string[]).includes(v) ? (v as ProactiveLevel) : 'more';
     }
 
     private _scopeKey(): string | null {

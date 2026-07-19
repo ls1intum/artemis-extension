@@ -47,7 +47,7 @@ describe('ProactiveControlCommandModule', () => {
     it('setLevel(off) persists + applies + re-pushes', async () => {
         const h = harness({ level: 'off' });
         await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level: 'off' }));
-        expect(h.pref.setLevel).toHaveBeenCalledWith(42, 'off');
+        expect(h.pref.setLevel).toHaveBeenCalledWith('off');
         expect(h.control.setStudentProactive).toHaveBeenCalledWith(42, false);
         expect(h.sent[0]).toMatchObject({ level: 'off' });
     });
@@ -55,7 +55,7 @@ describe('ProactiveControlCommandModule', () => {
     it('setLevel(less/more) applies proactive=true (only "off" disables)', async () => {
         const h = harness({ level: 'more' });
         await h.mod.getHandlers()[WebviewCmd.SetProactiveLevel](cmd('setProactiveLevel', { exerciseId: 42, level: 'less' }));
-        expect(h.pref.setLevel).toHaveBeenCalledWith(42, 'less');
+        expect(h.pref.setLevel).toHaveBeenCalledWith('less');
         expect(h.control.setStudentProactive).toHaveBeenCalledWith(42, true);
     });
 

@@ -341,7 +341,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
     }
 
-    /** The per-exercise proactive on/off preference (spec §12.2); read by the engine's `isStudentProactiveOn` dep. */
+    /** The single remembered proactive on/off preference (spec §12.2, issue #341); read by the engine's `isStudentProactiveOn` dep. */
     public get proactivePreference(): ProactivePreferenceService {
         return this._proactivePreference;
     }
