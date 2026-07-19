@@ -137,6 +137,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
         const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
 
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
@@ -146,6 +147,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             exerciseRegistry: new ExerciseRegistry(),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
+            noAiDetectionService: fakeNoAi,
             buildErrorCodeLensProvider: mockCodeLens,
             struggleCoordinator: mockCoordinator,
             updateAuthContext: mockUpdateAuth,
@@ -187,6 +189,7 @@ suite('Panel hide/show state persistence', () => {
     let controllableView: ControllableWebviewView;
     let spyWebview: SpyWebview;
     let sandbox: sinon.SinonSandbox;
+    let noAiCb: (v: boolean) => void = () => {};
 
     setup(async () => {
         sandbox = sinon.createSandbox();
@@ -203,6 +206,10 @@ suite('Panel hide/show state persistence', () => {
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
         const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+        const fakeNoAi = {
+            onNoAiStatusChanged: (cb: (value: boolean) => void) => { noAiCb = cb; return { dispose() {} }; },
+            dispose() {},
+        } as any;
 
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
@@ -212,6 +219,7 @@ suite('Panel hide/show state persistence', () => {
             exerciseRegistry: new ExerciseRegistry(),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
+            noAiDetectionService: fakeNoAi,
             buildErrorCodeLensProvider: mockCodeLens,
             struggleCoordinator: mockCoordinator,
             updateAuthContext: mockUpdateAuth,
@@ -357,6 +365,15 @@ suite('Panel hide/show state persistence', () => {
             await cfg().update('proactiveCodeEgress', prev, vscode.ConfigurationTarget.Global);
         }
     });
+
+    test('a .noai status change posts updateNoAiStatus to the webview (both directions)', async () => {
+        spyWebview.sentMessages.length = 0;
+        noAiCb(true);
+        assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai appears');
+        spyWebview.sentMessages.length = 0;
+        noAiCb(false);
+        assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai disappears');
+    });
 });
 
 suite('Nudge banner replay and cache-clear', () => {
@@ -381,6 +398,7 @@ suite('Nudge banner replay and cache-clear', () => {
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
         const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
 
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
@@ -390,6 +408,7 @@ suite('Nudge banner replay and cache-clear', () => {
             exerciseRegistry: new ExerciseRegistry(),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
+            noAiDetectionService: fakeNoAi,
             buildErrorCodeLensProvider: mockCodeLens,
             struggleCoordinator: mockCoordinator,
             updateAuthContext: mockUpdateAuth,

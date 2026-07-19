@@ -32,7 +32,8 @@ suite('FullscreenPanelManager.openStruggleFullscreen', () => {
 
     function makeManager(): FullscreenPanelManager {
         const ctx = { subscriptions: [] } as unknown as vscode.ExtensionContext;
-        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never));
+        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
+        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never), fakeNoAi);
     }
 
     test('Ready posts the init and subscribes once; RequestInit re-sends WITHOUT re-subscribing; dispose tears down', () => {
@@ -106,7 +107,8 @@ suite('FullscreenPanelManager.openExerciseFullscreen - #342 consent flip', () =>
 
     function makeManager(): FullscreenPanelManager {
         const ctx = { subscriptions: [] } as unknown as vscode.ExtensionContext;
-        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never));
+        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
+        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never), fakeNoAi);
     }
 
     test('a real config flip repaints an open fullscreen exercise panel, and the listener is disposed on close', async () => {
@@ -145,5 +147,66 @@ suite('FullscreenPanelManager.openExerciseFullscreen - #342 consent flip', () =>
         } finally {
             await cfg().update('proactiveCodeEgress', prev, vscode.ConfigurationTarget.Global);
         }
+    });
+});
+
+suite('FullscreenPanelManager.openExerciseFullscreen - #334 .noai flip', () => {
+    let sandbox: sinon.SinonSandbox;
+    let postMessage: sinon.SinonStub;
+    let messageHandler: (m: unknown) => void;
+    let disposeHandler: () => void;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        postMessage = sandbox.stub();
+        const panel = {
+            webview: {
+                html: '',
+                cspSource: 'vscode-resource:',
+                asWebviewUri: (u: vscode.Uri) => u,
+                postMessage,
+                onDidReceiveMessage: (cb: (m: unknown) => void) => { messageHandler = cb; return { dispose() { /* noop */ } }; },
+            },
+            onDidDispose: (cb: () => void) => { disposeHandler = cb; return { dispose() { /* noop */ } }; },
+            dispose() { /* noop */ },
+        };
+        sandbox.stub(vscode.window, 'createWebviewPanel').returns(panel as unknown as vscode.WebviewPanel);
+    });
+    teardown(() => sandbox.restore());
+
+    const exerciseData = { exercise: { id: 1, title: 'X', studentParticipations: [] } };
+    let noAiCb: (v: boolean) => void = () => {};
+    const disposeSpy = sinon.spy();
+
+    function makeManager(): FullscreenPanelManager {
+        const ctx = { subscriptions: [] } as unknown as vscode.ExtensionContext;
+        const fakeNoAi = {
+            onNoAiStatusChanged: (cb: (value: boolean) => void) => { noAiCb = cb; return { dispose: disposeSpy }; },
+        } as any;
+        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never), fakeNoAi);
+    }
+
+    const awaitNoAiMsg = async (deadlineMs: number): Promise<boolean> => {
+        const start = Date.now();
+        while (Date.now() - start < deadlineMs) {
+            if (postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateNoAiStatus')) { return true; }
+            await new Promise(r => setTimeout(r, 20));
+        }
+        return false;
+    };
+
+    test('a .noai flip posts updateNoAiStatus (both directions), and the subscription is disposed once with the panel', async () => {
+        makeManager().openExerciseFullscreen(exerciseData as never);
+        messageHandler({ type: WebviewMsgType.Ready });
+
+        postMessage.resetHistory();
+        noAiCb(true);
+        assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai appears');
+        postMessage.resetHistory();
+        noAiCb(false);
+        assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai disappears');
+
+        disposeHandler();
+        assert.ok(disposeSpy.calledOnce, 'the .noai subscription must be disposed exactly once with the panel');
     });
 });

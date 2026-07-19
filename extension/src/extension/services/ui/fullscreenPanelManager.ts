@@ -7,6 +7,7 @@ import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { NoAiDetectionService } from '@extension/services/workspace';
 import { collectExerciseSources, detectWorkspaceExercise, detectWorkspaceForRepoUris } from '@extension/services/workspace/workspaceDetectionService';
 import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { ExerciseDetailsResponse } from '@extension/types';
@@ -19,6 +20,7 @@ export class FullscreenPanelManager {
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _getMessageHandler: () => WebViewMessageHandler,
+        private readonly _noAiDetectionService: NoAiDetectionService,
     ) {}
 
     public openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): void {
@@ -27,6 +29,7 @@ export class FullscreenPanelManager {
         // consent flip, but it posts through the sidebar's own transport and can never reach this
         // panel's independent webview - so this panel needs its own listener to stay in sync.
         let consentSub: vscode.Disposable | undefined;
+        let noAiSub: vscode.Disposable | undefined;
         this._openFullscreenPanel({
             viewType: 'artemis.exerciseFullscreen',
             title: `Exercise: ${exerciseTitle}`,
@@ -71,8 +74,14 @@ export class FullscreenPanelManager {
                         }
                     });
                 }
+                // #334: mirrors the sidebar's own .noai live-refresh (this panel has its own webview).
+                if (!noAiSub) {
+                    noAiSub = this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
+                        postSafe({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected });
+                    });
+                }
             },
-            onDispose: () => { consentSub?.dispose(); consentSub = undefined; },
+            onDispose: () => { consentSub?.dispose(); consentSub = undefined; noAiSub?.dispose(); noAiSub = undefined; },
         });
     }
 

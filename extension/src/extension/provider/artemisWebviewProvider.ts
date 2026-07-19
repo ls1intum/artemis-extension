@@ -37,6 +37,7 @@ import {
 import type { NudgeText } from '@extension/services/ui/nudgeBannerText';
 import { OFFER_TEXTS } from '@extension/services/ui/nudgeBannerText';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { NoAiDetectionService } from '@extension/services/workspace';
 import type { ILiveEngineFeed, IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
@@ -87,6 +88,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _proactivePreference: ProactivePreferenceService;
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
+    private readonly _noAiDetectionService: NoAiDetectionService;
     private _websocketHandler: WebSocketMessageHandler;
     private readonly _struggleCoordinator: IStruggleCoordinator;
     private readonly _liveEngineFeed: ILiveEngineFeed;
@@ -144,6 +146,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._exerciseRegistry = deps.exerciseRegistry;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
+        this._noAiDetectionService = deps.noAiDetectionService;
         this._struggleCoordinator = deps.struggleCoordinator;
         this._authContextUpdater = deps.updateAuthContext;
         this._courseDataCache = deps.courseDataCache;
@@ -190,6 +193,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._extensionUri,
             this._extensionContext,
             () => this._messageHandler,
+            this._noAiDetectionService,
         );
 
         // 7b. SSR coordinator — owns the theme listener and background SSR.
@@ -441,13 +445,19 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 this.refreshTheme();
             }
             // #342: a consent flip must repaint the AskIris proactive card live (grant restores the remembered
-            // level, revoke parks it at Off). Harmless in the clean build: the webview's re-request hits the
-            // command module's early return (no proactive capability) and no card is sent.
+            // level, revoke parks it at Off). The clean build no longer early-returns here: the webview's
+            // re-request now yields a card there too (no proactive capability just changes its content).
             if (event.affectsConfiguration(`${VSCODE_CONFIG.IRIS.SECTION}.${VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY}`)) {
                 this._postMessageSafe({ type: ExtensionMsg.UpdateProactiveConsent });
             }
         });
         this._viewDisposables.push(configListener);
+
+        // #334: a .noai create/delete must live-refresh the exercise card (the view re-requests on this message).
+        const noAiListener = this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
+            this._postMessageSafe({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected });
+        });
+        this._viewDisposables.push(noAiListener);
     }
 
     // ── Rendering ──────────────────────────────────────────────────────

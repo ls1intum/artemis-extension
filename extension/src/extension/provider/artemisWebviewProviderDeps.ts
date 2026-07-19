@@ -7,6 +7,7 @@ import type { CourseDataCache } from '@extension/services/courseDataCache';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { NoAiDetectionService } from '@extension/services/workspace';
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
@@ -19,6 +20,7 @@ export interface ArtemisWebviewProviderDeps {
     exerciseRegistry: ExerciseRegistry;
     providerRegistry: IProviderRegistry;
     websocketService: ArtemisWebsocketService;
+    noAiDetectionService: NoAiDetectionService;
     buildErrorCodeLensProvider: BuildErrorCodeLensProvider;
     struggleCoordinator: IStruggleCoordinator;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
