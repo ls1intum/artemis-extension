@@ -96,8 +96,8 @@ export const THROTTLE_BY_LEVEL = {
  * feed the golden-pinned decision — they are the unevaluated Tier-3 add-on knobs
  * (the Tier-2 delivery throttle lives in {@link THROTTLE_BY_LEVEL} above). All ENG
  * (engineering defaults), safe to re-tune per version without touching held-out F1
- * or golden parity. The user-facing on/off (`enabled`/`showInterventions`) lives in
- * VS Code settings, not here.
+ * or golden parity. The user-facing controls are the proactive-egress consent and
+ * the Off/Less/More level (#352), not knobs here.
  */
 export const TUNING = {
     /** Tier-3 add-on (Test-Stagnation): no-progress streak length N (a build is

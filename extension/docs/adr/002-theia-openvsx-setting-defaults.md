@@ -25,6 +25,8 @@ Override a small set of the extension's **own** `artemis.*` configuration defaul
 
 ### Override list
 
+> Superseded in part by #352 (2026-07-19): the `artemis.struggleDetection.*` settings were removed entirely; the row below is historical.
+
 | Setting | `full` default | `openvsx` default | Reason |
 |---------|----------------|-------------------|--------|
 | `artemis.startPage` | `dashboard` | `workspace-exercise` | Workspace is the exercise; auto-open it after login instead of the dashboard. |

@@ -15,13 +15,13 @@
  * The config is read live (not captured once at construction) so a mid-session
  * level change (Less/More) takes effect on the very next delivery, while the
  * budget/history below are UNCHANGED by a config flip alone (only resetSession()
- * clears them) — this mirrors reset()'s existing "config-off must not refill the
+ * clears them) — this mirrors reset()'s existing "clearing surfaces must not refill the
  * budget" guarantee.
  *
  * `minDeliveryGapS` is delivery-only and is DELIBERATELY independent of the SPEC
  * detector cooldown (a Schicht-3 decision guard) — they are different layers.
  *
- * reset() clears the inner UI but KEEPS the budget (a config-off toggle must not
+ * reset() clears the inner UI but KEEPS the budget (a surface clear must not
  * refill the per-session cap); resetSession() resets the budget for a new
  * exercise session.
  */

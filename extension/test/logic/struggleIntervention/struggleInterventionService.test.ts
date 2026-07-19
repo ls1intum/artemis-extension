@@ -280,19 +280,19 @@ describe('StruggleInterventionService', () => {
         expect(svc.getProactiveGateState()).toEqual({ consentMissing: true, serverUnavailable: false });
     });
 
-    it('a 404 server-unavailable latch survives reset() (settings toggle) and clears only on resetSession() (new exercise)', async () => {
+    it('a 404 server-unavailable latch survives reset() (surface clear) and clears only on resetSession() (new exercise)', async () => {
         const svc = new StruggleInterventionService(fakeDeps({ postIntervention: vi.fn(async () => 'unavailable' as const) }));
         svc.onTick(tick(530));
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(svc.getProactiveGateState().serverUnavailable).toBe(true);
         svc.reset();
-        expect(svc.getProactiveGateState().serverUnavailable).toBe(true);   // settings-toggle clear KEEPS the per-session 404 latch
+        expect(svc.getProactiveGateState().serverUnavailable).toBe(true);   // surface clear KEEPS the per-session 404 latch
         svc.resetSession();
         expect(svc.getProactiveGateState()).toEqual({ consentMissing: false, serverUnavailable: false });  // a new exercise re-probes
     });
 
-    it('course-off latches (survives the in-flight watchdog + a settings-toggle reset): no re-POST until resetSession (spec §13)', async () => {
+    it('course-off latches (survives the in-flight watchdog + a surface-clear reset): no re-POST until resetSession (spec §13)', async () => {
         // Capture the in-flight watchdog callback so we can fire it manually. This is the load-bearing part of the
         // test: course-off must RELEASE the in-flight slot, so the "no second POST" guarantee has to come from a
         // real per-session latch, NOT from a flag left stuck in-flight (which the watchdog would otherwise clear).
@@ -312,7 +312,7 @@ describe('StruggleInterventionService', () => {
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(1);             // latched, not merely in-flight
 
-        svc.reset();                                       // settings-toggle UI clear must NOT lift the per-session latch
+        svc.reset();                                       // surface clear must NOT lift the per-session latch
         svc.deliver(alert());
         await new Promise(r => setTimeout(r, 0));
         expect(post).toHaveBeenCalledTimes(1);             // still latched after reset()
@@ -492,7 +492,7 @@ describe('StruggleInterventionService', () => {
         svc.onServerActive('ep-1', 7);
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
 
-        svc.reset();                       // settings-toggle does NOT free the slot
+        svc.reset();                       // reset() (surface clear) does NOT free the slot
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
 
         svc.resetSession();                // new exercise frees the slot

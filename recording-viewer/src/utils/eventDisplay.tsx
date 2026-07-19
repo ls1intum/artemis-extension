@@ -251,7 +251,7 @@ export function eventDetail(event: RecordedEvent): React.ReactNode {
         case 'configurationSnapshot':
             return (
                 <span className="event-detail">
-                    struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'}
+                    struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'} (legacy fields)
                 </span>
             );
         case 'configurationChange': {
@@ -399,7 +399,7 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
                 ? <><span className="tt-time">{time}</span> Task "{event.taskName}" opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)</>
                 : <><span className="tt-time">{time}</span> Task "{event.taskName}" closed | {formatDuration(event.durationMs)} ({event.closeReason})</>;
         case 'configurationSnapshot':
-            return <><span className="tt-time">{time}</span> struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'}</>;
+            return <><span className="tt-time">{time}</span> struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'} (legacy fields)</>;
         case 'configurationChange': {
             const parts: string[] = [];
             if (event.changes.struggleDetectionEnabled !== undefined) {

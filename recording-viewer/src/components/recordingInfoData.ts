@@ -91,8 +91,8 @@ export const RECORDING_INFO_CATEGORIES: RecordingInfoCategory[] = [
             { badge: 'eqSnapshot', label: 'EqSnapshot', desc: 'Study-era only (EQ engine retired): EQ score (0–1) + confidence (sufficient/insufficient)' },
             { badge: 'eqEngineState', label: 'EqEngineState', desc: 'Study-era only (EQ engine retired): full EQ engine state (snapshots, pairs, confidence)' },
             { badge: 'intervention', label: 'Intervention', desc: 'Study-era only (EQ engine retired): shown/accepted/dismissed interventions with level and EQ context' },
-            { badge: 'configurationSnapshot', label: 'ConfigurationSnapshot', desc: 'Provenance: struggle-detection + intervention settings captured at session start (used to classify control vs treatment runs)' },
-            { badge: 'configurationChange', label: 'ConfigurationChange', desc: 'Provenance: struggle-detection or intervention setting flipped mid-session (only changed keys are recorded)' },
+            { badge: 'configurationSnapshot', label: 'ConfigurationSnapshot', desc: 'Provenance: legacy settings snapshot; since #352 both flags are pinned true (settings removed), older recordings carry real values' },
+            { badge: 'configurationChange', label: 'ConfigurationChange', desc: 'Provenance (legacy recordings only): a struggle-detection setting flipped mid-session; not produced since #352' },
         ],
     },
     {

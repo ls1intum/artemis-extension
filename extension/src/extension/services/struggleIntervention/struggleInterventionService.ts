@@ -246,10 +246,11 @@ const DEFAULT_PROGRESS_CFG: ProgressCloseCfg = {
 // ---------------------------------------------------------------------------
 
 /**
- * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}, so
- * the coordinator's `enabled`/`showInterventions` gating AND its `reset()` on session change stay authoritative
- * (we do NOT subscribe the raw, ungated engine event). Ticks are fed via {@link onTick} (wired in extension.ts
- * from `coordinator.onDidTick`). vscode-free at runtime -- only type imports; all effects injected.
+ * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}; alerts
+ * arrive via the coordinator's sink chain (BackoffGate -> ThrottledAlertSink -> this, see telemetry/index.ts)
+ * with no settings gate since #352 (consent gates the engine, level/gates/throttle gate the surfaces) and the
+ * `reset()`/`resetSession()` teardown calls stay authoritative. Ticks are fed via {@link onTick} (wired in
+ * extension.ts from `coordinator.onDidTick`). vscode-free at runtime -- only type imports; all effects injected.
  */
 export class StruggleInterventionService implements AlertSink {
     private readonly _buffer = new TickRingBuffer(12);
@@ -532,7 +533,7 @@ export class StruggleInterventionService implements AlertSink {
         this.notifySlotDebugChanged();
     }
 
-    /** AlertSink.deliver -- the coordinator calls this ONLY when `enabled && showInterventions`. */
+    /** AlertSink.deliver -- reached for every engine alert that passed the BackoffGate + throttle chain (#352: no settings gate). */
     deliver(alert: AlertRecord): void {
         void this._handleAlert(alert);
     }
@@ -1817,9 +1818,10 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * AlertSink.reset -- the coordinator's settings-toggle / context-clear path. Clears ALL surfaces
-     * (incl. the lamp) + the in-flight slot, but DELIBERATELY KEEPS the per-session latches (404 /
-     * course-off) and the active cap: a config-off->on toggle mid-session must not silently lift a latch.
+     * AlertSink.reset -- shared surface-clearing helper invoked by the consent/session teardown paths
+     * (no standalone production caller since #352; level-Off clears surfaces via its own path). Clears
+     * ALL surfaces (incl. the lamp) + the in-flight slot, but DELIBERATELY KEEPS the per-session latches
+     * (404 / course-off) and the active cap: a mid-session surface clear must not silently lift a latch.
      */
     reset(): void {
         this._buffer.clear();
