@@ -51,9 +51,6 @@ export class ProactiveControlCommandModule {
         const seq = ++this._pushSeq;
         const gate = this.context.proactiveControl.getProactiveGateState();
         const stored = this.context.proactivePreference?.getLevel(exerciseId) ?? 'more';
-        // #342 effective-level mask: missing consent always forces the DISPLAYED level to Off, orthogonal to
-        // which card reason wins precedence below. The stored preference is never written by this gate.
-        const level = gate.consentMissing ? 'off' : stored;
 
         // §14 availability — shared classifier (profile + course settings). courseId absent → optimistic enabled
         // (self-heals on the next push that carries it; the webview always has exercise.course?.id at every call site).
@@ -85,6 +82,11 @@ export class ProactiveControlCommandModule {
             consentMissing: gate.consentMissing,
             serverUnavailable: gate.serverUnavailable,
         });
+
+        // #342 effective-level mask: the DISPLAYED level is the stored preference only while proactive can
+        // actually run (available card); every shut-off state (consent, course-off, 404) shows a truthful Off.
+        // The stored preference is never written by this mask, so a later 'available' restores it.
+        const level = cardState === 'available' ? stored : 'off';
 
         // A newer _push superseded this one mid-await → drop the stale paint (cross-exercise staleness is the
         // webview's render-time exerciseId guard; this guards same-exercise rapid re-pushes).

@@ -13,20 +13,21 @@ The Off/Less/More proactive-help control in the exercise view is a delivery pref
 1. **UX for missing consent:** segments stay visible but disabled, Off is the active segment, with a hint text and an "Enable in Settings" link below (no warn-notification flow; deviates deliberately from the issue text).
 2. **Link action:** the link sends the existing `openSettings` webview command with the `artemis.iris.proactiveCodeEgress` setting id. No new message type; identical behavior for `ask` and `disabled`.
 3. **Split the degraded causes:** missing consent (student-fixable) and 404-latched server (not fixable) get distinct reasons and distinct rendering. The 404 case keeps today's behavior.
+4. **(Added 2026-07-19, from manual testing:)** the level mask covers EVERY shut-off state, not just the consent case: the displayed level is the stored preference only while the card is `available`; `off-course`, `consent-missing` and `limited` all show Off. Rationale: a visible Less/More is equally misleading whenever nothing can fire, regardless of the cause.
 
 ## Behavior matrix
 
 | State | Cause | Ask button | Proactive control |
 |---|---|---|---|
-| `available` | everything on | enabled | segments active |
-| `off-course` | course disabled proactive | enabled | segments visible, disabled, course note (unchanged) |
+| `available` | everything on | enabled | segments active, stored level shown |
+| `off-course` | course disabled proactive | enabled | segments visible, disabled, Off active, course note |
 | `degraded` / `consent-missing` **(new)** | egress consent not `enabled` | enabled | segments visible, disabled, Off active, hint + Settings link |
-| `degraded` / `limited` | server 404-latched | enabled | segments hidden, "unavailable right now" (unchanged) |
+| `degraded` / `limited` | server 404-latched | enabled | segments hidden, Off carried in the message, "unavailable right now" (unchanged rendering) |
 | `unavailable` | `.noai` or Iris off | disabled | section hidden, exercise-view banner (unchanged) |
 
 Precedence with multiple simultaneous causes (total shut-off wins): `unavailable` > `off-course` > `limited` > `consent-missing`. The 404 case deliberately beats the consent case: if the server lacks the feature, a consent hint would promise something that cannot be delivered.
 
-Precedence selects only `cardState`/`reason`. The effective-level mask (missing consent → `off`) is orthogonal and always applies: `off-course` + missing consent renders the course note, with Off as the active disabled segment instead of the stored preference.
+Precedence selects only `cardState`/`reason`. The effective-level mask is orthogonal and keyed on the derived card state: `level = cardState === 'available' ? stored : 'off'` (decision 4). The stored preference is never written by the mask; a later `available` card restores it.
 
 ## Design
 
@@ -45,7 +46,7 @@ Derivation order: `noAi` → `unavailable`/`noai`; `irisAvailability === 'disabl
 
 - The `proactiveControl` capability replaces `isProactiveDegraded(): boolean` with `getProactiveGateState(): { consentMissing: boolean; serverUnavailable: boolean }`. `StruggleInterventionService` carries it (it already knows both flags separately: `!this._deps.isEgressEnabled()` and `!this._serverAvailable`); `telemetry/index.ts` and `extension.ts` re-wire the seam accordingly. `noop.ts` keeps omitting the capability.
 - Bundle boundary: the command module must NOT import from `services/struggleIntervention/`; both flags travel exclusively through the seam. The clean (Open VSX) build is untouched: `_push` still early-returns when `proactiveControl` is absent.
-- In `_push`: `effectiveLevel = consentMissing ? 'off' : storedLevel`. The card message carries the effective level. The stored preference (`ProactivePreferenceService`) is never written by the gate; granting consent again therefore restores the remembered value with zero extra code.
+- In `_push`: `effectiveLevel = cardState === 'available' ? storedLevel : 'off'` (computed after the card-state derivation; decision 4). The card message carries the effective level. The stored preference (`ProactivePreferenceService`) is never written by the gate; a later `available` card therefore restores the remembered value with zero extra code.
 - `handleSetLevel` drops the request while `consentMissing` (no `setLevel`, no `setStudentProactive`, no collapse); it still re-pushes so the webview repaints the forced-Off state. This is defense in depth; the UI is disabled anyway.
 - No additional delivery-side gate: without consent no engine runs (#349) and every egress path is already silent (#338).
 
