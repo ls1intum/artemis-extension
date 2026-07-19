@@ -17,7 +17,8 @@ Three settings overlap on one concern. `artemis.struggleDetection.enabled` and `
 
 ### 1. Settings contributions (`extension/package.json`, `constants.ts`)
 
-- Delete the two configuration properties `artemis.struggleDetection.enabled` and `artemis.struggleDetection.showInterventions` (single shared package.json; the Open VSX packaging script does not transform settings).
+- Delete the two configuration properties `artemis.struggleDetection.enabled` and `artemis.struggleDetection.showInterventions` (single shared package.json).
+- The Open VSX manifest generator DOES reference these keys: `scripts/generate-clean-manifest.js` (`STRUGGLE_SETTINGS` ~line 16, `dropStruggleGroup` deletion loop ~line 45). Remove `STRUGGLE_SETTINGS` and its deletion loop; KEEP the generator's removal of `artemis.showStruggleScore`. Update `test/logic/scripts/generateCleanManifest.test.ts` so neither profile assumes the legacy settings exist.
 - Delete the `STRUGGLE_DETECTION` block from `VSCODE_CONFIG` (`extension/src/extension/utils/constants.ts:39-43`).
 - Users with a `false` value keep a harmless orphaned entry in their settings.json; no migration.
 
@@ -27,18 +28,31 @@ Three settings overlap on one concern. `artemis.struggleDetection.enabled` and `
 - Alert delivery (`onDidAlert` handler, ~line 105): deliver unconditionally. Delivery is already governed by consent (#349: no engine without it), the per-exercise level, and the throttle — no behavioral hole.
 - `onNewResult` (~line 120): drop the `if (!this._isEnabled)` early return; the #349 guard `if (!this._engineRunning)` directly below covers the no-detection case.
 - Add `isConsentGranted(): boolean` returning `this._detectionConsent.isGranted()` (for the debug view, section 3).
-- `noopStruggleCoordinator.ts`: mirror the accessor change (drop `isEnabled`, add `isConsentGranted(): boolean` returning `false`).
+- `telemetry/contract.ts` (~line 22): the `IStruggleCoordinator` `Pick` replaces `'isEnabled'` with `'isConsentGranted'` (compile-blocking otherwise); typed mocks follow.
+- `noopStruggleCoordinator.ts`: mirror the accessor change (drop `isEnabled`, add `isConsentGranted(): boolean` returning `false` — correct regardless of stored consent, since that build has no engine).
 
 ### 3. Struggle debug view
 
 - `viewInitDataService.ts` (~line 256): `isEnabled: coordinator?.isEnabled() ?? false` becomes `isEnabled: coordinator?.isConsentGranted() ?? false`. The message-contract field name `isEnabled` stays (no wire change).
 - `StruggleDetectionView.tsx` (~line 78): the disabled-state copy changes from a settings hint to a consent hint (the view renders when `isEnabled` is false; the text must say that the code-reading consent is missing, not that a setting is off).
-- Importing `proactiveEgressConsent` into `services/ui` directly would violate the bundle boundary — hence the coordinator accessor.
+- Importing `proactiveEgressConsent` into `services/ui` directly would violate the bundle boundary (the clean-bundle verifier forbids the whole `services/struggleIntervention/` subtree) — hence the coordinator accessor.
+- **Freshness is sample-at-refresh, by design:** the debug view refreshes on init, ticks, and engine start/end. During an active exercise a consent flip triggers engine start/end and therefore a refresh; with NO active exercise a persistent fullscreen struggle panel can show a stale consent state until its next refresh. Accepted for a dev-only tool; consent-change refresh wiring for the debug view is explicitly out of scope.
 
 ### 4. Session recorder (desktop-only; full retirement is #336)
 
-- `sessionRecorderWiring.ts`: the config snapshot keeps its shape but records constants `struggleDetectionEnabled: true, showInterventions: true`; the configuration-change listener parts for these two keys are removed.
-- Recording contract (`recording/types.ts`, `parseRecordedData.ts`) unchanged: old recordings and goldens keep parsing.
+- `sessionRecorderWiring.ts`: the config snapshot keeps its shape but records constants `struggleDetectionEnabled: true, showInterventions: true`. Remove the recorder's ENTIRE dedicated configuration listener plus its reader/cache helpers (not an inert listener); the wiring test asserts no configuration listener is registered.
+- Recording contract (`recording/types.ts`, `parseRecordedData.ts`) unchanged: old recordings and goldens keep parsing; the low-level recorder/parser tests for old values stay as legacy-schema coverage. Comments on the snapshot fields are updated: they are legacy compatibility fields pinned to `true`, no longer treatment-state measurements.
+
+### 5. Comment and docs sweep
+
+Living text that becomes wrong with the removal is updated in the same change:
+- `services/struggle/config.ts` ~line 94 (claims the settings as the user-facing source).
+- `struggleInterventionService.ts` ~lines 248, 535 (coordinator-gating comments) and ~1819 (the "settings-toggle" reset description — reword to the surviving trigger).
+- `sessionRecorderWiring.ts` ~line 177 and `recording/types.ts` ~line 130 (control/treatment classification claims).
+- ADR `docs/adr/002-theia-openvsx-setting-defaults.md` (~line 28) and `003-theia-openvsx-telemetry-seam.md` (~line 29): mark the affected decisions superseded by #352. Historical docs/superpowers plans stay untouched.
+- `recording/types.ts` ~line 145: mark `ConfigurationChangeEvent` as legacy-only (no longer produced).
+- `recording/README.md` ~line 104: reword the startup-contributor description.
+- `recording-viewer/src/components/recordingInfoData.ts` ~line 94: update the control/treatment and live-setting descriptions (fields are pinned legacy values now).
 
 ## Out of scope
 
@@ -48,15 +62,16 @@ Three settings overlap on one concern. `artemis.struggleDetection.enabled` and `
 ## Acceptance criteria
 
 1. Neither setting appears in the settings UI (search "struggle" shows no legacy toggle); `package.json` has no `artemis.struggleDetection.*` contribution.
-2. No reference to the removed keys or `VSCODE_CONFIG.STRUGGLE_DETECTION` anywhere in `src/`.
+2. No reference to the removed keys or `VSCODE_CONFIG.STRUGGLE_DETECTION` anywhere in `src/`, `package.json`, `scripts/`, or `test/` (recording legacy-schema tests and historical docs excepted).
 3. Alert delivery behavior is unchanged for consented users (level + throttle still gate); a build result is still ignored while the engine is not running.
-4. The struggle debug view shows its inactive hint exactly when the consent is missing, with consent-oriented copy.
-5. New recordings carry `struggleDetectionEnabled: true, showInterventions: true`; existing recordings and goldens parse unchanged.
+4. The struggle debug view shows its inactive hint when the consent is missing at sampling time (init/tick/start/end refreshes), with consent-oriented copy.
+5. New recordings carry `struggleDetectionEnabled: true, showInterventions: true`; existing recordings and goldens parse unchanged; the recorder registers no configuration listener.
 6. Lint, `check-types`, vitest, mocha green; `npm run package:openvsx` + clean-bundle verifier pass.
 
 ## Tests
 
-- Coordinator tests: remove/invert the gate-pinning tests (enabled=false suppressed delivery; showInterventions=false suppressed delivery; config-change reload). Add: delivery happens with no `artemis.struggleDetection` config present; `onNewResult` still drops results while the engine is not running; `isConsentGranted()` reflects the consent dep.
+- Coordinator tests: remove/invert the gate-pinning tests (enabled=false suppressed delivery; showInterventions=false suppressed delivery; config-change reload). Add: delivery happens with no `artemis.struggleDetection` config present; `isConsentGranted()` reflects the consent dep. (The engine-not-running build-result drop is already pinned by an existing test — no duplicate.)
 - `viewInitDataService` test: `isEnabled` sourced from `isConsentGranted()`.
-- Recorder wiring test (local-only unit): snapshot records the constants; no listener reaction on the removed keys.
+- `generateCleanManifest.test.ts`: neither profile assumes the legacy settings; `artemis.showStruggleScore` removal still asserted.
+- Recorder wiring test (local-only unit): snapshot records the constants; asserts NO configuration listener registration.
 - Debug-view react test: inactive copy mentions consent.
