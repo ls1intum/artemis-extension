@@ -355,10 +355,29 @@ In `extension/src/extension/telemetry/contract.ts`, change the two declarations 
     getProactiveLevel(): ProactiveLevel;
 ```
 
-Also fix the two now-stale docs elsewhere in `contract.ts` (they describe the old per-exercise behavior):
+Also replace two now-stale docs elsewhere in `contract.ts` (they describe the old per-exercise behavior, and the `getActiveProactiveLevel` one also still claims "nothing calls it yet", which is false — the throttle calls it).
 
-- `getActiveProactiveLevel` doc (~:212) currently says "`getProactiveLevel` keyed by the coordinator's `activeExerciseId`, `'more'` (the default) when no exercise is active." Replace that sentence with: "the single remembered proactive-help level (issue #341); exercise-independent, so it simply returns `getProactiveLevel()`."
-- `setStudentProactive` doc (~:223) currently says "off clears its live surfaces, on marks the student present." Replace with: "on marks the student present in THIS exercise; off is a global level (#341) and clears the active exercise's live surfaces regardless of the id."
+Replace the whole `getActiveProactiveLevel` doc block (~:211-217) with:
+
+```ts
+    /**
+     * The single remembered proactive-help level (Off/Less/More, spec §12.2, issue #341).
+     * The full build reads `getProactiveLevel()` live; the clean/no-op build returns the
+     * default `more`. Used by consumers such as the delivery throttle and Pull re-route.
+     */
+    getActiveProactiveLevel(): ProactiveLevel;
+```
+
+Replace the whole `setStudentProactive` doc block (~:218-224, the comment lines above the declaration) with:
+
+```ts
+    /**
+     * Apply the transient effects of a level change: On marks the student present only
+     * when `exerciseId` is active; global Off clears the active exercise's live surfaces
+     * regardless of which exercise triggered it.
+     */
+    setStudentProactive?(exerciseId: number, on: boolean): void;
+```
 
 - [ ] **Step 9: Strip the param in the telemetry wiring and simplify `getActiveProactiveLevel`**
 
