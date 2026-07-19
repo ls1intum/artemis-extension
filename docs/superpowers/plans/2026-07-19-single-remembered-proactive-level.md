@@ -177,12 +177,16 @@ describe('ProactivePreferenceService', () => {
         expect(svc.isProactiveOn()).toBe(true);
     });
 
-    it('setLevel("more") reads back "more" synchronously and deletes the persisted key', async () => {
+    it('setLevel("more") reads back "more" synchronously (shadow) and deletes the persisted key', async () => {
         const memento = fakeMemento();
         const s = new ProactivePreferenceService(memento, () => scope);
         s.setLevel('off');
+        await settle();
+        expect(memento.get(levelKey)).toBe('off');      // 'off' actually reached persistence first
+
         s.setLevel('more');
-        expect(s.getLevel()).toBe('more');            // shadow is authoritative, synchronously
+        expect(s.getLevel()).toBe('more');              // shadow is authoritative, synchronously,
+        //                                                 even though the async delete has not run yet
         await settle();
         expect(memento.keys()).not.toContain(levelKey); // persisted key deleted on `more`
     });
@@ -351,6 +355,11 @@ In `extension/src/extension/telemetry/contract.ts`, change the two declarations 
     getProactiveLevel(): ProactiveLevel;
 ```
 
+Also fix the two now-stale docs elsewhere in `contract.ts` (they describe the old per-exercise behavior):
+
+- `getActiveProactiveLevel` doc (~:212) currently says "`getProactiveLevel` keyed by the coordinator's `activeExerciseId`, `'more'` (the default) when no exercise is active." Replace that sentence with: "the single remembered proactive-help level (issue #341); exercise-independent, so it simply returns `getProactiveLevel()`."
+- `setStudentProactive` doc (~:223) currently says "off clears its live surfaces, on marks the student present." Replace with: "on marks the student present in THIS exercise; off is a global level (#341) and clears the active exercise's live surfaces regardless of the id."
+
 - [ ] **Step 9: Strip the param in the telemetry wiring and simplify `getActiveProactiveLevel`**
 
 In `extension/src/extension/telemetry/index.ts`, change lines 129-130:
@@ -428,7 +437,7 @@ In `extension/src/extension/services/struggleIntervention/struggleInterventionSe
             return '  -> SKIP (student turned proactive off)';
         }
   ```
-- decide POST (`proactivityMode`): `this._deps.getProactiveLevel(exerciseId) === 'less'` → `this._deps.getProactiveLevel() === 'less'` (keep `exerciseId`; it is a parameter used elsewhere in the method).
+- decide POST (`proactivityMode`): `this._deps.getProactiveLevel(exerciseId) === 'less'` → `this._deps.getProactiveLevel() === 'less'` (keep the `exerciseId` local — obtained from `getExerciseId()` at ~:634 and used by the `postIntervention` body at ~:698).
 - reconcile/accept path (the block that does `_clearInFlight()` + `_dropStaleRow` + `return`) — replace (✂):
   ```ts
         const exId = this._deps.getExerciseId();
@@ -455,8 +464,8 @@ In `extension/src/extension/services/struggleIntervention/struggleInterventionSe
         const level = this._deps.getProactiveLevel();
   ```
   then delete the now-orphaned `const exId = this._deps.getExerciseId();` at the top of `onServerActive`.
-- follow-up bubble gate: `|| !this._deps.isStudentProactiveOn(exerciseId)` → `|| !this._deps.isStudentProactiveOn()` (keep `exerciseId`; it is a parameter used elsewhere).
-- help_request POST and confirm_close POST `proactivityMode`: `this._deps.getProactiveLevel(exerciseId) === 'less'` → `this._deps.getProactiveLevel() === 'less'` (keep `exerciseId`, a parameter).
+- follow-up bubble gate: `|| !this._deps.isStudentProactiveOn(exerciseId)` → `|| !this._deps.isStudentProactiveOn()` (keep the `exerciseId` local — used elsewhere in the method).
+- help_request POST and confirm_close POST `proactivityMode`: `this._deps.getProactiveLevel(exerciseId) === 'less'` → `this._deps.getProactiveLevel() === 'less'` (keep the `exerciseId` local — obtained from `getExerciseId()` at ~:1415 / ~:1504 and used by the `postIntervention` bodies at ~:1446 / ~:1533).
 - `_canOfferStuck`, `_raiseStuckOffer`, `_raiseAbandonOffer` — each has:
   ```ts
         const exId = this._deps.getExerciseId();
