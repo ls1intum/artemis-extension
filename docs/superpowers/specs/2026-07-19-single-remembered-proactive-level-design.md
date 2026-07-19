@@ -55,11 +55,20 @@ scoped scalar.
   `ProactiveLevel` string. (Distinct from the legacy `proactive.preference::…`
   map key, which is now dead and never touched.)
 - `getLevel(): ProactiveLevel` — reads the scoped scalar; unset → `more`; an
-  unresolved scope → `more`.
-- `setLevel(level: ProactiveLevel): void` — persists the scalar. Writing `more`
-  **deletes** the key (keeps the existing "absent = default" convention and
-  avoids storing the default). Uses the same shadow-map + serialized write-chain
-  pattern already in the file for sync read-after-write.
+  unresolved scope → `more`. **Validates** the persisted value is exactly one of
+  `off`/`less`/`more`; any other (corrupt/legacy) value defaults to `more`.
+  Removing the legacy boolean normalization does not mean removing all
+  validation — `globalState` is runtime-untyped.
+- `setLevel(level: ProactiveLevel): void` — persists the scalar via the same
+  shadow-map + serialized write-chain pattern already in the file (sync
+  read-after-write). **The shadow always holds the current level string,
+  including `more`.** Only *persistence* differs by value: writing `off`/`less`
+  updates the key, writing `more` **deletes the persisted key** (keeps the
+  "absent = default" convention, avoids storing the default). The shadow must
+  keep an explicit `more` entry while the async deletion is queued — if the
+  shadow entry were deleted instead, an immediate `getLevel()` could reload the
+  old persisted `less`/`off` before `globalState.update(key, undefined)`
+  resolves.
 - `isProactiveOn(): boolean` — `getLevel() !== 'off'`.
 - The service still imports nothing from `services/struggle|intervention`, so it
   stays in the clean/Open VSX bundle.
@@ -99,24 +108,56 @@ declared and called:
   `setStudentProactive(exerciseId, …)`, and `collapseProactiveEpisodes()`.
 
 **Deliberately NOT stripped:** `setStudentProactive(exerciseId, on)` keeps its
-id. It is the engine's transient surface-clear that guards "act only on the
-*active* exercise" (`getExerciseId() !== exerciseId`) — genuinely per-exercise,
-not a level read.
+id. It is the engine's transient surface-clear, genuinely per-exercise, not a
+level read.
 
-### Semantic note (intentional, behavior-preserving)
+### Component 2b — Cross-exercise Off must clear the active exercise's surfaces
 
-Today five guards short-circuit on `exId === undefined` to "proactive on =
-true":
+With a *global* level, the student can set Off from exercise B's view while the
+engine is monitoring exercise A. Today `setStudentProactive(exerciseId, on)`
+early-returns on `getExerciseId() !== exerciseId`, so an Off triggered from B
+would gate A's *future* alerts (global level) yet leave A's *live* surfaces
+(lamp, inline cue, badge, banner) uncleared — a new inconsistency introduced by
+the global level (per-exercise storage never had it).
 
-- `struggleInterventionService.ts` debug snapshot (`getDebugSnapshot`),
-  `_suppressReason`, the two decide accept/reconcile paths, and the follow-up
-  bubble gate.
+Resolution — restructure `setStudentProactive` so the two branches guard
+differently:
+
+- **Off (`on === false`):** clear the active exercise's surfaces
+  **unconditionally** (drop the id guard for this branch). Global Off means
+  "stop everywhere," and the orchestrator instance already targets the active
+  exercise, so clearing is always correct regardless of which view triggered it.
+- **On (`on === true`):** keep the id guard — `_setAwaitingEvidence(false,
+  'proactive re-enabled')` means "the student is present *in this exercise*," so
+  it must fire only when the triggering exercise is the active one. Re-enabling
+  from B must not reset A's evidence gate.
+
+The `collapseProactiveEpisodes()` call in the command stays (it collapses chat
+episodes globally, which is correct for a global Off).
+
+### Semantic note (intentional, no student-facing change)
+
+Four guards in `struggleInterventionService.ts` short-circuit on
+`exId === undefined` to "proactive on = true": the debug snapshot
+(`getDebugSnapshot`), `_suppressReason`, and the two decide accept/reconcile
+paths (ambient + active reply). (The help-request path is *not* one of them — it
+returns early when there is no exercise rather than forcing on; and the four
+`exId !== undefined ? getProactiveLevel(exId) : 'more'` reads in the rerouting/
+offer logic simply keep their `more` fallback via `getProactiveLevel()`'s own
+default.)
 
 After the strip, the global level applies even when no exercise is active. In
-every real path an exercise *is* active (alerts and decisions originate from an
-exercise session), so live behavior is unchanged. In the degenerate
-no-exercise case the global Off is now honored, which is strictly more correct.
-This is called out here so a reviewer does not flag it as an accidental change.
+every **student-facing production path** an exercise *is* active — the
+coordinator holds the id defined through final engine drain, ambient/active
+websocket frames only reach the orchestrator when their exercise is active, and
+help requests require an exercise — so live behavior is unchanged. The lone
+difference is the developer "force full pipeline" debug command, which can
+deliver an alert with no active exercise: under the old behavior it reached
+`decideOutcome`, recorded a local-silent decision, then stopped for lack of an
+exercise; under the new behavior a global Off suppresses it earlier. No egress
+or bubble differs — only diagnostics/logging. This is called out so a reviewer
+does not flag it as an accidental change; "no student-facing production path is
+affected" is the precise claim.
 
 ### Component 3 — Webview
 
@@ -133,12 +174,28 @@ storage just ignores it now.
   - `setLevel('less')` then `getLevel()` → `less`, and reflected regardless of
     any exercise context (cross-exercise sharing);
   - `setLevel('off')` → `isProactiveOn()` false;
-  - `setLevel('more')` deletes the key (globalState no longer holds the scope key);
-  - persistence across a fresh service instance over the same `globalState`;
+  - `setLevel('more')` after an `off`/`less`: `getLevel()` reads `more`
+    **synchronously from the shadow**, and after the write chain settles the
+    persisted key is deleted (globalState no longer holds the scope key);
+  - a corrupt persisted scalar (e.g. `'bogus'`, `false`, `7`) → `getLevel()`
+    returns `more` (validation);
+  - persistence across a fresh service instance over the same `globalState`
+    (assert only **after awaiting the write chain** — see note below);
   - scope isolation: two distinct `server::principal` scopes keep independent
     levels;
   - unresolved scope (`getScope()` → null) → `getLevel()` returns `more` and
     `setLevel` is a no-op.
+  - **Async-persistence caveat:** persistence is serialized through the private
+    write chain, so a persisted-state assertion (raw `globalState` inspection or
+    a second service instance) must first let the chain settle — flush
+    microtasks / a settle helper. Synchronous read-after-write is guaranteed
+    only through the *same* service's shadow. Provide an awaitable fake `Memento`
+    whose `update` resolves.
+- **`test/logic/proactiveControlCommands.test.ts`** — update: the existing
+  `expect(h.pref.setLevel).toHaveBeenCalledWith(42, 'off' | 'less')` assertions
+  must drop the id (`toHaveBeenCalledWith('off')` / `('less')`), or `test:react`
+  fails to compile. Add a mismatch test for Component 2b: an Off set while a
+  *different* exercise is active still clears the active exercise's surfaces.
 - **`test/logic/telemetry/createStruggleEngine.proactiveLevel.test.ts`** —
   rewrite: its premise (level keyed by exercise, `fakeDeps` faking
   `getProactiveLevel: (exerciseId) => …`, asserting
@@ -159,17 +216,30 @@ storage just ignores it now.
 
 ## Files
 
-**Modify:**
+**Modify (logic):**
 - `extension/src/extension/services/proactivePreferenceService.ts`
 - `extension/src/extension.ts`
 - `extension/src/extension/telemetry/contract.ts`
 - `extension/src/extension/telemetry/index.ts`
 - `extension/src/extension/services/struggleIntervention/struggleInterventionService.ts`
+  (read-path strip **and** Component 2b `setStudentProactive` restructure)
 - `extension/src/extension/controller/commands/proactiveControlCommands.ts`
+
+**Modify (comment/doc cleanup — wording only, no behavior):**
+- `extension/src/shared/messageContracts/proactiveLevel.ts` (header calls the
+  level a per-exercise preference)
+- `extension/src/shared/messageContracts/extensionMessages.ts:178`
+- `extension/src/extension/provider/artemisWebviewProvider.ts:344`
+  (`proactivePreference` getter doc: "per-exercise")
+- `extension/src/extension/controller/commands/types.ts:51`
+  (the exercise-tagged webview state stays; only "per-exercise preference"
+  wording changes)
 
 **Tests:**
 - `extension/test/logic/proactivePreferenceService.test.ts` (rewrite)
 - `extension/test/logic/telemetry/createStruggleEngine.proactiveLevel.test.ts`
   (rewrite — drop the per-exercise premise)
+- `extension/test/logic/proactiveControlCommands.test.ts` (drop the id from the
+  `setLevel` expectations; add the Component 2b mismatch test)
 - `extension/test/logic/struggleIntervention/helpers.ts` (confirm/adjust the
   no-arg `_deps` stubs to the new signatures)
