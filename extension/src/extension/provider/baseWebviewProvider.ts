@@ -7,6 +7,44 @@ import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
 /**
+ * Queue a message, coalescing repeat snapshots without letting one cross an
+ * event boundary.
+ *
+ * Deduplication gives "latest wins" within a streaming segment, which is what
+ * run-UI snapshots want. But replacing at the ORIGINAL index would move a later
+ * snapshot in front of an event message queued between them, inverting the
+ * commit ordering the Iris chat depends on. So we only coalesce against the
+ * segment following the most recent event message.
+ *
+ * Exported for testing.
+ */
+export function coalescePending(
+    queue: ExtensionToWebviewMessage[],
+    message: ExtensionToWebviewMessage,
+    eventTypes: ReadonlySet<string>,
+): void {
+    if (eventTypes.has(message.type)) {
+        queue.push(message);
+        return;
+    }
+
+    let segmentStart = 0;
+    for (let i = queue.length - 1; i >= 0; i--) {
+        if (eventTypes.has(queue[i].type)) {
+            segmentStart = i + 1;
+            break;
+        }
+    }
+    for (let i = segmentStart; i < queue.length; i++) {
+        if (queue[i].type === message.type) {
+            queue[i] = message;
+            return;
+        }
+    }
+    queue.push(message);
+}
+
+/**
  * Shared base class for webview providers.
  * Encapsulates the ready-signal handshake (queuing messages until the
  * webview's React shell has signalled readiness) and common message
@@ -104,18 +142,7 @@ export abstract class BaseWebviewProvider {
         if (this._webviewReady && this._view) {
             this._view.webview.postMessage(message);
         } else {
-            if (BaseWebviewProvider.EVENT_TYPES.has(message.type)) {
-                // Event messages carry unique data — never deduplicate
-                this._pendingMessages.push(message);
-            } else {
-                // Deduplicate: replace existing message with same type
-                const idx = this._pendingMessages.findIndex(m => m.type === message.type);
-                if (idx !== -1) {
-                    this._pendingMessages[idx] = message;
-                } else {
-                    this._pendingMessages.push(message);
-                }
-            }
+            coalescePending(this._pendingMessages, message, BaseWebviewProvider.EVENT_TYPES);
 
             // Safety net: drop oldest if over hard cap
             while (this._pendingMessages.length > BaseWebviewProvider.MAX_PENDING) {
