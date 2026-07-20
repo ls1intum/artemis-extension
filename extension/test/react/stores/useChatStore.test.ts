@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { ExtMsg } from '@shared/messageContracts';
+import type { ExtMsg, IrisRunUiProjection } from '@shared/messageContracts';
+import type { IrisActivityDTO } from '@shared/types/apiResponses';
 
 import { useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, IrisStageDTO, ReferencedFilesData } from '@webview/views/IrisChat/types';
@@ -626,5 +627,82 @@ describe('useChatStore', () => {
 
 		expect(result.current.messages).toEqual([]);
 		expect(result.current.irisStages).toEqual([]);
+	});
+
+	it('clearMessages also clears the run UI (draft, activities, run state, revision)', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			const activity: IrisActivityDTO = { id: 'a1', kind: 'TOOL', name: 'search', state: 'RUNNING' };
+			result.current.applyRunUi({
+				localSessionId: 's1', revision: 3, draft: { runId: 'A', text: 'partial' },
+				activities: [activity],
+				waiting: true, runState: 'RUNNING',
+			}, 's1');
+		});
+
+		act(() => {
+			result.current.clearMessages();
+		});
+
+		expect(result.current.liveDraft).toBeNull();
+		expect(result.current.activities).toEqual([]);
+		expect(result.current.runState).toBeNull();
+		expect(result.current.runError).toBeNull();
+		expect(result.current.lastRunUiRevision).toBe(0);
+	});
+
+	describe('streaming and commits', () => {
+		const projection = (over: Partial<IrisRunUiProjection> = {}): IrisRunUiProjection => ({
+			localSessionId: 's1', revision: 1, draft: null, activities: [],
+			waiting: false, runState: null, ...over,
+		});
+		const msg = (id: number | undefined, content: string): ChatMessage => ({
+			id, localId: `l${id ?? 'x'}`, role: 'assistant', content, timestamp: 0, status: 'sent',
+		});
+
+		it('upserts by server id instead of duplicating', () => {
+			useChatStore.getState().addMessage(msg(7, 'first'));
+			useChatStore.getState().addMessage(msg(7, 'first with memories'));
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().messages[0].content).toBe('first with memories');
+		});
+
+		it('appends messages without a server id', () => {
+			useChatStore.getState().addMessage({ ...msg(undefined, 'a'), localId: 'l1' });
+			useChatStore.getState().addMessage({ ...msg(undefined, 'b'), localId: 'l2' });
+			expect(useChatStore.getState().messages).toHaveLength(2);
+		});
+
+		it('applies a newer projection and rejects an older revision', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'hi' } }), 's1');
+			expect(useChatStore.getState().liveDraft?.text).toBe('hi');
+			useChatStore.getState().applyRunUi(projection({ revision: 4, draft: { runId: 'A', text: 'stale' } }), 's1');
+			expect(useChatStore.getState().liveDraft?.text).toBe('hi');
+		});
+
+		it('rejects a projection for another session', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 9, draft: { runId: 'A', text: 'x' } }), 's2');
+			expect(useChatStore.getState().liveDraft).toBeNull();
+		});
+
+		it('applies a commit atomically: message present, draft cleared, one update', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'partial' } }), 's1');
+			useChatStore.getState().applyCommit(msg(3, 'final'), projection({ revision: 2 }), 's1', 's1');
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().liveDraft).toBeNull();
+		});
+
+		it('inserts a projection-less bubble without touching run state', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 1, waiting: true }), 's1');
+			useChatStore.getState().applyCommit(msg(4, 'error'), undefined, 's1', 's1');
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().messages).toHaveLength(1);
+		});
+
+		it('drops a projection-less bubble from a stale session', () => {
+			useChatStore.getState().applyCommit(msg(5, 'stale'), undefined, 's-old', 's1');
+			expect(useChatStore.getState().messages).toHaveLength(0);
+		});
 	});
 });

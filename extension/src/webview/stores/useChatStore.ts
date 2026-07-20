@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-import type { ExtMsg, WebSocketDisplayStatus } from '@shared/messageContracts';
+import type { ExtMsg, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
+import type { IrisActivityDTO, IrisRunState } from '@shared/types/apiResponses';
 
 import type {
     ChatContext,
@@ -56,6 +57,15 @@ interface ChatState {
     // Iris processing stages
     irisStages: IrisStageDTO[];
 
+    // Run UI (streaming draft, activities, run state) — projected atomically
+    // with the webview's active session/revision via applyRunUi/applyCommit.
+    liveDraft: { runId: string; text: string } | null;
+    activities: IrisActivityDTO[];
+    runState: IrisRunState | null;
+    runError: { message?: string } | null;
+    /** Monotonic guard against out-of-order/stale run UI projections. */
+    lastRunUiRevision: number;
+
     // UI state
     isLoading: boolean;
     webSocketStatus: ChatWebSocketStatus;
@@ -77,7 +87,28 @@ interface ChatState {
     applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
+    /** Upserts by server `id`; messages without one always append (see `upsertMessage`). */
     addMessage: (message: ChatMessage) => void;
+    /**
+     * Apply a standalone run-UI snapshot (streaming draft/activities/run
+     * state). Rejects a projection for a session we already left, or one
+     * that is not strictly newer than the last applied revision.
+     */
+    applyRunUi: (projection: IrisRunUiProjection, activeLocalSessionId: string) => void;
+    /**
+     * Commit a message and (optionally) its run-UI projection in one atomic
+     * update, so the webview can never observe the draft cleared before the
+     * committed message lands. The message's session is checked
+     * independently of the projection's, since a projection-less commit
+     * (e.g. an error bubble) still must not land in a session we already
+     * left.
+     */
+    applyCommit: (
+        message: ChatMessage,
+        projection: IrisRunUiProjection | undefined,
+        messageLocalSessionId: string,
+        activeLocalSessionId: string,
+    ) => void;
     /**
      * Mark a still-pending user message as failed. Returns `true` only if
      * a matching message was found AND it was a pending user send
@@ -114,6 +145,20 @@ const IDLE_STREAMING: StreamingState = {
     isStreaming: false,
 };
 
+/**
+ * Artemis resends a persisted message to attach memories or activities, so a
+ * message with a known server id replaces its bubble instead of duplicating it.
+ * Messages with no server id (optimistic and error bubbles) always append.
+ */
+function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessage[] {
+    if (message.id === undefined) { return [...messages, message]; }
+    const idx = messages.findIndex((m) => m.id === message.id);
+    if (idx === -1) { return [...messages, message]; }
+    const next = [...messages];
+    next[idx] = { ...next[idx], ...message, localId: next[idx].localId };
+    return next;
+}
+
 export const useChatStore = create<ChatState>()(
     devtools(
         (set) => ({
@@ -128,6 +173,11 @@ export const useChatStore = create<ChatState>()(
             messageLoad: null,
             streaming: IDLE_STREAMING,
             irisStages: [],
+            liveDraft: null,
+            activities: [],
+            runState: null,
+            runError: null,
+            lastRunUiRevision: 0,
             isLoading: false,
             webSocketStatus: 'unknown',
             disabledMessage: null,
@@ -178,9 +228,45 @@ export const useChatStore = create<ChatState>()(
             },
 
             addMessage: (message) => {
-                set((state) => ({
-                    messages: [...state.messages, message],
-                }), false, 'addMessage');
+                set((state) => ({ messages: upsertMessage(state.messages, message) }), false, 'addMessage');
+            },
+
+            applyRunUi: (projection, activeLocalSessionId) => {
+                if (projection.localSessionId !== activeLocalSessionId) { return; }
+                if (projection.revision <= useChatStore.getState().lastRunUiRevision) { return; }
+                set({
+                    liveDraft: projection.draft,
+                    activities: projection.activities,
+                    runState: projection.runState,
+                    runError: projection.error ?? null,
+                    streaming: { isStreaming: projection.waiting },
+                    lastRunUiRevision: projection.revision,
+                }, false, 'applyRunUi');
+            },
+
+            applyCommit: (message, projection, messageLocalSessionId, activeLocalSessionId) => {
+                // Session-check the MESSAGE independently: a projection-less
+                // error bubble still must not land in a session we already left.
+                if (messageLocalSessionId !== activeLocalSessionId) { return; }
+
+                // One set() so the message and its run state can never be
+                // observed apart, and the draft is never cleared first.
+                set((s) => {
+                    const messages = upsertMessage(s.messages, message);
+                    const accepts = projection !== undefined
+                        && projection.localSessionId === activeLocalSessionId
+                        && projection.revision > s.lastRunUiRevision;
+                    if (!accepts) { return { messages }; }
+                    return {
+                        messages,
+                        liveDraft: projection.draft,
+                        activities: projection.activities,
+                        runState: projection.runState,
+                        runError: projection.error ?? null,
+                        streaming: { isStreaming: projection.waiting },
+                        lastRunUiRevision: projection.revision,
+                    };
+                }, false, 'applyCommit');
             },
 
             markMessageFailed: (localId, errorMessage, errorReason) => {
@@ -211,6 +297,11 @@ export const useChatStore = create<ChatState>()(
                     messageLoad: null,
                     irisStages: [],
                     streaming: IDLE_STREAMING,
+                    liveDraft: null,
+                    activities: [],
+                    runState: null,
+                    runError: null,
+                    lastRunUiRevision: 0,
                 }, false, 'clearMessages');
             },
 
@@ -229,6 +320,11 @@ export const useChatStore = create<ChatState>()(
                 set({
                     irisStages: [],
                     streaming: IDLE_STREAMING,
+                    liveDraft: null,
+                    activities: [],
+                    runState: null,
+                    runError: null,
+                    lastRunUiRevision: 0,
                 }, false, 'resetTransientChatUi');
             },
 
