@@ -9,7 +9,7 @@
 
 import * as assert from 'assert';
 
-import { isIrisActivity, isIrisWebSocketMessage, isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
+import { isIrisActivity, isIrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
 
 suite('isIrisWebSocketMessage', () => {
     test('accepts a plain object', () => {
@@ -36,41 +36,6 @@ suite('isIrisWebSocketMessage', () => {
         assert.strictEqual(isIrisWebSocketMessage('STATUS'), false);
         assert.strictEqual(isIrisWebSocketMessage(42), false);
         assert.strictEqual(isIrisWebSocketMessage(true), false);
-    });
-});
-
-suite('isVisibleIrisStage', () => {
-    test('accepts an object without an internal flag (default-visible)', () => {
-        assert.strictEqual(isVisibleIrisStage({ name: 'Compile', state: 'DONE' }), true);
-    });
-
-    test('accepts an object with internal: false', () => {
-        assert.strictEqual(isVisibleIrisStage({ name: 'Compile', internal: false }), true);
-    });
-
-    test('rejects an object with internal: true', () => {
-        assert.strictEqual(isVisibleIrisStage({ name: 'Bookkeeping', internal: true }), false);
-    });
-
-    test('accepts an object with truthy-but-not-true internal value', () => {
-        // Production code checks `internal !== true`. Anything other than
-        // literal `true` (including 1, 'yes', objects) means "visible".
-        // Documenting this here so the guard's lenient semantic is intentional.
-        assert.strictEqual(isVisibleIrisStage({ internal: 1 }), true);
-        assert.strictEqual(isVisibleIrisStage({ internal: 'yes' }), true);
-    });
-
-    test('rejects null', () => {
-        assert.strictEqual(isVisibleIrisStage(null), false);
-    });
-
-    test('rejects arrays', () => {
-        assert.strictEqual(isVisibleIrisStage([]), false);
-    });
-
-    test('rejects primitives', () => {
-        assert.strictEqual(isVisibleIrisStage('Compile'), false);
-        assert.strictEqual(isVisibleIrisStage(0), false);
     });
 });
 

@@ -6,7 +6,6 @@ import type {
     ExerciseDetailsResponse,
     IrisActivityDTO,
     IrisRunState,
-    IrisStageDTO,
     ResultSummary,
     SubmissionSummary,
 } from '@shared/types/apiResponses';
@@ -68,7 +67,6 @@ export const ExtensionMsg = {
     ShowUnavailableState: 'showUnavailableState',
     HideUnavailableState: 'hideUnavailableState',
     UpdateNoAiStatus: 'updateNoAiStatus',
-    UpdateIrisStages: 'updateIrisStages',
     UpdateIrisRunUi: 'updateIrisRunUi',
     SendRejected: 'sendRejected',
 
@@ -217,11 +215,10 @@ interface ExtensionMsgPayloads {
     addMessage: {
         /**
          * Session this bubble belongs to; the webview drops stale sessions.
-         * OPTIONAL in Phase A so the three existing producers and the typed
-         * React fixtures keep compiling. Task 10 (Phase C) tightens it to
-         * required once every producer sets it.
+         * Both producers (the WS handler and the provider's catch path) only
+         * ever emit when they have a session id to attribute the bubble to.
          */
-        localSessionId?: string;
+        localSessionId: string;
         message: {
             id?: number;
             role: 'user' | 'assistant';
@@ -268,9 +265,6 @@ interface ExtensionMsgPayloads {
     updateNoAiStatus: {
         isNoAiDetected: boolean;
         noAiFilePath?: string;
-    };
-    updateIrisStages: {
-        stages: IrisStageDTO[];
     };
     updateIrisRunUi: {
         projection: IrisRunUiProjection;

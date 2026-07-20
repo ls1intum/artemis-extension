@@ -6,16 +6,14 @@
  * UI (chat panel, status indicator), so a wrong-shaped frame just causes
  * a missing render — there's no downstream replay aggregation to corrupt.
  * The guards therefore check the minimum needed to safely call the
- * payload an `IrisWebSocketMessage` / `IrisStageDTO`:
+ * payload an `IrisWebSocketMessage`:
  *   - object shape (not null, not array, not primitive)
- *   - the one field the consumer actually reads to gate behaviour
- *     (`internal` for stages)
  *
  * Everything else stays as a permissive `[key: string]: unknown` lookup
  * at the call site — matching how live WS data is consumed elsewhere.
  */
 
-import type { IrisActivityDTO, IrisChatMessage, IrisRunState, IrisStageDTO } from '@extension/types';
+import type { IrisActivityDTO, IrisChatMessage, IrisRunState } from '@extension/types';
 
 /**
  * Minimal structural shape of an incoming Iris WebSocket frame. Exported
@@ -41,20 +39,6 @@ export type IrisWebSocketMessage = Record<string, unknown> & {
  */
 export function isIrisWebSocketMessage(data: unknown): data is IrisWebSocketMessage {
     return data !== null && typeof data === 'object' && !Array.isArray(data);
-}
-
-/**
- * True if `stage` is a plain object whose `internal` flag is not `true`.
- * This is exactly the predicate the STATUS handler uses to decide whether
- * to surface a stage in the UI — extracting it removes the inline `as
- * IrisStageDTO` cast from `irisWebSocketMessageHandler.ts` while keeping
- * the gating semantics identical.
- */
-export function isVisibleIrisStage(stage: unknown): stage is IrisStageDTO {
-    if (stage === null || typeof stage !== 'object' || Array.isArray(stage)) {
-        return false;
-    }
-    return (stage as { internal?: unknown }).internal !== true;
 }
 
 const ACTIVITY_STATES = new Set(['RUNNING', 'FINISHED', 'FAILED']);

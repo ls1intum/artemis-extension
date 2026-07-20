@@ -128,6 +128,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('IrisChatAddMessage has correct message shape', () => {
         const msg = {
             type: 'addMessage' as const,
+            localSessionId: 'session-local-1',
             message: {
                 id: 1,
                 role: 'assistant' as const,
@@ -153,20 +154,6 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         } satisfies ExtMsg<'websocketUpdate'>;
 
         expect(msg.updateType).toBe('newResult');
-    });
-
-    it('UpdateIrisStagesMessage has required stages array', () => {
-        const msg = {
-            type: 'updateIrisStages' as const,
-            stages: [
-                { name: 'thinking', weight: 10, state: 'IN_PROGRESS' as const, message: 'Thinking hard', internal: false },
-            ],
-        } satisfies ExtMsg<'updateIrisStages'>;
-
-        expect(msg.type).toBe('updateIrisStages');
-        expect(Array.isArray(msg.stages)).toBe(true);
-        expect(msg.stages[0].name).toBe('thinking');
-        expect(msg.stages[0].state).toBe('IN_PROGRESS');
     });
 
     it('UpdateIrisRunUiMessage has a well-formed run-UI projection', () => {

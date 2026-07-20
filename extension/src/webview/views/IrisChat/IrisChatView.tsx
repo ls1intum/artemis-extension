@@ -109,15 +109,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 // clears the draft/waiting atomically with the committed
                 // message when a runUi is attached, and leaves them untouched
                 // for an intermediate (final:false) message so the waiting flag
-                // survives until the run truly ends. Both real producers always
-                // set localSessionId (and drop the message when they have no
-                // active session), so the empty-string fallback is only a type
-                // guard for the still-optional Phase-A contract.
+                // survives until the run truly ends. Both producers always set
+                // localSessionId (and drop the message when they have no
+                // active session), so it is required on the wire contract.
                 const activeLocalSessionId = useChatStore.getState().activeSessionId ?? '';
                 applyCommit(
                     mapped,
                     msg.runUi,
-                    msg.localSessionId ?? '',
+                    msg.localSessionId,
                     activeLocalSessionId,
                 );
                 break;
