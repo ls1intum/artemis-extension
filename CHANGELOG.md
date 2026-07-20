@@ -6,6 +6,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Changed
 
+- **Iris streaming:** Iris answers now stream into the chat as they are generated instead of appearing all at once, and the chat shows which tools Iris used during a run (with that trail kept on the finished answer). This replaces the progress display that stopped working with Artemis 9.6.
 - **WebSocket status bar:** Removed the `artemis.showWebSocketStatusBar` setting. The connection indicator now appears automatically only when there is a problem; enable `artemis.developerMode` to keep it always visible with full diagnostics on hover. When the connection drops, students now see a plain-language explanation (no "WS" jargon) instead of a technical label.
 - **Server URL change:** Removed the manual "Clear Credentials" prompts that appeared when the Artemis server URL changed. Changing the server while logged in now logs you out automatically and returns you to the login view (a session is not valid across servers); the logout command remains for clearing credentials on demand.
 
