@@ -4,6 +4,7 @@ import { MalformedResponseError } from '@extension/domain/errors';
 import { resolveCourseIdFromContext } from '@extension/services/iris/context/courseIdResolver';
 import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
 import { fetchSessionsWithMessages, importSessionsToStore } from '@extension/services/iris/context/sessionSyncUtils';
+import { isIrisActivity } from '@extension/services/iris/parseIrisWs';
 import type { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '@extension/types';
@@ -411,7 +412,9 @@ export class IrisChatSessionService {
                     role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
                     content: content,
                     timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                    helpful: (msg as { helpful?: boolean | null }).helpful
+                    helpful: (msg as { helpful?: boolean | null }).helpful,
+                    activities: Array.isArray(msg.activities) ? msg.activities.filter(isIrisActivity) : undefined,
+                    final: typeof msg.final === 'boolean' ? msg.final : undefined
                 };
             });
 

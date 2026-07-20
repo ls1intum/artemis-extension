@@ -1095,6 +1095,61 @@ suite('IrisChatSessionService Test Suite', () => {
                 'LoadMessagesError must carry the local session id that ended up active after import',
             );
         });
+
+        test('LoadMessages carries activities (filtered) and final through the history path', async () => {
+            // Persisted Iris messages carry a tool `activities` trail and a
+            // `final` flag. The mapping in chatSessionService must forward
+            // both instead of silently discarding them on reload, and it
+            // must drop malformed activity entries rather than forward them
+            // as-is (isIrisActivity is the shared runtime guard).
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+
+            const validActivity = { id: 'a1', kind: 'TOOL', name: 'search', state: 'RUNNING' };
+            const malformedActivity = { id: 'a2', name: 'bad-activity', state: 'RUNNING' }; // missing `kind` — must be filtered out
+
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                {
+                    id: 100,
+                    sender: 'LLM',
+                    content: [{ textContent: 'Working on it' }],
+                    activities: [validActivity, malformedActivity],
+                    final: false,
+                } as never,
+            ]);
+
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            const loadMessagesCall = postMessageSpy.getCalls().find(
+                c => c.args[0]?.type === 'loadMessages'
+            );
+            assert.ok(loadMessagesCall, 'Should emit loadMessages');
+
+            const messages = (loadMessagesCall!.args[0] as {
+                messages: Array<{ activities?: unknown[]; final?: boolean }>;
+            }).messages;
+            assert.strictEqual(messages.length, 1);
+            assert.strictEqual(messages[0].final, false, 'final:false must survive the mapping');
+            assert.deepStrictEqual(
+                messages[0].activities,
+                [validActivity],
+                'the malformed activity entry must be filtered out; the valid one must survive',
+            );
+        });
     });
 
     suite('createNewSession', () => {

@@ -130,6 +130,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         content: m.content,
                         timestamp: m.timestamp,
                         helpful: m.helpful ?? null,
+                        activities: m.activities,
+                        final: m.final,
                         status: 'sent' as const,
                     })),
                 );
