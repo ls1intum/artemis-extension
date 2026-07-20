@@ -36,6 +36,12 @@ export class IrisWebSocketMessageHandler {
     // Run-scoped UI projection. Held here (not just the draft) so a later
     // PARTIAL cannot erase a known runState/error and so a disconnect reset
     // can republish a clean projection without inventing a frame.
+    //
+    // NOTE: on disconnect, only the webview store is reset (via
+    // UpdateWebSocketStatus -> resetTransientChatUi in the webview). This
+    // handler-side projection is intentionally left untouched here; clearing
+    // it on reconnect is owned by the deferred reconnect-reconciliation work,
+    // not an oversight of this handler.
     private _draft: { runId: string; text: string } | null = null;
     private _activities: IrisActivityDTO[] = [];
     private _runState: IrisRunState | null = null;
@@ -115,13 +121,21 @@ export class IrisWebSocketMessageHandler {
             return;
         }
 
+        const content = extractIrisMessageContent(msg.content);
+        if (msg.sender === 'USER') {
+            // A USER frame is the echoed prompt, never a run terminator; it must
+            // not finalize the current run even if the server ever scopes it to
+            // a runId.
+            this.publishCurrentRunUi();
+            return;
+        }
+
         const intermediate = frame.final === false || msg.final === false;
         this._runs.finalizeRun(frame.runId, intermediate);
 
-        const content = extractIrisMessageContent(msg.content);
-        if (msg.sender === 'USER' || !content) {
-            // Still publish: a terminal frame with no renderable content must not
-            // leave the webview showing a stale waiting state.
+        if (!content) {
+            // Bodiless assistant final answer: finalized above (waiting
+            // cleared), but nothing to render.
             this.publishCurrentRunUi();
             return;
         }

@@ -244,7 +244,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             return;
         }
 
-        // Clear any stale stages/streaming from previous request
+        // Clear any stale streaming state from the previous request
         resetTransientChatUi();
 
         // Add optimistic message

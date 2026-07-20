@@ -664,5 +664,26 @@ describe('useChatStore', () => {
 			useChatStore.getState().applyCommit(msg(5, 'stale'), undefined, 's-old', 's1');
 			expect(useChatStore.getState().messages).toHaveLength(0);
 		});
+
+		it('applies the message but rejects a stale-revision projection, leaving run-UI fields untouched', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'live' }, waiting: true }), 's1');
+			useChatStore.getState().applyCommit(msg(6, 'final'), projection({ revision: 5 }), 's1', 's1');
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 6 && m.content === 'final')).toBe(true);
+			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'A', text: 'live' });
+			expect(useChatStore.getState().runState).toBeNull();
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().lastRunUiRevision).toBe(5);
+		});
+
+		it('applies the message but rejects a projection scoped to another session, leaving run-UI fields untouched', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'live' }, waiting: true }), 's1');
+			useChatStore.getState().applyCommit(msg(7, 'final'), projection({ revision: 2, localSessionId: 's2' }), 's1', 's1');
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 7 && m.content === 'final')).toBe(true);
+			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'A', text: 'live' });
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().lastRunUiRevision).toBe(1);
+		});
 	});
 });
