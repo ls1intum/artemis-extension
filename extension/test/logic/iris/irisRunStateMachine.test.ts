@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
+import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 
 describe('IrisRunStateMachine', () => {
     let m: IrisRunStateMachine;
@@ -130,6 +130,53 @@ describe('IrisRunStateMachine', () => {
             expect(m.waiting).toBe(false);
             expect(m.currentRunId).toBeUndefined();
             expect(m.acceptPartial('A', 1)).toBe(true);
+        });
+    });
+
+    describe('createRunLifecycle', () => {
+        it('publishes on begin and on abort', () => {
+            const onBegin = vi.fn();
+            const onAbort = vi.fn();
+            const lifecycle = createRunLifecycle(m, onBegin, onAbort);
+
+            const g = lifecycle.beginGeneration();
+            expect(onBegin).toHaveBeenCalledTimes(1);
+            expect(onAbort).not.toHaveBeenCalled();
+            expect(m.waiting).toBe(true);
+
+            lifecycle.abortGeneration(g);
+            expect(onAbort).toHaveBeenCalledTimes(1);
+            expect(m.waiting).toBe(false);
+        });
+
+        it('a begin from a FAILED projection yields waiting:true with runState/error/draft/activities cleared', () => {
+            // Model the handler projection the lifecycle's onBegin clears. onBegin
+            // runs AFTER beginGeneration, so machine.waiting is already true when
+            // the (mirrored) resetRunUiAndPublish builds its snapshot.
+            let projection = {
+                draft: { runId: 'A', text: 'partial' } as { runId: string; text: string } | null,
+                activities: ['stale-activity'] as unknown[],
+                runState: 'FAILED' as string | null,
+                error: { message: 'boom' } as { message?: string } | null,
+                waiting: false,
+            };
+            let snapshot: typeof projection | undefined;
+            const onBegin = (): void => {
+                // Mirrors handler.resetRunUiAndPublish: clear the projection
+                // fields (NOT the machine), then publish off machine.waiting.
+                projection = { draft: null, activities: [], runState: null, error: null, waiting: m.waiting };
+                snapshot = projection;
+            };
+
+            const lifecycle = createRunLifecycle(m, onBegin, () => { /* no-op */ });
+            lifecycle.beginGeneration();
+
+            expect(snapshot).toBeDefined();
+            expect(snapshot!.waiting).toBe(true);
+            expect(snapshot!.runState).toBeNull();
+            expect(snapshot!.error).toBeNull();
+            expect(snapshot!.draft).toBeNull();
+            expect(snapshot!.activities).toEqual([]);
         });
     });
 });

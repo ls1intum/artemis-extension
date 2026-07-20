@@ -131,3 +131,37 @@ export class IrisRunStateMachine {
         this._lastActivitySeqByRunId.clear();
     }
 }
+
+/** The send-path's view of the machine: open a generation, or abort it. */
+export interface RunLifecycle {
+    beginGeneration(): number;
+    abortGeneration(generation: number): void;
+}
+
+/**
+ * Wraps {@link IrisRunStateMachine} so opening/aborting a generation also
+ * PUBLISHES the resulting projection. Extracted so the publish-on-transition
+ * behaviour is testable without a provider.
+ *
+ * `onBegin` must clear the handler projection first (then publish), or a new
+ * send republishes the previous run's FAILED/error together with
+ * `waiting: true` and the old alert flashes back until the first frame of the
+ * new run. `onAbort` just publishes the now `waiting: false` projection.
+ */
+export function createRunLifecycle(
+    runs: IrisRunStateMachine,
+    onBegin: () => void,
+    onAbort: () => void,
+): RunLifecycle {
+    return {
+        beginGeneration: () => {
+            const generation = runs.beginGeneration();
+            onBegin();
+            return generation;
+        },
+        abortGeneration: (generation: number) => {
+            runs.abortGeneration(generation);
+            onAbort();
+        },
+    };
+}

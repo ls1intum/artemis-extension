@@ -16,6 +16,7 @@ suite('IrisChatSessionService Test Suite', () => {
     let mockIrisWebSocketSessionClient: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     let postMessageSpy: sinon.SinonSpy;
     let onPostSnapshotSpy: sinon.SinonSpy;
+    let resetRunsSpy: sinon.SinonSpy;
     // resetToWorkspaceSpy removed — workspace redirect moved to provider
     let mockContext: MockExtensionContext;
 
@@ -36,6 +37,7 @@ suite('IrisChatSessionService Test Suite', () => {
         // Create spies for callbacks
         postMessageSpy = sinon.spy();
         onPostSnapshotSpy = sinon.spy();
+        resetRunsSpy = sinon.spy();
         chatSessionService = new IrisChatSessionService(
             {
                 contextStore,
@@ -44,6 +46,7 @@ suite('IrisChatSessionService Test Suite', () => {
                 postSnapshot: onPostSnapshotSpy,
             },
             () => mockIrisWebSocketSessionClient as any,
+            { resetRuns: resetRunsSpy },
         );
     });
 
@@ -159,6 +162,7 @@ suite('IrisChatSessionService Test Suite', () => {
                     postSnapshot: onPostSnapshotSpy,
                 },
                 () => mockIrisWebSocketSessionClient as any,
+                { resetRuns: resetRunsSpy },
             );
 
             const result = await serviceWithoutApi.checkAndLoadIrisSettings(courseContext);
@@ -466,6 +470,7 @@ suite('IrisChatSessionService Test Suite', () => {
                     postSnapshot: onPostSnapshotSpy,
                 },
                 () => mockIrisWebSocketSessionClient as any,
+                { resetRuns: resetRunsSpy },
             );
 
             const context: ActiveContext = {
@@ -1359,6 +1364,66 @@ suite('IrisChatSessionService Test Suite', () => {
             await assert.rejects(
                 () => chatSessionService.resetAndReloadSessions(),
                 /Server down/
+            );
+        });
+    });
+
+    suite('resetRuns on conversation-reset paths', () => {
+        // Each reset path clears the WS session and messages, so each must also
+        // drop host run state or the old run's projection survives into the new
+        // conversation. resetRuns must fire BEFORE the Iris session reset.
+        const context: ActiveContext = {
+            type: 'course',
+            id: 101,
+            title: 'Test Course',
+            source: 'user-selected',
+            locked: false,
+            selectedAt: Date.now()
+        };
+
+        test('switchToSession resets runs before resetting the Iris session', () => {
+            contextStore.setActiveContext(context);
+            contextStore.createSession();
+            const sessionId = contextStore.snapshot().sessions[0].id;
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+            mockApiService.getChatMessages.resolves([]);
+
+            chatSessionService.switchToSession(sessionId);
+
+            assert.ok(resetRunsSpy.calledOnce, 'resetRuns must fire on switchToSession');
+            assert.ok(
+                resetRunsSpy.calledBefore(mockIrisWebSocketSessionClient.resetSession),
+                'resetRuns must fire before the Iris session reset',
+            );
+        });
+
+        test('createNewSession resets runs before resetting the Iris session', () => {
+            contextStore.setActiveContext(context);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
+            chatSessionService.createNewSession();
+
+            assert.ok(resetRunsSpy.calledOnce, 'resetRuns must fire on createNewSession');
+            assert.ok(
+                resetRunsSpy.calledBefore(mockIrisWebSocketSessionClient.resetSession),
+                'resetRuns must fire before the Iris session reset',
+            );
+        });
+
+        test('resetAndReloadSessions (_clearAllSessions) resets runs', async () => {
+            contextStore.setActiveContext(context);
+            mockApiService.listChatSessionsForCourse.resolves([]);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(99);
+
+            await chatSessionService.resetAndReloadSessions();
+
+            // _clearAllSessions runs first and resets runs before its
+            // resetSession; the no-server-sessions fallback (createNewSession)
+            // resets again, so the spy fires at least once.
+            assert.ok(resetRunsSpy.called, 'resetRuns must fire on Reset & Sync');
+            assert.ok(
+                resetRunsSpy.calledBefore(mockIrisWebSocketSessionClient.resetSession),
+                'the first resetRuns must fire before the first Iris session reset',
             );
         });
     });

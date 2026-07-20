@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { ExtensionMsg } from '@shared/messageContracts';
 
 import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
+import type { RunLifecycle } from '@extension/services/iris/irisRunStateMachine';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { StruggleContext } from '@extension/services/telemetry';
@@ -41,6 +42,7 @@ export class ChatMessageService {
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
         private readonly _chatSessionService: IrisChatSessionService,
+        private readonly _runLifecycle: RunLifecycle,
     ) { }
 
     public async sendMessage(input: SendMessageInput): Promise<SendMessageResult> {
@@ -95,11 +97,18 @@ export class ChatMessageService {
             })}`);
         }
 
-        if (!this.deps.artemisApiService) {
-            throw new Error('Artemis API service not available');
-        }
-
+        // Open the generation BEFORE the missing-API guard and all the
+        // preparation steps, every one of which can throw (guard,
+        // _ensureWebSocketConnection, _ensureIrisSession, session guard,
+        // _collectUncommittedFiles) — not just the POST. The webview has
+        // already set streaming=true by now, so a throw with no open
+        // generation would leave nothing to abort and the composer would hang.
+        const generation = this._runLifecycle.beginGeneration();
         try {
+            if (!this.deps.artemisApiService) {
+                throw new Error('Artemis API service not available');
+            }
+
             // Check WebSocket connection before sending
             await this._ensureWebSocketConnection();
 
@@ -134,6 +143,9 @@ export class ChatMessageService {
 
         } catch (error: unknown) {
             logger.error('Error sending chat message', LogCategory.IRIS_CHAT, error);
+            // Abort only THIS send's generation so a concurrent/newer send is
+            // untouched, then rethrow for the provider's error handling.
+            this._runLifecycle.abortGeneration(generation);
             throw error;
         }
     }

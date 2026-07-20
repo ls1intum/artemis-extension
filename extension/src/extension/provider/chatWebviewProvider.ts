@@ -18,6 +18,7 @@ import {
     IrisChatSessionService,
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
+import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
@@ -56,6 +57,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _chatContextManager: ChatContextManager;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _noAiDetectionService: NoAiDetectionService;
+
+    /**
+     * Single owner of the Iris run state machine. Injected into the WS handler
+     * (which drives it from inbound frames) and, via narrow callbacks, into the
+     * message + session services (which drive the send lifecycle and resets).
+     */
+    private readonly _runs = new IrisRunStateMachine();
 
     /**
      * Context-keyed single-flight guard for chat-session reloads. Auto-retry
@@ -167,12 +175,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatSessionService = new IrisChatSessionService(
             deps,
             () => this._irisSessionManager,
+            { resetRuns: () => this._websocketMessageHandler.resetRuns() },
         );
         this._chatMessageService = new ChatMessageService(
             deps,
             this._websocketService,
             () => this._irisSessionManager,
             this._chatSessionService,
+            createRunLifecycle(
+                this._runs,
+                () => this._websocketMessageHandler.resetRunUiAndPublish(),
+                () => this._websocketMessageHandler.publishCurrentRunUi(),
+            ),
         );
         this._chatContextManager = new ChatContextManager(
             deps,
@@ -183,6 +197,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._websocketService,
             () => this._irisSessionManager,
             (message) => this._postMessageSafe(message),
+            this._runs,
+            () => this._contextStore.snapshot().activeSession?.id,
             (artemisSessionId, title) => {
                 if (this._contextStore.updateSessionTitle(artemisSessionId, title)) {
                     this._viewStatePresenter.postSnapshot();
@@ -692,18 +708,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             return;
         }
 
-        // Fallback for builds that don't carry the new correlation IDs.
-        // Posting an assistant AddMessage causes the existing webview
-        // handler to call resetTransientChatUi, which clears the stuck
-        // indicator at the cost of a slightly noisier UX.
-        this._postMessageSafe({
-            type: ExtensionMsg.AddMessage,
-            message: {
-                role: 'assistant',
-                content: errorMessage,
-                timestamp: Date.now(),
-            }
-        });
+        // Fallback for builds that don't carry the new correlation IDs (so
+        // there is no optimistic message to mark failed). The old fallback
+        // posted an assistant AddMessage purely to trigger the webview's
+        // resetTransientChatUi — but Task 9 removes exactly that reset, so a
+        // bubble here would no longer unstick anything. Instead surface the
+        // reason as a notification and release the composer via the run-UI
+        // projection, which now owns clearing the indicator. Deliberately no
+        // AddMessage: that is what makes localSessionId genuinely required.
+        vscode.window.showWarningMessage(errorMessage);
+        this._websocketMessageHandler.publishCurrentRunUi();
     }
 
     private _friendlyRejectionMessage(result: { reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable'; contextLabel?: string }): string {
@@ -857,14 +871,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             const errorMessage = error instanceof Error ? error.message : String(error);
             this._onDidAttemptIrisChatSend.fire({ content, status: 'failed', errorMessage });
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
-            this._postMessageSafe({
-                type: ExtensionMsg.AddMessage,
-                message: {
-                    role: 'assistant',
-                    content: `Error: ${errorMessage}`,
-                    timestamp: Date.now()
-                }
-            });
+            // Belt and braces: release the composer even if the throw left no
+            // open generation to abort. The bubble carries no runUi, so on its
+            // own it would leave run state (and the indicator) untouched.
+            this._websocketMessageHandler.publishCurrentRunUi();
+            // Use the captured send-time localSessionId, never the live
+            // snapshot: after a mid-flight session switch the live snapshot
+            // would file this send's error under the new session.
+            if (localSessionId) {
+                this._postMessageSafe({
+                    type: ExtensionMsg.AddMessage,
+                    localSessionId,
+                    message: {
+                        role: 'assistant',
+                        content: `Error: ${errorMessage}`,
+                        timestamp: Date.now(),
+                    },
+                });
+            }
         }
     }
 

@@ -61,6 +61,7 @@ export class IrisChatSessionService {
     constructor(
         private readonly deps: IrisServiceDeps,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
+        private readonly _runReset: { resetRuns: () => void },
     ) { }
 
     public get contextLoadToken(): number {
@@ -446,6 +447,10 @@ export class IrisChatSessionService {
     public createNewSession(): void {
         logger.info('Creating new session', LogCategory.IRIS_CHAT);
 
+        // Drop host run state before the Iris session is reset, or the old
+        // run's projection survives into the new conversation.
+        this._runReset.resetRuns();
+
         const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {
             irisSessionManager.resetSession();
@@ -518,6 +523,10 @@ export class IrisChatSessionService {
 
     public switchToSession(sessionId: string): void {
         logger.info('Switching to session:', LogCategory.IRIS_CHAT, sessionId);
+
+        // Drop host run state before the Iris session is reset, or the old
+        // run's projection survives into the switched-to conversation.
+        this._runReset.resetRuns();
 
         const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {
@@ -649,6 +658,10 @@ export class IrisChatSessionService {
 
     private _clearAllSessions(): void {
         logger.info('Clearing all local sessions', LogCategory.IRIS_CHAT);
+
+        // Drop host run state before the Iris session is reset, or the old
+        // run's projection survives the Reset & Sync.
+        this._runReset.resetRuns();
 
         const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {
