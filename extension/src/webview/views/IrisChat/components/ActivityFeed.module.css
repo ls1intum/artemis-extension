@@ -1,0 +1,78 @@
+.feedLive {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 4px 16px;
+}
+
+.feedTrail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 4px 16px 8px 16px;
+    opacity: 0.85;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--vscode-descriptionForeground);
+}
+
+.icon {
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.stateRunning .icon {
+    animation: spin 1s linear infinite;
+}
+
+.stateFinished .icon {
+    color: var(--vscode-charts-green);
+}
+
+.stateFailed .icon {
+    color: var(--vscode-errorForeground);
+}
+
+.label {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.detail {
+    min-width: 0;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--vscode-foreground);
+    opacity: 0.75;
+}
+
+.duration {
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.7;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stateRunning .icon {
+        animation: none;
+    }
+}
