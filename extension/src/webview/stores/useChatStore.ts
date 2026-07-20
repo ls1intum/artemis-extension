@@ -9,7 +9,6 @@ import type {
     ChatMessage,
     ChatSession,
     ContextItem,
-    IrisStageDTO,
     ReferencedFilesData,
     StreamingState,
 } from '@webview/views/IrisChat/types';
@@ -53,9 +52,6 @@ interface ChatState {
 
     // Streaming
     streaming: StreamingState;
-
-    // Iris processing stages
-    irisStages: IrisStageDTO[];
 
     // Run UI (streaming draft, activities, run state) — projected atomically
     // with the webview's active session/revision via applyRunUi/applyCommit.
@@ -127,8 +123,6 @@ interface ChatState {
     // Streaming actions
     startStreaming: () => void;
 
-    // Iris stage actions
-    setIrisStages: (stages: IrisStageDTO[]) => void;
     resetTransientChatUi: () => void;
 
     // UI actions
@@ -172,7 +166,6 @@ export const useChatStore = create<ChatState>()(
             messages: [],
             messageLoad: null,
             streaming: IDLE_STREAMING,
-            irisStages: [],
             liveDraft: null,
             activities: [],
             runState: null,
@@ -295,7 +288,6 @@ export const useChatStore = create<ChatState>()(
                 set({
                     messages: [],
                     messageLoad: null,
-                    irisStages: [],
                     streaming: IDLE_STREAMING,
                     liveDraft: null,
                     activities: [],
@@ -312,13 +304,8 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'startStreaming');
             },
 
-            setIrisStages: (stages) => {
-                set({ irisStages: stages }, false, 'setIrisStages');
-            },
-
             resetTransientChatUi: () => {
                 set({
-                    irisStages: [],
                     streaming: IDLE_STREAMING,
                     liveDraft: null,
                     activities: [],

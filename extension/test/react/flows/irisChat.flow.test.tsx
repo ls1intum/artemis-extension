@@ -81,6 +81,11 @@ describe('Iris Chat Flow', () => {
 			messages: [],
 			messageLoad: null,
 			streaming: { isStreaming: false },
+			liveDraft: null,
+			activities: [],
+			runState: null,
+			runError: null,
+			lastRunUiRevision: 0,
 			isLoading: false,
 			webSocketStatus: 'connected',
 			disabledMessage: null,
@@ -270,13 +275,13 @@ describe('Iris Chat Flow', () => {
 			expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
 		});
 
-		it('assistant addMessage clears the transient thinking + stages UI', async () => {
+		it('assistant addMessage with a runUi clears the transient draft + waiting UI', async () => {
 			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Pre-state: thinking indicator on, stages populated (as if STATUS
-			// frame had pushed pipeline stages).
+			// Pre-state: thinking indicator on, a partial draft in flight (as if
+			// UpdateIrisRunUi frames had streamed a growing answer).
 			act(() => {
 				useChatStore.getState().addMessage({
 					localId: 'user-msg-1',
@@ -285,20 +290,26 @@ describe('Iris Chat Flow', () => {
 					timestamp: Date.now(),
 					status: 'sending',
 				});
-				useChatStore.getState().startStreaming();
-				useChatStore.getState().setIrisStages([
-					{ name: 'thinking', weight: 10, state: 'IN_PROGRESS', message: 'Thinking', internal: false },
-				]);
+				useChatStore.getState().applyRunUi({
+					localSessionId: 'local-test', revision: 1,
+					draft: { runId: 'A', text: 'partial' },
+					activities: [], waiting: true, runState: 'RUNNING',
+				}, 'local-test');
 			});
 
 			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
-			expect(useChatStore.getState().irisStages).toHaveLength(1);
+			expect(useChatStore.getState().liveDraft?.text).toBe('partial');
 
-			// The Artemis MESSAGE frame arrives — extension forwards it as
-			// AddMessage. IrisChatView's handler calls resetTransientChatUi
-			// for assistant messages.
+			// The Artemis MESSAGE frame arrives — extension forwards it as an
+			// AddMessage carrying the commit projection, which clears the draft
+			// and waiting flag atomically with the committed message.
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
+				runUi: {
+					localSessionId: 'local-test', revision: 2, draft: null,
+					activities: [], waiting: false, runState: 'FINISHED',
+				},
 				message: {
 					id: 99,
 					role: 'assistant',
@@ -311,7 +322,7 @@ describe('Iris Chat Flow', () => {
 				expect(screen.getByText('Final answer.')).toBeInTheDocument();
 			});
 			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
-			expect(useChatStore.getState().irisStages).toEqual([]);
+			expect(useChatStore.getState().liveDraft).toBeNull();
 		});
 	});
 
@@ -362,9 +373,11 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Extension pushes a new message
+			// Extension pushes a new message. localSessionId must match the
+			// active session or applyCommit drops it.
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
 				message: {
 					id: 10,
 					role: 'assistant',

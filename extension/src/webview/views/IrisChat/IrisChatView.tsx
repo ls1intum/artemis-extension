@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import Info from 'lucide-react/dist/esm/icons/info';
 import Menu from 'lucide-react/dist/esm/icons/menu';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
@@ -15,7 +15,7 @@ import { ChatMessageList } from './components/ChatMessageList';
 import { ContextSelector } from './components/ContextSelector';
 import { ReferencedFiles } from './components/ReferencedFiles';
 import styles from './IrisChatView.module.css';
-import type { IrisStageDTO } from './types';
+import type { ChatMessage } from './types';
 
 interface IrisChatViewProps {
     vscodeApi: VsCodeApi;
@@ -28,7 +28,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         applyLoadedMessages, setMessageLoadError,
         clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
-        setIrisStages, resetTransientChatUi,
+        resetTransientChatUi, applyRunUi, applyCommit,
         markMessageFailed,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
@@ -94,18 +94,38 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
             case ExtensionMsg.AddMessage: {
                 const m = msg.message;
-                addMessage({
+                const mapped: ChatMessage = {
                     id: m.id,
                     localId: crypto.randomUUID(),
                     role: m.role,
                     content: m.content,
                     timestamp: m.timestamp,
                     helpful: m.helpful ?? null,
+                    activities: m.activities,
+                    final: m.final,
                     status: 'sent',
-                });
-                if (m.role === 'assistant') {
-                    resetTransientChatUi();
-                }
+                };
+                // The projection now owns the transient run UI: applyCommit
+                // clears the draft/waiting atomically with the committed
+                // message when a runUi is attached, and leaves them untouched
+                // for an intermediate (final:false) message so the waiting flag
+                // survives until the run truly ends. Both real producers always
+                // set localSessionId (and drop the message when they have no
+                // active session), so the empty-string fallback is only a type
+                // guard for the still-optional Phase-A contract.
+                const activeLocalSessionId = useChatStore.getState().activeSessionId ?? '';
+                applyCommit(
+                    mapped,
+                    msg.runUi,
+                    msg.localSessionId ?? '',
+                    activeLocalSessionId,
+                );
+                break;
+            }
+
+            case ExtensionMsg.UpdateIrisRunUi: {
+                const activeLocalSessionId = useChatStore.getState().activeSessionId ?? '';
+                applyRunUi(msg.projection, activeLocalSessionId);
                 break;
             }
 
@@ -191,11 +211,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
 
-            case ExtensionMsg.UpdateIrisStages: {
-                setIrisStages(msg.stages);
-                break;
-            }
-
             case ExtensionMsg.SendRejected: {
                 // Ignore stale rejections that arrive after the user already
                 // switched session — the corresponding optimistic message
@@ -217,7 +232,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
@@ -372,14 +387,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     } else if (showUnavailableBanner) {
         disabledPlaceholder = 'Iris is temporarily unavailable. Retry to reload.';
     }
-
-    // Derive active stage: first stage that is not DONE or SKIPPED.
-    // NOT_STARTED is intentionally included: it shows dots immediately while
-    // Artemis transitions the stage to IN_PROGRESS (provides instant feedback).
-    const activeStage = useMemo<IrisStageDTO | null>(
-        () => store.irisStages.find(s => s.state !== 'DONE' && s.state !== 'SKIPPED') ?? null,
-        [store.irisStages],
-    );
 
     // Hydrated when either no context is selected (legit "Select a course"
     // steady state) or when the active session has a successful load. The
@@ -589,7 +596,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <ChatMessageList
                         messages={store.messages}
                         streaming={store.streaming}
-                        activeStage={activeStage}
+                        activities={store.activities}
+                        liveDraft={store.liveDraft}
+                        runState={store.runState}
+                        runError={store.runError}
                         onFeedback={handleFeedback}
                         onSendPrompt={handleSendMessage}
                         hasContext={store.context !== null}

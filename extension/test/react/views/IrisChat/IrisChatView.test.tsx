@@ -58,7 +58,11 @@ describe('IrisChatView', () => {
 			messages: [],
 			messageLoad: null,
 			streaming: { isStreaming: false },
-			irisStages: [],
+			liveDraft: null,
+			activities: [],
+			runState: null,
+			runError: null,
+			lastRunUiRevision: 0,
 			isLoading: false,
 			webSocketStatus: 'connected',
 			disabledMessage: null,
@@ -195,11 +199,15 @@ describe('IrisChatView', () => {
 	});
 
 	it('adds a single message from addMessage extension event', async () => {
+		// applyCommit drops a message whose localSessionId does not match the
+		// active session, so both must line up for the commit to land.
+		useChatStore.setState({ activeSessionId: 'local-test' });
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
 
 		dispatchExtensionMessage({
 			type: 'addMessage',
+			localSessionId: 'local-test',
 			message: { id: 5, role: 'assistant', content: 'New reply', timestamp: Date.now() },
 		});
 
@@ -730,10 +738,16 @@ describe('IrisChatView', () => {
 		});
 	});
 
-	describe('irisStages reset paths', () => {
+	describe('run UI projection and reset paths', () => {
 		beforeEach(() => {
+			// Seed an in-flight run: waiting flag on, a partial draft and a
+			// running activity, so each path can assert whether it is cleared.
 			useChatStore.setState({
-				irisStages: [{ name: 'thinking', state: 'IN_PROGRESS', message: 'Thinking', weight: 10 }],
+				streaming: { isStreaming: true },
+				liveDraft: { runId: 'A', text: 'partial' },
+				activities: [{ id: 'a1', kind: 'TOOL', name: 'file_lookup', state: 'RUNNING' }],
+				runState: 'RUNNING',
+				lastRunUiRevision: 0,
 				context: {
 					type: 'exercise',
 					id: 1,
@@ -745,36 +759,66 @@ describe('IrisChatView', () => {
 			});
 		});
 
-		it('clears irisStages when assistant AddMessage arrives', async () => {
+		it('commits an assistant message with a runUi and clears the run UI atomically', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
+				runUi: {
+					localSessionId: 'local-test', revision: 5, draft: null,
+					activities: [], waiting: false, runState: 'FINISHED',
+				},
 				message: { id: 1, role: 'assistant', content: 'Response', timestamp: Date.now() },
 			});
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(screen.getByText('Response')).toBeInTheDocument();
 			});
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			expect(useChatStore.getState().liveDraft).toBeNull();
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 
-		it('does not clear irisStages when user AddMessage arrives', async () => {
+		it('does not clear the waiting flag when an intermediate (final:false) message arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// An intermediate message carries no runUi: the run continues, so
+			// the waiting flag (and the rest of the run UI) must survive.
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				localSessionId: 'local-test',
+				message: { id: 2, role: 'assistant', content: 'Intermediate', timestamp: Date.now(), final: false },
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Intermediate')).toBeInTheDocument();
+			});
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().liveDraft?.text).toBe('partial');
+		});
+
+		it('applies a standalone UpdateIrisRunUi projection', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
-				type: 'addMessage',
-				message: { id: 1, role: 'user', content: 'Question', timestamp: Date.now() },
+				type: 'updateIrisRunUi',
+				projection: {
+					localSessionId: 'local-test', revision: 2,
+					draft: { runId: 'B', text: 'new draft' },
+					activities: [], waiting: true, runState: 'RUNNING',
+				},
 			});
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toHaveLength(1);
+				expect(useChatStore.getState().liveDraft?.text).toBe('new draft');
 			});
 		});
 
-		it('clears irisStages when LoadMessages arrives', async () => {
-			useChatStore.setState({ activeSessionId: 'local-test' });
+		it('clears the run UI when LoadMessages arrives', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -786,44 +830,53 @@ describe('IrisChatView', () => {
 			});
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			});
+			expect(useChatStore.getState().liveDraft).toBeNull();
 		});
 
-		it('clears irisStages when ClearChatMessages arrives', async () => {
+		it('clears the run UI when ClearChatMessages arrives', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({ type: 'clearChatMessages' });
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().liveDraft).toBeNull();
 			});
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 
-		it('clears irisStages when UpdateWebSocketStatus reports a non-connected state', async () => {
+		it('clears the run UI when UpdateWebSocketStatus reports a non-connected state', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'disconnected' });
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			});
+			expect(useChatStore.getState().liveDraft).toBeNull();
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 
-		it('does not clear irisStages when UpdateWebSocketStatus reports connected', async () => {
+		it('does not clear the run UI when UpdateWebSocketStatus reports connected', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'connected' });
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toHaveLength(1);
+				expect(useChatStore.getState().webSocketStatus).toBe('connected');
 			});
+			expect(useChatStore.getState().liveDraft?.text).toBe('partial');
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 		});
 
-		it('clears irisStages when user sends a message', async () => {
+		it('clears the run draft when the user sends a message', async () => {
+			// Streaming must be off for the input to be enabled; the stale
+			// draft/activities from a previous run should be cleared on send.
+			useChatStore.setState({ streaming: { isStreaming: false } });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -831,24 +884,9 @@ describe('IrisChatView', () => {
 			await userEvent.type(textarea, 'Hello{Enter}');
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().liveDraft).toBeNull();
 			});
-		});
-
-		it('sets irisStages when UpdateIrisStages arrives', async () => {
-			useChatStore.setState({ irisStages: [] });
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			dispatchExtensionMessage({
-				type: 'updateIrisStages',
-				stages: [{ name: 'analyzing', state: 'IN_PROGRESS', message: 'Analyzing', weight: 20 }],
-			});
-
-			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toHaveLength(1);
-				expect(useChatStore.getState().irisStages[0].name).toBe('analyzing');
-			});
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 	});
 });

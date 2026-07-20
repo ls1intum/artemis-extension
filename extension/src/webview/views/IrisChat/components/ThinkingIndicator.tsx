@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { IrisStageDTO } from '@webview/views/IrisChat/types';
+import type { IrisRunState } from '@shared/types/apiResponses';
 
 import styles from './ThinkingIndicator.module.css';
 
@@ -14,25 +14,29 @@ const ROTATION_INTERVAL_MS = 2600;
 
 interface ThinkingIndicatorProps {
     isVisible?: boolean;
-    activeStage?: IrisStageDTO | null;
+    runState?: IrisRunState | null;
+    error?: { message?: string } | null;
 }
 
 export function ThinkingIndicator({
     isVisible = true,
-    activeStage = null,
+    runState = null,
+    error = null,
 }: ThinkingIndicatorProps) {
-    if (!isVisible) { return null; }
-
-    if (activeStage?.state === 'ERROR') {
+    // A failed run surfaces its error regardless of the waiting flag: the run
+    // is over, so `isVisible` (the "still waiting" gate) no longer applies.
+    if (runState === 'FAILED') {
         return (
             <div className={styles.container}>
                 <div className={styles.errorContainer} role="alert">
                     <span className={styles.errorIcon} aria-hidden="true">&#9888;</span>
-                    <span className={styles.errorText}>{activeStage.message || 'An error occurred'}</span>
+                    <span className={styles.errorText}>{error?.message || 'An error occurred'}</span>
                 </div>
             </div>
         );
     }
+
+    if (!isVisible) { return null; }
 
     const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
 
@@ -41,51 +45,27 @@ export function ThinkingIndicator({
             {irisLogoUri && (
                 <img src={irisLogoUri} alt="" className={styles.logo} />
             )}
-            {activeStage?.state === 'IN_PROGRESS' ? (
-                <StageLabel activeStage={activeStage} />
-            ) : null}
+            <RotatingLabel />
         </div>
     );
 }
 
-/** Internal component managing label rotation, keyed on stageKey for stable identity */
-function StageLabel({ activeStage }: { activeStage: IrisStageDTO }) {
-    const stageKey = `${activeStage.name}:${activeStage.state}`;
-    const initialLabel = (activeStage.message && activeStage.message.length > 0)
-        ? activeStage.message
-        : ROTATION_LABELS[0];
-
-    const [displayLabel, setDisplayLabel] = useState(initialLabel);
+/** Cycles through the reassurance labels while a response is pending. */
+function RotatingLabel() {
+    const [displayLabel, setDisplayLabel] = useState(ROTATION_LABELS[0]);
     const [animKey, setAnimKey] = useState(0);
     const rotationIndex = useRef(0);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
-    // Effect 1: Reset rotation when stage identity changes
     useEffect(() => {
-        const startLabel = (activeStage.message && activeStage.message.length > 0)
-            ? activeStage.message
-            : ROTATION_LABELS[0];
-        rotationIndex.current = 0;
-        setDisplayLabel(startLabel);
-        setAnimKey((k) => k + 1);
-
-        const interval = setInterval(() => {
+        intervalRef.current = setInterval(() => {
             rotationIndex.current = (rotationIndex.current + 1) % ROTATION_LABELS.length;
             setDisplayLabel(ROTATION_LABELS[rotationIndex.current]);
             setAnimKey((k) => k + 1);
         }, ROTATION_INTERVAL_MS);
 
-        return () => clearInterval(interval);
-        // Intentionally keyed on stageKey only — restarts rotation when stage identity changes
-    }, [stageKey]);
-
-    // Effect 2: Update label when server message changes without restarting timer
-    useEffect(() => {
-        if (activeStage.message && activeStage.message.length > 0) {
-            setDisplayLabel(activeStage.message);
-            setAnimKey((k) => k + 1);
-        }
-        // Intentionally only reacts to message text changes, not full stageKey re-keying
-    }, [activeStage.message]);
+        return () => clearInterval(intervalRef.current);
+    }, []);
 
     return (
         <span className={styles.statusText} aria-live="polite">
