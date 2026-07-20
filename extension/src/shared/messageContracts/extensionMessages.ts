@@ -4,6 +4,8 @@
 
 import type {
     ExerciseDetailsResponse,
+    IrisActivityDTO,
+    IrisRunState,
     IrisStageDTO,
     ResultSummary,
     SubmissionSummary,
@@ -67,6 +69,7 @@ export const ExtensionMsg = {
     HideUnavailableState: 'hideUnavailableState',
     UpdateNoAiStatus: 'updateNoAiStatus',
     UpdateIrisStages: 'updateIrisStages',
+    UpdateIrisRunUi: 'updateIrisRunUi',
     SendRejected: 'sendRejected',
 
     // Exercise/Repo responses
@@ -88,6 +91,25 @@ export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
 /** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
 interface RenderedProblemStatementPayload {
     html: string;
+}
+
+/**
+ * The host's view of run-scoped chat UI. Sent as a standalone snapshot
+ * (`updateIrisRunUi`) while streaming, and embedded in `addMessage` so a commit
+ * and its resulting UI state are applied atomically. The webview must never be
+ * able to observe the draft cleared before the committed message landed.
+ */
+export interface IrisRunUiProjection {
+    /** Rejects a projection belonging to a session we already left. */
+    localSessionId: string;
+    /** Monotonic; the webview drops anything not strictly newer. */
+    revision: number;
+    /** `null` clears the draft. Always `null` on a commit. */
+    draft: { runId: string; text: string } | null;
+    activities: IrisActivityDTO[];
+    waiting: boolean;
+    runState: IrisRunState | null;
+    error?: { message?: string } | null;
 }
 
 /** Payload definitions for each Extension->Webview message */
@@ -193,13 +215,27 @@ interface ExtensionMsgPayloads {
         showDiagnostics?: boolean;
     };
     addMessage: {
+        /**
+         * Session this bubble belongs to; the webview drops stale sessions.
+         * OPTIONAL in Phase A so the three existing producers and the typed
+         * React fixtures keep compiling. Task 10 (Phase C) tightens it to
+         * required once every producer sets it.
+         */
+        localSessionId?: string;
         message: {
             id?: number;
             role: 'user' | 'assistant';
             content: string;
             timestamp: number;
             helpful?: boolean | null;
+            activities?: IrisActivityDTO[];
+            final?: boolean;
         };
+        /**
+         * Omitted for non-run bubbles (the provider's error messages), which
+         * must leave run state untouched.
+         */
+        runUi?: IrisRunUiProjection;
     };
     loadMessages: {
         /** Local session UUID this load belongs to. The webview ignores
@@ -213,6 +249,8 @@ interface ExtensionMsgPayloads {
             content: string;
             timestamp: number;
             helpful?: boolean | null;
+            activities?: IrisActivityDTO[];
+            final?: boolean;
         }>;
     };
     loadMessagesError: { localSessionId: string };
@@ -233,6 +271,9 @@ interface ExtensionMsgPayloads {
     };
     updateIrisStages: {
         stages: IrisStageDTO[];
+    };
+    updateIrisRunUi: {
+        projection: IrisRunUiProjection;
     };
     /**
      * Posted by the extension host when a user-initiated `sendMessage`

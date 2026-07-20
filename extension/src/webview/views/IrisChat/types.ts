@@ -1,4 +1,5 @@
 import type { ExerciseRef } from '@shared/types';
+import type { IrisActivityDTO } from '@shared/types/apiResponses';
 export type { IrisStageDTO } from '@shared/types/apiResponses';
 
 // Chat message as rendered in the UI
@@ -18,6 +19,10 @@ export interface ChatMessage {
      * stays non-retryable as long as `.noai` is still detected).
      */
     errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+    /** Tool activity persisted with the message; renders as the trail. */
+    activities?: IrisActivityDTO[];
+    /** `false` marks an intermediate message: no feedback controls, run continues. */
+    final?: boolean;
 }
 
 // Chat session summary (from extension)
