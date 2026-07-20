@@ -9,7 +9,7 @@
 
 import * as assert from 'assert';
 
-import { isIrisWebSocketMessage, isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
+import { isIrisActivity, isIrisWebSocketMessage, isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
 
 suite('isIrisWebSocketMessage', () => {
     test('accepts a plain object', () => {
@@ -71,5 +71,31 @@ suite('isVisibleIrisStage', () => {
     test('rejects primitives', () => {
         assert.strictEqual(isVisibleIrisStage('Compile'), false);
         assert.strictEqual(isVisibleIrisStage(0), false);
+    });
+});
+
+suite('isIrisActivity', () => {
+    const valid = { id: 'a1', kind: 'TOOL', name: 'file_lookup', state: 'RUNNING' };
+
+    test('accepts a well-formed activity', () => {
+        assert.strictEqual(isIrisActivity(valid), true);
+    });
+
+    test('rejects an unknown state', () => {
+        assert.strictEqual(isIrisActivity({ ...valid, state: 'DONE' }), false);
+    });
+
+    test('rejects an unknown kind', () => {
+        assert.strictEqual(isIrisActivity({ ...valid, kind: 'MAGIC' }), false);
+    });
+
+    test('rejects missing or wrongly typed id and name', () => {
+        assert.strictEqual(isIrisActivity({ ...valid, id: undefined }), false);
+        assert.strictEqual(isIrisActivity({ ...valid, name: 42 }), false);
+    });
+
+    test('rejects non-objects', () => {
+        assert.strictEqual(isIrisActivity(null), false);
+        assert.strictEqual(isIrisActivity([valid]), false);
     });
 });

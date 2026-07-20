@@ -15,7 +15,7 @@
  * at the call site — matching how live WS data is consumed elsewhere.
  */
 
-import type { IrisChatMessage, IrisStageDTO } from '@extension/types';
+import type { IrisActivityDTO, IrisChatMessage, IrisRunState, IrisStageDTO } from '@extension/types';
 
 /**
  * Minimal structural shape of an incoming Iris WebSocket frame. Exported
@@ -24,6 +24,14 @@ import type { IrisChatMessage, IrisStageDTO } from '@extension/types';
 export type IrisWebSocketMessage = Record<string, unknown> & {
     type?: string;
     message?: IrisChatMessage;
+    runId?: string;
+    runState?: IrisRunState;
+    partialResult?: string;
+    partialSeq?: number;
+    activities?: unknown;
+    activitySeq?: number;
+    final?: boolean;
+    error?: { message?: string } | null;
 };
 
 /**
@@ -47,4 +55,22 @@ export function isVisibleIrisStage(stage: unknown): stage is IrisStageDTO {
         return false;
     }
     return (stage as { internal?: unknown }).internal !== true;
+}
+
+const ACTIVITY_STATES = new Set(['RUNNING', 'FINISHED', 'FAILED']);
+const ACTIVITY_KINDS = new Set(['TOOL', 'COMMAND']);
+
+/**
+ * True if `value` is a usable activity entry. Unlike stages there is no
+ * `internal` flag to filter on: the server already curates activities.
+ */
+export function isIrisActivity(value: unknown): value is IrisActivityDTO {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+    const a = value as Record<string, unknown>;
+    return typeof a['id'] === 'string'
+        && typeof a['name'] === 'string'
+        && typeof a['kind'] === 'string' && ACTIVITY_KINDS.has(a['kind'])
+        && typeof a['state'] === 'string' && ACTIVITY_STATES.has(a['state']);
 }
