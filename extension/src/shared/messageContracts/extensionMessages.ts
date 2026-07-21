@@ -207,8 +207,8 @@ interface ExtensionMsgPayloads {
                 createdAt: number;
                 lastActivity: number;
             }>;
-            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
-            courses: Array<{ id: number; title: string; shortName?: string }>;
+            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean; releaseDate?: string; dueDate?: string; lastViewed?: number }>;
+            courses: Array<{ id: number; title: string; shortName?: string; lastViewed?: number }>;
         };
         showDiagnostics?: boolean;
     };

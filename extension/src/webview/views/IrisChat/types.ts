@@ -50,6 +50,9 @@ export interface ChatContext {
 export interface ContextItem extends ExerciseRef {
     repositoryUri?: string;
     isWorkspace?: boolean;
+    releaseDate?: string;
+    dueDate?: string;
+    lastViewed?: number;   // for compareCoursesForPicker; from TrackedCourse/TrackedExercise
 }
 
 // Referenced file info
