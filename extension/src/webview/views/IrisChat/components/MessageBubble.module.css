@@ -3,7 +3,6 @@
     align-items: flex-start;
     gap: 8px;
     padding: 8px 16px;
-    margin: 4px 0;
     position: relative;
 }
 
@@ -16,7 +15,6 @@
 }
 
 .bubble {
-    max-width: 70%;
     padding: 12px 16px;
     border-radius: 12px;
     position: relative;
@@ -66,19 +64,25 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-width: 70%;
+    min-width: 0;
 }
 
 .messageWrapper.user .bubbleColumn {
     align-items: flex-end;
+    /* User column keeps a real cap so the bubble reads as a chat bubble,
+       not a full-width block; leaves room for the bubble's own padding
+       so text never clips against the wrapper's right edge. */
+    max-width: min(70%, 560px);
 }
 
 .messageWrapper.assistant .bubbleColumn {
     align-items: flex-start;
+    /* Assistant answers flow full-width (spec §4.4): no column cap, no
+       heavy bubble background, just the sidebar's own padding. */
+    max-width: 100%;
+    width: 100%;
 }
 
-/* The bubble inside the column should no longer constrain its own width
-   since the column already handles max-width. */
 .bubbleColumn .bubble {
     max-width: 100%;
 }
@@ -132,6 +136,8 @@
     transition: opacity 150ms ease;
 }
 
+.messageWrapper:hover .feedbackContainer,
+.messageWrapper:focus-within .feedbackContainer,
 .feedbackContainer.visible {
     opacity: 1;
 }
@@ -165,6 +171,12 @@
     bottom: -18px;
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.messageWrapper:hover .timestamp,
+.messageWrapper:focus-within .timestamp {
     opacity: 0.7;
 }
 

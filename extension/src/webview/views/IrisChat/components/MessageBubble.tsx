@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import ThumbsDown from 'lucide-react/dist/esm/icons/thumbs-down';
 import ThumbsUp from 'lucide-react/dist/esm/icons/thumbs-up';
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo } from 'react';
 // @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains (TS1479). esbuild handles at bundle time.
 import { Streamdown } from 'streamdown';
 
@@ -43,7 +43,6 @@ function MessageBubbleComponent({
     retryDisabled,
     isDraft,
 }: MessageBubbleProps) {
-    const [hovering, setHovering] = useState(false);
     const isAssistant = message.role === 'assistant';
     const isUser = message.role === 'user';
     const streamdownComponents = useStreamdownConfig();
@@ -70,8 +69,6 @@ function MessageBubbleComponent({
                 [styles.user]: isUser,
                 [styles.assistant]: isAssistant,
             })}
-            onMouseEnter={() => setHovering(true)}
-            onMouseLeave={() => setHovering(false)}
         >
             <div className={styles.bubbleColumn}>
                 <div
@@ -108,7 +105,7 @@ function MessageBubbleComponent({
                     {showFeedback && (
                         <div
                             className={clsx(styles.feedbackContainer, {
-                                [styles.visible]: hovering || hasFeedback,
+                                [styles.visible]: hasFeedback,
                             })}
                         >
                             <button
@@ -163,9 +160,9 @@ function MessageBubbleComponent({
                 )}
             </div>
 
-            {hovering && (
-                <span className={styles.timestamp}>{relativeTime}</span>
-            )}
+            <span className={styles.timestamp} data-testid="message-timestamp">
+                {relativeTime}
+            </span>
         </div>
     );
 }
