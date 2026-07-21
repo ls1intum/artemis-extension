@@ -57,6 +57,7 @@ export class SessionManager {
         createdAt: number,
         artemisSessionId?: number,
         title?: string,
+        lastActivity?: number,
     ): void {
         const active = this._getActiveContext();
         if (!active) {
@@ -72,7 +73,7 @@ export class SessionManager {
             title,
             messageCount,
             createdAt,
-            lastActivity: createdAt,
+            lastActivity: lastActivity ?? createdAt,
             artemisSessionId,
         };
         const sessions = state.sessions[key] ?? [];

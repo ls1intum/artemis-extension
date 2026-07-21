@@ -158,6 +158,7 @@ export interface IrisChatSession {
     userId?: number;
     title?: string;
     creationDate?: string;
+    lastActivityDate?: string;
     messages?: IrisChatMessage[];
     [key: string]: unknown;
 }

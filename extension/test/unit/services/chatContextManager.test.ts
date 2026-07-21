@@ -147,6 +147,41 @@ suite('ChatContextManager Test Suite', () => {
         });
     });
 
+    suite('Same-context selection (no-op)', () => {
+        test('re-selecting the already-active exercise context does not reset, clear, or reload', () => {
+            chatContextManager.handleContextSelection('exercise', 123, 'Test Exercise', 'EX123');
+
+            const registerExerciseSpy = sinon.spy(contextStore, 'registerExercise');
+            const setActiveContextSpy = sinon.spy(contextStore, 'setActiveContext');
+            postMessageSpy.resetHistory();
+            chatSessionService.loadAllSessionsForContext.resetHistory();
+            irisSessionManager.resetSession.resetHistory();
+
+            chatContextManager.handleContextSelection('exercise', 123, 'Test Exercise', 'EX123');
+
+            assert.ok(registerExerciseSpy.notCalled);
+            assert.ok(setActiveContextSpy.notCalled);
+            assert.ok(chatSessionService.loadAllSessionsForContext.notCalled);
+            assert.ok(irisSessionManager.resetSession.notCalled);
+            assert.ok(postMessageSpy.notCalled);
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.id, 123);
+            assert.strictEqual(snapshot.activeContext?.type, 'exercise');
+        });
+
+        test('selecting a different exercise id still switches normally', () => {
+            chatContextManager.handleContextSelection('exercise', 123, 'Test Exercise', 'EX123');
+            chatSessionService.loadAllSessionsForContext.resetHistory();
+
+            chatContextManager.handleContextSelection('exercise', 456, 'Other Exercise', 'EX456');
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.id, 456);
+            assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
+        });
+    });
+
     suite('Switch To Workspace Context', () => {
         test('should find workspace exercise from recent exercises', () => {
             contextStore.registerExercise({

@@ -180,8 +180,9 @@ export class ContextStore {
         createdAt: number,
         artemisSessionId?: number,
         title?: string,
+        lastActivity?: number,
     ): ContextSnapshot {
-        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, title);
+        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, title, lastActivity);
         return this.snapshot();
     }
 

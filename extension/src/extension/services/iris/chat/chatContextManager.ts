@@ -144,6 +144,14 @@ export class ChatContextManager {
         itemName: string,
         itemShortName?: string
     ): void {
+        const active = this.deps.contextStore.getActiveContext();
+        if (active?.type === contextType && active.id === itemId) {
+            // Re-selecting the already-active context is a no-op: no register,
+            // no setActiveContext, no session reset, no chat clear, no reload.
+            // The active session is preserved as-is.
+            return;
+        }
+
         const courseId = contextType === 'exercise'
             ? this.deps.contextStore.getExerciseById(itemId)?.courseId
             : undefined;
