@@ -192,7 +192,7 @@ suite('ChatWebviewProvider.openArtemisSession', () => {
 
         h.postSpy.resetHistory();
 
-        // Now A's overview finally resolves — it must detect the stale token.
+        // Now A's overview finally resolves. It must detect the stale token.
         resolveA([summary({ id: 55, entityId: 55, mode: 'PROGRAMMING_EXERCISE_CHAT', entityName: 'Ex A' })]);
         await pA;
         await tick();

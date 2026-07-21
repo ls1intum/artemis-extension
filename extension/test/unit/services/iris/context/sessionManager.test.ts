@@ -47,6 +47,26 @@ suite('SessionManager.upsertSessionFromOverview', () => {
         assert.strictEqual(state.sessions['course:1'][0].id, 'session-42');
     });
 
+    test('preserves the existing title when a later overview entry has none', () => {
+        const state = makeState();
+        const mgr = makeManager(state, { type: 'course', id: 1 } as ActiveContext);
+
+        mgr.upsertSessionFromOverview({
+            contextKey: 'course:1',
+            artemisSessionId: 42,
+            title: 'A',
+            lastActivity: 100,
+        });
+        mgr.upsertSessionFromOverview({
+            contextKey: 'course:1',
+            artemisSessionId: 42,
+            lastActivity: 200,
+        });
+
+        assert.strictEqual(state.sessions['course:1'][0].title, 'A');
+        assert.strictEqual(state.sessions['course:1'][0].lastActivity, 200);
+    });
+
     test('creates a new session with messageCount 0 when not found anywhere', () => {
         const state = makeState();
         const mgr = makeManager(state, { type: 'course', id: 1 } as ActiveContext);

@@ -59,7 +59,7 @@ interface ChatState {
     courseHistory: CourseHistoryState;
     /**
      * Task 10's cross-context `openArtemisSession` failure. Distinct from
-     * `unavailableMessage` — nothing about chat availability changed, only
+     * `unavailableMessage`: nothing about chat availability changed, only
      * the specific row the user clicked could not be opened, so it renders
      * as an inline banner inside the history popover rather than the global
      * banner.

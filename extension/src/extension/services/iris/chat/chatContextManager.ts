@@ -80,7 +80,7 @@ interface SwitchContextParams {
      * When `true` (default) the switch finishes by loading the context's
      * sessions and auto-selecting the default one. When `false`, steps 1–3
      * still run (register, set active, reset WS + clear UI) but session
-     * selection is left to the caller — used by the atomic cross-context
+     * selection is left to the caller: used by the atomic cross-context
      * `openArtemisSession` flow, which selects a specific session itself and
      * must not have the default-session loader race against it.
      */

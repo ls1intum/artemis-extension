@@ -74,7 +74,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         return undefined;
     }, [store.context?.id]);
 
-    // Close the history popover once the active session actually changes —
+    // Close the history popover once the active session actually changes:
     // the success signal for a row click's `openArtemisSession` (which does
     // NOT close the popover itself, so a resulting inline openSessionError
     // stays visible). Guarded on the ref already having a value so this
@@ -378,8 +378,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'reloadActiveSession');
     };
 
-    // Popover open/close helpers. The two popovers are mutually exclusive —
-    // opening one always closes the other. Closing restores focus to
+    // Popover open/close helpers. The two popovers are mutually exclusive.
+    // Opening one always closes the other. Closing restores focus to
     // whichever element opened it (captured in openerRef), then clears the
     // ref so a click-outside close doesn't refocus a stale element.
     const openPicker = (opener: HTMLElement) => {
@@ -645,7 +645,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         canCreateConversation={canCreateConversation}
                         openError={store.openSessionError}
                         onSelectEntry={(entry) => {
-                            // Deliberately does NOT close the popover — a
+                            // Deliberately does NOT close the popover: a
                             // resulting openSessionError needs a visible
                             // destination. It closes once the active
                             // session actually changes (see the effect

@@ -66,7 +66,7 @@ export class IrisChatSessionService {
     private readonly _createInFlight = new Set<string>();
     // Keyed by local session id: a target-preserving Retry (reloadActiveSession)
     // reloads only the active session's messages. Repeated Retry clicks for the
-    // same session must not start overlapping loads — the guard latches until
+    // same session must not start overlapping loads. The guard latches until
     // the in-flight load settles. Distinct from _createInFlight (which guards
     // server-side session creation) and from the provider's context-level
     // _reloadInFlight (which reloads the whole context).
@@ -439,7 +439,7 @@ export class IrisChatSessionService {
             // for cleanupEmptySessions) until the next full reload. Gated on
             // the start session so a stale continuation (user switched mid
             // load) does not overwrite a different session's count. This lives
-            // here — not in the provider — because switchToSession returns
+            // here (not in the provider) because switchToSession returns
             // void and this method owns formattedMessages.
             if (isStillStartSession()) {
                 this.deps.contextStore.setActiveSessionMessageCount(formattedMessages.length);
@@ -485,7 +485,7 @@ export class IrisChatSessionService {
         // so an in-flight create in course A never blocks a concurrent one
         // in course B. Computed once, up front (nothing below changes the
         // active context type/id), and every exit path releases this same
-        // key — the finally() on the happy/error path, and the two explicit
+        // key: the finally() on the happy/error path, and the two explicit
         // releases below for the early-return branches.
         const activeContext = this.deps.contextStore.getActiveContext();
         const guardKey = contextKeyOf(activeContext);
@@ -525,7 +525,7 @@ export class IrisChatSessionService {
             const isStillNewSession = (): boolean =>
                 this.deps.contextStore.snapshot().activeSession?.id === newLocalSessionId;
 
-            // Advance the navigation generation (accepted op — the in-flight
+            // Advance the navigation generation (accepted op: the in-flight
             // guard above already rejected duplicates without a bump, so a
             // rejected duplicate never invalidates this legitimate create).
             // Both continuations below re-check this token in addition to the
@@ -631,7 +631,7 @@ export class IrisChatSessionService {
      * `reloadActiveSessionMessages`: reset runs + WS, select the session, clear
      * the UI, advance the navigation generation, then load its messages.
      * Advancing `_contextLoadToken` here is what makes this switch the
-     * authoritative navigation — any in-flight loader (including a stale
+     * authoritative navigation: any in-flight loader (including a stale
      * cross-context open) fails its `t === contextLoadToken` re-check and
      * returns without mutating or emitting an error. Returns the load promise
      * so the single-flight Retry guard can release only once it settles.

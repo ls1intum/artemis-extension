@@ -86,7 +86,7 @@ describe('bucketHistoryByTime', () => {
         const out = bucketHistoryByTime([invalidNaN, validOlder, invalidZero, validNewer], NOW);
 
         // Among the invalid entries, input order is preserved (no data-driven
-        // ordering is specified between them — only that they land after
+        // ordering is specified between them, only that they land after
         // every validly dated entry).
         expect(out).toEqual([
             { bucket: 'older', entries: [validNewer, validOlder, invalidNaN, invalidZero] },

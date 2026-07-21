@@ -177,7 +177,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     if (courseId === undefined) {
                         // Can't tell which course this key belongs to (malformed
                         // key, or an exercise whose course isn't tracked locally
-                        // yet) — clear everything rather than risk serving stale
+                        // yet), clear everything rather than risk serving stale
                         // history for a course we can't otherwise invalidate.
                         this._courseHistoryCache.clear();
                         return;
@@ -498,12 +498,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * Atomic cross-context open of a prior Artemis chat session, driven from
      * the course-wide history popover (which only knows the course id and the
      * Artemis session id). The host resolves mode/entity from the course
-     * overview — the webview never invents the context. Ordering closes the
+     * overview. The webview never invents the context. Ordering closes the
      * stale-open race:
      *   1. Bump the navigation token immediately, invalidating any in-flight
      *      loader (its `t === contextLoadToken` re-check now fails).
      *   2. Fetch the overview; re-check the token straight after the await. If
-     *      a newer navigation bumped it, return silently — the newer op owns
+     *      a newer navigation bumped it, return silently: the newer op owns
      *      the UI, and emitting an error here would clobber it. On fetch
      *      failure or a missing id (only while still current) post
      *      `openSessionError` and stop; nothing has been mutated.
@@ -527,7 +527,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         try {
             const summaries = await this._artemisApiService.listChatSessionsForCourse(courseId);
             // Step 2: re-check immediately after the await. A newer navigation
-            // owning the UI must not be disturbed — return silently, no error.
+            // owning the UI must not be disturbed: return silently, no error.
             if (loadToken !== this._chatSessionService.contextLoadToken) {
                 logger.info('openArtemisSession: superseded during overview fetch, aborting silently', LogCategory.IRIS_CHAT);
                 return;
@@ -598,7 +598,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * popover: on a cache hit, serve `_courseHistoryCache` directly (no API
      * call); otherwise fetch the course's chat-session overview, project it
      * through `buildCourseHistory`, cache it, and post the result back tagged
-     * with the `requestId` the webview sent — the webview drops anything
+     * with the `requestId` the webview sent. The webview drops anything
      * whose `requestId` no longer matches its latest request, so this method
      * does not need to track staleness itself; it can post exactly one
      * message per call.
@@ -631,7 +631,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /**
      * Task 12: parses a `"type:id"` session context key (e.g. `course:5`,
      * `exercise:12`) into the courseId whose history-cache entry it affects.
-     * Exercise keys resolve via the already-tracked exercise's `courseId` —
+     * Exercise keys resolve via the already-tracked exercise's `courseId`:
      * no network fallback here, this only reads local state so the
      * invalidation subscription stays synchronous. Returns `undefined` for a
      * malformed key, an unknown type, or an exercise whose course isn't

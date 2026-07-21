@@ -41,9 +41,15 @@ interface ConversationHistoryProps {
  * `ContextPicker`.
  *
  * Selecting a row posts `openArtemisSession` (via `onSelectEntry`) but does
- * NOT close the popover — it stays open so a resulting inline `openError`
+ * NOT close the popover: it stays open so a resulting inline `openError`
  * has a visible destination. The caller closes it once the active session
  * actually changes, or on Escape/click-outside (handled here).
+ *
+ * Clicking the already-active row is a no-op for navigation (there is
+ * nothing to open) and just closes the popover instead of calling
+ * `onSelectEntry`, so it does not trigger a needless reload or leave the
+ * popover stuck open (the active-session-changed effect never fires
+ * because the session does not change).
  */
 export function ConversationHistory({
     entries,
@@ -94,7 +100,7 @@ export function ConversationHistory({
 
     const isLoading = status === 'loading' || status === 'idle';
     // `Date.now()` is intentionally read here, in the component, on every
-    // render — bucketHistoryByTime itself stays pure and takes `nowMs` as an
+    // render. `bucketHistoryByTime` itself stays pure and takes `nowMs` as an
     // argument so it remains deterministically testable.
     const buckets = bucketHistoryByTime(entries, Date.now());
 
@@ -159,7 +165,7 @@ export function ConversationHistory({
                                     type="button"
                                     className={clsx(styles.row, { [styles.rowActive]: active })}
                                     data-testid={active ? 'history-active' : undefined}
-                                    onClick={() => onSelectEntry(entry)}
+                                    onClick={() => (active ? onClose() : onSelectEntry(entry))}
                                 >
                                     <MessageSquare size={16} className={styles.rowIcon} />
                                     <span className={styles.rowTextColumn}>

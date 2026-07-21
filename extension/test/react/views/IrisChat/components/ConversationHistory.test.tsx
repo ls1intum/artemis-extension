@@ -70,6 +70,15 @@ describe('ConversationHistory', () => {
         expect(onClose).not.toHaveBeenCalled();
     });
 
+    it('clicking the already-active row does not call onSelectEntry, and closes the popover instead', () => {
+        const onSelectEntry = vi.fn();
+        const onClose = vi.fn();
+        render(<ConversationHistory {...props} onSelectEntry={onSelectEntry} onClose={onClose} />);
+        fireEvent.click(screen.getByText('General questions'));
+        expect(onSelectEntry).not.toHaveBeenCalled();
+        expect(onClose).toHaveBeenCalledOnce();
+    });
+
     it('clicking "New conversation" fires onNewConversation when enabled', () => {
         const onNewConversation = vi.fn();
         render(<ConversationHistory {...props} onNewConversation={onNewConversation} />);

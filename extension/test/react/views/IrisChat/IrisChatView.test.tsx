@@ -182,7 +182,7 @@ describe('IrisChatView', () => {
 			await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
 			expect(screen.getAllByRole('dialog')).toHaveLength(1);
 
-			// Now open the picker — history must unmount; exactly one dialog remains.
+			// Now open the picker. History must unmount; exactly one dialog remains.
 			await userEvent.click(screen.getByText('Test Exercise'));
 
 			await waitFor(() => {

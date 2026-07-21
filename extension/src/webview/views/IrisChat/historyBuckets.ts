@@ -37,7 +37,7 @@ const byNewestFirst = (a: CourseHistoryEntryVM, b: CourseHistoryEntryVM) => b.la
  * constructor used below resolves year/month/day in the local timezone).
  *
  * An entry with an invalid or unparseable timestamp (`lastActivity <= 0` or
- * non-finite — the host's sentinel for a date it could not parse, see
+ * non-finite, the host's sentinel for a date it could not parse, see
  * `buildCourseHistory`) always lands in Older, sorted after every validly
  * dated Older entry.
  *
