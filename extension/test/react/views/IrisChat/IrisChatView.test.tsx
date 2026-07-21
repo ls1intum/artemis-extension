@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -188,6 +188,144 @@ describe('IrisChatView', () => {
 			await waitFor(() => {
 				expect(screen.getAllByRole('dialog')).toHaveLength(1);
 			});
+		});
+	});
+
+	describe('Run lock: navigation while Iris is streaming', () => {
+		const exerciseContext = {
+			type: 'exercise' as const,
+			id: 1,
+			title: 'Test Exercise',
+			shortName: 'TE',
+			courseId: 10,
+			locked: false,
+			source: 'user-selected' as const,
+		};
+
+		// canCreateConversation requires a non-empty active session; use this
+		// instead of HYDRATED so the "New conversation" affordances start out
+		// enabled and any suppression proven below is caused by the run
+		// lock, not by the pre-existing (unrelated) canCreateConversation gate.
+		const HYDRATED_NON_EMPTY = {
+			...HYDRATED,
+			sessions: [{ ...HYDRATED.sessions[0], messageCount: 1 }],
+		};
+
+		const NAV_COMMANDS = ['selectChatContext', 'switchSession', 'createNewSession', 'openArtemisSession', 'resetChatSessions'];
+
+		const expectNoNavCommandPosted = (mockApi: ReturnType<typeof createMockVsCodeApi>) => {
+			for (const command of NAV_COMMANDS) {
+				expect(mockApi.postMessage).not.toHaveBeenCalledWith(
+					expect.objectContaining({ type: 'command', command })
+				);
+			}
+		};
+
+		it('disables the ChatHeader context row, new-conversation, and history buttons while streaming', () => {
+			useChatStore.setState({
+				context: exerciseContext,
+				...HYDRATED_NON_EMPTY,
+				streaming: { isStreaming: true },
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.getByRole('button', { name: /Test Exercise/ })).toBeDisabled();
+			expect(screen.getByLabelText('New conversation')).toBeDisabled();
+			expect(screen.getByLabelText('View past conversations')).toBeDisabled();
+
+			fireEvent.click(screen.getByRole('button', { name: /Test Exercise/ }));
+			fireEvent.click(screen.getByLabelText('New conversation'));
+			fireEvent.click(screen.getByLabelText('View past conversations'));
+
+			expectNoNavCommandPosted(mockApi);
+		});
+
+		it('closes an already-open context picker when streaming starts, so a late row click cannot post selectChatContext', async () => {
+			useChatStore.setState({
+				context: exerciseContext,
+				exercises: [{ id: 2, title: 'Other Exercise', courseId: 10 }],
+				courses: [{ id: 10, title: 'Course X' }],
+				...HYDRATED_NON_EMPTY,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByText('Test Exercise'));
+			const otherExerciseRow = await screen.findByText('Other Exercise');
+
+			// The run starts while the picker is still open.
+			useChatStore.setState({ streaming: { isStreaming: true } });
+
+			await waitFor(() => {
+				expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+			});
+
+			// The row reference was captured before the popover unmounted.
+			// React tears down its listeners on unmount, so this simulates a
+			// click that lands just as the run starts.
+			fireEvent.click(otherExerciseRow);
+
+			expectNoNavCommandPosted(mockApi);
+		});
+
+		it('closes an already-open history popover when streaming starts, so a late entry click cannot post openArtemisSession', async () => {
+			useChatStore.setState({
+				context: exerciseContext,
+				...HYDRATED_NON_EMPTY,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+
+			dispatchExtensionMessage({
+				type: 'updateCourseHistory',
+				requestId: 1,
+				entries: [{
+					artemisSessionId: 99,
+					courseId: 10,
+					mode: 'PROGRAMMING_EXERCISE_CHAT',
+					entityId: 5,
+					entityName: 'Other Exercise',
+					title: 'Old conversation',
+					lastActivity: Date.now(),
+				}],
+			});
+
+			const historyRow = await screen.findByText('Old conversation');
+			const newConversationButton = within(screen.getByRole('dialog')).getByRole('button', { name: /new conversation/i });
+
+			// The run starts while the history popover is still open.
+			useChatStore.setState({ streaming: { isStreaming: true } });
+
+			await waitFor(() => {
+				expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+			});
+
+			fireEvent.click(historyRow);
+			fireEvent.click(newConversationButton);
+
+			expectNoNavCommandPosted(mockApi);
+		});
+
+		it('closes an already-open side menu when streaming starts, so a late click cannot post resetChatSessions', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
+			const resetButton = screen.getByText('Reset & Sync Sessions');
+
+			// The run starts while the side menu is still open.
+			useChatStore.setState({ streaming: { isStreaming: true } });
+
+			await waitFor(() => {
+				expect(screen.queryByText('Reset & Sync Sessions')).not.toBeInTheDocument();
+			});
+
+			fireEvent.click(resetButton);
+
+			expectNoNavCommandPosted(mockApi);
 		});
 	});
 

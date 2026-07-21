@@ -15,6 +15,13 @@ interface ChatHeaderProps {
     activeSession: ChatSession | undefined;
     courseName: string | null;
     canCreateConversation: boolean;
+    /**
+     * True while Iris is responding to the current run. All navigation
+     * affordances here (context row, new conversation, history) change
+     * context or the active session, which would abandon the in-flight
+     * run, so they are made non-interactive rather than merely dimmed.
+     */
+    disableNavigation?: boolean;
     onOpenContextPicker: (e: React.MouseEvent) => void;
     onNewConversation: () => void;
     onOpenHistory: (e: React.MouseEvent) => void;
@@ -25,6 +32,7 @@ export function ChatHeader({
     activeSession,
     courseName,
     canCreateConversation,
+    disableNavigation = false,
     onOpenContextPicker,
     onNewConversation,
     onOpenHistory,
@@ -42,7 +50,7 @@ export function ChatHeader({
 
     return (
         <div className={styles.header}>
-            <button className={styles.contextRow} onClick={onOpenContextPicker}>
+            <button className={styles.contextRow} onClick={onOpenContextPicker} disabled={disableNavigation}>
                 <span className={styles.icon}>
                     {isExercise ? <File size={16} /> : <BookOpen size={16} />}
                 </span>
@@ -63,7 +71,7 @@ export function ChatHeader({
                 <button
                     className={styles.iconBtn}
                     onClick={onNewConversation}
-                    disabled={!canCreateConversation}
+                    disabled={!canCreateConversation || disableNavigation}
                     aria-label="New conversation"
                     title="New conversation"
                 >
@@ -72,6 +80,7 @@ export function ChatHeader({
                 <button
                     className={styles.iconBtn}
                     onClick={onOpenHistory}
+                    disabled={disableNavigation}
                     aria-label="View past conversations"
                     title="View past conversations"
                 >

@@ -42,4 +42,38 @@ describe('ChatHeader', () => {
         expect(screen.getByText('New conversation')).toBeInTheDocument();
         expect(screen.getByText('Course chat')).toBeInTheDocument();
     });
+
+    describe('disableNavigation', () => {
+        it('disables the context row, new-conversation, and history buttons', () => {
+            render(<ChatHeader {...base} disableNavigation />);
+            expect(screen.getByRole('button', { name: /Sorting Lab/ })).toBeDisabled();
+            expect(screen.getByLabelText('New conversation')).toBeDisabled();
+            expect(screen.getByLabelText('View past conversations')).toBeDisabled();
+        });
+
+        it('does not fire onOpenContextPicker/onNewConversation/onOpenHistory when clicked', () => {
+            const onOpenContextPicker = vi.fn(), onOpenHistory = vi.fn(), onNewConversation = vi.fn();
+            render(
+                <ChatHeader
+                    {...base}
+                    disableNavigation
+                    onOpenContextPicker={onOpenContextPicker}
+                    onOpenHistory={onOpenHistory}
+                    onNewConversation={onNewConversation}
+                />
+            );
+            fireEvent.click(screen.getByRole('button', { name: /Sorting Lab/ }));
+            fireEvent.click(screen.getByLabelText('View past conversations'));
+            fireEvent.click(screen.getByLabelText('New conversation'));
+            expect(onOpenContextPicker).not.toHaveBeenCalled();
+            expect(onOpenHistory).not.toHaveBeenCalled();
+            expect(onNewConversation).not.toHaveBeenCalled();
+        });
+
+        it('is interactive again when disableNavigation is false (default)', () => {
+            render(<ChatHeader {...base} />);
+            expect(screen.getByRole('button', { name: /Sorting Lab/ })).not.toBeDisabled();
+            expect(screen.getByLabelText('View past conversations')).not.toBeDisabled();
+        });
+    });
 });

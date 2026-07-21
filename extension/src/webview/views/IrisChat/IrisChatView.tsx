@@ -91,6 +91,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         previousActiveSessionIdForHistory.current = store.activeSessionId;
     }, [store.activeSessionId, historyOpen]);
 
+    // Run lock: navigation cannot abandon an in-flight run. The moment
+    // streaming starts, close/neutralize any popover or side menu that was
+    // already open. Without this, a late click inside one (still mounted
+    // from before the run began) could post a context/session-changing
+    // command. ChatHeader's disableNavigation covers the still-closed case
+    // (its own buttons refuse to open a new popover while streaming).
+    useEffect(() => {
+        if (store.streaming.isStreaming) {
+            setSideMenuOpen(false);
+            closePopovers();
+        }
+    }, [store.streaming.isStreaming]);
+
     // Message listener - handles messages from extension
     useExtensionMessage((msg) => {
         switch (msg.type) {
@@ -459,6 +472,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         && (activeSession?.messageCount ?? 0) > 0
         && !store.streaming.isStreaming;
 
+    // Run lock (see the effect above): navigation cannot abandon an
+    // in-flight run, so the context row and both icon buttons go inert for
+    // its duration.
+    const disableNavigation = store.streaming.isStreaming;
+
     // Disabled banner = strictly off (instructor disabled, .noai). The
     // unavailable banner (yellow, retry-able) is rendered separately below.
     // When both states are non-null, the disabled banner wins — it carries
@@ -551,6 +569,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             <button
                                 className={styles.menuItem}
                                 onClick={handleResetSessions}
+                                disabled={store.streaming.isStreaming}
                             >
                                 Reset & Sync Sessions
                             </button>
@@ -599,6 +618,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     activeSession={activeSession}
                     courseName={courseName}
                     canCreateConversation={canCreateConversation}
+                    disableNavigation={disableNavigation}
                     onOpenContextPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
                     onNewConversation={() => postCommand(vscodeApi, 'createNewSession')}
                     onOpenHistory={(e) => openHistory(e.currentTarget as HTMLElement)}
