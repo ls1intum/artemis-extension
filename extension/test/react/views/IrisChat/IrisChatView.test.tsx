@@ -112,11 +112,83 @@ describe('IrisChatView', () => {
 		expect(textarea).not.toBeDisabled();
 	});
 
-	it('shows context selector', () => {
+	it('shows the header prompt to select a context when none is set', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
-		// ContextSelector shows "Select context" when no context
-		expect(screen.getByText('Select context')).toBeInTheDocument();
+		// ChatHeader shows "Select a course or exercise" when no context.
+		expect(screen.getByText('Select a course or exercise')).toBeInTheDocument();
+	});
+
+	describe('Header popovers', () => {
+		it('opens the context picker from the header and posts selectChatContext', async () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					locked: false,
+					source: 'user-selected',
+				},
+				exercises: [
+					{ id: 2, title: 'Other Exercise', courseId: 10 },
+				],
+				courses: [{ id: 10, title: 'Course X' }],
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByText('Test Exercise'));
+
+			await waitFor(() => {
+				expect(screen.getByText('Other Exercise')).toBeInTheDocument();
+			});
+
+			await userEvent.click(screen.getByText('Other Exercise'));
+
+			expect(mockApi.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: 'command',
+					command: 'selectChatContext',
+					payload: expect.objectContaining({
+						context: 'exercise',
+						itemId: 2,
+					}),
+				})
+			);
+
+			// Closing the picker after a selection must not leave both
+			// popovers mounted.
+			expect(screen.queryAllByRole('dialog')).toHaveLength(0);
+		});
+
+		it('never shows the context picker and history at the same time', async () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					locked: false,
+					source: 'user-selected',
+				},
+				exercises: [],
+				courses: [],
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Open history first.
+			await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+			expect(screen.getAllByRole('dialog')).toHaveLength(1);
+
+			// Now open the picker — history must unmount; exactly one dialog remains.
+			await userEvent.click(screen.getByText('Test Exercise'));
+
+			await waitFor(() => {
+				expect(screen.getAllByRole('dialog')).toHaveLength(1);
+			});
+		});
 	});
 
 	it('sends sendMessage command when user submits text', async () => {

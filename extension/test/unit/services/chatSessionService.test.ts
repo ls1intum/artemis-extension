@@ -1275,6 +1275,117 @@ suite('IrisChatSessionService Test Suite', () => {
         });
     });
 
+    suite('createNewSession creation-in-flight guard', () => {
+        test('two rapid calls create exactly one local session and one server call; the accepted result is applied', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+            const sessionCountBefore = contextStore.snapshot().sessions.length;
+
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
+            // Rapid duplicate: fired before the first server round-trip resolves.
+            chatSessionService.createNewSession();
+            chatSessionService.createNewSession();
+
+            assert.strictEqual(
+                mockIrisWebSocketSessionClient.createNewSession.callCount, 1,
+                'the duplicate call must not issue a second server-side create',
+            );
+            assert.strictEqual(
+                contextStore.snapshot().sessions.length, sessionCountBefore + 1,
+                'exactly one new local session must be created',
+            );
+
+            // Let the accepted request's .then() fire.
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            const finalSnapshot = contextStore.snapshot();
+            assert.strictEqual(finalSnapshot.activeSession?.artemisSessionId, 42,
+                'the accepted request\'s server id must be mapped onto the session (guard runs before the token advances, so the duplicate never invalidates the legitimate op)');
+
+            const loadMessagesCall = postMessageSpy.getCalls().find(
+                c => c.args[0]?.type === 'loadMessages'
+            );
+            assert.ok(loadMessagesCall, 'LoadMessages for the accepted create must not be discarded as stale');
+            assert.strictEqual(
+                (loadMessagesCall!.args[0] as { localSessionId: string }).localSessionId,
+                finalSnapshot.activeSession?.id,
+                'LoadMessages must be tagged with the session that is actually active',
+            );
+        });
+
+        test('the guard releases after completion, so a later call for the same context is allowed', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(1);
+
+            chatSessionService.createNewSession();
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            chatSessionService.createNewSession();
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            assert.strictEqual(mockIrisWebSocketSessionClient.createNewSession.callCount, 2,
+                'a create issued after the first one fully completed must not be blocked by a stale guard entry');
+        });
+
+        test('the guard is keyed by context: an in-flight create in course A does not block a concurrent create in course B', async () => {
+            const courseA: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Course A',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            const courseB: ActiveContext = {
+                type: 'course',
+                id: 202,
+                title: 'Course B',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+
+            // A's server round-trip is held open for the duration of this
+            // test, so A's guard entry stays populated the whole time.
+            let resolveA: (id: number) => void = () => { /* noop */ };
+            mockIrisWebSocketSessionClient.createNewSession.callsFake(
+                () => new Promise<number>(resolve => { resolveA = resolve; }),
+            );
+
+            contextStore.setActiveContext(courseA);
+            chatSessionService.createNewSession(); // A now in flight, never resolves during this test
+
+            contextStore.setActiveContext(courseB);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(2); // B resolves normally
+            chatSessionService.createNewSession();
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            assert.strictEqual(mockIrisWebSocketSessionClient.createNewSession.callCount, 2,
+                "B must not be blocked by A's still-open guard entry");
+
+            // Resolve A so its promise chain settles before the test ends.
+            resolveA(1);
+            await new Promise(resolve => setTimeout(resolve, 10));
+        });
+    });
+
     suite('switchToSession', () => {
         test('should reset session, switch, and load messages', async () => {
             const context: ActiveContext = {

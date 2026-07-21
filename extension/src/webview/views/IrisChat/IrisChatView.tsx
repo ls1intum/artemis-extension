@@ -10,9 +10,11 @@ import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useChatStore } from '@webview/stores/useChatStore';
 
+import { ChatHeader } from './components/ChatHeader';
 import { ChatInput } from './components/ChatInput';
 import { ChatMessageList } from './components/ChatMessageList';
-import { ContextSelector } from './components/ContextSelector';
+import { ContextPicker } from './components/ContextPicker';
+import { ConversationHistory } from './components/ConversationHistory';
 import { ReferencedFiles } from './components/ReferencedFiles';
 import styles from './IrisChatView.module.css';
 import type { ChatMessage } from './types';
@@ -33,30 +35,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const inputSectionRef = useRef<HTMLDivElement>(null);
-
-    // Publish the input section's measured height as a CSS variable so the
-    // ContextSelector dropdown can anchor its bottom edge to the actual layout
-    // (instead of a viewport-relative magic number). Without this the dropdown
-    // either falls short of the input or overshoots it depending on banner /
-    // referenced-file visibility.
-    useEffect(() => {
-        const inputEl = inputSectionRef.current;
-        const rootEl = containerRef.current;
-        if (!inputEl || !rootEl) {
-            return;
-        }
-        const update = () => {
-            rootEl.style.setProperty('--iris-input-height', `${inputEl.offsetHeight}px`);
-        };
-        update();
-        const ro = new ResizeObserver(update);
-        ro.observe(inputEl);
-        return () => ro.disconnect();
-    }, []);
+    // Element that opened the currently-visible popover (context row or
+    // history button), captured so focus can be restored to it on close.
+    // A single shared ref instead of a `headerRef` because the two openers
+    // are different elements and a click-outside close must return focus
+    // to whichever one was actually clicked.
+    const openerRef = useRef<HTMLElement | null>(null);
 
     // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
@@ -328,6 +316,29 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'reloadChatSession');
     };
 
+    // Popover open/close helpers. The two popovers are mutually exclusive —
+    // opening one always closes the other. Closing restores focus to
+    // whichever element opened it (captured in openerRef), then clears the
+    // ref so a click-outside close doesn't refocus a stale element.
+    const openPicker = (opener: HTMLElement) => {
+        openerRef.current = opener;
+        setHistoryOpen(false);
+        setPickerOpen(true);
+    };
+
+    const openHistory = (opener: HTMLElement) => {
+        openerRef.current = opener;
+        setPickerOpen(false);
+        setHistoryOpen(true);
+    };
+
+    const closePopovers = () => {
+        setPickerOpen(false);
+        setHistoryOpen(false);
+        openerRef.current?.focus();
+        openerRef.current = null;
+    };
+
     // Check if chat is disabled
     const isChatDisabled = store.disabledMessage !== null || store.isNoAiDetected;
 
@@ -357,6 +368,23 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 return false;
         }
     };
+
+    // Header data. activeSession backs the conversation row (title, message
+    // count, last-activity); courseName is the exercise-context subtitle
+    // (course chat contexts show a fixed "Course chat" subtitle instead, see
+    // ChatHeader).
+    const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
+    const courseName = store.context?.type === 'exercise'
+        ? store.courses.find(c => c.id === store.context?.courseId)?.title ?? null
+        : null;
+    // Mirrors the retired context dropdown's canCreateNewSession intent: a
+    // brand new, still-empty active session should be reused rather than
+    // spawning another empty one, and a create must not race an in-flight
+    // send.
+    const canCreateConversation =
+        store.context !== null
+        && (activeSession?.messageCount ?? 0) > 0
+        && !store.streaming.isStreaming;
 
     // Disabled banner = strictly off (instructor disabled, .noai). The
     // unavailable banner (yellow, retry-able) is rendered separately below.
@@ -420,7 +448,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
 
     return (
-        <div className={styles.container} ref={containerRef}>
+        <div className={styles.container}>
             {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
@@ -488,27 +516,50 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             </div>
 
-            {/* Context Selector */}
+            {/* Two-row header: context (course/exercise) + conversation.
+                pickerOpen/historyOpen are mutually exclusive; both popovers
+                are anchored to this section (position: relative) so they
+                render directly beneath the header. */}
             <div className={styles.contextSection}>
-                <ContextSelector
+                <ChatHeader
                     context={store.context}
-                    sessions={store.sessions}
-                    activeSessionId={store.activeSessionId}
-                    exercises={store.exercises}
-                    courses={store.courses}
-                    onSelectContext={(type, id, title, shortName) => {
-                        postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
-                    }}
-                    onSelectSession={(sessionId) => {
-                        postCommand(vscodeApi, 'switchSession', { sessionId });
-                    }}
-                    onCreateNewSession={() => {
-                        postCommand(vscodeApi, 'createNewSession');
-                    }}
-                    onSwitchToWorkspace={() => {
-                        postCommand(vscodeApi, 'switchToWorkspaceContext');
-                    }}
+                    activeSession={activeSession}
+                    courseName={courseName}
+                    canCreateConversation={canCreateConversation}
+                    onOpenContextPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
+                    onNewConversation={() => postCommand(vscodeApi, 'createNewSession')}
+                    onOpenHistory={(e) => openHistory(e.currentTarget as HTMLElement)}
                 />
+
+                {pickerOpen && (
+                    <ContextPicker
+                        context={store.context}
+                        exercises={store.exercises}
+                        courses={store.courses}
+                        onSelectContext={(type, id, title, shortName) => {
+                            postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
+                            closePopovers();
+                        }}
+                        onClose={closePopovers}
+                    />
+                )}
+
+                {historyOpen && (
+                    <ConversationHistory
+                        sessions={store.sessions}
+                        activeSessionId={store.activeSessionId}
+                        canCreateConversation={canCreateConversation}
+                        onSelectSession={(sessionId) => {
+                            postCommand(vscodeApi, 'switchSession', { sessionId });
+                            closePopovers();
+                        }}
+                        onNewConversation={() => {
+                            postCommand(vscodeApi, 'createNewSession');
+                            closePopovers();
+                        }}
+                        onClose={closePopovers}
+                    />
+                )}
             </div>
 
             {/* Disabled banner (Iris not available or .noai detected) */}
@@ -610,7 +661,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             </div>
 
             {/* Input section */}
-            <div className={styles.inputSection} ref={inputSectionRef}>
+            <div className={styles.inputSection}>
                 {/* Referenced files */}
                 <ReferencedFiles
                     files={store.referencedFiles}

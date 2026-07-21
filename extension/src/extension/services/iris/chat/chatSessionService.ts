@@ -58,6 +58,12 @@ function describeError(error: unknown): string {
 export class IrisChatSessionService {
     private _contextLoadToken = 0;
     private _lastAvailability: LastAvailability = { kind: 'unknown' };
+    // Keyed by contextKey (`${type}:${id}`), NOT a single boolean: creating
+    // in course A must not block a concurrent create in course B, and A's
+    // completion must not clear B's guard. Populated before the server
+    // round-trip in createNewSession() and cleared on every exit path
+    // (success, failure, and the early-returns with nothing to await).
+    private readonly _createInFlight = new Set<string>();
 
     constructor(
         private readonly deps: IrisServiceDeps,
@@ -450,6 +456,25 @@ export class IrisChatSessionService {
     public createNewSession(): void {
         logger.info('Creating new session', LogCategory.IRIS_CHAT);
 
+        // Creation-in-flight guard: a rapid double-click (or a race between
+        // the header's + button and the ConversationHistory popover's own
+        // "New conversation" action) must not spawn two server-side sessions
+        // for the same context. Keyed by contextKey, not a single boolean,
+        // so an in-flight create in course A never blocks a concurrent one
+        // in course B. Computed once, up front (nothing below changes the
+        // active context type/id), and every exit path releases this same
+        // key — the finally() on the happy/error path, and the two explicit
+        // releases below for the early-return branches.
+        const activeContext = this.deps.contextStore.getActiveContext();
+        const guardKey = contextKeyOf(activeContext);
+        if (guardKey && this._createInFlight.has(guardKey)) {
+            logger.info(`createNewSession already in flight for ${guardKey}, ignoring duplicate call`, LogCategory.IRIS_CHAT);
+            return;
+        }
+        if (guardKey) {
+            this._createInFlight.add(guardKey);
+        }
+
         // Drop host run state before the Iris session is reset, or the old
         // run's projection survives into the new conversation.
         this._runReset.resetRuns();
@@ -464,11 +489,9 @@ export class IrisChatSessionService {
 
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
 
-        // Create a brand new Iris session on the server.
         // The local session UUID exists immediately (created above); we
         // capture it now so the LoadMessages / LoadMessagesError emitted
         // below carries the right key even after async operations.
-        const activeContext = this.deps.contextStore.getActiveContext();
         const newLocalSessionId = this.deps.contextStore.snapshot().activeSession?.id;
         if (activeContext && irisSessionManager && newLocalSessionId) {
             // Capture the local session UUID at start so the .then/.catch
@@ -520,7 +543,18 @@ export class IrisChatSessionService {
                         type: ExtensionMsg.LoadMessagesError,
                         localSessionId: newLocalSessionId,
                     });
+                })
+                .finally(() => {
+                    if (guardKey) {
+                        this._createInFlight.delete(guardKey);
+                    }
                 });
+        } else if (guardKey) {
+            // No websocket client / no active context / no local session:
+            // there is nothing async to wait on, so release the guard
+            // immediately instead of leaving it stuck until the process
+            // that would have cleared it (there isn't one).
+            this._createInFlight.delete(guardKey);
         }
     }
 

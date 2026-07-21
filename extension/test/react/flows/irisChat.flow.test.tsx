@@ -100,10 +100,10 @@ describe('Iris Chat Flow', () => {
 	});
 
 	describe('Context selection', () => {
-		it('shows "Select context" when no context is set', () => {
+		it('shows "Select a course or exercise" when no context is set', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
-			expect(screen.getByText('Select context')).toBeInTheDocument();
+			expect(screen.getByText('Select a course or exercise')).toBeInTheDocument();
 		});
 
 		it('disables chat input when no context is selected', () => {
@@ -151,7 +151,7 @@ describe('Iris Chat Flow', () => {
 			});
 		});
 
-		it('sends selectChatContext postMessage when context is selected via context selector', async () => {
+		it('sends selectChatContext postMessage when context is selected via the header context picker', async () => {
 			const user = userEvent.setup();
 
 			useChatStore.setState({
@@ -159,14 +159,15 @@ describe('Iris Chat Flow', () => {
 				exercises: [
 					{ id: 1, title: 'Binary Search', courseId: 10, isWorkspace: false },
 				],
+				courses: [{ id: 10, title: 'Algorithms' }],
 			});
 
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Click the "Select context" button to open context picker
-			const selectContextButton = screen.getByText('Select context');
-			await user.click(selectContextButton);
+			// Click the header's context row to open the context picker.
+			const contextRow = screen.getByText('Select a course or exercise');
+			await user.click(contextRow);
 
 			// Context picker should now be open with exercises listed
 			await waitFor(() => {

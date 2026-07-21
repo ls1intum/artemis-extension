@@ -68,7 +68,7 @@ export function ContextPicker({ context, exercises, courses, onSelectContext, on
     const isSearching = q.length > 0;
 
     // Cross-course search: group matching exercises + matching courses (as
-    // course-chat rows) by course, ordered like the old ContextSelector.
+    // course-chat rows) by course, ordered like the retired context dropdown.
     const searchGroups = useMemo(() => {
         if (!isSearching) { return []; }
 
