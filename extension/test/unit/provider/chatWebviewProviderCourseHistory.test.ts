@@ -13,6 +13,7 @@ interface Harness {
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
     postSpy: sinon.SinonSpy;
     sandbox: sinon.SinonSandbox;
+    contextStore: ContextStore;
 }
 
 function buildHarness(): Harness {
@@ -52,7 +53,7 @@ function buildHarness(): Harness {
 
     const postSpy = sandbox.spy(provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
 
-    return { provider, api, postSpy, sandbox };
+    return { provider, api, postSpy, sandbox, contextStore };
 }
 
 function summary(over: Partial<Record<string, unknown>> & { id: number; entityId: number; mode: string }) {
@@ -141,5 +142,92 @@ suite('ChatWebviewProvider.requestCourseHistory', () => {
         const cache = (h.provider as unknown as { _courseHistoryCache: Map<number, unknown[]> })._courseHistoryCache;
         assert.ok(cache.has(3));
         assert.strictEqual(cache.get(3)?.length, 1);
+    });
+
+    test('a cached course is served from cache without refetching', async () => {
+        h.api.listChatSessionsForCourse.withArgs(3).resolves([
+            summary({ id: 42, entityId: 3, mode: 'COURSE_CHAT', title: 'Earlier chat' }),
+        ]);
+
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 1 });
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 2 });
+
+        assert.strictEqual(h.api.listChatSessionsForCourse.withArgs(3).callCount, 1, 'second call must be served from cache');
+        const call = h.postSpy.getCalls()[1].args[0] as { type?: string; requestId?: number };
+        assert.strictEqual(call.type, 'updateCourseHistory');
+        assert.strictEqual(call.requestId, 2, 'the requestId of the cache-served call must still be echoed');
+    });
+
+    test('a session mutation resolving to course A invalidates only A (Task 12 per-course isolation)', async () => {
+        h.api.listChatSessionsForCourse.withArgs(3).resolves([
+            summary({ id: 42, entityId: 3, mode: 'COURSE_CHAT', title: 'A chat' }),
+        ]);
+        h.api.listChatSessionsForCourse.withArgs(5).resolves([
+            summary({ id: 43, entityId: 5, mode: 'COURSE_CHAT', title: 'B chat' }),
+        ]);
+
+        // Populate both courses' cache entries.
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 1 });
+        await h.provider.requestCourseHistory({ courseId: 5, requestId: 2 });
+
+        // A session mutation whose active context resolves to course 3.
+        h.contextStore.setActiveContext({
+            type: 'course', id: 3, title: 'A', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        h.contextStore.createSession('seed');
+        h.contextStore.incrementActiveSessionMessageCount();
+
+        // Course 3 must refetch; course 5 must stay cached (no second API call).
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 3 });
+        await h.provider.requestCourseHistory({ courseId: 5, requestId: 4 });
+
+        assert.strictEqual(h.api.listChatSessionsForCourse.withArgs(3).callCount, 2, 'course A must refetch after invalidation');
+        assert.strictEqual(h.api.listChatSessionsForCourse.withArgs(5).callCount, 1, 'course B must stay cached');
+    });
+
+    test('a session mutation on an exercise context resolves to its courseId and invalidates that course only', async () => {
+        h.api.listChatSessionsForCourse.withArgs(3).resolves([
+            summary({ id: 42, entityId: 3, mode: 'COURSE_CHAT', title: 'A chat' }),
+        ]);
+        h.api.listChatSessionsForCourse.withArgs(5).resolves([
+            summary({ id: 43, entityId: 5, mode: 'COURSE_CHAT', title: 'B chat' }),
+        ]);
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 1 });
+        await h.provider.requestCourseHistory({ courseId: 5, requestId: 2 });
+
+        h.contextStore.registerExercise({ id: 77, title: 'Ex 77', courseId: 3 });
+        h.contextStore.setActiveContext({
+            type: 'exercise', id: 77, title: 'Ex 77', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        h.contextStore.createSession('seed');
+
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 3 });
+        await h.provider.requestCourseHistory({ courseId: 5, requestId: 4 });
+
+        assert.strictEqual(h.api.listChatSessionsForCourse.withArgs(3).callCount, 2, 'course A must refetch after invalidation via its exercise');
+        assert.strictEqual(h.api.listChatSessionsForCourse.withArgs(5).callCount, 1, 'course B must stay cached');
+    });
+
+    test('an unresolvable context key clears the whole cache', async () => {
+        h.api.listChatSessionsForCourse.withArgs(3).resolves([
+            summary({ id: 42, entityId: 3, mode: 'COURSE_CHAT', title: 'A chat' }),
+        ]);
+        h.api.listChatSessionsForCourse.withArgs(5).resolves([
+            summary({ id: 43, entityId: 5, mode: 'COURSE_CHAT', title: 'B chat' }),
+        ]);
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 1 });
+        await h.provider.requestCourseHistory({ courseId: 5, requestId: 2 });
+
+        // Exercise 88's course is unknown locally (not registered) -> unresolvable.
+        h.contextStore.setActiveContext({
+            type: 'exercise', id: 88, title: 'Unknown Ex', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        h.contextStore.createSession('seed');
+
+        await h.provider.requestCourseHistory({ courseId: 3, requestId: 3 });
+        await h.provider.requestCourseHistory({ courseId: 5, requestId: 4 });
+
+        assert.strictEqual(h.api.listChatSessionsForCourse.withArgs(3).callCount, 2, 'course A must refetch, whole cache was cleared');
+        assert.strictEqual(h.api.listChatSessionsForCourse.withArgs(5).callCount, 2, 'course B must also refetch, whole cache was cleared');
     });
 });

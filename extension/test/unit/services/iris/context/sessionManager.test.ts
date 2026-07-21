@@ -13,7 +13,13 @@ function makeState(): SessionState {
 }
 
 function makeManager(state: SessionState, active: ActiveContext | null) {
-    return new SessionManager(() => state, () => active, () => {});
+    return new SessionManager(() => state, () => active, () => {}, () => {});
+}
+
+function makeManagerWithFireSpy(state: SessionState, active: ActiveContext | null) {
+    const fired: string[][] = [];
+    const mgr = new SessionManager(() => state, () => active, () => {}, keys => fired.push(keys));
+    return { mgr, fired };
 }
 
 suite('SessionManager.upsertSessionFromOverview', () => {
@@ -126,5 +132,125 @@ suite('SessionManager.upsertSessionFromOverview', () => {
         assert.strictEqual(state.sessions['course:1'].length, 1);
         assert.strictEqual(state.sessions['course:1'][0].id, id);
         assert.strictEqual(state.sessions['course:1'][0].title, 'Collapsed');
+    });
+});
+
+// Task 12: session mutations report the affected context key(s) through the
+// `_fireSessionsChanged` callback (mirrors the `_saveState` threading pattern)
+// so `ContextStore` can fire `onDidChangeSessions` and the provider can drop
+// only the invalidated course(s) from its history cache.
+suite('SessionManager session-change notifications', () => {
+    test('createSession fires with the active context key', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'course', id: 1 } as ActiveContext);
+
+        mgr.createSession('Hello');
+
+        assert.deepStrictEqual(fired, [['course:1']]);
+    });
+
+    test('createSessionWithDetails fires with the active context key', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'exercise', id: 7 } as ActiveContext);
+
+        mgr.createSessionWithDetails('Hello', 0, Date.now());
+
+        assert.deepStrictEqual(fired, [['exercise:7']]);
+    });
+
+    test('incrementActiveSessionMessageCount fires with the active context key', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'course', id: 1 } as ActiveContext);
+        mgr.createSession('Hello');
+        fired.length = 0;
+
+        mgr.incrementActiveSessionMessageCount();
+
+        assert.deepStrictEqual(fired, [['course:1']]);
+    });
+
+    test('setActiveSessionMessageCount fires with the active context key', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'course', id: 1 } as ActiveContext);
+        mgr.createSession('Hello');
+        fired.length = 0;
+
+        mgr.setActiveSessionMessageCount(5);
+
+        assert.deepStrictEqual(fired, [['course:1']]);
+    });
+
+    test('does not fire when there is no active context', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, null);
+
+        mgr.createSession('Hello');
+        mgr.incrementActiveSessionMessageCount();
+        mgr.setActiveSessionMessageCount(5);
+
+        assert.deepStrictEqual(fired, []);
+    });
+
+    test('does not fire when there are no sessions to increment/set', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'course', id: 1 } as ActiveContext);
+
+        mgr.incrementActiveSessionMessageCount();
+        mgr.setActiveSessionMessageCount(5);
+
+        assert.deepStrictEqual(fired, []);
+    });
+
+    test('updateSessionTitle fires with the key of the context actually holding the session', () => {
+        const state = makeState();
+        const seedMgr = makeManager(state, { type: 'exercise', id: 9 } as ActiveContext);
+        seedMgr.upsertSessionFromOverview({ contextKey: 'exercise:9', artemisSessionId: 42, lastActivity: 100 });
+
+        const { mgr, fired } = makeManagerWithFireSpy(state, null);
+        const ok = mgr.updateSessionTitle(42, 'New Title');
+
+        assert.strictEqual(ok, true);
+        assert.deepStrictEqual(fired, [['exercise:9']]);
+    });
+
+    test('updateSessionTitle does not fire when the session is not found', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, null);
+
+        const ok = mgr.updateSessionTitle(999, 'New Title');
+
+        assert.strictEqual(ok, false);
+        assert.deepStrictEqual(fired, []);
+    });
+
+    test('upsertSessionFromOverview fires only the new key when creating fresh (no prior match)', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'course', id: 1 } as ActiveContext);
+
+        mgr.upsertSessionFromOverview({ contextKey: 'course:1', artemisSessionId: 42, lastActivity: 100 });
+
+        assert.deepStrictEqual(fired, [['course:1']]);
+    });
+
+    test('upsertSessionFromOverview fires only the new key when updating in place (same key)', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'course', id: 1 } as ActiveContext);
+
+        mgr.upsertSessionFromOverview({ contextKey: 'course:1', artemisSessionId: 42, lastActivity: 100 });
+        fired.length = 0;
+        mgr.upsertSessionFromOverview({ contextKey: 'course:1', artemisSessionId: 42, title: 'Updated', lastActivity: 200 });
+
+        assert.deepStrictEqual(fired, [['course:1']]);
+    });
+
+    test('upsertSessionFromOverview fires BOTH the old and new key when rehoming', () => {
+        const state = makeState();
+        const { mgr, fired } = makeManagerWithFireSpy(state, { type: 'exercise', id: 9 } as ActiveContext);
+
+        mgr.upsertSessionFromOverview({ contextKey: 'exercise:9', artemisSessionId: 42, lastActivity: 100 });
+        fired.length = 0;
+        mgr.upsertSessionFromOverview({ contextKey: 'course:1', artemisSessionId: 42, title: 'Moved', lastActivity: 300 });
+
+        assert.deepStrictEqual(fired, [['exercise:9', 'course:1']]);
     });
 });

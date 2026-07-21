@@ -121,10 +121,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
     /**
-     * Last successful `requestCourseHistory` result per course, kept purely
-     * as a cache for future consumers — `requestCourseHistory` itself always
-     * refetches. Task 12 invalidates entries here (e.g. after a message that
-     * would change a session's title/lastActivity).
+     * Last successful `requestCourseHistory` result per course. Read-through:
+     * a cache hit short-circuits the API call entirely (see
+     * `requestCourseHistory`). Session mutations invalidate the affected
+     * course's entry via `ContextStore.onDidChangeSessions` (Task 12,
+     * subscribed in the constructor) so the next request refetches.
      */
     private readonly _courseHistoryCache = new Map<number, CourseHistoryEntry[]>();
 
@@ -167,6 +168,22 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._chatSessionService.resetAvailability();
                 this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
                 this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
+            })
+        );
+        this._disposables.push(
+            this._contextStore.onDidChangeSessions(({ contextKeys }) => {
+                for (const key of contextKeys) {
+                    const courseId = this._resolveCourseIdForContextKey(key);
+                    if (courseId === undefined) {
+                        // Can't tell which course this key belongs to (malformed
+                        // key, or an exercise whose course isn't tracked locally
+                        // yet) — clear everything rather than risk serving stale
+                        // history for a course we can't otherwise invalidate.
+                        this._courseHistoryCache.clear();
+                        return;
+                    }
+                    this._courseHistoryCache.delete(courseId);
+                }
             })
         );
         this._viewStatePresenter = new ChatViewStatePresenter(this._contextStore, (msg) => this._postMessageSafe(msg));
@@ -578,15 +595,22 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     /**
      * Answers the webview's `requestCourseHistory` for the ConversationHistory
-     * popover: fetch the course's chat-session overview, project it through
-     * `buildCourseHistory`, and post the result back tagged with the
-     * `requestId` the webview sent — the webview drops anything whose
-     * `requestId` no longer matches its latest request, so this method does
-     * not need to track staleness itself; it can post exactly one message
-     * per call.
+     * popover: on a cache hit, serve `_courseHistoryCache` directly (no API
+     * call); otherwise fetch the course's chat-session overview, project it
+     * through `buildCourseHistory`, cache it, and post the result back tagged
+     * with the `requestId` the webview sent — the webview drops anything
+     * whose `requestId` no longer matches its latest request, so this method
+     * does not need to track staleness itself; it can post exactly one
+     * message per call.
      */
     public async requestCourseHistory(params: { courseId: number; requestId: number }): Promise<void> {
         const { courseId, requestId } = params;
+
+        const cached = this._courseHistoryCache.get(courseId);
+        if (cached) {
+            this._postMessageSafe({ type: ExtensionMsg.UpdateCourseHistory, courseId, requestId, entries: cached });
+            return;
+        }
 
         if (!this._artemisApiService) {
             this._postMessageSafe({ type: ExtensionMsg.CourseHistoryError, courseId, requestId });
@@ -602,6 +626,34 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             logger.error('requestCourseHistory: overview fetch failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({ type: ExtensionMsg.CourseHistoryError, courseId, requestId });
         }
+    }
+
+    /**
+     * Task 12: parses a `"type:id"` session context key (e.g. `course:5`,
+     * `exercise:12`) into the courseId whose history-cache entry it affects.
+     * Exercise keys resolve via the already-tracked exercise's `courseId` —
+     * no network fallback here, this only reads local state so the
+     * invalidation subscription stays synchronous. Returns `undefined` for a
+     * malformed key, an unknown type, or an exercise whose course isn't
+     * tracked locally yet; the caller treats that as "clear everything".
+     */
+    private _resolveCourseIdForContextKey(contextKey: string): number | undefined {
+        const separatorIndex = contextKey.indexOf(':');
+        if (separatorIndex === -1) {
+            return undefined;
+        }
+        const type = contextKey.slice(0, separatorIndex);
+        const id = Number(contextKey.slice(separatorIndex + 1));
+        if (!Number.isFinite(id)) {
+            return undefined;
+        }
+        if (type === 'course') {
+            return id;
+        }
+        if (type === 'exercise') {
+            return this._contextStore.getExerciseById(id)?.courseId;
+        }
+        return undefined;
     }
 
     public getSelectedContext(): ActiveContext | null {

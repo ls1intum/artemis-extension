@@ -24,6 +24,13 @@ export class SessionManager {
         private readonly _getState: () => SessionState,
         private readonly _getActiveContext: () => ActiveContext | null,
         private readonly _saveState: () => void,
+        /**
+         * Task 12: reports the context key(s) affected by a session mutation
+         * so `ContextStore` can fire `onDidChangeSessions` and consumers
+         * (the course-history cache) can invalidate precisely. Threaded the
+         * same way as `_saveState` above.
+         */
+        private readonly _fireSessionsChanged: (contextKeys: string[]) => void,
     ) {}
 
     public createSession(preview = 'New conversation'): void {
@@ -49,6 +56,7 @@ export class SessionManager {
         state.sessions[key] = [session, ...sessions];
         state.activeSessionId = session.id;
         this._saveState();
+        this._fireSessionsChanged([key]);
     }
 
     public createSessionWithDetails(
@@ -79,6 +87,7 @@ export class SessionManager {
         const sessions = state.sessions[key] ?? [];
         state.sessions[key] = [session, ...sessions];
         this._saveState();
+        this._fireSessionsChanged([key]);
     }
 
     public switchSession(sessionId: string): void {
@@ -148,6 +157,7 @@ export class SessionManager {
         session.lastActivity = now();
         state.activeSessionId = session.id;
         this._saveState();
+        this._fireSessionsChanged([key]);
     }
 
     /**
@@ -174,6 +184,7 @@ export class SessionManager {
             sessions.find(s => s.id === state.activeSessionId) ?? sessions[0];
         session.messageCount = count;
         this._saveState();
+        this._fireSessionsChanged([key]);
     }
 
     public cleanupEmptySessions(): void {
@@ -209,11 +220,12 @@ export class SessionManager {
 
     public updateSessionTitle(artemisSessionId: number, title: string): boolean {
         const state = this._getState();
-        for (const sessions of Object.values(state.sessions)) {
+        for (const [key, sessions] of Object.entries(state.sessions)) {
             const session = sessions.find(s => s.artemisSessionId === artemisSessionId);
             if (session) {
                 session.title = title;
                 this._saveState();
+                this._fireSessionsChanged([key]);
                 return true;
             }
         }
@@ -254,6 +266,7 @@ export class SessionManager {
         const state = this._getState();
 
         let existing: StoredSession | undefined;
+        let existingKey: string | undefined;
 
         // Remove every matching session from every context array (collapsing duplicates),
         // keeping the first match found so its id/preview/createdAt survive the rehome.
@@ -262,7 +275,10 @@ export class SessionManager {
             const remaining: StoredSession[] = [];
             for (const session of sessions) {
                 if (session.artemisSessionId === artemisSessionId) {
-                    existing ??= session;
+                    if (existing === undefined) {
+                        existing = session;
+                        existingKey = key;
+                    }
                 } else {
                     remaining.push(session);
                 }
@@ -271,6 +287,12 @@ export class SessionManager {
                 state.sessions[key] = remaining;
             }
         }
+
+        // Task 12: report both the old and new context key when this rehomes a
+        // session out of a different context; otherwise just the (single) key
+        // that was actually touched.
+        const rehomed = existing !== undefined && existingKey !== contextKey;
+        const changedKeys = rehomed ? [existingKey!, contextKey] : [contextKey];
 
         const target = state.sessions[contextKey] ?? [];
         if (existing) {
@@ -282,6 +304,7 @@ export class SessionManager {
             };
             state.sessions[contextKey] = [updated, ...target];
             this._saveState();
+            this._fireSessionsChanged(changedKeys);
             return updated.id;
         }
 
@@ -297,6 +320,7 @@ export class SessionManager {
         };
         state.sessions[contextKey] = [session, ...target];
         this._saveState();
+        this._fireSessionsChanged(changedKeys);
         return session.id;
     }
 
