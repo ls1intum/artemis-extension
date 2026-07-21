@@ -150,6 +150,32 @@ export class SessionManager {
         this._saveState();
     }
 
+    /**
+     * Overwrite the active session's `messageCount` with the authoritative
+     * count of messages actually loaded from the server. The overview endpoint
+     * carries no message counts, so `upsertSessionFromOverview` seeds a new
+     * session with `messageCount: 0`; once its messages load, this corrects it
+     * so the UI (and `cleanupEmptySessions`) reflect reality. Unlike
+     * `incrementActiveSessionMessageCount`, this is an absolute set (not a +1)
+     * and does NOT touch `lastActivity` — a history load is not new activity.
+     */
+    public setActiveSessionMessageCount(count: number): void {
+        const active = this._getActiveContext();
+        if (!active) {
+            return;
+        }
+        const state = this._getState();
+        const key = getContextKey(active.type, active.id);
+        const sessions = state.sessions[key];
+        if (!sessions || sessions.length === 0) {
+            return;
+        }
+        const session =
+            sessions.find(s => s.id === state.activeSessionId) ?? sessions[0];
+        session.messageCount = count;
+        this._saveState();
+    }
+
     public cleanupEmptySessions(): void {
         const active = this._getActiveContext();
         if (!active) {

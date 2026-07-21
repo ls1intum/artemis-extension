@@ -76,6 +76,15 @@ interface SwitchContextParams {
     reason?: ChatContextReason;
     releaseDate?: string;
     dueDate?: string;
+    /**
+     * When `true` (default) the switch finishes by loading the context's
+     * sessions and auto-selecting the default one. When `false`, steps 1–3
+     * still run (register, set active, reset WS + clear UI) but session
+     * selection is left to the caller — used by the atomic cross-context
+     * `openArtemisSession` flow, which selects a specific session itself and
+     * must not have the default-session loader race against it.
+     */
+    loadDefaultSession?: boolean;
 }
 
 export class ChatContextManager {
@@ -130,6 +139,14 @@ export class ChatContextManager {
         // Step 3: Finalize — reset WS subscription, clear UI, reload sessions
         this._resetSessionForContextChange();
         this._clearChatMessages();
+
+        // Step 4 (optional): load the context's sessions and auto-select the
+        // default one. Skipped when the caller drives session selection
+        // itself (openArtemisSession), so the default-session loader does not
+        // race against the caller's explicit session pick.
+        if (params.loadDefaultSession === false) {
+            return;
+        }
 
         this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
             logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);

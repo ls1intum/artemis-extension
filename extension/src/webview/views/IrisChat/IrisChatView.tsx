@@ -189,6 +189,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
 
+            case ExtensionMsg.OpenSessionError: {
+                // A pre-switch open failure (overview fetch failed or the id was
+                // gone). Nothing was mutated and the active session is
+                // untouched, so it cannot key to a localSessionId. Surface it
+                // via the transient unavailable path so it is not silently
+                // dropped; Task 11 renders it inline in the history popover.
+                setUnavailableMessage(msg.message);
+                break;
+            }
+
             case ExtensionMsg.HideUnavailableState:
                 setUnavailableMessage(null);
                 break;
@@ -314,6 +324,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     const handleRetryChatLoad = () => {
         postCommand(vscodeApi, 'reloadChatSession');
+    };
+
+    // Target-preserving retry for a failed message load: reload ONLY the
+    // active session, without jumping back to the context's default session.
+    const handleRetryActiveSession = () => {
+        postCommand(vscodeApi, 'reloadActiveSession');
     };
 
     // Popover open/close helpers. The two popovers are mutually exclusive —
@@ -624,8 +640,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 : messagesErrored ? (
                     <div className={styles.loadingState}>
                         <div className={styles.loadError} role="alert">
-                            Failed to load chat history. Try selecting the
-                            session again or reconnecting.
+                            Failed to load chat history.
+                            <button
+                                className={styles.retryButton}
+                                onClick={handleRetryActiveSession}
+                            >
+                                Retry
+                            </button>
                         </div>
                     </div>
                 ) : (contextSwitching || messagesLoading) ? (

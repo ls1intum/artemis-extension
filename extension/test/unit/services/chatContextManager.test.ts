@@ -147,6 +147,48 @@ suite('ChatContextManager Test Suite', () => {
         });
     });
 
+    suite('switchContext loadDefaultSession flag', () => {
+        test('loadDefaultSession:false sets active context + clears chat but does NOT load the default session', () => {
+            chatContextManager.switchContext({
+                type: 'course',
+                id: 202,
+                title: 'History Course',
+                courseId: 202,
+                reason: 'user-selected',
+                loadDefaultSession: false,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.ok(snapshot.activeContext, 'active context must still be set');
+            assert.strictEqual(snapshot.activeContext.id, 202);
+            assert.strictEqual(snapshot.activeContext.type, 'course');
+
+            // WS reset + chat cleared (steps 1-3 still run).
+            assert.ok(irisSessionManager.resetSession.calledOnce, 'WS session must be reset');
+            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }), 'chat must be cleared');
+
+            // The whole point: the default-session loader must NOT fire.
+            assert.ok(
+                chatSessionService.loadAllSessionsForContext.notCalled,
+                'loadAllSessionsForContext must NOT run when loadDefaultSession is false',
+            );
+        });
+
+        test('default (flag omitted) still loads the default session', () => {
+            chatContextManager.switchContext({
+                type: 'course',
+                id: 303,
+                title: 'Normal Course',
+                reason: 'user-selected',
+            });
+
+            assert.ok(
+                chatSessionService.loadAllSessionsForContext.calledOnce,
+                'loadAllSessionsForContext must run by default',
+            );
+        });
+    });
+
     suite('Same-context selection (no-op)', () => {
         test('re-selecting the already-active exercise context does not reset, clear, or reload', () => {
             chatContextManager.handleContextSelection('exercise', 123, 'Test Exercise', 'EX123');

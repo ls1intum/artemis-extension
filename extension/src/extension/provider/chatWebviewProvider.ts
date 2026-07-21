@@ -18,6 +18,7 @@ import {
     IrisChatSessionService,
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
+import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
@@ -467,6 +468,105 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatSessionService.switchToSession(sessionId);
     }
 
+    /**
+     * Atomic cross-context open of a prior Artemis chat session, driven from
+     * the course-wide history popover (which only knows the course id and the
+     * Artemis session id). The host resolves mode/entity from the course
+     * overview — the webview never invents the context. Ordering closes the
+     * stale-open race:
+     *   1. Bump the navigation token immediately, invalidating any in-flight
+     *      loader (its `t === contextLoadToken` re-check now fails).
+     *   2. Fetch the overview; re-check the token straight after the await. If
+     *      a newer navigation bumped it, return silently — the newer op owns
+     *      the UI, and emitting an error here would clobber it. On fetch
+     *      failure or a missing id (only while still current) post
+     *      `openSessionError` and stop; nothing has been mutated.
+     *   3. Derive context host-side, switch context WITHOUT the default-session
+     *      loader, upsert/rehome the target session, select it, then load its
+     *      messages through the guarded `switchToSession` path (which also
+     *      corrects the seeded messageCount once messages arrive).
+     */
+    public async openArtemisSession(params: { courseId: number; artemisSessionId: number }): Promise<void> {
+        const { courseId, artemisSessionId } = params;
+
+        if (!this._artemisApiService) {
+            this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message: 'Iris is not available right now.' });
+            return;
+        }
+
+        // Step 1: invalidate any in-flight loader up front.
+        const loadToken = this._chatSessionService.incrementLoadToken();
+
+        let entry;
+        try {
+            const summaries = await this._artemisApiService.listChatSessionsForCourse(courseId);
+            // Step 2: re-check immediately after the await. A newer navigation
+            // owning the UI must not be disturbed — return silently, no error.
+            if (loadToken !== this._chatSessionService.contextLoadToken) {
+                logger.info('openArtemisSession: superseded during overview fetch, aborting silently', LogCategory.IRIS_CHAT);
+                return;
+            }
+            entry = buildCourseHistory(summaries, courseId).find(e => e.artemisSessionId === artemisSessionId);
+        } catch (error: unknown) {
+            if (loadToken !== this._chatSessionService.contextLoadToken) {
+                logger.info('openArtemisSession: overview fetch failed but navigation is stale, suppressing error', LogCategory.IRIS_CHAT);
+                return;
+            }
+            logger.error('openArtemisSession: overview fetch failed', LogCategory.IRIS_CHAT, error);
+            this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message: 'Could not open that conversation. Please try again.' });
+            return;
+        }
+
+        if (!entry) {
+            // Missing id: only surface if we are still the current navigation.
+            if (loadToken !== this._chatSessionService.contextLoadToken) {
+                return;
+            }
+            logger.warn(`openArtemisSession: session ${artemisSessionId} not found in course ${courseId} overview`, LogCategory.IRIS_CHAT);
+            this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message: 'That conversation is no longer available.' });
+            return;
+        }
+
+        // Step 3: derive the context host-side (never from the webview).
+        const type: ChatContextType = entry.mode === 'COURSE_CHAT' ? 'course' : 'exercise';
+        const id = entry.mode === 'COURSE_CHAT' ? courseId : entry.entityId;
+        const tracked = type === 'course'
+            ? this._contextStore.snapshot().courses.find(c => c.id === id)
+            : this._contextStore.getExerciseById(id);
+        const title = entry.entityName ?? tracked?.title ?? (type === 'course' ? 'Course chat' : `Exercise ${id}`);
+
+        // Re-check once more before mutating any state.
+        if (loadToken !== this._chatSessionService.contextLoadToken) {
+            return;
+        }
+
+        this._chatContextManager.switchContext({
+            type,
+            id,
+            title,
+            courseId,
+            reason: 'user-selected',
+            loadDefaultSession: false,
+        });
+
+        const contextKey = `${type}:${id}`;
+        const localId = this._contextStore.upsertSessionFromOverview({
+            contextKey,
+            artemisSessionId,
+            title: entry.title,
+            lastActivity: entry.lastActivity,
+        });
+        this._contextStore.switchSession(localId);
+        this._viewStatePresenter.postSnapshot();
+
+        // Load messages for the (now active) target session through the
+        // guarded path; the messageCount correction happens inside
+        // initializeIrisSessionAndLoadMessages. A load failure surfaces the
+        // LoadMessagesError UI for the target session, whose Retry uses
+        // reloadActiveSession (no rollback, no jump to default).
+        this._chatSessionService.switchToSession(localId);
+    }
+
     public getSelectedContext(): ActiveContext | null {
         return this._chatContextManager.getSelectedContext();
     }
@@ -554,6 +654,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     }
                     break;
                 }
+                case WebviewCmd.OpenArtemisSession: {
+                    const { courseId, artemisSessionId } = getPayload<WebCmd<'openArtemisSession'>>(message);
+                    if (typeof courseId === 'number' && typeof artemisSessionId === 'number') {
+                        void this.openArtemisSession({ courseId, artemisSessionId }).catch(err => {
+                            logger.error('Error opening Artemis session', LogCategory.IRIS_CHAT, err);
+                        });
+                    }
+                    break;
+                }
                 case WebviewCmd.SwitchToWorkspaceContext:
                     this._handleSwitchToWorkspaceContext();
                     break;
@@ -586,6 +695,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     // is enforced inside _reloadChatSession so a button mash
                     // or a concurrent reconnect can't kick off duplicates.
                     void this._reloadChatSession('manual-retry');
+                    break;
+                case WebviewCmd.ReloadActiveSession:
+                    // Target-preserving Retry from the central "failed to load
+                    // chat history" UI. Reloads ONLY the active session (not the
+                    // whole context), single-flight inside the service.
+                    this._chatSessionService.reloadActiveSessionMessages();
                     break;
                 case WebviewCmd.MessageFeedback: {
                     const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(message);

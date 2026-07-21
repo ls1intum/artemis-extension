@@ -191,14 +191,19 @@ export class ContextStore {
         return this.snapshot();
     }
 
+    /**
+     * Idempotent cross-context upsert keyed by `artemisSessionId`. Returns the
+     * local session id (so the atomic open flow can immediately
+     * `switchSession` to it). Delegates the rehome/collapse logic to
+     * {@link SessionManager.upsertSessionFromOverview}.
+     */
     public upsertSessionFromOverview(entry: {
         contextKey: string;
         artemisSessionId: number;
         title?: string;
         lastActivity: number;
-    }): ContextSnapshot {
-        this._sessionManager.upsertSessionFromOverview(entry);
-        return this.snapshot();
+    }): string {
+        return this._sessionManager.upsertSessionFromOverview(entry);
     }
 
     public clearSessionsForContext(contextKey: string): ContextSnapshot {
@@ -213,6 +218,10 @@ export class ContextStore {
 
     public incrementActiveSessionMessageCount(): void {
         this._sessionManager.incrementActiveSessionMessageCount();
+    }
+
+    public setActiveSessionMessageCount(count: number): void {
+        this._sessionManager.setActiveSessionMessageCount(count);
     }
 
     public cleanupEmptySessions(): void {

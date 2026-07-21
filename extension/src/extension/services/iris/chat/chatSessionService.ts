@@ -64,6 +64,13 @@ export class IrisChatSessionService {
     // round-trip in createNewSession() and cleared on every exit path
     // (success, failure, and the early-returns with nothing to await).
     private readonly _createInFlight = new Set<string>();
+    // Keyed by local session id: a target-preserving Retry (reloadActiveSession)
+    // reloads only the active session's messages. Repeated Retry clicks for the
+    // same session must not start overlapping loads — the guard latches until
+    // the in-flight load settles. Distinct from _createInFlight (which guards
+    // server-side session creation) and from the provider's context-level
+    // _reloadInFlight (which reloads the whole context).
+    private readonly _reloadActiveInFlight = new Set<string>();
 
     constructor(
         private readonly deps: IrisServiceDeps,
@@ -424,6 +431,21 @@ export class IrisChatSessionService {
                 };
             });
 
+            // Correct the active session's messageCount to the number of
+            // messages actually loaded. This matters for sessions created via
+            // upsertSessionFromOverview (the atomic open flow): the overview
+            // endpoint carries no counts, so they are seeded with
+            // messageCount: 0 and would otherwise look empty (and be eligible
+            // for cleanupEmptySessions) until the next full reload. Gated on
+            // the start session so a stale continuation (user switched mid
+            // load) does not overwrite a different session's count. This lives
+            // here — not in the provider — because switchToSession returns
+            // void and this method owns formattedMessages.
+            if (isStillStartSession()) {
+                this.deps.contextStore.setActiveSessionMessageCount(formattedMessages.length);
+                this.deps.postSnapshot();
+            }
+
             // Always emit LoadMessages — even with an empty array — so the
             // webview can flip out of its loading state. We tag with the
             // local session id captured at start; if the user switched
@@ -503,11 +525,21 @@ export class IrisChatSessionService {
             const isStillNewSession = (): boolean =>
                 this.deps.contextStore.snapshot().activeSession?.id === newLocalSessionId;
 
+            // Advance the navigation generation (accepted op — the in-flight
+            // guard above already rejected duplicates without a bump, so a
+            // rejected duplicate never invalidates this legitimate create).
+            // Both continuations below re-check this token in addition to the
+            // session-level isStillNewSession guard, so a newer navigation
+            // (a switch, an open, another create) invalidates this create.
+            const loadToken = this.incrementLoadToken();
+            const isStillCurrentNav = (): boolean =>
+                this._contextLoadToken === loadToken && isStillNewSession();
+
             irisSessionManager.createNewSession(activeContext)
                 .then(sessionId => {
-                    if (!isStillNewSession()) {
+                    if (!isStillCurrentNav()) {
                         logger.info(
-                            `Discarding new-session response for ${newLocalSessionId}: user switched sessions during the create round-trip`,
+                            `Discarding new-session response for ${newLocalSessionId}: superseded by a newer navigation or session switch`,
                             LogCategory.IRIS_CHAT,
                         );
                         return;
@@ -526,7 +558,7 @@ export class IrisChatSessionService {
                 })
                 .catch((err: unknown) => {
                     logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
-                    if (!isStillNewSession()) {
+                    if (!isStillCurrentNav()) {
                         return;
                     }
                     // Reuse the same availability classifier as
@@ -561,6 +593,50 @@ export class IrisChatSessionService {
     public switchToSession(sessionId: string): void {
         logger.info('Switching to session:', LogCategory.IRIS_CHAT, sessionId);
 
+        void this._switchAndLoad(sessionId).catch(err => {
+            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
+        });
+    }
+
+    /**
+     * Target-preserving Retry: reload ONLY the active session's messages,
+     * NOT the whole context (that is the provider's `_reloadChatSession` /
+     * `loadAllSessionsForContext`). Single-flight, keyed by the active local
+     * session id, so a button-mash cannot start overlapping loads. Reuses the
+     * `switchToSession` load path (which advances the navigation token), so a
+     * stale cross-context open in flight is invalidated by this reload.
+     */
+    public reloadActiveSessionMessages(): void {
+        const activeLocalId = this.deps.contextStore.snapshot().activeSession?.id;
+        if (!activeLocalId) {
+            logger.info('reloadActiveSessionMessages: no active session, nothing to reload', LogCategory.IRIS_CHAT);
+            return;
+        }
+        if (this._reloadActiveInFlight.has(activeLocalId)) {
+            logger.info(`reloadActiveSessionMessages already in flight for ${activeLocalId}, ignoring duplicate`, LogCategory.IRIS_CHAT);
+            return;
+        }
+        this._reloadActiveInFlight.add(activeLocalId);
+        void this._switchAndLoad(activeLocalId)
+            .catch(err => {
+                logger.error('Error reloading active session messages:', LogCategory.IRIS_CHAT, err);
+            })
+            .finally(() => {
+                this._reloadActiveInFlight.delete(activeLocalId);
+            });
+    }
+
+    /**
+     * Shared session-nav body for `switchToSession` and
+     * `reloadActiveSessionMessages`: reset runs + WS, select the session, clear
+     * the UI, advance the navigation generation, then load its messages.
+     * Advancing `_contextLoadToken` here is what makes this switch the
+     * authoritative navigation — any in-flight loader (including a stale
+     * cross-context open) fails its `t === contextLoadToken` re-check and
+     * returns without mutating or emitting an error. Returns the load promise
+     * so the single-flight Retry guard can release only once it settles.
+     */
+    private _switchAndLoad(sessionId: string): Promise<void> {
         // Drop host run state before the Iris session is reset, or the old
         // run's projection survives into the switched-to conversation.
         this._runReset.resetRuns();
@@ -575,10 +651,10 @@ export class IrisChatSessionService {
 
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
 
-        // Load messages for the switched session
-        this._loadIrisMessages().catch(err => {
-            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
-        });
+        // Advance the navigation generation before loading (accepted op).
+        this.incrementLoadToken();
+
+        return this._loadIrisMessages();
     }
 
     public async resetAndReloadSessions(): Promise<number> {

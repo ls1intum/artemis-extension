@@ -59,6 +59,7 @@ export const ExtensionMsg = {
     AddMessage: 'addMessage',
     LoadMessages: 'loadMessages',
     LoadMessagesError: 'loadMessagesError',
+    OpenSessionError: 'openSessionError',
     ClearChatMessages: 'clearChatMessages',
     UpdateReferencedFiles: 'updateReferencedFiles',
     UpdateWebSocketStatus: 'updateWebSocketStatus',
@@ -251,6 +252,15 @@ interface ExtensionMsgPayloads {
         }>;
     };
     loadMessagesError: { localSessionId: string };
+    /**
+     * A pre-switch open failure: the course overview fetch failed, or the
+     * requested Artemis session id was not present in it. Distinct from
+     * {@link loadMessagesError} (which is keyed to a `localSessionId` and
+     * dropped unless it matches the active session): nothing was mutated and
+     * the active session is untouched, so this cannot be attributed to any
+     * local session. The history popover surfaces it inline.
+     */
+    openSessionError: { message: string };
     clearChatMessages: undefined;
     updateReferencedFiles: {
         includedFiles: string[];
