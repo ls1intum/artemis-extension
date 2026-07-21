@@ -42,6 +42,5 @@ export function formatActivityDuration(activity: IrisActivityDTO): string | unde
 }
 
 export function activityTrailSummary(activities: IrisActivityDTO[]): string {
-    const total = activities.reduce((sum, a) => sum + (a.durationMillis ?? 0), 0);
-    return `Tools used: ${activities.length} · ${(total / 1000).toFixed(1)}s`;
+    return `Tools used: ${activities.length}`;
 }
