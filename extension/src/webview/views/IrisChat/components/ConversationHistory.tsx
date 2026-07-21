@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import Check from 'lucide-react/dist/esm/icons/check';
+import Info from 'lucide-react/dist/esm/icons/info';
 import MessageSquare from 'lucide-react/dist/esm/icons/message-square';
 import Plus from 'lucide-react/dist/esm/icons/plus';
 import type { KeyboardEvent } from 'react';
@@ -7,32 +8,52 @@ import { useEffect, useRef } from 'react';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
-import type { ChatSession } from '@webview/views/IrisChat/types';
+import type { CourseHistoryEntryVM, HistoryBucket } from '@webview/views/IrisChat/historyBuckets';
+import { bucketHistoryByTime } from '@webview/views/IrisChat/historyBuckets';
 
 import styles from './ConversationHistory.module.css';
 
+const BUCKET_LABELS: Record<HistoryBucket, string> = {
+    today: 'Today',
+    yesterday: 'Yesterday',
+    last7: 'Last 7 days',
+    older: 'Older',
+};
+
 interface ConversationHistoryProps {
-    sessions: ChatSession[];
-    activeSessionId: string | null;
+    entries: CourseHistoryEntryVM[];
+    status: 'idle' | 'loading' | 'error' | 'ready';
+    /** `artemisSessionId` of the currently active session, or null if none/not yet persisted. */
+    activeArtemisSessionId: number | null;
     canCreateConversation: boolean;
-    onSelectSession: (sessionId: string) => void;
+    /** Task 10's cross-context open failure, rendered as an inline banner. */
+    openError: string | null;
+    onSelectEntry: (entry: CourseHistoryEntryVM) => void;
     onNewConversation: () => void;
+    onRetry: () => void;
     onClose: () => void;
 }
 
 /**
- * M1 conversation-switching popover, fed by the current context's
- * `store.sessions`. Same dialog shell/focus-trap pattern as `ContextPicker`.
- * Task 11 swaps the data source to bucketed course-wide history plus
- * `openArtemisSession` — this component's props are expected to grow then,
- * not change shape for existing fields.
+ * Course-wide conversation-switching popover (Task 11), fed by the bucketed
+ * `courseHistory` store slice rather than the current context's sessions
+ * (the M1 version this replaced). Same dialog shell/focus-trap pattern as
+ * `ContextPicker`.
+ *
+ * Selecting a row posts `openArtemisSession` (via `onSelectEntry`) but does
+ * NOT close the popover — it stays open so a resulting inline `openError`
+ * has a visible destination. The caller closes it once the active session
+ * actually changes, or on Escape/click-outside (handled here).
  */
 export function ConversationHistory({
-    sessions,
-    activeSessionId,
+    entries,
+    status,
+    activeArtemisSessionId,
     canCreateConversation,
-    onSelectSession,
+    openError,
+    onSelectEntry,
     onNewConversation,
+    onRetry,
     onClose,
 }: ConversationHistoryProps) {
     const dialogRef = useRef<HTMLDivElement>(null);
@@ -71,12 +92,19 @@ export function ConversationHistory({
         }
     };
 
+    const isLoading = status === 'loading' || status === 'idle';
+    // `Date.now()` is intentionally read here, in the component, on every
+    // render — bucketHistoryByTime itself stays pure and takes `nowMs` as an
+    // argument so it remains deterministically testable.
+    const buckets = bucketHistoryByTime(entries, Date.now());
+
     return (
         <div
             ref={dialogRef}
             className={styles.dialog}
             role="dialog"
             aria-modal="true"
+            aria-busy={isLoading}
             onKeyDown={handleKeyDown}
         >
             <div className={styles.header}>
@@ -91,33 +119,63 @@ export function ConversationHistory({
                 </button>
             </div>
 
+            {openError && (
+                <div className={styles.errorBanner} role="alert">
+                    <Info size={14} />
+                    <span>{openError}</span>
+                </div>
+            )}
+
             <div className={styles.list}>
-                {sessions.length === 0 && (
-                    <div className={styles.emptyState}>No conversations yet</div>
+                {isLoading && (
+                    <div className={styles.skeleton}>
+                        <div className={styles.skeletonRow} />
+                        <div className={styles.skeletonRow} />
+                        <div className={styles.skeletonRow} />
+                    </div>
                 )}
-                {sessions.map((session) => {
-                    const active = session.id === activeSessionId;
-                    return (
-                        <button
-                            key={session.id}
-                            type="button"
-                            className={clsx(styles.row, { [styles.rowActive]: active })}
-                            data-testid={active ? 'history-active' : undefined}
-                            onClick={() => onSelectSession(session.id)}
-                        >
-                            <MessageSquare size={16} className={styles.rowIcon} />
-                            <span className={styles.rowTextColumn}>
-                                <span className={styles.rowText}>
-                                    {session.title || 'Untitled conversation'}
-                                </span>
-                                <span className={styles.rowSubtitle}>
-                                    {formatRelativeTime(session.lastActivity)}
-                                </span>
-                            </span>
-                            {active && <Check size={16} className={styles.checkIcon} />}
+
+                {status === 'error' && (
+                    <div className={styles.errorState}>
+                        <span>Could not load conversation history.</span>
+                        <button type="button" className={styles.retryButton} onClick={onRetry}>
+                            Retry
                         </button>
-                    );
-                })}
+                    </div>
+                )}
+
+                {status === 'ready' && entries.length === 0 && (
+                    <div className={styles.emptyState}>No past conversations</div>
+                )}
+
+                {status === 'ready' && buckets.map(({ bucket, entries: bucketEntries }) => (
+                    <div key={bucket} className={styles.bucketGroup}>
+                        <div className={styles.bucketHeader}>{BUCKET_LABELS[bucket]}</div>
+                        {bucketEntries.map((entry) => {
+                            const active = entry.artemisSessionId === activeArtemisSessionId;
+                            return (
+                                <button
+                                    key={entry.artemisSessionId}
+                                    type="button"
+                                    className={clsx(styles.row, { [styles.rowActive]: active })}
+                                    data-testid={active ? 'history-active' : undefined}
+                                    onClick={() => onSelectEntry(entry)}
+                                >
+                                    <MessageSquare size={16} className={styles.rowIcon} />
+                                    <span className={styles.rowTextColumn}>
+                                        <span className={styles.rowText}>
+                                            {entry.title || 'Untitled conversation'}
+                                        </span>
+                                        <span className={styles.rowSubtitle}>
+                                            {entry.entityName ?? 'Course chat'} · {formatRelativeTime(entry.lastActivity)}
+                                        </span>
+                                    </span>
+                                    {active && <Check size={16} className={styles.checkIcon} />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                ))}
             </div>
         </div>
     );

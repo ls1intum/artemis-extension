@@ -2,35 +2,72 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ConversationHistory } from '@webview/views/IrisChat/components/ConversationHistory';
-import type { ChatSession } from '@webview/views/IrisChat/types';
+import type { CourseHistoryEntryVM } from '@webview/views/IrisChat/historyBuckets';
 
-const sessions: ChatSession[] = [
-    { id: 'a', preview: 'p', title: 'Untitled work', messageCount: 3, createdAt: 0, lastActivity: Date.now() - 60_000 },
-    { id: 'b', preview: 'p', title: '', messageCount: 0, createdAt: 0, lastActivity: Date.now() - 120_000 },
+const NOW = Date.now();
+
+const entries: CourseHistoryEntryVM[] = [
+    {
+        artemisSessionId: 1,
+        courseId: 7,
+        mode: 'COURSE_CHAT',
+        entityId: 7,
+        title: 'General questions',
+        lastActivity: NOW - 60_000,
+    },
+    {
+        artemisSessionId: 2,
+        courseId: 7,
+        mode: 'PROGRAMMING_EXERCISE_CHAT',
+        entityId: 42,
+        entityName: 'Sorting Algorithms',
+        title: '',
+        lastActivity: NOW - 5 * 24 * 60 * 60 * 1000,
+    },
 ];
 
 const props = {
-    sessions,
-    activeSessionId: 'a',
+    entries,
+    status: 'ready' as const,
+    activeArtemisSessionId: 1,
     canCreateConversation: true,
-    onSelectSession: vi.fn(),
+    openError: null,
+    onSelectEntry: vi.fn(),
     onNewConversation: vi.fn(),
+    onRetry: vi.fn(),
     onClose: vi.fn(),
 };
 
 describe('ConversationHistory', () => {
-    it('renders each session with its title (or the Untitled fallback) and marks the active one', () => {
+    it('renders entries grouped under time buckets', () => {
         render(<ConversationHistory {...props} />);
-        expect(screen.getByText('Untitled work')).toBeInTheDocument();
+        expect(screen.getByText('Today')).toBeInTheDocument();
+        expect(screen.getByText('Last 7 days')).toBeInTheDocument();
+    });
+
+    it('falls back to "Untitled conversation" when title is missing/empty', () => {
+        render(<ConversationHistory {...props} />);
         expect(screen.getByText('Untitled conversation')).toBeInTheDocument();
+    });
+
+    it('shows entityName as the context label, falling back to "Course chat"', () => {
+        render(<ConversationHistory {...props} />);
+        expect(screen.getByText((text) => text.includes('Sorting Algorithms'))).toBeInTheDocument();
+        expect(screen.getByText((text) => text.includes('Course chat'))).toBeInTheDocument();
+    });
+
+    it('marks the entry matching activeArtemisSessionId as active', () => {
+        render(<ConversationHistory {...props} />);
         expect(screen.getAllByTestId('history-active')).toHaveLength(1);
     });
 
-    it('clicking a row selects that session', () => {
-        const onSelectSession = vi.fn();
-        render(<ConversationHistory {...props} onSelectSession={onSelectSession} />);
+    it('clicking a row calls onSelectEntry with that entry AND does not close the popover', () => {
+        const onSelectEntry = vi.fn();
+        const onClose = vi.fn();
+        render(<ConversationHistory {...props} onSelectEntry={onSelectEntry} onClose={onClose} />);
         fireEvent.click(screen.getByText('Untitled conversation'));
-        expect(onSelectSession).toHaveBeenCalledWith('b');
+        expect(onSelectEntry).toHaveBeenCalledWith(entries[1]);
+        expect(onClose).not.toHaveBeenCalled();
     });
 
     it('clicking "New conversation" fires onNewConversation when enabled', () => {
@@ -52,8 +89,33 @@ describe('ConversationHistory', () => {
         expect(onClose).toHaveBeenCalledOnce();
     });
 
-    it('shows an empty state when there are no sessions', () => {
-        render(<ConversationHistory {...props} sessions={[]} />);
-        expect(screen.getByText('No conversations yet')).toBeInTheDocument();
+    it('shows an empty state when there are no entries and status is ready', () => {
+        render(<ConversationHistory {...props} entries={[]} status="ready" />);
+        expect(screen.getByText('No past conversations')).toBeInTheDocument();
+    });
+
+    it('shows a loading skeleton (no rows, no empty-state text) while status is loading', () => {
+        render(<ConversationHistory {...props} entries={[]} status="loading" />);
+        expect(screen.queryByText('No past conversations')).not.toBeInTheDocument();
+        expect(screen.queryByText('Today')).not.toBeInTheDocument();
+        expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true');
+    });
+
+    it('shows an error state with a Retry button when status is error, and Retry calls onRetry', () => {
+        const onRetry = vi.fn();
+        render(<ConversationHistory {...props} entries={[]} status="error" onRetry={onRetry} />);
+        const retryButton = screen.getByRole('button', { name: 'Retry' });
+        fireEvent.click(retryButton);
+        expect(onRetry).toHaveBeenCalledOnce();
+    });
+
+    it('renders openError as an inline banner inside the popover', () => {
+        render(<ConversationHistory {...props} openError="That conversation is no longer available." />);
+        expect(screen.getByRole('alert')).toHaveTextContent('That conversation is no longer available.');
+    });
+
+    it('renders no alert banner when openError is null', () => {
+        render(<ConversationHistory {...props} openError={null} />);
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 });

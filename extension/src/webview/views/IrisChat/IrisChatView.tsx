@@ -31,7 +31,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
         resetTransientChatUi, applyRunUi, applyCommit,
-        markMessageFailed,
+        markMessageFailed, applyCourseHistory, setCourseHistoryError,
+        setOpenSessionError,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
@@ -45,6 +46,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // are different elements and a click-outside close must return focus
     // to whichever one was actually clicked.
     const openerRef = useRef<HTMLElement | null>(null);
+    // Monotonic id for `requestCourseHistory`, bumped on every history open
+    // and Retry so the store can drop a response for a request that is no
+    // longer the latest one.
+    const historyRequestIdRef = useRef(0);
 
     // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
@@ -68,6 +73,23 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         previousContextId.current = currentId ?? null;
         return undefined;
     }, [store.context?.id]);
+
+    // Close the history popover once the active session actually changes —
+    // the success signal for a row click's `openArtemisSession` (which does
+    // NOT close the popover itself, so a resulting inline openSessionError
+    // stays visible). Guarded on the ref already having a value so this
+    // never fires on the render that first opens the popover.
+    const previousActiveSessionIdForHistory = useRef<string | null>(null);
+    useEffect(() => {
+        if (
+            historyOpen
+            && previousActiveSessionIdForHistory.current !== null
+            && store.activeSessionId !== previousActiveSessionIdForHistory.current
+        ) {
+            closePopovers();
+        }
+        previousActiveSessionIdForHistory.current = store.activeSessionId;
+    }, [store.activeSessionId, historyOpen]);
 
     // Message listener - handles messages from extension
     useExtensionMessage((msg) => {
@@ -190,18 +212,29 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.OpenSessionError: {
-                // A pre-switch open failure (overview fetch failed or the id was
-                // gone). Nothing was mutated and the active session is
-                // untouched, so it cannot key to a localSessionId. Surface it
-                // via the transient unavailable path so it is not silently
-                // dropped; Task 11 renders it inline in the history popover.
-                setUnavailableMessage(msg.message);
+                // A pre-switch open failure (overview fetch failed or the id
+                // was gone). Nothing was mutated and the active session is
+                // untouched, so it cannot key to a localSessionId. Nothing
+                // else about chat availability changed, so this renders as
+                // an inline banner inside the history popover rather than
+                // the global unavailable banner.
+                setOpenSessionError(msg.message);
                 break;
             }
 
             case ExtensionMsg.HideUnavailableState:
                 setUnavailableMessage(null);
                 break;
+
+            case ExtensionMsg.UpdateCourseHistory: {
+                applyCourseHistory(msg.requestId, msg.entries);
+                break;
+            }
+
+            case ExtensionMsg.CourseHistoryError: {
+                setCourseHistoryError(msg.requestId);
+                break;
+            }
 
             case ExtensionMsg.UpdateNoAiStatus: {
                 setNoAiDetected(msg.isNoAiDetected);
@@ -229,7 +262,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, applyCourseHistory, setCourseHistoryError, setOpenSessionError]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
@@ -342,15 +375,39 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setPickerOpen(true);
     };
 
+    // Course-wide history is per-course, not per-exercise: an exercise
+    // context resolves to its course, a course context resolves to itself.
+    const resolveHistoryCourseId = (): number | undefined => {
+        if (store.context === null) { return undefined; }
+        return store.context.type === 'course' ? store.context.id : store.context.courseId;
+    };
+
+    // Shared by the initial open and the popover's own Retry button. With no
+    // resolvable course (no context selected yet) there is nothing to fetch,
+    // so the slice goes straight to `ready`/empty instead of round-tripping.
+    const requestCourseHistoryFor = (requestId: number) => {
+        const courseId = resolveHistoryCourseId();
+        store.setCourseHistoryLoading(requestId);
+        if (courseId === undefined) {
+            store.applyCourseHistory(requestId, []);
+            return;
+        }
+        postCommand(vscodeApi, 'requestCourseHistory', { courseId, requestId });
+    };
+
     const openHistory = (opener: HTMLElement) => {
         openerRef.current = opener;
         setPickerOpen(false);
+        setOpenSessionError(null);
+        historyRequestIdRef.current += 1;
+        requestCourseHistoryFor(historyRequestIdRef.current);
         setHistoryOpen(true);
     };
 
     const closePopovers = () => {
         setPickerOpen(false);
         setHistoryOpen(false);
+        setOpenSessionError(null);
         openerRef.current?.focus();
         openerRef.current = null;
     };
@@ -562,16 +619,29 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
                 {historyOpen && (
                     <ConversationHistory
-                        sessions={store.sessions}
-                        activeSessionId={store.activeSessionId}
+                        entries={store.courseHistory.entries}
+                        status={store.courseHistory.status}
+                        activeArtemisSessionId={activeSession?.artemisSessionId ?? null}
                         canCreateConversation={canCreateConversation}
-                        onSelectSession={(sessionId) => {
-                            postCommand(vscodeApi, 'switchSession', { sessionId });
-                            closePopovers();
+                        openError={store.openSessionError}
+                        onSelectEntry={(entry) => {
+                            // Deliberately does NOT close the popover — a
+                            // resulting openSessionError needs a visible
+                            // destination. It closes once the active
+                            // session actually changes (see the effect
+                            // above) or on Escape/click-outside.
+                            postCommand(vscodeApi, 'openArtemisSession', {
+                                courseId: entry.courseId,
+                                artemisSessionId: entry.artemisSessionId,
+                            });
                         }}
                         onNewConversation={() => {
                             postCommand(vscodeApi, 'createNewSession');
                             closePopovers();
+                        }}
+                        onRetry={() => {
+                            historyRequestIdRef.current += 1;
+                            requestCourseHistoryFor(historyRequestIdRef.current);
                         }}
                         onClose={closePopovers}
                     />

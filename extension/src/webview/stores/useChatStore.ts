@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware';
 import type { ExtMsg, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
 import type { IrisActivityDTO, IrisRunState } from '@shared/types/apiResponses';
 
+import type { CourseHistoryEntryVM } from '@webview/views/IrisChat/historyBuckets';
 import type {
     ChatContext,
     ChatMessage,
@@ -27,6 +28,19 @@ interface MessageLoadResult {
     status: 'success' | 'error';
 }
 
+/**
+ * Course-wide conversation history for the ConversationHistory popover
+ * (Task 11). `requestId` is the latest `requestCourseHistory` request the
+ * webview has issued; `applyCourseHistory`/`setCourseHistoryError` ignore
+ * any response whose `requestId` does not match it, so a slow response for
+ * a course the user has since navigated away from cannot land here.
+ */
+interface CourseHistoryState {
+    status: 'idle' | 'loading' | 'error' | 'ready';
+    entries: CourseHistoryEntryVM[];
+    requestId: number;
+}
+
 interface ChatState {
     // Context
     context: ChatContext | null;
@@ -40,6 +54,17 @@ interface ChatState {
     hasReceivedInitialIrisState: boolean;
     exercises: ContextItem[];
     courses: ContextItem[];
+
+    // Course-wide conversation history (ConversationHistory popover)
+    courseHistory: CourseHistoryState;
+    /**
+     * Task 10's cross-context `openArtemisSession` failure. Distinct from
+     * `unavailableMessage` — nothing about chat availability changed, only
+     * the specific row the user clicked could not be opened, so it renders
+     * as an inline banner inside the history popover rather than the global
+     * banner.
+     */
+    openSessionError: string | null;
 
     // Messages
     messages: ChatMessage[];
@@ -120,6 +145,15 @@ interface ChatState {
     removeMessage: (localId: string) => void;
     clearMessages: () => void;
 
+    // Course history actions
+    /** Bumps `requestId` and moves the slice to `loading`. */
+    setCourseHistoryLoading: (requestId: number) => void;
+    /** Ignored if `requestId` no longer matches the slice's current `requestId`. */
+    applyCourseHistory: (requestId: number, entries: CourseHistoryEntryVM[]) => void;
+    /** Ignored (stale) if `requestId` no longer matches the slice's current `requestId`. */
+    setCourseHistoryError: (requestId: number) => void;
+    setOpenSessionError: (message: string | null) => void;
+
     // Streaming actions
     startStreaming: () => void;
 
@@ -163,6 +197,8 @@ export const useChatStore = create<ChatState>()(
             hasReceivedInitialIrisState: false,
             exercises: [],
             courses: [],
+            courseHistory: { status: 'idle', entries: [], requestId: 0 },
+            openSessionError: null,
             messages: [],
             messageLoad: null,
             streaming: IDLE_STREAMING,
@@ -295,6 +331,30 @@ export const useChatStore = create<ChatState>()(
                     runError: null,
                     lastRunUiRevision: 0,
                 }, false, 'clearMessages');
+            },
+
+            setCourseHistoryLoading: (requestId) => {
+                set({
+                    courseHistory: { status: 'loading', entries: [], requestId },
+                }, false, 'setCourseHistoryLoading');
+            },
+
+            applyCourseHistory: (requestId, entries) => {
+                if (requestId !== useChatStore.getState().courseHistory.requestId) { return; }
+                set({
+                    courseHistory: { status: 'ready', entries, requestId },
+                }, false, 'applyCourseHistory');
+            },
+
+            setCourseHistoryError: (requestId) => {
+                if (requestId !== useChatStore.getState().courseHistory.requestId) { return; }
+                set({
+                    courseHistory: { status: 'error', entries: [], requestId },
+                }, false, 'setCourseHistoryError');
+            },
+
+            setOpenSessionError: (message) => {
+                set({ openSessionError: message }, false, 'setOpenSessionError');
             },
 
             // Streaming actions

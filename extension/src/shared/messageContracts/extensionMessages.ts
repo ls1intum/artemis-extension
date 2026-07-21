@@ -5,6 +5,7 @@
 import type {
     ExerciseDetailsResponse,
     IrisActivityDTO,
+    IrisChatMode,
     IrisRunState,
     ResultSummary,
     SubmissionSummary,
@@ -60,6 +61,8 @@ export const ExtensionMsg = {
     LoadMessages: 'loadMessages',
     LoadMessagesError: 'loadMessagesError',
     OpenSessionError: 'openSessionError',
+    UpdateCourseHistory: 'updateCourseHistory',
+    CourseHistoryError: 'courseHistoryError',
     ClearChatMessages: 'clearChatMessages',
     UpdateReferencedFiles: 'updateReferencedFiles',
     UpdateWebSocketStatus: 'updateWebSocketStatus',
@@ -261,6 +264,27 @@ interface ExtensionMsgPayloads {
      * local session. The history popover surfaces it inline.
      */
     openSessionError: { message: string };
+    /**
+     * Answers a `requestCourseHistory` command: the course-wide history for
+     * the course-history popover, newest-first (see `buildCourseHistory`).
+     * `requestId` echoes the request so the store can drop a stale response
+     * whose `requestId` no longer matches the latest request.
+     */
+    updateCourseHistory: {
+        courseId: number;
+        requestId: number;
+        entries: Array<{
+            artemisSessionId: number;
+            courseId: number;
+            mode: IrisChatMode;
+            entityId: number;
+            entityName?: string;
+            title?: string;
+            lastActivity: number;
+        }>;
+    };
+    /** `requestCourseHistory` failed (e.g. the overview fetch threw). */
+    courseHistoryError: { courseId: number; requestId: number };
     clearChatMessages: undefined;
     updateReferencedFiles: {
         includedFiles: string[];

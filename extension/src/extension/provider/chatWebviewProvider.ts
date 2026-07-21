@@ -18,6 +18,7 @@ import {
     IrisChatSessionService,
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
+import type { CourseHistoryEntry } from '@extension/services/iris/context/courseHistory';
 import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -118,6 +119,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
+
+    /**
+     * Last successful `requestCourseHistory` result per course, kept purely
+     * as a cache for future consumers — `requestCourseHistory` itself always
+     * refetches. Task 12 invalidates entries here (e.g. after a message that
+     * would change a session's title/lastActivity).
+     */
+    private readonly _courseHistoryCache = new Map<number, CourseHistoryEntry[]>();
 
 
     // ── Constructor ────────────────────────────────────────────────────
@@ -567,6 +576,34 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatSessionService.switchToSession(localId);
     }
 
+    /**
+     * Answers the webview's `requestCourseHistory` for the ConversationHistory
+     * popover: fetch the course's chat-session overview, project it through
+     * `buildCourseHistory`, and post the result back tagged with the
+     * `requestId` the webview sent — the webview drops anything whose
+     * `requestId` no longer matches its latest request, so this method does
+     * not need to track staleness itself; it can post exactly one message
+     * per call.
+     */
+    public async requestCourseHistory(params: { courseId: number; requestId: number }): Promise<void> {
+        const { courseId, requestId } = params;
+
+        if (!this._artemisApiService) {
+            this._postMessageSafe({ type: ExtensionMsg.CourseHistoryError, courseId, requestId });
+            return;
+        }
+
+        try {
+            const summaries = await this._artemisApiService.listChatSessionsForCourse(courseId);
+            const entries = buildCourseHistory(summaries, courseId);
+            this._courseHistoryCache.set(courseId, entries);
+            this._postMessageSafe({ type: ExtensionMsg.UpdateCourseHistory, courseId, requestId, entries });
+        } catch (error: unknown) {
+            logger.error('requestCourseHistory: overview fetch failed', LogCategory.IRIS_CHAT, error);
+            this._postMessageSafe({ type: ExtensionMsg.CourseHistoryError, courseId, requestId });
+        }
+    }
+
     public getSelectedContext(): ActiveContext | null {
         return this._chatContextManager.getSelectedContext();
     }
@@ -659,6 +696,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     if (typeof courseId === 'number' && typeof artemisSessionId === 'number') {
                         void this.openArtemisSession({ courseId, artemisSessionId }).catch(err => {
                             logger.error('Error opening Artemis session', LogCategory.IRIS_CHAT, err);
+                        });
+                    }
+                    break;
+                }
+                case WebviewCmd.RequestCourseHistory: {
+                    const { courseId, requestId } = getPayload<WebCmd<'requestCourseHistory'>>(message);
+                    if (typeof courseId === 'number' && typeof requestId === 'number') {
+                        void this.requestCourseHistory({ courseId, requestId }).catch(err => {
+                            logger.error('Error requesting course history', LogCategory.IRIS_CHAT, err);
                         });
                     }
                     break;
