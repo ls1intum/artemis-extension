@@ -190,6 +190,16 @@ export class ContextStore {
         return this.snapshot();
     }
 
+    public upsertSessionFromOverview(entry: {
+        contextKey: string;
+        artemisSessionId: number;
+        title?: string;
+        lastActivity: number;
+    }): ContextSnapshot {
+        this._sessionManager.upsertSessionFromOverview(entry);
+        return this.snapshot();
+    }
+
     public clearSessionsForContext(contextKey: string): ContextSnapshot {
         this._sessionManager.clearSessionsForContext(contextKey);
         return this.snapshot();

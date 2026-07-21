@@ -161,10 +161,16 @@ export class SessionManager {
             return;
         }
 
-        // Keep only sessions with messages OR the active session
+        // Keep only sessions with messages, the active session, OR sessions backed by a real
+        // Artemis session id. A local messageCount of 0 does not mean the server-side session
+        // is empty (e.g. upsertSessionFromOverview creates/rehomes sessions before their message
+        // count is known locally); only untouched local drafts (no artemisSessionId, no messages,
+        // not active) are eligible for pruning.
         const activeSessionId = state.activeSessionId;
         const filteredSessions = sessions.filter(
-            session => session.messageCount > 0 || session.id === activeSessionId
+            session => session.messageCount > 0
+                || session.id === activeSessionId
+                || session.artemisSessionId !== undefined
         );
 
         // Update state if we removed any sessions
@@ -201,6 +207,70 @@ export class SessionManager {
         const session = sessions.find(s => s.id === state.activeSessionId) ?? sessions[0];
         session.artemisSessionId = artemisSessionId;
         this._saveState();
+    }
+
+    /**
+     * Idempotent, cross-context upsert keyed by `artemisSessionId`. Scans every context's
+     * session array for an existing match: if found under `contextKey`, updates title/lastActivity
+     * in place; if found under a different key, rehomes it (delete-then-insert) so that
+     * `switchSession` (which only searches the active context) can select it; if not found,
+     * creates a new session under `contextKey`. Any pre-existing duplicates of the same
+     * `artemisSessionId` are collapsed to one. Returns the local session id.
+     */
+    public upsertSessionFromOverview(entry: {
+        contextKey: string;
+        artemisSessionId: number;
+        title?: string;
+        lastActivity: number;
+    }): string {
+        const { contextKey, artemisSessionId, title, lastActivity } = entry;
+        const state = this._getState();
+
+        let existing: StoredSession | undefined;
+
+        // Remove every matching session from every context array (collapsing duplicates),
+        // keeping the first match found so its id/preview/createdAt survive the rehome.
+        for (const key of Object.keys(state.sessions)) {
+            const sessions = state.sessions[key];
+            const remaining: StoredSession[] = [];
+            for (const session of sessions) {
+                if (session.artemisSessionId === artemisSessionId) {
+                    existing ??= session;
+                } else {
+                    remaining.push(session);
+                }
+            }
+            if (remaining.length !== sessions.length) {
+                state.sessions[key] = remaining;
+            }
+        }
+
+        const target = state.sessions[contextKey] ?? [];
+        if (existing) {
+            const updated: StoredSession = {
+                ...existing,
+                contextKey,
+                title,
+                lastActivity,
+            };
+            state.sessions[contextKey] = [updated, ...target];
+            this._saveState();
+            return updated.id;
+        }
+
+        const session: StoredSession = {
+            id: `session-${artemisSessionId}`,
+            contextKey,
+            preview: title ?? 'New conversation',
+            title,
+            messageCount: 0,
+            createdAt: lastActivity,
+            lastActivity,
+            artemisSessionId,
+        };
+        state.sessions[contextKey] = [session, ...target];
+        this._saveState();
+        return session.id;
     }
 
     public clearAllSessions(): void {
