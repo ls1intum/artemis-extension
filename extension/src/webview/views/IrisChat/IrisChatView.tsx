@@ -32,7 +32,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
         resetTransientChatUi, applyRunUi, applyCommit,
         markMessageFailed, applyCourseHistory, setCourseHistoryError,
-        setOpenSessionError,
+        setOpenSessionError, mergeLoadedMessages, confirmSentMessage,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
@@ -274,8 +274,35 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 }
                 break;
             }
+
+            case ExtensionMsg.MergeSessionMessages: {
+                if (msg.localSessionId !== useChatStore.getState().activeSessionId) { break; }
+                // Deliberately NO resetTransientChatUi(): a merge must not wipe a live draft.
+                // It only folds the persisted history into the list by id.
+                mergeLoadedMessages(
+                    msg.localSessionId,
+                    msg.messages.map((m) => ({
+                        id: m.id,
+                        localId: crypto.randomUUID(),
+                        role: m.role,
+                        content: m.content,
+                        timestamp: m.timestamp,
+                        helpful: m.helpful ?? null,
+                        activities: m.activities,
+                        final: m.final,
+                        status: 'sent' as const,
+                    })),
+                );
+                break;
+            }
+
+            case ExtensionMsg.ConfirmSentMessage: {
+                if (msg.localSessionId !== useChatStore.getState().activeSessionId) { break; }
+                confirmSentMessage(msg.localId, msg.id);
+                break;
+            }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, applyCourseHistory, setCourseHistoryError, setOpenSessionError]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, applyCourseHistory, setCourseHistoryError, setOpenSessionError, mergeLoadedMessages, confirmSentMessage]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
