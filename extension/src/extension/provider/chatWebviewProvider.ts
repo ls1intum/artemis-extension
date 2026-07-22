@@ -18,6 +18,7 @@ import {
     IrisChatSessionService,
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
+import { historyResolvesRun } from '@extension/services/iris/chat/historyResolution';
 import type { CourseHistoryEntry } from '@extension/services/iris/context/courseHistory';
 import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
@@ -44,6 +45,18 @@ interface ExerciseContextChangeEvent {
     exerciseRoot?: vscode.Uri;
 }
 
+/**
+ * Generation-scoped baseline for reconnect reconciliation. A bare id is not
+ * enough: `generation` is the anti-stale key that lets a POST for an older
+ * send be told apart from the still-current one (codex round 1, findings 1-4).
+ */
+interface ReconcileMarker {
+    generation: number;       // _runs.generation at dispatch; the anti-stale key
+    localSessionId: string;
+    artemisSessionId: number; // the id onDidResubscribe fires
+    baselineMessageId: number;
+}
+
 export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
     // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = 'iris.chatView';
@@ -66,6 +79,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * message + session services (which drive the send lifecycle and resets).
      */
     private readonly _runs = new IrisRunStateMachine();
+
+    /** Generation-scoped baseline for reconnect reconciliation. `undefined`
+     *  when no send is outstanding. Overwritten on each successful POST, cleared
+     *  by _resetRunsAndMarker on session/context navigation. */
+    private _reconcileMarker: ReconcileMarker | undefined;
+    /** Single-flight for the reconcile fetch. `_reconcilePendingAgain` coalesces
+     *  a resubscribe that arrives while a fetch is in flight, so the run is
+     *  re-checked once after it settles instead of being dropped. */
+    private _reconcileInFlight = false;
+    private _reconcilePendingAgain = false;
 
     /**
      * Context-keyed single-flight guard for chat-session reloads. Auto-retry
@@ -168,6 +191,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._chatSessionService.resetAvailability();
                 this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
                 this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
+                // A real context change must also drop run state + the reconcile
+                // marker: the outgoing context's in-flight run has nothing to do
+                // with the now-active context, and a stale marker could otherwise
+                // reconcile against the wrong session.
+                this._resetRunsAndMarker();
             })
         );
         this._disposables.push(
@@ -202,7 +230,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatSessionService = new IrisChatSessionService(
             deps,
             () => this._irisSessionManager,
-            { resetRuns: () => this._websocketMessageHandler.resetRuns() },
+            { resetRuns: () => this._resetRunsAndMarker() },
         );
         this._chatMessageService = new ChatMessageService(
             deps,
@@ -242,6 +270,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             );
             this._disposables.push(
                 this._irisSessionManager.onDidConnectionStateChange(() => this._websocketMessageHandler.publishCurrentStatus())
+            );
+            this._disposables.push(
+                this._irisSessionManager.onDidResubscribe((sessionId) => {
+                    void this._reconcileOnResubscribe(sessionId);
+                }),
             );
 
             // Auto-retry chat reload on websocket reconnect when the chat is
@@ -349,6 +382,98 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         };
         this._reloadInFlight = entry;
         return entry.promise;
+    }
+
+    // ── Reconnect reconciliation ───────────────────────────────────────
+
+    /**
+     * Reset the run machine AND the reconcile marker together so they can never
+     * drift. Used on every real context change and by every session-navigation
+     * resetRuns path.
+     */
+    private _resetRunsAndMarker(): void {
+        this._reconcileMarker = undefined;
+        this._reconcilePendingAgain = false;
+        this._websocketMessageHandler.resetRuns();
+    }
+
+    /**
+     * After a genuine resubscribe (not the premature connection event), recover a
+     * run whose terminal frame was missed during the disconnect. Gated so an idle,
+     * pre-dispatch, or never-bound run opens nothing, and so a stale fetch can
+     * neither resolve nor mutate the wrong run/session. Resolves only on
+     * conclusive proof (a persisted assistant message past the baseline), never on
+     * mere fetch success.
+     */
+    private async _reconcileOnResubscribe(resubscribedSessionId: number): Promise<void> {
+        const marker = this._reconcileMarker;
+        // Gate: a send is outstanding for the CURRENT generation, we are still
+        // waiting, and the current generation has bound its run (so resolveCurrentRun
+        // is safe, see Task 2). pendingGeneration true => first frame never arrived
+        // => fall back to manual reload, do not resolve out-of-band.
+        if (!marker
+            || !this._runs.waiting
+            || this._runs.pendingGeneration
+            || marker.generation !== this._runs.generation
+            || marker.artemisSessionId !== resubscribedSessionId) {
+            return;
+        }
+        if (this._reconcileInFlight) { this._reconcilePendingAgain = true; return; }
+
+        // Confirm the marker still matches the live session before fetching.
+        const snapshot = this._contextStore.snapshot();
+        if (snapshot.activeSession?.id !== marker.localSessionId
+            || snapshot.activeSession?.artemisSessionId !== marker.artemisSessionId) {
+            return;
+        }
+        // Pin the bound run: within ONE generation, admit() can rebind
+        // _currentRunId to a later unknown run (A -> C) without bumping generation.
+        // History proving A finished must not then finalize C.
+        const boundRunId = this._runs.currentRunId;
+        if (!boundRunId) { return; }
+
+        this._reconcileInFlight = true;
+        try {
+            const messages = await this._chatSessionService.fetchActiveSessionHistory(marker.artemisSessionId);
+            // Re-validate EVERYTHING after the await: a newer send (generation++),
+            // a same-generation run rebind (currentRunId changed), a terminal frame
+            // (waiting=false), or a session/context switch during the fetch must all
+            // abort both the merge and the resolve.
+            if (this._reconcileMarker !== marker
+                || this._runs.generation !== marker.generation
+                || this._runs.currentRunId !== boundRunId
+                || !this._runs.waiting
+                || this._runs.pendingGeneration) {
+                return;
+            }
+            const live = this._contextStore.snapshot();
+            if (live.activeSession?.id !== marker.localSessionId
+                || live.activeSession?.artemisSessionId !== marker.artemisSessionId) {
+                return;
+            }
+            // Only now is it safe to mutate the webview and resolve.
+            this._postMessageSafe({
+                type: ExtensionMsg.MergeSessionMessages,
+                localSessionId: marker.localSessionId,
+                artemisSessionId: marker.artemisSessionId,
+                messages,
+            });
+            if (historyResolvesRun(messages, marker.baselineMessageId)) {
+                this._runs.resolveCurrentRun();
+                this._websocketMessageHandler.publishCurrentRunUi();
+                this._reconcileMarker = undefined;
+            }
+        } catch (err: unknown) {
+            logger.error('Reconnect reconciliation failed', LogCategory.IRIS_CHAT, err);
+        } finally {
+            this._reconcileInFlight = false;
+            if (this._reconcilePendingAgain) {
+                this._reconcilePendingAgain = false;
+                // Re-run once for the coalesced trigger, using the current session.
+                const again = this._contextStore.snapshot().activeSession?.artemisSessionId;
+                if (again !== undefined) { void this._reconcileOnResubscribe(again); }
+            }
+        }
     }
 
     public resolveWebviewView(
@@ -1069,6 +1194,34 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             });
 
             if (result.sent) {
+                // Confirm the optimistic bubble INDEPENDENTLY of the marker: an older
+                // out-of-order send still needs its bubble stamped, and this must never
+                // touch a newer marker.
+                if (result.sentMessageId !== undefined && localId && localSessionId) {
+                    this._postMessageSafe({
+                        type: ExtensionMsg.ConfirmSentMessage,
+                        localSessionId,
+                        localId,
+                        id: result.sentMessageId,
+                    });
+                }
+                // Open the marker ONLY for the still-current, still-waiting generation.
+                // The state machine supports overlapping generations, so a POST for an
+                // older generation can return after a newer send started; it must not
+                // replace or clear the newer generation's marker.
+                const artemisSessionId = this._irisSessionManager?.currentSessionId;
+                if (result.sentMessageId !== undefined
+                    && localSessionId
+                    && artemisSessionId !== undefined
+                    && result.generation === this._runs.generation
+                    && this._runs.waiting) {
+                    this._reconcileMarker = {
+                        generation: result.generation,
+                        localSessionId,
+                        artemisSessionId,
+                        baselineMessageId: result.sentMessageId,
+                    };
+                }
                 this._onDidAttemptIrisChatSend.fire({ content, status: 'sent' });
                 this._onDidSendIrisChatMessage.fire(content);
             } else {
