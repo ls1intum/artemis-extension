@@ -3,7 +3,6 @@
     align-items: flex-start;
     gap: 8px;
     padding: 8px 16px;
-    margin: 4px 0;
     position: relative;
 }
 
@@ -16,7 +15,6 @@
 }
 
 .bubble {
-    max-width: 70%;
     padding: 12px 16px;
     border-radius: 12px;
     position: relative;
@@ -80,28 +78,44 @@
     composes: richContent from '../../../styles/richContent.module.css';
 }
 
+/* Tool-activity trail shown above a finished assistant answer. */
+.trail {
+    margin-bottom: 8px;
+}
+
+.trailSummary {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 0;
+}
+
 /* Wrapper so the error footer can sit directly under the bubble while
    still respecting the message wrapper's row-reverse for user messages. */
 .bubbleColumn {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    /* Fill a narrow sidebar (the 92% wins) but cap the line length on a wide
-       sidebar (the ~70ch wins) so lines stay readable. Applies to user and
-       assistant alike; only the alignment differs above. */
-    max-width: min(92%, 70ch);
+    min-width: 0;
 }
 
 .messageWrapper.user .bubbleColumn {
     align-items: flex-end;
+    /* User column keeps a real cap so the bubble reads as a chat bubble,
+       not a full-width block; leaves room for the bubble's own padding
+       so text never clips against the wrapper's right edge. */
+    max-width: min(70%, 560px);
 }
 
 .messageWrapper.assistant .bubbleColumn {
     align-items: flex-start;
+    /* Assistant answers flow full-width (spec §4.4): no column cap, no
+       heavy bubble background, just the sidebar's own padding. */
+    max-width: 100%;
+    width: 100%;
 }
 
-/* The bubble inside the column should no longer constrain its own width
-   since the column already handles max-width. */
 .bubbleColumn .bubble {
     max-width: 100%;
 }
@@ -181,6 +195,15 @@
 .feedbackContainer {
     display: flex;
     gap: 4px;
+    margin-top: 8px;
+    opacity: 0;
+    transition: opacity 150ms ease;
+}
+
+.messageWrapper:hover .feedbackContainer,
+.messageWrapper:focus-within .feedbackContainer,
+.feedbackContainer.visible {
+    opacity: 1;
 }
 
 .feedbackButton {
@@ -212,6 +235,12 @@
     bottom: -18px;
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.messageWrapper:hover .timestamp,
+.messageWrapper:focus-within .timestamp {
     opacity: 0.7;
 }
 

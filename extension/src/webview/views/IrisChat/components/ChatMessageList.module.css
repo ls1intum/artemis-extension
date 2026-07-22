@@ -9,6 +9,7 @@
     min-height: 100%;
     display: flex;
     flex-direction: column;
+    gap: 18px;
 }
 
 /* Folded episode container (C7). Wraps the fold-line toggle and any expanded timeline beneath it. */

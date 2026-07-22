@@ -38,6 +38,14 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         courseDataCache as never,
         contextStore,
     );
+    // postOptimisticBubble/postOfferBubble attribute the bubble to the active
+    // session (the proactive open makes it active in production). Seed one so
+    // the AddMessage is emitted rather than dropped for lack of a session.
+    contextStore.setActiveContext({
+        type: 'exercise', id: 1, title: 'Ex', courseId: 1,
+        source: 'user-selected', locked: false, selectedAt: Date.now(),
+    });
+    contextStore.createSession();
     return { provider, sandbox };
 }
 

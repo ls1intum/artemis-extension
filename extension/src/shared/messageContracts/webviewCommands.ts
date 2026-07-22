@@ -86,11 +86,14 @@ export const WebviewCmd = {
     SendMessage: 'sendMessage',
     SelectChatContext: 'selectChatContext',
     SwitchSession: 'switchSession',
+    OpenArtemisSession: 'openArtemisSession',
+    RequestCourseHistory: 'requestCourseHistory',
     CreateNewSession: 'createNewSession',
     SwitchToWorkspaceContext: 'switchToWorkspaceContext',
     ResetChatSessions: 'resetChatSessions',
     ReconnectWebSocket: 'reconnectWebSocket',
     ReloadChatSession: 'reloadChatSession',
+    ReloadActiveSession: 'reloadActiveSession',
     MessageFeedback: 'messageFeedback',
     MessageProactiveOutcome: 'messageProactiveOutcome',
     // Proactive control (AskIris Off/Less/More level, spec §12.2)
@@ -193,11 +196,21 @@ interface WebviewCmdPayloads {
     sendMessage: { text: string; localId: string; localSessionId: string };
     selectChatContext: { context: ChatContextType; itemId: number; itemName: string; itemShortName?: string };
     switchSession: { sessionId: string };
+    openArtemisSession: { courseId: number; artemisSessionId: number };
+    /**
+     * Requests the course-wide history popover's contents. `requestId` is a
+     * webview-generated monotonic counter, bumped on every open/retry, so the
+     * store can drop a response that no longer matches the latest request
+     * (e.g. a slow Course-A fetch answering after the user switched to
+     * Course-B).
+     */
+    requestCourseHistory: { courseId: number; requestId: number };
     createNewSession: undefined;
     switchToWorkspaceContext: undefined;
     resetChatSessions: undefined;
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
+    reloadActiveSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED' | 'RECOVERED'; proactiveEpisodeId?: string };
     // courseId lets every _push (init AND toggle) re-derive §14 availability with the course id (slice 5c).
@@ -301,6 +314,8 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SendMessage,
     WebviewCmd.SelectChatContext,
     WebviewCmd.SwitchSession,
+    WebviewCmd.OpenArtemisSession,
+    WebviewCmd.RequestCourseHistory,
     WebviewCmd.MessageFeedback,
     WebviewCmd.MessageProactiveOutcome,
     WebviewCmd.RequestProactiveControl,

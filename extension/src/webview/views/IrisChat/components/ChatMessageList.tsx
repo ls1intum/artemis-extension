@@ -4,10 +4,13 @@ import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import type { IrisActivityDTO, IrisRunState } from '@shared/types/apiResponses';
+
 import { useAutoScroll } from '@webview/hooks/useAutoScroll';
 import { useChatStore } from '@webview/stores/useChatStore';
-import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
+import type { ChatMessage, StreamingState } from '@webview/views/IrisChat/types';
 
+import { ActivityFeed } from './ActivityFeed';
 import styles from './ChatMessageList.module.css';
 import { groupEarlierHints } from './earlierHints';
 import { EarlierHintsGroup } from './EarlierHintsGroup';
@@ -93,7 +96,14 @@ function EpisodeFoldLine({
 interface ChatMessageListProps {
     messages: ChatMessage[];
     streaming: StreamingState;
-    activeStage: IrisStageDTO | null;
+    /** Live tool/command activity for the in-flight run. */
+    activities: IrisActivityDTO[];
+    /** The streaming answer draft, or null when none is in flight. */
+    liveDraft: { runId: string; text: string } | null;
+    /** Current run lifecycle state (drives the FAILED error branch). */
+    runState: IrisRunState | null;
+    /** Error payload for a FAILED run. */
+    runError: { message?: string } | null;
     onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
@@ -121,7 +131,10 @@ const FOLD_DELAY_MS = 5000;
 export function ChatMessageList({
     messages,
     streaming,
-    activeStage,
+    activities,
+    liveDraft,
+    runState,
+    runError,
     onFeedback,
     onSendPrompt,
     hasContext,
@@ -204,15 +217,15 @@ export function ChatMessageList({
         scrollOnSend();
     }, [messages.length, scrollOnSend]);
 
-    // Show welcome state when no messages
-    const showWelcome = messages.length === 0;
+    // An in-flight (or just-failed) run has its own surfaces to show even
+    // before the first message lands, so it suppresses the welcome state.
+    const hasRunSurface =
+        streaming.isStreaming || activities.length > 0 || !!liveDraft || runState === 'FAILED';
+    const showWelcome = messages.length === 0 && !hasRunSurface;
 
-    // Stage indicator (real Iris pipeline stages) takes priority; the
-    // legacy thinking-dots fall back when streaming flag is set but no
-    // stages have been published yet.
-    const showStageIndicator = activeStage !== null;
-    const showLegacyThinking = !showStageIndicator && streaming.isStreaming;
-    const showThinking = showStageIndicator || showLegacyThinking;
+    // The thinking indicator is the "nothing to show yet" placeholder: once the
+    // run has produced activities or a draft, those richer surfaces replace it.
+    const showThinking = streaming.isStreaming && activities.length === 0 && !liveDraft;
 
     // Closed-ness of a proactive episode: an explicit host fold frame (foldStates entry) decides
     // alone when present -- folded=false is the praise window (stays open until the ~5 s timer
@@ -313,15 +326,29 @@ export function ChatMessageList({
                                 : renderItem(row.item),
                         )}
 
-                        {/* Show thinking indicator while waiting for the assistant
-                            response (cleared by resetTransientChatUi once
-                            AddMessage arrives). */}
-                        {showThinking && (
-                            <ThinkingIndicator
-                                isVisible={true}
-                                activeStage={showStageIndicator ? activeStage : null}
+                        {/* Live run surfaces, in order: activity feed, the
+                            streaming answer draft, then the thinking placeholder
+                            (only while nothing richer exists yet). */}
+                        <ActivityFeed activities={activities} mode="live" />
+
+                        {liveDraft && (
+                            <MessageBubble
+                                isDraft
+                                message={{
+                                    localId: `draft-${liveDraft.runId}`,
+                                    role: 'assistant',
+                                    content: liveDraft.text,
+                                    timestamp: Date.now(),
+                                    status: 'sending',
+                                }}
                             />
                         )}
+
+                        <ThinkingIndicator
+                            isVisible={showThinking}
+                            runState={runState}
+                            error={runError}
+                        />
                     </>
                 )}
             </div>

@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-import type { ExtMsg, WebSocketDisplayStatus } from '@shared/messageContracts';
+import type { ExtMsg, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
+import type { IrisActivityDTO, IrisRunState } from '@shared/types/apiResponses';
 
+import type { CourseHistoryEntryVM } from '@webview/views/IrisChat/historyBuckets';
 import type {
     ChatContext,
     ChatMessage,
     ChatSession,
     ContextItem,
-    IrisStageDTO,
     ReferencedFilesData,
     StreamingState,
 } from '@webview/views/IrisChat/types';
@@ -27,6 +28,19 @@ interface MessageLoadResult {
     status: 'success' | 'error';
 }
 
+/**
+ * Course-wide conversation history for the ConversationHistory popover
+ * (Task 11). `requestId` is the latest `requestCourseHistory` request the
+ * webview has issued; `applyCourseHistory`/`setCourseHistoryError` ignore
+ * any response whose `requestId` does not match it, so a slow response for
+ * a course the user has since navigated away from cannot land here.
+ */
+interface CourseHistoryState {
+    status: 'idle' | 'loading' | 'error' | 'ready';
+    entries: CourseHistoryEntryVM[];
+    requestId: number;
+}
+
 interface ChatState {
     // Context
     context: ChatContext | null;
@@ -40,6 +54,17 @@ interface ChatState {
     hasReceivedInitialIrisState: boolean;
     exercises: ContextItem[];
     courses: ContextItem[];
+
+    // Course-wide conversation history (ConversationHistory popover)
+    courseHistory: CourseHistoryState;
+    /**
+     * Task 10's cross-context `openArtemisSession` failure. Distinct from
+     * `unavailableMessage`: nothing about chat availability changed, only
+     * the specific row the user clicked could not be opened, so it renders
+     * as an inline banner inside the history popover rather than the global
+     * banner.
+     */
+    openSessionError: string | null;
 
     // Messages
     messages: ChatMessage[];
@@ -79,8 +104,14 @@ interface ChatState {
     // Streaming
     streaming: StreamingState;
 
-    // Iris processing stages
-    irisStages: IrisStageDTO[];
+    // Run UI (streaming draft, activities, run state) — projected atomically
+    // with the webview's active session/revision via applyRunUi/applyCommit.
+    liveDraft: { runId: string; text: string } | null;
+    activities: IrisActivityDTO[];
+    runState: IrisRunState | null;
+    runError: { message?: string } | null;
+    /** Monotonic guard against out-of-order/stale run UI projections. */
+    lastRunUiRevision: number;
 
     // UI state
     isLoading: boolean;
@@ -103,9 +134,30 @@ interface ChatState {
     applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
+    /** Upserts by server `id`; messages without one always append (see `upsertMessage`). */
     addMessage: (message: ChatMessage) => void;
     /** Patch the proactive outcome on the message with this Artemis id (optimistic collapse). */
     setProactiveOutcome: (messageId: number, outcome: NonNullable<ChatMessage['proactiveOutcome']>) => void;
+    /**
+     * Apply a standalone run-UI snapshot (streaming draft/activities/run
+     * state). Rejects a projection for a session we already left, or one
+     * that is not strictly newer than the last applied revision.
+     */
+    applyRunUi: (projection: IrisRunUiProjection, activeLocalSessionId: string) => void;
+    /**
+     * Commit a message and (optionally) its run-UI projection in one atomic
+     * update, so the webview can never observe the draft cleared before the
+     * committed message lands. The message's session is checked
+     * independently of the projection's, since a projection-less commit
+     * (e.g. an error bubble) still must not land in a session we already
+     * left.
+     */
+    applyCommit: (
+        message: ChatMessage,
+        projection: IrisRunUiProjection | undefined,
+        messageLocalSessionId: string,
+        activeLocalSessionId: string,
+    ) => void;
     /**
      * Mark a still-pending user message as failed. Returns `true` only if
      * a matching message was found AND it was a pending user send
@@ -155,11 +207,18 @@ interface ChatState {
      */
     setLiveEpisode: (episodeId: string | null) => void;
 
+    // Course history actions
+    /** Bumps `requestId` and moves the slice to `loading`. */
+    setCourseHistoryLoading: (requestId: number) => void;
+    /** Ignored if `requestId` no longer matches the slice's current `requestId`. */
+    applyCourseHistory: (requestId: number, entries: CourseHistoryEntryVM[]) => void;
+    /** Ignored (stale) if `requestId` no longer matches the slice's current `requestId`. */
+    setCourseHistoryError: (requestId: number) => void;
+    setOpenSessionError: (message: string | null) => void;
+
     // Streaming actions
     startStreaming: () => void;
 
-    // Iris stage actions
-    setIrisStages: (stages: IrisStageDTO[]) => void;
     resetTransientChatUi: () => void;
 
     // UI actions
@@ -176,6 +235,20 @@ const IDLE_STREAMING: StreamingState = {
     isStreaming: false,
 };
 
+/**
+ * Artemis resends a persisted message to attach memories or activities, so a
+ * message with a known server id replaces its bubble instead of duplicating it.
+ * Messages with no server id (optimistic and error bubbles) always append.
+ */
+function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessage[] {
+    if (message.id === undefined) { return [...messages, message]; }
+    const idx = messages.findIndex((m) => m.id === message.id);
+    if (idx === -1) { return [...messages, message]; }
+    const next = [...messages];
+    next[idx] = { ...next[idx], ...message, localId: next[idx].localId };
+    return next;
+}
+
 export const useChatStore = create<ChatState>()(
     devtools(
         (set) => ({
@@ -186,13 +259,19 @@ export const useChatStore = create<ChatState>()(
             hasReceivedInitialIrisState: false,
             exercises: [],
             courses: [],
+            courseHistory: { status: 'idle', entries: [], requestId: 0 },
+            openSessionError: null,
             messages: [],
             messageLoad: null,
             suppressedIds: new Set<number>(),
             foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
             liveEpisodeIds: new Set<string>(),
             streaming: IDLE_STREAMING,
-            irisStages: [],
+            liveDraft: null,
+            activities: [],
+            runState: null,
+            runError: null,
+            lastRunUiRevision: 0,
             isLoading: false,
             webSocketStatus: 'unknown',
             disabledMessage: null,
@@ -244,17 +323,10 @@ export const useChatStore = create<ChatState>()(
 
             addMessage: (message) => {
                 set((state) => {
-                    if (message.id !== undefined) {
-                        // Dedup: already present (optimistic bubble vs chat-ws row)
-                        if (state.messages.some(m => m.id === message.id)) {
-                            return state;
-                        }
-                        // Stale-row suppression (C4): id was flagged by removeMessageById
-                        if (state.suppressedIds.has(message.id)) {
-                            return state;
-                        }
+                    // Stale-row suppression (C4): id was flagged by removeMessageById.
+                    if (message.id !== undefined && state.suppressedIds.has(message.id)) {
+                        return state;
                     }
-                    const finalMessage = message;
                     // Track live episodes (C7): episodes that arrive via addMessage are "live"
                     // (not reloaded). The liveEpisodeIds gate controls auto-fold for reloaded rows.
                     const nextLiveEpisodeIds =
@@ -263,7 +335,8 @@ export const useChatStore = create<ChatState>()(
                         message.proactiveEpisodeId
                             ? new Set([...state.liveEpisodeIds, message.proactiveEpisodeId])
                             : state.liveEpisodeIds;
-                    return { messages: [...state.messages, finalMessage], liveEpisodeIds: nextLiveEpisodeIds };
+                    // upsertMessage keeps the optimistic-vs-chat-ws pair a single row (by id).
+                    return { messages: upsertMessage(state.messages, message), liveEpisodeIds: nextLiveEpisodeIds };
                 }, false, 'addMessage');
             },
 
@@ -273,6 +346,56 @@ export const useChatStore = create<ChatState>()(
                         m.id === messageId ? { ...m, proactiveOutcome: outcome } : m,
                     ),
                 }), false, 'setProactiveOutcome');
+            },
+
+            applyRunUi: (projection, activeLocalSessionId) => {
+                if (projection.localSessionId !== activeLocalSessionId) { return; }
+                if (projection.revision <= useChatStore.getState().lastRunUiRevision) { return; }
+                set({
+                    liveDraft: projection.draft,
+                    activities: projection.activities,
+                    runState: projection.runState,
+                    runError: projection.error ?? null,
+                    streaming: { isStreaming: projection.waiting },
+                    lastRunUiRevision: projection.revision,
+                }, false, 'applyRunUi');
+            },
+
+            applyCommit: (message, projection, messageLocalSessionId, activeLocalSessionId) => {
+                // Session-check the MESSAGE independently: a projection-less
+                // error bubble still must not land in a session we already left.
+                if (messageLocalSessionId !== activeLocalSessionId) { return; }
+
+                // One set() so the message and its run state can never be
+                // observed apart, and the draft is never cleared first.
+                set((s) => {
+                    // Stale-row suppression (C4): a suppressed id must never be
+                    // re-inserted, even when it rides in on a run/proactive commit.
+                    if (message.id !== undefined && s.suppressedIds.has(message.id)) { return s; }
+                    const messages = upsertMessage(s.messages, message);
+                    // Track live episodes (C7): a proactive row arriving via a commit
+                    // (this is the sole AddMessage path in the webview) is "live".
+                    const nextLiveEpisodeIds =
+                        message.role === 'assistant' &&
+                        message.origin === 'proactive' &&
+                        message.proactiveEpisodeId
+                            ? new Set([...s.liveEpisodeIds, message.proactiveEpisodeId])
+                            : s.liveEpisodeIds;
+                    const accepts = projection !== undefined
+                        && projection.localSessionId === activeLocalSessionId
+                        && projection.revision > s.lastRunUiRevision;
+                    if (!accepts) { return { messages, liveEpisodeIds: nextLiveEpisodeIds }; }
+                    return {
+                        messages,
+                        liveEpisodeIds: nextLiveEpisodeIds,
+                        liveDraft: projection.draft,
+                        activities: projection.activities,
+                        runState: projection.runState,
+                        runError: projection.error ?? null,
+                        streaming: { isStreaming: projection.waiting },
+                        lastRunUiRevision: projection.revision,
+                    };
+                }, false, 'applyCommit');
             },
 
             markMessageFailed: (localId, errorMessage, errorReason) => {
@@ -375,9 +498,37 @@ export const useChatStore = create<ChatState>()(
                     messageLoad: null,
                     suppressedIds: new Set<number>(),
                     foldStates: new Map<string, { folded: boolean; episodeLabel?: string; closeMessageId?: number; outcome?: 'RECOVERED' | 'DISMISSED' | 'ABANDONED' }>(),
-                    irisStages: [],
                     streaming: IDLE_STREAMING,
+                    liveDraft: null,
+                    activities: [],
+                    runState: null,
+                    runError: null,
+                    lastRunUiRevision: 0,
                 }, false, 'clearMessages');
+            },
+
+            setCourseHistoryLoading: (requestId) => {
+                set({
+                    courseHistory: { status: 'loading', entries: [], requestId },
+                }, false, 'setCourseHistoryLoading');
+            },
+
+            applyCourseHistory: (requestId, entries) => {
+                if (requestId !== useChatStore.getState().courseHistory.requestId) { return; }
+                set({
+                    courseHistory: { status: 'ready', entries, requestId },
+                }, false, 'applyCourseHistory');
+            },
+
+            setCourseHistoryError: (requestId) => {
+                if (requestId !== useChatStore.getState().courseHistory.requestId) { return; }
+                set({
+                    courseHistory: { status: 'error', entries: [], requestId },
+                }, false, 'setCourseHistoryError');
+            },
+
+            setOpenSessionError: (message) => {
+                set({ openSessionError: message }, false, 'setOpenSessionError');
             },
 
             // Streaming actions
@@ -387,14 +538,14 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'startStreaming');
             },
 
-            setIrisStages: (stages) => {
-                set({ irisStages: stages }, false, 'setIrisStages');
-            },
-
             resetTransientChatUi: () => {
                 set({
-                    irisStages: [],
                     streaming: IDLE_STREAMING,
+                    liveDraft: null,
+                    activities: [],
+                    runState: null,
+                    runError: null,
+                    lastRunUiRevision: 0,
                 }, false, 'resetTransientChatUi');
             },
 

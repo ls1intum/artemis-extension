@@ -51,7 +51,6 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
             foldStates: new Map(),
             liveEpisodeIds: new Set(),
             streaming: { isStreaming: false },
-            irisStages: [],
             isLoading: false,
             webSocketStatus: 'connected',
             disabledMessage: null,
@@ -71,6 +70,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         await act(async () => {
             dispatchExtensionMessage({
                 type: 'addMessage',
+                localSessionId: 'local-test',
                 message: {
                     id: 55,
                     role: 'assistant',
@@ -107,6 +107,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         await act(async () => {
             dispatchExtensionMessage({
                 type: 'addMessage',
+                localSessionId: 'local-test',
                 message: {
                     id: 66,
                     role: 'assistant',
@@ -147,6 +148,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         await act(async () => {
             dispatchExtensionMessage({
                 type: 'addMessage',
+                localSessionId: 'local-test',
                 message: {
                     id: 88,
                     role: 'assistant',

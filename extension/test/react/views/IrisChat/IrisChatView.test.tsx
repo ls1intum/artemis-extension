@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -61,7 +61,11 @@ describe('IrisChatView', () => {
 			foldStates: new Map(),
 			liveEpisodeIds: new Set(),
 			streaming: { isStreaming: false },
-			irisStages: [],
+			liveDraft: null,
+			activities: [],
+			runState: null,
+			runError: null,
+			lastRunUiRevision: 0,
 			isLoading: false,
 			webSocketStatus: 'connected',
 			disabledMessage: null,
@@ -111,11 +115,221 @@ describe('IrisChatView', () => {
 		expect(textarea).not.toBeDisabled();
 	});
 
-	it('shows context selector', () => {
+	it('shows the header prompt to select a context when none is set', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
-		// ContextSelector shows "Select context" when no context
-		expect(screen.getByText('Select context')).toBeInTheDocument();
+		// ChatHeader shows "Select a course or exercise" when no context.
+		expect(screen.getByText('Select a course or exercise')).toBeInTheDocument();
+	});
+
+	describe('Header popovers', () => {
+		it('opens the context picker from the header and posts selectChatContext', async () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					locked: false,
+					source: 'user-selected',
+				},
+				exercises: [
+					{ id: 2, title: 'Other Exercise', courseId: 10 },
+				],
+				courses: [{ id: 10, title: 'Course X' }],
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByText('Test Exercise'));
+
+			await waitFor(() => {
+				expect(screen.getByText('Other Exercise')).toBeInTheDocument();
+			});
+
+			await userEvent.click(screen.getByText('Other Exercise'));
+
+			expect(mockApi.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: 'command',
+					command: 'selectChatContext',
+					payload: expect.objectContaining({
+						context: 'exercise',
+						itemId: 2,
+					}),
+				})
+			);
+
+			// Closing the picker after a selection must not leave both
+			// popovers mounted.
+			expect(screen.queryAllByRole('dialog')).toHaveLength(0);
+		});
+
+		it('never shows the context picker and history at the same time', async () => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					locked: false,
+					source: 'user-selected',
+				},
+				exercises: [],
+				courses: [],
+				...HYDRATED,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Open history first.
+			await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+			expect(screen.getAllByRole('dialog')).toHaveLength(1);
+
+			// Now open the picker. History must unmount; exactly one dialog remains.
+			await userEvent.click(screen.getByText('Test Exercise'));
+
+			await waitFor(() => {
+				expect(screen.getAllByRole('dialog')).toHaveLength(1);
+			});
+		});
+	});
+
+	describe('Run lock: navigation while Iris is streaming', () => {
+		const exerciseContext = {
+			type: 'exercise' as const,
+			id: 1,
+			title: 'Test Exercise',
+			shortName: 'TE',
+			courseId: 10,
+			locked: false,
+			source: 'user-selected' as const,
+		};
+
+		// canCreateConversation requires a non-empty active session; use this
+		// instead of HYDRATED so the "New conversation" affordances start out
+		// enabled and any suppression proven below is caused by the run
+		// lock, not by the pre-existing (unrelated) canCreateConversation gate.
+		const HYDRATED_NON_EMPTY = {
+			...HYDRATED,
+			sessions: [{ ...HYDRATED.sessions[0], messageCount: 1 }],
+		};
+
+		const NAV_COMMANDS = ['selectChatContext', 'switchSession', 'createNewSession', 'openArtemisSession', 'resetChatSessions'];
+
+		const expectNoNavCommandPosted = (mockApi: ReturnType<typeof createMockVsCodeApi>) => {
+			for (const command of NAV_COMMANDS) {
+				expect(mockApi.postMessage).not.toHaveBeenCalledWith(
+					expect.objectContaining({ type: 'command', command })
+				);
+			}
+		};
+
+		it('disables the ChatHeader context row, new-conversation, and history buttons while streaming', () => {
+			useChatStore.setState({
+				context: exerciseContext,
+				...HYDRATED_NON_EMPTY,
+				streaming: { isStreaming: true },
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.getByRole('button', { name: /Test Exercise/ })).toBeDisabled();
+			expect(screen.getByLabelText('New conversation')).toBeDisabled();
+			expect(screen.getByLabelText('View past conversations')).toBeDisabled();
+
+			fireEvent.click(screen.getByRole('button', { name: /Test Exercise/ }));
+			fireEvent.click(screen.getByLabelText('New conversation'));
+			fireEvent.click(screen.getByLabelText('View past conversations'));
+
+			expectNoNavCommandPosted(mockApi);
+		});
+
+		it('closes an already-open context picker when streaming starts, so a late row click cannot post selectChatContext', async () => {
+			useChatStore.setState({
+				context: exerciseContext,
+				exercises: [{ id: 2, title: 'Other Exercise', courseId: 10 }],
+				courses: [{ id: 10, title: 'Course X' }],
+				...HYDRATED_NON_EMPTY,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByText('Test Exercise'));
+			const otherExerciseRow = await screen.findByText('Other Exercise');
+
+			// The run starts while the picker is still open.
+			useChatStore.setState({ streaming: { isStreaming: true } });
+
+			await waitFor(() => {
+				expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+			});
+
+			// The row reference was captured before the popover unmounted.
+			// React tears down its listeners on unmount, so this simulates a
+			// click that lands just as the run starts.
+			fireEvent.click(otherExerciseRow);
+
+			expectNoNavCommandPosted(mockApi);
+		});
+
+		it('closes an already-open history popover when streaming starts, so a late entry click cannot post openArtemisSession', async () => {
+			useChatStore.setState({
+				context: exerciseContext,
+				...HYDRATED_NON_EMPTY,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+
+			dispatchExtensionMessage({
+				type: 'updateCourseHistory',
+				requestId: 1,
+				entries: [{
+					artemisSessionId: 99,
+					courseId: 10,
+					mode: 'PROGRAMMING_EXERCISE_CHAT',
+					entityId: 5,
+					entityName: 'Other Exercise',
+					title: 'Old conversation',
+					lastActivity: Date.now(),
+				}],
+			});
+
+			const historyRow = await screen.findByText('Old conversation');
+			const newConversationButton = within(screen.getByRole('dialog')).getByRole('button', { name: /new conversation/i });
+
+			// The run starts while the history popover is still open.
+			useChatStore.setState({ streaming: { isStreaming: true } });
+
+			await waitFor(() => {
+				expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+			});
+
+			fireEvent.click(historyRow);
+			fireEvent.click(newConversationButton);
+
+			expectNoNavCommandPosted(mockApi);
+		});
+
+		it('closes an already-open side menu when streaming starts, so a late click cannot post resetChatSessions', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
+			const resetButton = screen.getByText('Reset & Sync Sessions');
+
+			// The run starts while the side menu is still open.
+			useChatStore.setState({ streaming: { isStreaming: true } });
+
+			await waitFor(() => {
+				expect(screen.queryByText('Reset & Sync Sessions')).not.toBeInTheDocument();
+			});
+
+			fireEvent.click(resetButton);
+
+			expectNoNavCommandPosted(mockApi);
+		});
 	});
 
 	it('sends sendMessage command when user submits text', async () => {
@@ -199,11 +413,15 @@ describe('IrisChatView', () => {
 
 
 	it('adds a single message from addMessage extension event', async () => {
+		// applyCommit drops a message whose localSessionId does not match the
+		// active session, so both must line up for the commit to land.
+		useChatStore.setState({ activeSessionId: 'local-test' });
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
 
 		dispatchExtensionMessage({
 			type: 'addMessage',
+			localSessionId: 'local-test',
 			message: { id: 5, role: 'assistant', content: 'New reply', timestamp: Date.now() },
 		});
 
@@ -734,10 +952,16 @@ describe('IrisChatView', () => {
 		});
 	});
 
-	describe('irisStages reset paths', () => {
+	describe('run UI projection and reset paths', () => {
 		beforeEach(() => {
+			// Seed an in-flight run: waiting flag on, a partial draft and a
+			// running activity, so each path can assert whether it is cleared.
 			useChatStore.setState({
-				irisStages: [{ name: 'thinking', state: 'IN_PROGRESS', message: 'Thinking', weight: 10 }],
+				streaming: { isStreaming: true },
+				liveDraft: { runId: 'A', text: 'partial' },
+				activities: [{ id: 'a1', kind: 'TOOL', name: 'file_lookup', state: 'RUNNING' }],
+				runState: 'RUNNING',
+				lastRunUiRevision: 0,
 				context: {
 					type: 'exercise',
 					id: 1,
@@ -749,36 +973,66 @@ describe('IrisChatView', () => {
 			});
 		});
 
-		it('clears irisStages when assistant AddMessage arrives', async () => {
+		it('commits an assistant message with a runUi and clears the run UI atomically', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
+				runUi: {
+					localSessionId: 'local-test', revision: 5, draft: null,
+					activities: [], waiting: false, runState: 'FINISHED',
+				},
 				message: { id: 1, role: 'assistant', content: 'Response', timestamp: Date.now() },
 			});
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(screen.getByText('Response')).toBeInTheDocument();
 			});
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			expect(useChatStore.getState().liveDraft).toBeNull();
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 
-		it('does not clear irisStages when user AddMessage arrives', async () => {
+		it('does not clear the waiting flag when an intermediate (final:false) message arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// An intermediate message carries no runUi: the run continues, so
+			// the waiting flag (and the rest of the run UI) must survive.
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				localSessionId: 'local-test',
+				message: { id: 2, role: 'assistant', content: 'Intermediate', timestamp: Date.now(), final: false },
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Intermediate')).toBeInTheDocument();
+			});
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().liveDraft?.text).toBe('partial');
+		});
+
+		it('applies a standalone UpdateIrisRunUi projection', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
-				type: 'addMessage',
-				message: { id: 1, role: 'user', content: 'Question', timestamp: Date.now() },
+				type: 'updateIrisRunUi',
+				projection: {
+					localSessionId: 'local-test', revision: 2,
+					draft: { runId: 'B', text: 'new draft' },
+					activities: [], waiting: true, runState: 'RUNNING',
+				},
 			});
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toHaveLength(1);
+				expect(useChatStore.getState().liveDraft?.text).toBe('new draft');
 			});
 		});
 
-		it('clears irisStages when LoadMessages arrives', async () => {
-			useChatStore.setState({ activeSessionId: 'local-test' });
+		it('clears the run UI when LoadMessages arrives', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -790,44 +1044,53 @@ describe('IrisChatView', () => {
 			});
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			});
+			expect(useChatStore.getState().liveDraft).toBeNull();
 		});
 
-		it('clears irisStages when ClearChatMessages arrives', async () => {
+		it('clears the run UI when ClearChatMessages arrives', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({ type: 'clearChatMessages' });
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().liveDraft).toBeNull();
 			});
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 
-		it('clears irisStages when UpdateWebSocketStatus reports a non-connected state', async () => {
+		it('clears the run UI when UpdateWebSocketStatus reports a non-connected state', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'disconnected' });
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			});
+			expect(useChatStore.getState().liveDraft).toBeNull();
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 
-		it('does not clear irisStages when UpdateWebSocketStatus reports connected', async () => {
+		it('does not clear the run UI when UpdateWebSocketStatus reports connected', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'connected' });
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toHaveLength(1);
+				expect(useChatStore.getState().webSocketStatus).toBe('connected');
 			});
+			expect(useChatStore.getState().liveDraft?.text).toBe('partial');
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 		});
 
-		it('clears irisStages when user sends a message', async () => {
+		it('clears the run draft when the user sends a message', async () => {
+			// Streaming must be off for the input to be enabled; the stale
+			// draft/activities from a previous run should be cleared on send.
+			useChatStore.setState({ streaming: { isStreaming: false } });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -835,35 +1098,22 @@ describe('IrisChatView', () => {
 			await userEvent.type(textarea, 'Hello{Enter}');
 
 			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toEqual([]);
+				expect(useChatStore.getState().liveDraft).toBeNull();
 			});
-		});
-
-		it('sets irisStages when UpdateIrisStages arrives', async () => {
-			useChatStore.setState({ irisStages: [] });
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			dispatchExtensionMessage({
-				type: 'updateIrisStages',
-				stages: [{ name: 'analyzing', state: 'IN_PROGRESS', message: 'Analyzing', weight: 20 }],
-			});
-
-			await waitFor(() => {
-				expect(useChatStore.getState().irisStages).toHaveLength(1);
-				expect(useChatStore.getState().irisStages[0].name).toBe('analyzing');
-			});
+			expect(useChatStore.getState().activities).toEqual([]);
 		});
 	});
 
 	describe('RemoveMessage routing (stale-row suppression, C4)', () => {
 		it('removes a previously-added message row when RemoveMessage arrives', async () => {
 			const mockApi = createMockVsCodeApi();
+			useChatStore.setState({ activeSessionId: 'local-test' });
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Add a message via the extension wire.
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
 				message: { id: 77, role: 'assistant', content: 'Proactive hint', timestamp: Date.now() },
 			});
 
@@ -881,11 +1131,13 @@ describe('IrisChatView', () => {
 
 		it('suppresses a subsequent AddMessage with the same id after RemoveMessage (suppressedIds)', async () => {
 			const mockApi = createMockVsCodeApi();
+			useChatStore.setState({ activeSessionId: 'local-test' });
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Add, then remove message id 88.
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
 				message: { id: 88, role: 'assistant', content: 'Will be removed', timestamp: Date.now() },
 			});
 			await waitFor(() => {
@@ -900,6 +1152,7 @@ describe('IrisChatView', () => {
 			// A late-arriving chat-ws row with the same id must NOT be reinserted.
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
 				message: { id: 88, role: 'assistant', content: 'Re-inserted (should NOT happen)', timestamp: Date.now() },
 			});
 
@@ -911,10 +1164,12 @@ describe('IrisChatView', () => {
 	describe('proactiveEpisodeId passthrough (C4)', () => {
 		it('AddMessage with proactiveEpisodeId stores it on the resulting row', async () => {
 			const mockApi = createMockVsCodeApi();
+			useChatStore.setState({ activeSessionId: 'local-test' });
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'addMessage',
+				localSessionId: 'local-test',
 				message: {
 					id: 55,
 					role: 'assistant',
@@ -981,6 +1236,7 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: {
 						id: 10,
 						role: 'assistant',
@@ -1022,10 +1278,12 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-1', content: 'Hint one', timestamp: Date.now() },
 				});
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 11, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-1', content: 'Wrong index here', timestamp: Date.now() },
 				});
 			});
@@ -1064,6 +1322,7 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-2', content: 'First hint', timestamp: Date.now() },
 				});
 			});
@@ -1092,6 +1351,7 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 20, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-2', content: 'Progress confirmed', timestamp: Date.now() },
 				});
 			});
@@ -1202,10 +1462,12 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-g', content: 'Earlier hint', timestamp: Date.now() },
 				});
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 11, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-g', content: 'Latest hint', timestamp: Date.now() },
 				});
 			});
@@ -1246,6 +1508,7 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 11, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-close', content: 'Great progress!', timestamp: Date.now() },
 				});
 			});
@@ -1267,6 +1530,7 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 10, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-unmount', content: 'Hint', timestamp: Date.now() },
 				});
 			});
@@ -1275,6 +1539,7 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 20, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-unmount', content: 'Progress confirmed', timestamp: Date.now() },
 				});
 			});
@@ -1315,6 +1580,7 @@ describe('IrisChatView', () => {
 			await act(async () => {
 				dispatchExtensionMessage({
 					type: 'addMessage',
+					localSessionId: 'local-test',
 					message: { id: 42, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-live', content: 'Try a helper method', timestamp: Date.now() },
 				});
 			});

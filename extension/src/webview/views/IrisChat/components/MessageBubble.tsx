@@ -8,13 +8,19 @@ import { Streamdown } from 'streamdown';
 
 import { useStreamdownConfig } from '@webview/hooks/useStreamdownConfig';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
+import { activityTrailSummary } from '@webview/views/IrisChat/activityLabels';
 import type { ChatMessage } from '@webview/views/IrisChat/types';
 
+import { ActivityFeed } from './ActivityFeed';
 import styles from './MessageBubble.module.css';
 
 interface MessageBubbleProps {
     message: ChatMessage;
-    onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
+    /**
+     * Optional: a draft (streaming) bubble has nothing to rate, so it renders
+     * without feedback controls and needs no handler.
+     */
+    onFeedback?: (messageId: number, feedback: 'positive' | 'negative') => void;
     /** Invoked when the Retry button on a failed user message is clicked. */
     onRetry?: (localId: string) => void;
     /**
@@ -23,6 +29,11 @@ interface MessageBubbleProps {
      * Iris still disabled for the exercise).
      */
     retryDisabled?: boolean;
+    /**
+     * Marks the live streaming draft. Streamdown renders in streaming mode
+     * (incomplete-markdown tolerant) and feedback controls are suppressed.
+     */
+    isDraft?: boolean;
     /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes, spec §6.3). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
     /**
@@ -44,11 +55,11 @@ function MessageBubbleComponent({
     onFeedback,
     onRetry,
     retryDisabled,
+    isDraft,
     onDismiss,
     onOfferAnswer,
     grouped,
 }: MessageBubbleProps) {
-    const [hovering, setHovering] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const isAssistant = message.role === 'assistant';
     const isUser = message.role === 'user';
@@ -59,25 +70,29 @@ function MessageBubbleComponent({
 
     const handleFeedback = (feedback: 'positive' | 'negative') => {
         if (message.id !== undefined) {
-            onFeedback(message.id, feedback);
+            onFeedback?.(message.id, feedback);
         }
     };
 
+    const hasFeedback = message.helpful !== undefined && message.helpful !== null;
     const isFailed = message.status === 'error';
     const isProactive = isAssistant && message.origin === 'proactive';
     const isDismissed = isProactive && message.proactiveOutcome === 'DISMISSED';
-    // Grouped rows never collapse individually — the episode-level fold is the only collapse.
+    // Grouped rows never collapse individually (the episode-level fold is the only collapse).
     const collapsible = isDismissed && !grouped;
     const bodyVisible = !(collapsible && !expanded);
-    // Thumbs are removed from ALL proactive rows (spec: feedback off proactive; normal replies keep it).
-    const showThumbs = isAssistant && !isFailed && bodyVisible && !isProactive;
-    // A grouped (timeline) row never renders its own Dismiss — the EpisodeTimeline footer owns it. A
+    const hasTrail = isAssistant && !!message.activities && message.activities.length > 0;
+    // Feedback thumbs: assistant, not failed, not a draft/intermediate run, body visible,
+    // and never on a proactive row (proactive replies carry no feedback per spec).
+    const showFeedback = isAssistant && !isFailed && !isDraft && message.final !== false
+        && bodyVisible && !isProactive;
+    // A grouped (timeline) row never renders its own Dismiss (the EpisodeTimeline footer owns it). A
     // non-grouped proactive bubble (proactive without an episode) still shows its Dismiss.
     const showDismiss = isProactive && !grouped && !isDismissed
         && message.id !== undefined && !!onDismiss && bodyVisible && !isFailed;
     // A consented offer bubble (Moment-1 "stuck" / Moment-3 "abandon") renders its own accept/decline
     // buttons until answered. Same ownership split as Dismiss: a grouped (timeline) row never renders
-    // its own buttons — the EpisodeTimeline footer owns the grouped case.
+    // its own buttons (the EpisodeTimeline footer owns the grouped case).
     const offer = message.offer;
     const showOfferButtons = isProactive && !grouped && !!offer && !offer.answered && !!onOfferAnswer;
 
@@ -88,8 +103,6 @@ function MessageBubbleComponent({
                 [styles.assistant]: isAssistant,
                 [styles.groupedWrapper]: isProactive && grouped,
             })}
-            onMouseEnter={() => setHovering(true)}
-            onMouseLeave={() => setHovering(false)}
         >
             <div className={styles.bubbleColumn}>
                 <div
@@ -108,6 +121,18 @@ function MessageBubbleComponent({
                             Iris reached out
                         </div>
                     )}
+
+                    {/* Tool-activity trail, rendered above the answer for
+                        finished assistant messages that carried activities. */}
+                    {hasTrail && (
+                        <details className={styles.trail} open>
+                            <summary className={styles.trailSummary}>
+                                {activityTrailSummary(message.activities!)}
+                            </summary>
+                            <ActivityFeed activities={message.activities!} mode="trail" />
+                        </details>
+                    )}
+
                     {/* A dismissed proactive bubble collapses (caption stays, body hidden behind a toggle);
                         every other message renders its content directly. The error footer below augments
                         the content instead of replacing it, so the user can see what they tried to send. */}
@@ -123,7 +148,8 @@ function MessageBubbleComponent({
                         <>
                             <div className={styles.content}>
                                 <Streamdown
-                                    mode="static"
+                                    mode={isDraft ? 'streaming' : 'static'}
+                                    parseIncompleteMarkdown={isDraft}
                                     components={streamdownComponents}
                                 >
                                     {message.content}
@@ -141,39 +167,41 @@ function MessageBubbleComponent({
                         </>
                     )}
 
-                    {(showThumbs || showDismiss || showOfferButtons) && (
+                    {showFeedback && (
+                        <div
+                            className={clsx(styles.feedbackContainer, {
+                                [styles.visible]: hasFeedback,
+                            })}
+                        >
+                            <button
+                                className={clsx(styles.feedbackButton, {
+                                    [styles.selected]: message.helpful === true,
+                                })}
+                                onClick={() => handleFeedback('positive')}
+                                aria-label="Helpful"
+                            >
+                                <ThumbsUp
+                                    size={16}
+                                    fill={message.helpful === true ? 'currentColor' : 'none'}
+                                />
+                            </button>
+                            <button
+                                className={clsx(styles.feedbackButton, {
+                                    [styles.selected]: message.helpful === false,
+                                })}
+                                onClick={() => handleFeedback('negative')}
+                                aria-label="Not helpful"
+                            >
+                                <ThumbsDown
+                                    size={16}
+                                    fill={message.helpful === false ? 'currentColor' : 'none'}
+                                />
+                            </button>
+                        </div>
+                    )}
+
+                    {(showDismiss || showOfferButtons) && (
                         <div className={clsx(styles.actionRow, { [styles.actionRowCard]: isProactive })}>
-                            {/* Hover-revealed floating bar: absolutely positioned so it reserves no
-                                space in the resting state (no empty gap) and overhangs the bubble's
-                                bottom edge on hover. */}
-                            {showThumbs && (
-                                <div className={styles.feedbackContainer}>
-                                    <button
-                                        className={clsx(styles.feedbackButton, {
-                                            [styles.selected]: message.helpful === true,
-                                        })}
-                                        onClick={() => handleFeedback('positive')}
-                                        aria-label="Helpful"
-                                    >
-                                        <ThumbsUp
-                                            size={16}
-                                            fill={message.helpful === true ? 'currentColor' : 'none'}
-                                        />
-                                    </button>
-                                    <button
-                                        className={clsx(styles.feedbackButton, {
-                                            [styles.selected]: message.helpful === false,
-                                        })}
-                                        onClick={() => handleFeedback('negative')}
-                                        aria-label="Not helpful"
-                                    >
-                                        <ThumbsDown
-                                            size={16}
-                                            fill={message.helpful === false ? 'currentColor' : 'none'}
-                                        />
-                                    </button>
-                                </div>
-                            )}
                             {/* Consented offer buttons on a non-grouped proactive bubble (a grouped/timeline row's
                                 buttons live in the EpisodeTimeline footer instead). */}
                             {showOfferButtons && offer && (
@@ -238,9 +266,13 @@ function MessageBubbleComponent({
             </div>
 
             {/* Per-message timestamps are suppressed inside an episode block: the bubbles are tight, so an
-                absolute-positioned time would overlap the neighbouring row. The block reads as one session. */}
-            {hovering && !grouped && (
-                <span className={styles.timestamp}>{relativeTime}</span>
+                absolute-positioned time would overlap the neighbouring row. The block reads as one session.
+                Outside a block the timestamp is always mounted (revealed on hover/focus via CSS) so assistive
+                tech can reach it and the reveal needs no JS hover state. */}
+            {!grouped && (
+                <span className={styles.timestamp} data-testid="message-timestamp">
+                    {relativeTime}
+                </span>
             )}
         </div>
     );
@@ -249,7 +281,7 @@ function MessageBubbleComponent({
 // Custom comparator for React.memo. We include `errorReason` because it
 // drives `retryDisabled` derivations one layer up; if it changes, the
 // parent's recomputed `retryDisabled` will already differ and trigger a
-// re-render via that prop — but keeping it here makes the equality check
+// re-render via that prop, but keeping it here makes the equality check
 // honest about which fields actually matter to this component.
 const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
     return (
@@ -261,8 +293,11 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.proactiveOutcome === next.message.proactiveOutcome &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
+        prev.message.final === next.message.final &&
+        prev.message.activities === next.message.activities &&
         prev.message.offer?.offerId === next.message.offer?.offerId &&
         prev.message.offer?.answered === next.message.offer?.answered &&
+        prev.isDraft === next.isDraft &&
         prev.grouped === next.grouped &&
         prev.retryDisabled === next.retryDisabled &&
         prev.onRetry === next.onRetry &&

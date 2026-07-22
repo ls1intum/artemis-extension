@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import Info from 'lucide-react/dist/esm/icons/info';
 import Menu from 'lucide-react/dist/esm/icons/menu';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand, WebviewCmd } from '@shared/messageContracts';
@@ -10,12 +10,14 @@ import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useChatStore } from '@webview/stores/useChatStore';
 
+import { ChatHeader } from './components/ChatHeader';
 import { ChatInput } from './components/ChatInput';
 import { ChatMessageList } from './components/ChatMessageList';
-import { ContextSelector } from './components/ContextSelector';
+import { ContextPicker } from './components/ContextPicker';
+import { ConversationHistory } from './components/ConversationHistory';
 import { ReferencedFiles } from './components/ReferencedFiles';
 import styles from './IrisChatView.module.css';
-import type { IrisStageDTO } from './types';
+import type { ChatMessage } from './types';
 
 interface IrisChatViewProps {
     vscodeApi: VsCodeApi;
@@ -28,35 +30,26 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         applyLoadedMessages, setMessageLoadError,
         clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
-        setIrisStages, resetTransientChatUi,
+        resetTransientChatUi, applyRunUi, applyCommit,
         markMessageFailed, removeMessageById, foldEpisode, setLiveEpisode, resolveOffer, foldAllEpisodes,
+        applyCourseHistory, setCourseHistoryError, setOpenSessionError,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const inputSectionRef = useRef<HTMLDivElement>(null);
-
-    // Publish the input section's measured height as a CSS variable so the
-    // ContextSelector dropdown can anchor its bottom edge to the actual layout
-    // (instead of a viewport-relative magic number). Without this the dropdown
-    // either falls short of the input or overshoots it depending on banner /
-    // referenced-file visibility.
-    useEffect(() => {
-        const inputEl = inputSectionRef.current;
-        const rootEl = containerRef.current;
-        if (!inputEl || !rootEl) {
-            return;
-        }
-        const update = () => {
-            rootEl.style.setProperty('--iris-input-height', `${inputEl.offsetHeight}px`);
-        };
-        update();
-        const ro = new ResizeObserver(update);
-        ro.observe(inputEl);
-        return () => ro.disconnect();
-    }, []);
+    // Element that opened the currently-visible popover (context row or
+    // history button), captured so focus can be restored to it on close.
+    // A single shared ref instead of a `headerRef` because the two openers
+    // are different elements and a click-outside close must return focus
+    // to whichever one was actually clicked.
+    const openerRef = useRef<HTMLElement | null>(null);
+    // Monotonic id for `requestCourseHistory`, bumped on every history open
+    // and Retry so the store can drop a response for a request that is no
+    // longer the latest one.
+    const historyRequestIdRef = useRef(0);
 
     // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
@@ -81,6 +74,36 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         return undefined;
     }, [store.context?.id]);
 
+    // Close the history popover once the active session actually changes:
+    // the success signal for a row click's `openArtemisSession` (which does
+    // NOT close the popover itself, so a resulting inline openSessionError
+    // stays visible). Guarded on the ref already having a value so this
+    // never fires on the render that first opens the popover.
+    const previousActiveSessionIdForHistory = useRef<string | null>(null);
+    useEffect(() => {
+        if (
+            historyOpen
+            && previousActiveSessionIdForHistory.current !== null
+            && store.activeSessionId !== previousActiveSessionIdForHistory.current
+        ) {
+            closePopovers();
+        }
+        previousActiveSessionIdForHistory.current = store.activeSessionId;
+    }, [store.activeSessionId, historyOpen]);
+
+    // Run lock: navigation cannot abandon an in-flight run. The moment
+    // streaming starts, close/neutralize any popover or side menu that was
+    // already open. Without this, a late click inside one (still mounted
+    // from before the run began) could post a context/session-changing
+    // command. ChatHeader's disableNavigation covers the still-closed case
+    // (its own buttons refuse to open a new popover while streaming).
+    useEffect(() => {
+        if (store.streaming.isStreaming) {
+            setSideMenuOpen(false);
+            closePopovers();
+        }
+    }, [store.streaming.isStreaming]);
+
     // Message listener - handles messages from extension
     useExtensionMessage((msg) => {
         switch (msg.type) {
@@ -94,7 +117,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
             case ExtensionMsg.AddMessage: {
                 const m = msg.message;
-                addMessage({
+                const mapped: ChatMessage = {
                     id: m.id,
                     localId: crypto.randomUUID(),
                     role: m.role,
@@ -105,11 +128,30 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     proactiveOutcome: m.proactiveOutcome,
                     proactiveEpisodeId: m.proactiveEpisodeId,
                     offer: m.offer,
+                    activities: m.activities,
+                    final: m.final,
                     status: 'sent',
-                });
-                if (m.role === 'assistant') {
-                    resetTransientChatUi();
-                }
+                };
+                // The projection now owns the transient run UI: applyCommit
+                // clears the draft/waiting atomically with the committed
+                // message when a runUi is attached, and leaves them untouched
+                // for an intermediate (final:false) message so the waiting flag
+                // survives until the run truly ends. Both producers always set
+                // localSessionId (and drop the message when they have no
+                // active session), so it is required on the wire contract.
+                const activeLocalSessionId = useChatStore.getState().activeSessionId ?? '';
+                applyCommit(
+                    mapped,
+                    msg.runUi,
+                    msg.localSessionId,
+                    activeLocalSessionId,
+                );
+                break;
+            }
+
+            case ExtensionMsg.UpdateIrisRunUi: {
+                const activeLocalSessionId = useChatStore.getState().activeSessionId ?? '';
+                applyRunUi(msg.projection, activeLocalSessionId);
                 break;
             }
 
@@ -137,6 +179,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         origin: m.origin,
                         proactiveOutcome: m.proactiveOutcome,
                         proactiveEpisodeId: m.proactiveEpisodeId,
+                        activities: m.activities,
+                        final: m.final,
                         status: 'sent' as const,
                     })),
                 );
@@ -187,17 +231,33 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
 
+            case ExtensionMsg.OpenSessionError: {
+                // A pre-switch open failure (overview fetch failed or the id
+                // was gone). Nothing was mutated and the active session is
+                // untouched, so it cannot key to a localSessionId. Nothing
+                // else about chat availability changed, so this renders as
+                // an inline banner inside the history popover rather than
+                // the global unavailable banner.
+                setOpenSessionError(msg.message);
+                break;
+            }
+
             case ExtensionMsg.HideUnavailableState:
                 setUnavailableMessage(null);
                 break;
 
-            case ExtensionMsg.UpdateNoAiStatus: {
-                setNoAiDetected(msg.isNoAiDetected);
+            case ExtensionMsg.UpdateCourseHistory: {
+                applyCourseHistory(msg.requestId, msg.entries);
                 break;
             }
 
-            case ExtensionMsg.UpdateIrisStages: {
-                setIrisStages(msg.stages);
+            case ExtensionMsg.CourseHistoryError: {
+                setCourseHistoryError(msg.requestId);
+                break;
+            }
+
+            case ExtensionMsg.UpdateNoAiStatus: {
+                setNoAiDetected(msg.isNoAiDetected);
                 break;
             }
 
@@ -242,7 +302,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, setIrisStages, resetTransientChatUi, markMessageFailed, removeMessageById, foldEpisode, setLiveEpisode, resolveOffer, foldAllEpisodes]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, removeMessageById, foldEpisode, setLiveEpisode, resolveOffer, foldAllEpisodes, applyCourseHistory, setCourseHistoryError, setOpenSessionError]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
@@ -255,7 +315,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             return;
         }
 
-        // Clear any stale stages/streaming from previous request
+        // Clear any stale streaming state from the previous request
         resetTransientChatUi();
 
         // Add optimistic message
@@ -367,6 +427,59 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'reloadChatSession');
     };
 
+    // Target-preserving retry for a failed message load: reload ONLY the
+    // active session, without jumping back to the context's default session.
+    const handleRetryActiveSession = () => {
+        postCommand(vscodeApi, 'reloadActiveSession');
+    };
+
+    // Popover open/close helpers. The two popovers are mutually exclusive.
+    // Opening one always closes the other. Closing restores focus to
+    // whichever element opened it (captured in openerRef), then clears the
+    // ref so a click-outside close doesn't refocus a stale element.
+    const openPicker = (opener: HTMLElement) => {
+        openerRef.current = opener;
+        setHistoryOpen(false);
+        setPickerOpen(true);
+    };
+
+    // Course-wide history is per-course, not per-exercise: an exercise
+    // context resolves to its course, a course context resolves to itself.
+    const resolveHistoryCourseId = (): number | undefined => {
+        if (store.context === null) { return undefined; }
+        return store.context.type === 'course' ? store.context.id : store.context.courseId;
+    };
+
+    // Shared by the initial open and the popover's own Retry button. With no
+    // resolvable course (no context selected yet) there is nothing to fetch,
+    // so the slice goes straight to `ready`/empty instead of round-tripping.
+    const requestCourseHistoryFor = (requestId: number) => {
+        const courseId = resolveHistoryCourseId();
+        store.setCourseHistoryLoading(requestId);
+        if (courseId === undefined) {
+            store.applyCourseHistory(requestId, []);
+            return;
+        }
+        postCommand(vscodeApi, 'requestCourseHistory', { courseId, requestId });
+    };
+
+    const openHistory = (opener: HTMLElement) => {
+        openerRef.current = opener;
+        setPickerOpen(false);
+        setOpenSessionError(null);
+        historyRequestIdRef.current += 1;
+        requestCourseHistoryFor(historyRequestIdRef.current);
+        setHistoryOpen(true);
+    };
+
+    const closePopovers = () => {
+        setPickerOpen(false);
+        setHistoryOpen(false);
+        setOpenSessionError(null);
+        openerRef.current?.focus();
+        openerRef.current = null;
+    };
+
     // Check if chat is disabled
     const isChatDisabled = store.disabledMessage !== null || store.isNoAiDetected;
 
@@ -397,6 +510,28 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     };
 
+    // Header data. activeSession backs the conversation row (title, message
+    // count, last-activity); courseName is the exercise-context subtitle
+    // (course chat contexts show a fixed "Course chat" subtitle instead, see
+    // ChatHeader).
+    const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
+    const courseName = store.context?.type === 'exercise'
+        ? store.courses.find(c => c.id === store.context?.courseId)?.title ?? null
+        : null;
+    // Mirrors the retired context dropdown's canCreateNewSession intent: a
+    // brand new, still-empty active session should be reused rather than
+    // spawning another empty one, and a create must not race an in-flight
+    // send.
+    const canCreateConversation =
+        store.context !== null
+        && (activeSession?.messageCount ?? 0) > 0
+        && !store.streaming.isStreaming;
+
+    // Run lock (see the effect above): navigation cannot abandon an
+    // in-flight run, so the context row and both icon buttons go inert for
+    // its duration.
+    const disableNavigation = store.streaming.isStreaming;
+
     // Disabled banner = strictly off (instructor disabled, .noai). The
     // unavailable banner (yellow, retry-able) is rendered separately below.
     // When both states are non-null, the disabled banner wins — it carries
@@ -425,14 +560,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     } else if (showUnavailableBanner) {
         disabledPlaceholder = 'Iris is temporarily unavailable. Retry to reload.';
     }
-
-    // Derive active stage: first stage that is not DONE or SKIPPED.
-    // NOT_STARTED is intentionally included: it shows dots immediately while
-    // Artemis transitions the stage to IN_PROGRESS (provides instant feedback).
-    const activeStage = useMemo<IrisStageDTO | null>(
-        () => store.irisStages.find(s => s.state !== 'DONE' && s.state !== 'SKIPPED') ?? null,
-        [store.irisStages],
-    );
 
     // Hydrated when either no context is selected (legit "Select a course"
     // steady state) or when the active session has a successful load. The
@@ -467,7 +594,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
 
     return (
-        <div className={styles.container} ref={containerRef}>
+        <div className={styles.container}>
             {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
@@ -497,6 +624,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             <button
                                 className={styles.menuItem}
                                 onClick={handleResetSessions}
+                                disabled={store.streaming.isStreaming}
                             >
                                 Reset & Sync Sessions
                             </button>
@@ -535,27 +663,64 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             </div>
 
-            {/* Context Selector */}
+            {/* Two-row header: context (course/exercise) + conversation.
+                pickerOpen/historyOpen are mutually exclusive; both popovers
+                are anchored to this section (position: relative) so they
+                render directly beneath the header. */}
             <div className={styles.contextSection}>
-                <ContextSelector
+                <ChatHeader
                     context={store.context}
-                    sessions={store.sessions}
-                    activeSessionId={store.activeSessionId}
-                    exercises={store.exercises}
-                    courses={store.courses}
-                    onSelectContext={(type, id, title, shortName) => {
-                        postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
-                    }}
-                    onSelectSession={(sessionId) => {
-                        postCommand(vscodeApi, 'switchSession', { sessionId });
-                    }}
-                    onCreateNewSession={() => {
-                        postCommand(vscodeApi, 'createNewSession');
-                    }}
-                    onSwitchToWorkspace={() => {
-                        postCommand(vscodeApi, 'switchToWorkspaceContext');
-                    }}
+                    activeSession={activeSession}
+                    courseName={courseName}
+                    canCreateConversation={canCreateConversation}
+                    disableNavigation={disableNavigation}
+                    onOpenContextPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
+                    onNewConversation={() => postCommand(vscodeApi, 'createNewSession')}
+                    onOpenHistory={(e) => openHistory(e.currentTarget as HTMLElement)}
                 />
+
+                {pickerOpen && (
+                    <ContextPicker
+                        context={store.context}
+                        exercises={store.exercises}
+                        courses={store.courses}
+                        onSelectContext={(type, id, title, shortName) => {
+                            postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
+                            closePopovers();
+                        }}
+                        onClose={closePopovers}
+                    />
+                )}
+
+                {historyOpen && (
+                    <ConversationHistory
+                        entries={store.courseHistory.entries}
+                        status={store.courseHistory.status}
+                        activeArtemisSessionId={activeSession?.artemisSessionId ?? null}
+                        canCreateConversation={canCreateConversation}
+                        openError={store.openSessionError}
+                        onSelectEntry={(entry) => {
+                            // Deliberately does NOT close the popover: a
+                            // resulting openSessionError needs a visible
+                            // destination. It closes once the active
+                            // session actually changes (see the effect
+                            // above) or on Escape/click-outside.
+                            postCommand(vscodeApi, 'openArtemisSession', {
+                                courseId: entry.courseId,
+                                artemisSessionId: entry.artemisSessionId,
+                            });
+                        }}
+                        onNewConversation={() => {
+                            postCommand(vscodeApi, 'createNewSession');
+                            closePopovers();
+                        }}
+                        onRetry={() => {
+                            historyRequestIdRef.current += 1;
+                            requestCourseHistoryFor(historyRequestIdRef.current);
+                        }}
+                        onClose={closePopovers}
+                    />
+                )}
             </div>
 
             {/* Disabled banner (Iris not available or .noai detected) */}
@@ -620,8 +785,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 : messagesErrored ? (
                     <div className={styles.loadingState}>
                         <div className={styles.loadError} role="alert">
-                            Failed to load chat history. Try selecting the
-                            session again or reconnecting.
+                            Failed to load chat history.
+                            <button
+                                className={styles.retryButton}
+                                onClick={handleRetryActiveSession}
+                            >
+                                Retry
+                            </button>
                         </div>
                     </div>
                 ) : (contextSwitching || messagesLoading) ? (
@@ -642,7 +812,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <ChatMessageList
                         messages={store.messages}
                         streaming={store.streaming}
-                        activeStage={activeStage}
+                        activities={store.activities}
+                        liveDraft={store.liveDraft}
+                        runState={store.runState}
+                        runError={store.runError}
                         onFeedback={handleFeedback}
                         onDismiss={handleDismissProactive}
                         onResolve={handleResolveProactive}
@@ -657,7 +830,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             </div>
 
             {/* Input section */}
-            <div className={styles.inputSection} ref={inputSectionRef}>
+            <div className={styles.inputSection}>
                 {/* Referenced files */}
                 <ReferencedFiles
                     files={store.referencedFiles}

@@ -1,10 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { ExtMsg } from '@shared/messageContracts';
+import type { ExtMsg, IrisRunUiProjection } from '@shared/messageContracts';
+import type { IrisActivityDTO } from '@shared/types/apiResponses';
 
 import { useChatStore } from '@webview/stores/useChatStore';
-import type { ChatMessage, IrisStageDTO, ReferencedFilesData } from '@webview/views/IrisChat/types';
+import type { ChatMessage, ReferencedFilesData } from '@webview/views/IrisChat/types';
 
 const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 	localId: 'local-1',
@@ -23,12 +24,11 @@ const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = 
 	...overrides,
 });
 
-const makeStage = (overrides: Partial<IrisStageDTO> = {}): IrisStageDTO => ({
-	name: 'thinking',
-	weight: 10,
-	state: 'IN_PROGRESS',
-	message: 'Thinking hard',
-	internal: false,
+const makeActivity = (overrides: Partial<IrisActivityDTO> = {}): IrisActivityDTO => ({
+	id: 'a1',
+	kind: 'TOOL',
+	name: 'file_lookup',
+	state: 'RUNNING',
 	...overrides,
 });
 
@@ -468,53 +468,26 @@ describe('useChatStore', () => {
 		expect(result.current.context).toBeNull();
 	});
 
-	it('initializes with empty irisStages', () => {
-		const { result } = renderHook(() => useChatStore());
-		expect(result.current.irisStages).toEqual([]);
-	});
-
-	it('setIrisStages replaces the stages array', () => {
-		const { result } = renderHook(() => useChatStore());
-		const stages = [makeStage({ name: 'thinking' }), makeStage({ name: 'analyzing', state: 'NOT_STARTED' })];
-
-		act(() => {
-			result.current.setIrisStages(stages);
-		});
-
-		expect(result.current.irisStages).toHaveLength(2);
-		expect(result.current.irisStages[0].name).toBe('thinking');
-		expect(result.current.irisStages[1].state).toBe('NOT_STARTED');
-	});
-
-	it('setIrisStages replaces previous stages', () => {
+	it('resetTransientChatUi clears the run UI and streaming state', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
-			result.current.setIrisStages([makeStage({ name: 'old' })]);
-		});
-
-		act(() => {
-			result.current.setIrisStages([makeStage({ name: 'new' })]);
-		});
-
-		expect(result.current.irisStages).toHaveLength(1);
-		expect(result.current.irisStages[0].name).toBe('new');
-	});
-
-	it('resetTransientChatUi clears irisStages and streaming state', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.setIrisStages([makeStage()]);
-			result.current.startStreaming();
+			result.current.applyRunUi({
+				localSessionId: 's1', revision: 1, draft: { runId: 'A', text: 'partial' },
+				activities: [makeActivity()], waiting: true, runState: 'RUNNING',
+			}, 's1');
 		});
 
 		act(() => {
 			result.current.resetTransientChatUi();
 		});
 
-		expect(result.current.irisStages).toEqual([]);
 		expect(result.current.streaming.isStreaming).toBe(false);
+		expect(result.current.liveDraft).toBeNull();
+		expect(result.current.activities).toEqual([]);
+		expect(result.current.runState).toBeNull();
+		expect(result.current.runError).toBeNull();
+		expect(result.current.lastRunUiRevision).toBe(0);
 	});
 
 	it('resetTransientChatUi does not clear messages', () => {
@@ -522,7 +495,10 @@ describe('useChatStore', () => {
 
 		act(() => {
 			result.current.addMessage(makeMessage({ localId: 'msg-1' }));
-			result.current.setIrisStages([makeStage()]);
+			result.current.applyRunUi({
+				localSessionId: 's1', revision: 1, draft: { runId: 'A', text: 'partial' },
+				activities: [makeActivity()], waiting: true, runState: 'RUNNING',
+			}, 's1');
 		});
 
 		act(() => {
@@ -530,7 +506,8 @@ describe('useChatStore', () => {
 		});
 
 		expect(result.current.messages).toHaveLength(1);
-		expect(result.current.irisStages).toEqual([]);
+		expect(result.current.liveDraft).toBeNull();
+		expect(result.current.activities).toEqual([]);
 	});
 
 	describe('markMessageFailed', () => {
@@ -650,20 +627,102 @@ describe('useChatStore', () => {
 		});
 	});
 
-	it('clearMessages also clears irisStages', () => {
+	it('clearMessages also clears the run UI (draft, activities, run state, revision)', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1' }));
-			result.current.setIrisStages([makeStage()]);
+			const activity: IrisActivityDTO = { id: 'a1', kind: 'TOOL', name: 'search', state: 'RUNNING' };
+			result.current.applyRunUi({
+				localSessionId: 's1', revision: 3, draft: { runId: 'A', text: 'partial' },
+				activities: [activity],
+				waiting: true, runState: 'RUNNING',
+			}, 's1');
 		});
 
 		act(() => {
 			result.current.clearMessages();
 		});
 
-		expect(result.current.messages).toEqual([]);
-		expect(result.current.irisStages).toEqual([]);
+		expect(result.current.liveDraft).toBeNull();
+		expect(result.current.activities).toEqual([]);
+		expect(result.current.runState).toBeNull();
+		expect(result.current.runError).toBeNull();
+		expect(result.current.lastRunUiRevision).toBe(0);
+	});
+
+	describe('streaming and commits', () => {
+		const projection = (over: Partial<IrisRunUiProjection> = {}): IrisRunUiProjection => ({
+			localSessionId: 's1', revision: 1, draft: null, activities: [],
+			waiting: false, runState: null, ...over,
+		});
+		const msg = (id: number | undefined, content: string): ChatMessage => ({
+			id, localId: `l${id ?? 'x'}`, role: 'assistant', content, timestamp: 0, status: 'sent',
+		});
+
+		it('upserts by server id instead of duplicating', () => {
+			useChatStore.getState().addMessage(msg(7, 'first'));
+			useChatStore.getState().addMessage(msg(7, 'first with memories'));
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().messages[0].content).toBe('first with memories');
+		});
+
+		it('appends messages without a server id', () => {
+			useChatStore.getState().addMessage({ ...msg(undefined, 'a'), localId: 'l1' });
+			useChatStore.getState().addMessage({ ...msg(undefined, 'b'), localId: 'l2' });
+			expect(useChatStore.getState().messages).toHaveLength(2);
+		});
+
+		it('applies a newer projection and rejects an older revision', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'hi' } }), 's1');
+			expect(useChatStore.getState().liveDraft?.text).toBe('hi');
+			useChatStore.getState().applyRunUi(projection({ revision: 4, draft: { runId: 'A', text: 'stale' } }), 's1');
+			expect(useChatStore.getState().liveDraft?.text).toBe('hi');
+		});
+
+		it('rejects a projection for another session', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 9, draft: { runId: 'A', text: 'x' } }), 's2');
+			expect(useChatStore.getState().liveDraft).toBeNull();
+		});
+
+		it('applies a commit atomically: message present, draft cleared, one update', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'partial' } }), 's1');
+			useChatStore.getState().applyCommit(msg(3, 'final'), projection({ revision: 2 }), 's1', 's1');
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().liveDraft).toBeNull();
+		});
+
+		it('inserts a projection-less bubble without touching run state', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 1, waiting: true }), 's1');
+			useChatStore.getState().applyCommit(msg(4, 'error'), undefined, 's1', 's1');
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().messages).toHaveLength(1);
+		});
+
+		it('drops a projection-less bubble from a stale session', () => {
+			useChatStore.getState().applyCommit(msg(5, 'stale'), undefined, 's-old', 's1');
+			expect(useChatStore.getState().messages).toHaveLength(0);
+		});
+
+		it('applies the message but rejects a stale-revision projection, leaving run-UI fields untouched', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'live' }, waiting: true }), 's1');
+			useChatStore.getState().applyCommit(msg(6, 'final'), projection({ revision: 5 }), 's1', 's1');
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 6 && m.content === 'final')).toBe(true);
+			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'A', text: 'live' });
+			expect(useChatStore.getState().runState).toBeNull();
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().lastRunUiRevision).toBe(5);
+		});
+
+		it('applies the message but rejects a projection scoped to another session, leaving run-UI fields untouched', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'live' }, waiting: true }), 's1');
+			useChatStore.getState().applyCommit(msg(7, 'final'), projection({ revision: 2, localSessionId: 's2' }), 's1', 's1');
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 7 && m.content === 'final')).toBe(true);
+			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'A', text: 'live' });
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().lastRunUiRevision).toBe(1);
+		});
 	});
 
 	// ---------------------------------------------------------------------------

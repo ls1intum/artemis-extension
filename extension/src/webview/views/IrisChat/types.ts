@@ -1,5 +1,5 @@
 import type { ExerciseRef } from '@shared/types';
-export type { IrisStageDTO } from '@shared/types/apiResponses';
+import type { IrisActivityDTO } from '@shared/types/apiResponses';
 
 // Chat message as rendered in the UI
 export interface ChatMessage {
@@ -44,6 +44,10 @@ export interface ChatMessage {
      * When set (and `answered` unset), the bubble renders answer buttons; once `answered`, the condensed line.
      */
     offer?: { offerId: string; moment: 'stuck' | 'abandon'; answered?: 'accept' | 'decline' | 'timeout' };
+    /** Tool activity persisted with the message; renders as the trail. */
+    activities?: IrisActivityDTO[];
+    /** `false` marks an intermediate message: no feedback controls, run continues. */
+    final?: boolean;
 }
 
 // Chat session summary (from extension)
@@ -72,6 +76,9 @@ export interface ChatContext {
 export interface ContextItem extends ExerciseRef {
     repositoryUri?: string;
     isWorkspace?: boolean;
+    releaseDate?: string;
+    dueDate?: string;
+    lastViewed?: number;   // for compareCoursesForPicker; from TrackedCourse/TrackedExercise
 }
 
 // Referenced file info

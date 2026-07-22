@@ -18,6 +18,9 @@ import {
     IrisChatSessionService,
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
+import type { CourseHistoryEntry } from '@extension/services/iris/context/courseHistory';
+import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
+import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
@@ -55,6 +58,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _chatContextManager: ChatContextManager;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _noAiDetectionService: NoAiDetectionService;
+
+    /**
+     * Single owner of the Iris run state machine. Injected into the WS handler
+     * (which drives it from inbound frames) and, via narrow callbacks, into the
+     * message + session services (which drive the send lifecycle and resets).
+     */
+    private readonly _runs = new IrisRunStateMachine();
 
     /**
      * Context-keyed single-flight guard for chat-session reloads. Auto-retry
@@ -118,6 +128,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
+    /**
+     * Last successful `requestCourseHistory` result per course. Read-through:
+     * a cache hit short-circuits the API call entirely (see
+     * `requestCourseHistory`). Session mutations invalidate the affected
+     * course's entry via `ContextStore.onDidChangeSessions` (Task 12,
+     * subscribed in the constructor) so the next request refetches.
+     */
+    private readonly _courseHistoryCache = new Map<number, CourseHistoryEntry[]>();
+
 
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
@@ -158,6 +177,22 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
             })
         );
+        this._disposables.push(
+            this._contextStore.onDidChangeSessions(({ contextKeys }) => {
+                for (const key of contextKeys) {
+                    const courseId = this._resolveCourseIdForContextKey(key);
+                    if (courseId === undefined) {
+                        // Can't tell which course this key belongs to (malformed
+                        // key, or an exercise whose course isn't tracked locally
+                        // yet), clear everything rather than risk serving stale
+                        // history for a course we can't otherwise invalidate.
+                        this._courseHistoryCache.clear();
+                        return;
+                    }
+                    this._courseHistoryCache.delete(courseId);
+                }
+            })
+        );
         this._viewStatePresenter = new ChatViewStatePresenter(this._contextStore, (msg) => this._postMessageSafe(msg));
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -174,12 +209,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatSessionService = new IrisChatSessionService(
             deps,
             () => this._irisSessionManager,
+            { resetRuns: () => this._websocketMessageHandler.resetRuns() },
         );
         this._chatMessageService = new ChatMessageService(
             deps,
             this._websocketService,
             () => this._irisSessionManager,
             this._chatSessionService,
+            createRunLifecycle(
+                this._runs,
+                () => this._websocketMessageHandler.resetRunUiAndPublish(),
+                () => this._websocketMessageHandler.publishCurrentRunUi(),
+            ),
         );
         this._chatContextManager = new ChatContextManager(
             deps,
@@ -190,6 +231,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._websocketService,
             () => this._irisSessionManager,
             (message) => this._postMessageSafe(message),
+            this._runs,
+            () => this._contextStore.snapshot().activeSession?.id,
             (artemisSessionId, title) => {
                 if (this._contextStore.updateSessionTitle(artemisSessionId, title)) {
                     this._viewStatePresenter.postSnapshot();
@@ -475,6 +518,140 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * Atomic cross-context open of a prior Artemis chat session, driven from
+     * the course-wide history popover (which only knows the course id and the
+     * Artemis session id). The host resolves mode/entity from the course
+     * overview. The webview never invents the context. Ordering closes the
+     * stale-open race:
+     *   1. Bump the navigation token immediately, invalidating any in-flight
+     *      loader (its `t === contextLoadToken` re-check now fails).
+     *   2. Fetch the overview; re-check the token straight after the await. If
+     *      a newer navigation bumped it, return silently: the newer op owns
+     *      the UI, and emitting an error here would clobber it. On fetch
+     *      failure or a missing id (only while still current) post
+     *      `openSessionError` and stop; nothing has been mutated.
+     *   3. Derive context host-side, switch context WITHOUT the default-session
+     *      loader, upsert/rehome the target session, select it, then load its
+     *      messages through the guarded `switchToSession` path (which also
+     *      corrects the seeded messageCount once messages arrive).
+     */
+    public async openArtemisSession(params: { courseId: number; artemisSessionId: number }): Promise<void> {
+        const { courseId, artemisSessionId } = params;
+
+        if (!this._artemisApiService) {
+            this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message: 'Iris is not available right now.' });
+            return;
+        }
+
+        // Step 1: invalidate any in-flight loader up front.
+        const loadToken = this._chatSessionService.incrementLoadToken();
+
+        let entry;
+        try {
+            const summaries = await this._artemisApiService.listChatSessionsForCourse(courseId);
+            // Step 2: re-check immediately after the await. A newer navigation
+            // owning the UI must not be disturbed: return silently, no error.
+            if (loadToken !== this._chatSessionService.contextLoadToken) {
+                logger.info('openArtemisSession: superseded during overview fetch, aborting silently', LogCategory.IRIS_CHAT);
+                return;
+            }
+            entry = buildCourseHistory(summaries, courseId).find(e => e.artemisSessionId === artemisSessionId);
+        } catch (error: unknown) {
+            if (loadToken !== this._chatSessionService.contextLoadToken) {
+                logger.info('openArtemisSession: overview fetch failed but navigation is stale, suppressing error', LogCategory.IRIS_CHAT);
+                return;
+            }
+            logger.error('openArtemisSession: overview fetch failed', LogCategory.IRIS_CHAT, error);
+            this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message: 'Could not open that conversation. Please try again.' });
+            return;
+        }
+
+        if (!entry) {
+            // Missing id: only surface if we are still the current navigation.
+            if (loadToken !== this._chatSessionService.contextLoadToken) {
+                return;
+            }
+            logger.warn(`openArtemisSession: session ${artemisSessionId} not found in course ${courseId} overview`, LogCategory.IRIS_CHAT);
+            this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message: 'That conversation is no longer available.' });
+            return;
+        }
+
+        // Step 3: derive the context host-side (never from the webview).
+        const type: ChatContextType = entry.mode === 'COURSE_CHAT' ? 'course' : 'exercise';
+        const id = entry.mode === 'COURSE_CHAT' ? courseId : entry.entityId;
+        const tracked = type === 'course'
+            ? this._contextStore.snapshot().courses.find(c => c.id === id)
+            : this._contextStore.getExerciseById(id);
+        const title = entry.entityName ?? tracked?.title ?? (type === 'course' ? 'Course chat' : `Exercise ${id}`);
+
+        // Re-check once more before mutating any state.
+        if (loadToken !== this._chatSessionService.contextLoadToken) {
+            return;
+        }
+
+        this._chatContextManager.switchContext({
+            type,
+            id,
+            title,
+            courseId,
+            reason: 'user-selected',
+            loadDefaultSession: false,
+        });
+
+        const contextKey = `${type}:${id}`;
+        const localId = this._contextStore.upsertSessionFromOverview({
+            contextKey,
+            artemisSessionId,
+            title: entry.title,
+            lastActivity: entry.lastActivity,
+        });
+        this._contextStore.switchSession(localId);
+        this._viewStatePresenter.postSnapshot();
+
+        // Load messages for the (now active) target session through the
+        // guarded path; the messageCount correction happens inside
+        // initializeIrisSessionAndLoadMessages. A load failure surfaces the
+        // LoadMessagesError UI for the target session, whose Retry uses
+        // reloadActiveSession (no rollback, no jump to default).
+        this._chatSessionService.switchToSession(localId);
+    }
+
+    /**
+     * Answers the webview's `requestCourseHistory` for the ConversationHistory
+     * popover: on a cache hit, serve `_courseHistoryCache` directly (no API
+     * call); otherwise fetch the course's chat-session overview, project it
+     * through `buildCourseHistory`, cache it, and post the result back tagged
+     * with the `requestId` the webview sent. The webview drops anything
+     * whose `requestId` no longer matches its latest request, so this method
+     * does not need to track staleness itself; it can post exactly one
+     * message per call.
+     */
+    public async requestCourseHistory(params: { courseId: number; requestId: number }): Promise<void> {
+        const { courseId, requestId } = params;
+
+        const cached = this._courseHistoryCache.get(courseId);
+        if (cached) {
+            this._postMessageSafe({ type: ExtensionMsg.UpdateCourseHistory, courseId, requestId, entries: cached });
+            return;
+        }
+
+        if (!this._artemisApiService) {
+            this._postMessageSafe({ type: ExtensionMsg.CourseHistoryError, courseId, requestId });
+            return;
+        }
+
+        try {
+            const summaries = await this._artemisApiService.listChatSessionsForCourse(courseId);
+            const entries = buildCourseHistory(summaries, courseId);
+            this._courseHistoryCache.set(courseId, entries);
+            this._postMessageSafe({ type: ExtensionMsg.UpdateCourseHistory, courseId, requestId, entries });
+        } catch (error: unknown) {
+            logger.error('requestCourseHistory: overview fetch failed', LogCategory.IRIS_CHAT, error);
+            this._postMessageSafe({ type: ExtensionMsg.CourseHistoryError, courseId, requestId });
+        }
+    }
+
+    /**
      * Post an optimistic proactive bubble to the chat immediately (before the server-persisted
      * message arrives via the chat WebSocket). When `messageId` is set, the webview can
      * deduplicate against a later `loadMessages` response that contains the same id (one bubble).
@@ -485,8 +662,20 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * The badge-clears-on-chat-open behaviour (onDidChangeVisibility) is unaffected.
      */
     postOptimisticBubble(text: string, messageId: number | null, episodeId?: string): void {
+        // Attribute the bubble to the active session. In the active-surface flow
+        // the session open runs right AFTER this, so a session may not be active
+        // yet: a persisted bubble (messageId set) then arrives via that open's
+        // message load, and a runtime-only bubble is transient (the same net
+        // effect as before, where the following session switch cleared it).
+        // Without an active session the webview would drop an unattributed row.
+        const localSessionId = this._contextStore.snapshot().activeSession?.id;
+        if (!localSessionId) {
+            logger.warn('postOptimisticBubble: no active session to attribute the proactive bubble to; dropping', LogCategory.IRIS_CHAT);
+            return;
+        }
         this._postMessageSafe({
             type: ExtensionMsg.AddMessage,
+            localSessionId,
             message: {
                 ...(messageId !== null ? { id: messageId } : {}),
                 role: 'assistant',
@@ -504,8 +693,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * into its episode group, mirroring `postOptimisticBubble`.
      */
     postOfferBubble(o: { offerId: string; episodeId: string; moment: 'stuck' | 'abandon' }): void {
+        const localSessionId = this._contextStore.snapshot().activeSession?.id;
+        if (!localSessionId) {
+            logger.warn('postOfferBubble: no active session to attribute the offer bubble to; dropping', LogCategory.IRIS_CHAT);
+            return;
+        }
         this._postMessageSafe({
             type: ExtensionMsg.AddMessage,
+            localSessionId,
             message: {
                 role: 'assistant',
                 content: '',
@@ -603,6 +798,34 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         await this._chatSessionService.openProactiveSession(sessionId);
     }
 
+    /**
+     * Task 12: parses a `"type:id"` session context key (e.g. `course:5`,
+     * `exercise:12`) into the courseId whose history-cache entry it affects.
+     * Exercise keys resolve via the already-tracked exercise's `courseId`:
+     * no network fallback here, this only reads local state so the
+     * invalidation subscription stays synchronous. Returns `undefined` for a
+     * malformed key, an unknown type, or an exercise whose course isn't
+     * tracked locally yet; the caller treats that as "clear everything".
+     */
+    private _resolveCourseIdForContextKey(contextKey: string): number | undefined {
+        const separatorIndex = contextKey.indexOf(':');
+        if (separatorIndex === -1) {
+            return undefined;
+        }
+        const type = contextKey.slice(0, separatorIndex);
+        const id = Number(contextKey.slice(separatorIndex + 1));
+        if (!Number.isFinite(id)) {
+            return undefined;
+        }
+        if (type === 'course') {
+            return id;
+        }
+        if (type === 'exercise') {
+            return this._contextStore.getExerciseById(id)?.courseId;
+        }
+        return undefined;
+    }
+
     public getSelectedContext(): ActiveContext | null {
         return this._chatContextManager.getSelectedContext();
     }
@@ -690,6 +913,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     }
                     break;
                 }
+                case WebviewCmd.OpenArtemisSession: {
+                    const { courseId, artemisSessionId } = getPayload<WebCmd<'openArtemisSession'>>(message);
+                    if (typeof courseId === 'number' && typeof artemisSessionId === 'number') {
+                        void this.openArtemisSession({ courseId, artemisSessionId }).catch(err => {
+                            logger.error('Error opening Artemis session', LogCategory.IRIS_CHAT, err);
+                        });
+                    }
+                    break;
+                }
+                case WebviewCmd.RequestCourseHistory: {
+                    const { courseId, requestId } = getPayload<WebCmd<'requestCourseHistory'>>(message);
+                    if (typeof courseId === 'number' && typeof requestId === 'number') {
+                        void this.requestCourseHistory({ courseId, requestId }).catch(err => {
+                            logger.error('Error requesting course history', LogCategory.IRIS_CHAT, err);
+                        });
+                    }
+                    break;
+                }
                 case WebviewCmd.SwitchToWorkspaceContext:
                     this._handleSwitchToWorkspaceContext();
                     break;
@@ -722,6 +963,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     // is enforced inside _reloadChatSession so a button mash
                     // or a concurrent reconnect can't kick off duplicates.
                     void this._reloadChatSession('manual-retry');
+                    break;
+                case WebviewCmd.ReloadActiveSession:
+                    // Target-preserving Retry from the central "failed to load
+                    // chat history" UI. Reloads ONLY the active session (not the
+                    // whole context), single-flight inside the service.
+                    this._chatSessionService.reloadActiveSessionMessages();
                     break;
                 case WebviewCmd.MessageFeedback: {
                     const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(message);
@@ -849,18 +1096,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             return;
         }
 
-        // Fallback for builds that don't carry the new correlation IDs.
-        // Posting an assistant AddMessage causes the existing webview
-        // handler to call resetTransientChatUi, which clears the stuck
-        // indicator at the cost of a slightly noisier UX.
-        this._postMessageSafe({
-            type: ExtensionMsg.AddMessage,
-            message: {
-                role: 'assistant',
-                content: errorMessage,
-                timestamp: Date.now(),
-            }
-        });
+        // Fallback for builds that don't carry the new correlation IDs (so
+        // there is no optimistic message to mark failed). The old fallback
+        // posted an assistant AddMessage purely to trigger the webview's
+        // resetTransientChatUi — but Task 9 removes exactly that reset, so a
+        // bubble here would no longer unstick anything. Instead surface the
+        // reason as a notification and release the composer via the run-UI
+        // projection, which now owns clearing the indicator. Deliberately no
+        // AddMessage: that is what makes localSessionId genuinely required.
+        vscode.window.showWarningMessage(errorMessage);
+        this._websocketMessageHandler.publishCurrentRunUi();
     }
 
     private _friendlyRejectionMessage(result: { reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable'; contextLabel?: string }): string {
@@ -1013,14 +1258,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             const errorMessage = error instanceof Error ? error.message : String(error);
             this._onDidAttemptIrisChatSend.fire({ content, status: 'failed', errorMessage });
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
-            this._postMessageSafe({
-                type: ExtensionMsg.AddMessage,
-                message: {
-                    role: 'assistant',
-                    content: `Error: ${errorMessage}`,
-                    timestamp: Date.now()
-                }
-            });
+            // Belt and braces: release the composer even if the throw left no
+            // open generation to abort. The bubble carries no runUi, so on its
+            // own it would leave run state (and the indicator) untouched.
+            this._websocketMessageHandler.publishCurrentRunUi();
+            // Use the captured send-time localSessionId, never the live
+            // snapshot: after a mid-flight session switch the live snapshot
+            // would file this send's error under the new session.
+            if (localSessionId) {
+                this._postMessageSafe({
+                    type: ExtensionMsg.AddMessage,
+                    localSessionId,
+                    message: {
+                        role: 'assistant',
+                        content: `Error: ${errorMessage}`,
+                        timestamp: Date.now(),
+                    },
+                });
+            }
         }
     }
 

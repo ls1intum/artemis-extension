@@ -232,4 +232,17 @@ describe('MessageBubble', () => {
 			expect(onOfferAnswer).toHaveBeenCalledWith('off-1', 'ep-1', 'stuck', 'accept');
 		});
 	});
+
+	it('keeps the timestamp in the DOM for assistant messages (not hover-gated mount)', () => {
+		const message = makeMessage({ role: 'assistant', content: 'hi' });
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
+		// timestamp element present without any hover event
+		expect(screen.getByTestId('message-timestamp')).toBeInTheDocument();
+	});
+
+	it('keeps the timestamp in the DOM for user messages as well', () => {
+		const message = makeMessage({ role: 'user', content: 'hey', status: 'sent' });
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
+		expect(screen.getByTestId('message-timestamp')).toBeInTheDocument();
+	});
 });
