@@ -15,6 +15,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
+- **Exercise description header:** Tightened the spacing under the "Exercise Description" heading and added a divider line, so the description starts directly below the title instead of after a large gap.
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
 
 ### Internal
