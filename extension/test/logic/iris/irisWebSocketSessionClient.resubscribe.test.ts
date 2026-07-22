@@ -33,6 +33,7 @@ vi.mock('vscode', () => {
 import type { ArtemisApiService } from '@extension/api';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import type { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import type { ActiveContext } from '@extension/types';
 
 /** Minimum interval between resubscription attempts, mirrored from the client. */
 const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
@@ -42,12 +43,26 @@ const noopApiService = {} as unknown as ArtemisApiService;
 function createWebsocketServiceStub(options: {
     isConnected?: () => boolean;
     subscribeToIrisSession?: (id: number, onMessage: (m: unknown) => void) => () => void;
-}): ArtemisWebsocketService {
-    return {
+}): { service: ArtemisWebsocketService; fireConnectionState: (connected: boolean) => void } {
+    const connectionStateListeners: Array<(e: { connected: boolean }) => void> = [];
+
+    const service = {
         isConnected: options.isConnected ?? (() => true),
         subscribeToIrisSession: options.subscribeToIrisSession ?? (() => () => { /* unsubscribe no-op */ }),
-        onDidChangeConnectionState: () => ({ dispose: () => { /* no-op */ } }),
+        onDidChangeConnectionState: (listener: (e: { connected: boolean }) => void) => {
+            connectionStateListeners.push(listener);
+            return { dispose: () => { /* no-op */ } };
+        },
     } as unknown as ArtemisWebsocketService;
+
+    return {
+        service,
+        fireConnectionState: (connected: boolean) => {
+            for (const listener of [...connectionStateListeners]) {
+                listener({ connected });
+            }
+        },
+    };
 }
 
 describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
@@ -56,7 +71,7 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
     });
 
     it('fires the sessionId exactly once after a real successful subscribe', async () => {
-        const websocketService = createWebsocketServiceStub({ isConnected: () => true });
+        const { service: websocketService } = createWebsocketServiceStub({ isConnected: () => true });
         const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
 
         const fired: number[] = [];
@@ -68,7 +83,7 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
     });
 
     it('does not fire when the WebSocket is not connected', async () => {
-        const websocketService = createWebsocketServiceStub({ isConnected: () => false });
+        const { service: websocketService } = createWebsocketServiceStub({ isConnected: () => false });
         const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
 
         const fired: number[] = [];
@@ -80,7 +95,7 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
     });
 
     it('does not fire on a rate-limited second call within MIN_RESUBSCRIBE_INTERVAL_MS', async () => {
-        const websocketService = createWebsocketServiceStub({ isConnected: () => true });
+        const { service: websocketService } = createWebsocketServiceStub({ isConnected: () => true });
         const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
 
         const fired: number[] = [];
@@ -100,7 +115,7 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
     });
 
     it('does not fire when subscribeToIrisSession throws', async () => {
-        const websocketService = createWebsocketServiceStub({
+        const { service: websocketService } = createWebsocketServiceStub({
             isConnected: () => true,
             subscribeToIrisSession: () => {
                 throw new Error('subscribe failed');
@@ -113,5 +128,40 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
 
         await expect(client.subscribeToSession(42)).resolves.toBeUndefined();
         expect(fired).toEqual([]);
+    });
+
+    it('forces a resubscribe via the connection-state monitor even within MIN_RESUBSCRIBE_INTERVAL_MS', async () => {
+        const { service: websocketService, fireConnectionState } = createWebsocketServiceStub({ isConnected: () => true });
+        const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
+
+        const fired: number[] = [];
+        client.onDidResubscribe((sessionId) => fired.push(sessionId));
+
+        const activeContext: ActiveContext = {
+            type: 'exercise',
+            id: 1,
+            title: 'test exercise',
+            source: 'system-default',
+            locked: false,
+            selectedAt: 0,
+        };
+
+        const nowSpy = vi.spyOn(Date, 'now');
+
+        nowSpy.mockReturnValue(1_000_000);
+        await client.initializeSession(activeContext, 42);
+
+        // Simulate a rapid reconnect flap well within the rate-limit window
+        // (STOMP's own reconnectDelay is 500ms, so this is the common case).
+        // Every reconnect is a fresh STOMP session, so the connection-state
+        // monitor must force the resubscribe through the throttle instead of
+        // silently dropping it.
+        nowSpy.mockReturnValue(1_000_000 + MIN_RESUBSCRIBE_INTERVAL_MS - 1);
+        fireConnectionState(true);
+        // Let the void-returning async call inside the monitor callback settle.
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fired).toEqual([42, 42]);
     });
 });
