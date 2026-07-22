@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware';
 import type { ExtMsg, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
 import type { IrisActivityDTO, IrisRunState } from '@shared/types/apiResponses';
 
+import { mergeHistory } from '@webview/stores/mergeHistory';
 import type { CourseHistoryEntryVM } from '@webview/views/IrisChat/historyBuckets';
 import type {
     ChatContext,
@@ -106,6 +107,14 @@ interface ChatState {
     setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
     /** Apply messages and record a successful hydration for the given session. */
     applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
+    /**
+     * Non-destructive counterpart to `applyLoadedMessages`, used by the
+     * reconnect reconciliation path: merges a persisted history snapshot
+     * into the live list instead of replacing it, so an in-flight optimistic
+     * bubble survives. Ignored if `localSessionId` no longer matches the
+     * active session (the reconcile landed after a session switch).
+     */
+    mergeLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
     /** Upserts by server `id`; messages without one always append (see `upsertMessage`). */
@@ -143,6 +152,8 @@ interface ChatState {
         errorReason: NonNullable<ChatMessage['errorReason']>,
     ) => boolean;
     removeMessage: (localId: string) => void;
+    /** Stamps a still-pending optimistic user bubble with its server id and `status: 'sent'`. No-op if no such bubble exists. */
+    confirmSentMessage: (localId: string, id: number) => void;
     clearMessages: () => void;
 
     // Course history actions
@@ -250,6 +261,11 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'applyLoadedMessages');
             },
 
+            mergeLoadedMessages: (localSessionId, messages) => {
+                if (localSessionId !== useChatStore.getState().activeSessionId) { return; }
+                set((s) => ({ messages: mergeHistory(s.messages, messages) }), false, 'mergeLoadedMessages');
+            },
+
             setMessageLoadError: (localSessionId) => {
                 set({
                     messageLoad: { localSessionId, status: 'error' },
@@ -318,6 +334,16 @@ export const useChatStore = create<ChatState>()(
                 set((state) => ({
                     messages: state.messages.filter((m) => m.localId !== localId),
                 }), false, 'removeMessage');
+            },
+
+            confirmSentMessage: (localId, id) => {
+                set((s) => ({
+                    messages: s.messages.map((m) =>
+                        m.localId === localId && m.role === 'user'
+                            ? { ...m, id, status: 'sent' as const }
+                            : m,
+                    ),
+                }), false, 'confirmSentMessage');
             },
 
             clearMessages: () => {

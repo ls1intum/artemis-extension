@@ -20,7 +20,7 @@ interface SendMessageInput {
 }
 
 type SendMessageResult =
-    | { sent: true }
+    | { sent: true; sentMessageId?: number; generation: number }
     | {
         sent: false;
         reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
@@ -74,16 +74,26 @@ export class ChatMessageService {
             return { sent: false, reason, contextLabel, capturedContext: activeContext };
         }
 
-        await this._sendToIris(input.text, activeContext, input.struggleContext);
-        return { sent: true };
+        const { messageId, generation } = await this._sendToIris(input.text, activeContext, input.struggleContext);
+        return { sent: true, sentMessageId: messageId, generation };
     }
 
-    private async _sendToIris(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
+    private async _sendToIris(
+        messageText: string,
+        activeContext: ActiveContext,
+        struggleContext?: StruggleContext,
+    ): Promise<{ messageId: number | undefined; generation: number }> {
         logger.websocket(`📤 handleChatMessage called with: ${JSON.stringify({ text: messageText?.substring(0, 50) })}`);
 
         if (!messageText) {
             logger.websocket('⚠️ No text in message, returning');
-            return;
+            // No send happens on this path, so open and immediately abort the
+            // generation rather than leaving it open forever (nothing will
+            // ever complete it) or skipping it (the composer would hang, per
+            // the comment below on the same invariant for the prep steps).
+            const skippedGeneration = this._runLifecycle.beginGeneration();
+            this._runLifecycle.abortGeneration(skippedGeneration);
+            return { messageId: undefined, generation: skippedGeneration };
         }
 
         logger.websocket(`✅ Active context: ${JSON.stringify({ type: activeContext.type, id: activeContext.id, title: activeContext.title })}`);
@@ -129,7 +139,7 @@ export class ChatMessageService {
                 messageLength: messageText.length,
                 hasUncommittedFiles: uncommittedFiles ? uncommittedFiles.size : 0
             })}`);
-            await this.deps.artemisApiService.sendChatMessage(
+            const persisted = await this.deps.artemisApiService.sendChatMessage(
                 irisSessionManager.currentSessionId,
                 messageText,
                 uncommittedFiles
@@ -140,6 +150,16 @@ export class ChatMessageService {
             // Note: The assistant's response will arrive via WebSocket
             this.deps.contextStore.incrementActiveSessionMessageCount();
             this.deps.postSnapshot();
+
+            // The API parser only validates object-shape, so a null or
+            // stringified id is possible at runtime; a missing id is a
+            // degraded (not ordinary-success) path, since it leaves reconnect
+            // reconciliation with no marker to open.
+            const messageId = typeof persisted?.id === 'number' ? persisted.id : undefined;
+            if (messageId === undefined) {
+                logger.warn('Send persisted without a numeric id; reconnect reconciliation unavailable for this send', LogCategory.IRIS_CHAT);
+            }
+            return { messageId, generation };
 
         } catch (error: unknown) {
             logger.error('Error sending chat message', LogCategory.IRIS_CHAT, error);

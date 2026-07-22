@@ -868,6 +868,114 @@ describe('IrisChatView', () => {
 		});
 	});
 
+	describe('MergeSessionMessages / ConfirmSentMessage (reconnect reconciliation)', () => {
+		const seedActiveSession = (localSessionId: string, artemisSessionId?: number) => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				activeSessionId: localSessionId,
+				sessions: [
+					{
+						id: localSessionId,
+						artemisSessionId: artemisSessionId ?? undefined,
+						preview: '',
+						title: '',
+						messageCount: 0,
+						createdAt: 0,
+						lastActivity: 0,
+					},
+				],
+				messageLoad: { localSessionId, status: 'success' },
+			});
+		};
+
+		it('merges MergeSessionMessages into the active session without wiping a live draft', async () => {
+			seedActiveSession('local-A', 42);
+			useChatStore.setState({ liveDraft: { runId: 'run-1', text: 'draft in progress' } });
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'mergeSessionMessages',
+				localSessionId: 'local-A',
+				artemisSessionId: 42,
+				messages: [
+					{ id: 1, role: 'assistant', content: 'merged answer', timestamp: 0, helpful: null },
+				],
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('merged answer')).toBeInTheDocument();
+			});
+			// The whole point of a merge (vs. LoadMessages) is that it does not
+			// call resetTransientChatUi, so a live draft must survive it.
+			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'run-1', text: 'draft in progress' });
+		});
+
+		it('ignores MergeSessionMessages for a local session that is not active', () => {
+			seedActiveSession('local-current', 99);
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'mergeSessionMessages',
+				localSessionId: 'local-other',
+				artemisSessionId: 1,
+				messages: [
+					{ id: 5, role: 'assistant', content: 'should not appear', timestamp: 0, helpful: null },
+				],
+			});
+
+			expect(screen.queryByText('should not appear')).not.toBeInTheDocument();
+			expect(useChatStore.getState().messages).toEqual([]);
+		});
+
+		it('stamps the optimistic user bubble with its server id on ConfirmSentMessage', async () => {
+			seedActiveSession('local-A', 42);
+			const localId = 'optimistic-1';
+			useChatStore.setState({
+				messages: [
+					{ localId, role: 'user', content: 'hello', timestamp: 0, status: 'sending' },
+				],
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({ type: 'confirmSentMessage', localSessionId: 'local-A', localId, id: 7 });
+
+			await waitFor(() => {
+				const stamped = useChatStore.getState().messages.find((m) => m.localId === localId);
+				expect(stamped?.id).toBe(7);
+				expect(stamped?.status).toBe('sent');
+			});
+		});
+
+		it('ignores ConfirmSentMessage for a local session that is not active', () => {
+			seedActiveSession('local-current', 99);
+			const localId = 'optimistic-1';
+			useChatStore.setState({
+				messages: [
+					{ localId, role: 'user', content: 'hello', timestamp: 0, status: 'sending' },
+				],
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({ type: 'confirmSentMessage', localSessionId: 'local-other', localId, id: 7 });
+
+			const untouched = useChatStore.getState().messages.find((m) => m.localId === localId);
+			expect(untouched?.id).toBeUndefined();
+			expect(untouched?.status).toBe('sending');
+		});
+	});
+
 	it('does not show banner during initial connect or reconnect attempts', () => {
 		useChatStore.setState({ webSocketStatus: 'connecting' });
 		const mockApi = createMockVsCodeApi();
