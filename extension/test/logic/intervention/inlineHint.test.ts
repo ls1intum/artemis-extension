@@ -157,5 +157,16 @@ describe('inlineHint helpers', () => {
             expect(md.value).toContain('$(comment-discussion)');
             expect(md.value).toContain('$(close)');
         });
+
+        it('strips markdown before truncating, so the teaser has no dangling code span and keeps the words', () => {
+            const md = buildHoverMarkdown('Look at the loop in `isValidSelection` and think about what happens on the very *last* index of the array, then decide whether the bound `size lessThan arrayLength` is right.');
+            const teaser = md.value.split('\n\n---')[0]; // teaser only, before the action rule
+            expect(teaser).not.toContain('`');   // no backtick at all (stripped before truncation, so none can dangle)
+            expect(teaser).not.toContain('*');   // emphasis markers stripped too
+            expect(teaser).toContain('isValidSelection');        // code text kept, just unticked
+            expect(teaser).toContain('last');                     // emphasized word kept, just unmarked
+            expect(teaser).toContain('size lessThan arrayLength'); // the code span that CROSSED the cut, kept as plain text
+            expect(teaser.endsWith('…')).toBe(true);              // still truncated
+        });
     });
 });

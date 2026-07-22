@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+import { stripMarkdown } from '@shared/stripMarkdown';
+
 /** The after-line cue text: bulb + the Socratic hint (spec §4.1). No leading space, so the pill's
  *  left/right padding stays symmetric; the gap from the code comes from the decoration's margin. */
 export function buildCueText(inlineHint: string): string {
@@ -78,6 +80,8 @@ export function firstSentence(text: string, maxLen = 160): string {
 
 /**
  * Whole-line hover (spec §4.1, §5.2): a first-sentence teaser of the hint + Open chat / Dismiss actions.
+ * The teaser is stripped of supported inline markdown before truncation, so a code span or emphasis
+ * marker that would otherwise cross the cut cannot leave a dangling delimiter behind.
  * An `---` rule separates the teaser from the actions, and each action is a codicon + bold label so the
  * two commands read as actions rather than thin theme-coloured link text. A hover is VS Code's own
  * theme-rendered markdown: the frame, the link colour, and inline `style` are all stripped/owned by the
@@ -91,7 +95,7 @@ export function firstSentence(text: string, maxLen = 160): string {
  */
 export function buildHoverMarkdown(message: string): vscode.MarkdownString {
     const md = new vscode.MarkdownString(
-        `${firstSentence(message)}\n\n---\n\n`
+        `${firstSentence(stripMarkdown(message))}\n\n---\n\n`
         + '[$(comment-discussion) **Open chat**](command:iris.intervention.inlineOpen)'
         + '  ·  '
         + '[$(close) **Dismiss**](command:iris.intervention.inlineDismiss)'
