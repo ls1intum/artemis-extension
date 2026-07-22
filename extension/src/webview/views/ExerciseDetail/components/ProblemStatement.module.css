@@ -5,6 +5,28 @@
     max-width: 800px;
 }
 
+/* Tighten the header->body transition. The <h3> keeps its browser-default
+   top/bottom margins, which stack on top of the Container's own 12px header
+   gap and inflate the space around the title. Drop them so the Container gap
+   is the only spacing, and remove the first content block's top margin so the
+   description starts right under the heading. */
+.heading {
+    margin: 0;
+    width: 100%;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+/* Sit the first paragraph directly under the header divider. The server wraps
+   the rendered markdown in <div class="artemis-problem-statement"> (preceded by
+   two display:none <style> blocks), and that wrapper's first block carries a
+   ~13px top margin from the embedded CSS. Zero it -- the first :first-child also
+   covers a wrapper-less server. Spacing between paragraphs is untouched. */
+.problemStatement > :first-child,
+.problemStatement > :global(.artemis-problem-statement) > :first-child {
+    margin-top: 0;
+}
+
 /* Loading skeleton layout */
 .skeletonContainer {
     display: flex;
