@@ -686,4 +686,70 @@ describe('useChatStore', () => {
 			expect(useChatStore.getState().lastRunUiRevision).toBe(1);
 		});
 	});
+
+	describe('mergeLoadedMessages', () => {
+		it('merges history into the live list, preserving an optimistic user bubble already stamped with an id', () => {
+			useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1' }));
+			useChatStore.getState().addMessage({
+				id: 2, localId: 'optimistic-b', role: 'user', content: 'my question', timestamp: 1, status: 'sent',
+			});
+
+			useChatStore.getState().mergeLoadedMessages('s1', [
+				{ id: 2, localId: 'history-y', role: 'user', content: 'my question', timestamp: 1 },
+				{ id: 3, localId: 'history-z', role: 'assistant', content: 'answer', timestamp: 2 },
+			]);
+
+			const messages = useChatStore.getState().messages;
+			expect(messages).toHaveLength(2);
+			expect(messages[0]).toMatchObject({ id: 2, localId: 'optimistic-b', status: 'sent' });
+			expect(messages[1]).toMatchObject({ id: 3, localId: 'history-z', content: 'answer' });
+		});
+
+		it('is ignored when localSessionId does not match the active session', () => {
+			useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1' }));
+			useChatStore.getState().addMessage({
+				id: 2, localId: 'optimistic-b', role: 'user', content: 'my question', timestamp: 1, status: 'sent',
+			});
+
+			useChatStore.getState().mergeLoadedMessages('s-other', [
+				{ id: 2, localId: 'history-y', role: 'user', content: 'my question', timestamp: 1 },
+				{ id: 3, localId: 'history-z', role: 'assistant', content: 'answer', timestamp: 2 },
+			]);
+
+			const messages = useChatStore.getState().messages;
+			expect(messages).toHaveLength(1);
+			expect(messages[0]).toMatchObject({ id: 2, localId: 'optimistic-b' });
+		});
+	});
+
+	describe('confirmSentMessage', () => {
+		it('stamps the matching optimistic user bubble with the server id and status sent', () => {
+			useChatStore.getState().addMessage({ localId: 'pending-c', role: 'user', content: 'pending question', timestamp: 1, status: 'sending' });
+
+			useChatStore.getState().confirmSentMessage('pending-c', 42);
+
+			const message = useChatStore.getState().messages.find((m) => m.localId === 'pending-c');
+			expect(message?.id).toBe(42);
+			expect(message?.status).toBe('sent');
+		});
+
+		it('is a no-op when no bubble matches the given localId', () => {
+			useChatStore.getState().addMessage({ localId: 'pending-d', role: 'user', content: 'pending question', timestamp: 1, status: 'sending' });
+
+			useChatStore.getState().confirmSentMessage('does-not-exist', 42);
+
+			const message = useChatStore.getState().messages.find((m) => m.localId === 'pending-d');
+			expect(message?.id).toBeUndefined();
+			expect(message?.status).toBe('sending');
+		});
+
+		it('is a no-op when the matching localId belongs to a non-user message', () => {
+			useChatStore.getState().addMessage({ localId: 'asst-x', role: 'assistant', content: 'assistant reply', timestamp: 1 });
+
+			useChatStore.getState().confirmSentMessage('asst-x', 42);
+
+			const message = useChatStore.getState().messages.find((m) => m.localId === 'asst-x');
+			expect(message?.id).toBeUndefined();
+		});
+	});
 });
