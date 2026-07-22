@@ -682,6 +682,21 @@ describe('StruggleInterventionService', () => {
         // Teardown uses ONLY the mode-guarded clear (parked/jump), not the unconditional clearLamp.
         expect(deps.clearLamp).not.toHaveBeenCalled();
     });
+
+    // #343: the activity-bar badge marks an outstanding proactive hint and is episode-scoped, so the
+    // shared terminal seam must clear it too (previously it stranded at "1" after a solved/timed-out close).
+    it('a terminal episode exit clears the activity-bar badge', () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc, 'ep-1', false);
+        svc.onServerActive('ep-1', 8, 'src/B.java', 84, 'check punctuation', 0.9);
+        vi.mocked(deps.setBadge).mockClear();           // ignore the delivery-time badge set
+
+        svc.dismissEpisode();                           // terminal exit -> _clearEpisodeRuntime()
+
+        expect(deps.setBadge).toHaveBeenCalledWith(false);
+        expect(svc._slot.isFree()).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -15,6 +15,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
+- **Proactive hint badge:** The "1" badge on the Iris activity-bar icon now clears when a proactive episode ends (solved, timed out, or dismissed), instead of staying visible.
 - **Fullscreen exercise view:** The exercise description now loads when an exercise is opened in the fullscreen (expanded) view, instead of showing "Failed to load the exercise description".
 - **Exercise description header:** Tightened the spacing under the "Exercise Description" heading and added a divider line, so the description starts directly below the title instead of after a large gap.
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.

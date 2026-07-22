@@ -21,6 +21,8 @@ describe('resolveEpisode (manual "Solved it" → RECOVERED)', () => {
         await Promise.resolve();
         expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, 'ep-solved', 'RECOVERED');
         expect(deps.foldEpisode).toHaveBeenCalledWith('ep-solved', 'RECOVERED');
+        // #343: the activity-bar badge must clear when the episode closes (no stranded "1").
+        expect(deps.setBadge).toHaveBeenCalledWith(false);
         // No praise: manual "Solved it" carries no LLM praise message (third fold arg absent).
         const foldCall = (deps.foldEpisode as ReturnType<typeof vi.fn>).mock.calls[0];
         expect(foldCall[2]).toBeUndefined();
