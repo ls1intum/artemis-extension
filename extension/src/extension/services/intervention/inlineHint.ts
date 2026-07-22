@@ -80,8 +80,9 @@ export function firstSentence(text: string, maxLen = 160): string {
 
 /**
  * Whole-line hover (spec §4.1, §5.2): a first-sentence teaser of the hint + Open chat / Dismiss actions.
- * The teaser is stripped of supported inline markdown before truncation, so a code span or emphasis
- * marker that would otherwise cross the cut cannot leave a dangling delimiter behind.
+ * The teaser is stripped of supported inline markdown before truncation, so a single-backtick code
+ * span or a simple emphasis marker that would otherwise cross the cut cannot leave a dangling
+ * delimiter behind (rare unsupported constructs like double-backtick spans are best-effort).
  * An `---` rule separates the teaser from the actions, and each action is a codicon + bold label so the
  * two commands read as actions rather than thin theme-coloured link text. A hover is VS Code's own
  * theme-rendered markdown: the frame, the link colour, and inline `style` are all stripped/owned by the
