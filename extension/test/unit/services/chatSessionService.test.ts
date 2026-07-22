@@ -1534,6 +1534,55 @@ suite('IrisChatSessionService Test Suite', () => {
         });
     });
 
+    suite('fetchActiveSessionHistory', () => {
+        test('returns the formatted messages from getChatMessages', async () => {
+            mockApiService.getChatMessages.withArgs(5).resolves([
+                { id: 100, sender: 'USER', content: [{ textContent: 'Hello' }], sentAt: '2024-01-01T10:00:00Z' } as never,
+                { id: 200, sender: 'LLM', content: [{ textContent: 'Hi there' }], final: true } as never,
+            ]);
+
+            const result = await chatSessionService.fetchActiveSessionHistory(5);
+
+            assert.strictEqual(result.length, 2);
+            assert.strictEqual(result[0].id, 100);
+            assert.strictEqual(result[0].role, 'user');
+            assert.strictEqual(result[0].content, 'Hello');
+            assert.strictEqual(result[1].id, 200);
+            assert.strictEqual(result[1].role, 'assistant');
+            assert.strictEqual(result[1].final, true);
+        });
+
+        test('posts nothing and does not clear sessions for the context', async () => {
+            const clearSpy = sinon.spy(contextStore, 'clearSessionsForContext');
+            mockApiService.getChatMessages.withArgs(5).resolves([
+                { id: 100, sender: 'USER', content: [{ textContent: 'Hello' }] },
+            ]);
+
+            await chatSessionService.fetchActiveSessionHistory(5);
+
+            assert.ok(postMessageSpy.notCalled, 'fetchActiveSessionHistory must not post any webview message');
+            assert.ok(clearSpy.notCalled, 'fetchActiveSessionHistory must not clear sessions for the context');
+        });
+
+        test('returns [] when artemisApiService is undefined', async () => {
+            const serviceWithoutApi = new IrisChatSessionService(
+                {
+                    contextStore,
+                    artemisApiService: undefined,
+                    postMessage: postMessageSpy,
+                    postSnapshot: onPostSnapshotSpy,
+                },
+                () => mockIrisWebSocketSessionClient as any,
+                { resetRuns: resetRunsSpy },
+            );
+
+            const result = await serviceWithoutApi.fetchActiveSessionHistory(5);
+
+            assert.deepStrictEqual(result, []);
+            assert.ok(postMessageSpy.notCalled, 'must not post anything when the API service is missing');
+        });
+    });
+
     suite('resetRuns on conversation-reset paths', () => {
         // Each reset path clears the WS session and messages, so each must also
         // drop host run state or the old run's projection survives into the new
