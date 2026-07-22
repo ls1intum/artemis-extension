@@ -73,6 +73,8 @@ export const ExtensionMsg = {
     UpdateNoAiStatus: 'updateNoAiStatus',
     UpdateIrisRunUi: 'updateIrisRunUi',
     SendRejected: 'sendRejected',
+    MergeSessionMessages: 'mergeSessionMessages',
+    ConfirmSentMessage: 'confirmSentMessage',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -254,6 +256,31 @@ interface ExtensionMsgPayloads {
             final?: boolean;
         }>;
     };
+    /**
+     * Non-destructive reconnect reconciliation: same shape as `loadMessages`
+     * but merged by id into the live list instead of replacing it, so a
+     * mid-answer disconnect that missed the terminal frame recovers the
+     * persisted answer without wiping optimistic/error bubbles.
+     */
+    mergeSessionMessages: {
+        localSessionId: string;
+        artemisSessionId: number;
+        messages: Array<{
+            id?: number;
+            role: 'user' | 'assistant';
+            content: string;
+            timestamp: number;
+            helpful?: boolean | null;
+            activities?: IrisActivityDTO[];
+            final?: boolean;
+        }>;
+    };
+    /**
+     * Reconciles the optimistic user bubble with its persisted server id from
+     * the send POST response, so a later history merge matches it by id (no
+     * duplicate) and the bubble leaves its `sending` state.
+     */
+    confirmSentMessage: { localSessionId: string; localId: string; id: number };
     loadMessagesError: { localSessionId: string };
     /**
      * A pre-switch open failure: the course overview fetch failed, or the
