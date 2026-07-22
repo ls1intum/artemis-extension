@@ -28,7 +28,7 @@ import { formatTick } from './formatTick';
 
 /** Fixed hint text for the dev-only mocked active surface (visual only, carries no real analysis). */
 const MOCK_INLINE_HINT = 'Check your loop bounds here';
-const MOCK_INLINE_MESSAGE = 'Mocked proactive hint (developer preview). This is a visual-only surface — it carries no real analysis and touches no episode state.';
+const MOCK_INLINE_MESSAGE = 'Look at the loop in `isValidSelection` and think about what happens on the very *last* index of the array, then decide whether the bound `size lessThan arrayLength` is right.';
 
 /**
  * Real struggle-detection engine + proactive intervention (full / Marketplace /
