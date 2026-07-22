@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { historyResolvesRun } from '@extension/services/iris/chat/historyResolution';
 
 describe('historyResolvesRun', () => {
