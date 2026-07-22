@@ -58,6 +58,12 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
 
         const exercise = exerciseData.exercise;
         const exerciseId = exercise.id;
+        // The rendered message is broadcast and filtered by exerciseId downstream,
+        // so an id is required. Without one we cannot target the result — skip.
+        if (exerciseId === undefined) {
+            logger.info('[SSR] Skipping render: current exercise has no id', LogCategory.GENERAL);
+            return;
+        }
         const participation = exercise.studentParticipations?.[0];
 
         logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
@@ -80,6 +86,7 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
                 this.deps.postMessage({
                     type: ExtensionMsg.ProblemStatementRendered,
                     html: rendered.html,
+                    exerciseId,
                 });
                 logger.info(`[SSR] Server render cached + sent (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
             }

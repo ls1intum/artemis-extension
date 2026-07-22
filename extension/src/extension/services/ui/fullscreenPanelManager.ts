@@ -7,12 +7,10 @@ import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { NoAiDetectionService } from '@extension/services/workspace';
-import { collectExerciseSources, detectWorkspaceExercise, detectWorkspaceForRepoUris } from '@extension/services/workspace/workspaceDetectionService';
-import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { ExerciseDetailsResponse } from '@extension/types';
-import { VSCODE_CONFIG } from '@extension/utils';
 
+import type { ViewInitDataService } from './viewInitDataService';
+import type { WebviewBroadcaster } from './webviewBroadcaster';
 import { getReactWebviewHtml } from './webviewHtml';
 
 export class FullscreenPanelManager {
@@ -20,68 +18,27 @@ export class FullscreenPanelManager {
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _getMessageHandler: () => WebViewMessageHandler,
-        private readonly _noAiDetectionService: NoAiDetectionService,
+        // Lazy: the init service is constructed after this manager. Shared with the
+        // sidebar so both transports build identical exercise/course init payloads.
+        private readonly _getViewInitData: () => ViewInitDataService,
+        // Every panel registers its transport here so global pushes (consent,
+        // .noai, SSR) reach it without the panel re-subscribing on its own.
+        private readonly _broadcaster: WebviewBroadcaster,
     ) {}
 
     public openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): void {
         const exerciseTitle = exerciseData?.exercise?.title || 'Exercise';
-        // #342: the sidebar provider's own config listener re-pushes the proactive-help card on a
-        // consent flip, but it posts through the sidebar's own transport and can never reach this
-        // panel's independent webview - so this panel needs its own listener to stay in sync.
-        let consentSub: vscode.Disposable | undefined;
-        let noAiSub: vscode.Disposable | undefined;
         this._openFullscreenPanel({
             viewType: 'artemis.exerciseFullscreen',
             title: `Exercise: ${exerciseTitle}`,
             viewName: 'exerciseDetail',
+            // Same shared builder the sidebar uses (repoStatus, dev-tools gating, and the
+            // cached SSR). onReady also fires on RequestInit; rebuilding each time is fine.
+            // Consent/.noai/SSR live updates arrive via the broadcaster (registered in
+            // _openFullscreenPanel), so this panel no longer needs its own listeners.
             onReady: (postSafe) => {
-                const isManagedEnvironment = getTheiaEnvironment().isManagedEnvironment;
-                const repoUris = (exerciseData.exercise?.studentParticipations ?? [])
-                    .map(p => p.repositoryUri)
-                    .filter((uri): uri is string => !!uri);
-
-                if (repoUris.length > 0) {
-                    detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
-                        postSafe({
-                            type: ExtensionMsg.ExerciseDetailInit,
-                            exerciseData,
-                            hideDeveloperTools: false,
-                            isManagedEnvironment,
-                            repoStatus,
-                        });
-                    }).catch(() => {
-                        postSafe({
-                            type: ExtensionMsg.ExerciseDetailInit,
-                            exerciseData,
-                            hideDeveloperTools: false,
-                            isManagedEnvironment,
-                        });
-                    });
-                } else {
-                    postSafe({
-                        type: ExtensionMsg.ExerciseDetailInit,
-                        exerciseData,
-                        hideDeveloperTools: false,
-                        isManagedEnvironment,
-                    });
-                }
-
-                // onReady can fire again on a RequestInit; only wire the subscription once.
-                if (!consentSub) {
-                    consentSub = vscode.workspace.onDidChangeConfiguration((event) => {
-                        if (event.affectsConfiguration(`${VSCODE_CONFIG.IRIS.SECTION}.${VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY}`)) {
-                            postSafe({ type: ExtensionMsg.UpdateProactiveConsent });
-                        }
-                    });
-                }
-                // #334: mirrors the sidebar's own .noai live-refresh (this panel has its own webview).
-                if (!noAiSub) {
-                    noAiSub = this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
-                        postSafe({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected });
-                    });
-                }
+                void this._getViewInitData().buildExerciseDetailInit(exerciseData).then(({ msg }) => postSafe(msg));
             },
-            onDispose: () => { consentSub?.dispose(); consentSub = undefined; noAiSub?.dispose(); noAiSub = undefined; },
         });
     }
 
@@ -107,28 +64,7 @@ export class FullscreenPanelManager {
             title: `Course: ${courseTitle}`,
             viewName: 'courseDetail',
             onReady: (postSafe) => {
-                const config = vscode.workspace.getConfiguration('artemis');
-                const developerMode = config.get<boolean>('developerMode', false);
-                const sources = collectExerciseSources([{
-                    course: courseData.course,
-                    exercises: courseData.course.exercises,
-                }]);
-
-                detectWorkspaceExercise(sources).then((detectedExercise) => {
-                    postSafe({
-                        type: ExtensionMsg.CourseDetailInit,
-                        courseData: courseData,
-                        workspaceExerciseId: detectedExercise?.id ?? null,
-                        hideDeveloperTools: !developerMode,
-                    });
-                }).catch(() => {
-                    postSafe({
-                        type: ExtensionMsg.CourseDetailInit,
-                        courseData: courseData,
-                        workspaceExerciseId: null,
-                        hideDeveloperTools: !developerMode,
-                    });
-                });
+                void this._getViewInitData().buildCourseDetailInit(courseData).then(postSafe);
             },
         });
     }
@@ -195,6 +131,11 @@ export class FullscreenPanelManager {
             }
         };
 
+        // Register this panel's transport once (at creation, NOT in onReady which
+        // re-fires on RequestInit) so global pushes reach it; postSafe buffers
+        // anything that arrives before the webview signals Ready.
+        const sinkRegistration = this._broadcaster.addSink(postSafe);
+
         const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
             if (disposed) { return; }
             if (!isWebviewMessage(message)) { return; }
@@ -233,6 +174,7 @@ export class FullscreenPanelManager {
         panel.onDidDispose(() => {
             disposed = true;
             pendingMessages = [];
+            sinkRegistration.dispose();
             messageListener.dispose();
             options.onDispose?.(postSafe);
         });

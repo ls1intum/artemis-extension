@@ -15,10 +15,13 @@ import {
 } from '@extension/services/workspace/workspaceDetectionService';
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
-import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
+import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '@extension/types';
 import { resolveServerUrl } from '@extension/utils';
 
 import { selectRecentCourses } from './recentCourseSelector';
+
+/** Resolved workspace status for an exercise's repos, incl. the matched workspace URI (if any). */
+type ExerciseRepoStatus = Awaited<ReturnType<typeof detectWorkspaceForRepoUris>>;
 
 export class ViewInitDataService {
     private _initGeneration = 0;
@@ -145,6 +148,32 @@ export class ViewInitDataService {
         });
     }
 
+    /**
+     * Build the course-detail init payload used by BOTH the sidebar and the
+     * fullscreen panel. Pure and total (never rejects): a workspace-detection
+     * failure resolves to `workspaceExerciseId: null`.
+     */
+    public async buildCourseDetailInit(courseData: CourseDetailData): Promise<ExtensionToWebviewMessage> {
+        const sources = collectExerciseSources([{
+            course: courseData.course,
+            exercises: courseData.course.exercises,
+        }]);
+        let workspaceExerciseId: number | null = null;
+        try {
+            const detectedExercise = await detectWorkspaceExercise(sources);
+            workspaceExerciseId = detectedExercise?.id ?? null;
+        } catch (error) {
+            logger.error('Failed to detect workspace exercise for course detail', LogCategory.VIEW, error);
+            workspaceExerciseId = null;
+        }
+        return {
+            type: ExtensionMsg.CourseDetailInit,
+            courseData,
+            workspaceExerciseId,
+            hideDeveloperTools: !this._isDeveloperMode(),
+        };
+    }
+
     public sendCourseDetailInit(): void {
         const courseData = this._appStateManager.currentCourseData;
         if (!courseData) {
@@ -152,31 +181,66 @@ export class ViewInitDataService {
             this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Course data is not available. Please go back and try again.' });
             return;
         }
-
-        const sources = collectExerciseSources([{
-            course: courseData.course,
-            exercises: courseData.course.exercises,
-        }]);
-
         const gen = this._initGeneration;
-        detectWorkspaceExercise(sources).then((detectedExercise) => {
+        void this.buildCourseDetailInit(courseData).then((msg) => {
             if (gen !== this._initGeneration) { return; }
-            this._postMessage({
-                type: ExtensionMsg.CourseDetailInit,
-                courseData,
-                workspaceExerciseId: detectedExercise?.id ?? null,
-                hideDeveloperTools: !this._isDeveloperMode(),
-            });
-        }).catch((error) => {
-            if (gen !== this._initGeneration) { return; }
-            logger.error('Failed to detect workspace exercise for course detail', LogCategory.VIEW, error);
-            this._postMessage({
-                type: ExtensionMsg.CourseDetailInit,
-                courseData,
-                workspaceExerciseId: null,
-                hideDeveloperTools: !this._isDeveloperMode(),
-            });
+            this._postMessage(msg);
         });
+    }
+
+    /**
+     * Build the exercise-detail init payload used by BOTH the sidebar and the
+     * fullscreen panel. Pure and total: it never rejects (a workspace-detection
+     * failure resolves to `repoStatus: undefined`) and has no side effects, so
+     * the caller owns posting and any repo-context wiring. `exerciseData` is
+     * passed explicitly — the sidebar hands its app-state exercise, a panel
+     * hands its own immutable snapshot.
+     *
+     * The cached server-rendered problem statement lives in global app state, so
+     * it is included ONLY when that cache belongs to THIS exercise; otherwise it
+     * is omitted and the live `problemStatementRendered` broadcast fills it in.
+     */
+    public async buildExerciseDetailInit(
+        exerciseData: ExerciseDetailsResponse,
+    ): Promise<{ msg: ExtensionToWebviewMessage; repoStatus?: ExerciseRepoStatus }> {
+        const isManagedEnvironment = getTheiaEnvironment().isManagedEnvironment;
+        const hideDeveloperTools = !this._isDeveloperMode();
+
+        const repoUris = (exerciseData.exercise?.studentParticipations ?? [])
+            .map(p => p.repositoryUri)
+            .filter((uri): uri is string => !!uri);
+
+        let repoStatus: ExerciseRepoStatus | undefined;
+        if (repoUris.length > 0) {
+            try {
+                repoStatus = await detectWorkspaceForRepoUris(repoUris);
+            } catch (error) {
+                logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
+                repoStatus = undefined;
+            }
+        }
+
+        // Read the SSR cache as LATE as possible (after the detection await), so a render that
+        // completes while we await does not lose its broadcast to a stale init: an init posted
+        // with an older `undefined` snapshot would otherwise clear the just-applied problem
+        // statement. Still guarded to THIS exercise via a coherent post-await id snapshot.
+        const currentId = this._appStateManager.currentExerciseData?.exercise?.id;
+        const serverRenderedProblemStatement =
+            currentId !== undefined && currentId === exerciseData.exercise?.id
+                ? (this._appStateManager.serverRenderedProblemStatement ?? undefined)
+                : undefined;
+
+        return {
+            msg: {
+                type: ExtensionMsg.ExerciseDetailInit,
+                exerciseData,
+                hideDeveloperTools,
+                isManagedEnvironment,
+                repoStatus,
+                serverRenderedProblemStatement,
+            },
+            repoStatus,
+        };
     }
 
     public sendExerciseDetailInit(): void {
@@ -187,53 +251,21 @@ export class ViewInitDataService {
             return;
         }
 
-        const isManagedEnvironment = getTheiaEnvironment().isManagedEnvironment;
-
-        const participations = exerciseData.exercise?.studentParticipations ?? [];
-        const repoUris = participations
-            .map(p => p.repositoryUri)
-            .filter((uri): uri is string => !!uri);
-
-        if (repoUris.length > 0) {
-            const exerciseId = exerciseData.exercise?.id;
-            const gen = this._initGeneration;
-            detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
-                if (gen !== this._initGeneration) { return; }
-                // Set repo context so workspace listeners can auto-detect changes on file save
-                if (repoStatus.matchedUri && exerciseId !== undefined) {
-                    const handler = this._messageHandler;
-                    handler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
-                }
-                this._postMessage({
-                    type: ExtensionMsg.ExerciseDetailInit,
-                    exerciseData,
-                    hideDeveloperTools: !this._isDeveloperMode(),
-                    isManagedEnvironment,
-                    repoStatus,
-                    serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
-                });
-            }).catch((error) => {
-                if (gen !== this._initGeneration) { return; }
-                logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
+        const gen = this._initGeneration;
+        const exerciseId = exerciseData.exercise?.id;
+        void this.buildExerciseDetailInit(exerciseData).then(({ msg, repoStatus }) => {
+            // Drop a stale build: the active view moved on while detection was in flight.
+            if (gen !== this._initGeneration) { return; }
+            // Repo context lets workspace listeners auto-detect changes on file save. A matched
+            // repo sets it; a missing repoStatus (no repos, or detection failed) clears it; a
+            // detected-but-unmatched repo leaves it untouched (preserves prior behavior).
+            if (repoStatus?.matchedUri && exerciseId !== undefined) {
+                this._messageHandler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
+            } else if (!repoStatus) {
                 this._messageHandler.clearRepositoryContext();
-                this._postMessage({
-                    type: ExtensionMsg.ExerciseDetailInit,
-                    exerciseData,
-                    hideDeveloperTools: !this._isDeveloperMode(),
-                    isManagedEnvironment,
-                    serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
-                });
-            });
-        } else {
-            this._messageHandler.clearRepositoryContext();
-            this._postMessage({
-                type: ExtensionMsg.ExerciseDetailInit,
-                exerciseData,
-                hideDeveloperTools: !this._isDeveloperMode(),
-                isManagedEnvironment,
-                serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
-            });
-        }
+            }
+            this._postMessage(msg);
+        });
     }
 
     public sendAiConfigInit(): void {

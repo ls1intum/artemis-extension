@@ -33,6 +33,7 @@ import {
     StartPageResolver,
     SubmissionWebSocketHandler,
     ViewInitDataService,
+    WebviewBroadcaster,
 } from '@extension/services/ui';
 import type { NudgeText } from '@extension/services/ui/nudgeBannerText';
 import { OFFER_TEXTS } from '@extension/services/ui/nudgeBannerText';
@@ -108,6 +109,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      */
     private readonly _sidebarSender: (m: ExtensionToWebviewMessage) => void;
 
+    /**
+     * Fans global push signals (proactive-consent, .noai, server-rendered
+     * problem statement) out to every live webview: the sidebar plus each open
+     * fullscreen panel. Producers broadcast once instead of targeting the
+     * sidebar only and letting each panel re-subscribe on its own.
+     */
+    private readonly _broadcaster = new WebviewBroadcaster();
+
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
 
@@ -139,6 +148,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // One stable closure created immediately so the feed's Map<Sink,refcount>
         // always sees the same key for this sidebar host across re-resolves.
         this._sidebarSender = (m) => this._postMessageSafe(m);
+        // The sidebar is a permanent broadcast target (its sender is a safe no-op
+        // when no view is resolved). Panels register/unregister themselves.
+        this._disposables.push(this._broadcaster, this._broadcaster.addSink(this._sidebarSender));
         this._extensionUri = deps.extensionUri;
         this._extensionContext = deps.extensionContext;
         this._authManager = deps.authManager;
@@ -188,24 +200,44 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // 6. Start page resolver.
         this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseDataCache);
 
-        // 7. Fullscreen panel manager — only stores the getter, safe before _messageHandler exists.
+        // 7. Fullscreen panel manager — lazy getters, safe before _messageHandler / _viewInitDataService exist.
         this._fullscreenPanelManager = new FullscreenPanelManager(
             this._extensionUri,
             this._extensionContext,
             () => this._messageHandler,
-            this._noAiDetectionService,
+            () => this._viewInitDataService,
+            this._broadcaster,
         );
 
         // 7b. SSR coordinator — owns the theme listener and background SSR.
         //     Must be built BEFORE the navigation facade because the facade's
         //     backgroundRenderProblemStatement callback routes through it.
+        //     Broadcasts the rendered PS (tagged with exerciseId) to every open
+        //     webview; each exercise view applies only its own exercise's render.
         this._ssrCoordinator = new WebviewSSRCoordinator({
             appStateManager: this._appStateManager,
             renderService: this._renderService,
-            postMessage: (msg) => this._postMessageSafe(msg),
+            postMessage: (msg) => this._broadcaster.broadcast(msg),
             fetchExerciseDetails: (exerciseId) => fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId),
         });
         this._disposables.push(this._ssrCoordinator);
+
+        // 7c. Global push producers → broadcast to every open webview. Registered at
+        //     provider lifetime (NOT per sidebar resolve) because they now also feed
+        //     persistent fullscreen panels; the sidebar sender is a no-op with no view.
+        this._disposables.push(
+            // #342: a proactive-help consent flip repaints the AskIris card (grant restores the
+            // remembered level, revoke parks it at Off); the view re-requests its control state.
+            vscode.workspace.onDidChangeConfiguration(event => {
+                if (event.affectsConfiguration(`${VSCODE_CONFIG.IRIS.SECTION}.${VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY}`)) {
+                    this._broadcaster.broadcast({ type: ExtensionMsg.UpdateProactiveConsent });
+                }
+            }),
+            // #334: a .noai create/delete live-refreshes the exercise card (the view re-requests on this).
+            this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
+                this._broadcaster.broadcast({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected });
+            }),
+        );
 
         // 8. Navigation facade — constructed BEFORE the message handler because
         //    the message handler receives the facade as its actionHandler.
@@ -439,25 +471,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         });
         this._viewDisposables.push(visibilityListener);
 
-        // Listen for configuration changes to re-render when settings change
+        // Re-render the sidebar HTML when developerMode changes (sidebar-only concern).
+        // The proactive-consent and .noai push signals are handled once at provider
+        // lifetime and broadcast to every webview (see step 7c), so they are no longer
+        // wired per sidebar resolve.
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
                 this.refreshTheme();
             }
-            // #342: a consent flip must repaint the AskIris proactive card live (grant restores the remembered
-            // level, revoke parks it at Off). The clean build no longer early-returns here: the webview's
-            // re-request now yields a card there too (no proactive capability just changes its content).
-            if (event.affectsConfiguration(`${VSCODE_CONFIG.IRIS.SECTION}.${VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY}`)) {
-                this._postMessageSafe({ type: ExtensionMsg.UpdateProactiveConsent });
-            }
         });
         this._viewDisposables.push(configListener);
-
-        // #334: a .noai create/delete must live-refresh the exercise card (the view re-requests on this message).
-        const noAiListener = this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
-            this._postMessageSafe({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected });
-        });
-        this._viewDisposables.push(noAiListener);
     }
 
     // ── Rendering ──────────────────────────────────────────────────────

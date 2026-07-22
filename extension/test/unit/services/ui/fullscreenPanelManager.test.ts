@@ -5,6 +5,7 @@ import * as sinon from 'sinon';
 import { WebviewMsgType } from '@shared/messageContracts';
 
 import { FullscreenPanelManager } from '@extension/services/ui/fullscreenPanelManager';
+import { WebviewBroadcaster } from '@extension/services/ui/webviewBroadcaster';
 
 suite('FullscreenPanelManager.openStruggleFullscreen', () => {
     let sandbox: sinon.SinonSandbox;
@@ -32,8 +33,13 @@ suite('FullscreenPanelManager.openStruggleFullscreen', () => {
 
     function makeManager(): FullscreenPanelManager {
         const ctx = { subscriptions: [] } as unknown as vscode.ExtensionContext;
-        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
-        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never), fakeNoAi);
+        return new FullscreenPanelManager(
+            vscode.Uri.parse('file:///ext'),
+            ctx,
+            () => ({} as never),
+            () => ({} as never),
+            new WebviewBroadcaster(),
+        );
     }
 
     test('Ready posts the init and subscribes once; RequestInit re-sends WITHOUT re-subscribing; dispose tears down', () => {
@@ -81,11 +87,15 @@ suite('FullscreenPanelManager.openStruggleFullscreen', () => {
     });
 });
 
-suite('FullscreenPanelManager.openExerciseFullscreen - #342 consent flip', () => {
+suite('FullscreenPanelManager.openExerciseFullscreen - shared builder + broadcast sink', () => {
     let sandbox: sinon.SinonSandbox;
     let postMessage: sinon.SinonStub;
     let messageHandler: (m: unknown) => void;
     let disposeHandler: () => void;
+    let broadcaster: WebviewBroadcaster;
+    let buildExerciseDetailInit: sinon.SinonStub;
+
+    const flush = () => new Promise(r => setTimeout(r, 0));
 
     setup(() => {
         sandbox = sinon.createSandbox();
@@ -102,111 +112,59 @@ suite('FullscreenPanelManager.openExerciseFullscreen - #342 consent flip', () =>
             dispose() { /* noop */ },
         };
         sandbox.stub(vscode.window, 'createWebviewPanel').returns(panel as unknown as vscode.WebviewPanel);
+        broadcaster = new WebviewBroadcaster();
+        buildExerciseDetailInit = sandbox.stub().resolves({ msg: { type: 'exerciseDetailInit' }, repoStatus: undefined });
     });
     teardown(() => sandbox.restore());
 
     function makeManager(): FullscreenPanelManager {
         const ctx = { subscriptions: [] } as unknown as vscode.ExtensionContext;
-        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
-        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never), fakeNoAi);
+        return new FullscreenPanelManager(
+            vscode.Uri.parse('file:///ext'),
+            ctx,
+            () => ({} as never),
+            () => ({ buildExerciseDetailInit } as never),
+            broadcaster,
+        );
     }
 
-    test('a real config flip repaints an open fullscreen exercise panel, and the listener is disposed on close', async () => {
-        const cfg = () => vscode.workspace.getConfiguration('artemis.iris');
-        const prev = cfg().get('proactiveCodeEgress');
-
-        const awaitConsentMsg = async (deadlineMs: number): Promise<boolean> => {
-            const deadline = Date.now() + deadlineMs;
-            while (Date.now() < deadline) {
-                if (postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateProactiveConsent')) {
-                    return true;
-                }
-                await new Promise(r => setTimeout(r, 50));
-            }
-            return false;
-        };
-
-        try {
-            // Normalize first (no assertion): a leaked value from another test would make the
-            // flip below a config no-op that fires no event.
-            await cfg().update('proactiveCodeEgress', 'ask', vscode.ConfigurationTarget.Global);
-
-            const exerciseData = { exercise: { title: 'Test Exercise', studentParticipations: [] } };
-            makeManager().openExerciseFullscreen(exerciseData as never);
-            messageHandler({ type: WebviewMsgType.Ready });
-
-            postMessage.resetHistory();
-            await cfg().update('proactiveCodeEgress', 'enabled', vscode.ConfigurationTarget.Global);
-            assert.ok(await awaitConsentMsg(2000), 'expected updateProactiveConsent to be posted to the fullscreen panel after a consent flip');
-
-            // Panel close disposes the config subscription: a further flip must not post again.
-            disposeHandler();
-            postMessage.resetHistory();
-            await cfg().update('proactiveCodeEgress', 'disabled', vscode.ConfigurationTarget.Global);
-            assert.ok(!(await awaitConsentMsg(300)), 'the disposed panel must not receive further consent updates');
-        } finally {
-            await cfg().update('proactiveCodeEgress', prev, vscode.ConfigurationTarget.Global);
-        }
-    });
-});
-
-suite('FullscreenPanelManager.openExerciseFullscreen - #334 .noai flip', () => {
-    let sandbox: sinon.SinonSandbox;
-    let postMessage: sinon.SinonStub;
-    let messageHandler: (m: unknown) => void;
-    let disposeHandler: () => void;
-
-    setup(() => {
-        sandbox = sinon.createSandbox();
-        postMessage = sandbox.stub();
-        const panel = {
-            webview: {
-                html: '',
-                cspSource: 'vscode-resource:',
-                asWebviewUri: (u: vscode.Uri) => u,
-                postMessage,
-                onDidReceiveMessage: (cb: (m: unknown) => void) => { messageHandler = cb; return { dispose() { /* noop */ } }; },
-            },
-            onDidDispose: (cb: () => void) => { disposeHandler = cb; return { dispose() { /* noop */ } }; },
-            dispose() { /* noop */ },
-        };
-        sandbox.stub(vscode.window, 'createWebviewPanel').returns(panel as unknown as vscode.WebviewPanel);
-    });
-    teardown(() => sandbox.restore());
-
-    const exerciseData = { exercise: { id: 1, title: 'X', studentParticipations: [] } };
-    let noAiCb: (v: boolean) => void = () => {};
-    const disposeSpy = sinon.spy();
-
-    function makeManager(): FullscreenPanelManager {
-        const ctx = { subscriptions: [] } as unknown as vscode.ExtensionContext;
-        const fakeNoAi = {
-            onNoAiStatusChanged: (cb: (value: boolean) => void) => { noAiCb = cb; return { dispose: disposeSpy }; },
-        } as any;
-        return new FullscreenPanelManager(vscode.Uri.parse('file:///ext'), ctx, () => ({} as never), fakeNoAi);
-    }
-
-    const awaitNoAiMsg = async (deadlineMs: number): Promise<boolean> => {
-        const start = Date.now();
-        while (Date.now() - start < deadlineMs) {
-            if (postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateNoAiStatus')) { return true; }
-            await new Promise(r => setTimeout(r, 20));
-        }
-        return false;
-    };
-
-    test('a .noai flip posts updateNoAiStatus (both directions), and the subscription is disposed once with the panel', async () => {
+    test('Ready builds the init via the shared builder and posts it', async () => {
+        const exerciseData = { exercise: { id: 1, title: 'X', studentParticipations: [] } };
         makeManager().openExerciseFullscreen(exerciseData as never);
         messageHandler({ type: WebviewMsgType.Ready });
+        await flush();
 
-        postMessage.resetHistory();
-        noAiCb(true);
-        assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai appears');
-        postMessage.resetHistory();
-        noAiCb(false);
-        assert.ok(await awaitNoAiMsg(2000), 'expected updateNoAiStatus after .noai disappears');
+        sinon.assert.calledOnce(buildExerciseDetailInit);
+        sinon.assert.calledWith(buildExerciseDetailInit, exerciseData);
+        assert.ok(postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'exerciseDetailInit'));
+    });
 
+    test('a broadcast reaches the open panel and stops after the panel is disposed', () => {
+        const exerciseData = { exercise: { id: 1, title: 'X', studentParticipations: [] } };
+        makeManager().openExerciseFullscreen(exerciseData as never);
+        messageHandler({ type: WebviewMsgType.Ready });
+        postMessage.resetHistory();
+
+        // A global push (e.g. consent) fans out through the broadcaster to this panel.
+        broadcaster.broadcast({ type: 'updateProactiveConsent' } as never);
+        assert.ok(postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateProactiveConsent'));
+
+        // After the panel closes its sink is removed: a further broadcast must not reach it.
         disposeHandler();
-        assert.ok(disposeSpy.calledOnce, 'the .noai subscription must be disposed exactly once with the panel');
+        postMessage.resetHistory();
+        broadcaster.broadcast({ type: 'updateNoAiStatus', isNoAiDetected: true } as never);
+        sinon.assert.notCalled(postMessage);
+    });
+
+    test('a broadcast before Ready is buffered and delivered once the panel signals Ready', () => {
+        const exerciseData = { exercise: { id: 1, title: 'X', studentParticipations: [] } };
+        makeManager().openExerciseFullscreen(exerciseData as never);
+
+        // Registered at creation → a push before Ready is buffered by postSafe, not dropped.
+        broadcaster.broadcast({ type: 'updateProactiveConsent' } as never);
+        sinon.assert.notCalled(postMessage);
+
+        messageHandler({ type: WebviewMsgType.Ready });
+        assert.ok(postMessage.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'updateProactiveConsent'));
     });
 });
