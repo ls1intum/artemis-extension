@@ -210,11 +210,28 @@ describe('ExerciseDetailView', () => {
 		dispatchExtensionMessage({
 			type: ExtensionMsg.ProblemStatementRendered,
 			html: '<html><body><p>Solve the problem.</p></body></html>',
+			exerciseId: 42,
 		});
 
 		await waitFor(() => {
 			expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
 		});
+	});
+
+	it('ignores a server-rendered problem statement broadcast for a different exercise', async () => {
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		// The current exercise is 42; a broadcast tagged for another exercise must not paint here.
+		dispatchExtensionMessage({
+			type: ExtensionMsg.ProblemStatementRendered,
+			html: '<html><body><p>Other exercise content.</p></body></html>',
+			exerciseId: 999,
+		});
+
+		await new Promise(r => setTimeout(r, 50));
+		expect(screen.queryByText('Other exercise content.')).not.toBeInTheDocument();
 	});
 
 	it('shows "Ask Iris" section', () => {
@@ -560,6 +577,7 @@ describe('ExerciseDetailView', () => {
 		dispatchExtensionMessage({
 			type: ExtensionMsg.ProblemStatementRendered,
 			html: '<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="1,2">taskA</span></body></html>',
+			exerciseId: 42,
 		});
 
 		await waitFor(() => {
@@ -632,7 +650,7 @@ describe('ExerciseDetailView', () => {
 	async function clickTaskAndOpenOverlay(html: string) {
 		const mockApi = createMockVsCodeApi();
 		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
-		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html });
+		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html, exerciseId: 42 });
 		await waitFor(() => {
 			expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
 		});
@@ -797,7 +815,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		const postMessageMock = vi.mocked(mockApi.postMessage);
 		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
-		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html: taskHtml('1,2') });
+		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html: taskHtml('1,2'), exerciseId: 42 });
 		await waitFor(() => expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull());
 		await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
 

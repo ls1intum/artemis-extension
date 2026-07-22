@@ -5,4 +5,5 @@ export { createProviderRegistry, type IProviderRegistry } from './providerRegist
 export { StartPageResolver } from './startPageResolver';
 export { SubmissionWebSocketHandler } from './submissionWebSocketHandler';
 export { ViewInitDataService } from './viewInitDataService';
+export { WebviewBroadcaster, type WebviewSink } from './webviewBroadcaster';
 export { getReactWebviewHtml } from './webviewHtml';

@@ -194,7 +194,28 @@ suite('WebviewSSRCoordinator', () => {
         sinon.assert.calledWith(stubs.postMessage, sinon.match({
             type: ExtensionMsg.ProblemStatementRendered,
             html: '<p>Hello</p>',
+            exerciseId: 42,
         }));
+    });
+
+    test('scheduleRender skips when the current exercise has no id (cannot target the broadcast)', async () => {
+        const exercise = { problemStatement: '# Hello', studentParticipations: [{ id: 7 }] };
+        const exerciseData = { exercise } as unknown as ExerciseDetailsResponse;
+        const renderStub = sandbox.stub().resolves({ html: '<p>Hello</p>', contentHash: 'abcdef1234567890' });
+        const { deps, stubs } = buildDeps({
+            appStateManager: {
+                currentState: 'exercise-detail',
+                currentExerciseData: exerciseData,
+                serverRenderedProblemStatement: null as { html: string } | null,
+                showExerciseDetail: sandbox.stub(),
+            },
+            renderService: { render: renderStub, invalidateAll: sandbox.stub() },
+        });
+
+        await new WebviewSSRCoordinator(deps).scheduleRender();
+
+        sinon.assert.notCalled(renderStub);
+        sinon.assert.notCalled(stubs.postMessage);
     });
 
     test('dispose disposes the theme listener', () => {

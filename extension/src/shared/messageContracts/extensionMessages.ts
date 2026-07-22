@@ -583,8 +583,10 @@ interface ExtensionMsgPayloads {
         }>;
     };
 
-    // Server-side problem statement rendering
-    problemStatementRendered: RenderedProblemStatementPayload;
+    // Server-side problem statement rendering. Broadcast to every open webview,
+    // so it carries the exerciseId it belongs to; each exercise-detail view
+    // applies it only when the id matches the exercise it is currently showing.
+    problemStatementRendered: RenderedProblemStatementPayload & { exerciseId: number };
 
     /**
      * Emitted by the extension host on every DELIVERED terminal (dismiss / progress-close /

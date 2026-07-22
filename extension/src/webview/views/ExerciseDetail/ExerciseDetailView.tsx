@@ -127,9 +127,15 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
         }
-        // Progressive upgrade: server-rendered problem statement arrived
+        // Progressive upgrade: server-rendered problem statement arrived. This is broadcast to every
+        // open webview, so apply it only when it belongs to the exercise THIS view is showing. Read
+        // the live id from the store at message time (not the closed-over exerciseData) to avoid the
+        // useExtensionMessage stale-closure hazard, matching the noAi/consent handlers below.
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
-            setServerRenderedPS({ html: msg.html });
+            const currentId = useExerciseDetailStore.getState().exerciseData?.exercise?.id;
+            if (currentId !== undefined && msg.exerciseId === currentId) {
+                setServerRenderedPS({ html: msg.html });
+            }
         }
         // Proactive control state (spec §12.2). Stored UNCONDITIONALLY here, tagged with its exerciseId; the render
         // below only paints it when the tag matches the live exercise, so a late update for a previous exercise can
