@@ -37,6 +37,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
     private readonly _onDidConnectionStateChange = new vscode.EventEmitter<boolean>();
     public readonly onDidConnectionStateChange = this._onDidConnectionStateChange.event;
+    private readonly _onDidResubscribe = new vscode.EventEmitter<number>();
+    public readonly onDidResubscribe = this._onDidResubscribe.event;
 
     constructor(
         private readonly _artemisApiService: ArtemisApiService,
@@ -57,6 +59,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         this.unsubscribe();
         this._onDidReceiveMessage.dispose();
         this._onDidConnectionStateChange.dispose();
+        this._onDidResubscribe.dispose();
     }
 
     public get currentSessionId(): number | undefined {
@@ -148,6 +151,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
                 (data: unknown) => this._handleWebSocketMessage(data)
             );
             logger.session(`Successfully subscribed to session: ${sessionId}`);
+            this._onDidResubscribe.fire(sessionId);
         } catch (error) {
             logger.sessionError('Failed to subscribe:', error);
         }
