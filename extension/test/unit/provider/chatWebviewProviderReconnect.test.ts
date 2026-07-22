@@ -158,6 +158,8 @@ const mergeCalls = (postSpy: sinon.SinonSpy) =>
     postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'mergeSessionMessages');
 const confirmCalls = (postSpy: sinon.SinonSpy) =>
     postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'confirmSentMessage');
+const runUiCalls = (postSpy: sinon.SinonSpy) =>
+    postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'updateIrisRunUi');
 
 suite('ChatWebviewProvider reconnect reconciliation', () => {
     let h: Harness;
@@ -359,8 +361,19 @@ suite('ChatWebviewProvider reconnect reconciliation', () => {
         internals(h.provider)._reconcileMarker = {
             generation: gen, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
         };
+
+        // Seed a stale handler-side draft, mirroring the real scenario: earlier
+        // PARTIAL frames landed before the WS dropped mid-answer, and a pure
+        // disconnect never clears the handler's own projection (only the
+        // webview store is reset). The resolution publish below must clear it,
+        // not resurrect it as a phantom duplicate bubble.
+        internals(h.provider)._websocketMessageHandler.handleIrisWebSocketMessage({
+            type: 'PARTIAL', runId: 'run-A', partialResult: 'stale partial answer', partialSeq: 1,
+        });
+
         h.fetchStub.resolves([assistant(99)] as never);
         h.publishSpy.resetHistory();
+        h.postSpy.resetHistory();
 
         await internals(h.provider)._reconcileOnResubscribe(42);
         await tick();
@@ -369,6 +382,12 @@ suite('ChatWebviewProvider reconnect reconciliation', () => {
         assert.strictEqual(runs.waiting, false, 'conclusive history must resolve the run');
         assert.ok(h.publishSpy.called, 'run UI must be republished after resolution');
         assert.strictEqual(internals(h.provider)._reconcileMarker, undefined, 'the resolved marker must be cleared');
+
+        const runUiUpdates = runUiCalls(h.postSpy);
+        assert.strictEqual(runUiUpdates.length, 1, 'exactly one run UI projection must be published on resolution');
+        const projection = runUiUpdates[0].args[0] as { projection: { draft: unknown; waiting: boolean } };
+        assert.strictEqual(projection.projection.draft, null, 'the stale partial draft must be cleared, not resurrected');
+        assert.strictEqual(projection.projection.waiting, false, 'the republished projection must reflect the resolved run');
     });
 
     test('inconclusive history merges but leaves waiting true', async () => {

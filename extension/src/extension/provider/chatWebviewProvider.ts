@@ -460,7 +460,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             });
             if (historyResolvesRun(messages, marker.baselineMessageId)) {
                 this._runs.resolveCurrentRun();
-                this._websocketMessageHandler.publishCurrentRunUi();
+                // A pure WS drop mid-answer never clears the handler's own
+                // draft/activities/error (only the webview store is reset on
+                // disconnect), so a plain republish would resurrect the stale
+                // partial as a phantom duplicate bubble. Clear it here.
+                this._websocketMessageHandler.resetRunUiAndPublish();
                 this._reconcileMarker = undefined;
             }
         } catch (err: unknown) {
