@@ -42,6 +42,16 @@ export class ContextStore {
     private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
     public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
 
+    /**
+     * Task 12: fires the context key(s) affected by a session mutation
+     * (message sent, session created/rehomed/retitled). A `void` event would
+     * force consumers to drop everything on every mutation; carrying the
+     * key(s) lets the course-history cache invalidate only the course(s)
+     * actually touched.
+     */
+    private readonly _onDidChangeSessions = new vscode.EventEmitter<{ contextKeys: string[] }>();
+    public readonly onDidChangeSessions = this._onDidChangeSessions.event;
+
     constructor(context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
         this._persistence = new ContextPersistence(context);
@@ -50,6 +60,7 @@ export class ContextStore {
             () => this.state,
             () => this.state.activeContext,
             () => this._persistence.save(this.state),
+            contextKeys => this._onDidChangeSessions.fire({ contextKeys }),
         );
         this._repository = new TrackedItemRepository(
             () => this.state,
@@ -62,6 +73,7 @@ export class ContextStore {
 
     public dispose(): void {
         this._onDidChangeActiveContext.dispose();
+        this._onDidChangeSessions.dispose();
     }
 
     public snapshot(): ContextSnapshot {
@@ -180,14 +192,30 @@ export class ContextStore {
         createdAt: number,
         artemisSessionId?: number,
         title?: string,
+        lastActivity?: number,
     ): ContextSnapshot {
-        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, title);
+        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, title, lastActivity);
         return this.snapshot();
     }
 
     public switchSession(sessionId: string): ContextSnapshot {
         this._sessionManager.switchSession(sessionId);
         return this.snapshot();
+    }
+
+    /**
+     * Idempotent cross-context upsert keyed by `artemisSessionId`. Returns the
+     * local session id (so the atomic open flow can immediately
+     * `switchSession` to it). Delegates the rehome/collapse logic to
+     * {@link SessionManager.upsertSessionFromOverview}.
+     */
+    public upsertSessionFromOverview(entry: {
+        contextKey: string;
+        artemisSessionId: number;
+        title?: string;
+        lastActivity: number;
+    }): string {
+        return this._sessionManager.upsertSessionFromOverview(entry);
     }
 
     public clearSessionsForContext(contextKey: string): ContextSnapshot {
@@ -202,6 +230,10 @@ export class ContextStore {
 
     public incrementActiveSessionMessageCount(): void {
         this._sessionManager.incrementActiveSessionMessageCount();
+    }
+
+    public setActiveSessionMessageCount(count: number): void {
+        this._sessionManager.setActiveSessionMessageCount(count);
     }
 
     public cleanupEmptySessions(): void {

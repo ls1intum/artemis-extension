@@ -2,19 +2,25 @@ import clsx from 'clsx';
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import ThumbsDown from 'lucide-react/dist/esm/icons/thumbs-down';
 import ThumbsUp from 'lucide-react/dist/esm/icons/thumbs-up';
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo } from 'react';
 // @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains (TS1479). esbuild handles at bundle time.
 import { Streamdown } from 'streamdown';
 
 import { useStreamdownConfig } from '@webview/hooks/useStreamdownConfig';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
+import { activityTrailSummary } from '@webview/views/IrisChat/activityLabels';
 import type { ChatMessage } from '@webview/views/IrisChat/types';
 
+import { ActivityFeed } from './ActivityFeed';
 import styles from './MessageBubble.module.css';
 
 interface MessageBubbleProps {
     message: ChatMessage;
-    onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
+    /**
+     * Optional: a draft (streaming) bubble has nothing to rate, so it renders
+     * without feedback controls and needs no handler.
+     */
+    onFeedback?: (messageId: number, feedback: 'positive' | 'negative') => void;
     /** Invoked when the Retry button on a failed user message is clicked. */
     onRetry?: (localId: string) => void;
     /**
@@ -23,6 +29,11 @@ interface MessageBubbleProps {
      * Iris still disabled for the exercise).
      */
     retryDisabled?: boolean;
+    /**
+     * Marks the live streaming draft. Streamdown renders in streaming mode
+     * (incomplete-markdown tolerant) and feedback controls are suppressed.
+     */
+    isDraft?: boolean;
 }
 
 function MessageBubbleComponent({
@@ -30,8 +41,8 @@ function MessageBubbleComponent({
     onFeedback,
     onRetry,
     retryDisabled,
+    isDraft,
 }: MessageBubbleProps) {
-    const [hovering, setHovering] = useState(false);
     const isAssistant = message.role === 'assistant';
     const isUser = message.role === 'user';
     const streamdownComponents = useStreamdownConfig();
@@ -41,12 +52,16 @@ function MessageBubbleComponent({
 
     const handleFeedback = (feedback: 'positive' | 'negative') => {
         if (message.id !== undefined) {
-            onFeedback(message.id, feedback);
+            onFeedback?.(message.id, feedback);
         }
     };
 
     const hasFeedback = message.helpful !== undefined && message.helpful !== null;
     const isFailed = message.status === 'error';
+    const hasTrail = isAssistant && !!message.activities && message.activities.length > 0;
+    // A draft, and any intermediate (`final === false`) message, cannot be
+    // rated: the run is still in flight so there is nothing final to judge.
+    const showFeedback = isAssistant && !isFailed && !isDraft && message.final !== false;
 
     return (
         <div
@@ -54,8 +69,6 @@ function MessageBubbleComponent({
                 [styles.user]: isUser,
                 [styles.assistant]: isAssistant,
             })}
-            onMouseEnter={() => setHovering(true)}
-            onMouseLeave={() => setHovering(false)}
         >
             <div className={styles.bubbleColumn}>
                 <div
@@ -65,22 +78,34 @@ function MessageBubbleComponent({
                         [styles.error]: isFailed,
                     })}
                 >
+                    {/* Tool-activity trail, rendered above the answer for
+                        finished assistant messages that carried activities. */}
+                    {hasTrail && (
+                        <details className={styles.trail} open>
+                            <summary className={styles.trailSummary}>
+                                {activityTrailSummary(message.activities!)}
+                            </summary>
+                            <ActivityFeed activities={message.activities!} mode="trail" />
+                        </details>
+                    )}
+
                     {/* Always render the original message content. The error
                         footer below augments it instead of replacing it, so the
                         user can see what they tried to send. */}
                     <div className={styles.content}>
                         <Streamdown
-                            mode="static"
+                            mode={isDraft ? 'streaming' : 'static'}
+                            parseIncompleteMarkdown={isDraft}
                             components={streamdownComponents}
                         >
                             {message.content}
                         </Streamdown>
                     </div>
 
-                    {isAssistant && !isFailed && (
+                    {showFeedback && (
                         <div
                             className={clsx(styles.feedbackContainer, {
-                                [styles.visible]: hovering || hasFeedback,
+                                [styles.visible]: hasFeedback,
                             })}
                         >
                             <button
@@ -135,9 +160,9 @@ function MessageBubbleComponent({
                 )}
             </div>
 
-            {hovering && (
-                <span className={styles.timestamp}>{relativeTime}</span>
-            )}
+            <span className={styles.timestamp} data-testid="message-timestamp">
+                {relativeTime}
+            </span>
         </div>
     );
 }
@@ -155,6 +180,9 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.status === next.message.status &&
         prev.message.errorMessage === next.message.errorMessage &&
         prev.message.errorReason === next.message.errorReason &&
+        prev.message.final === next.message.final &&
+        prev.message.activities === next.message.activities &&
+        prev.isDraft === next.isDraft &&
         prev.retryDisabled === next.retryDisabled &&
         prev.onRetry === next.onRetry &&
         prev.onFeedback === next.onFeedback

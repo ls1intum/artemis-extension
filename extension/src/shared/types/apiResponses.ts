@@ -158,6 +158,7 @@ export interface IrisChatSession {
     userId?: number;
     title?: string;
     creationDate?: string;
+    lastActivityDate?: string;
     messages?: IrisChatMessage[];
     [key: string]: unknown;
 }
@@ -179,6 +180,10 @@ export interface IrisChatMessage {
     sender?: string;
     sentAt?: string;
     content?: IrisChatMessageContent[];
+    /** Tool activity persisted with this message; rendered as the trail. */
+    activities?: IrisActivityDTO[];
+    /** `false` marks an intermediate message. Absent or `true` means final. */
+    final?: boolean;
     [key: string]: unknown;
 }
 
@@ -188,13 +193,19 @@ export interface IrisChatMessageContent {
     [key: string]: unknown;
 }
 
-export interface IrisStageDTO {
-    name?: string;
-    weight?: number;
-    state?: 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE' | 'SKIPPED' | 'ERROR';
-    message?: string;
-    internal?: boolean;
-    [key: string]: unknown;
+export type IrisRunState = 'RUNNING' | 'FINISHED' | 'FAILED';
+export type IrisActivityState = 'RUNNING' | 'FINISHED' | 'FAILED';
+export type IrisActivityKind = 'TOOL' | 'COMMAND';
+
+/** One tool or command invocation reported by a Pyris run. */
+export interface IrisActivityDTO {
+    id: string;
+    kind: IrisActivityKind;
+    name: string;
+    state: IrisActivityState;
+    detail?: string;
+    result?: string;
+    durationMillis?: number;
 }
 
 export interface IrisSettingsResponse {

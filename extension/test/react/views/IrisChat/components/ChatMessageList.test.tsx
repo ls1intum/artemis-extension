@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ChatMessage, IrisStageDTO, StreamingState } from '@webview/views/IrisChat/types';
+import type { IrisActivityDTO, IrisRunState } from '@shared/types/apiResponses';
+
+import type { ChatMessage, StreamingState } from '@webview/views/IrisChat/types';
 
 // Mock use-stick-to-bottom (ESM package used via useAutoScroll)
 vi.mock('use-stick-to-bottom', () => ({
@@ -36,14 +38,6 @@ const defaultStreaming: StreamingState = {
 	isStreaming: false,
 };
 
-const makeStage = (overrides: Partial<IrisStageDTO> = {}): IrisStageDTO => ({
-    name: 'thinking',
-    weight: 10,
-    state: 'IN_PROGRESS',
-    message: 'Thinking hard',
-    ...overrides,
-});
-
 function makeMessage(overrides: Partial<ChatMessage> = {}, index = 0): ChatMessage {
 	return {
 		localId: `msg-${index}`,
@@ -54,88 +48,76 @@ function makeMessage(overrides: Partial<ChatMessage> = {}, index = 0): ChatMessa
 	};
 }
 
+interface RenderListOverrides {
+	messages?: ChatMessage[];
+	streaming?: StreamingState;
+	activities?: IrisActivityDTO[];
+	liveDraft?: { runId: string; text: string } | null;
+	runState?: IrisRunState | null;
+	runError?: { message?: string } | null;
+	hasContext?: boolean;
+}
+
+/**
+ * Renders ChatMessageList with sensible defaults for every required prop so
+ * new cases can override only what they exercise and can never silently omit
+ * a required prop (which would otherwise make the component crash or render
+ * an unrelated branch).
+ */
+function renderList(overrides: RenderListOverrides = {}) {
+	return render(
+		<ChatMessageList
+			messages={overrides.messages ?? []}
+			streaming={overrides.streaming ?? defaultStreaming}
+			activities={overrides.activities ?? []}
+			liveDraft={overrides.liveDraft ?? null}
+			runState={overrides.runState ?? null}
+			runError={overrides.runError ?? null}
+			onFeedback={vi.fn()}
+			onSendPrompt={vi.fn()}
+			hasContext={overrides.hasContext ?? true}
+		/>
+	);
+}
+
 describe('ChatMessageList', () => {
 	it('renders welcome state when no messages', () => {
-		render(
-			<ChatMessageList
-				messages={[]}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
+		renderList({ hasContext: true });
 		// WelcomeState renders with Iris greeting when hasContext is true
 		expect(screen.getByText("Hi! I'm Iris, your AI tutor.")).toBeInTheDocument();
 	});
 
 	it('renders no-context welcome state when hasContext is false', () => {
-		render(
-			<ChatMessageList
-				messages={[]}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={false}
-			/>
-		);
+		renderList({ hasContext: false });
 		expect(
 			screen.getByText('Select a course or exercise to start chatting with Iris.')
 		).toBeInTheDocument();
 	});
 
 	it('renders messages when messages array is non-empty', () => {
-		const messages = [
-			makeMessage({ role: 'user', content: 'Hello Iris' }, 0),
-			makeMessage({ role: 'assistant', content: 'Hi there!' }, 1),
-		];
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
+		renderList({
+			messages: [
+				makeMessage({ role: 'user', content: 'Hello Iris' }, 0),
+				makeMessage({ role: 'assistant', content: 'Hi there!' }, 1),
+			],
+		});
 		expect(screen.getByText('Hello Iris')).toBeInTheDocument();
 		expect(screen.getByText('Hi there!')).toBeInTheDocument();
 	});
 
 	it('does not render welcome state when messages exist', () => {
-		const messages = [makeMessage({ content: 'Hello' }, 0)];
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
+		renderList({ messages: [makeMessage({ content: 'Hello' }, 0)] });
 		expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 	});
 
 	it('renders messages in order (user then assistant)', () => {
-		const messages = [
-			makeMessage({ role: 'user', content: 'Question 1' }, 0),
-			makeMessage({ role: 'assistant', content: 'Answer 1' }, 1),
-			makeMessage({ role: 'user', content: 'Question 2' }, 2),
-		];
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
+		renderList({
+			messages: [
+				makeMessage({ role: 'user', content: 'Question 1' }, 0),
+				makeMessage({ role: 'assistant', content: 'Answer 1' }, 1),
+				makeMessage({ role: 'user', content: 'Question 2' }, 2),
+			],
+		});
 
 		const allText = screen.getAllByTestId('streamdown').map(el => el.textContent);
 		// Streamdown renders content in DOM order
@@ -144,66 +126,18 @@ describe('ChatMessageList', () => {
 		expect(allText[2]).toBe('Question 2');
 	});
 
-	it('shows thinking indicator when streaming is active', () => {
-		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
-		const streamingState: StreamingState = { isStreaming: true };
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={streamingState}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
-		expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
-	});
-
-	it('does not show thinking indicator when not streaming', () => {
-		const messages = [makeMessage({ content: 'Done' }, 0)];
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
-		expect(screen.queryByTestId('thinking-indicator')).not.toBeInTheDocument();
-	});
-
 	it('renders scroll container div', () => {
-		const { container } = render(
-			<ChatMessageList
-				messages={[]}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
+		const { container } = renderList();
 		// The scroll container is the outermost div
 		expect(container.firstChild).toBeInTheDocument();
 	});
 
 	it('renders multiple messages as separate MessageBubble elements', () => {
-		const messages = Array.from({ length: 5 }, (_, i) =>
-			makeMessage({ role: i % 2 === 0 ? 'user' : 'assistant', content: `Msg ${i}` }, i)
-		);
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
+		renderList({
+			messages: Array.from({ length: 5 }, (_, i) =>
+				makeMessage({ role: i % 2 === 0 ? 'user' : 'assistant', content: `Msg ${i}` }, i)
+			),
+		});
 		// All 5 messages should be rendered
 		for (let i = 0; i < 5; i++) {
 			expect(screen.getByText(`Msg ${i}`)).toBeInTheDocument();
@@ -211,67 +145,45 @@ describe('ChatMessageList', () => {
 	});
 
 	it('passes onFeedback to message bubbles (feedback buttons visible on hover)', () => {
-		const onFeedback = vi.fn();
-		const messages = [makeMessage({ role: 'assistant', content: 'Answer' }, 0)];
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={null}
-				onFeedback={onFeedback}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
+		renderList({ messages: [makeMessage({ role: 'assistant', content: 'Answer' }, 0)] });
 		// onFeedback is passed through — verify message renders
 		expect(screen.getByText('Answer')).toBeInTheDocument();
 	});
 
-	it('shows stage indicator when activeStage is present', () => {
-		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={defaultStreaming}
-				activeStage={makeStage()}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
-		expect(screen.getByText('Thinking hard')).toBeInTheDocument();
+	it('renders the draft bubble from liveDraft', () => {
+		renderList({ liveDraft: { runId: 'A', text: 'partial answer' } });
+		expect(screen.getByText('partial answer')).toBeTruthy();
 	});
 
-	it('stage indicator takes priority over legacy thinking dots when both could apply', () => {
-		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
-		const streamingState: StreamingState = { isStreaming: true };
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={streamingState}
-				activeStage={makeStage()}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
-		// Stage indicator wins — its message is rendered.
-		expect(screen.getByText('Thinking hard')).toBeInTheDocument();
+	it('hides the thinking indicator once a draft exists', () => {
+		renderList({ streaming: { isStreaming: true }, liveDraft: { runId: 'A', text: 'x' } });
+		expect(screen.queryByTestId('thinking-indicator')).toBeNull();
 	});
 
-	it('shows legacy thinking dots when streaming but no activeStage', () => {
-		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
-		const streamingState: StreamingState = { isStreaming: true };
-		render(
-			<ChatMessageList
-				messages={messages}
-				streaming={streamingState}
-				activeStage={null}
-				onFeedback={vi.fn()}
-				onSendPrompt={vi.fn()}
-				hasContext={true}
-			/>
-		);
-		expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
+	it('hides the thinking indicator once activities exist', () => {
+		renderList({ streaming: { isStreaming: true }, activities: [
+			{ id: 'a1', kind: 'TOOL', name: 'file_lookup', state: 'RUNNING' },
+		] });
+		expect(screen.queryByTestId('thinking-indicator')).toBeNull();
+		expect(screen.getByTestId('activity-feed-live')).toBeTruthy();
+	});
+
+	it('shows the thinking indicator while waiting with neither', () => {
+		renderList({ streaming: { isStreaming: true } });
+		expect(screen.getByTestId('thinking-indicator')).toBeTruthy();
+	});
+
+	it('does not show thinking indicator when not streaming', () => {
+		renderList({ messages: [makeMessage({ content: 'Done' }, 0)] });
+		expect(screen.queryByTestId('thinking-indicator')).not.toBeInTheDocument();
+	});
+
+	it('renders the trail on a finished assistant message', () => {
+		renderList({ messages: [{
+			id: 1, localId: 'l1', role: 'assistant', content: 'done', timestamp: 0, status: 'sent',
+			activities: [{ id: 'a1', kind: 'TOOL', name: 'file_lookup', state: 'FINISHED', durationMillis: 300 }],
+		}] });
+		expect(screen.getByTestId('activity-feed-trail')).toBeTruthy();
+		expect(screen.getByText(/Tools used: 1/)).toBeTruthy();
 	});
 });

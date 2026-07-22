@@ -6,6 +6,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ChatMessageService } from '@extension/services/iris/chat/chatMessageService';
 import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { RunLifecycle } from '@extension/services/iris/irisRunStateMachine';
 import * as workspaceFileChecker from '@extension/services/workspace/workspaceFileChecker';
 import type { ActiveContext } from '@extension/types';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -20,6 +21,7 @@ suite('ChatMessageService', () => {
     let checkWorkspaceFilesStub: sinon.SinonStub;
     let configGetStub: sinon.SinonStub;
     let mockSessionManager: { currentSessionId: number | undefined };
+    let mockLifecycle: { beginGeneration: sinon.SinonStub; abortGeneration: sinon.SinonStub };
     let service: ChatMessageService;
 
     const activeContext: ActiveContext = {
@@ -44,7 +46,10 @@ suite('ChatMessageService', () => {
         excludedCount: 1,
     };
 
-    function createService(apiService?: ArtemisApiService | undefined): ChatMessageService {
+    function createService(
+        apiService?: ArtemisApiService | undefined,
+        overrides?: { websocketService?: unknown; lifecycle?: RunLifecycle },
+    ): ChatMessageService {
         service = new ChatMessageService(
             {
                 contextStore,
@@ -52,9 +57,10 @@ suite('ChatMessageService', () => {
                 postMessage: postMessageSpy,
                 postSnapshot: postSnapshotSpy,
             },
-            { isConnected: () => true, connect: sandbox.stub().resolves() } as any,
+            (overrides?.websocketService ?? { isConnected: () => true, connect: sandbox.stub().resolves() }) as any,
             () => mockSessionManager as any,
             mockChatSessionService as any,
+            (overrides?.lifecycle ?? mockLifecycle) as unknown as RunLifecycle,
         );
         return service;
     }
@@ -85,6 +91,8 @@ suite('ChatMessageService', () => {
         postSnapshotSpy = sinon.spy();
 
         mockSessionManager = { currentSessionId: 42 };
+
+        mockLifecycle = { beginGeneration: sandbox.stub().returns(1), abortGeneration: sandbox.stub() };
 
         checkWorkspaceFilesStub = sandbox.stub(workspaceFileChecker, 'checkWorkspaceFiles').resolves(defaultFileResult);
 
@@ -325,6 +333,50 @@ suite('ChatMessageService', () => {
 
             assert.ok(mockApiService.sendChatMessage.calledOnce);
             assert.strictEqual(mockApiService.sendChatMessage.firstCall.args[2], undefined);
+        });
+    });
+
+    suite('Run-generation lifecycle', () => {
+        test('aborts this send\'s generation when the POST throws', async () => {
+            // The generation is opened before the send; a failing POST must
+            // abort exactly it so the composer is released.
+            const lifecycle = { beginGeneration: sandbox.stub().returns(7), abortGeneration: sandbox.stub() };
+            createService(mockApiService as unknown as ArtemisApiService, { lifecycle });
+            mockApiService.sendChatMessage.rejects(new Error('POST failed'));
+
+            await assert.rejects(
+                () => service.sendMessage({ text: 'Hello', isNoAiEnabled: false }),
+                /POST failed/,
+            );
+
+            assert.ok(lifecycle.beginGeneration.calledOnce, 'generation must be opened');
+            assert.ok(
+                lifecycle.abortGeneration.calledOnceWithExactly(7),
+                'abortGeneration must be called with this send\'s generation',
+            );
+        });
+
+        test('aborts the generation when a pre-POST step throws (before the POST)', async () => {
+            // The old plan missed this case: the generation is opened above the
+            // preparation steps, so a throw in _ensureWebSocketConnection (here,
+            // isConnected throwing) must still abort — the POST is never reached.
+            const lifecycle = { beginGeneration: sandbox.stub().returns(7), abortGeneration: sandbox.stub() };
+            const throwingWs = {
+                isConnected: () => { throw new Error('ws down'); },
+                connect: sandbox.stub().resolves(),
+            };
+            createService(mockApiService as unknown as ArtemisApiService, { websocketService: throwingWs, lifecycle });
+
+            await assert.rejects(
+                () => service.sendMessage({ text: 'Hello', isNoAiEnabled: false }),
+                /ws down/,
+            );
+
+            assert.ok(
+                lifecycle.abortGeneration.calledOnceWithExactly(7),
+                'abortGeneration must fire even when the failure precedes the POST',
+            );
+            assert.ok(mockApiService.sendChatMessage.notCalled, 'the POST must never be reached');
         });
     });
 });

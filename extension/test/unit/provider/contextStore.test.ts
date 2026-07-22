@@ -577,6 +577,38 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(after.exercises.length, 0);
     });
 
+    test('should fire onDidChangeSessions with the active context key on incrementActiveSessionMessageCount', () => {
+        contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+        contextStore.setActiveContext({
+            type: 'exercise', id: 1, title: 'Ex 1', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        contextStore.createSession('Session 1');
+
+        const fired: string[][] = [];
+        const sub = contextStore.onDidChangeSessions(({ contextKeys }) => fired.push(contextKeys));
+
+        contextStore.incrementActiveSessionMessageCount();
+
+        sub.dispose();
+        assert.deepStrictEqual(fired, [['exercise:1']]);
+    });
+
+    test('should fire onDidChangeSessions with both keys when upsertSessionFromOverview rehomes a session', () => {
+        contextStore.registerExercise({ id: 9, title: 'Ex 9' });
+        contextStore.setActiveContext({
+            type: 'exercise', id: 9, title: 'Ex 9', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        contextStore.upsertSessionFromOverview({ contextKey: 'exercise:9', artemisSessionId: 42, lastActivity: 100 });
+
+        const fired: string[][] = [];
+        const sub = contextStore.onDidChangeSessions(({ contextKeys }) => fired.push(contextKeys));
+
+        contextStore.upsertSessionFromOverview({ contextKey: 'course:1', artemisSessionId: 42, title: 'Moved', lastActivity: 300 });
+
+        sub.dispose();
+        assert.deepStrictEqual(fired, [['exercise:9', 'course:1']]);
+    });
+
     test('should clear active context on removeCourse even when id is absent from tracked lists', () => {
         contextStore.setActiveContext({
             type: 'course',

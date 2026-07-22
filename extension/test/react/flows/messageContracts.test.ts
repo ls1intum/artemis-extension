@@ -128,6 +128,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('IrisChatAddMessage has correct message shape', () => {
         const msg = {
             type: 'addMessage' as const,
+            localSessionId: 'session-local-1',
             message: {
                 id: 1,
                 role: 'assistant' as const,
@@ -155,18 +156,38 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.updateType).toBe('newResult');
     });
 
-    it('UpdateIrisStagesMessage has required stages array', () => {
+    it('UpdateIrisRunUiMessage has a well-formed run-UI projection', () => {
         const msg = {
-            type: 'updateIrisStages' as const,
-            stages: [
-                { name: 'thinking', weight: 10, state: 'IN_PROGRESS' as const, message: 'Thinking hard', internal: false },
-            ],
-        } satisfies ExtMsg<'updateIrisStages'>;
+            type: 'updateIrisRunUi' as const,
+            projection: {
+                localSessionId: 'session-local-1',
+                revision: 3,
+                draft: { runId: 'run-1', text: 'partial answer...' },
+                activities: [],
+                waiting: true,
+                runState: 'RUNNING' as const,
+            },
+        } satisfies ExtMsg<'updateIrisRunUi'>;
 
-        expect(msg.type).toBe('updateIrisStages');
-        expect(Array.isArray(msg.stages)).toBe(true);
-        expect(msg.stages[0].name).toBe('thinking');
-        expect(msg.stages[0].state).toBe('IN_PROGRESS');
+        expect(msg.type).toBe('updateIrisRunUi');
+        expect(msg.projection.localSessionId).toBe('session-local-1');
+        expect(msg.projection.draft?.runId).toBe('run-1');
+        expect(msg.projection.runState).toBe('RUNNING');
+    });
+
+    it('IrisChatAddMessage is valid without runUi (non-run bubble, e.g. provider error)', () => {
+        const msg = {
+            type: 'addMessage' as const,
+            localSessionId: 'session-local-1',
+            message: {
+                role: 'assistant' as const,
+                content: 'Error: something went wrong',
+                timestamp: 1_700_000_000_000,
+            },
+        } satisfies ExtMsg<'addMessage'>;
+
+        expect(msg.type).toBe('addMessage');
+        expect('runUi' in msg).toBe(false);
     });
 });
 

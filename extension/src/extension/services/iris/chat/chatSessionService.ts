@@ -4,6 +4,7 @@ import { MalformedResponseError } from '@extension/domain/errors';
 import { resolveCourseIdFromContext } from '@extension/services/iris/context/courseIdResolver';
 import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
 import { fetchSessionsWithMessages, importSessionsToStore } from '@extension/services/iris/context/sessionSyncUtils';
+import { isIrisActivity } from '@extension/services/iris/parseIrisWs';
 import type { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '@extension/types';
@@ -57,10 +58,24 @@ function describeError(error: unknown): string {
 export class IrisChatSessionService {
     private _contextLoadToken = 0;
     private _lastAvailability: LastAvailability = { kind: 'unknown' };
+    // Keyed by contextKey (`${type}:${id}`), NOT a single boolean: creating
+    // in course A must not block a concurrent create in course B, and A's
+    // completion must not clear B's guard. Populated before the server
+    // round-trip in createNewSession() and cleared on every exit path
+    // (success, failure, and the early-returns with nothing to await).
+    private readonly _createInFlight = new Set<string>();
+    // Keyed by local session id: a target-preserving Retry (reloadActiveSession)
+    // reloads only the active session's messages. Repeated Retry clicks for the
+    // same session must not start overlapping loads. The guard latches until
+    // the in-flight load settles. Distinct from _createInFlight (which guards
+    // server-side session creation) and from the provider's context-level
+    // _reloadInFlight (which reloads the whole context).
+    private readonly _reloadActiveInFlight = new Set<string>();
 
     constructor(
         private readonly deps: IrisServiceDeps,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
+        private readonly _runReset: { resetRuns: () => void },
     ) { }
 
     public get contextLoadToken(): number {
@@ -410,9 +425,26 @@ export class IrisChatSessionService {
                     role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
                     content: content,
                     timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                    helpful: (msg as { helpful?: boolean | null }).helpful
+                    helpful: (msg as { helpful?: boolean | null }).helpful,
+                    activities: Array.isArray(msg.activities) ? msg.activities.filter(isIrisActivity) : undefined,
+                    final: typeof msg.final === 'boolean' ? msg.final : undefined
                 };
             });
+
+            // Correct the active session's messageCount to the number of
+            // messages actually loaded. This matters for sessions created via
+            // upsertSessionFromOverview (the atomic open flow): the overview
+            // endpoint carries no counts, so they are seeded with
+            // messageCount: 0 and would otherwise look empty (and be eligible
+            // for cleanupEmptySessions) until the next full reload. Gated on
+            // the start session so a stale continuation (user switched mid
+            // load) does not overwrite a different session's count. This lives
+            // here (not in the provider) because switchToSession returns
+            // void and this method owns formattedMessages.
+            if (isStillStartSession()) {
+                this.deps.contextStore.setActiveSessionMessageCount(formattedMessages.length);
+                this.deps.postSnapshot();
+            }
 
             // Always emit LoadMessages — even with an empty array — so the
             // webview can flip out of its loading state. We tag with the
@@ -446,6 +478,29 @@ export class IrisChatSessionService {
     public createNewSession(): void {
         logger.info('Creating new session', LogCategory.IRIS_CHAT);
 
+        // Creation-in-flight guard: a rapid double-click (or a race between
+        // the header's + button and the ConversationHistory popover's own
+        // "New conversation" action) must not spawn two server-side sessions
+        // for the same context. Keyed by contextKey, not a single boolean,
+        // so an in-flight create in course A never blocks a concurrent one
+        // in course B. Computed once, up front (nothing below changes the
+        // active context type/id), and every exit path releases this same
+        // key: the finally() on the happy/error path, and the two explicit
+        // releases below for the early-return branches.
+        const activeContext = this.deps.contextStore.getActiveContext();
+        const guardKey = contextKeyOf(activeContext);
+        if (guardKey && this._createInFlight.has(guardKey)) {
+            logger.info(`createNewSession already in flight for ${guardKey}, ignoring duplicate call`, LogCategory.IRIS_CHAT);
+            return;
+        }
+        if (guardKey) {
+            this._createInFlight.add(guardKey);
+        }
+
+        // Drop host run state before the Iris session is reset, or the old
+        // run's projection survives into the new conversation.
+        this._runReset.resetRuns();
+
         const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {
             irisSessionManager.resetSession();
@@ -456,11 +511,9 @@ export class IrisChatSessionService {
 
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
 
-        // Create a brand new Iris session on the server.
         // The local session UUID exists immediately (created above); we
         // capture it now so the LoadMessages / LoadMessagesError emitted
         // below carries the right key even after async operations.
-        const activeContext = this.deps.contextStore.getActiveContext();
         const newLocalSessionId = this.deps.contextStore.snapshot().activeSession?.id;
         if (activeContext && irisSessionManager && newLocalSessionId) {
             // Capture the local session UUID at start so the .then/.catch
@@ -472,11 +525,21 @@ export class IrisChatSessionService {
             const isStillNewSession = (): boolean =>
                 this.deps.contextStore.snapshot().activeSession?.id === newLocalSessionId;
 
+            // Advance the navigation generation (accepted op: the in-flight
+            // guard above already rejected duplicates without a bump, so a
+            // rejected duplicate never invalidates this legitimate create).
+            // Both continuations below re-check this token in addition to the
+            // session-level isStillNewSession guard, so a newer navigation
+            // (a switch, an open, another create) invalidates this create.
+            const loadToken = this.incrementLoadToken();
+            const isStillCurrentNav = (): boolean =>
+                this._contextLoadToken === loadToken && isStillNewSession();
+
             irisSessionManager.createNewSession(activeContext)
                 .then(sessionId => {
-                    if (!isStillNewSession()) {
+                    if (!isStillCurrentNav()) {
                         logger.info(
-                            `Discarding new-session response for ${newLocalSessionId}: user switched sessions during the create round-trip`,
+                            `Discarding new-session response for ${newLocalSessionId}: superseded by a newer navigation or session switch`,
                             LogCategory.IRIS_CHAT,
                         );
                         return;
@@ -495,7 +558,7 @@ export class IrisChatSessionService {
                 })
                 .catch((err: unknown) => {
                     logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
-                    if (!isStillNewSession()) {
+                    if (!isStillCurrentNav()) {
                         return;
                     }
                     // Reuse the same availability classifier as
@@ -512,12 +575,71 @@ export class IrisChatSessionService {
                         type: ExtensionMsg.LoadMessagesError,
                         localSessionId: newLocalSessionId,
                     });
+                })
+                .finally(() => {
+                    if (guardKey) {
+                        this._createInFlight.delete(guardKey);
+                    }
                 });
+        } else if (guardKey) {
+            // No websocket client / no active context / no local session:
+            // there is nothing async to wait on, so release the guard
+            // immediately instead of leaving it stuck until the process
+            // that would have cleared it (there isn't one).
+            this._createInFlight.delete(guardKey);
         }
     }
 
     public switchToSession(sessionId: string): void {
         logger.info('Switching to session:', LogCategory.IRIS_CHAT, sessionId);
+
+        void this._switchAndLoad(sessionId).catch(err => {
+            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
+        });
+    }
+
+    /**
+     * Target-preserving Retry: reload ONLY the active session's messages,
+     * NOT the whole context (that is the provider's `_reloadChatSession` /
+     * `loadAllSessionsForContext`). Single-flight, keyed by the active local
+     * session id, so a button-mash cannot start overlapping loads. Reuses the
+     * `switchToSession` load path (which advances the navigation token), so a
+     * stale cross-context open in flight is invalidated by this reload.
+     */
+    public reloadActiveSessionMessages(): void {
+        const activeLocalId = this.deps.contextStore.snapshot().activeSession?.id;
+        if (!activeLocalId) {
+            logger.info('reloadActiveSessionMessages: no active session, nothing to reload', LogCategory.IRIS_CHAT);
+            return;
+        }
+        if (this._reloadActiveInFlight.has(activeLocalId)) {
+            logger.info(`reloadActiveSessionMessages already in flight for ${activeLocalId}, ignoring duplicate`, LogCategory.IRIS_CHAT);
+            return;
+        }
+        this._reloadActiveInFlight.add(activeLocalId);
+        void this._switchAndLoad(activeLocalId)
+            .catch(err => {
+                logger.error('Error reloading active session messages:', LogCategory.IRIS_CHAT, err);
+            })
+            .finally(() => {
+                this._reloadActiveInFlight.delete(activeLocalId);
+            });
+    }
+
+    /**
+     * Shared session-nav body for `switchToSession` and
+     * `reloadActiveSessionMessages`: reset runs + WS, select the session, clear
+     * the UI, advance the navigation generation, then load its messages.
+     * Advancing `_contextLoadToken` here is what makes this switch the
+     * authoritative navigation: any in-flight loader (including a stale
+     * cross-context open) fails its `t === contextLoadToken` re-check and
+     * returns without mutating or emitting an error. Returns the load promise
+     * so the single-flight Retry guard can release only once it settles.
+     */
+    private _switchAndLoad(sessionId: string): Promise<void> {
+        // Drop host run state before the Iris session is reset, or the old
+        // run's projection survives into the switched-to conversation.
+        this._runReset.resetRuns();
 
         const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {
@@ -529,10 +651,10 @@ export class IrisChatSessionService {
 
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
 
-        // Load messages for the switched session
-        this._loadIrisMessages().catch(err => {
-            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
-        });
+        // Advance the navigation generation before loading (accepted op).
+        this.incrementLoadToken();
+
+        return this._loadIrisMessages();
     }
 
     public async resetAndReloadSessions(): Promise<number> {
@@ -649,6 +771,10 @@ export class IrisChatSessionService {
 
     private _clearAllSessions(): void {
         logger.info('Clearing all local sessions', LogCategory.IRIS_CHAT);
+
+        // Drop host run state before the Iris session is reset, or the old
+        // run's projection survives the Reset & Sync.
+        this._runReset.resetRuns();
 
         const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {

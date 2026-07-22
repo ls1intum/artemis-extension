@@ -50,6 +50,7 @@ export async function fetchSessionsWithMessages(
             id: summary.id,
             title: summary.title,
             creationDate: summary.creationDate,
+            lastActivityDate: summary.lastActivityDate,
             mode: summary.mode,
             entityId: summary.entityId,
         };
@@ -74,6 +75,12 @@ export async function fetchSessionsWithMessages(
  * (no messages) are skipped — callers rely on this count to decide whether
  * to fall back to creating a fresh session.
  *
+ * "Most recent" is defined by `lastActivityDate` (falling back to
+ * `creationDate`, then to the session's own `createdAt` if that date string
+ * is missing or unparsable) rather than by creation time, so a long-running
+ * older conversation that was touched most recently is still recognized as
+ * the most recent one.
+ *
  * NOTE: createSessionWithDetails() prepends sessions. Since we iterate
  * newest-first and prepend each time, the stored array ends up oldest-first.
  * Existing behavior, preserved intentionally.
@@ -86,10 +93,19 @@ export function importSessionsToStore(
         return 0;
     }
 
+    const resolveLastActivity = (session: IrisChatSession, createdAt: number): number => {
+        const raw = session.lastActivityDate ?? session.creationDate;
+        if (!raw) {
+            return createdAt;
+        }
+        const parsed = Date.parse(raw);
+        return Number.isNaN(parsed) ? createdAt : parsed;
+    };
+
     sessions.sort((a, b) => {
-        const timeA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
-        const timeB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
-        return timeB - timeA;
+        const createdAtA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
+        const createdAtB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
+        return resolveLastActivity(b, createdAtB) - resolveLastActivity(a, createdAtA);
     });
 
     let imported = 0;
@@ -100,6 +116,7 @@ export function importSessionsToStore(
         }
 
         const createdAt = session.creationDate ? new Date(session.creationDate).getTime() : Date.now();
+        const lastActivity = resolveLastActivity(session, createdAt);
 
         let preview = 'New conversation';
         if (session.messages && session.messages.length > 0) {
@@ -120,6 +137,7 @@ export function importSessionsToStore(
             createdAt,
             session.id,
             typeof session.title === 'string' ? session.title : undefined,
+            lastActivity,
         );
         imported++;
     }

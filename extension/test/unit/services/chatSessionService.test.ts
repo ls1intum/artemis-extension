@@ -16,6 +16,7 @@ suite('IrisChatSessionService Test Suite', () => {
     let mockIrisWebSocketSessionClient: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     let postMessageSpy: sinon.SinonSpy;
     let onPostSnapshotSpy: sinon.SinonSpy;
+    let resetRunsSpy: sinon.SinonSpy;
     // resetToWorkspaceSpy removed — workspace redirect moved to provider
     let mockContext: MockExtensionContext;
 
@@ -36,6 +37,7 @@ suite('IrisChatSessionService Test Suite', () => {
         // Create spies for callbacks
         postMessageSpy = sinon.spy();
         onPostSnapshotSpy = sinon.spy();
+        resetRunsSpy = sinon.spy();
         chatSessionService = new IrisChatSessionService(
             {
                 contextStore,
@@ -44,6 +46,7 @@ suite('IrisChatSessionService Test Suite', () => {
                 postSnapshot: onPostSnapshotSpy,
             },
             () => mockIrisWebSocketSessionClient as any,
+            { resetRuns: resetRunsSpy },
         );
     });
 
@@ -159,6 +162,7 @@ suite('IrisChatSessionService Test Suite', () => {
                     postSnapshot: onPostSnapshotSpy,
                 },
                 () => mockIrisWebSocketSessionClient as any,
+                { resetRuns: resetRunsSpy },
             );
 
             const result = await serviceWithoutApi.checkAndLoadIrisSettings(courseContext);
@@ -466,6 +470,7 @@ suite('IrisChatSessionService Test Suite', () => {
                     postSnapshot: onPostSnapshotSpy,
                 },
                 () => mockIrisWebSocketSessionClient as any,
+                { resetRuns: resetRunsSpy },
             );
 
             const context: ActiveContext = {
@@ -1090,6 +1095,61 @@ suite('IrisChatSessionService Test Suite', () => {
                 'LoadMessagesError must carry the local session id that ended up active after import',
             );
         });
+
+        test('LoadMessages carries activities (filtered) and final through the history path', async () => {
+            // Persisted Iris messages carry a tool `activities` trail and a
+            // `final` flag. The mapping in chatSessionService must forward
+            // both instead of silently discarding them on reload, and it
+            // must drop malformed activity entries rather than forward them
+            // as-is (isIrisActivity is the shared runtime guard).
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+
+            const validActivity = { id: 'a1', kind: 'TOOL', name: 'search', state: 'RUNNING' };
+            const malformedActivity = { id: 'a2', name: 'bad-activity', state: 'RUNNING' }; // missing `kind` — must be filtered out
+
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                {
+                    id: 100,
+                    sender: 'LLM',
+                    content: [{ textContent: 'Working on it' }],
+                    activities: [validActivity, malformedActivity],
+                    final: false,
+                } as never,
+            ]);
+
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            const loadMessagesCall = postMessageSpy.getCalls().find(
+                c => c.args[0]?.type === 'loadMessages'
+            );
+            assert.ok(loadMessagesCall, 'Should emit loadMessages');
+
+            const messages = (loadMessagesCall!.args[0] as {
+                messages: Array<{ activities?: unknown[]; final?: boolean }>;
+            }).messages;
+            assert.strictEqual(messages.length, 1);
+            assert.strictEqual(messages[0].final, false, 'final:false must survive the mapping');
+            assert.deepStrictEqual(
+                messages[0].activities,
+                [validActivity],
+                'the malformed activity entry must be filtered out; the valid one must survive',
+            );
+        });
     });
 
     suite('createNewSession', () => {
@@ -1212,6 +1272,117 @@ suite('IrisChatSessionService Test Suite', () => {
             const sessionB = finalSnapshot.sessions.find(s => s.id === sessionBId);
             assert.strictEqual(sessionB?.artemisSessionId, 7,
                 'session B must keep its own artemisSessionId (7); the late create response for N must not clobber it');
+        });
+    });
+
+    suite('createNewSession creation-in-flight guard', () => {
+        test('two rapid calls create exactly one local session and one server call; the accepted result is applied', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+            const sessionCountBefore = contextStore.snapshot().sessions.length;
+
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
+            // Rapid duplicate: fired before the first server round-trip resolves.
+            chatSessionService.createNewSession();
+            chatSessionService.createNewSession();
+
+            assert.strictEqual(
+                mockIrisWebSocketSessionClient.createNewSession.callCount, 1,
+                'the duplicate call must not issue a second server-side create',
+            );
+            assert.strictEqual(
+                contextStore.snapshot().sessions.length, sessionCountBefore + 1,
+                'exactly one new local session must be created',
+            );
+
+            // Let the accepted request's .then() fire.
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            const finalSnapshot = contextStore.snapshot();
+            assert.strictEqual(finalSnapshot.activeSession?.artemisSessionId, 42,
+                'the accepted request\'s server id must be mapped onto the session (guard runs before the token advances, so the duplicate never invalidates the legitimate op)');
+
+            const loadMessagesCall = postMessageSpy.getCalls().find(
+                c => c.args[0]?.type === 'loadMessages'
+            );
+            assert.ok(loadMessagesCall, 'LoadMessages for the accepted create must not be discarded as stale');
+            assert.strictEqual(
+                (loadMessagesCall!.args[0] as { localSessionId: string }).localSessionId,
+                finalSnapshot.activeSession?.id,
+                'LoadMessages must be tagged with the session that is actually active',
+            );
+        });
+
+        test('the guard releases after completion, so a later call for the same context is allowed', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(1);
+
+            chatSessionService.createNewSession();
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            chatSessionService.createNewSession();
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            assert.strictEqual(mockIrisWebSocketSessionClient.createNewSession.callCount, 2,
+                'a create issued after the first one fully completed must not be blocked by a stale guard entry');
+        });
+
+        test('the guard is keyed by context: an in-flight create in course A does not block a concurrent create in course B', async () => {
+            const courseA: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Course A',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            const courseB: ActiveContext = {
+                type: 'course',
+                id: 202,
+                title: 'Course B',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+
+            // A's server round-trip is held open for the duration of this
+            // test, so A's guard entry stays populated the whole time.
+            let resolveA: (id: number) => void = () => { /* noop */ };
+            mockIrisWebSocketSessionClient.createNewSession.callsFake(
+                () => new Promise<number>(resolve => { resolveA = resolve; }),
+            );
+
+            contextStore.setActiveContext(courseA);
+            chatSessionService.createNewSession(); // A now in flight, never resolves during this test
+
+            contextStore.setActiveContext(courseB);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(2); // B resolves normally
+            chatSessionService.createNewSession();
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            assert.strictEqual(mockIrisWebSocketSessionClient.createNewSession.callCount, 2,
+                "B must not be blocked by A's still-open guard entry");
+
+            // Resolve A so its promise chain settles before the test ends.
+            resolveA(1);
+            await new Promise(resolve => setTimeout(resolve, 10));
         });
     });
 
@@ -1359,6 +1530,66 @@ suite('IrisChatSessionService Test Suite', () => {
             await assert.rejects(
                 () => chatSessionService.resetAndReloadSessions(),
                 /Server down/
+            );
+        });
+    });
+
+    suite('resetRuns on conversation-reset paths', () => {
+        // Each reset path clears the WS session and messages, so each must also
+        // drop host run state or the old run's projection survives into the new
+        // conversation. resetRuns must fire BEFORE the Iris session reset.
+        const context: ActiveContext = {
+            type: 'course',
+            id: 101,
+            title: 'Test Course',
+            source: 'user-selected',
+            locked: false,
+            selectedAt: Date.now()
+        };
+
+        test('switchToSession resets runs before resetting the Iris session', () => {
+            contextStore.setActiveContext(context);
+            contextStore.createSession();
+            const sessionId = contextStore.snapshot().sessions[0].id;
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+            mockApiService.getChatMessages.resolves([]);
+
+            chatSessionService.switchToSession(sessionId);
+
+            assert.ok(resetRunsSpy.calledOnce, 'resetRuns must fire on switchToSession');
+            assert.ok(
+                resetRunsSpy.calledBefore(mockIrisWebSocketSessionClient.resetSession),
+                'resetRuns must fire before the Iris session reset',
+            );
+        });
+
+        test('createNewSession resets runs before resetting the Iris session', () => {
+            contextStore.setActiveContext(context);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
+            chatSessionService.createNewSession();
+
+            assert.ok(resetRunsSpy.calledOnce, 'resetRuns must fire on createNewSession');
+            assert.ok(
+                resetRunsSpy.calledBefore(mockIrisWebSocketSessionClient.resetSession),
+                'resetRuns must fire before the Iris session reset',
+            );
+        });
+
+        test('resetAndReloadSessions (_clearAllSessions) resets runs', async () => {
+            contextStore.setActiveContext(context);
+            mockApiService.listChatSessionsForCourse.resolves([]);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(99);
+
+            await chatSessionService.resetAndReloadSessions();
+
+            // _clearAllSessions runs first and resets runs before its
+            // resetSession; the no-server-sessions fallback (createNewSession)
+            // resets again, so the spy fires at least once.
+            assert.ok(resetRunsSpy.called, 'resetRuns must fire on Reset & Sync');
+            assert.ok(
+                resetRunsSpy.calledBefore(mockIrisWebSocketSessionClient.resetSession),
+                'the first resetRuns must fire before the first Iris session reset',
             );
         });
     });

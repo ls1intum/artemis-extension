@@ -1,9 +1,12 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
+import type { IrisChatSession } from '@shared/types/apiResponses';
 import type { ActiveContext } from '@shared/types/context';
 
-import { fetchSessionsWithMessages } from '@extension/services/iris/context/sessionSyncUtils';
+import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { fetchSessionsWithMessages, importSessionsToStore } from '@extension/services/iris/context/sessionSyncUtils';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 function makeApi(stubs: Partial<Record<string, sinon.SinonStub>> = {}): any {
     return {
@@ -113,5 +116,93 @@ suite('fetchSessionsWithMessages', () => {
         assert.strictEqual(result.length, 2);
         assert.deepStrictEqual(result.find(s => s.id === 1)?.messages, []);
         assert.strictEqual(result.find(s => s.id === 2)?.messages?.length, 1);
+    });
+
+    test('copies lastActivityDate from the summary onto the session base', async () => {
+        const summaries = [
+            { id: 1, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: 't1', lastActivityDate: 'la1' },
+        ];
+        const api = makeApi({
+            listChatSessionsForCourse: sinon.stub().resolves(summaries),
+            getChatMessages: sinon.stub().resolves([]),
+        });
+
+        const result = await fetchSessionsWithMessages(api, makeStore(), exerciseCtx);
+
+        assert.strictEqual(result[0].lastActivityDate, 'la1');
+    });
+});
+
+suite('importSessionsToStore', () => {
+    function makeContextStore(): ContextStore {
+        const store = new ContextStore(new MockExtensionContext() as any);
+        store.setActiveContext({
+            type: 'exercise', id: 123, title: 'E', source: 'user-selected', locked: false, selectedAt: 0,
+        });
+        return store;
+    }
+
+    function sessionWithMessage(overrides: Partial<IrisChatSession>): IrisChatSession {
+        return {
+            id: 0,
+            messages: [{ sender: 'USER', content: [{ textContent: 'hi' }] }],
+            ...overrides,
+        };
+    }
+
+    test('an older-created session with a newer lastActivityDate is picked as the most recent', () => {
+        const contextStore = makeContextStore();
+        const sessions: IrisChatSession[] = [
+            sessionWithMessage({
+                id: 1,
+                creationDate: '2026-01-01T00:00:00.000Z',
+                lastActivityDate: '2026-06-01T00:00:00.000Z',
+            }),
+            sessionWithMessage({
+                id: 2,
+                creationDate: '2026-05-01T00:00:00.000Z',
+                lastActivityDate: '2026-01-15T00:00:00.000Z',
+            }),
+        ];
+
+        importSessionsToStore(sessions, contextStore);
+        contextStore.switchToFirstSession();
+
+        const snapshot = contextStore.snapshot();
+        assert.strictEqual(snapshot.activeSession?.artemisSessionId, 1);
+    });
+
+    test('falls back to creationDate when lastActivityDate is absent', () => {
+        const contextStore = makeContextStore();
+        const sessions: IrisChatSession[] = [
+            sessionWithMessage({ id: 1, creationDate: '2026-01-01T00:00:00.000Z' }),
+            sessionWithMessage({ id: 2, creationDate: '2026-05-01T00:00:00.000Z' }),
+        ];
+
+        importSessionsToStore(sessions, contextStore);
+        contextStore.switchToFirstSession();
+
+        const snapshot = contextStore.snapshot();
+        assert.strictEqual(snapshot.activeSession?.artemisSessionId, 2);
+    });
+
+    test('falls back to createdAt when lastActivityDate is an invalid date string', () => {
+        const contextStore = makeContextStore();
+        const sessions: IrisChatSession[] = [
+            sessionWithMessage({
+                id: 1,
+                creationDate: '2026-01-01T00:00:00.000Z',
+                lastActivityDate: 'not-a-date',
+            }),
+            sessionWithMessage({ id: 2, creationDate: '2026-05-01T00:00:00.000Z' }),
+        ];
+
+        importSessionsToStore(sessions, contextStore);
+        contextStore.switchToFirstSession();
+
+        // session 1's invalid lastActivityDate falls back to its own createdAt
+        // (2026-01-01), which is still older than session 2's createdAt (2026-05-01).
+        const snapshot = contextStore.snapshot();
+        assert.strictEqual(snapshot.activeSession?.artemisSessionId, 2);
     });
 });

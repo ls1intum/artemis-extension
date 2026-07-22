@@ -4,7 +4,9 @@
 
 import type {
     ExerciseDetailsResponse,
-    IrisStageDTO,
+    IrisActivityDTO,
+    IrisChatMode,
+    IrisRunState,
     ResultSummary,
     SubmissionSummary,
 } from '@shared/types/apiResponses';
@@ -58,6 +60,9 @@ export const ExtensionMsg = {
     AddMessage: 'addMessage',
     LoadMessages: 'loadMessages',
     LoadMessagesError: 'loadMessagesError',
+    OpenSessionError: 'openSessionError',
+    UpdateCourseHistory: 'updateCourseHistory',
+    CourseHistoryError: 'courseHistoryError',
     ClearChatMessages: 'clearChatMessages',
     UpdateReferencedFiles: 'updateReferencedFiles',
     UpdateWebSocketStatus: 'updateWebSocketStatus',
@@ -66,7 +71,7 @@ export const ExtensionMsg = {
     ShowUnavailableState: 'showUnavailableState',
     HideUnavailableState: 'hideUnavailableState',
     UpdateNoAiStatus: 'updateNoAiStatus',
-    UpdateIrisStages: 'updateIrisStages',
+    UpdateIrisRunUi: 'updateIrisRunUi',
     SendRejected: 'sendRejected',
 
     // Exercise/Repo responses
@@ -88,6 +93,25 @@ export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
 /** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
 interface RenderedProblemStatementPayload {
     html: string;
+}
+
+/**
+ * The host's view of run-scoped chat UI. Sent as a standalone snapshot
+ * (`updateIrisRunUi`) while streaming, and embedded in `addMessage` so a commit
+ * and its resulting UI state are applied atomically. The webview must never be
+ * able to observe the draft cleared before the committed message landed.
+ */
+export interface IrisRunUiProjection {
+    /** Rejects a projection belonging to a session we already left. */
+    localSessionId: string;
+    /** Monotonic; the webview drops anything not strictly newer. */
+    revision: number;
+    /** `null` clears the draft. Always `null` on a commit. */
+    draft: { runId: string; text: string } | null;
+    activities: IrisActivityDTO[];
+    waiting: boolean;
+    runState: IrisRunState | null;
+    error?: { message?: string } | null;
 }
 
 /** Payload definitions for each Extension->Webview message */
@@ -187,19 +211,32 @@ interface ExtensionMsgPayloads {
                 createdAt: number;
                 lastActivity: number;
             }>;
-            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
-            courses: Array<{ id: number; title: string; shortName?: string }>;
+            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean; releaseDate?: string; dueDate?: string; lastViewed?: number }>;
+            courses: Array<{ id: number; title: string; shortName?: string; lastViewed?: number }>;
         };
         showDiagnostics?: boolean;
     };
     addMessage: {
+        /**
+         * Session this bubble belongs to; the webview drops stale sessions.
+         * Both producers (the WS handler and the provider's catch path) only
+         * ever emit when they have a session id to attribute the bubble to.
+         */
+        localSessionId: string;
         message: {
             id?: number;
             role: 'user' | 'assistant';
             content: string;
             timestamp: number;
             helpful?: boolean | null;
+            activities?: IrisActivityDTO[];
+            final?: boolean;
         };
+        /**
+         * Omitted for non-run bubbles (the provider's error messages), which
+         * must leave run state untouched.
+         */
+        runUi?: IrisRunUiProjection;
     };
     loadMessages: {
         /** Local session UUID this load belongs to. The webview ignores
@@ -213,9 +250,41 @@ interface ExtensionMsgPayloads {
             content: string;
             timestamp: number;
             helpful?: boolean | null;
+            activities?: IrisActivityDTO[];
+            final?: boolean;
         }>;
     };
     loadMessagesError: { localSessionId: string };
+    /**
+     * A pre-switch open failure: the course overview fetch failed, or the
+     * requested Artemis session id was not present in it. Distinct from
+     * {@link loadMessagesError} (which is keyed to a `localSessionId` and
+     * dropped unless it matches the active session): nothing was mutated and
+     * the active session is untouched, so this cannot be attributed to any
+     * local session. The history popover surfaces it inline.
+     */
+    openSessionError: { message: string };
+    /**
+     * Answers a `requestCourseHistory` command: the course-wide history for
+     * the course-history popover, newest-first (see `buildCourseHistory`).
+     * `requestId` echoes the request so the store can drop a stale response
+     * whose `requestId` no longer matches the latest request.
+     */
+    updateCourseHistory: {
+        courseId: number;
+        requestId: number;
+        entries: Array<{
+            artemisSessionId: number;
+            courseId: number;
+            mode: IrisChatMode;
+            entityId: number;
+            entityName?: string;
+            title?: string;
+            lastActivity: number;
+        }>;
+    };
+    /** `requestCourseHistory` failed (e.g. the overview fetch threw). */
+    courseHistoryError: { courseId: number; requestId: number };
     clearChatMessages: undefined;
     updateReferencedFiles: {
         includedFiles: string[];
@@ -231,8 +300,8 @@ interface ExtensionMsgPayloads {
         isNoAiDetected: boolean;
         noAiFilePath?: string;
     };
-    updateIrisStages: {
-        stages: IrisStageDTO[];
+    updateIrisRunUi: {
+        projection: IrisRunUiProjection;
     };
     /**
      * Posted by the extension host when a user-initiated `sendMessage`
