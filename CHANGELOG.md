@@ -15,6 +15,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
+- **Proactive nudge banner:** Clicking "Show me" (or "I need more help") on the follow-up offer banner now opens the Iris chat, matching the initial hint banner.
 - **Proactive hint badge:** The "1" badge on the Iris activity-bar icon now clears when a proactive episode ends (solved, timed out, or dismissed), instead of staying visible.
 - **Fullscreen exercise view:** The exercise description now loads when an exercise is opened in the fullscreen (expanded) view, instead of showing "Failed to load the exercise description".
 - **Exercise description header:** Tightened the spacing under the "Exercise Description" heading and added a divider line, so the description starts directly below the title instead of after a large gap.

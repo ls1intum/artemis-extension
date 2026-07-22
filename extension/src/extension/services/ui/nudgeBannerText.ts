@@ -2,8 +2,23 @@
  * Rotation text pool for the proactive nudge banner. English-only fixed pool of 4,
  * picked at random per appearance with no immediate repeat of the previous title.
  */
+import type { WebCmd } from '@shared/messageContracts';
+import { WebviewCmd } from '@shared/messageContracts';
 
 export interface NudgeText { title: string; sub: string; }
+
+type NudgeBannerActionPayload = WebCmd<typeof WebviewCmd.NudgeBannerAction>['payload'];
+
+/**
+ * A nudge-banner action that is the student's explicit request to SEE the hint, so it should
+ * open/focus the Iris chat: "Show me" on the active banner, and the offer banner's accept
+ * ("Show me" / "I need more help"). decline / dismiss / timeout do not open the chat, and the
+ * dev mock banner (sentinel id) never does (#344).
+ */
+export function bannerActionOpensChat(payload: NudgeBannerActionPayload): boolean {
+    if (payload.episodeId === MOCK_NUDGE_EPISODE_ID) { return false; }
+    return 'moment' in payload ? payload.action === 'accept' : payload.action === 'showMe';
+}
 
 /**
  * Sentinel `episodeId` for the developer-only "mock proactivity" banner. The banner's action
