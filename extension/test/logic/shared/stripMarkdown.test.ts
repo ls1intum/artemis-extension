@@ -45,9 +45,12 @@ describe('stripMarkdown', () => {
         const S = String.fromCharCode(0xe000);
         expect(stripMarkdown(`x${S}0${S}y and \`code\` z`)).toBe('x0y and code z');
     });
-    it('does not throw on a ) inside a link URL, and keeps the words', () => {
-        expect(() => stripMarkdown('see [docs](http://x/a(b)c) here')).not.toThrow();
-        expect(stripMarkdown('see [docs](http://x/a(b)c) here')).toContain('docs');
+    it('leaves a link whose URL contains parentheses raw (bounded URL class keeps it linear), text still visible', () => {
+        // The URL class is bounded so the stripper stays linear; a paren inside the URL means the
+        // link pattern does not match and the markup is left as-is. The visible words are still there.
+        const out = stripMarkdown('see [docs](http://x/a(b)c) here');
+        expect(out).toBe('see [docs](http://x/a(b)c) here');
+        expect(out).toContain('docs');
     });
     it('stays linear on adversarial delimiter and malformed-link runs (a quadratic impl would time out)', () => {
         // ~300 KB each: the linear implementation finishes in a few ms; an O(n^2) scan exceeds the
@@ -56,5 +59,9 @@ describe('stripMarkdown', () => {
             const adv = seed.repeat(Math.floor(300000 / seed.length));
             expect(stripMarkdown(adv)).toBe(adv);
         }
+    });
+    it('stays linear on a large run of fenced-code openers', () => {
+        const adv = '```x '.repeat(100000); // ~500 KB of fence openers; a quadratic scan would time out
+        expect(typeof stripMarkdown(adv)).toBe('string'); // completes well within the timeout
     });
 });

@@ -6,8 +6,10 @@ const CODE_SENTINEL = '\uE000';
  * images, links, bold, italic, and strikethrough. Best-effort and inline-oriented.
  *
  * Guarantees that matter for the truncated hint previews (folded episode one-liner, in-editor
- * hover). It is linear-time: every pass uses character classes (never `.+?`, and the link/image
- * text and URL classes cannot scan across another `[` or `(`), so no input can ReDoS. It leaves
+ * hover). It is linear-time: every pass uses character classes, no `.+?`; the one lazy scan
+ * (fenced code blocks) is bounded by its identical closing delimiter, so it telescopes to linear.
+ * The link/image text and URL classes cannot scan across another `[` or `(`, so no input can
+ * ReDoS. It leaves
  * inline-code contents opaque, so a `__dunder__` or `*x*` inside code is not re-stripped. Emphasis
  * is matched-pair only with Unicode word-boundary guards, so a lone `*` in prose (`a * b`), an
  * intra-word `_` (`a_b`), a `__`/`**` run inside an identifier (`foo__bar__baz`), and a
