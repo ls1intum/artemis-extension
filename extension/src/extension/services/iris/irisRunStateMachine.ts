@@ -95,6 +95,30 @@ export class IrisRunStateMachine {
     }
 
     /**
+     * Resolve the in-flight answer out of band: a persisted assistant message
+     * past the send baseline was found after a reconnect (see
+     * {@link historyResolvesRun}). Finalizes the bound run so a late frame cannot
+     * resurrect it and clears `_waiting`, without discarding the known-run guards
+     * (unlike {@link reset}).
+     *
+     * No-op while `_pendingGeneration` is true: the current generation has not
+     * bound its run yet, so `_currentRunId` still belongs to a PREVIOUS generation
+     * (beginGeneration does not clear it). Resolving then would finalize the wrong
+     * run and clear a pending flag a later generation relies on. The never-bound
+     * case therefore falls back to the manual reload rather than resolving here;
+     * this makes the Core boundary an invariant of the machine, not just a
+     * provider convention.
+     */
+    public resolveCurrentRun(): void {
+        if (this._pendingGeneration) { return; }
+        if (this._currentRunId) {
+            this._finalizedRunIds.add(this._currentRunId);
+            this._lastPartialSeqByRunId.delete(this._currentRunId);
+        }
+        this._waiting = false;
+    }
+
+    /**
      * @returns whether the transition was ACCEPTED. The caller must not mirror
      *   `runState`/`error` into its projection when this returns false, or the
      *   guard would protect only half the state: the machine would still be
