@@ -16,7 +16,7 @@ import { IrisEnabledCache } from '@extension/services/iris/irisEnabledCache';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
 import { createProviderRegistry } from '@extension/services/ui';
-import { MOCK_NUDGE_EPISODE_ID } from '@extension/services/ui/nudgeBannerText';
+import { bannerActionOpensChat } from '@extension/services/ui/nudgeBannerText';
 import { StruggleAlertStatusBar } from '@extension/services/ui/struggleAlertStatusBar';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
@@ -272,8 +272,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// id) is visual only: its buttons neither record an outcome nor open the chat.
 	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction((payload) => {
 		handleBannerAction?.(payload);
-		// Legacy active banner only (offer banners never carry a 'showMe' action): jump into the chat.
-		if (!('moment' in payload) && payload.action === 'showMe' && payload.episodeId !== MOCK_NUDGE_EPISODE_ID) {
+		// Any "see the hint" action opens the Iris chat: the active banner's "Show me" AND the offer
+		// banner's accept ("Show me" / "I need more help"). #344: the offer path was previously excluded.
+		if (bannerActionOpensChat(payload)) {
 			void vscode.commands.executeCommand('iris.chatView.focus');
 		}
 	}));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NUDGE_TEXTS, pickNudgeText } from '@extension/services/ui/nudgeBannerText';
+import { bannerActionOpensChat, MOCK_NUDGE_EPISODE_ID, NUDGE_TEXTS, pickNudgeText } from '@extension/services/ui/nudgeBannerText';
 
 describe('nudgeBannerText', () => {
     it('the rotation pool has exactly 4 entries', () => {
@@ -26,5 +26,28 @@ describe('nudgeBannerText', () => {
         const prevTitle = NUDGE_TEXTS[0].title;
         const filteredPool = NUDGE_TEXTS.filter(t => t.title !== prevTitle);
         expect(pickNudgeText(prevTitle, () => 0)).toEqual(filteredPool[0]);
+    });
+});
+
+describe('bannerActionOpensChat (#344)', () => {
+    it('active banner "Show me" opens the chat', () => {
+        expect(bannerActionOpensChat({ action: 'showMe', episodeId: 'ep-1' })).toBe(true);
+    });
+
+    it('offer banner accept ("Show me" / "I need more help") opens the chat, both moments', () => {
+        expect(bannerActionOpensChat({ moment: 'stuck', action: 'accept', episodeId: 'ep-1', offerId: 'o-1' })).toBe(true);
+        expect(bannerActionOpensChat({ moment: 'abandon', action: 'accept', episodeId: 'ep-1', offerId: 'o-1' })).toBe(true);
+    });
+
+    it('non-"see the hint" actions do not open the chat', () => {
+        expect(bannerActionOpensChat({ action: 'dismiss', episodeId: 'ep-1' })).toBe(false);
+        expect(bannerActionOpensChat({ action: 'timeout', episodeId: 'ep-1' })).toBe(false);
+        expect(bannerActionOpensChat({ moment: 'stuck', action: 'decline', episodeId: 'ep-1', offerId: 'o-1' })).toBe(false);
+        expect(bannerActionOpensChat({ moment: 'abandon', action: 'timeout', episodeId: 'ep-1', offerId: 'o-1' })).toBe(false);
+    });
+
+    it('the dev mock banner never opens the chat (any action)', () => {
+        expect(bannerActionOpensChat({ action: 'showMe', episodeId: MOCK_NUDGE_EPISODE_ID })).toBe(false);
+        expect(bannerActionOpensChat({ moment: 'stuck', action: 'accept', episodeId: MOCK_NUDGE_EPISODE_ID, offerId: 'o-1' })).toBe(false);
     });
 });
