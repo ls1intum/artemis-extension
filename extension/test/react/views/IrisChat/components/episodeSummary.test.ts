@@ -53,6 +53,10 @@ describe('cleanTopic', () => {
     it('preserves literal asterisks/underscores in prose (does not mangle code-ish text)', () => {
         expect(cleanTopic('use a * b not a_b')).toBe('use a * b not a_b');
     });
+    it('strips single-delimiter emphasis (*x* and _x_)', () => {
+        expect(cleanTopic('In isValidSelection, what happens on the *last*')).toBe('In isValidSelection, what happens on the last');
+        expect(cleanTopic('handle the _edge_ case')).toBe('handle the edge case');
+    });
     it('keeps link text and does not crash on a ) inside the URL', () => {
         // best-effort: the link regex may leave residue, but it must not throw and must keep the words.
         expect(() => cleanTopic('see [docs](http://x/a(b)c) here')).not.toThrow();

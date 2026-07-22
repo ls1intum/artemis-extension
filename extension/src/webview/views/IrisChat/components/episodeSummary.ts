@@ -4,6 +4,8 @@ import Hourglass from 'lucide-react/dist/esm/icons/hourglass';
 import Lightbulb from 'lucide-react/dist/esm/icons/lightbulb';
 import X from 'lucide-react/dist/esm/icons/x';
 
+import { stripMarkdown } from '@shared/stripMarkdown';
+
 import type { ChatMessage } from '@webview/views/IrisChat/types';
 
 /** A proactive episode's terminal reaction (mirrors {@link ChatMessage.proactiveOutcome}). */
@@ -48,16 +50,13 @@ export function outcomeMeta(outcome: EpisodeOutcome | undefined): OutcomeMeta {
 const MAX_TOPIC = 48;
 
 /**
- * A clean one-line topic from a hint body: light markdown stripped, whitespace collapsed, cut at a
- * word boundary at most {@link MAX_TOPIC} chars (with an ellipsis). Best-effort — the link regex does
- * not handle a literal `)` inside a URL, but it degrades to leaving the raw text rather than crashing.
+ * A clean one-line topic from a hint body: markdown stripped via {@link stripMarkdown}, whitespace
+ * collapsed, cut at a word boundary at most {@link MAX_TOPIC} chars (with an ellipsis). Best-effort:
+ * the link regex does not handle a literal `)` inside a URL, but it degrades to leaving the raw text
+ * rather than crashing.
  */
 export function cleanTopic(raw: string): string {
-    const flat = raw
-        .replace(/```[\s\S]*?```/g, ' ')          // fenced code blocks
-        .replace(/`([^`]+)`/g, '$1')               // inline code
-        .replace(/\*\*([^*]+)\*\*/g, '$1')         // bold
-        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')   // links -> link text (best-effort)
+    const flat = stripMarkdown(raw)
         .replace(/^\s*[#>\-*]+\s+/, '')             // only a LEADING heading / blockquote / list marker
         .replace(/\s+/g, ' ')
         .trim();
