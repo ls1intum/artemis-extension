@@ -1578,6 +1578,11 @@ export class StruggleInterventionService implements AlertSink {
         this._deps.clearInline();
         this._deps.clearEpisodeLamp();
         this._deps.hideActiveBanner();
+        // The activity-bar badge marks an OUTSTANDING proactive hint, so it belongs to the live
+        // episode: clear it on every terminal exit (RECOVERED close, watchdog/ABANDON force-free,
+        // dismiss, new-exercise), the same one-place teardown as the other episode surfaces above.
+        // Without this it strands at "1" after a solved/timed-out close (#343).
+        this._deps.setBadge(false);
         this._latch.reset();
         this._watchdog?.disarm();
         this._watchdog = undefined;
