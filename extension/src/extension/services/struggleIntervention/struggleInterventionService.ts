@@ -1879,7 +1879,22 @@ export class StruggleInterventionService implements AlertSink {
         // C3: clear all slot + episode runtime state
         if (!this._slot.isFree()) {
             const st = this._slot.snapshot().state;
-            if (st.kind === 'delivered') { this.recordTerminalEpisode(st.episode, 'INTERRUPTED'); }
+            if (st.kind === 'delivered') {
+                this.recordTerminalEpisode(st.episode, 'INTERRUPTED');
+                // #350: persist INTERRUPTED best-effort under the OWNING exercise (episode.exerciseId), because
+                // getExerciseId() is already the newly-opened exercise here. NO backfill: we never enrol a pending
+                // entry (resetSession clears _pendingOutcomes just below anyway). applied=false is expected when no
+                // canonical row exists yet (unrevealed ambient); the reveal-in-flight race where the row commits
+                // later with a NULL outcome is an accepted, documented limitation (spec D1). onConsentRevoked
+                // deliberately does NOT persist (no-egress path).
+                const exId = st.episode.exerciseId;
+                const episodeId = st.episode.episodeId;
+                if (exId !== undefined) {
+                    void this._deps.setEpisodeOutcome(exId, episodeId, 'INTERRUPTED')
+                        .then(({ applied }) => { if (!applied) { this._dbg(`  -> INTERRUPTED not persisted (no row yet) for episodeId=${episodeId}`); } })
+                        .catch(() => { /* best-effort */ });
+                }
+            }
             else if (st.kind === 'parked') { this.recordTerminalEpisode(st.episode, 'DISCARDED'); }
             this._dbg('  -> RESET (new exercise): slot -> FREE');
             this._slot.free();
