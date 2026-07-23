@@ -24,11 +24,14 @@ export interface Episode {
     episodeId: string;
     hints: EpisodeHint[];
     createdAtMs: number;
+    /** The programming-exercise id this episode belongs to, captured at creation so a teardown after an
+     *  exercise switch still writes/cancels under the OWNING exercise, not the newly-opened one (#350). */
+    exerciseId?: number;
 }
 
 /** Create a fresh episode. `idgen` is injected so tests can be deterministic. */
-export function newEpisode(now: number, idgen: () => string): Episode {
-    return { episodeId: idgen(), hints: [], createdAtMs: now };
+export function newEpisode(now: number, idgen: () => string, exerciseId?: number): Episode {
+    return { episodeId: idgen(), hints: [], createdAtMs: now, exerciseId };
 }
 
 /** Immutably append a hint to the episode. */

@@ -633,7 +633,7 @@ export class StruggleInterventionService implements AlertSink {
             let requestEpisode: { episodeId: string; isNew: boolean; hints: EpisodeHint[] };
 
             if (snap.state.kind === 'free') {
-                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID());
+                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID(), exerciseId);
                 requestEpisode = {
                     episodeId: this._candidate.episodeId,
                     isNew: !this._continuedEpisodeIds.has(this._candidate.episodeId),
@@ -641,7 +641,7 @@ export class StruggleInterventionService implements AlertSink {
                 };
             } else if (snap.state.kind === 'parked') {
                 // A new candidate for the possible replacement; the PARKED episode is never sent back
-                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID());
+                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID(), exerciseId);
                 requestEpisode = {
                     episodeId: this._candidate.episodeId,
                     isNew: !this._continuedEpisodeIds.has(this._candidate.episodeId),
