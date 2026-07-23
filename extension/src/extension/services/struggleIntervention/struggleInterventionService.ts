@@ -1429,7 +1429,7 @@ export class StruggleInterventionService implements AlertSink {
         const requestEpisode = { episodeId: ep.episodeId, isNew: !this._continuedEpisodeIds.has(ep.episodeId), hints: ep.hints };
         const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
         const localToken = this._guard.issue('help_request', stamp);
-        this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'help_request', localToken, exerciseId: ep.exerciseId });
+        this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'help_request', localToken, exerciseId });
         try {
             const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
             if (this._inFlightMarker?.requestToken === requestToken) {
@@ -1518,7 +1518,7 @@ export class StruggleInterventionService implements AlertSink {
             };
             const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
             const localToken = this._guard.issue('confirm_close', stamp);
-            this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken, exerciseId: ep.exerciseId });
+            this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken, exerciseId });
 
             try {
                 const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
