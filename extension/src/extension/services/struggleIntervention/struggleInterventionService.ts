@@ -39,6 +39,9 @@ interface InFlightMarker {
     intent: 'decide' | 'confirm_close' | 'help_request';
     /** Local token from InFlightGuard.issue() for accept() call. */
     localToken: number;
+    /** The exercise that owns this in-flight request, so a teardown after an exercise switch cancels the
+     *  job under the OWNING exercise rather than getExerciseId() (which is the newly-opened one). (#350) */
+    exerciseId?: number;
     /**
      * The exact working-copy snapshot (`uncommittedFiles`) this decide POST sent, keyed by the same
      * path the server anchors against. Used at delivery to rebase the server anchor line onto the
@@ -669,7 +672,7 @@ export class StruggleInterventionService implements AlertSink {
                 requestToken,
             };
             const localToken = this._guard.issue('decide', stamp);
-            this._setInFlightMarker({ requestToken, episodeId: requestEpisode.episodeId, generation: snap.generation, intent: 'decide', localToken });
+            this._setInFlightMarker({ requestToken, episodeId: requestEpisode.episodeId, generation: snap.generation, intent: 'decide', localToken, exerciseId });
 
             const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
             // Stash the exact bytes we send as the rebase baseline for the eventual anchor reply. The
@@ -1426,7 +1429,7 @@ export class StruggleInterventionService implements AlertSink {
         const requestEpisode = { episodeId: ep.episodeId, isNew: !this._continuedEpisodeIds.has(ep.episodeId), hints: ep.hints };
         const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
         const localToken = this._guard.issue('help_request', stamp);
-        this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'help_request', localToken });
+        this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'help_request', localToken, exerciseId: ep.exerciseId });
         try {
             const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
             if (this._inFlightMarker?.requestToken === requestToken) {
@@ -1515,7 +1518,7 @@ export class StruggleInterventionService implements AlertSink {
             };
             const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
             const localToken = this._guard.issue('confirm_close', stamp);
-            this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken });
+            this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken, exerciseId: ep.exerciseId });
 
             try {
                 const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
@@ -1592,7 +1595,7 @@ export class StruggleInterventionService implements AlertSink {
         // replace-parked / replace-delivered (non-terminal) do NOT call here either, so
         // the in-flight decide completing into the replacement is NOT cancelled.
         if (this._inFlightMarker) {
-            const exerciseId = this._deps.getExerciseId();
+            const exerciseId = this._inFlightMarker.exerciseId;
             if (exerciseId !== undefined) {
                 const token = this._inFlightMarker.requestToken;
                 this._deps.cancelOutstandingStruggleJob(exerciseId, token).catch(() => { /* best-effort */ });

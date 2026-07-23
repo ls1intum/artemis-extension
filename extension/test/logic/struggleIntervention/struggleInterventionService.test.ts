@@ -1675,9 +1675,10 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Scoped cancel: terminal via _clearEpisodeRuntime uses the LIVE in-flight token
     // -------------------------------------------------------------------------
-    it('scoped-cancel: terminal via _clearEpisodeRuntime cancels with the LIVE in-flight token', () => {
+    it('scoped-cancel: _clearEpisodeRuntime cancels under the OWNING exercise, not the current one (#350)', () => {
         const cancelSpy = vi.fn(async () => undefined);
-        const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy });
+        // Owning exercise A=1; the student has already switched so getExerciseId() now returns B=2.
+        const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy, getExerciseId: () => 2 });
         const svc = new StruggleInterventionService(deps);
 
         // Set up DELIVERED slot
@@ -1685,18 +1686,18 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive('ep-sc', 7); // wire cleared by _acceptDecide
 
-        // A fresh request B is now in flight (e.g. a queued confirmClose)
+        // A fresh confirmClose request B is now in flight, armed under the OWNING exercise A=1.
         const tokenB = 'token-B';
         const ep = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode;
         const stamp = { episodeId: ep.episodeId, generation: svc._slot.generation(), hardEvent: false, requestToken: tokenB };
         const lt = svc._guard.issue('confirm_close', stamp);
-        svc._inFlightMarker = { requestToken: tokenB, episodeId: ep.episodeId, generation: svc._slot.generation(), intent: 'confirm_close', localToken: lt };
+        svc._inFlightMarker = { requestToken: tokenB, episodeId: ep.episodeId, generation: svc._slot.generation(), intent: 'confirm_close', localToken: lt, exerciseId: 1 };
 
         // resetSession is a terminal: calls _slot.free() + _clearEpisodeRuntime
         svc.resetSession();
 
-        // The live B token was cancelled, not some stale one
-        expect(cancelSpy).toHaveBeenCalledWith(42, tokenB);
+        // Cancel used the OWNING exercise (A=1) from the marker, NOT getExerciseId() (B=2).
+        expect(cancelSpy).toHaveBeenCalledWith(1, tokenB);
         expect(cancelSpy).toHaveBeenCalledTimes(1);
         expect(svc._inFlightMarker).toBeUndefined();
     });
