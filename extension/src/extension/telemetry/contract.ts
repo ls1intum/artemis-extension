@@ -144,7 +144,7 @@ export interface StruggleEngineDeps {
     setEpisodeOutcome(
         exerciseId: number,
         episodeId: string,
-        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
+        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' | 'INTERRUPTED',
     ): Promise<{ applied: boolean }>;
     /**
      * Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow).

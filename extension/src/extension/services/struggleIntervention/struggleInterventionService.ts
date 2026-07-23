@@ -188,7 +188,7 @@ export interface StruggleInterventionDeps {
     /**
      * Record the student's terminal outcome for an episode-keyed proactive row (A10).
      */
-    setEpisodeOutcome(exerciseId: number, episodeId: string, outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED'): Promise<{ applied: boolean }>;
+    setEpisodeOutcome(exerciseId: number, episodeId: string, outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' | 'INTERRUPTED'): Promise<{ applied: boolean }>;
     // ---- C3: slot-continuity ----
     /**
      * Cancel an outstanding struggle job by its per-POST requestToken (A10 scoped cancel).

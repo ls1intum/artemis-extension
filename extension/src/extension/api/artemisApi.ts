@@ -634,7 +634,7 @@ export class ArtemisApiService {
     async setEpisodeOutcome(
         exerciseId: number,
         episodeId: string,
-        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
+        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' | 'INTERRUPTED',
     ): Promise<{ applied: boolean }> {
         const response = await this.makeRequest(
             `/api/iris/chat/exercises/${exerciseId}/episodes/${episodeId}/proactive-outcome`,
