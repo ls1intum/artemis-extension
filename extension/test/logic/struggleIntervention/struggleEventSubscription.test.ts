@@ -58,6 +58,11 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         generateLocalId: () => 'test-local-id',
         postRevealBubble: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
+        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        resolveRevealTarget: () => ({ courseId: 100, title: 'Fake Exercise' }),
+        currentNavToken: () => 1,
+        openRevealSession: vi.fn(async () => true),
+        notifyRevealUnavailable: vi.fn(),
         revealAmbient: vi.fn(async () => ({ id: 1, sentAt: 'T' })),
         setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         // C3 slot-continuity deps (no-ops for these tests)

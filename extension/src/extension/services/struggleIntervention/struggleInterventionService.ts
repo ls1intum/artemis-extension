@@ -184,6 +184,22 @@ export interface StruggleInterventionDeps {
      * Reconcile the reveal bubble after server persist confirms the canonical row.
      */
     reconcileOptimisticBubble(localId: string, serverId: number, proactiveEpisodeId: string | undefined, sentAt: string): void;
+    // ---- #364: reveal-into-exercise navigation (persist-then-navigate) ----
+    /**
+     * Resolve the owning course + display title of a parked hint's exercise (#364 spec C).
+     * Synchronous local lookup; undefined when the exercise is untracked, or the tracked entry
+     * lacks a courseId (optional) or a title, so the reveal aborts cleanly before any transition.
+     */
+    resolveRevealTarget(exerciseId: number): { courseId: number; title: string } | undefined;
+    /** The provider's current navigation generation (#364 spec A/C), captured before the persist await. */
+    currentNavToken(): number;
+    /**
+     * Navigate to the hint's exercise + proactive session as if the student switched there (#364
+     * spec A). Returns false when expectedNavToken no longer matches (the student navigated away).
+     */
+    openRevealSession(courseId: number, exerciseId: number, sessionId: number, title: string, expectedNavToken: number): Promise<boolean>;
+    /** Notify the student that a parked hint cannot be opened because its exercise is untracked (#364 spec C.3). */
+    notifyRevealUnavailable(): void;
     /**
      * Reveal the hidden ambient hint by persisting it as a chat message in the proactive session (A10).
      */
@@ -1927,14 +1943,36 @@ export class StruggleInterventionService implements AlertSink {
 
         const { episode, frozenText } = snap.state;
         const episodeId = episode.episodeId;
+        // The owning exercise is captured on the episode at creation (#350); reading it here (not
+        // getExerciseId()) keeps the reveal bound to the hint's exercise, and threading it forward
+        // is safe across the persist await (a reset can clear the active exercise, #364 spec C.6).
+        const exerciseId = episode.exerciseId;
         const sessionId = this._frozenSessionId;
-        const exerciseId = this._deps.getExerciseId();
+        // Deterministic localId (spec C.1): stable across attempts so the server clientMessageId
+        // dedups the reveal even across a re-click.
+        const localId = `reveal-${episodeId}`;
+
+        // Step-2 guard (spec C.2): no proactive session or no owning exercise -> cannot reveal.
         if (sessionId === undefined || exerciseId === undefined) {
             this._dbg('revealParkedHint: missing sessionId or exerciseId, cannot reveal');
             return;
         }
 
-        const localId = this._deps.generateLocalId();
+        // Resolve the owning course + display title synchronously, BEFORE any transition/persist/
+        // navigate (spec C.3). Untracked or incomplete (no courseId/title) -> clean abort with a
+        // visible notice; the slot stays PARKED so a later reveal can still succeed.
+        const target = this._deps.resolveRevealTarget(exerciseId);
+        if (target === undefined) {
+            this._deps.notifyRevealUnavailable();
+            this._dbg(`revealParkedHint: exercise ${exerciseId} not resolvable, notified + aborted`);
+            return;
+        }
+        const { courseId, title } = target;
+
+        // Capture the nav token BEFORE the persist await (spec C.4): a navigation during persistence
+        // then makes the provider abort the (now stale) navigation. Steps 1-4 are synchronous, so
+        // there is no pre-transition await and no slot-ownership race.
+        const navToken = this._deps.currentNavToken();
 
         // C3: scoped-cancel any in-flight request (the generation bump on reveal makes it stale)
         const inflight = this._inFlightMarker;
@@ -1969,10 +2007,11 @@ export class StruggleInterventionService implements AlertSink {
         }
         this.notifySlotDebugChanged();
 
-        void this._deps.openSession(sessionId);
-        this._deps.postRevealBubble(frozenText, localId);
-        this._dbg(`  -> REVEAL click: episodeId=${episodeId} sessionId=${sessionId} localId=${localId}`);
-        await this._persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId);
+        this._dbg(`  -> REVEAL click: episodeId=${episodeId} sessionId=${sessionId} exerciseId=${exerciseId} localId=${localId}`);
+        // Persist first; navigate to the hint's exercise ONLY from the confirmed same-epoch success
+        // branch inside _persistReveal (spec C.6). The parked path no longer posts an optimistic
+        // bubble or opens the session eagerly -- the row arrives via the A0-preserved reload.
+        await this._persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId, courseId, sessionId, title, navToken);
     }
 
     /**
@@ -2024,8 +2063,12 @@ export class StruggleInterventionService implements AlertSink {
         hintText: string,
         level: Level,
         localId: string,
+        courseId: number,
+        sessionId: number,
+        title: string,
+        navToken: number,
         attempt = 0,
-    ): Promise<void> {
+    ): Promise<boolean> {
         // #349 wave 2: epoch capture. Everything that happens after the await below (success
         // reconciliation, outcome flush, retry scheduling) is scoped to the consent epoch that
         // STARTED this request: a revoke bumps _revealRetryGen (as does resetSession), so a
@@ -2035,16 +2078,16 @@ export class StruggleInterventionService implements AlertSink {
         // async, so consent may have flipped since it was queued).
         if (!this._deps.isEgressEnabled()) {
             this._dbg('  -> reveal persist skipped: egress disabled (consent revoked)');
-            return;
+            return false;
         }
         try {
             const dto = await this._deps.revealAmbient(exerciseId, episodeId, hintText, level, localId);
             // #349 wave 2: post-await epoch boundary. A success that lands after a revoke (or a
-            // revoke->regrant, which bumped the generation) must not reconcile the bubble or
-            // flush an outcome - return silently, the episode was terminated locally.
+            // revoke->regrant, which bumped the generation) must not reconcile the bubble, flush an
+            // outcome, or navigate - return false, the episode was terminated locally.
             if (this._revealRetryGen !== revealGeneration || !this._deps.isEgressEnabled()) {
                 this._dbg('  -> reveal reply dropped: consent epoch changed during the POST');
-                return;
+                return false;
             }
             if (dto.id === undefined) {
                 throw new Error('revealAmbient returned a DTO with no message id');
@@ -2065,14 +2108,22 @@ export class StruggleInterventionService implements AlertSink {
                     this._dbg(`  -> back-fill flush failed (best-effort): ${flushErr instanceof Error ? flushErr.message : String(flushErr)}`);
                 }
             }
+            // #364 spec C.6: confirmed same-epoch persistence is the ONLY trigger for navigation.
+            // Navigate as if the student switched to the hint's exercise, materialising the persisted
+            // row via the A0-preserved reload. Fire-and-forget (a stale navToken makes the provider
+            // abort per spec A.1; the hint is persisted and shows on the student's return). The carried
+            // courseId/sessionId/title/navToken were captured at reveal time (re-reading state now
+            // would be unsafe: a reset/context change can have cleared or replaced it).
+            void this._deps.openRevealSession(courseId, exerciseId, sessionId, title, navToken);
+            return true;
         } catch (err) {
             if (err instanceof ApiError && NON_RETRIABLE_REVEAL_STATUSES.has(err.status)) {
                 this._dbg(`  -> reveal persist: permanent ${err.status}, not retrying (spec §12 attrition)`);
-                return;
+                return false;
             }
             if (attempt >= MAX_REVEAL_RETRIES) {
                 this._dbg(`  -> reveal persist: max retries (${MAX_REVEAL_RETRIES}) reached, giving up`);
-                return;
+                return false;
             }
             // #349 wave 2: no retry across a consent epoch boundary. If a revoke (or a
             // revoke->regrant) happened while the request was in flight, the generation captured
@@ -2082,14 +2133,19 @@ export class StruggleInterventionService implements AlertSink {
             // invalidates it.
             if (this._revealRetryGen !== revealGeneration || !this._deps.isEgressEnabled()) {
                 this._dbg('  -> reveal persist failed after a consent epoch change; no retry scheduled');
-                return;
+                return false;
             }
             this._dbg(`  -> reveal persist failed (attempt ${attempt + 1}/${MAX_REVEAL_RETRIES}), scheduling retry in ${REVEAL_RETRY_MS}ms`);
             const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
             schedule(() => {
                 if (this._revealRetryGen !== revealGeneration) { return; }
-                void this._persistReveal(exerciseId, episodeId, hintText, level, localId, attempt + 1);
+                // Thread the carried navigation args so the retry that first succeeds still has the
+                // ORIGINAL courseId/sessionId/title/navToken for the confirmed-success navigation.
+                void this._persistReveal(exerciseId, episodeId, hintText, level, localId, courseId, sessionId, title, navToken, attempt + 1);
             }, REVEAL_RETRY_MS);
         }
+        // Not confirmed this attempt (transient failure -> retry scheduled). The retry caller ignores
+        // this return; revealParkedHint awaits only for sequencing.
+        return false;
     }
 }

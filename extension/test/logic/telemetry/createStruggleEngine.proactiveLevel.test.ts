@@ -82,6 +82,11 @@ function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
         setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         postRevealBubble: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
+        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        resolveRevealTarget: () => ({ courseId: 1, title: 'Fake Exercise' }),
+        currentNavToken: () => 0,
+        openRevealSession: vi.fn(async () => true),
+        notifyRevealUnavailable: vi.fn(),
         subscribeStruggleTopic: () => ({ dispose: () => {} }),
         cancelOutstandingStruggleJob: vi.fn(async () => undefined),
         foldEpisode: vi.fn(),

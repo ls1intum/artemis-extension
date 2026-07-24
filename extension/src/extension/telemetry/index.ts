@@ -149,6 +149,12 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         postRevealBubble: (text, localId) => deps.postRevealBubble(text, localId),
         reconcileOptimisticBubble: (localId, serverId, proactiveEpisodeId, sentAt) =>
             deps.reconcileOptimisticBubble(localId, serverId, proactiveEpisodeId, sentAt),
+        // #364: reveal-into-exercise navigation (persist-then-navigate)
+        resolveRevealTarget: (exerciseId) => deps.resolveRevealTarget(exerciseId),
+        currentNavToken: () => deps.currentNavToken(),
+        openRevealSession: (courseId, exerciseId, sessionId, title, expectedNavToken) =>
+            deps.openRevealSession(courseId, exerciseId, sessionId, title, expectedNavToken),
+        notifyRevealUnavailable: () => deps.notifyRevealUnavailable(),
         revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
             deps.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
         setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
