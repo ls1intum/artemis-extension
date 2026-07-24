@@ -675,3 +675,56 @@ suite('ContextStore workspace accessors', () => {
         assert.strictEqual(calls.length, 0);
     });
 });
+
+// #364 A0: thin forwards to SessionManager.getActiveArtemisSessionId /
+// selectByArtemisSessionId — `_sessionManager` is private to ContextStore,
+// so `chatSessionService` needs these to read/restore the raw selection.
+suite('ContextStore.getActiveArtemisSessionId / selectByArtemisSessionId', () => {
+    let store: ContextStore;
+
+    setup(() => {
+        store = new ContextStore(new MockExtensionContext());
+    });
+
+    test('getActiveArtemisSessionId returns undefined with no active session', () => {
+        store.setActiveContext({
+            type: 'exercise', id: 1, title: 'Ex 1', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+
+        assert.strictEqual(store.getActiveArtemisSessionId(), undefined);
+    });
+
+    test('getActiveArtemisSessionId returns the active session\'s artemisSessionId', () => {
+        store.setActiveContext({
+            type: 'exercise', id: 1, title: 'Ex 1', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        store.createSessionWithDetails('Session', 1, Date.now(), 77);
+        const localId = store.snapshot().sessions.find(s => s.artemisSessionId === 77)?.id;
+        store.switchSession(localId!);
+
+        assert.strictEqual(store.getActiveArtemisSessionId(), 77);
+    });
+
+    test('selectByArtemisSessionId selects the matching session and returns true', () => {
+        store.setActiveContext({
+            type: 'exercise', id: 1, title: 'Ex 1', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        store.createSessionWithDetails('Session', 1, Date.now(), 77);
+        store.createSession('Other');
+        assert.notStrictEqual(store.snapshot().activeSession?.artemisSessionId, 77);
+
+        const ok = store.selectByArtemisSessionId(77);
+
+        assert.strictEqual(ok, true);
+        assert.strictEqual(store.snapshot().activeSession?.artemisSessionId, 77);
+    });
+
+    test('selectByArtemisSessionId returns false when no session carries the id', () => {
+        store.setActiveContext({
+            type: 'exercise', id: 1, title: 'Ex 1', source: 'user-selected', selectedAt: Date.now(), locked: false,
+        });
+        store.createSessionWithDetails('Session', 1, Date.now(), 77);
+
+        assert.strictEqual(store.selectByArtemisSessionId(999), false);
+    });
+});

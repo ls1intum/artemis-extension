@@ -274,3 +274,113 @@ suite('SessionManager session-change notifications', () => {
         assert.deepStrictEqual(fired, [['exercise:9', 'course:1']]);
     });
 });
+
+// #364 A0: the refresh transaction needs to read the RAW active-session
+// pointer (not the ContextSnapshot.activeSession display fallback, which
+// silently substitutes sessions[0]) and to re-select a session by its
+// stable artemisSessionId after a local-id-changing re-import.
+suite('SessionManager.getActiveArtemisSessionId / selectByArtemisSessionId', () => {
+    test('returns undefined when activeSessionId is null, even with sessions present (no display fallback)', () => {
+        const state = makeState();
+        const active: ActiveContext = { type: 'course', id: 1 } as ActiveContext;
+        state.sessions['course:1'] = [
+            {
+                id: 'session-a', contextKey: 'course:1', preview: 'A',
+                messageCount: 1, createdAt: 100, lastActivity: 100, artemisSessionId: 77,
+            },
+            {
+                id: 'session-b', contextKey: 'course:1', preview: 'B',
+                messageCount: 1, createdAt: 200, lastActivity: 200, artemisSessionId: 78,
+            },
+        ];
+        state.activeSessionId = null;
+        const mgr = makeManager(state, active);
+
+        assert.strictEqual(mgr.getActiveArtemisSessionId(), undefined);
+    });
+
+    test('returns the artemisSessionId of the session the raw activeSessionId points at', () => {
+        const state = makeState();
+        const active: ActiveContext = { type: 'course', id: 1 } as ActiveContext;
+        state.sessions['course:1'] = [
+            {
+                id: 'session-a', contextKey: 'course:1', preview: 'A',
+                messageCount: 1, createdAt: 100, lastActivity: 100, artemisSessionId: 77,
+            },
+            {
+                id: 'session-b', contextKey: 'course:1', preview: 'B',
+                messageCount: 1, createdAt: 200, lastActivity: 200, artemisSessionId: 78,
+            },
+        ];
+        state.activeSessionId = 'session-a';
+        const mgr = makeManager(state, active);
+
+        assert.strictEqual(mgr.getActiveArtemisSessionId(), 77);
+    });
+
+    test('returns undefined when activeSessionId does not resolve within the active context', () => {
+        const state = makeState();
+        const active: ActiveContext = { type: 'course', id: 1 } as ActiveContext;
+        state.sessions['course:1'] = [
+            {
+                id: 'session-a', contextKey: 'course:1', preview: 'A',
+                messageCount: 1, createdAt: 100, lastActivity: 100, artemisSessionId: 77,
+            },
+        ];
+        // Points at a session that only exists under a different context.
+        state.activeSessionId = 'session-elsewhere';
+        const mgr = makeManager(state, active);
+
+        assert.strictEqual(mgr.getActiveArtemisSessionId(), undefined);
+    });
+
+    test('returns undefined when there is no active context', () => {
+        const state = makeState();
+        state.activeSessionId = 'session-a';
+        const mgr = makeManager(state, null);
+
+        assert.strictEqual(mgr.getActiveArtemisSessionId(), undefined);
+    });
+
+    test('selectByArtemisSessionId sets active to the session carrying that id and returns true', () => {
+        const state = makeState();
+        const active: ActiveContext = { type: 'course', id: 1 } as ActiveContext;
+        state.sessions['course:1'] = [
+            {
+                id: 'session-77', contextKey: 'course:1', preview: 'A',
+                messageCount: 1, createdAt: 100, lastActivity: 100, artemisSessionId: 77,
+            },
+        ];
+        const mgr = makeManager(state, active);
+
+        const ok = mgr.selectByArtemisSessionId(77);
+
+        assert.strictEqual(ok, true);
+        assert.strictEqual(state.activeSessionId, 'session-77');
+    });
+
+    test('selectByArtemisSessionId returns false and does not change activeSessionId when no session carries that id', () => {
+        const state = makeState();
+        const active: ActiveContext = { type: 'course', id: 1 } as ActiveContext;
+        state.sessions['course:1'] = [
+            {
+                id: 'session-77', contextKey: 'course:1', preview: 'A',
+                messageCount: 1, createdAt: 100, lastActivity: 100, artemisSessionId: 77,
+            },
+        ];
+        state.activeSessionId = 'session-77';
+        const mgr = makeManager(state, active);
+
+        const ok = mgr.selectByArtemisSessionId(999);
+
+        assert.strictEqual(ok, false);
+        assert.strictEqual(state.activeSessionId, 'session-77');
+    });
+
+    test('selectByArtemisSessionId returns false when there is no active context', () => {
+        const state = makeState();
+        const mgr = makeManager(state, null);
+
+        assert.strictEqual(mgr.selectByArtemisSessionId(77), false);
+    });
+});

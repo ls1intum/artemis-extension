@@ -1152,6 +1152,99 @@ suite('IrisChatSessionService Test Suite', () => {
         });
     });
 
+    // #364 A0: _fetchImportAndActivate preserves a still-valid explicit
+    // selection across the clear-and-reimport transaction (by the session's
+    // stable artemisSessionId, matched to its new deterministic local id),
+    // and only falls back to switchToFirstSession (newest) when there was
+    // no prior selection or it did not survive the reimport.
+    suite('_fetchImportAndActivate preserves a still-valid explicit selection (#364 A0)', () => {
+        const context: ActiveContext = {
+            type: 'course',
+            id: 101,
+            title: 'Test Course',
+            source: 'user-selected',
+            locked: false,
+            selectedAt: Date.now(),
+        };
+
+        function mockTwoServerSessions(): void {
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 77, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { id: 88, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-05T10:00:00Z' }, // newest
+            ]);
+            mockApiService.getChatMessages.withArgs(77).resolves([
+                { id: 770, sender: 'USER', content: [{ textContent: 'Q77' }] },
+            ]);
+            mockApiService.getChatMessages.withArgs(88).resolves([
+                { id: 880, sender: 'USER', content: [{ textContent: 'Q88' }] },
+            ]);
+        }
+
+        test('case A: restores the pre-refresh selection (by artemisSessionId, new local id), not newest', async () => {
+            contextStore.setActiveContext(context);
+            // Pre-refresh: select a session carrying artemisSessionId=77
+            // under a random local id — deliberately NOT the deterministic
+            // `session-77` id the re-import will produce.
+            contextStore.createSession();
+            const preRefreshLocalId = contextStore.snapshot().activeSession?.id;
+            contextStore.setArtemisSessionId(77);
+            assert.notStrictEqual(preRefreshLocalId, 'session-77', 'precondition: pre-refresh local id must differ from the deterministic re-imported one');
+
+            mockTwoServerSessions();
+            mockIrisWebSocketSessionClient.initializeSession.resolves(77);
+            // Override with a matching sentAt so the stale-mapping cleanup
+            // branch in initializeIrisSessionAndLoadMessages does not fire.
+            mockApiService.getChatMessages.withArgs(77).resolves([
+                { id: 770, sender: 'USER', content: [{ textContent: 'Q77' }], sentAt: '2024-01-01T10:00:00Z' } as never,
+            ]);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeSession?.artemisSessionId, 77,
+                'must keep the explicitly-selected session (77), not jump to the newest (88)');
+            assert.strictEqual(snapshot.activeSession?.id, 'session-77',
+                'must be the deterministic re-imported local id, not the stale pre-refresh one');
+        });
+
+        test('case B: no prior selection falls back to newest', async () => {
+            contextStore.setActiveContext(context);
+            // No session created — activeSessionId stays null.
+            assert.strictEqual(contextStore.getActiveArtemisSessionId(), undefined, 'precondition: no prior selection');
+
+            mockTwoServerSessions();
+            mockIrisWebSocketSessionClient.initializeSession.resolves(88);
+            mockApiService.getChatMessages.withArgs(88).resolves([
+                { id: 880, sender: 'USER', content: [{ textContent: 'Q88' }], sentAt: '2024-01-05T10:00:00Z' } as never,
+            ]);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeSession?.artemisSessionId, 88, 'must fall back to the newest session');
+        });
+
+        test('case C: prior selection absent from the reimport falls back to newest', async () => {
+            contextStore.setActiveContext(context);
+            contextStore.createSession();
+            contextStore.setArtemisSessionId(999); // not part of the reimported set
+            assert.strictEqual(contextStore.getActiveArtemisSessionId(), 999, 'precondition: prior selection captured');
+
+            mockTwoServerSessions();
+            mockIrisWebSocketSessionClient.initializeSession.resolves(88);
+            mockApiService.getChatMessages.withArgs(88).resolves([
+                { id: 880, sender: 'USER', content: [{ textContent: 'Q88' }], sentAt: '2024-01-05T10:00:00Z' } as never,
+            ]);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeSession?.artemisSessionId, 88,
+                'the vanished selection (999) must not stick around; must fall back to the newest');
+        });
+    });
+
     suite('createNewSession', () => {
         test('should reset session instead of just unsubscribing', () => {
             const context: ActiveContext = {

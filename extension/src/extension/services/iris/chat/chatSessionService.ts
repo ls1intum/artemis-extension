@@ -724,6 +724,12 @@ export class IrisChatSessionService {
             return -1;
         }
 
+        // #364 A0: capture the raw explicit selection (by its stable
+        // artemisSessionId) BEFORE clearing — clearSessionsForContext nulls
+        // activeSessionId, and the reimport below recreates sessions under
+        // fresh local ids, so the local id alone would not survive.
+        const preserved = this.deps.contextStore.getActiveArtemisSessionId();
+
         const contextKey = `${targetContext.type}:${targetContext.id}`;
         logger.info(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`, LogCategory.IRIS_CHAT);
         this.deps.contextStore.clearSessionsForContext(contextKey);
@@ -741,7 +747,16 @@ export class IrisChatSessionService {
                 return -1;
             }
 
-            this.deps.contextStore.switchToFirstSession();
+            // #364 A0: restore the still-valid explicit selection (by its
+            // artemisSessionId, now under a new local id) instead of always
+            // resetting to newest. Only when there was no prior selection,
+            // or the previously-selected server session was not part of
+            // this reimport, fall back to switchToFirstSession (newest).
+            if (preserved !== undefined && this.deps.contextStore.selectByArtemisSessionId(preserved)) {
+                logger.info(`Preserved explicit selection (artemisSessionId ${preserved}) across refresh`, LogCategory.IRIS_CHAT);
+            } else {
+                this.deps.contextStore.switchToFirstSession();
+            }
 
             // Publish the imported active session before LoadMessages.
             // Otherwise the webview still has a null/stale activeSessionId

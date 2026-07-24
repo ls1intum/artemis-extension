@@ -228,6 +228,21 @@ export class ContextStore {
         return this.snapshot();
     }
 
+    /**
+     * Thin forward to {@link SessionManager.getActiveArtemisSessionId}. The
+     * only way outside callers (e.g. `chatSessionService`) can read the raw
+     * active-session pointer — `_sessionManager` itself is private to this
+     * class.
+     */
+    public getActiveArtemisSessionId(): number | undefined {
+        return this._sessionManager.getActiveArtemisSessionId();
+    }
+
+    /** Thin forward to {@link SessionManager.selectByArtemisSessionId}. */
+    public selectByArtemisSessionId(artemisSessionId: number): boolean {
+        return this._sessionManager.selectByArtemisSessionId(artemisSessionId);
+    }
+
     public incrementActiveSessionMessageCount(): void {
         this._sessionManager.incrementActiveSessionMessageCount();
     }
