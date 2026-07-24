@@ -175,8 +175,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
             // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
+            // Focus is no longer fired eagerly here (#364 Task 2): the reveal-navigation
+            // (ChatWebviewProvider.revealProactiveSessionForExercise, wired in Task 3) is the
+            // single owner of focus.
             void orchestrator.revealParkedHint();
-            void vscode.commands.executeCommand('iris.chatView.focus');
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
             // Remove the in-editor cue and the jump lamp that points at it. It does not touch the episode --

@@ -40,12 +40,13 @@ suite('InterventionService (ambient lamp)', () => {
         assert.strictEqual(svc.isHintVisible, false);
     });
 
-    test('clicking the lamp opens the Iris chat view', async () => {
+    test('clicking the parked lamp retires it without focusing the chat (focus now owned by the reveal-navigation, #364)', async () => {
         const exec = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
         svc = new InterventionService();
         svc.showLamp();
         await svc.handleClick();
-        assert.ok(exec.calledWith('iris.chatView.focus'));
+        assert.ok(!exec.calledWith('iris.chatView.focus'), 'the lamp click must not focus the chat anymore');
+        assert.strictEqual(svc.isHintVisible, false, 'the one-shot parked lamp still retires on click');
     });
 
     test('clicking fires onDidClick', () => {
@@ -134,7 +135,7 @@ suite('InterventionService (ambient lamp)', () => {
         assert.strictEqual(item.backgroundColor, undefined, 'no amber flash when the cue is already visible');
     });
 
-    test('mode dispatch after reset: jump -> reset -> parked click reveals, not jumps', async () => {
+    test('mode dispatch after reset: jump -> reset -> parked click retires the lamp, not jumps', async () => {
         const exec = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
         const openDoc = sandbox.stub(vscode.workspace, 'openTextDocument').resolves({ lineCount: 200 } as vscode.TextDocument);
         svc = new InterventionService();
@@ -142,7 +143,8 @@ suite('InterventionService (ambient lamp)', () => {
         svc.reset();
         svc.showLamp();
         await svc.handleClick();
-        assert.ok(exec.calledWith('iris.chatView.focus'), 'parked click reveals into chat');
+        assert.ok(!exec.calledWith('iris.chatView.focus'), 'parked click no longer focuses (reveal-navigation owns focus)');
+        assert.strictEqual(svc.isHintVisible, false, 'parked click retires the lamp (one-shot reveal)');
         assert.ok(openDoc.notCalled, 'must NOT open a file (no stale jump command)');
     });
 
