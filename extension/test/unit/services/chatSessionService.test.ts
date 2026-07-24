@@ -1184,7 +1184,7 @@ suite('IrisChatSessionService Test Suite', () => {
         test('case A: restores the pre-refresh selection (by artemisSessionId, new local id), not newest', async () => {
             contextStore.setActiveContext(context);
             // Pre-refresh: select a session carrying artemisSessionId=77
-            // under a random local id — deliberately NOT the deterministic
+            // under a random local id, deliberately NOT the deterministic
             // `session-77` id the re-import will produce.
             contextStore.createSession();
             const preRefreshLocalId = contextStore.snapshot().activeSession?.id;
@@ -1210,7 +1210,7 @@ suite('IrisChatSessionService Test Suite', () => {
 
         test('case B: no prior selection falls back to newest', async () => {
             contextStore.setActiveContext(context);
-            // No session created — activeSessionId stays null.
+            // No session created, so activeSessionId stays null.
             assert.strictEqual(contextStore.getActiveArtemisSessionId(), undefined, 'precondition: no prior selection');
 
             mockTwoServerSessions();

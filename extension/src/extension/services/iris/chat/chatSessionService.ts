@@ -725,7 +725,7 @@ export class IrisChatSessionService {
         }
 
         // #364 A0: capture the raw explicit selection (by its stable
-        // artemisSessionId) BEFORE clearing — clearSessionsForContext nulls
+        // artemisSessionId) BEFORE clearing. clearSessionsForContext nulls
         // activeSessionId, and the reimport below recreates sessions under
         // fresh local ids, so the local id alone would not survive.
         const preserved = this.deps.contextStore.getActiveArtemisSessionId();

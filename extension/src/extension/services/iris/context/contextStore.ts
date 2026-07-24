@@ -231,7 +231,7 @@ export class ContextStore {
     /**
      * Thin forward to {@link SessionManager.getActiveArtemisSessionId}. The
      * only way outside callers (e.g. `chatSessionService`) can read the raw
-     * active-session pointer — `_sessionManager` itself is private to this
+     * active-session pointer. `_sessionManager` itself is private to this
      * class.
      */
     public getActiveArtemisSessionId(): number | undefined {

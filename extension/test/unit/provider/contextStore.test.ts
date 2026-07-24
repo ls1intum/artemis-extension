@@ -677,7 +677,7 @@ suite('ContextStore workspace accessors', () => {
 });
 
 // #364 A0: thin forwards to SessionManager.getActiveArtemisSessionId /
-// selectByArtemisSessionId — `_sessionManager` is private to ContextStore,
+// selectByArtemisSessionId. `_sessionManager` is private to ContextStore,
 // so `chatSessionService` needs these to read/restore the raw selection.
 suite('ContextStore.getActiveArtemisSessionId / selectByArtemisSessionId', () => {
     let store: ContextStore;
