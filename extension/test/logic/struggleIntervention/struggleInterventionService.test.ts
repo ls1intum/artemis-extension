@@ -57,8 +57,6 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* never auto-clear in-flight in tests */ },
         // C2 reveal deps
-        generateLocalId: () => 'test-local-id',
-        postRevealBubble: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
         // #364: reveal-into-exercise navigation. Behavior-preserving defaults (valid target, stable
         // nav token, navigation succeeds) so existing reveal tests never abort through the new guard.
@@ -866,8 +864,6 @@ describe('StruggleInterventionService C2 reveal', () => {
         expect(openRevealSession).toHaveBeenCalledWith(5, 42, 55, 'X', 777);
         // Deterministic localId = reveal-${episodeId} is used as the clientMessageId.
         expect(deps.revealAmbient).toHaveBeenCalledWith(42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'reveal-ep-uuid');
-        // The parked path no longer posts an optimistic bubble (the row arrives via the reload).
-        expect(deps.postRevealBubble).not.toHaveBeenCalled();
     });
 
     it('revealParkedHint (#364): unresolvable exercise (resolveRevealTarget undefined) notifies + aborts; no transition/persist/navigate; slot stays PARKED', async () => {
@@ -974,7 +970,6 @@ describe('StruggleInterventionService C2 reveal', () => {
         await svc.revealParkedHint();
 
         expect(deps.revealAmbient).not.toHaveBeenCalled();
-        expect(deps.postRevealBubble).not.toHaveBeenCalled();
     });
 
     it('revealParkedHint (#364): missing episode.exerciseId -> guard, nothing happens', async () => {
@@ -1028,7 +1023,6 @@ describe('StruggleInterventionService C2 reveal', () => {
         // FREE slot: unconditional call on click is a no-op
         await svc.revealParkedHint();
         expect(deps.revealAmbient).not.toHaveBeenCalled();
-        expect(deps.postRevealBubble).not.toHaveBeenCalled();
 
         // PARKED slot: click trigger causes PARKED->DELIVERED reveal
         setupParked(svc, 55, 'look at this line', 'ep-c1');

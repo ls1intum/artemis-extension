@@ -147,12 +147,6 @@ export interface StruggleEngineDeps {
         outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' | 'INTERRUPTED',
     ): Promise<{ applied: boolean }>;
     /**
-     * Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow).
-     * Distinct from postOptimisticBubble (which uses a numeric message id). The reveal
-     * flow uses a uuid localId for idempotent reconcile.
-     */
-    postRevealBubble(text: string, localId: string): void;
-    /**
      * Reconcile the reveal bubble after server persist confirms the canonical row.
      * Updates the bubble matched by localId to the real server id + proactiveEpisodeId + sentAt.
      */

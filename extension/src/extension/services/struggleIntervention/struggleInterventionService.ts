@@ -176,10 +176,6 @@ export interface StruggleInterventionDeps {
      */
     setChatLiveEpisode(episodeId: string | null): void;
     // ---- C2: reveal flow ----
-    /** Generate a unique local id for an optimistic reveal bubble. */
-    generateLocalId(): string;
-    /** Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow). */
-    postRevealBubble(text: string, localId: string): void;
     /**
      * Reconcile the reveal bubble after server persist confirms the canonical row.
      */

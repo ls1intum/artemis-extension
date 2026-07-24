@@ -145,8 +145,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         resolveOfferBubble: (offerId, answered) => deps.resolveOfferBubble(offerId, answered),
         showOfferBanner: (o) => deps.showOfferBanner(o),
         // C2: reveal + episode-outcome (seam-threaded; webview reconcile wired via deps)
-        generateLocalId: () => crypto.randomUUID(),
-        postRevealBubble: (text, localId) => deps.postRevealBubble(text, localId),
         reconcileOptimisticBubble: (localId, serverId, proactiveEpisodeId, sentAt) =>
             deps.reconcileOptimisticBubble(localId, serverId, proactiveEpisodeId, sentAt),
         // #364: reveal-into-exercise navigation (persist-then-navigate)

@@ -39,8 +39,6 @@ export function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): Struggle
         setChatLiveEpisode: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: vi.fn(),
-        generateLocalId: () => 'test-local-id',
-        postRevealBubble: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
         // #364: reveal-into-exercise navigation. Defaults are behavior-preserving (a valid target so
         // the reveal never aborts through the untracked guard; a stable nav token; navigation succeeds).

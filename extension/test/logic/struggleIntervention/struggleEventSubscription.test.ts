@@ -55,8 +55,6 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         log: { record: vi.fn().mockResolvedValue(undefined) } as unknown as InterventionEventLog,
         setTimeoutFn: (_fn: () => void, _ms: number) => { /* deterministic noop */ },
         // C2 reveal deps (no-ops for these tests)
-        generateLocalId: () => 'test-local-id',
-        postRevealBubble: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
         // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
         resolveRevealTarget: () => ({ courseId: 100, title: 'Fake Exercise' }),
