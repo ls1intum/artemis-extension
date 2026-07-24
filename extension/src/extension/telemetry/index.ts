@@ -153,6 +153,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         openRevealSession: (courseId, exerciseId, sessionId, title, expectedNavToken) =>
             deps.openRevealSession(courseId, exerciseId, sessionId, title, expectedNavToken),
         notifyRevealUnavailable: () => deps.notifyRevealUnavailable(),
+        notifyRevealFailed: () => deps.notifyRevealFailed(),
         revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
             deps.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
         setEpisodeOutcome: (exerciseId, episodeId, outcome) =>

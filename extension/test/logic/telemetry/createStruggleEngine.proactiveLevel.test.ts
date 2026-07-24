@@ -86,6 +86,7 @@ function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
         currentNavToken: () => 0,
         openRevealSession: vi.fn(async () => true),
         notifyRevealUnavailable: vi.fn(),
+        notifyRevealFailed: vi.fn(),
         subscribeStruggleTopic: () => ({ dispose: () => {} }),
         cancelOutstandingStruggleJob: vi.fn(async () => undefined),
         foldEpisode: vi.fn(),

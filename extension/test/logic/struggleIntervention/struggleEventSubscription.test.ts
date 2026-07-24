@@ -61,6 +61,7 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         currentNavToken: () => 1,
         openRevealSession: vi.fn(async () => true),
         notifyRevealUnavailable: vi.fn(),
+        notifyRevealFailed: vi.fn(),
         revealAmbient: vi.fn(async () => ({ id: 1, sentAt: 'T' })),
         setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         // C3 slot-continuity deps (no-ops for these tests)

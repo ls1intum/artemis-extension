@@ -57,6 +57,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         currentNavToken: () => 1,
         openRevealSession: vi.fn(async () => true),
         notifyRevealUnavailable: vi.fn(),
+        notifyRevealFailed: vi.fn(),
         revealAmbient: vi.fn(async () => ({
             id: 7,
             sentAt: '2024-01-01T00:00:00Z',

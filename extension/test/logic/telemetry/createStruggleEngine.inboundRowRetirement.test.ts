@@ -89,6 +89,7 @@ function fakeDeps(): { deps: StruggleEngineDeps; feedFrame: (data: unknown) => v
         currentNavToken: () => 0,
         openRevealSession: vi.fn(async () => true),
         notifyRevealUnavailable: vi.fn(),
+        notifyRevealFailed: vi.fn(),
         subscribeStruggleTopic: (_topic, cb) => { onFrame = cb; return { dispose: () => {} }; },
         cancelOutstandingStruggleJob: vi.fn(async () => undefined),
         foldEpisode: vi.fn(),

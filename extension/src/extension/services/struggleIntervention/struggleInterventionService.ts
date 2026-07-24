@@ -196,6 +196,8 @@ export interface StruggleInterventionDeps {
     openRevealSession(courseId: number, exerciseId: number, sessionId: number, title: string, expectedNavToken: number): Promise<boolean>;
     /** Notify the student that a parked hint cannot be opened because its exercise is untracked (#364 spec C.3). */
     notifyRevealUnavailable(): void;
+    /** Notify the student that a parked hint could not be persisted, so the reveal permanently gave up (#364). */
+    notifyRevealFailed(): void;
     /**
      * Reveal the hidden ambient hint by persisting it as a chat message in the proactive session (A10).
      */
@@ -2115,10 +2117,20 @@ export class StruggleInterventionService implements AlertSink {
         } catch (err) {
             if (err instanceof ApiError && NON_RETRIABLE_REVEAL_STATUSES.has(err.status)) {
                 this._dbg(`  -> reveal persist: permanent ${err.status}, not retrying (spec §12 attrition)`);
+                // #364: the reveal permanently failed; tell the student. Stay silent if the student
+                // changed consent while the POST was in flight (same-epoch guard as everywhere else),
+                // so a self-inflicted revoke dies quietly like the other reveal drop paths.
+                if (this._revealRetryGen === revealGeneration && this._deps.isEgressEnabled()) {
+                    this._deps.notifyRevealFailed();
+                }
                 return false;
             }
             if (attempt >= MAX_REVEAL_RETRIES) {
                 this._dbg(`  -> reveal persist: max retries (${MAX_REVEAL_RETRIES}) reached, giving up`);
+                // #364: give-up after the retry cap; same same-epoch guard as the permanent-4xx branch.
+                if (this._revealRetryGen === revealGeneration && this._deps.isEgressEnabled()) {
+                    this._deps.notifyRevealFailed();
+                }
                 return false;
             }
             // #349 wave 2: no retry across a consent epoch boundary. If a revoke (or a

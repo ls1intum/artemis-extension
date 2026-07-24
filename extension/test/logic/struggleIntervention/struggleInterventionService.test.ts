@@ -65,6 +65,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         currentNavToken: vi.fn(() => 1),
         openRevealSession: vi.fn(async () => true),
         notifyRevealUnavailable: vi.fn(),
+        notifyRevealFailed: vi.fn(),
         revealAmbient: vi.fn(async () => ({
             id: 7,
             sentAt: '2024-01-01T00:00:00Z',
@@ -864,6 +865,8 @@ describe('StruggleInterventionService C2 reveal', () => {
         expect(openRevealSession).toHaveBeenCalledWith(5, 42, 55, 'X', 777);
         // Deterministic localId = reveal-${episodeId} is used as the clientMessageId.
         expect(deps.revealAmbient).toHaveBeenCalledWith(42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'reveal-ep-uuid');
+        // A confirmed persist never surfaces the give-up notice.
+        expect(deps.notifyRevealFailed).not.toHaveBeenCalled();
     });
 
     it('revealParkedHint (#364): unresolvable exercise (resolveRevealTarget undefined) notifies + aborts; no transition/persist/navigate; slot stays PARKED', async () => {
@@ -1125,6 +1128,8 @@ describe('StruggleInterventionService C2 reveal', () => {
         // After MAX_REVEAL_RETRIES (12) retries the cap is hit; no 13th timer is scheduled
         expect(firedFns.length).toBe(12);                  // only 12 retries were scheduled
         expect(revealAmbient).toHaveBeenCalledTimes(13);   // initial + 12 retries
+        // #364: giving up after the retry cap surfaces the give-up notice exactly once.
+        expect(deps.notifyRevealFailed).toHaveBeenCalledOnce();
     });
 
     it('reveal retry: a permanent 4xx is NOT retried', async () => {
@@ -1141,6 +1146,8 @@ describe('StruggleInterventionService C2 reveal', () => {
 
         expect(revealAmbient).toHaveBeenCalledTimes(1);
         expect(retryFn).toBeUndefined();   // no retry was scheduled
+        // #364: a permanent 4xx give-up surfaces the give-up notice exactly once.
+        expect(deps.notifyRevealFailed).toHaveBeenCalledOnce();
     });
 
     it('reveal retry: resetSession cancels an in-flight retry (no further revealAmbient after reset)', async () => {
@@ -2409,6 +2416,31 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
         await p;
 
         expect(setTimeoutFn).not.toHaveBeenCalled();   // no retry crosses the epoch boundary
+        // #364: a give-up past the consent epoch must not nag the student either.
+        expect(deps.notifyRevealFailed).not.toHaveBeenCalled();
+    });
+
+    it('reveal 4xx after a revoke stays silent (no give-up notice past the consent epoch) (#364)', async () => {
+        let egress = true;
+        let rejectReveal!: (e: Error) => void;
+        const revealAmbient = vi.fn(() => new Promise<IrisChatMessage>((_res, rej) => { rejectReveal = rej; }));
+        const deps = fakeDeps({ isEgressEnabled: () => egress, revealAmbient });
+        const svc = new StruggleInterventionService(deps);
+
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-4x', 42), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._frozenSessionId = 55;
+
+        const p = svc.revealParkedHint();          // hangs inside revealAmbient
+        await new Promise(r => setTimeout(r, 0));
+
+        egress = false;
+        svc.onConsentRevoked();                    // revoke while the POST is in flight (bumps the generation)
+
+        rejectReveal(new ApiError('Forbidden', 403));   // permanent 4xx, but past the consent epoch
+        await p;
+
+        // The 4xx lands after the student revoked consent -> the reveal dies silently, no nag.
+        expect(deps.notifyRevealFailed).not.toHaveBeenCalled();
     });
 
     // Sanity: the epoch guard must not over-block the normal same-epoch flow.

@@ -132,6 +132,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		notifyRevealUnavailable: () => {
 			void vscode.window.showWarningMessage("Can't open this Iris hint. Its exercise isn't available in the workspace.");
 		},
+		notifyRevealFailed: () => {
+			void vscode.window.showWarningMessage("Couldn't open this Iris hint.");
+		},
 		// C3: slot-continuity seam
 		cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
 			artemisApiService.cancelOutstandingStruggleJob(exerciseId, requestToken),

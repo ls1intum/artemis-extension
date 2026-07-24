@@ -172,6 +172,8 @@ export interface StruggleEngineDeps {
     openRevealSession(courseId: number, exerciseId: number, sessionId: number, title: string, expectedNavToken: number): Promise<boolean>;
     /** Notify the student that a parked hint cannot be opened because its exercise is untracked (#364 spec C.3). */
     notifyRevealUnavailable(): void;
+    /** Notify the student that a parked hint could not be persisted, so the reveal permanently gave up (#364). */
+    notifyRevealFailed(): void;
     // C3: slot-continuity seam
     /**
      * Cancel an outstanding struggle job by its per-POST requestToken (A10 scoped cancel).
