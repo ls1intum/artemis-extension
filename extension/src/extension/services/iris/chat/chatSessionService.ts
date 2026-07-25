@@ -49,6 +49,39 @@ function describeError(error: unknown): string {
 }
 
 /**
+ * Maps persisted Iris messages to the webview's message shape. Shared by
+ * `initializeIrisSessionAndLoadMessages` (the live load path) and
+ * `fetchActiveSessionHistory` (the reconnect-reconciliation fetch), so both
+ * paths format history identically.
+ */
+function formatIrisMessages(messages: IrisChatMessage[] | undefined) {
+    return (messages ?? []).map((msg: IrisChatMessage) => {
+        const content = extractIrisMessageContent(msg.content);
+
+        // Proactive markers must survive a history load: the folded-episode UI,
+        // the outcome rendering and the reveal flow all key on them.
+        const proactiveOutcome = msg.proactiveOutcome === 'DISMISSED' || msg.proactiveOutcome === 'RECOVERED' || msg.proactiveOutcome === 'ABANDONED'
+            ? msg.proactiveOutcome
+            : undefined;
+
+        const isProactive = msg.origin === 'PROACTIVE_STRUGGLE';
+
+        return {
+            id: msg.id,
+            role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
+            content: content,
+            timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+            helpful: (msg as { helpful?: boolean | null }).helpful,
+            origin: (isProactive ? 'proactive' : undefined) as 'proactive' | undefined,
+            proactiveOutcome,
+            proactiveEpisodeId: typeof msg.proactiveEpisodeId === 'string' ? msg.proactiveEpisodeId : undefined,
+            activities: Array.isArray(msg.activities) ? msg.activities.filter(isIrisActivity) : undefined,
+            final: typeof msg.final === 'boolean' ? msg.final : undefined
+        };
+    });
+}
+
+/**
  * Orchestrates Iris chat session lifecycle (create, load, switch).
  *
  * Session ID ownership model:
@@ -369,28 +402,7 @@ export class IrisChatSessionService {
                 this.deps.postSnapshot();
             }
 
-            const formattedMessages = (messages ?? []).map((msg: IrisChatMessage) => {
-                const content = extractIrisMessageContent(msg.content);
-
-                const proactiveOutcome = msg.proactiveOutcome === 'DISMISSED' || msg.proactiveOutcome === 'RECOVERED' || msg.proactiveOutcome === 'ABANDONED'
-                    ? msg.proactiveOutcome
-                    : undefined;
-
-                const isProactive = msg.origin === 'PROACTIVE_STRUGGLE';
-
-                return {
-                    id: msg.id,
-                    role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
-                    content: content,
-                    timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                    helpful: (msg as { helpful?: boolean | null }).helpful,
-                    origin: (isProactive ? 'proactive' : undefined) as 'proactive' | undefined,
-                    proactiveOutcome,
-                    proactiveEpisodeId: typeof msg.proactiveEpisodeId === 'string' ? msg.proactiveEpisodeId : undefined,
-                    activities: Array.isArray(msg.activities) ? msg.activities.filter(isIrisActivity) : undefined,
-                    final: typeof msg.final === 'boolean' ? msg.final : undefined
-                };
-            });
+            const formattedMessages = formatIrisMessages(messages);
 
             // Correct the active session's messageCount to the number of
             // messages actually loaded. This matters for sessions created via
@@ -432,6 +444,21 @@ export class IrisChatSessionService {
             const errorMessage = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to connect to Iris: ${errorMessage}`);
         }
+    }
+
+    /**
+     * Fetch + format the active session's persisted history for reconnect
+     * reconciliation. Returns the messages; posts nothing. The provider posts
+     * the MergeSessionMessages after its generation/session validation, so a
+     * stale fetch cannot mutate the webview. Non-destructive: no
+     * clear/import/switch, no messageCount rewrite.
+     */
+    public async fetchActiveSessionHistory(
+        artemisSessionId: number,
+    ): Promise<ReturnType<typeof formatIrisMessages>> {
+        if (!this.deps.artemisApiService) { return []; }
+        const messages = await this.deps.artemisApiService.getChatMessages(artemisSessionId);
+        return formatIrisMessages(messages);
     }
 
     // ── User-driven: create / switch / reset ──────────────────────────

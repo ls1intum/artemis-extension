@@ -179,4 +179,31 @@ describe('IrisRunStateMachine', () => {
             expect(snapshot!.activities).toEqual([]);
         });
     });
+
+    describe('resolveCurrentRun', () => {
+        it('clears waiting and finalizes the bound run so late frames are rejected', () => {
+            const m = new IrisRunStateMachine();
+            m.beginGeneration();
+            m.admit({ type: 'PARTIAL', runId: 'r1', partialSeq: 0 } as any);
+            expect(m.pendingGeneration).toBe(false);
+            expect(m.waiting).toBe(true);
+            m.resolveCurrentRun();
+            expect(m.waiting).toBe(false);
+            expect(m.acceptPartial('r1', 5)).toBe(false);
+        });
+
+        it('is a no-op while the current generation is still pending (never-bound run)', () => {
+            const m = new IrisRunStateMachine();
+            m.beginGeneration();
+            m.admit({ type: 'PARTIAL', runId: 'A', partialSeq: 0 } as any);
+            m.finalizeRun('A', false);
+            m.beginGeneration();
+            expect(m.pendingGeneration).toBe(true);
+            m.resolveCurrentRun();
+            expect(m.pendingGeneration).toBe(true);
+            expect(m.waiting).toBe(true);
+            expect(m.admit({ type: 'PARTIAL', runId: 'B', partialSeq: 0 } as any)).toBe(true);
+            expect(m.currentRunId).toBe('B');
+        });
+    });
 });

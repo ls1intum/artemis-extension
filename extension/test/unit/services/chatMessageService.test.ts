@@ -7,6 +7,7 @@ import { ChatMessageService } from '@extension/services/iris/chat/chatMessageSer
 import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { RunLifecycle } from '@extension/services/iris/irisRunStateMachine';
+import { LogCategory, logger } from '@extension/services/loggingService';
 import * as workspaceFileChecker from '@extension/services/workspace/workspaceFileChecker';
 import type { ActiveContext } from '@extension/types';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -172,10 +173,55 @@ suite('ChatMessageService', () => {
         });
 
         test('should return sent:true on success', async () => {
+            mockApiService.sendChatMessage.resolves({ id: 42 } as any);
             createService();
             const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
-            assert.deepStrictEqual(result, { sent: true });
+            assert.deepStrictEqual(result, { sent: true, sentMessageId: 42, generation: 1 });
             assert.ok(mockApiService.sendChatMessage.calledOnce);
+        });
+    });
+
+    suite('Persisted message id', () => {
+        test('returns the persisted user-message id and the send\'s generation', async () => {
+            mockApiService.sendChatMessage.resolves({ id: 99 } as any);
+            const lifecycle = { beginGeneration: sandbox.stub().returns(7), abortGeneration: sandbox.stub() };
+            createService(mockApiService as unknown as ArtemisApiService, { lifecycle });
+
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+
+            assert.deepStrictEqual(result, { sent: true, sentMessageId: 99, generation: 7 });
+        });
+
+        test('leaves sentMessageId undefined and warns when the API returns no numeric id', async () => {
+            mockApiService.sendChatMessage.resolves({} as any);
+            const warnStub = sandbox.stub(logger, 'warn');
+            const lifecycle = { beginGeneration: sandbox.stub().returns(7), abortGeneration: sandbox.stub() };
+            createService(mockApiService as unknown as ArtemisApiService, { lifecycle });
+
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+
+            assert.deepStrictEqual(result, { sent: true, sentMessageId: undefined, generation: 7 });
+            assert.ok(
+                warnStub.calledWith(
+                    'Send persisted without a numeric id; reconnect reconciliation unavailable for this send',
+                    LogCategory.IRIS_CHAT,
+                ),
+                'must warn that reconnect reconciliation is unavailable for this send',
+            );
+        });
+
+        test('leaves sentMessageId undefined when the API returns a non-numeric id', async () => {
+            // The parser only validates object-shape, so a stringified or null
+            // id is possible at runtime even though the type says number.
+            mockApiService.sendChatMessage.resolves({ id: '42' } as any);
+            createService();
+
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+
+            assert.ok(result.sent);
+            if (result.sent) {
+                assert.strictEqual(result.sentMessageId, undefined);
+            }
         });
     });
 
