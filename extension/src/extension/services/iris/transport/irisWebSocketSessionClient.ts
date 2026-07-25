@@ -37,6 +37,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
     private readonly _onDidConnectionStateChange = new vscode.EventEmitter<boolean>();
     public readonly onDidConnectionStateChange = this._onDidConnectionStateChange.event;
+    private readonly _onDidResubscribe = new vscode.EventEmitter<number>();
+    public readonly onDidResubscribe = this._onDidResubscribe.event;
 
     constructor(
         private readonly _artemisApiService: ArtemisApiService,
@@ -57,6 +59,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         this.unsubscribe();
         this._onDidReceiveMessage.dispose();
         this._onDidConnectionStateChange.dispose();
+        this._onDidResubscribe.dispose();
     }
 
     public get currentSessionId(): number | undefined {
@@ -118,13 +121,13 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
      * 
      * SAFETY: This method never calls connect() on the WebSocket service.
      */
-    private async _subscribeIfConnected(sessionId: number): Promise<void> {
+    private async _subscribeIfConnected(sessionId: number, force = false): Promise<void> {
         // Check rate limiting BEFORE tearing down the existing subscription.
         // Previous code unsubscribed first, then returned on rate-limit,
         // leaving zero active subscriptions.
         const now = Date.now();
         const timeSinceLastAttempt = now - this._lastResubscribeAttempt;
-        if (timeSinceLastAttempt < MIN_RESUBSCRIBE_INTERVAL_MS) {
+        if (!force && timeSinceLastAttempt < MIN_RESUBSCRIBE_INTERVAL_MS) {
             logger.session(`Rate limited: ${MIN_RESUBSCRIBE_INTERVAL_MS - timeSinceLastAttempt}ms until next subscribe`);
             return;
         }
@@ -148,6 +151,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
                 (data: unknown) => this._handleWebSocketMessage(data)
             );
             logger.session(`Successfully subscribed to session: ${sessionId}`);
+            this._onDidResubscribe.fire(sessionId);
         } catch (error) {
             logger.sessionError('Failed to subscribe:', error);
         }
@@ -192,7 +196,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
                 // subscriptions are gone at the protocol level regardless of whether
                 // we received a disconnect notification (which is debounced by 5 s).
                 logger.session(`(Re)connected, resubscribing to session: ${this._currentArtemisSessionId}`);
-                void this._subscribeIfConnected(this._currentArtemisSessionId);
+                void this._subscribeIfConnected(this._currentArtemisSessionId, true);
             }
         });
     }
