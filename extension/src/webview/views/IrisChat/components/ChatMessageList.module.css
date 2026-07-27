@@ -5,17 +5,23 @@
     background: var(--theme-background);
 }
 
+/* The single source of vertical rhythm for the list. It can be this tight because no child
+   reserves dead space for hover chrome any more: each message carries its buttons and timestamp
+   in one always-mounted footer row instead of an absolutely positioned time below the bubble. */
 .content {
     min-height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 8px;
 }
 
-/* Folded episode container (C7). Wraps the fold-line toggle and any expanded timeline beneath it. */
+/* Folded episode container (C7). Wraps the fold-line toggle and any expanded timeline beneath it.
+   Owns the spacing between the two: the children carry no vertical margin of their own, so that
+   nothing stacks on top of the list container's own gap (#366). */
 .episodeFold {
     display: flex;
     flex-direction: column;
+    gap: 8px;
 }
 
 /* Borderless summary line for a CLOSED episode: chevron + outcome + topic. No box (closed sessions
@@ -25,7 +31,9 @@
     align-items: center;
     gap: 4px;
     align-self: flex-start;
-    margin: 8px 16px;
+    /* Horizontal inset only: it aligns the row with .messageWrapper's 16px padding. A vertical
+       margin would stack on the parent's gap and push this ~12px row far off the conversation. */
+    margin: 0 16px;
     padding: 2px 0;
     font-size: 12px;
     color: var(--vscode-descriptionForeground);

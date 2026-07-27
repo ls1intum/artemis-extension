@@ -2,9 +2,13 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 8px 16px;
+    padding: 4px 16px;
     position: relative;
 }
+
+/* Marks a card whose action bar overhangs its bubble. The clearance itself is reserved between
+   the bubble and the footer row below it (see .messageWrapper.proactiveWrapper .footRow), not at
+   the bottom of the wrapper, because the bar overlaps that row and not the next message. */
 
 .messageWrapper.user {
     flex-direction: row-reverse;
@@ -192,64 +196,85 @@
     justify-content: space-between;
 }
 
+/* One footer row per message carrying BOTH hover surfaces: feedback buttons on the left, the
+   timestamp on the right. Always mounted and always occupying its space, so hover only changes
+   colour and the list can never reflow under the cursor. Because the space is reserved exactly
+   once (rather than once for the buttons and again as dead space under the bubble for an
+   absolutely positioned timestamp), the list rhythm can be tight. At rest it recedes rather than
+   disappearing, mirroring the Artemis web client, which keeps its rate buttons permanently visible.
+
+   Sits in .bubbleColumn under the bubble, not inside it (see the note in MessageBubble.tsx).
+   The 16px inset lines the buttons up with the bubble's own text, which the bubble achieves
+   through its padding. */
+.footRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 16px;
+    color: var(--vscode-descriptionForeground);
+    transition: color 120ms ease;
+}
+
+/* The assistant column is laid out flex-start, so the row would shrink-wrap and the timestamp's
+   `margin-left: auto` would have no free space to push into. Stretching it to the column width is
+   what puts the time at the trailing edge, opposite the buttons. */
+.messageWrapper.assistant .footRow {
+    align-self: stretch;
+}
+
+/* On a card with an action bar the bar hangs 14px below the bubble (see .actionRow), which is
+   exactly the band this row would otherwise occupy. Push the row clear of it. */
+.messageWrapper.proactiveWrapper .footRow {
+    margin-top: 14px;
+}
+
+/* Recede via COLOUR, never via container opacity: opacity composites the text into whatever is
+   behind it, so it cannot guarantee a contrast ratio. A user message also has no focusable child,
+   so an opacity-based rest state would never lift for keyboard users. */
+.messageWrapper:hover .footRow,
+.messageWrapper:focus-within .footRow,
+.footRow.visible {
+    color: var(--vscode-foreground);
+}
+
+/* A user row carries only the timestamp, which belongs at the trailing edge under its bubble. */
+.messageWrapper.user .footRow {
+    padding-left: 0;
+    padding-right: 0;
+}
+
 .feedbackContainer {
     display: flex;
     gap: 4px;
-    margin-top: 8px;
-    opacity: 0;
-    transition: opacity 150ms ease;
-}
-
-.messageWrapper:hover .feedbackContainer,
-.messageWrapper:focus-within .feedbackContainer,
-.feedbackContainer.visible {
-    opacity: 1;
 }
 
 .feedbackButton {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    padding: 4px 6px;
     background: transparent;
-    border: 1px solid var(--vscode-panel-border);
+    border: none;
     border-radius: 4px;
-    color: var(--vscode-foreground);
+    color: inherit;
     cursor: pointer;
-    transition: all 150ms ease;
+    transition: background 150ms ease;
 }
 
 .feedbackButton:hover {
-    background: var(--vscode-list-hoverBackground);
+    background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
 }
 
 .feedbackButton.selected {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border-color: var(--vscode-button-background);
+    color: var(--vscode-charts-blue);
 }
 
+/* Pushed to the trailing edge, so it reads right-aligned next to the buttons and stays
+   right-aligned on a user message, which has no buttons at all. */
 .timestamp {
-    position: absolute;
-    bottom: -18px;
+    margin-left: auto;
     font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    opacity: 0;
-    transition: opacity 120ms ease;
-}
-
-.messageWrapper:hover .timestamp,
-.messageWrapper:focus-within .timestamp {
-    opacity: 0.7;
-}
-
-.messageWrapper.user .timestamp {
-    right: 16px;
-}
-
-.messageWrapper.assistant .timestamp {
-    left: 16px;
+    color: inherit;
 }
 
 /* A dismissed proactive card stays visible but recedes (spec §6.3: collapse, never delete). */
