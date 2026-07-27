@@ -47,9 +47,13 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         setChatLiveEpisode: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* no real timers in tests */ },
-        generateLocalId: () => 'test-local-id',
-        postRevealBubble: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
+        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        resolveRevealTarget: () => ({ courseId: 100, title: 'Fake Exercise' }),
+        currentNavToken: () => 1,
+        openRevealSession: vi.fn(async () => true),
+        notifyRevealUnavailable: vi.fn(),
+        notifyRevealFailed: vi.fn(),
         revealAmbient: vi.fn(async () => ({
             id: 7,
             sentAt: '2024-01-01T00:00:00Z',

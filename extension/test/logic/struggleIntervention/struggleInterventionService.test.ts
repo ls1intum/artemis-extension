@@ -57,9 +57,15 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* never auto-clear in-flight in tests */ },
         // C2 reveal deps
-        generateLocalId: () => 'test-local-id',
-        postRevealBubble: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
+        // #364: reveal-into-exercise navigation. Behavior-preserving defaults (valid target, stable
+        // nav token, navigation succeeds) so existing reveal tests never abort through the new guard.
+        // Spies so tests can assert call order / not-called.
+        resolveRevealTarget: vi.fn(() => ({ courseId: 100, title: 'Fake Exercise' })),
+        currentNavToken: vi.fn(() => 1),
+        openRevealSession: vi.fn(async () => true),
+        notifyRevealUnavailable: vi.fn(),
+        notifyRevealFailed: vi.fn(),
         revealAmbient: vi.fn(async () => ({
             id: 7,
             sentAt: '2024-01-01T00:00:00Z',
@@ -750,7 +756,7 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
     it('soft (STATE) alert while DELIVERED-ambient (revealed): raises a Moment-1 offer, no POST (escalation needs a hard boundary)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
-        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb'), { level: 'ambient', text: 'hint', atSessionS: 100 });
+        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb', 42), { level: 'ambient', text: 'hint', atSessionS: 100 });
         svc._frozenSessionId = 55;
         await svc.revealParkedHint();                                // slot -> DELIVERED, level ambient
         vi.mocked(deps.postIntervention).mockClear();
@@ -767,7 +773,7 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
     it('hard (FM) alert while DELIVERED-ambient (revealed): POST proceeds (escalation candidate) with the live episode', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
-        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb'), { level: 'ambient', text: 'hint', atSessionS: 100 });
+        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb', 42), { level: 'ambient', text: 'hint', atSessionS: 100 });
         svc._frozenSessionId = 55;
         await svc.revealParkedHint();
         vi.mocked(deps.postIntervention).mockClear();
@@ -789,7 +795,7 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
         // server replies active -> reconcile escalates the SAME episode ambient -> active.
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
-        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb'), { level: 'ambient', text: 'hint', atSessionS: 100 });
+        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-amb', 42), { level: 'ambient', text: 'hint', atSessionS: 100 });
         svc._frozenSessionId = 55;
         await svc.revealParkedHint();                                // slot -> DELIVERED, level ambient
         vi.mocked(deps.postIntervention).mockClear();
@@ -819,7 +825,7 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
 describe('StruggleInterventionService C2 reveal', () => {
     /** Puts the slot in PARKED state and sets the frozen session id. */
     function setupParked(svc: StruggleInterventionService, sessionId: number, hintText = 'Re-check the loop.', epId = 'ep-uuid'): void {
-        const ep = newEpisode(1000, () => epId);
+        const ep = newEpisode(1000, () => epId, 42);
         svc._slot.takeParked(1000, ep, { level: 'ambient', text: hintText, atSessionS: 100 });
         svc._frozenSessionId = sessionId;
     }
@@ -836,24 +842,59 @@ describe('StruggleInterventionService C2 reveal', () => {
         expect(svc._slot.generation()).toBeGreaterThan(genBefore + 1); // +1 from takeParked, +1 from revealParked
     });
 
-    it('revealParkedHint: openSession called with the frozen sessionId', async () => {
-        const deps = fakeDeps();
+    it('revealParkedHint (#364): synchronous transition; navToken captured before the persist await; navigates once on confirmed persist with resolved courseId/title + captured navToken; no parked bubble', async () => {
+        const resolveRevealTarget = vi.fn(() => ({ courseId: 5, title: 'X' }));
+        const currentNavToken = vi.fn(() => 777);
+        const openRevealSession = vi.fn(async () => true);
+        const deps = fakeDeps({ resolveRevealTarget, currentNavToken, openRevealSession });
         const svc = new StruggleInterventionService(deps);
-        setupParked(svc, 55);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');   // episode.exerciseId = 42
 
-        await svc.revealParkedHint();
+        const p = svc.revealParkedHint();
+        // The slot transition ran synchronously (before the persist await suspended).
+        expect(svc._slot.snapshot().state.kind).toBe('delivered');
+        // navToken was read synchronously, before revealAmbient (the persist await).
+        const navOrder = currentNavToken.mock.invocationCallOrder[0];
+        const persistOrder = (deps.revealAmbient as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+        expect(navOrder).toBeLessThan(persistOrder);
+        await p;
 
-        expect(deps.openSession).toHaveBeenCalledWith(55);
+        // Navigation fires ONLY from the confirmed-persist branch, exactly once, carrying the
+        // resolved courseId + threaded title + captured navToken.
+        expect(openRevealSession).toHaveBeenCalledTimes(1);
+        expect(openRevealSession).toHaveBeenCalledWith(5, 42, 55, 'X', 777);
+        // Deterministic localId = reveal-${episodeId} is used as the clientMessageId.
+        expect(deps.revealAmbient).toHaveBeenCalledWith(42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'reveal-ep-uuid');
+        // A confirmed persist never surfaces the give-up notice.
+        expect(deps.notifyRevealFailed).not.toHaveBeenCalled();
     });
 
-    it('revealParkedHint: postRevealBubble called with the frozen text and generated localId', async () => {
-        const deps = fakeDeps();
+    it('revealParkedHint (#364): unresolvable exercise (resolveRevealTarget undefined) notifies + aborts; no transition/persist/navigate; slot stays PARKED', async () => {
+        const deps = fakeDeps({ resolveRevealTarget: vi.fn(() => undefined) });
         const svc = new StruggleInterventionService(deps);
-        setupParked(svc, 55, 'Re-check the loop.');
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
 
         await svc.revealParkedHint();
 
-        expect(deps.postRevealBubble).toHaveBeenCalledWith('Re-check the loop.', 'test-local-id');
+        expect(deps.notifyRevealUnavailable).toHaveBeenCalledTimes(1);
+        expect(svc._slot.snapshot().state.kind).toBe('parked');   // no transition
+        expect(deps.revealAmbient).not.toHaveBeenCalled();         // no persist
+        expect(deps.openRevealSession).not.toHaveBeenCalled();     // no navigation
+    });
+
+    it('revealParkedHint (#364): missing sessionId -> guard, nothing happens (no resolve/notify/persist/navigate)', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+        svc._frozenSessionId = undefined;   // no frozen session -> step-2 guard
+
+        await svc.revealParkedHint();
+
+        expect(deps.resolveRevealTarget).not.toHaveBeenCalled();
+        expect(deps.notifyRevealUnavailable).not.toHaveBeenCalled();
+        expect(deps.revealAmbient).not.toHaveBeenCalled();
+        expect(deps.openRevealSession).not.toHaveBeenCalled();
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
     it('revealParkedHint: revealAmbient called once with correct args incl. clientMessageId=localId', async () => {
@@ -864,7 +905,7 @@ describe('StruggleInterventionService C2 reveal', () => {
         await svc.revealParkedHint();
 
         expect(deps.revealAmbient).toHaveBeenCalledTimes(1);
-        expect(deps.revealAmbient).toHaveBeenCalledWith(42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'test-local-id');
+        expect(deps.revealAmbient).toHaveBeenCalledWith(42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'reveal-ep-uuid');
     });
 
     it('revealParkedHint: DTO from revealAmbient reconciles the optimistic bubble (id + proactiveEpisodeId + sentAt)', async () => {
@@ -881,7 +922,7 @@ describe('StruggleInterventionService C2 reveal', () => {
         await svc.revealParkedHint();
 
         expect(deps.reconcileOptimisticBubble).toHaveBeenCalledWith(
-            'test-local-id', 7, 'server-ep-id', '2024-01-01T00:00:00Z',
+            'reveal-ep-uuid', 7, 'server-ep-id', '2024-01-01T00:00:00Z',
         );
         // Only one reconcile call: no duplicate row
         expect(deps.reconcileOptimisticBubble).toHaveBeenCalledTimes(1);
@@ -907,15 +948,21 @@ describe('StruggleInterventionService C2 reveal', () => {
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
         // A retry was scheduled
         expect(retryFn).toBeDefined();
+        // #364: a failed persist must NEVER navigate to an empty session.
+        expect(deps.openRevealSession).not.toHaveBeenCalled();
 
         // Fire the retry
         await (retryFn as () => void)();
 
-        // Retry calls revealAmbient with the SAME localId
+        // Retry calls revealAmbient with the SAME (deterministic) localId
         expect(revealAmbient).toHaveBeenCalledTimes(2);
-        expect(revealAmbient).toHaveBeenNthCalledWith(2, 42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'test-local-id');
+        expect(revealAmbient).toHaveBeenNthCalledWith(2, 42, 'ep-uuid', 'Re-check the loop.', 'ambient', 'reveal-ep-uuid');
         // Reconcile fires after the retry succeeds
         expect(deps.reconcileOptimisticBubble).toHaveBeenCalledTimes(1);
+        // #364: the retry that first succeeds navigates exactly once, carrying the ORIGINAL
+        // courseId/sessionId/title/navToken captured at reveal time (defaults from the fake).
+        expect(deps.openRevealSession).toHaveBeenCalledTimes(1);
+        expect(deps.openRevealSession).toHaveBeenCalledWith(100, 42, 55, 'Fake Exercise', 1);
     });
 
     it('revealParkedHint: no-op when slot is not PARKED (prevents double-reveal)', async () => {
@@ -926,17 +973,22 @@ describe('StruggleInterventionService C2 reveal', () => {
         await svc.revealParkedHint();
 
         expect(deps.revealAmbient).not.toHaveBeenCalled();
-        expect(deps.postRevealBubble).not.toHaveBeenCalled();
     });
 
-    it('revealParkedHint: no-op when exerciseId is missing', async () => {
-        const deps = fakeDeps({ getExerciseId: () => undefined });
+    it('revealParkedHint (#364): missing episode.exerciseId -> guard, nothing happens', async () => {
+        const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
-        setupParked(svc, 55);
+        // PARKED episode deliberately WITHOUT an exerciseId -> hits the missing-id guard.
+        svc._slot.takeParked(1000, newEpisode(1000, () => 'ep-noid'), { level: 'ambient', text: 'hint', atSessionS: 100 });
+        svc._frozenSessionId = 55;
 
         await svc.revealParkedHint();
 
+        expect(deps.resolveRevealTarget).not.toHaveBeenCalled();   // guard precedes resolve
+        expect(deps.notifyRevealUnavailable).not.toHaveBeenCalled();
         expect(deps.revealAmbient).not.toHaveBeenCalled();
+        expect(deps.openRevealSession).not.toHaveBeenCalled();
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
     it('applyEpisodeOutcome: calls setEpisodeOutcome on the episode-scoped endpoint (exerciseId + episodeId)', async () => {
@@ -974,14 +1026,13 @@ describe('StruggleInterventionService C2 reveal', () => {
         // FREE slot: unconditional call on click is a no-op
         await svc.revealParkedHint();
         expect(deps.revealAmbient).not.toHaveBeenCalled();
-        expect(deps.postRevealBubble).not.toHaveBeenCalled();
 
         // PARKED slot: click trigger causes PARKED->DELIVERED reveal
         setupParked(svc, 55, 'look at this line', 'ep-c1');
         await svc.revealParkedHint();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
         expect(deps.revealAmbient).toHaveBeenCalledOnce();
-        expect(deps.postRevealBubble).toHaveBeenCalledWith('look at this line', 'test-local-id');
+        expect(deps.revealAmbient).toHaveBeenCalledWith(42, 'ep-c1', 'look at this line', 'ambient', 'reveal-ep-c1');
     });
 
     it('I2 back-fill: dismissEpisode (terminal write) records pending outcome when setEpisodeOutcome returns applied=false', async () => {
@@ -1077,6 +1128,8 @@ describe('StruggleInterventionService C2 reveal', () => {
         // After MAX_REVEAL_RETRIES (12) retries the cap is hit; no 13th timer is scheduled
         expect(firedFns.length).toBe(12);                  // only 12 retries were scheduled
         expect(revealAmbient).toHaveBeenCalledTimes(13);   // initial + 12 retries
+        // #364: giving up after the retry cap surfaces the give-up notice exactly once.
+        expect(deps.notifyRevealFailed).toHaveBeenCalledOnce();
     });
 
     it('reveal retry: a permanent 4xx is NOT retried', async () => {
@@ -1093,6 +1146,8 @@ describe('StruggleInterventionService C2 reveal', () => {
 
         expect(revealAmbient).toHaveBeenCalledTimes(1);
         expect(retryFn).toBeUndefined();   // no retry was scheduled
+        // #364: a permanent 4xx give-up surfaces the give-up notice exactly once.
+        expect(deps.notifyRevealFailed).toHaveBeenCalledOnce();
     });
 
     it('reveal retry: resetSession cancels an in-flight retry (no further revealAmbient after reset)', async () => {
@@ -1732,7 +1787,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const svc = new StruggleInterventionService(deps);
 
         // Set up PARKED slot
-        const ep = newEpisode(0, () => 'ep-rev');
+        const ep = newEpisode(0, () => 'ep-rev', 42);
         svc._slot.takeParked(0, ep, { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
         svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'STATE', boundaryTypes: ['STATE'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
@@ -1761,7 +1816,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy });
         const svc = new StruggleInterventionService(deps);
 
-        const ep = newEpisode(0, () => 'ep-rev2');
+        const ep = newEpisode(0, () => 'ep-rev2', 42);
         svc._slot.takeParked(0, ep, { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
         svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'STATE', boundaryTypes: ['STATE'], severity: 0.5, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
@@ -2242,7 +2297,7 @@ describe('StruggleInterventionService revoke->regrant epoch races (#349)', () =>
         const svc = new StruggleInterventionService(deps);
 
         // PARKED slot with a frozen session, ready to reveal.
-        svc._slot.takeParked(0, newEpisode(0, () => 'ep-rr'), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-rr', 42), { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
 
         await svc.revealParkedHint();     // first _persistReveal attempt fails -> schedules a retry
@@ -2317,7 +2372,7 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
         const deps = fakeDeps({ isEgressEnabled: () => egress, revealAmbient });
         const svc = new StruggleInterventionService(deps);
 
-        svc._slot.takeParked(0, newEpisode(0, () => 'ep-fl'), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-fl', 42), { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
         // Seed a pending outcome so the flush path is observable too.
         svc._pendingOutcomes.set('ep-fl', { outcome: 'DISMISSED' });
@@ -2334,6 +2389,8 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
 
         expect(deps.reconcileOptimisticBubble).not.toHaveBeenCalled();
         expect(deps.setEpisodeOutcome).not.toHaveBeenCalled();
+        // #364: a consent-epoch drop during the POST must NEVER navigate.
+        expect(deps.openRevealSession).not.toHaveBeenCalled();
     });
 
     // Wave 2 Finding 2b: a reveal POST that REJECTS after a revoke must not schedule a retry
@@ -2346,7 +2403,7 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
         const deps = fakeDeps({ isEgressEnabled: () => egress, revealAmbient, setTimeoutFn });
         const svc = new StruggleInterventionService(deps);
 
-        svc._slot.takeParked(0, newEpisode(0, () => 'ep-rj'), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-rj', 42), { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
 
         const p = svc.revealParkedHint();          // hangs inside revealAmbient
@@ -2359,17 +2416,42 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
         await p;
 
         expect(setTimeoutFn).not.toHaveBeenCalled();   // no retry crosses the epoch boundary
+        // #364: a give-up past the consent epoch must not nag the student either.
+        expect(deps.notifyRevealFailed).not.toHaveBeenCalled();
+    });
+
+    it('reveal 4xx after a revoke stays silent (no give-up notice past the consent epoch) (#364)', async () => {
+        let egress = true;
+        let rejectReveal!: (e: Error) => void;
+        const revealAmbient = vi.fn(() => new Promise<IrisChatMessage>((_res, rej) => { rejectReveal = rej; }));
+        const deps = fakeDeps({ isEgressEnabled: () => egress, revealAmbient });
+        const svc = new StruggleInterventionService(deps);
+
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-4x', 42), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._frozenSessionId = 55;
+
+        const p = svc.revealParkedHint();          // hangs inside revealAmbient
+        await new Promise(r => setTimeout(r, 0));
+
+        egress = false;
+        svc.onConsentRevoked();                    // revoke while the POST is in flight (bumps the generation)
+
+        rejectReveal(new ApiError('Forbidden', 403));   // permanent 4xx, but past the consent epoch
+        await p;
+
+        // The 4xx lands after the student revoked consent -> the reveal dies silently, no nag.
+        expect(deps.notifyRevealFailed).not.toHaveBeenCalled();
     });
 
     // Sanity: the epoch guard must not over-block the normal same-epoch flow.
     it('sanity: a normal reveal still reconciles the optimistic bubble', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
-        svc._slot.takeParked(0, newEpisode(0, () => 'ep-ok'), { level: 'ambient', text: 'Hint', atSessionS: 0 });
+        svc._slot.takeParked(0, newEpisode(0, () => 'ep-ok', 42), { level: 'ambient', text: 'Hint', atSessionS: 0 });
         svc._frozenSessionId = 55;
 
         await svc.revealParkedHint();
 
-        expect(deps.reconcileOptimisticBubble).toHaveBeenCalledWith('test-local-id', 7, 'server-ep-id', '2024-01-01T00:00:00Z');
+        expect(deps.reconcileOptimisticBubble).toHaveBeenCalledWith('reveal-ep-ok', 7, 'server-ep-id', '2024-01-01T00:00:00Z');
     });
 });

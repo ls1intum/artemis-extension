@@ -145,10 +145,15 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         resolveOfferBubble: (offerId, answered) => deps.resolveOfferBubble(offerId, answered),
         showOfferBanner: (o) => deps.showOfferBanner(o),
         // C2: reveal + episode-outcome (seam-threaded; webview reconcile wired via deps)
-        generateLocalId: () => crypto.randomUUID(),
-        postRevealBubble: (text, localId) => deps.postRevealBubble(text, localId),
         reconcileOptimisticBubble: (localId, serverId, proactiveEpisodeId, sentAt) =>
             deps.reconcileOptimisticBubble(localId, serverId, proactiveEpisodeId, sentAt),
+        // #364: reveal-into-exercise navigation (persist-then-navigate)
+        resolveRevealTarget: (exerciseId) => deps.resolveRevealTarget(exerciseId),
+        currentNavToken: () => deps.currentNavToken(),
+        openRevealSession: (courseId, exerciseId, sessionId, title, expectedNavToken) =>
+            deps.openRevealSession(courseId, exerciseId, sessionId, title, expectedNavToken),
+        notifyRevealUnavailable: () => deps.notifyRevealUnavailable(),
+        notifyRevealFailed: () => deps.notifyRevealFailed(),
         revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
             deps.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
         setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
@@ -175,8 +180,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
             // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
+            // Focus is no longer fired eagerly here (#364 Task 2): the reveal-navigation
+            // (ChatWebviewProvider.revealProactiveSessionForExercise, wired in Task 3) is the
+            // single owner of focus.
             void orchestrator.revealParkedHint();
-            void vscode.commands.executeCommand('iris.chatView.focus');
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
             // Remove the in-editor cue and the jump lamp that points at it. It does not touch the episode --

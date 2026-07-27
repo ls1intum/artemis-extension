@@ -928,6 +928,69 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * The provider's navigation generation, mirroring {@link IrisChatSessionService.contextLoadToken}
+     * (#364 spec A). A caller that captured a token before an async gap (e.g. before persisting a
+     * reveal server-side) can re-check it against this value to detect "the student navigated away
+     * in the meantime" and abort rather than clobber whatever the student is now looking at.
+     */
+    public currentNavToken(): number {
+        return this._chatSessionService.contextLoadToken;
+    }
+
+    /**
+     * Reveal a proactive session inside its owning exercise context, behaving as if the student had
+     * manually switched there (#364 spec A). The single owner of focus for the reveal path: neither
+     * the inline-hover "Open chat" handler nor the parked-lamp click focuses the chat directly
+     * anymore (#364 Task 2) -- this method is the only place that does, and only once navigation has
+     * actually been initiated.
+     *
+     * `title` is passed in by the caller (threaded from the service's synchronous exercise lookup)
+     * rather than re-resolved here, so this method has no opinion on how the exercise was resolved.
+     *
+     * Ordering, all per spec A:
+     *  1. Stale-navigation guard: if `expectedNavToken` no longer matches {@link currentNavToken},
+     *     the student navigated elsewhere while this reveal was in flight -- return `false`
+     *     immediately without switching context, opening the session, or focusing.
+     *  2. Same-context guard: only `switchContext` when NOT already on the target exercise, so an
+     *     already-correct context is left untouched (no disruptive jump).
+     *  3. `openProactiveSession` is deliberately NOT awaited before focusing: it selects the session
+     *     synchronously before its own first await, which is all downstream refreshes need to
+     *     preserve it (spec A0); waiting for its full message load here would delay focusing a
+     *     collapsed/hidden chat behind a slow network round trip.
+     *  4. Focus last, so a collapsed or never-mounted chat view opens promptly.
+     */
+    public async revealProactiveSessionForExercise(
+        courseId: number,
+        exerciseId: number,
+        sessionId: number,
+        title: string,
+        expectedNavToken: number,
+    ): Promise<boolean> {
+        if (expectedNavToken !== this.currentNavToken()) {
+            return false;
+        }
+
+        const current = this._contextStore.getActiveContext();
+        const alreadyOnExercise = current?.type === 'exercise' && current.id === exerciseId;
+        if (!alreadyOnExercise) {
+            this._chatContextManager.switchContext({
+                type: 'exercise',
+                id: exerciseId,
+                courseId,
+                title,
+                reason: 'user-selected',
+                loadDefaultSession: false,
+            });
+        }
+
+        // Do NOT await: the synchronous session-selection inside openProactiveSession is all the
+        // A0 refresh policy needs, and focusing must not wait behind the async message load.
+        void this.openProactiveSession(sessionId);
+        await vscode.commands.executeCommand('iris.chatView.focus');
+        return true;
+    }
+
+    /**
      * Task 12: parses a `"type:id"` session context key (e.g. `course:5`,
      * `exercise:12`) into the courseId whose history-cache entry it affects.
      * Exercise keys resolve via the already-tracked exercise's `courseId`:

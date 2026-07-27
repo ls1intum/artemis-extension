@@ -324,6 +324,54 @@ export class SessionManager {
         return session.id;
     }
 
+    /**
+     * The `artemisSessionId` of the session the RAW `state.activeSessionId`
+     * points at within the active context. Deliberately does NOT use the
+     * `ContextSnapshot.activeSession` display fallback (`sessions.find(...)
+     * ?? sessions[0]`), which would turn "no explicit selection" (null id)
+     * into "the newest session" and defeat the #364 A0 preserve-selection
+     * policy. Returns `undefined` when there is no active context, the raw
+     * id is null, or it does not resolve to a session in the active context.
+     */
+    public getActiveArtemisSessionId(): number | undefined {
+        const active = this._getActiveContext();
+        if (!active) {
+            return undefined;
+        }
+        const state = this._getState();
+        if (state.activeSessionId === null) {
+            return undefined;
+        }
+        const key = getContextKey(active.type, active.id);
+        const sessions = state.sessions[key] ?? [];
+        const session = sessions.find(s => s.id === state.activeSessionId);
+        return session?.artemisSessionId;
+    }
+
+    /**
+     * Sets active the (post-import) local session in the active context that
+     * carries `artemisSessionId`. Used by the #364 A0 refresh policy to
+     * re-select a previously-active session after a re-import assigns it a
+     * new local id. Returns `false` (no-op) when there is no active context
+     * or no session carries that id.
+     */
+    public selectByArtemisSessionId(artemisSessionId: number): boolean {
+        const active = this._getActiveContext();
+        if (!active) {
+            return false;
+        }
+        const state = this._getState();
+        const key = getContextKey(active.type, active.id);
+        const sessions = state.sessions[key] ?? [];
+        const session = sessions.find(s => s.artemisSessionId === artemisSessionId);
+        if (!session) {
+            return false;
+        }
+        state.activeSessionId = session.id;
+        this._saveState();
+        return true;
+    }
+
     public clearAllSessions(): void {
         const state = this._getState();
         // Clear all session data but keep exercises and courses

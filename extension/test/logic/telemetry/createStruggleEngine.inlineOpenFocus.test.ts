@@ -1,20 +1,26 @@
-import { describe, expect, it, vi } from 'vitest';
-
-import type { ProactiveLevel } from '@shared/messageContracts';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { StruggleEngineDeps } from '@extension/telemetry/contract';
 import { createStruggleEngine } from '@extension/telemetry/index';
-import { createStruggleEngine as createNoopStruggleEngine } from '@extension/telemetry/noop';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 /**
- * The full engine factory constructs a status-bar lamp, an inline decoration surface and the
- * struggle-detection grid timer, none of which are provided by vitest's minimal global `vscode`
- * stub (test/react/__helpers__/vscode.stub.ts). This local mock adds exactly the surface those
- * constructors touch synchronously, so `createStruggleEngine` builds the SAME real object graph
- * production does (only `getProactiveLevel`/the active-exercise source are faked).
+ * #364 Task 2: the `iris.intervention.inlineOpen` command used to fire `iris.chatView.focus`
+ * eagerly right after triggering the reveal. Focus ownership moves to
+ * `ChatWebviewProvider.revealProactiveSessionForExercise` (the caller wiring lands in Task 3),
+ * so this handler must now trigger the reveal WITHOUT focusing the chat itself.
+ *
+ * The vscode mock mirrors createStruggleEngine.proactiveLevel.test.ts, with one difference:
+ * `commands.registerCommand` captures each handler by id (instead of just returning a
+ * disposable) so the test can invoke the real `iris.intervention.inlineOpen` handler directly,
+ * and `commands.executeCommand` is a spy so "was focus fired" is directly observable.
  */
+const mocks = vi.hoisted(() => ({
+    registeredCommands: new Map<string, (...args: unknown[]) => unknown>(),
+    executeCommand: vi.fn(async () => undefined),
+}));
+
 vi.mock('vscode', () => {
     class EventEmitter<T> {
         private readonly _listeners = new Set<(e: T) => void>();
@@ -54,14 +60,17 @@ vi.mock('vscode', () => {
             textDocuments: [],
         },
         commands: {
-            registerCommand: disposable,
-            executeCommand: async () => undefined,
+            registerCommand: (id: string, handler: (...args: unknown[]) => unknown) => {
+                mocks.registeredCommands.set(id, handler);
+                return disposable();
+            },
+            executeCommand: mocks.executeCommand,
         },
     };
 });
 
-/** A fully-formed `StruggleEngineDeps` fake; `getProactiveLevel` (now exercise-independent) is under test. */
-function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
+/** A fully-formed `StruggleEngineDeps` fake; only the command wiring under test matters here. */
+function fakeDeps(): StruggleEngineDeps {
     return {
         hub: new TestSensorHub(),
         exerciseRegistry: new ExerciseRegistry(),
@@ -73,7 +82,7 @@ function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
         } as unknown as StruggleEngineDeps['context'],
         postIntervention: vi.fn(async () => 'accepted' as const),
         isStudentProactiveOn: () => true,
-        getProactiveLevel,
+        getProactiveLevel: () => 'more',
         openProactiveSession: vi.fn(async () => undefined),
         setProactiveBadge: vi.fn(),
         postOptimisticBubble: vi.fn(),
@@ -100,37 +109,21 @@ function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
     };
 }
 
-describe('full struggle-engine seam: getActiveProactiveLevel', () => {
-    it('reflects the single global level, independent of the active exercise (#341)', () => {
-        const getProactiveLevel = vi.fn((): ProactiveLevel => 'less');
-        const handle = createStruggleEngine(fakeDeps(getProactiveLevel));
-
-        // No active exercise: the global level already applies (no per-exercise keying / 'more' gate).
-        expect(handle.getActiveProactiveLevel()).toBe('less');
-
-        // Starting/switching/ending a session does NOT re-key the level; it stays the global value.
-        handle.coordinator.startExerciseSession(42);
-        expect(handle.getActiveProactiveLevel()).toBe('less');
-        handle.coordinator.startExerciseSession(7);
-        expect(handle.getActiveProactiveLevel()).toBe('less');
-        handle.coordinator.endExerciseSession();
-        expect(handle.getActiveProactiveLevel()).toBe('less');
-
-        // Every read passes NO exercise id (the strip removed the argument).
-        for (const call of getProactiveLevel.mock.calls) { expect(call).toEqual([]); }
+describe('createStruggleEngine: iris.intervention.inlineOpen focus ownership (#364 Task 2)', () => {
+    beforeEach(() => {
+        mocks.registeredCommands.clear();
+        mocks.executeCommand.mockClear();
     });
 
-    it('reads the level live on each call (mid-session flips take effect)', () => {
-        let level: ProactiveLevel = 'more';
-        const handle = createStruggleEngine(fakeDeps(() => level));
-        handle.coordinator.startExerciseSession(42);
-        expect(handle.getActiveProactiveLevel()).toBe('more');
-        level = 'off';
-        expect(handle.getActiveProactiveLevel()).toBe('off');
-    });
+    it('triggers the reveal but no longer focuses the chat view directly', () => {
+        createStruggleEngine(fakeDeps());
 
-    it('no-op build: always returns \'more\' (no engine, no active-exercise concept)', () => {
-        const handle = createNoopStruggleEngine(fakeDeps(() => 'off'));
-        expect(handle.getActiveProactiveLevel()).toBe('more');
+        const handler = mocks.registeredCommands.get('iris.intervention.inlineOpen');
+        expect(handler, 'iris.intervention.inlineOpen must be registered').toBeTruthy();
+
+        mocks.executeCommand.mockClear(); // isolate: only observe what the click handler itself does
+        handler?.();
+
+        expect(mocks.executeCommand).not.toHaveBeenCalledWith('iris.chatView.focus');
     });
 });

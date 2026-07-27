@@ -237,3 +237,121 @@ suite('ChatWebviewProvider.openArtemisSession', () => {
         );
     });
 });
+
+interface SwitchContextSpyTarget {
+    switchContext: (params: unknown) => void;
+}
+
+interface IncrementTokenTarget {
+    incrementLoadToken: () => number;
+}
+
+/** Reach the provider's private ChatContextManager to spy on `switchContext` (#364 Task 2). */
+function contextManagerOf(h: Harness): SwitchContextSpyTarget {
+    return (h.provider as unknown as { _chatContextManager: SwitchContextSpyTarget })._chatContextManager;
+}
+
+/** Reach the provider's private IrisChatSessionService to bump the nav token directly (#364 Task 2). */
+function chatSessionServiceOf(h: Harness): IncrementTokenTarget {
+    return (h.provider as unknown as { _chatSessionService: IncrementTokenTarget })._chatSessionService;
+}
+
+function activeContext(over: Partial<ActiveContext> & { type: 'exercise' | 'course'; id: number; title: string }): ActiveContext {
+    return {
+        source: 'user-selected',
+        locked: false,
+        selectedAt: Date.now(),
+        ...over,
+    };
+}
+
+suite('ChatWebviewProvider.revealProactiveSessionForExercise', () => {
+    let h: Harness;
+
+    setup(() => {
+        h = buildHarness();
+    });
+
+    teardown(() => {
+        h.provider.dispose();
+        h.sandbox.restore();
+    });
+
+    test('currentNavToken mirrors the chat session service contextLoadToken', () => {
+        const before = h.provider.currentNavToken();
+        chatSessionServiceOf(h).incrementLoadToken();
+        assert.strictEqual(h.provider.currentNavToken(), before + 1);
+    });
+
+    test('(a) stale expectedNavToken returns false without switching, opening, or focusing', async () => {
+        const switchSpy = h.sandbox.spy(contextManagerOf(h), 'switchContext');
+        const openSpy = sinon.spy(h.provider, 'openProactiveSession');
+        const exec = h.sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
+        h.contextStore.setActiveContext(activeContext({ type: 'course', id: 3, title: 'Course' }));
+        const staleToken = h.provider.currentNavToken();
+        chatSessionServiceOf(h).incrementLoadToken(); // the "student navigated" bump
+
+        const result = await h.provider.revealProactiveSessionForExercise(3, 42, 100, 'Sorting', staleToken);
+
+        assert.strictEqual(result, false, 'a stale token is the ONLY path that returns false');
+        assert.ok(switchSpy.notCalled, 'must not switchContext on a stale token');
+        assert.ok(openSpy.notCalled, 'must not open the proactive session on a stale token');
+        assert.ok(exec.notCalled, 'must not focus on a stale token');
+    });
+
+    test('(b) not already on the exercise: switches context (loadDefaultSession:false), then opens the session', async () => {
+        const switchSpy = h.sandbox.spy(contextManagerOf(h), 'switchContext');
+        const openSpy = sinon.spy(h.provider, 'openProactiveSession');
+        const exec = h.sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
+        h.contextStore.setActiveContext(activeContext({ type: 'course', id: 3, title: 'Course' }));
+        const navToken = h.provider.currentNavToken();
+
+        const result = await h.provider.revealProactiveSessionForExercise(3, 42, 100, 'Sorting', navToken);
+
+        assert.strictEqual(result, true);
+        assert.ok(switchSpy.calledOnce, 'must switch to the exercise context');
+        assert.deepStrictEqual(switchSpy.firstCall.args[0], {
+            type: 'exercise', id: 42, courseId: 3, title: 'Sorting', reason: 'user-selected', loadDefaultSession: false,
+        });
+        assert.ok(openSpy.calledOnceWith(100), 'must open the proactive session');
+        assert.ok(exec.calledWith('iris.chatView.focus'), 'must focus the chat view');
+
+        const active = h.contextStore.getActiveContext();
+        assert.strictEqual(active?.type, 'exercise');
+        assert.strictEqual(active?.id, 42);
+    });
+
+    test('(c) already on the exercise: skips switchContext, still opens the session and focuses', async () => {
+        const switchSpy = h.sandbox.spy(contextManagerOf(h), 'switchContext');
+        const openSpy = sinon.spy(h.provider, 'openProactiveSession');
+        const exec = h.sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
+        h.contextStore.setActiveContext(activeContext({ type: 'exercise', id: 42, title: 'Sorting', courseId: 3 }));
+        const navToken = h.provider.currentNavToken();
+
+        const result = await h.provider.revealProactiveSessionForExercise(3, 42, 100, 'Sorting', navToken);
+
+        assert.strictEqual(result, true);
+        assert.ok(switchSpy.notCalled, 'must not re-switch context when already on the target exercise');
+        assert.ok(openSpy.calledOnceWith(100), 'must still open the proactive session');
+        assert.ok(exec.calledWith('iris.chatView.focus'), 'must still focus the chat view');
+    });
+
+    test('(d) focuses without waiting for the proactive session message load to finish', async () => {
+        // initializeSession never resolves: if revealProactiveSessionForExercise awaited
+        // openProactiveSession's full completion before focusing, this test would hang/time out.
+        h.sessionClient.initializeSession.returns(new Promise<number>(() => { /* never settles */ }));
+        const exec = h.sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
+        h.contextStore.setActiveContext(activeContext({ type: 'exercise', id: 42, title: 'Sorting', courseId: 3 }));
+        const navToken = h.provider.currentNavToken();
+
+        const result = await h.provider.revealProactiveSessionForExercise(3, 42, 100, 'Sorting', navToken);
+
+        assert.strictEqual(result, true, 'must resolve even though the message load is still pending');
+        assert.ok(exec.calledWith('iris.chatView.focus'), 'focus must fire without waiting for the message load');
+    });
+});
+

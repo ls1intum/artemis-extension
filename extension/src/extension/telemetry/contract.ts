@@ -147,16 +147,33 @@ export interface StruggleEngineDeps {
         outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' | 'INTERRUPTED',
     ): Promise<{ applied: boolean }>;
     /**
-     * Post an optimistic reveal bubble with a string local id (C2 pull-reveal flow).
-     * Distinct from postOptimisticBubble (which uses a numeric message id). The reveal
-     * flow uses a uuid localId for idempotent reconcile.
-     */
-    postRevealBubble(text: string, localId: string): void;
-    /**
      * Reconcile the reveal bubble after server persist confirms the canonical row.
      * Updates the bubble matched by localId to the real server id + proactiveEpisodeId + sentAt.
      */
     reconcileOptimisticBubble(localId: string, serverId: number, proactiveEpisodeId: string | undefined, sentAt: string): void;
+    // ---- #364: reveal-into-exercise navigation (persist-then-navigate) ----
+    /**
+     * Resolve the owning course + display title of a parked hint's exercise (#364 spec C).
+     * Synchronous local lookup (contextStore.getExerciseById). Returns undefined when the exercise
+     * is untracked, or the tracked entry lacks a courseId (optional) or a title, so the reveal path
+     * can abort cleanly with a visible notice before any transition/persist/navigate.
+     */
+    resolveRevealTarget(exerciseId: number): { courseId: number; title: string } | undefined;
+    /**
+     * The provider's current navigation generation (#364 spec A/C). Captured before the reveal
+     * persist await so a navigation during persistence is detected and navigation aborts.
+     */
+    currentNavToken(): number;
+    /**
+     * Navigate to the hint's exercise + proactive session as if the student switched there (#364
+     * spec A), materialising the confirmed-persisted hint. Returns false when the captured
+     * expectedNavToken no longer matches (the student navigated away meanwhile).
+     */
+    openRevealSession(courseId: number, exerciseId: number, sessionId: number, title: string, expectedNavToken: number): Promise<boolean>;
+    /** Notify the student that a parked hint cannot be opened because its exercise is untracked (#364 spec C.3). */
+    notifyRevealUnavailable(): void;
+    /** Notify the student that a parked hint could not be persisted, so the reveal permanently gave up (#364). */
+    notifyRevealFailed(): void;
     // C3: slot-continuity seam
     /**
      * Cancel an outstanding struggle job by its per-POST requestToken (A10 scoped cancel).

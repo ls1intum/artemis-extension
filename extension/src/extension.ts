@@ -115,9 +115,25 @@ export async function activate(context: vscode.ExtensionContext) {
 			artemisApiService.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
 		setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
 			artemisApiService.setEpisodeOutcome(exerciseId, episodeId, outcome),
-		postRevealBubble: (text, _localId) => chatWebviewProvider?.postOptimisticBubble(text, null),
 		reconcileOptimisticBubble: (_localId, _serverId, _proactiveEpisodeId, _sentAt) => {
 			// TODO C3/C5: wire to chatWebviewProvider.reconcileRevealBubble once the webview supports string-localId dedup
+		},
+		// #364: reveal-into-exercise navigation (persist-then-navigate). All three closures are invoked
+		// lazily (only on a parked-hint reveal, long after activation), so referencing contextStore /
+		// chatWebviewProvider (constructed below) is safe.
+		resolveRevealTarget: exerciseId => {
+			const tracked = contextStore.getExerciseById(exerciseId);
+			if (!tracked || tracked.courseId === undefined || !tracked.title) { return undefined; }
+			return { courseId: tracked.courseId, title: tracked.title };
+		},
+		currentNavToken: () => chatWebviewProvider?.currentNavToken() ?? 0,
+		openRevealSession: async (courseId, exerciseId, sessionId, title, expectedNavToken) =>
+			(await chatWebviewProvider?.revealProactiveSessionForExercise(courseId, exerciseId, sessionId, title, expectedNavToken)) ?? false,
+		notifyRevealUnavailable: () => {
+			void vscode.window.showWarningMessage("Can't open this Iris hint. Its exercise isn't available in the workspace.");
+		},
+		notifyRevealFailed: () => {
+			void vscode.window.showWarningMessage("Couldn't open this Iris hint.");
 		},
 		// C3: slot-continuity seam
 		cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
