@@ -411,14 +411,10 @@ suite('ChatContextManager Test Suite', () => {
             // Reproduces the bug where clicking "Ask Iris about exercise B"
             // was silently overwritten by background workspace re-detection of
             // exercise A on the next chat-view-visible event.
-            contextStore.setActiveContext({
-                type: 'exercise',
-                id: 999,
-                title: 'User-Picked Exercise',
-                source: 'user-selected',
-                locked: false,
-                selectedAt: Date.now(),
-            });
+            // Goes through the real selection path on purpose: what protects the context is that the
+            // student chose it in THIS session, which only the manager can know. Writing the store
+            // directly would model a context restored from a previous window instead (#371).
+            chatContextManager.handleContextSelection('exercise', 999, 'User-Picked Exercise');
 
             chatContextManager.registerExerciseAndAutoSelect({
                 id: 123,
@@ -466,6 +462,109 @@ suite('ChatContextManager Test Suite', () => {
 
             const snapshot = contextStore.snapshot();
             assert.strictEqual(snapshot.activeContext?.id, 123);
+            assert.strictEqual(snapshot.activeContext?.source, 'workspace-detected');
+        });
+
+        test('SHOULD override a user-selected context restored from an earlier session (#371)', () => {
+            // The active context is persisted together with its `source`, so a choice made days ago
+            // came back as `user-selected` and vetoed detection in every later window: the chat
+            // opened on "Struggle Test Course" while the workspace held Graph Traversal.
+            // Writing the store directly is exactly what restoration looks like to the manager —
+            // an active context carrying `user-selected` that it never handed out itself.
+            contextStore.setActiveContext({
+                type: 'course',
+                id: 1,
+                title: 'Struggle Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 3,
+                title: 'Graph Traversal (Workspace)',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.id, 3, 'a stale selection must not veto workspace detection');
+            assert.strictEqual(snapshot.activeContext?.type, 'exercise');
+            assert.strictEqual(snapshot.activeContext?.source, 'workspace-detected');
+        });
+
+        test('should override a course context whose id collides with the detected exercise id (#371)', () => {
+            // The override guard used to compare ids alone, so course 3 read as "already exercise 3".
+            contextStore.setActiveContext({
+                type: 'course',
+                id: 3,
+                title: 'Course Three',
+                source: 'system-default',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 3,
+                title: 'Exercise Three (Workspace)',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.type, 'exercise', 'a course must not suppress an exercise override');
+            assert.strictEqual(snapshot.activeContext?.source, 'workspace-detected');
+        });
+
+        test('should NOT override a restored context the student re-selected in this session (#371)', () => {
+            // Confirming a restored context by clicking its already-active row in the picker is a
+            // real choice, even though it is a no-op for everything else. If the marker were only
+            // armed inside switchContext, the same-context early return would skip it and the next
+            // detection would yank the context away.
+            contextStore.setActiveContext({
+                type: 'course',
+                id: 1,
+                title: 'Struggle Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.handleContextSelection('course', 1, 'Struggle Test Course');
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 3,
+                title: 'Graph Traversal (Workspace)',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.type, 'course', 're-selection must count as a choice');
+            assert.strictEqual(snapshot.activeContext?.id, 1);
+        });
+
+        test('should override a restored user-selected course that also collides on id (#371)', () => {
+            // Both guards would have blocked this one: the stale `user-selected` source and the
+            // id-only comparison. Neither may survive on its own.
+            contextStore.setActiveContext({
+                type: 'course',
+                id: 3,
+                title: 'Course Three',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 3,
+                title: 'Exercise Three (Workspace)',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.type, 'exercise');
             assert.strictEqual(snapshot.activeContext?.source, 'workspace-detected');
         });
 
