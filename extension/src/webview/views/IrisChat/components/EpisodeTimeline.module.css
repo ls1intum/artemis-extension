@@ -64,8 +64,13 @@
 
 .nodeHint { background: var(--vscode-charts-blue); }
 
+/* This spacer is what the hover foot of a non-last row occupies (see .foot): reserving it here once
+   is why revealing that foot costs no height. It must match the foot's pinned 16px line box exactly
+   — at 14px the 11px timestamp overflowed it by 1.4px (the inherited line-height is 1.4) and grew
+   upward over the row's own text. Positioned so the foot can anchor to it. */
 .body {
-    padding-bottom: 14px;
+    position: relative;
+    padding-bottom: 16px;
     border-radius: 6px;
 }
 
@@ -74,26 +79,52 @@
     padding-bottom: 0;
 }
 
-/* Hover/focus chrome: collapsed at rest, expands the row open with a short animation. The transition
-   DELAY lives on the resting state so collapse LINGERS ~0.4s (a grace window to reach Dismiss); the
-   hover/focus rule zeroes it so opening is immediate. `:focus-within` keeps it keyboard-reachable. */
+/* Hover/focus chrome. It is taken OUT OF FLOW into the spacer .body already reserves, so revealing
+   it changes nothing about the row's height and cannot push the following rows or the rest of the
+   message list around (#368). Only opacity animates. The transition DELAY lives on the resting
+   state so the fade-out LINGERS ~0.4s (a grace window to reach Dismiss); the hover/focus rule
+   zeroes it so opening is immediate. `:focus-within` keeps it keyboard-reachable.
+
+   Out of flow, this branch only ever carries the timestamp: every foot that holds a button belongs
+   to the latest row, which is .rowLast and therefore static (below). Its line box is pinned to the
+   spacer's 16px so it can never exceed it and grow upward into the row's own text. */
 .foot {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-height: 0;
+    line-height: 16px;
     opacity: 0;
-    overflow: hidden;
-    margin-top: 0;
-    transition: max-height .16s ease .4s, opacity .16s ease .4s, margin-top .16s ease .4s;
+    transition: opacity .16s ease .4s;
 }
 
 .row:hover .foot,
 .row:focus-within .foot {
-    max-height: 28px;
+    opacity: 1;
+    transition: opacity .16s ease 0s;
+}
+
+/* The last row has no spacer to borrow, so its foot stays in flow. To keep the row's height stable
+   it is simply always present, receding by colour like every other footer in the chat rather than
+   collapsing. `.footPersistent` below already did exactly this whenever the row carries buttons. */
+.rowLast .foot {
+    position: static;
     opacity: 1;
     margin-top: 6px;
-    transition: max-height .16s ease 0s, opacity .16s ease 0s, margin-top .16s ease 0s;
+    color: var(--vscode-descriptionForeground);
+    transition: color 120ms ease;
+}
+
+.rowLast:hover .foot,
+.rowLast:focus-within .foot {
+    color: var(--vscode-foreground);
+}
+
+.rowLast .foot .time {
+    color: inherit;
 }
 
 .row:hover .body,
@@ -101,9 +132,12 @@
     background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
 }
 
+/* Must not wrap: out of flow it has no height budget beyond the one reserved line, so a second line
+   would grow upward over the row's text instead of pushing anything down. */
 .time {
     color: var(--vscode-descriptionForeground);
     font-size: 11px;
+    white-space: nowrap;
 }
 
 /* Condensed line an answered offer collapses to, in place of the (now-gone) answer buttons. */
@@ -135,11 +169,14 @@
 }
 
 /* An offer (or a Dismiss row) keeps its actions visible at rest — an offer you must hover to find
-   is no offer. The persistent variant pins the foot open regardless of hover/focus. */
+   is no offer. The persistent variant pins the foot open regardless of hover/focus. Buttons are
+   targets, so this variant always stays in flow: it must never float over the row above it, even
+   if a future change lets a non-last row carry actions. */
 .foot.footPersistent {
-    max-height: 28px;
+    position: static;
     opacity: 1;
     margin-top: 6px;
+    color: var(--vscode-foreground);
     transition: none;
 }
 

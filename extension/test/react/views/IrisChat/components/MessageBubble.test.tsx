@@ -231,6 +231,28 @@ describe('MessageBubble', () => {
 			fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
 			expect(onOfferAnswer).toHaveBeenCalledWith('off-1', 'ep-1', 'stuck', 'accept');
 		});
+
+		// The bar is absolutely positioned and overhangs the bubble, so on a failed send it would
+		// cover the error footer. There is also nothing to answer: the offer never reached the
+		// server. Mirrors the same guard on Dismiss (#368).
+		it('renders no offer buttons on a failed send, so they cannot cover the error footer', () => {
+			render(
+				<MessageBubble
+					message={{
+						localId: 'l1', role: 'assistant', content: 'hint', timestamp: 0,
+						status: 'error', errorMessage: 'Failed to send message',
+						origin: 'proactive', proactiveEpisodeId: 'ep-1',
+						offer: { offerId: 'off-1', moment: 'stuck' },
+					}}
+					onFeedback={vi.fn()}
+					onOfferAnswer={vi.fn()}
+				/>,
+			);
+			expect(screen.queryByRole('button', { name: 'Show me' })).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Not now' })).not.toBeInTheDocument();
+			// The error footer it was covering must still be there.
+			expect(screen.getByRole('alert')).toHaveTextContent('Failed to send message');
+		});
 	});
 
 	it('keeps the timestamp in the DOM for assistant messages (not hover-gated mount)', () => {
