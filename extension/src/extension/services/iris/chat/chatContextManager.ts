@@ -53,7 +53,7 @@ export function pickBestContextFromSnapshot(snapshot: ContextSnapshot): ActiveCo
  *   comparison: `selectedAt` is wall-clock, so a backward clock step could void a selection the
  *   student had just made — a worse failure than the one being fixed.
  */
-export function shouldOverrideWithWorkspace(
+function shouldOverrideWithWorkspace(
     active: ActiveContext | null,
     detected: TrackedExercise,
     userChoseThisSession: boolean,
