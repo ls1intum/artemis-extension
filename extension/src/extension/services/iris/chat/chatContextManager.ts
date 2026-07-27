@@ -43,20 +43,34 @@ export function pickBestContextFromSnapshot(snapshot: ContextSnapshot): ActiveCo
     return null;
 }
 
-function shouldOverrideWithWorkspace(
+/**
+ * Pure policy: may workspace detection take over the active context?
+ *
+ * @param userChoseThisSession whether the student made an explicit selection in THIS window, as
+ *   opposed to one restored from persistence. The active context is stored together with its
+ *   `source`, so treating `user-selected` alone as a veto let a single choice pin every future
+ *   window forever, whatever the student actually had open (#371). Deliberately not a timestamp
+ *   comparison: `selectedAt` is wall-clock, so a backward clock step could void a selection the
+ *   student had just made — a worse failure than the one being fixed.
+ */
+export function shouldOverrideWithWorkspace(
     active: ActiveContext | null,
     detected: TrackedExercise,
+    userChoseThisSession: boolean,
 ): boolean {
     if (!active) {
         return true;
     }
-    // An explicit user choice (e.g. "Ask Iris about this exercise") must never
-    // be silently overwritten by background workspace re-detection — that
-    // produces the "I clicked B but the chat shows A" bug.
-    if (active.source === 'user-selected') {
+    // An explicit user choice (e.g. "Ask Iris about this exercise") must never be silently
+    // overwritten by background workspace re-detection — that produces the "I clicked B but the
+    // chat shows A" bug. A choice restored from a previous window is not that: it says nothing
+    // about the exercise now open.
+    if (active.source === 'user-selected' && userChoseThisSession) {
         return false;
     }
-    return active.id !== detected.id;
+    // Compare the entity, not just the number: a COURSE with id 3 is not exercise 3, and must not
+    // suppress the override just because the ids collide.
+    return active.type !== 'exercise' || active.id !== detected.id;
 }
 
 export type ChatContextReason =
@@ -88,6 +102,13 @@ interface SwitchContextParams {
 }
 
 export class ChatContextManager {
+    /**
+     * Set once the student picks a context in this window. Distinguishes a live choice from one
+     * restored out of persistence, which carries the same `user-selected` source but says nothing
+     * about what is open now. Read by {@link shouldOverrideWithWorkspace}; see #371.
+     */
+    private _userChoseThisSession = false;
+
     constructor(
         private readonly deps: IrisServiceDeps,
         private readonly _chatSessionService: IrisChatSessionService,
@@ -102,6 +123,12 @@ export class ChatContextManager {
         const reason = params.reason ?? 'user-selected';
         const source = this._mapReasonToSource(reason);
         const isWorkspaceRelated = reason === 'workspace-detected' || reason === 'auto-workspace';
+
+        // Every explicit selection funnels through here, so this is the one place that has to
+        // record it. From now on background detection leaves the context alone (#371).
+        if (source === 'user-selected') {
+            this._userChoseThisSession = true;
+        }
 
         // Step 1: Register in context store
         if (params.type === 'exercise') {
@@ -161,6 +188,12 @@ export class ChatContextManager {
         itemName: string,
         itemShortName?: string
     ): void {
+        // Recorded before the no-op below, because the student picking the row that is ALREADY
+        // active is still a choice: it is how you confirm a context restored from a previous
+        // window, and it must arm the veto even though nothing else has to happen (#371).
+        // This path is only ever reached from the webview's selection message.
+        this._userChoseThisSession = true;
+
         const active = this.deps.contextStore.getActiveContext();
         if (active?.type === contextType && active.id === itemId) {
             // Re-selecting the already-active context is a no-op: no register,
@@ -222,7 +255,7 @@ export class ChatContextManager {
         if (input.source === 'workspace-detected') {
             const active = this.deps.contextStore.getActiveContext();
             const exercise = this.deps.contextStore.getExerciseById(input.id);
-            if (exercise && shouldOverrideWithWorkspace(active, exercise)) {
+            if (exercise && shouldOverrideWithWorkspace(active, exercise, this._userChoseThisSession)) {
                 logger.context('Source is workspace-detected, setting active context to workspace exercise');
                 this.deps.contextStore.setActiveContext({
                     type: 'exercise',
@@ -262,6 +295,9 @@ export class ChatContextManager {
         const snapshot = this.deps.contextStore.snapshot();
         const best = pickBestContextFromSnapshot(snapshot);
         if (best) {
+            // Logged because this is the only path that picks a context without any explicit signal:
+            // silent, it is indistinguishable in the log from "no context was chosen at all".
+            logger.context(`Auto-selected ${best.type} ${best.id} (${best.title}) from snapshot`);
             this.deps.contextStore.setActiveContext(best);
             this.deps.contextStore.switchToFirstSession();
         }
