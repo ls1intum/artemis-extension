@@ -93,8 +93,10 @@ function MessageBubbleComponent({
     // A consented offer bubble (Moment-1 "stuck" / Moment-3 "abandon") renders its own accept/decline
     // buttons until answered. Same ownership split as Dismiss: a grouped (timeline) row never renders
     // its own buttons (the EpisodeTimeline footer owns the grouped case).
+    // `!isFailed` mirrors showDismiss above: a send that never reached the server has no offer to
+    // answer, and its floating bar would otherwise cover the error footer below the bubble (#368).
     const offer = message.offer;
-    const showOfferButtons = isProactive && !grouped && !!offer && !offer.answered && !!onOfferAnswer;
+    const showOfferButtons = isProactive && !grouped && !!offer && !offer.answered && !!onOfferAnswer && !isFailed;
 
     return (
         <div
