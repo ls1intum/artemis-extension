@@ -102,6 +102,9 @@ function MessageBubbleComponent({
                 [styles.user]: isUser,
                 [styles.assistant]: isAssistant,
                 [styles.groupedWrapper]: isProactive && grouped,
+                // Reserves room for the action bar that overhangs this card's bottom edge. Gated on
+                // the same condition as the bar itself, so a card without one keeps the tight rhythm.
+                [styles.proactiveWrapper]: showDismiss || showOfferButtons,
             })}
         >
             <div className={styles.bubbleColumn}>
@@ -167,39 +170,6 @@ function MessageBubbleComponent({
                         </>
                     )}
 
-                    {showFeedback && (
-                        <div
-                            className={clsx(styles.feedbackContainer, {
-                                [styles.visible]: hasFeedback,
-                            })}
-                        >
-                            <button
-                                className={clsx(styles.feedbackButton, {
-                                    [styles.selected]: message.helpful === true,
-                                })}
-                                onClick={() => handleFeedback('positive')}
-                                aria-label="Helpful"
-                            >
-                                <ThumbsUp
-                                    size={16}
-                                    fill={message.helpful === true ? 'currentColor' : 'none'}
-                                />
-                            </button>
-                            <button
-                                className={clsx(styles.feedbackButton, {
-                                    [styles.selected]: message.helpful === false,
-                                })}
-                                onClick={() => handleFeedback('negative')}
-                                aria-label="Not helpful"
-                            >
-                                <ThumbsDown
-                                    size={16}
-                                    fill={message.helpful === false ? 'currentColor' : 'none'}
-                                />
-                            </button>
-                        </div>
-                    )}
-
                     {(showDismiss || showOfferButtons) && (
                         <div className={clsx(styles.actionRow, { [styles.actionRowCard]: isProactive })}>
                             {/* Consented offer buttons on a non-grouped proactive bubble (a grouped/timeline row's
@@ -263,17 +233,50 @@ function MessageBubbleComponent({
                         )}
                     </div>
                 )}
+
+                {/* One footer row carries the feedback buttons and the timestamp, so the space for
+                    both is reserved exactly once and hover only changes their colour, never the
+                    layout. It sits OUTSIDE the bubble on purpose: .proactiveDismissed dims the
+                    bubble with opacity, which would composite this row too and put the 11px
+                    timestamp below any usable contrast. Suppressed inside an episode block, where
+                    the timeline owns the per-row chrome. */}
+                {!grouped && (
+                    <div className={clsx(styles.footRow, { [styles.visible]: hasFeedback })}>
+                        {showFeedback && (
+                            <div className={styles.feedbackContainer}>
+                                <button
+                                    className={clsx(styles.feedbackButton, {
+                                        [styles.selected]: message.helpful === true,
+                                    })}
+                                    onClick={() => handleFeedback('positive')}
+                                    aria-label="Helpful"
+                                >
+                                    <ThumbsUp
+                                        size={16}
+                                        fill={message.helpful === true ? 'currentColor' : 'none'}
+                                    />
+                                </button>
+                                <button
+                                    className={clsx(styles.feedbackButton, {
+                                        [styles.selected]: message.helpful === false,
+                                    })}
+                                    onClick={() => handleFeedback('negative')}
+                                    aria-label="Not helpful"
+                                >
+                                    <ThumbsDown
+                                        size={16}
+                                        fill={message.helpful === false ? 'currentColor' : 'none'}
+                                    />
+                                </button>
+                            </div>
+                        )}
+                        <span className={styles.timestamp} data-testid="message-timestamp">
+                            {relativeTime}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {/* Per-message timestamps are suppressed inside an episode block: the bubbles are tight, so an
-                absolute-positioned time would overlap the neighbouring row. The block reads as one session.
-                Outside a block the timestamp is always mounted (revealed on hover/focus via CSS) so assistive
-                tech can reach it and the reveal needs no JS hover state. */}
-            {!grouped && (
-                <span className={styles.timestamp} data-testid="message-timestamp">
-                    {relativeTime}
-                </span>
-            )}
         </div>
     );
 }
