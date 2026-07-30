@@ -5,7 +5,10 @@ import type { IrisActivityDTO } from '@shared/types/apiResponses';
 export interface ChatMessage {
     id?: number;           // Artemis message ID (undefined for optimistic messages)
     localId: string;       // Client-generated UUID for optimistic tracking
-    role: 'user' | 'assistant';
+    // 'contextSwap' is a persisted transcript-divider row from the
+    // conversation-first path; not yet rendered distinctly (dormant until
+    // Task 14), but the wire type must round-trip through this union.
+    role: 'user' | 'assistant' | 'contextSwap';
     content: string;
     timestamp: number;
     helpful?: boolean | null;  // Feedback state: true=positive, false=negative, null=none

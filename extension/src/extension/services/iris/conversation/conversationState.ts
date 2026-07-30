@@ -368,6 +368,13 @@ export class ConversationState {
         this.rememberInvisible({ ...this._knownInvisible.get(summary.sessionId), ...summary });
     }
 
+    /** Title changes are a summary lifecycle event, like context changes. */
+    public setTitle(title: string): void {
+        if (!this._detail) { return; }
+        this._detail = { ...this._detail, title };
+        this.updateSummary({ ...summaryOfDetail(this._detail) });
+    }
+
     // ---- context ------------------------------------------------------
 
     public effectiveContext(): ServerContext | undefined {

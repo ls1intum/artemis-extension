@@ -2,7 +2,10 @@ import * as vscode from 'vscode';
 
 import type { ExtensionToWebviewMessage, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
+import type { IrisChatMessage } from '@shared/types/apiResponses';
 
+import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
+import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import type { IrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
 import { isIrisActivity, isIrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
@@ -54,13 +57,56 @@ export class IrisWebSocketMessageHandler {
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _runs: IrisRunStateMachine,
         private readonly _getLocalSessionId: () => string | undefined,
+        private readonly _getConversation: () => IrisConversationService | undefined,
         private readonly _onSessionTitleUpdate?: (artemisSessionId: number, title: string) => void,
     ) { }
 
-    public handleIrisWebSocketMessage(data: unknown): void {
+    /**
+     * Gates every new-model behaviour (the source-session check, the CTXSWAP
+     * branch, host-state ingestion) on the conversation being *active*, not
+     * merely constructed. Until Task 14 cuts over, nothing calls
+     * `IrisConversationService.start()`, so the service exists with no
+     * session, and `ConversationState.currentSessionId` stays `undefined`.
+     * Treating "the service exists" as authoritative would drop every frame
+     * the old model is still relying on.
+     */
+    private get _activeConversation(): IrisConversationService | undefined {
+        const conversation = this._getConversation();
+        return conversation?.state.snapshot().currentSessionId !== undefined ? conversation : undefined;
+    }
+
+    public handleIrisWebSocketMessage(data: unknown, sourceSessionId: number): void {
         if (!isIrisWebSocketMessage(data) || typeof data.type !== 'string') {
             logger.info(`Unknown message format: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
             return;
+        }
+
+        // 1. Source check FIRST: before admission, before run state, before the
+        //    title handler. A frame from the conversation we just left must not
+        //    be able to bind an unknown run as current or rename the live
+        //    session. Everything in this block happens ONLY while the new
+        //    model is driving. Before the Task 14 cut-over the old path still
+        //    owns acquisition, so ConversationState has no session and a
+        //    source check against it would drop every frame. Skipping this
+        //    block means "behave as the baseline".
+        const conversation = this._activeConversation;
+        if (conversation !== undefined) {
+            const current = conversation.state.snapshot().currentSessionId;
+            if (sourceSessionId !== current) {
+                logger.info(`Dropped frame from session ${sourceSessionId} (current ${String(current)})`, LogCategory.WEBSOCKET);
+                return;
+            }
+            // 2. A context-swap marker is not chat and never touches run state.
+            if (data.type === 'MESSAGE' && data.message && isContextSwap(data.message)) {
+                this._handleContextSwap(conversation, data.message);
+                return;
+            }
+            // 3. Anything else carrying a body is CONTENT, whatever we draw.
+            //    Placed here so the USER-echo, bodiless-answer and ARTIFACT
+            //    early returns further down cannot skip it.
+            if (data.type === 'MESSAGE' && data.message) {
+                conversation.state.upsertMessage(data.message);
+            }
         }
 
         // Admission MUST come first: a stale run must not be able to rename the
@@ -249,7 +295,57 @@ export class IrisWebSocketMessageHandler {
         }
 
         logger.info(`Session title received: "${sessionTitle}" for session ${artemisSessionId}`, LogCategory.WEBSOCKET);
-        this._onSessionTitleUpdate?.(artemisSessionId, sessionTitle);
+
+        const conversation = this._activeConversation;
+        if (!conversation) {
+            // Coexistence until Task 14: the old model still owns the title, and
+            // returning here would silently disable renaming for eight commits.
+            this._onSessionTitleUpdate?.(artemisSessionId, sessionTitle);
+            return;
+        }
+        conversation.state.setTitle(sessionTitle);
+    }
+
+    /**
+     * A context-swap marker is not chat: it never touches run state, and a
+     * malformed one is repaired by reloading rather than guessed at.
+     */
+    private _handleContextSwap(conversation: IrisConversationService, message: IrisChatMessage): void {
+        const swap = parseContextSwap(message);
+        if (!swap) {
+            // Undecodable marker: it is still content on the server, so reload the
+            // detail rather than guess. Never fall through to the chat path.
+            //
+            // `reload` refuses while a send is unresolved and defers itself, which
+            // matters here: the server writes this marker WHILE our own POST is
+            // open, so an ungated reload would navigate mid-send and walk straight
+            // past the dispatcher gating of spec 7.3.
+            void conversation.reload();
+            return;
+        }
+        const outcome = conversation.state.applyContextSwap(swap, message);
+        const localSessionId = this._getLocalSessionId();
+        if (localSessionId) {
+            this._postMessage({
+                type: ExtensionMsg.AddMessage,
+                localSessionId,
+                message: {
+                    id: message.id,
+                    role: 'contextSwap',
+                    content: describeContextSwap(swap),
+                    timestamp: message.sentAt ? new Date(message.sentAt).getTime() : Date.now(),
+                },
+            });
+        }
+        if (outcome === 'pending-dropped') {
+            // Informative only, no undo: the marker itself makes the conversation
+            // non-empty, so the staging could never be restored.
+            this._postMessage({
+                type: ExtensionMsg.ShowChatNotice,
+                text: 'Das Thema wurde anderweitig geaendert. Deine Vormerkung wurde verworfen.',
+            });
+        }
+        conversation.notifyChanged();
     }
 
     public async handleReconnectWebSocket(): Promise<ReconnectResult> {

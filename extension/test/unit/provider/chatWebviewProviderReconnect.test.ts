@@ -369,7 +369,7 @@ suite('ChatWebviewProvider reconnect reconciliation', () => {
         // not resurrect it as a phantom duplicate bubble.
         internals(h.provider)._websocketMessageHandler.handleIrisWebSocketMessage({
             type: 'PARTIAL', runId: 'run-A', partialResult: 'stale partial answer', partialSeq: 1,
-        });
+        }, 42);
 
         h.fetchStub.resolves([assistant(99)] as never);
         h.publishSpy.resetHistory();

@@ -33,7 +33,13 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     private _connectionStateSubscription?: vscode.Disposable;
     private _lastResubscribeAttempt: number = 0;
 
-    private readonly _onDidReceiveMessage = new vscode.EventEmitter<IrisWebSocketMessage>();
+    /** The conversation we WANT. Set synchronously, converged towards after. */
+    private _desiredSessionId?: number;
+    /** The conversation the CURRENT STOMP connection is actually subscribed to. */
+    private _subscribedSessionId?: number;
+    private _convergeTimer?: ReturnType<typeof setTimeout>;
+
+    private readonly _onDidReceiveMessage = new vscode.EventEmitter<{ frame: IrisWebSocketMessage; sourceSessionId: number }>();
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
     private readonly _onDidConnectionStateChange = new vscode.EventEmitter<boolean>();
     public readonly onDidConnectionStateChange = this._onDidConnectionStateChange.event;
@@ -56,6 +62,10 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             this._connectionStateSubscription = undefined;
         }
 
+        if (this._convergeTimer) {
+            clearTimeout(this._convergeTimer);
+            this._convergeTimer = undefined;
+        }
         this.unsubscribe();
         this._onDidReceiveMessage.dispose();
         this._onDidConnectionStateChange.dispose();
@@ -76,12 +86,21 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             }
             this._irisUnsubscribe = undefined;
         }
+        // Leaving this set means a later subscribeToSession for the SAME id sees
+        // subscribed === desired and returns without resubscribing.
+        this._subscribedSessionId = undefined;
     }
 
     /** Unsubscribe AND clear the cached session ID (used on context switch). */
     public resetSession(): void {
         this.unsubscribe();
         this._currentArtemisSessionId = undefined;
+        // Otherwise a later reconnect resurrects a session that was deliberately reset.
+        this._desiredSessionId = undefined;
+        if (this._convergeTimer) {
+            clearTimeout(this._convergeTimer);
+            this._convergeTimer = undefined;
+        }
     }
 
     public async initializeSession(context: ActiveContext, courseId: number, storedSessionId?: number): Promise<number> {
@@ -100,7 +119,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         }
 
         this._currentArtemisSessionId = sessionId;
-        await this._subscribeIfConnected(sessionId);
+        this.subscribeToSession(sessionId);
         return sessionId;
     }
 
@@ -115,61 +134,88 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         const newSession = await this._artemisApiService.createCourseSession(courseId);
 
         this._currentArtemisSessionId = newSession.sessionId;
-        await this._subscribeIfConnected(newSession.sessionId);
+        this.subscribeToSession(newSession.sessionId);
         return newSession.sessionId;
     }
 
+    public subscribeToSession(sessionId: number): void {
+        // Synchronous, so a caller can rely on the intent being recorded even
+        // when the STOMP subscribe is deferred.
+        this._desiredSessionId = sessionId;
+        this._currentArtemisSessionId = sessionId;
+        // A deliberate navigation is NOT rate-limited. The 3 s window exists to
+        // damp reconnect storms, not to throttle a student switching
+        // conversations; delaying it leaves the newly opened conversation
+        // subscription-less for up to three seconds, during which its answer is
+        // dropped by the source check and simply never appears.
+        this._converge({ immediate: true });
+    }
+
     /**
-     * Subscribe to session ONLY if WebSocket is already connected.
-     * Does NOT attempt to connect - that would cause a loop!
-     * 
-     * SAFETY: This method never calls connect() on the WebSocket service.
+     * Every (re)connect creates a FRESH STOMP session, so every prior protocol
+     * subscription is gone whether or not we were told about the disconnect.
+     * The baseline resubscribes unconditionally on `connected: true` for exactly
+     * this reason: the disconnect notification is debounced by 5 s and a fast
+     * reconnect may arrive first, so keying the invalidation on `connected:
+     * false` misses it, `_converge` sees subscribed === desired, returns, and
+     * the client is permanently deaf on the new connection with no error.
      */
-    private async _subscribeIfConnected(sessionId: number, force = false): Promise<void> {
-        // Check rate limiting BEFORE tearing down the existing subscription.
-        // Previous code unsubscribed first, then returned on rate-limit,
-        // leaving zero active subscriptions.
-        const now = Date.now();
-        const timeSinceLastAttempt = now - this._lastResubscribeAttempt;
-        if (!force && timeSinceLastAttempt < MIN_RESUBSCRIBE_INTERVAL_MS) {
-            logger.session(`Rate limited: ${MIN_RESUBSCRIBE_INTERVAL_MS - timeSinceLastAttempt}ms until next subscribe`);
+    private _onConnectionStateChanged(connected: boolean): void {
+        this._subscribedSessionId = undefined;
+        this._irisUnsubscribe = undefined;
+        if (connected) { this._converge({ immediate: true }); }
+    }
+
+    private _converge(options: { immediate?: boolean } = {}): void {
+        const desired = this._desiredSessionId;
+        if (desired === undefined) { return; }
+        if (this._subscribedSessionId === desired) { return; }
+        if (!this._websocketService.isConnected()) { return; }   // the monitor re-converges
+
+        const waited = Date.now() - this._lastResubscribeAttempt;
+        if (!options.immediate && waited < MIN_RESUBSCRIBE_INTERVAL_MS) {
+            // SCHEDULE, never drop. Dropping is what left a conversation
+            // permanently unsubscribed after a fast second switch.
+            if (!this._convergeTimer) {
+                this._convergeTimer = setTimeout(() => {
+                    this._convergeTimer = undefined;
+                    this._converge();
+                }, MIN_RESUBSCRIBE_INTERVAL_MS - waited);
+            }
             return;
         }
 
-        if (!this._websocketService.isConnected()) {
-            logger.session('WebSocket not connected, will subscribe when connected');
-            // NOTE: We do NOT call connect() here! The connection state callback will handle this.
-            return;
-        }
-
-        // Safe to tear down old subscription — we are about to create a new one.
         this.unsubscribe();
-
-        // Only consume rate-limit window when we actually attempt to subscribe
-        this._lastResubscribeAttempt = now;
-
-        logger.session(`Subscribing to Iris WebSocket session: ${sessionId}`);
+        this._subscribedSessionId = undefined;
+        this._lastResubscribeAttempt = Date.now();
         try {
             this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                sessionId,
-                (data: unknown) => this._handleWebSocketMessage(data)
+                desired,
+                (data, sourceSessionId) => this._handleWebSocketMessage(data, sourceSessionId),
             );
-            logger.session(`Successfully subscribed to session: ${sessionId}`);
-            this._onDidResubscribe.fire(sessionId);
         } catch (error) {
-            logger.sessionError('Failed to subscribe:', error);
+            // We already tore the old subscription down, so a throw here leaves
+            // ZERO subscriptions. Retry rather than leaving the conversation
+            // silently deaf.
+            logger.sessionError('Subscribe failed, retrying', error);
+            this._scheduleConverge();
+            return;
         }
+        this._subscribedSessionId = desired;
+        // The desire may have moved while we were subscribing.
+        if (this._desiredSessionId !== desired) { this._converge({ immediate: true }); }
+        else { this._onDidResubscribe.fire(desired); }
     }
 
-    /**
-     * Public method to explicitly subscribe to a session.
-     * Use this when you know the WebSocket should be connected.
-     */
-    public async subscribeToSession(sessionId: number): Promise<void> {
-        await this._subscribeIfConnected(sessionId);
+    private _scheduleConverge(): void {
+        if (this._convergeTimer) { return; }
+        this._convergeTimer = setTimeout(() => {
+            this._convergeTimer = undefined;
+            this._converge();
+        }, MIN_RESUBSCRIBE_INTERVAL_MS);
     }
 
-    private _handleWebSocketMessage(data: unknown): void {
+    private _handleWebSocketMessage(data: unknown, sourceSessionId: number): void {
         // Light-touch guard: reject primitives / null / arrays before the
         // listeners assume the IrisWebSocketMessage object shape. Per-message
         // narrowing (e.g. type === 'MESSAGE' && has-message) happens
@@ -178,30 +224,21 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             logger.session(`Discarded non-object WebSocket payload: ${typeof data}`);
             return;
         }
-        this._onDidReceiveMessage.fire(data);
+        this._onDidReceiveMessage.fire({ frame: data, sourceSessionId });
     }
 
     /**
-     * Monitor WebSocket connection state and resubscribe when reconnected.
-     * 
-     * SAFETY FEATURES:
-     * 1. Stores unsubscribe function to prevent callback accumulation
-     * 2. Does NOT call connect() - only subscribes if already connected
-     * 3. Rate-limits resubscription attempts
+     * Monitor WebSocket connection state and converge the subscription when
+     * reconnected.
+     *
+     * SAFETY: Does NOT call connect() - only subscribes if already connected.
      */
     private _startWebSocketMonitoring(): void {
         // Store subscription disposable for cleanup in dispose()
         this._connectionStateSubscription = this._websocketService.onDidChangeConnectionState(({ connected: isConnected }) => {
             logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);
-
-            if (isConnected && this._currentArtemisSessionId) {
-                // Every (re)connect creates a fresh STOMP session — all prior STOMP
-                // subscriptions are gone at the protocol level regardless of whether
-                // we received a disconnect notification (which is debounced by 5 s).
-                logger.session(`(Re)connected, resubscribing to session: ${this._currentArtemisSessionId}`);
-                void this._subscribeIfConnected(this._currentArtemisSessionId, true);
-            }
+            this._onConnectionStateChanged(isConnected);
         });
     }
 }

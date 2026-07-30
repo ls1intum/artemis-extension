@@ -263,6 +263,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             (message) => this._postMessageSafe(message),
             this._runs,
             () => this._contextStore.snapshot().activeSession?.id,
+            // A getter, not a value: `_conversation` is assigned further down in
+            // this same constructor (and is `undefined` until then), so capturing
+            // it by value here would capture `undefined` forever.
+            () => this._conversation,
             (artemisSessionId, title) => {
                 if (this._contextStore.updateSessionTitle(artemisSessionId, title)) {
                     this._viewStatePresenter.postSnapshot();
@@ -281,7 +285,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             if (this._conversation) { this._disposables.push(this._conversation); }
 
             this._disposables.push(
-                this._irisSessionManager.onDidReceiveMessage(data => this._websocketMessageHandler.handleIrisWebSocketMessage(data))
+                this._irisSessionManager.onDidReceiveMessage(({ frame, sourceSessionId }) =>
+                    this._websocketMessageHandler.handleIrisWebSocketMessage(frame, sourceSessionId))
             );
             this._disposables.push(
                 this._irisSessionManager.onDidConnectionStateChange(() => this._websocketMessageHandler.publishCurrentStatus())
@@ -347,13 +352,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _createConversationService(client: IrisWebSocketSessionClient): IrisConversationService | undefined {
         if (!this._artemisApiService) { return undefined; }
         return new IrisConversationService(this._artemisApiService, {
-            // TODO(Task 6): `client.subscribeToSession` does not yet meet the
-            // "synchronous, latest-wins" contract `IrisConversationDeps` documents.
-            // It is async, rate-limited to one attempt per 3000ms (a second rapid
-            // call is silently dropped rather than converging to the newer
-            // session), and it never updates `_currentArtemisSessionId` (unlike
-            // `initializeSession`/`createNewSession`). Task 6 rewrites the
-            // transport to actually provide the guarantee; do not fix it here.
             subscribeToSession: (sessionId) => client.subscribeToSession(sessionId),
             getWorkspaceExercise: () => {
                 const exercise = this._contextStore.getWorkspaceExercise();

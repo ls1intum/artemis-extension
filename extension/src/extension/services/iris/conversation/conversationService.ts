@@ -39,10 +39,10 @@ export interface IrisConversationDeps {
      * intent immediately and converges in the background, so two rapid
      * navigations cannot leave the transport on the older conversation.
      *
-     * The guarantee is not fully honoured yet: the production adapter wired in
-     * `chatWebviewProvider.ts` delegates to the current transport, which is
-     * rate-limited and drops a second attempt instead of converging to
-     * latest-wins. Task 6 rewrites the transport to actually provide this.
+     * The production adapter wired in `chatWebviewProvider.ts` delegates to
+     * `IrisWebSocketSessionClient.subscribeToSession`, whose `_converge` loop
+     * provides exactly this: it records `_desiredSessionId` synchronously and
+     * is not rate-limited for a deliberate navigation.
      */
     subscribeToSession(sessionId: number): void;
     /** Resolves the workspace exercise, or undefined when none is detected. */

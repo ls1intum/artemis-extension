@@ -75,6 +75,7 @@ export const ExtensionMsg = {
     SendRejected: 'sendRejected',
     MergeSessionMessages: 'mergeSessionMessages',
     ConfirmSentMessage: 'confirmSentMessage',
+    ShowChatNotice: 'showChatNotice',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -227,7 +228,12 @@ interface ExtensionMsgPayloads {
         localSessionId: string;
         message: {
             id?: number;
-            role: 'user' | 'assistant';
+            /**
+             * `contextSwap` is a persisted CTXSWAP marker row (the
+             * conversation-first path), not chat: the webview renders it as a
+             * transcript divider, never as a user/assistant bubble.
+             */
+            role: 'user' | 'assistant' | 'contextSwap';
             content: string;
             timestamp: number;
             helpful?: boolean | null;
@@ -343,6 +349,14 @@ interface ExtensionMsgPayloads {
         reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
         errorMessage: string;
     };
+    /**
+     * An informative, actionless notice for the conversation-first path (e.g.
+     * a staged topic dropped by an incoming context-swap marker). No undo: the
+     * marker itself already made the conversation non-empty, so the staging
+     * could never be restored. Not yet consumed by the webview; the path that
+     * produces it stays dormant until Task 14.
+     */
+    showChatNotice: { text: string };
 
     // Exercise/Repo responses
     updateRepoStatus: {

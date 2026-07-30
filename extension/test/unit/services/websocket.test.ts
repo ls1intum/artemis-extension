@@ -554,38 +554,40 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
     });
 
     // ========================================================================
-    // Test 1: Rate Limiting for IrisWebSocketSessionClient
+    // Test 1: Latest-wins subscription for IrisWebSocketSessionClient
     // ========================================================================
-    test('Rate Limiting: resubscription should have min 3s interval', async () => {
-        // Don't use fake timers for this test - they interfere with IrisWebSocketSessionClient's Date.now()
-        
-        // Initialize session (this calls _subscribeIfConnected and subscribes)
+    // The old 3s "attempt or drop" rate limiter was replaced by `_converge`
+    // (Task 6): a deliberate `subscribeToSession` call is never rate-limited,
+    // it converges towards the desired session immediately. See
+    // `test/logic/iris/irisWebSocketSessionClient.resubscribe.test.ts` for the
+    // full coverage of `_converge`'s latest-wins semantics; this test only
+    // checks the two scenarios visible through this suite's real STOMP mock.
+    test('Latest-wins: resubscribing to the same session is a no-op, a different one switches immediately', async () => {
+        // Initialize session (this calls subscribeToSession and subscribes)
         // API returns { id: 123 }, so topic will be /user/topic/iris/123
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'), 999);
-        
-        const topic = '/user/topic/iris/123';  // API returns 123, not 100!
-        
+
+        const topic123 = '/user/topic/iris/123';  // API returns 123, not 100!
+
         // Verify initial subscription exists
-        assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Initial subscription exists');
+        assert.ok(wsService.mockClient!.subscriptions.has(topic123), 'Initial subscription exists');
 
-        // Try to subscribe again immediately - should be rate limited
+        // Resubscribing to the SAME session is a no-op: already subscribed to
+        // what is desired, so nothing is torn down or recreated.
         const subscriptionCountBefore = wsService.mockClient!.subscriptions.size;
-        sessionManager.subscribeToSession(123);  // Use 123 (the actual session ID)
-
-        // Should NOT have changed subscription count (rate limited, returned early)
-        assert.strictEqual(wsService.mockClient!.subscriptions.size, subscriptionCountBefore, 
-            'Should not change subscriptions due to rate limit');
-
-        // Wait 3.1 seconds for real
-        await new Promise(resolve => setTimeout(resolve, 3100));
-
-        // Now subscription should work (unsubscribe + resubscribe)
         sessionManager.subscribeToSession(123);
-        
-        // Should still have the subscription (unsubscribed and resubscribed)
-        assert.ok(wsService.mockClient!.subscriptions.has(topic),
-            'Should allow subscription after 3s');
-    }).timeout(5000);  // Increase timeout since we're waiting for real
+        assert.strictEqual(wsService.mockClient!.subscriptions.size, subscriptionCountBefore,
+            'Resubscribing to the same session should not change subscriptions');
+
+        // A deliberate switch to a DIFFERENT session is NOT rate-limited: it
+        // must take effect immediately, without any wait.
+        sessionManager.subscribeToSession(456);
+        const topic456 = '/user/topic/iris/456';
+        assert.ok(wsService.mockClient!.subscriptions.has(topic456),
+            'Should switch to the new session immediately');
+        assert.strictEqual(wsService.mockClient!.subscriptions.has(topic123), false,
+            'Old session subscription should be torn down');
+    });
 
     // ========================================================================
     // Test 2: No connect() Calls from IrisWebSocketSessionClient
@@ -867,9 +869,9 @@ suite('WebSocket Integration Tests', () => {
         const testMessage = { content: 'Hello from Iris', sender: 'IRIS' };
         wsService.mockClient!.simulateMessage('/user/topic/iris/123', testMessage);
 
-        // 5. Verify message received
+        // 5. Verify message received, wrapped with its source session id
         assert.strictEqual(receivedMessages.length, 1);
-        assert.deepStrictEqual(receivedMessages[0], testMessage);
+        assert.deepStrictEqual(receivedMessages[0], { frame: testMessage, sourceSessionId: 123 });
 
         // 6. Disconnect
         await wsService.disconnect();
