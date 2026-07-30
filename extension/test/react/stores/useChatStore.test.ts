@@ -759,6 +759,53 @@ describe('useChatStore', () => {
 	// isolation, driven directly through setIrisState and the new/extended
 	// actions.
 	describe('conversation-first mirror (Task 11)', () => {
+		// Fix round 1: courseId, courseTitle, conversationTitle,
+		// displayMessageCount and workspaceExerciseId feed Task 12's header
+		// and pickers directly, which is outside this task's own consumers,
+		// but the fields still need to exist and mirror correctly now so
+		// Task 12 does not have to edit this file to finish its own task.
+		describe('header/picker fields (courseId, courseTitle, conversationTitle, displayMessageCount, workspaceExerciseId)', () => {
+			it('setIrisState mirrors courseId, defaulting to null when the wire omits it', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ courseId: 42 }));
+				expect(useChatStore.getState().courseId).toBe(42);
+
+				useChatStore.getState().setIrisState(makeIrisState());
+				expect(useChatStore.getState().courseId).toBeNull();
+			});
+
+			it('setIrisState mirrors courseTitle, defaulting to null when the wire omits it', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ courseTitle: 'Algorithms' }));
+				expect(useChatStore.getState().courseTitle).toBe('Algorithms');
+
+				useChatStore.getState().setIrisState(makeIrisState());
+				expect(useChatStore.getState().courseTitle).toBeNull();
+			});
+
+			it('setIrisState mirrors conversationTitle, defaulting to null when the wire omits it', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ conversationTitle: 'BFS help' }));
+				expect(useChatStore.getState().conversationTitle).toBe('BFS help');
+
+				useChatStore.getState().setIrisState(makeIrisState());
+				expect(useChatStore.getState().conversationTitle).toBeNull();
+			});
+
+			it('setIrisState mirrors displayMessageCount, defaulting to 0 when the wire omits it', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ displayMessageCount: 5 }));
+				expect(useChatStore.getState().displayMessageCount).toBe(5);
+
+				useChatStore.getState().setIrisState(makeIrisState());
+				expect(useChatStore.getState().displayMessageCount).toBe(0);
+			});
+
+			it('setIrisState mirrors workspaceExerciseId, defaulting to null when the wire omits it', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ workspaceExerciseId: 99 }));
+				expect(useChatStore.getState().workspaceExerciseId).toBe(99);
+
+				useChatStore.getState().setIrisState(makeIrisState());
+				expect(useChatStore.getState().workspaceExerciseId).toBeNull();
+			});
+		});
+
 		describe('addMessage session guard', () => {
 			it('drops an addMessage for a session that is not open', () => {
 				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));

@@ -70,8 +70,22 @@ interface ChatState {
     // provider is rewired (Task 14) and are deleted only in Task 15.
     // `null` follows the file's existing "absent" convention (see
     // `openSessionError`, `disabledMessage`) rather than `undefined`.
+    /** The open conversation's course id (Task 12 CoursePicker: marks the current course). */
+    courseId: number | null;
+    /** The open conversation's course title (Task 12 header line 1, opens CoursePicker). */
+    courseTitle: string | null;
     /** The one server conversation this webview mirrors, if any. */
     currentSessionId: number | null;
+    /** The open conversation's title (Task 12 header line 2, beside `displayMessageCount`). */
+    conversationTitle: string | null;
+    /**
+     * Displayed message count, excluding CTXSWAP rows (Task 12 header line 2).
+     * Display only, never the ownership predicate. `0`, not `null`, is the
+     * absent value: it is a count, not an identity reference, so it follows
+     * `sendInFlight`/`navigationInFlight`'s "falsy default of its own type"
+     * convention rather than the `| null` one used for id/title fields.
+     */
+    displayMessageCount: number;
     /** The conversation's persisted topic. */
     committedContext: ConversationTopic | null;
     /** A topic staged but not yet committed (e.g. mid-navigation). */
@@ -82,6 +96,8 @@ interface ChatState {
     navigationInFlight: boolean;
     /** Course-wide conversation list for the topic picker / history. */
     conversations: ConversationSummary[];
+    /** The detected workspace exercise, when any (Task 12 ContextPicker pin/badge). */
+    workspaceExerciseId: number | null;
     /**
      * An actionless informational banner (e.g. a server-initiated repoint).
      * Cleared by the next `setIrisState`, matching "a notice is cleared by
@@ -264,13 +280,18 @@ export const useChatStore = create<ChatState>()(
             hasReceivedInitialIrisState: false,
             exercises: [],
             courses: [],
+            courseId: null,
+            courseTitle: null,
             currentSessionId: null,
+            conversationTitle: null,
+            displayMessageCount: 0,
             committedContext: null,
             pendingContext: null,
             contentState: 'unknown',
             sendInFlight: false,
             navigationInFlight: false,
             conversations: [],
+            workspaceExerciseId: null,
             notice: null,
             composerText: '',
             courseHistory: { status: 'idle', entries: [], requestId: 0 },
@@ -316,13 +337,18 @@ export const useChatStore = create<ChatState>()(
                     exercises: state.exercises,
                     courses: state.courses,
                     hasReceivedInitialIrisState: true,
+                    courseId: state.courseId ?? null,
+                    courseTitle: state.courseTitle ?? null,
                     currentSessionId: state.currentSessionId ?? null,
+                    conversationTitle: state.conversationTitle ?? null,
+                    displayMessageCount: state.displayMessageCount ?? 0,
                     committedContext: state.committedContext ?? null,
                     pendingContext: state.pendingContext ?? null,
                     contentState: state.contentState ?? 'unknown',
                     sendInFlight: state.sendInFlight ?? false,
                     navigationInFlight: state.navigationInFlight ?? false,
                     conversations: state.conversations ?? [],
+                    workspaceExerciseId: state.workspaceExerciseId ?? null,
                     // A notice is cleared by any navigation or course change
                     // (the design's phrasing), and setIrisState is the sole
                     // vehicle that carries a navigation result today.
