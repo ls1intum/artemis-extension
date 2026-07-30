@@ -531,27 +531,49 @@ export class IrisConversationService {
      * live: `_install` only declares the subscription intent, it does not wait
      * for it, so that window is real.
      *
+     * NOT wrapped in `_navigate`: this fires from the transport via
+     * `onDidResubscribe` and can land in the middle of a real, user-visible
+     * navigation. Taking a token here would bump `_navRequestSeq` and make the
+     * outer navigation's `isCurrent()` permanently false, silently turning the
+     * user's own history open or topic switch into a no-op. `_navigate` never
+     * nests, and a reconciliation is not itself a user-visible navigation, so
+     * `installDetail`'s own guard tuple is what protects this call instead.
+     *
+     * Subscribes FIRST, then reads: a CTXSWAP that lands between the GET
+     * completing and the subscription going live would otherwise be lost with
+     * nothing left to repair it.
+     *
      * A LOAD like any other (guard matrix: "reconnect detail"), so it goes
-     * through `beginLoad` and `installDetail` directly, never `_install`: the
-     * subscription is already confirmed live, so re-declaring it here would be
-     * redundant and would misname this as an acquisition path. Best-effort, like
-     * `refreshOverview`: the only caller fires it as `void reconcileCurrent()`,
-     * so a network failure is logged, not thrown.
+     * through `beginLoad` and `installDetail` directly and never merges:
+     * something that moved while the GET was in flight means the response is
+     * discarded, not combined with a possibly-stale local view. Best-effort,
+     * like `refreshOverview`: the only caller fires it as
+     * `void reconcileCurrent()`, so a network failure is logged, not thrown.
      */
     public async reconcileCurrent(): Promise<void> {
-        const { currentSessionId, courseId } = this.state.snapshot();
-        if (currentSessionId === undefined || courseId === undefined) { return; }
-        await this._navigate(async (isCurrent) => {
-            const captured = this.state.beginLoad();
-            try {
-                const detail = await this._api.getChatSessionById(courseId, currentSessionId);
-                if (!isCurrent()) { return; }
-                if (!this.state.installDetail(detail, captured)) { return; }
-                this._emit();
-            } catch (error) {
-                logger.warn('Iris reconcile-on-resubscribe failed', LogCategory.IRIS_CHAT, error);
+        const snapshot = this.state.snapshot();
+        if (snapshot.currentSessionId === undefined || snapshot.courseId === undefined) { return; }
+        // Subscribe FIRST: a CTXSWAP between the GET completing and the
+        // subscription becoming active would otherwise be lost entirely.
+        // Synchronous by contract (see IrisConversationDeps), so no await.
+        this._deps.subscribeToSession(snapshot.currentSessionId);
+        this.state.noteReconnect();
+
+        // beginLoad, NOT guard: guard() carries loadTicket 0 and `accepts`
+        // requires a ticket strictly greater than the last installed one, so a
+        // guard()-based reconnect would be rejected every single time and
+        // reconciliation would silently never happen.
+        const captured = this.state.beginLoad();
+        try {
+            const detail = await this._api.getChatSessionById(snapshot.courseId, snapshot.currentSessionId);
+            if (!this.state.installDetail(detail, captured)) {
+                // Something moved while we were fetching. Discard, do not merge.
+                return;
             }
-        });
+            this._emit();
+        } catch (error) {
+            logger.warn('Iris reconcile-on-resubscribe failed', LogCategory.IRIS_CHAT, error);
+        }
     }
 
     public dispose(): void {

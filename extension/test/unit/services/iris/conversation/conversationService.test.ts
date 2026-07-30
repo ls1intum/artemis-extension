@@ -390,4 +390,31 @@ suite('IrisConversationService', () => {
         await opened;
         assert.strictEqual(service.state.snapshot().pendingContext, undefined);
     });
+
+    test('reconcileCurrent subscribes before the detail GET resolves', async () => {
+        // Subscribe-before-adopt: a CTXSWAP landing between the GET completing
+        // and the subscription going live must have something live to repair it,
+        // so the subscribe call has to happen before the GET is even awaited,
+        // not after the response comes back.
+        const service = await started();
+        // `started()` already subscribed once during its own setup; the
+        // reconcile must add a SECOND subscribe for the same session, and it
+        // must be visible before the GET below is even resolved.
+        const reconciling = service.reconcileCurrent();
+        assert.deepStrictEqual(service.subscribed, [1, 1]);
+        assert.strictEqual(service.api.deferred.at(-1)?.call, 'detail:42:1');
+        service.api.deferred.at(-1)!.resolve(detail(1, EX5, [{ id: 1, sender: 'USER' }]));
+        await reconciling;
+        assert.ok(service.state.snapshot().detail!.messages.some((m) => m.id === 1));
+    });
+
+    test('onSubscriptionActive ignores a signal for a session that is no longer current', async () => {
+        // The signal names a session id; if it does not match what is currently
+        // open, reconciling it would read the WRONG conversation into the one
+        // the student is looking at.
+        const service = await started();
+        service.onSubscriptionActive(999);
+        await tick();
+        assert.strictEqual(service.api.deferred.filter((d) => d.call.startsWith('detail:')).length, 0);
+    });
 });
