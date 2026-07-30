@@ -1187,8 +1187,10 @@ import type { IrisChatMessage } from '@shared/types/apiResponses';
 import type { ServerContext, SessionDetail, SessionSummary } from '@shared/types/serverContext';
 import { sameContext, summaryOfDetail } from '@shared/types/serverContext';
 
-import type { ContextSwap } from '../context/contextMarkers';
-import { isContextSwap } from '../context/contextMarkers';
+// Path aliases, not upward relative imports: eslint.config.mjs bans `../*`
+// across src/. Sibling `./foo` imports stay allowed.
+import type { ContextSwap } from '@extension/services/iris/context/contextMarkers';
+import { isContextSwap } from '@extension/services/iris/context/contextMarkers';
 
 /**
  * `unknown` is NOT `empty`. It holds while no detail for the current session is
