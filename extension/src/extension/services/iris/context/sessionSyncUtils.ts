@@ -43,23 +43,29 @@ export async function fetchSessionsWithMessages(
     }
     const mode = contextToIrisMode(context.type);
     const summaries = await api.listChatSessionsForCourse(courseId);
-    const filtered = summaries.filter(s => s.mode === mode && s.entityId === context.id);
+    const filtered = summaries.filter(s => s.context.mode === mode && s.context.entityId === context.id);
 
     return Promise.all(filtered.map(async (summary) => {
+        // SessionSummary carries one reconciled `lastActivity` epoch
+        // (lastActivityDate ?? creationDate); both legacy IrisChatSession date
+        // fields are populated from it so importSessionsToStore's own
+        // lastActivityDate-over-creationDate fallback still lands on the same
+        // ordering key.
+        const lastActivityIso = summary.lastActivity ? new Date(summary.lastActivity).toISOString() : undefined;
         const base = {
-            id: summary.id,
+            id: summary.sessionId,
             title: summary.title,
-            creationDate: summary.creationDate,
-            lastActivityDate: summary.lastActivityDate,
-            mode: summary.mode,
-            entityId: summary.entityId,
+            creationDate: lastActivityIso,
+            lastActivityDate: lastActivityIso,
+            mode: summary.context.mode as IrisChatSession['mode'],
+            entityId: summary.context.entityId,
         };
         try {
-            const messages = await api.getChatMessages(summary.id);
+            const messages = await api.getChatMessages(summary.sessionId);
             return { ...base, messages };
         } catch (error) {
             logger.warn(
-                `Failed to fetch messages for session ${summary.id}: ${error}`,
+                `Failed to fetch messages for session ${summary.sessionId}: ${error}`,
                 LogCategory.API,
             );
             return { ...base, messages: [] };

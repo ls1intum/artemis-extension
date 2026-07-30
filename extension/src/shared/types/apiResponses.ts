@@ -175,6 +175,9 @@ export interface IrisChatSessionSummary {
     [key: string]: unknown;
 }
 
+/** Senders Artemis persists. `CTXSWAP` rows are context-change markers, not chat. */
+export type IrisMessageSender = 'USER' | 'LLM' | 'ARTIFACT' | 'CTXSWAP';
+
 export interface IrisChatMessage {
     id?: number;
     sender?: string;

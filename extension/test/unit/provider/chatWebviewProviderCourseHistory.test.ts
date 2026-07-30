@@ -56,10 +56,23 @@ function buildHarness(): Harness {
     return { provider, api, postSpy, sandbox, contextStore };
 }
 
-function summary(over: Partial<Record<string, unknown>> & { id: number; entityId: number; mode: string }) {
+/** Builds a SessionSummary-shaped fixture (the overview endpoint's actual return shape). */
+function summary(over: {
+    id: number;
+    entityId: number;
+    mode: string;
+    entityName?: string;
+    title?: string;
+    lastActivityDate?: string;
+}) {
+    const { id, entityId, mode, entityName, title, lastActivityDate } = over;
+    const parsed = Date.parse(lastActivityDate ?? '2024-01-01T10:00:00Z');
     return {
-        creationDate: '2024-01-01T10:00:00Z',
-        ...over,
+        sessionId: id,
+        courseId: entityId,
+        context: { mode, entityId, name: entityName },
+        title,
+        lastActivity: Number.isNaN(parsed) ? 0 : parsed,
     } as never;
 }
 

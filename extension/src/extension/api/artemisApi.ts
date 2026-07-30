@@ -21,6 +21,9 @@ import type {
     IrisChatSessionSummary,
     IrisSettingsResponse,
     ResultSummary,
+    ServerContext,
+    SessionDetail,
+    SessionSummary,
 } from '@extension/types';
 import {
     ApiError,
@@ -489,57 +492,43 @@ export class ArtemisApiService {
     async sendChatMessage(
         sessionId: number,
         content: string,
-        uncommittedFiles?: Map<string, string>
+        uncommittedFiles?: Map<string, string>,
+        pendingContext?: ServerContext,
     ): Promise<IrisChatMessage> {
-        const messagePayload: Record<string, unknown> = {
-            sentAt: new Date().toISOString(),
-            content: [
-                {
-                    textContent: content,
-                    type: 'text'
-                }
-            ]
+        const buildPayload = (withFiles: boolean): Record<string, unknown> => {
+            const payload: Record<string, unknown> = {
+                sentAt: new Date().toISOString(),
+                content: [{ textContent: content, type: 'text' }],
+            };
+            if (pendingContext) {
+                // Only mode and entityId travel; `name` is a local display value.
+                payload.pendingContext = { mode: pendingContext.mode, entityId: pendingContext.entityId };
+            }
+            if (withFiles && uncommittedFiles && uncommittedFiles.size > 0) {
+                payload.uncommittedFiles = Object.fromEntries(uncommittedFiles);
+            }
+            return payload;
         };
 
-        // Add uncommitted files if provided
-        // Note: Only add if non-empty to maintain backward compatibility
-        // Older Artemis servers will ignore unknown fields (Jackson default behavior)
-        if (uncommittedFiles && uncommittedFiles.size > 0) {
-            messagePayload.uncommittedFiles = Object.fromEntries(uncommittedFiles);
-            logger.info(`Sending ${uncommittedFiles.size} uncommitted files to Iris`, LogCategory.API);
-        }
+        const post = async (withFiles: boolean): Promise<IrisChatMessage> => {
+            const response = await this.makeRequest(`/api/iris/sessions/${sessionId}/messages`, {
+                method: 'POST',
+                body: JSON.stringify(buildPayload(withFiles)),
+            });
+            return parseApiObject<IrisChatMessage>('IrisChatMessage', await response.json());
+        };
 
         try {
-            const response = await this.makeRequest(
-                `/api/iris/sessions/${sessionId}/messages`,
-                {
-                    method: 'POST',
-                    body: JSON.stringify(messagePayload)
-                }
-            );
-            return parseApiObject<IrisChatMessage>('IrisChatMessage', await response.json());
+            return await post(true);
         } catch (error: unknown) {
-            // If sending with uncommittedFiles fails, retry without them
-            // This handles the case where the server doesn't support the feature yet
-            if (uncommittedFiles && uncommittedFiles.size > 0 && error instanceof ApiError && error.status === 400) {
-                logger.warn('Failed to send uncommitted files, retrying without them (server might not support this feature yet)', LogCategory.API);
-                const fallbackPayload = {
-                    sentAt: new Date().toISOString(),
-                    content: [
-                        {
-                            textContent: content,
-                            type: 'text'
-                        }
-                    ]
-                };
-                const fallbackResponse = await this.makeRequest(
-                    `/api/iris/sessions/${sessionId}/messages`,
-                    {
-                        method: 'POST',
-                        body: JSON.stringify(fallbackPayload)
-                    }
-                );
-                return parseApiObject<IrisChatMessage>('IrisChatMessage', await fallbackResponse.json());
+            // The retry exists ONLY for servers that reject `uncommittedFiles`. It must
+            // never fire when there were no files (a pendingContext 400 would then be
+            // retried identically), and it must keep pendingContext (dropping it would
+            // silently send the message into the wrong topic).
+            const hasFiles = !!uncommittedFiles && uncommittedFiles.size > 0;
+            if (hasFiles && error instanceof ApiError && error.status === 400) {
+                logger.warn('Retrying send without uncommitted files (server may not support them)', LogCategory.API);
+                return await post(false);
             }
             throw error;
         }
@@ -556,41 +545,70 @@ export class ArtemisApiService {
         );
     }
 
+    /** Shared mapper: the detail DTO carries no courseId, so the caller supplies it. */
+    private _toSessionDetail(raw: unknown, courseId: number): SessionDetail {
+        const session = parseApiObject<IrisChatSession>('IrisChatSession', raw, [{ key: 'id', type: 'number' }]);
+        // `mode` and `entityId` are guaranteed on a chat session. Defaulting them
+        // would INFER a committed context, which invariant 3 forbids: the extension
+        // would then believe the conversation is about the course, stage another
+        // topic onto it, and rehome it. A malformed response is a bug, not a course
+        // chat, so it is rejected here where it is still cheap.
+        if (typeof session.mode !== 'string' || typeof session.entityId !== 'number') {
+            throw new MalformedResponseError(`Iris chat session ${session.id} has no mode/entityId`, 200);
+        }
+        const parsed = Date.parse(String(session.lastActivityDate ?? session.creationDate ?? ''));
+        return {
+            sessionId: session.id,
+            courseId,
+            context: { mode: session.mode, entityId: session.entityId },
+            title: typeof session.title === 'string' ? session.title : undefined,
+            lastActivity: Number.isNaN(parsed) ? 0 : parsed,
+            // @JsonInclude(NON_EMPTY): `messages` is absent, not [], on an empty session.
+            messages: Array.isArray(session.messages) ? session.messages : [],
+        };
+    }
+
     // Unified Iris chat session endpoints (Artemis develop, PR #12504).
-    async getCurrentChat(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
+    async getCurrentChat(mode: IrisChatMode, entityId: number, courseId: number): Promise<SessionDetail> {
         const params = new URLSearchParams({ mode, entityId: String(entityId) });
-        const response = await this.makeRequest(
-            `/api/iris/chat/sessions/current?${params.toString()}`,
-            { method: 'POST' },
-        );
-        return parseApiObject<IrisChatSession>('IrisChatSession', await response.json(), [
-            { key: 'id', type: 'number' },
-        ]);
+        const response = await this.makeRequest(`/api/iris/chat/sessions/current?${params.toString()}`, { method: 'POST' });
+        return this._toSessionDetail(await response.json(), courseId);
     }
 
-    async createChatSession(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
-        const params = new URLSearchParams({ mode, entityId: String(entityId) });
-        const response = await this.makeRequest(
-            `/api/iris/chat/sessions?${params.toString()}`,
-            { method: 'POST' },
-        );
-        return parseApiObject<IrisChatSession>('IrisChatSession', await response.json(), [
-            { key: 'id', type: 'number' },
-        ]);
+    /**
+     * Creates (or reuses) an EMPTY course session. Artemis PR #12696 removed the
+     * mode/entityId parameters: every session is born COURSE_CHAT and is repointed
+     * later by a message's pendingContext.
+     */
+    async createCourseSession(courseId: number): Promise<SessionDetail> {
+        const params = new URLSearchParams({ courseId: String(courseId) });
+        const response = await this.makeRequest(`/api/iris/chat/sessions?${params.toString()}`, { method: 'POST' });
+        return this._toSessionDetail(await response.json(), courseId);
     }
 
-    async listChatSessionsForCourse(courseId: number): Promise<IrisChatSessionSummary[]> {
+    async getChatSessionById(courseId: number, sessionId: number): Promise<SessionDetail> {
+        const response = await this.makeRequest(`/api/iris/chat/courses/${courseId}/sessions/${sessionId}`);
+        return this._toSessionDetail(await response.json(), courseId);
+    }
+
+    async listChatSessionsForCourse(courseId: number): Promise<SessionSummary[]> {
         const response = await this.makeRequest(`/api/iris/chat/${courseId}/sessions/overview`);
-        return expectArray<IrisChatSessionSummary>(
-            'IrisChatSessionSummary list',
-            await response.json(),
-            (item, i) => parseApiObject<IrisChatSessionSummary>(`IrisChatSessionSummary[${i}]`, item, [
+        return expectArray<SessionSummary>('SessionSummary list', await response.json(), (item, i) => {
+            const dto = parseApiObject<IrisChatSessionSummary>(`IrisChatSessionSummary[${i}]`, item, [
                 { key: 'id', type: 'number' },
                 { key: 'entityId', type: 'number' },
                 { key: 'creationDate', type: 'string' },
                 { key: 'mode', type: 'string' },
-            ]),
-        );
+            ]);
+            const parsed = Date.parse(dto.lastActivityDate ?? dto.creationDate);
+            return {
+                sessionId: dto.id,
+                courseId,
+                context: { mode: dto.mode, entityId: dto.entityId, name: dto.entityName },
+                title: dto.title,
+                lastActivity: Number.isNaN(parsed) ? 0 : parsed,
+            };
+        });
     }
 
     // ── Problem Statement Rendering ──

@@ -402,6 +402,19 @@ export class IrisChatSessionService {
         const isStillStartSession = (): boolean =>
             this.deps.contextStore.snapshot().activeSession?.id === startLocalSessionId;
 
+        // The transport's initializeSession needs a definite courseId (it cannot
+        // reach into ContextStore itself). Resolve it the same way every other
+        // course-dependent path does, and skip rather than guess when it cannot
+        // be resolved: guessing could open a different course's conversation.
+        const courseId = await resolveCourseIdFromContext(context, this.deps.contextStore, this.deps.artemisApiService);
+        if (courseId === undefined) {
+            logger.warn(
+                `Cannot initialize Iris session: unable to resolve courseId for context ${context.type}:${context.id}`,
+                LogCategory.IRIS_CHAT,
+            );
+            return;
+        }
+
         try {
             logger.info(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`, LogCategory.IRIS_CHAT);
 
@@ -412,7 +425,7 @@ export class IrisChatSessionService {
                 createdAt: activeLocalSession?.createdAt ? new Date(activeLocalSession.createdAt).toISOString() : 'unknown'
             });
 
-            const sessionId = await irisSessionManager.initializeSession(context, activeLocalSession?.artemisSessionId);
+            const sessionId = await irisSessionManager.initializeSession(context, courseId, activeLocalSession?.artemisSessionId);
 
             if (contextGuard && !contextGuard()) { return; }
 
@@ -560,8 +573,29 @@ export class IrisChatSessionService {
             const isStillCurrentNav = (): boolean =>
                 this._contextLoadToken === loadToken && isStillNewSession();
 
-            irisSessionManager.createNewSession(activeContext)
+            // The transport's createNewSession needs a definite courseId (it cannot
+            // reach into ContextStore itself). Resolve it the same way every other
+            // course-dependent path does, and skip rather than guess when it cannot
+            // be resolved: guessing could create the session in the wrong course.
+            // Deliberately NOT gated on isStillCurrentNav(): the guard above already
+            // keys in-flight creates per-context, so a newer create for a DIFFERENT
+            // context must not suppress this one's outbound request, only its
+            // response handling (below) once the request settles.
+            resolveCourseIdFromContext(activeContext, this.deps.contextStore, this.deps.artemisApiService)
+                .then(courseId => {
+                    if (courseId === undefined) {
+                        logger.warn(
+                            `Cannot create new session: unable to resolve courseId for context ${activeContext.type}:${activeContext.id}`,
+                            LogCategory.IRIS_CHAT,
+                        );
+                        return undefined;
+                    }
+                    return irisSessionManager.createNewSession(activeContext, courseId);
+                })
                 .then(sessionId => {
+                    if (sessionId === undefined) {
+                        return;
+                    }
                     if (!isStillCurrentNav()) {
                         logger.info(
                             `Discarding new-session response for ${newLocalSessionId}: superseded by a newer navigation or session switch`,

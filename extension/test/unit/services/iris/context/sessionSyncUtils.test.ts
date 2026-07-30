@@ -32,13 +32,23 @@ const courseCtx: ActiveContext = {
     type: 'course', id: 42, title: 'C', source: 'user-selected', locked: false, selectedAt: 0,
 };
 
+/** Builds a SessionSummary-shaped fixture (the overview endpoint's actual return shape). */
+function summary(over: { id: number; entityId: number; mode: string; courseId?: number; lastActivity?: number }) {
+    return {
+        sessionId: over.id,
+        courseId: over.courseId ?? over.entityId,
+        context: { mode: over.mode, entityId: over.entityId },
+        lastActivity: over.lastActivity ?? 0,
+    };
+}
+
 suite('fetchSessionsWithMessages', () => {
     test('filters summaries by mode + entityId before fetching messages', async () => {
         const summaries = [
-            { id: 1, entityId: 42, mode: 'COURSE_CHAT',                creationDate: 't1' },
-            { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: 't2' },
-            { id: 3, entityId: 999, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: 't3' },
-            { id: 4, entityId: 123, mode: 'LECTURE_CHAT',              creationDate: 't4' },
+            summary({ id: 1, entityId: 42, mode: 'COURSE_CHAT' }),
+            summary({ id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT' }),
+            summary({ id: 3, entityId: 999, mode: 'PROGRAMMING_EXERCISE_CHAT' }),
+            summary({ id: 4, entityId: 123, mode: 'LECTURE_CHAT' }),
         ];
         const getChatMessages = sinon.stub().resolves([{ id: 100, sender: 'USER' }]);
         const api = makeApi({
@@ -58,8 +68,8 @@ suite('fetchSessionsWithMessages', () => {
 
     test('course context uses its own id as courseId and filters by COURSE_CHAT', async () => {
         const summaries = [
-            { id: 10, entityId: 42, mode: 'COURSE_CHAT',                creationDate: 't1' },
-            { id: 11, entityId: 7,  mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: 't2' },
+            summary({ id: 10, entityId: 42, mode: 'COURSE_CHAT' }),
+            summary({ id: 11, entityId: 7, mode: 'PROGRAMMING_EXERCISE_CHAT' }),
         ];
         const listStub = sinon.stub().resolves(summaries);
         const api = makeApi({ listChatSessionsForCourse: listStub });
@@ -100,8 +110,8 @@ suite('fetchSessionsWithMessages', () => {
 
     test('per-session fetch failure yields a session with empty messages', async () => {
         const summaries = [
-            { id: 1, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: 't1' },
-            { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: 't2' },
+            summary({ id: 1, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT' }),
+            summary({ id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT' }),
         ];
         const getChatMessages = sinon.stub();
         getChatMessages.withArgs(1).rejects(new Error('boom'));
@@ -118,9 +128,10 @@ suite('fetchSessionsWithMessages', () => {
         assert.strictEqual(result.find(s => s.id === 2)?.messages?.length, 1);
     });
 
-    test('copies lastActivityDate from the summary onto the session base', async () => {
+    test('copies the summary\'s lastActivity onto the session base as an ISO string', async () => {
+        const activityEpoch = Date.parse('2026-01-01T00:00:00Z');
         const summaries = [
-            { id: 1, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: 't1', lastActivityDate: 'la1' },
+            summary({ id: 1, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', lastActivity: activityEpoch }),
         ];
         const api = makeApi({
             listChatSessionsForCourse: sinon.stub().resolves(summaries),
@@ -129,7 +140,9 @@ suite('fetchSessionsWithMessages', () => {
 
         const result = await fetchSessionsWithMessages(api, makeStore(), exerciseCtx);
 
-        assert.strictEqual(result[0].lastActivityDate, 'la1');
+        const expectedIso = new Date(activityEpoch).toISOString();
+        assert.strictEqual(result[0].lastActivityDate, expectedIso);
+        assert.strictEqual(result[0].creationDate, expectedIso);
     });
 });
 

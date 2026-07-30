@@ -149,7 +149,7 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
         const nowSpy = vi.spyOn(Date, 'now');
 
         nowSpy.mockReturnValue(1_000_000);
-        await client.initializeSession(activeContext, 42);
+        await client.initializeSession(activeContext, 999, 42);
 
         // Simulate a rapid reconnect flap well within the rate-limit window
         // (STOMP's own reconnectDelay is 500ms, so this is the common case).

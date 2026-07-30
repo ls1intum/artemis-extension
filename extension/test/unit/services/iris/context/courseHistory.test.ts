@@ -1,14 +1,25 @@
 import * as assert from 'assert';
 
 import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
-import type { IrisChatSessionSummary } from '@extension/types';
+import type { IrisChatMode, SessionSummary } from '@extension/types';
 
-const summary = (overrides: Partial<IrisChatSessionSummary>): IrisChatSessionSummary => ({
-    id: 1,
-    entityId: 1,
-    mode: 'COURSE_CHAT',
-    creationDate: '2025-01-01T00:00:00Z',
-    ...overrides,
+const summary = (overrides: {
+    id?: number;
+    mode?: IrisChatMode;
+    entityId?: number;
+    entityName?: string;
+    title?: string;
+    lastActivity?: number;
+}): SessionSummary => ({
+    sessionId: overrides.id ?? 1,
+    courseId: 7,
+    context: {
+        mode: overrides.mode ?? 'COURSE_CHAT',
+        entityId: overrides.entityId ?? 1,
+        name: overrides.entityName,
+    },
+    title: overrides.title,
+    lastActivity: overrides.lastActivity ?? Date.parse('2025-01-01T00:00:00Z'),
 });
 
 suite('buildCourseHistory', () => {
@@ -29,11 +40,11 @@ suite('buildCourseHistory', () => {
         );
     });
 
-    test('uses lastActivityDate over creationDate and sorts newest first', () => {
+    test('sorts newest first by lastActivity', () => {
         const out = buildCourseHistory(
             [
-                summary({ id: 1, creationDate: '2025-01-01T00:00:00Z', lastActivityDate: '2025-06-01T00:00:00Z' }),
-                summary({ id: 2, creationDate: '2025-03-01T00:00:00Z' }),
+                summary({ id: 1, lastActivity: Date.parse('2025-06-01T00:00:00Z') }),
+                summary({ id: 2, lastActivity: Date.parse('2025-03-01T00:00:00Z') }),
             ],
             7,
         );
@@ -41,8 +52,8 @@ suite('buildCourseHistory', () => {
         assert.deepStrictEqual(out.map((entry) => entry.artemisSessionId), [1, 2]);
     });
 
-    test('maps an invalid date to lastActivity 0', () => {
-        const out = buildCourseHistory([summary({ id: 1, creationDate: 'not-a-date' })], 7);
+    test('carries lastActivity 0 straight through (date parsing already happened server-side)', () => {
+        const out = buildCourseHistory([summary({ id: 1, lastActivity: 0 })], 7);
 
         assert.strictEqual(out[0].lastActivity, 0);
     });

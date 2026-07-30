@@ -84,7 +84,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         this._currentArtemisSessionId = undefined;
     }
 
-    public async initializeSession(context: ActiveContext, storedSessionId?: number): Promise<number> {
+    public async initializeSession(context: ActiveContext, courseId: number, storedSessionId?: number): Promise<number> {
         logger.session(`Initializing session for ${context.type} ${context.id}`);
 
         let sessionId: number;
@@ -95,8 +95,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         } else {
             logger.session('Fetching current session from Artemis');
             const mode = contextToIrisMode(context.type);
-            const session = await this._artemisApiService.getCurrentChat(mode, context.id);
-            sessionId = session.id;
+            const session = await this._artemisApiService.getCurrentChat(mode, context.id, courseId);
+            sessionId = session.sessionId;
         }
 
         this._currentArtemisSessionId = sessionId;
@@ -104,15 +104,19 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         return sessionId;
     }
 
-    public async createNewSession(context: ActiveContext): Promise<number> {
+    /**
+     * Creates a new session for `context`, courseId permitting. Task 5 replaces this
+     * whole method; for now every session is born COURSE_CHAT (Artemis PR #12696), so
+     * the mode/entityId this ActiveContext carries do not travel with the create call.
+     */
+    public async createNewSession(context: ActiveContext, courseId: number): Promise<number> {
         logger.session(`Creating NEW Iris session for ${context.type} ${context.id}`);
 
-        const mode = contextToIrisMode(context.type);
-        const newSession = await this._artemisApiService.createChatSession(mode, context.id);
+        const newSession = await this._artemisApiService.createCourseSession(courseId);
 
-        this._currentArtemisSessionId = newSession.id;
-        await this._subscribeIfConnected(newSession.id);
-        return newSession.id;
+        this._currentArtemisSessionId = newSession.sessionId;
+        await this._subscribeIfConnected(newSession.sessionId);
+        return newSession.sessionId;
     }
 
     /**

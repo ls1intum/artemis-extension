@@ -609,8 +609,8 @@ suite('IrisChatSessionService Test Suite', () => {
             });
 
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
-                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
+                { sessionId: 1, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
+                { sessionId: 2, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-02T10:00:00Z') },
             ]);
             mockApiService.getChatMessages.withArgs(1).resolves([
                 { id: 100, sender: 'USER', content: [{ textContent: 'Hello' }] },
@@ -653,7 +653,7 @@ suite('IrisChatSessionService Test Suite', () => {
             });
 
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { sessionId: 1, courseId: 123, context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 123 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
             ]);
             mockApiService.getChatMessages.withArgs(1).resolves([
                 { id: 100, sender: 'USER', content: [{ textContent: 'Question' }] },
@@ -717,9 +717,9 @@ suite('IrisChatSessionService Test Suite', () => {
             // by importSessionsToStore (they would not contribute to the
             // session list, breaking the assertion below).
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
-                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-03T10:00:00Z' }, // Newest
-                { id: 3, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
+                { sessionId: 1, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
+                { sessionId: 2, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-03T10:00:00Z') }, // Newest
+                { sessionId: 3, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-02T10:00:00Z') },
             ]);
             mockApiService.getChatMessages.withArgs(1).resolves([
                 { id: 10, sender: 'USER', content: [{ textContent: 'Q1' }] },
@@ -852,7 +852,7 @@ suite('IrisChatSessionService Test Suite', () => {
             // importSessionsToStore, which would defeat the assertion that
             // the API session ends up in the store.
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { sessionId: 1, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
             ]);
             mockApiService.getChatMessages.withArgs(1).resolves([
                 { id: 100, sender: 'USER', content: [{ textContent: 'Hi' }] },
@@ -921,7 +921,7 @@ suite('IrisChatSessionService Test Suite', () => {
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 7, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-02-01T10:00:00Z' },
+                { sessionId: 7, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-02-01T10:00:00Z') },
             ]);
             // First call: import phase (in fetchSessionsWithMessages)
             // Second call: hydration phase (in initializeIrisSessionAndLoadMessages)
@@ -976,8 +976,8 @@ suite('IrisChatSessionService Test Suite', () => {
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
-                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
+                { sessionId: 1, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
+                { sessionId: 2, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-02T10:00:00Z') },
             ]);
             // Both sessions return empty messages — import phase yields [], skipped by importSessionsToStore
             mockApiService.getChatMessages.withArgs(1).resolves([]);
@@ -1012,9 +1012,9 @@ suite('IrisChatSessionService Test Suite', () => {
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
-                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
-                { id: 3, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-03T10:00:00Z' },
+                { sessionId: 1, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
+                { sessionId: 2, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-02T10:00:00Z') },
+                { sessionId: 3, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-03T10:00:00Z') },
             ]);
             mockApiService.getChatMessages.withArgs(1).resolves([
                 { id: 10, sender: 'USER', content: [{ textContent: 'A' }] },
@@ -1060,7 +1060,7 @@ suite('IrisChatSessionService Test Suite', () => {
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 5, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-05T10:00:00Z' },
+                { sessionId: 5, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-05T10:00:00Z') },
             ]);
             // Pattern D: first call satisfies import phase so session gets imported;
             // second call is the active-session hydration in initializeIrisSessionAndLoadMessages,
@@ -1118,7 +1118,7 @@ suite('IrisChatSessionService Test Suite', () => {
             const malformedActivity = { id: 'a2', name: 'bad-activity', state: 'RUNNING' }; // missing `kind` — must be filtered out
 
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { sessionId: 1, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
             ]);
             mockApiService.getChatMessages.withArgs(1).resolves([
                 {
@@ -1294,17 +1294,22 @@ suite('IrisChatSessionService Test Suite', () => {
             chatSessionService.createNewSession();
             chatSessionService.createNewSession();
 
-            assert.strictEqual(
-                mockIrisWebSocketSessionClient.createNewSession.callCount, 1,
-                'the duplicate call must not issue a second server-side create',
-            );
+            // The guard-key check and local session creation are synchronous;
+            // assert those immediately. The actual server call is issued after
+            // an async courseId resolution, so it is asserted after the flush
+            // below instead.
             assert.strictEqual(
                 contextStore.snapshot().sessions.length, sessionCountBefore + 1,
                 'exactly one new local session must be created',
             );
 
-            // Let the accepted request's .then() fire.
+            // Let the courseId resolution and the accepted request's .then() fire.
             await new Promise(resolve => setTimeout(resolve, 10));
+
+            assert.strictEqual(
+                mockIrisWebSocketSessionClient.createNewSession.callCount, 1,
+                'the duplicate call must not issue a second server-side create',
+            );
 
             const finalSnapshot = contextStore.snapshot();
             assert.strictEqual(finalSnapshot.activeSession?.artemisSessionId, 42,
@@ -1424,7 +1429,7 @@ suite('IrisChatSessionService Test Suite', () => {
             contextStore.setActiveContext(context);
 
             mockApiService.listChatSessionsForCourse.resolves([
-                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { sessionId: 1, courseId: 101, context: { mode: 'COURSE_CHAT', entityId: 101 }, lastActivity: Date.parse('2024-01-01T10:00:00Z') },
             ]);
             mockApiService.getChatMessages.withArgs(1).resolves([
                 { id: 100, sender: 'USER', content: [{ textContent: 'Hi' }] },
