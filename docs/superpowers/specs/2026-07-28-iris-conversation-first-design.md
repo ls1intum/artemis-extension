@@ -7,6 +7,7 @@
 - **Supersedes:** `2026-07-27-iris-session-acquisition-design.md` and its plan, which patched the context-first model to survive the upstream change. Codex rejected that plan three times: the machinery it needed existed only to keep a local index honest against a server that legitimately repoints sessions. This spec removes the index.
 - **Prototype:** `.superpowers/brainstorm/12957-*/content/prototype-v25.html`. Several interface rules below were found wrong by clicking it and are marked so.
 - **Paths:** extension paths relative to `artemis-extension/extension/`, Artemis paths to the sibling `Artemis/` checkout. **All server facts verified against `main` (`553aab7595`)**, never against the locally checked-out feature branch — an earlier draft made exactly that mistake twice.
+- **Scope note (2026-07-30, codex-signed):** a scope review cut seven mechanisms from PR 1. Where this spec and the plan's "Accepted simplifications" section disagree, **the plan wins**. Affected here: §5.3's per-entry effect labels (now one static hint), §5.6's preview line (gone) and the notice's undo action with `savedPending` (gone, the notice is actionless in PR 1 and undo moves to PR 2), §3.1's `knownInvisible` bound and eviction (gone), §3.3's revalidation retry across candidates (now one probe, then a fresh conversation), and §13's "the notice component lands here too" (it lands, without its action). The server facts in §2 and the ownership rule in §3.3 are untouched.
 
 ---
 

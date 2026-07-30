@@ -12,6 +12,55 @@
 
 **Branch:** `feat/iris-conversation-first`, off `dev` (`5ec22370`). Worktree: `MA/claudeworktrees/artemis-extension-convfirst`. All paths below are relative to `extension/`.
 
+---
+
+## Accepted simplifications (normative)
+
+Added 2026-07-30 after a scope review, codex-signed. **This section outranks any code example further down that still shows a removed mechanism.** If a task body and this list disagree, this list wins and the task body is stale.
+
+The rewrite itself is proportionate: the create endpoint the extension calls no longer exists, so 940 installations are broken against production (#373). What was disproportionate was PR 1's polish and its concurrency defence. Seven mechanisms are cut.
+
+| # | Cut | What replaces it | What we give up |
+|---|---|---|---|
+| 1 | Per-entry effect labels in the picker, and any webview use of `resolveTopic` | One **static** hint in the picker while `contentState === 'content'`: "Die Auswahl oeffnet gegebenenfalls eine andere Unterhaltung." | The picker no longer predicts per entry whether a click stages, opens or creates. |
+| 2 | Undo, `savedPending`, the cross-course notice payload and its restoration rules | A minimal **actionless** notice after a navigation the student did not expect: "Zu einer anderen Unterhaltung gewechselt." (and "Neue Unterhaltung gestartet." when one was created, if that costs no extra plumbing) | No way back with one click. The permanent CTXSWAP row and the chip still show server truth. Undo returns in PR 2, where unsolicited proactive navigation makes recovery matter. |
+| 3 | `MAX_KNOWN_INVISIBLE`, the eviction algorithm, its ordering and its tie-break | A plain unbounded `Map`, still per course, still cleared on course change | A long-lived process can hold more summaries than it needs. Nothing is lost; the map dies on restart anyway. |
+| 4 | The revalidation **loop** and `alreadyTried` | Revalidate the **newest** hit **once**. On a mismatch, record what the `GET` actually returned and create a fresh conversation. | A second, older, still-valid conversation for that topic is not found, so we may create a duplicate. We can still never open the wrong topic and never rehome content. |
+| 5 | The dashed transcript preview line | Nothing. The chip shows `pending ?? committed`. | Staged and committed are less distinguishable, which is exactly Artemis's own limitation. |
+| 6 | `_arrivalStamps` and the deletion-aware causal merge | **Monotonic union by server message id**: a same-session install unions the response with what is already known and never removes. | A message deleted on the server survives locally until a restart. That error is conservative: it can make an empty conversation look non-empty (we then create a duplicate instead of staging), never the reverse. PR 2 owns deletion semantics. |
+| 7 | `_locallyUpdated` and the request-scoped overview overlay | The current conversation's row is derived from the **loaded detail**, for the canonical summary collection that both the history and `findSessionFor` read, not merely for rendering. `refreshOverview` keeps its per-course single-flight and its latest-request-wins check. | A late overview can briefly show a stale topic or title for a **non-current** conversation. It cannot contradict the open one. |
+
+**Explicitly NOT cut, after challenge.** An earlier proposal replaced `sendSeq` and `loadTicket` with a set of exclusion rules. It was rejected: that moves the problem instead of removing it, trading two explicit counters in one class for six unwritten invariants distributed across `ConversationState`, `IrisConversationService`, `SendCoordinator`, reload and reconnect, whose failure mode is silent. `loadTicket`, `sendSeq`, `contextRevision` and the navigation generation stay **exactly as written**. Revisit only once the real implementation exposes the actual concurrency graph.
+
+Two ordering regressions must therefore keep their tests:
+
+- a lower-ticket same-session load cannot overwrite a later installed load;
+- a load begun before a completed send cannot install afterwards, because `sendSeq` moved.
+
+And from cut 6, keep one test proving that a websocket message arriving **during** a detail `GET` survives the monotonic union.
+
+Also fixed in the same pass: `topicResolution.ts` stays **host-only** (cut 1 removes its only webview consumer, so it needs no `@shared` relocation); `refreshOverview` catches internally; `SendCoordinator.send` takes the full `SendInput`; Task 8's `serviceWith` harness is written out.
+
+## Contract ledger (protected)
+
+These are facts about Artemis `main` (`553aab7595`), not design choices. **Nothing in this plan may be simplified in a way that contradicts them**, and they must survive any future pruning verbatim.
+
+1. `POST /api/iris/chat/sessions/current?mode&entityId` returns a **full session detail**. An exercise acquisition returns the latest session whose *current* entity matches, else it falls back to an empty course session.
+2. `POST /api/iris/chat/sessions?courseId` creates, or reuses today's course session **only while that session is empty**.
+3. A detail response carries **no `courseId`**. The requesting operation supplies it.
+4. `@JsonInclude(NON_EMPTY)` means `messages` is **absent**, not `[]`, on an empty session.
+5. `hasContent` counts **every** persisted sender: `USER`, `LLM`, `ARTIFACT` and `CTXSWAP`, plus an optimistic bubble. `unknown` is never `empty`.
+6. `applyContextChange` persists the CTXSWAP marker **before** the user message, pushes it over the websocket **while our POST is still open**, and does **not** re-check emptiness. A marker-only conversation is reachable.
+7. Artemis repoints sessions **by itself** on build failure (`onBuildFailure`) and stalled progress (`onNewResult`). CTXSWAP is not only a reaction to this client.
+8. CTXSWAP attributes live **inside a `json` content item**, arrive as an **object** (not a string), use **lower-case** transitions, may omit `name` on any transition, and omit all entity fields for `removed`.
+9. The overview lists only sessions with a **USER** message. Fresh and proactive-only conversations are invisible, and `lastActivityDate` is USER-derived.
+10. `IrisChatWebsocketDTO` carries **no session id**. The subscribed id must be threaded through, and an old-session frame must be dropped **before** it can touch run state or conversation state.
+11. `messageDifferentiator` is `@Transient`. There is no durable correlation and no safe automatic resend after an ambiguous POST failure.
+12. Reconnect **subscribes before** reconciling, and reconciles through the **full detail**, not just messages.
+13. A conversation that has content is **never rehomed**.
+
+---
+
 ## Global Constraints
 
 - **No carets or tildes in `package.json`.** Dependencies are pinned exactly. Only `engines.vscode` keeps `^`.
@@ -36,12 +85,12 @@
 | `src/shared/types/serverContext.ts` | `ServerContext`, `SessionSummary`, `SessionDetail`, `ContextSwapTransition`. The shared vocabulary of the new model. |
 | `src/extension/services/iris/context/contextMarkers.ts` | Decode a `CTXSWAP` message into `{transition, mode, entityId, name}`; render its label. |
 | `src/extension/services/iris/conversation/conversationState.ts` | Pure state container: current session, detail, committed/pending context, per-session epochs, `knownInvisible`. No I/O. |
-| `src/extension/services/iris/conversation/topicResolution.ts` | Pure decision function for §4's resolution table. Returns a `TopicDecision`, performs no requests. |
+| `src/extension/services/iris/conversation/topicResolution.ts` | Pure decision function for §4's resolution table. Returns a `TopicDecision`, performs no requests. **Host-only**: the webview must not import it (`eslint.config.mjs` bans `@extension/*` from `src/webview/**`), which is why cut 1 removed its only webview consumer. |
 | `src/extension/services/iris/conversation/conversationService.ts` | Executes decisions: acquisition, navigation, revalidation loop, overview refresh, guard matrix. The only place that calls the chat API. |
 | `src/extension/services/iris/conversation/sendCoordinator.ts` | One in-flight send, the send/navigation mutex, `pendingContext` on the wire, ambiguous-failure reconciliation. |
 | `src/webview/views/IrisChat/components/ContextChip.tsx` + `.module.css` | The composer topic chip (§5.2). |
-| `src/webview/views/IrisChat/components/ContextSwapRow.tsx` + `.module.css` | The transcript `CTXSWAP` line and the dashed preview line (§5.6). |
-| `src/webview/views/IrisChat/components/ChatNotice.tsx` + `.module.css` | The 10 s muted notice above the composer (§5.6). |
+| `src/webview/views/IrisChat/components/ContextSwapRow.tsx` + `.module.css` | The transcript `CTXSWAP` line (§5.6). The dashed preview line is **cut 5**. |
+| `src/webview/views/IrisChat/components/ChatNotice.tsx` + `.module.css` | The 10 s muted notice above the composer (§5.6), **actionless** per cut 2. |
 | `src/webview/views/IrisChat/components/CoursePicker.tsx` + `.module.css` | The course list behind header line 1 (§5.5). |
 
 ### Deleted files
@@ -755,9 +804,9 @@ git commit -m "feat(iris): decode context-swap markers"
 
 **Interfaces:**
 - Consumes: `ServerContext`, `SessionDetail`, `SessionSummary`, `sameContext` (Task 1); `isContextSwap` (Task 2).
-- Produces: `ConversationState` with `snapshot()`, `guard()`, `beginLoad()`, `beginNavigation()`, `installAcquired()`, `installDetail()`, `upsertMessage()`, `setTitle()`, `stagePending()`, `clearPending()`, `applyContextSwap()`, `beginSend()/endSend()`, `setCourse()`, `setOverview(summaries, requestedAt)`, `nextOverviewSeq()`, `overviewSeq`, `updateSummary()`, `rememberInvisible()`, `forgetSession()`, `resetCachesForReload()`, `contentState()`, `displayMessageCount()`, `effectiveContext()`, `findSessionFor()`; types `GuardTuple`, `ContentState`, `SwapOutcome`.
+- Produces: `ConversationState` with `snapshot()`, `guard()`, `beginLoad()`, `beginNavigation()`, `installAcquired()`, `installDetail()`, `upsertMessage()`, `setTitle()`, `stagePending()`, `clearPending()`, `applyContextSwap()`, `beginSend()/endSend()`, `setCourse()`, `setOverview(summaries)`, `nextOverviewSeq()`, `overviewSeq`, `updateSummary()`, `rememberInvisible()`, `forgetSession()`, `resetCachesForReload()`, `contentState()`, `displayMessageCount()`, `effectiveContext()`, `findSessionFor()`; types `GuardTuple`, `ContentState`, `SwapOutcome`.
 
-This task carries local findings **5** (`knownInvisible` eviction) and part of **1** (the guard tuple's shape).
+This task carries part of local finding **1** (the guard tuple's shape). Local finding 5 (`knownInvisible` eviction) is **cut 3** and no longer applies.
 
 - [ ] **Step 1: Write the failing state tests**
 
@@ -766,7 +815,7 @@ Create `test/logic/iris/conversationState.test.ts`:
 ```typescript
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { ConversationState, MAX_KNOWN_INVISIBLE } from '@extension/services/iris/conversation/conversationState';
+import { ConversationState } from '@extension/services/iris/conversation/conversationState';
 import type { SessionDetail } from '@shared/types/serverContext';
 
 const EX5 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 5 };
@@ -991,14 +1040,14 @@ describe('ConversationState knownInvisible', () => {
     });
 
     it('prefers the newest match across both sources', () => {
-        state.setOverview([{ sessionId: 1, courseId: 42, context: EX5, lastActivity: 100 }], state.nextOverviewSeq());
+        state.setOverview([{ sessionId: 1, courseId: 42, context: EX5, lastActivity: 100 }]);
         state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX5, lastActivity: 200 });
         expect(state.findSessionFor(EX5)).toBe(9);
     });
 
     it('drops an entry once the overview lists it', () => {
         state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 });
-        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 300 }], state.nextOverviewSeq());
+        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 300 }]);
         expect(state.snapshot().knownInvisible).toHaveLength(0);
     });
 
@@ -1019,7 +1068,7 @@ describe('ConversationState knownInvisible', () => {
     });
 
     it('does not enter a session the overview already lists', () => {
-        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 300 }], state.nextOverviewSeq());
+        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 300 }]);
         install(state, detail({ sessionId: 9, context: EX5 }));
         expect(state.snapshot().knownInvisible).toHaveLength(0);
     });
@@ -1037,37 +1086,20 @@ describe('ConversationState knownInvisible', () => {
         expect(state.snapshot().knownInvisible).toHaveLength(0);
     });
 
-    it('evicts the oldest entries past the bound and never the current session', () => {
-        // Local finding 5: eviction is deterministic and protects the open
-        // conversation, whose loss would strand the transcript on screen.
-        //
-        // Eviction runs on EVERY insert, not once at the end. With session 1
-        // open and protected, inserting 2..55 gives 55 entries and evicts one
-        // per insert past the bound: 2, then 3, 4, 5, 6. Final: 1 and 7..55,
-        // exactly 50. An earlier draft of this test expected 2 to survive; that
-        // was wrong and would have been "fixed" by weakening the algorithm.
-        install(state, detail({ sessionId: 1 }));
-        state.rememberInvisible({ sessionId: 1, courseId: 42, context: COURSE42, lastActivity: 0 });
-        for (let i = 2; i <= MAX_KNOWN_INVISIBLE + 5; i++) {
-            state.rememberInvisible({ sessionId: i, courseId: 42, context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: i }, lastActivity: i });
-        }
-        const ids = state.snapshot().knownInvisible.map((e) => e.sessionId).sort((a, b) => a - b);
-        expect(ids).toHaveLength(MAX_KNOWN_INVISIBLE);
-        expect(ids[0]).toBe(1);
-        expect(ids.slice(1)).toEqual(Array.from({ length: 49 }, (_, k) => k + 7));
-    });
-
-    it('keeps a message that arrived DURING a load, and drops one the server deleted', () => {
-        // Causality, not blanket carry-forward. Message 10 was known before the
-        // load began and is absent from the response, so the server deleted it
-        // and it must go. Message 12 arrived after the load began, so the
-        // response simply predates it and it must stay.
+    it('keeps a message that arrived DURING a load (monotonic union)', () => {
+        // Cut 6: the union never removes. Message 12 arrived while the GET was
+        // in flight and must survive it, which is the loss the merge exists to
+        // prevent. Message 10 predates the load and is absent from the response;
+        // under the union it survives too. That is the accepted conservative
+        // error: a server-deleted message can make an empty conversation look
+        // non-empty, so we create a duplicate rather than rehome. Never the
+        // reverse. PR 2 owns deletion semantics.
         install(state, detail({ sessionId: 1, messages: [{ id: 10, sender: 'LLM' }] }));
         const g = state.beginLoad();
         state.upsertMessage({ id: 12, sender: 'LLM' });
         state.installDetail(detail({ sessionId: 1, messages: [{ id: 11, sender: 'USER' }] }), g);
-        const ids = state.snapshot().detail!.messages.map((m) => m.id);
-        expect(ids).toEqual([11, 12]);
+        const ids = state.snapshot().detail!.messages.map((m) => m.id).sort((a, b) => a - b);
+        expect(ids).toEqual([10, 11, 12]);
     });
 
     it('carries nothing across a session switch', () => {
@@ -1099,7 +1131,7 @@ describe('ConversationState knownInvisible', () => {
     });
 
     it('a cross-session acquisition clears the previous course index', () => {
-        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }], state.nextOverviewSeq());
+        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }]);
         state.rememberInvisible({ sessionId: 8, courseId: 42, context: EX7, lastActivity: 50 });
         install(state, { sessionId: 20, courseId: 43, context: { mode: 'COURSE_CHAT', entityId: 43 }, lastActivity: 1, messages: [] });
         expect(state.snapshot().courseSessions).toHaveLength(0);
@@ -1115,46 +1147,31 @@ describe('ConversationState knownInvisible', () => {
         expect(state.contentState()).toBe('content');
     });
 
-    it('an overview response that STARTED before a local update does not overwrite it', () => {
-        const inFlight = state.nextOverviewSeq();
-        state.updateSummary({ sessionId: 9, courseId: 42, context: EX7, lastActivity: 200 });
-        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }], inFlight);
+    it('an overview response cannot contradict the OPEN conversation', () => {
+        // Cut 7 replaces the general request-scoped overlay with one narrow
+        // rule: the current conversation's row is derived from the loaded
+        // detail, in the canonical collection that BOTH the history and
+        // findSessionFor read. A late overview may still be stale about other
+        // conversations; it may never be stale about the one on screen.
+        install(state, detail({ sessionId: 9, context: EX7 }));
+        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }]);
         expect(state.findSessionFor(EX7)).toBe(9);
         expect(state.findSessionFor(EX5)).toBeUndefined();
     });
 
-    it('an overview response that STARTED after the local update wins', () => {
-        // Otherwise the overlay never expires and a session another client moved
-        // back stays wrong until the course changes.
-        state.updateSummary({ sessionId: 9, courseId: 42, context: EX7, lastActivity: 200 });
-        const later = state.nextOverviewSeq();
-        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }], later);
+    it('lets the overview correct a conversation that is NOT open', () => {
+        // The counterpart. Without this the cache would never learn that another
+        // client repointed a conversation we are not looking at.
+        install(state, detail({ sessionId: 1 }));
+        state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX7, lastActivity: 200 });
+        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 300 }]);
         expect(state.findSessionFor(EX5)).toBe(9);
         expect(state.findSessionFor(EX7)).toBeUndefined();
-    });
-
-    it('expires an overlay for a session the response does not mention', () => {
-        state.updateSummary({ sessionId: 9, courseId: 42, context: EX7, lastActivity: 200 });
-        state.setOverview([], state.nextOverviewSeq());
-        expect(state.snapshot().knownInvisible.find((e) => e.sessionId === 9)?.context).toEqual(EX7);
-        // The overlay is gone even though session 9 was absent from the response.
-        state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }], state.nextOverviewSeq());
-        expect(state.findSessionFor(EX5)).toBe(9);
-    });
-
-    it('breaks an eviction tie on session id, so the order is deterministic', () => {
-        install(state, detail({ sessionId: 1 }));
-        for (let i = 2; i <= MAX_KNOWN_INVISIBLE + 2; i++) {
-            state.rememberInvisible({ sessionId: i, courseId: 42, context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: i }, lastActivity: 5 });
-        }
-        const ids = state.snapshot().knownInvisible.map((e) => e.sessionId);
-        expect(ids).not.toContain(2);
-        expect(ids).toContain(MAX_KNOWN_INVISIBLE + 2);
     });
 });
 ```
 
-Implement eviction exactly as the test asserts: sort the evictable entries (everything except the open conversation) by `lastActivity` ascending, then by `sessionId` ascending as the tie-break, and drop from the front until the map is back at the bound. Because it runs on **every** insert rather than once at the end, sessions 2 through 6 are evicted one per insert and the survivors are session 1 plus 7 through 55.
+There is no eviction (cut 3). `knownInvisible` is a plain `Map`, bounded in practice by how many conversations a course has, cleared on a course change and gone on restart.
 
 - [ ] **Step 2: Run and watch it fail**
 
@@ -1172,9 +1189,6 @@ import { sameContext, summaryOfDetail } from '@shared/types/serverContext';
 
 import type { ContextSwap } from '../context/contextMarkers';
 import { isContextSwap } from '../context/contextMarkers';
-
-/** Bound on the per-course cache of overview-invisible sessions. */
-export const MAX_KNOWN_INVISIBLE = 50;
 
 /**
  * `unknown` is NOT `empty`. It holds while no detail for the current session is
@@ -1235,21 +1249,12 @@ export class ConversationState {
     private _sendSeq = 0;
     private _nextLoadTicket = 1;
     private _lastInstalledTicket = 0;
-    /** message id -> the load ticket it arrived after. Drives the causal merge. */
-    private readonly _arrivalStamps = new Map<number, number>();
-    /**
-     * Summaries we know better than an overview request that started earlier.
-     * `at` is the overview sequence number current when the update happened, so
-     * the overlay expires as soon as a later request answers.
-     */
-    private readonly _locallyUpdated = new Map<number, { summary: SessionSummary; at: number }>();
     private _overviewSeq = 0;
     /**
-     * Bumped by the service before each overview request. An update that happens
-     * WHILE that request is in flight carries the same number, which is why
-     * `setOverview` compares with `>=`: stamping with the current value and
-     * comparing with `>` discards precisely the update the overlay exists to
-     * protect.
+     * Bumped by the service before each overview request, and compared by the
+     * service when the response lands, so an older request cannot install over
+     * a newer one for the same course. It no longer stamps per-summary
+     * overlays; cut 7 removed those.
      */
     public nextOverviewSeq(): number { return ++this._overviewSeq; }
     public get overviewSeq(): number { return this._overviewSeq; }
@@ -1308,7 +1313,6 @@ export class ConversationState {
         this._currentSessionId = sessionId;
         if (!sameSession) {
             this._detail = undefined;
-            this._arrivalStamps.clear();
         }
         this._committed = undefined;
         this._contextRevision = 0;
@@ -1334,7 +1338,6 @@ export class ConversationState {
         // Which sessions exist is course-scoped; carrying the cache across
         // courses would let a stale id answer a lookup in the wrong course.
         this._knownInvisible.clear();
-        this._locallyUpdated.clear();
     }
 
     /** A reconnect changes nothing about which sessions exist. */
@@ -1355,49 +1358,39 @@ export class ConversationState {
 
         this._currentSessionId = detail.sessionId;
         // THROUGH setCourse, not a direct assignment. Assigning `_courseId`
-        // changes the course while `_courseSessions`, `_knownInvisible` and
-        // `_locallyUpdated` still hold the previous course's sessions, so
+        // changes the course while `_courseSessions` and `_knownInvisible`
+        // still hold the previous course's sessions, so
         // `findSessionFor` can hand back a session id from the course we just
         // left: a 404, or worse, a duplicate conversation.
         this.setCourse(detail.courseId);
-        // CAUSAL merge, not a blanket one. A load reads a snapshot taken at
-        // request time, so a message that arrived AFTER the request began is
-        // newer than that snapshot even though it moved no guard counter, and a
-        // replacing install would silently delete it.
+        // MONOTONIC UNION by server message id (cut 6). A load reads a snapshot
+        // taken at request time, so a message that arrived AFTER the request
+        // began is newer than that snapshot even though it moved no guard
+        // counter; a replacing install would silently delete it. The union never
+        // removes, so that loss is impossible by construction and no per-message
+        // arrival bookkeeping is needed.
         //
-        // But absence in the response is otherwise server truth. Carrying every
-        // locally known id forward would resurrect a message the server
-        // legitimately deleted, permanently: PR 2's proactive path calls
-        // deleteSupersededProactiveMessage, so this is not hypothetical. Only
-        // arrivals stamped after this load's ticket override the response.
-        const newer = new Map<number, IrisChatMessage>();
+        // The cost, accepted: a message the server deleted survives locally
+        // until a reload or a restart. That error only ever makes a conversation
+        // look MORE full than it is, so the ownership predicate errs towards
+        // creating a duplicate rather than rehoming. PR 2, which deletes
+        // superseded proactive messages, owns the sharper semantics.
+        //
+        // Spread, not replace: a locally known frame may be partial (a resend
+        // that only attaches activities), and the response may carry fields it
+        // lacks, so the two are merged field-wise with the local copy winning.
+        const known = new Map<number, IrisChatMessage>();
         if (this._detail?.sessionId === detail.sessionId) {
             for (const m of this._detail.messages) {
-                if (typeof m.id === 'number' && (this._arrivalStamps.get(m.id) ?? 0) > captured.loadTicket) {
-                    newer.set(m.id, m);
-                }
+                if (typeof m.id === 'number') { known.set(m.id, m); }
             }
         }
-        // A newer arrival OVERLAYS a matching response row as well as being
-        // appended when absent. A resend that attaches activities to message 12
-        // carries the same id, so an append-only rule would let the response's
-        // older copy of 12 win and the activities would vanish.
-        // Spread, not replace: a local frame may be partial (a resend that only
-        // attaches activities), and replacing wholesale would drop fields the
-        // response carries and the local copy lacks.
         const merged = detail.messages.map((m) =>
-            (typeof m.id === 'number' && newer.has(m.id)) ? { ...m, ...newer.get(m.id)! } : m);
-        for (const [id, m] of newer) {
+            (typeof m.id === 'number' && known.has(m.id)) ? { ...m, ...known.get(m.id)! } : m);
+        for (const [id, m] of known) {
             if (!detail.messages.some((sm) => sm.id === id)) { merged.push(m); }
         }
         this._detail = { ...detail, messages: merged };
-        // Everything the response now contains is server truth; only later
-        // arrivals stay stamped.
-        for (const message of detail.messages) {
-            if (typeof message.id === 'number' && !newer.has(message.id)) {
-                this._arrivalStamps.delete(message.id);
-            }
-        }
         this._committed = detail.context;
         this._lastInstalledTicket = captured.loadTicket;
         this._optimisticBubble = false;
@@ -1448,9 +1441,6 @@ export class ConversationState {
     public upsertMessage(message: IrisChatMessage): void {
         if (!this._detail) { return; }
         if (typeof message.id === 'number') {
-            // Stamped with the ticket the NEXT load would get, so it compares as
-            // strictly newer than every load already in flight.
-            this._arrivalStamps.set(message.id, this._nextLoadTicket);
             const existing = this._detail.messages.findIndex((m) => m.id === message.id);
             if (existing >= 0) {
                 this._detail.messages[existing] = { ...this._detail.messages[existing], ...message };
@@ -1461,40 +1451,33 @@ export class ConversationState {
     }
 
     /**
-     * Installs an overview response. A row the response carries does NOT
-     * overwrite a locally recorded topic that is newer than the request: a
-     * CTXSWAP can land while the overview is in flight, and the response then
-     * still describes the old topic. `_summaryRevision` records the local
-     * update, so the response fills in everything except what we already know
-     * better.
+     * Installs an overview response. Latest-request-wins for the course as a
+     * whole is the SERVICE's job (`_overviewSeq`); the only per-row rule left
+     * here is that the response may not contradict the OPEN conversation.
+     *
+     * Cut 7 removed the general per-summary overlay. A CTXSWAP can still land
+     * while an overview is in flight, and the response then describes the old
+     * topic, but for the current conversation the loaded detail is
+     * authoritative and simply re-derives its row. Other conversations are
+     * allowed to be briefly stale; that is how the cache learns about repoints
+     * it never saw.
      */
-    public setOverview(summaries: SessionSummary[], requestedAt: number): void {
-        this._courseSessions = summaries.map((summary) => {
-            const local = this._locallyUpdated.get(summary.sessionId);
-            // Only an update that happened AFTER this request started may
-            // override its answer. An unconditional overlay never expires: once
-            // another client repoints the session back, the server reports the
-            // truth, the stale local note keeps winning, and history and lookup
-            // are wrong until the course changes. Request-scoped, like the
-            // message merge.
-            if (local && local.at >= requestedAt) { return { ...summary, ...local.summary }; }
-            return summary;
-        });
-        // Expire EVERY overlay this response is newer than, not only those the
-        // response happens to mention: an omitted (overview-invisible) session's
-        // overlay would otherwise survive forever, including past its eviction
-        // from knownInvisible.
-        for (const [sessionId, entry] of [...this._locallyUpdated]) {
-            if (entry.at < requestedAt) { this._locallyUpdated.delete(sessionId); }
-        }
+    public setOverview(summaries: SessionSummary[]): void {
+        this._courseSessions = summaries;
         for (const summary of summaries) {
             this._knownInvisible.delete(summary.sessionId);
+        }
+        // The open conversation's row comes from the detail, in the SAME
+        // collection that both the history and `findSessionFor` read. Applying
+        // this only at render time would let `findSessionFor` hand back a
+        // session under a topic it no longer holds.
+        if (this._detail && this._detail.sessionId === this._currentSessionId) {
+            this.updateSummary(summaryOfDetail(this._detail));
         }
     }
 
     public rememberInvisible(summary: SessionSummary): void {
         this._knownInvisible.set(summary.sessionId, summary);
-        this._evictInvisible();
     }
 
     /**
@@ -1518,9 +1501,6 @@ export class ConversationState {
      * would disagree about the same conversation.
      */
     public updateSummary(summary: SessionSummary): void {
-        // Remembered so an overview request that started EARLIER cannot
-        // overwrite it. It expires the moment a later request answers.
-        this._locallyUpdated.set(summary.sessionId, { summary, at: this._overviewSeq });
         const index = this._courseSessions.findIndex((s) => s.sessionId === summary.sessionId);
         if (index >= 0) {
             this._courseSessions = [
@@ -1532,25 +1512,6 @@ export class ConversationState {
             return;
         }
         this.rememberInvisible({ ...this._knownInvisible.get(summary.sessionId), ...summary });
-    }
-
-    /**
-     * Deterministic: oldest `lastActivity` first, `sessionId` ascending as the
-     * tie-break, and the currently open conversation is never evicted. Losing an
-     * entry costs discoverability (spec 3.3); losing the open one would strand
-     * the transcript on screen with no route back to it.
-     */
-    private _evictInvisible(): void {
-        if (this._knownInvisible.size <= MAX_KNOWN_INVISIBLE) { return; }
-        const evictable = [...this._knownInvisible.values()]
-            .filter((entry) => entry.sessionId !== this._currentSessionId)
-            .sort((a, b) => a.lastActivity - b.lastActivity || a.sessionId - b.sessionId);
-        let excess = this._knownInvisible.size - MAX_KNOWN_INVISIBLE;
-        for (const entry of evictable) {
-            if (excess <= 0) { break; }
-            this._knownInvisible.delete(entry.sessionId);
-            excess--;
-        }
     }
 
     // ---- context ------------------------------------------------------
@@ -1638,12 +1599,14 @@ export class ConversationState {
 
     /**
      * Positive-only index over the overview plus the invisible cache. A hit is a
-     * HYPOTHESIS: the caller must revalidate it against the detail GET, because
-     * both sources go stale when another client repoints a session.
+     * HYPOTHESIS: the caller revalidates it ONCE against the detail GET, because
+     * both sources go stale when another client repoints a session. There is no
+     * exclusion set: cut 4 replaced the retry loop with "revalidate the newest
+     * hit, and on a mismatch create a fresh conversation".
      */
-    public findSessionFor(target: ServerContext, exclude: ReadonlySet<number> = new Set()): number | undefined {
+    public findSessionFor(target: ServerContext): number | undefined {
         const candidates = [...this._courseSessions, ...this._knownInvisible.values()]
-            .filter((s) => s.courseId === this._courseId && sameContext(s.context, target) && !exclude.has(s.sessionId))
+            .filter((s) => s.courseId === this._courseId && sameContext(s.context, target))
             .sort((a, b) => b.lastActivity - a.lastActivity || b.sessionId - a.sessionId);
         return candidates[0]?.sessionId;
     }
@@ -1686,7 +1649,7 @@ git commit -m "feat(iris): conversation state with per-session epochs"
 - Consumes: `ConversationState` (Task 3) via a narrow read-only view.
 - Produces: `resolveTopic(input): TopicDecision`; type `TopicDecision`.
 
-Separating the decision from its execution is what makes §4's table testable without any HTTP mocking, and it is why the picker can label each entry with the outcome it will produce (§5.3).
+Separating the decision from its execution is what makes §4's table testable without any HTTP mocking. It no longer serves the picker: cut 1 removed the per-entry labels, and this module is host-only.
 
 - [ ] **Step 1: Write the failing resolution tests**
 
@@ -1711,6 +1674,9 @@ const input = (over = {}) => ({
     findSessionFor: () => undefined as number | undefined,
     ...over,
 });
+
+// Cut 4: there is no `alreadyTried` set. `resolveTopic` takes one argument and
+// the caller revalidates the single hit it returns.
 
 describe('resolveTopic', () => {
     it('is a no-op when the target is already the effective topic', () => {
@@ -1755,15 +1721,6 @@ describe('resolveTopic', () => {
     it('never rehomes a conversation with content, even for the course topic', () => {
         const decision = resolveTopic(input({ target: COURSE42, committedContext: EX5, contentState: 'content', findSessionFor: () => 3 }));
         expect(decision).toEqual({ kind: 'open', sessionId: 3, target: COURSE42 });
-    });
-
-    it('excludes already-tried sessions so revalidation terminates', () => {
-        const tried = new Set([9]);
-        const decision = resolveTopic(input({
-            contentState: 'content',
-            findSessionFor: (_: unknown, exclude: ReadonlySet<number>) => (exclude.has(9) ? undefined : 9),
-        }), tried);
-        expect(decision).toEqual({ kind: 'create-and-stage', target: EX5 });
     });
 
     it('refuses a cross-course target', () => {
@@ -1812,19 +1769,21 @@ export interface TopicResolutionInput {
     committedContext: ServerContext | undefined;
     pendingContext: { ctx: ServerContext } | undefined;
     contentState: ContentState;
-    findSessionFor(target: ServerContext, exclude: ReadonlySet<number>): number | undefined;
+    findSessionFor(target: ServerContext): number | undefined;
 }
 
 /**
- * Decides which conversation should carry `target`. Pure: performs no requests,
- * so the picker can call it to LABEL each entry with the outcome a click would
- * produce (spec 5.3) and the service can call it to EXECUTE that outcome.
+ * Decides which conversation should carry `target`. Pure: performs no requests.
  *
- * `alreadyTried` bounds the revalidation loop (spec 3.3): a hit whose GET
- * returned a different context is added to it and re-resolution runs again, so
- * a repointing race cannot spin forever on the same id.
+ * HOST-ONLY. The webview must not import this (`eslint.config.mjs` bans
+ * `@extension/*` from `src/webview/**`), which is why cut 1 replaced the
+ * per-entry effect labels with one static picker hint.
+ *
+ * There is no retry set. Cut 4: the service revalidates the single hit this
+ * returns, and on a mismatch it records what the GET actually said and creates
+ * a fresh conversation rather than walking to the next candidate.
  */
-export function resolveTopic(input: TopicResolutionInput, alreadyTried: ReadonlySet<number> = new Set()): TopicDecision {
+export function resolveTopic(input: TopicResolutionInput): TopicDecision {
     const { target, courseId, currentSessionId, committedContext, pendingContext, contentState } = input;
 
     // A cross-course COURSE_CHAT staging is rejected by applyContextChange, so a
@@ -1843,7 +1802,7 @@ export function resolveTopic(input: TopicResolutionInput, alreadyTried: Readonly
     if (contentState === 'unknown') { return { kind: 'refuse', reason: 'loading' }; }
     if (contentState === 'empty') { return { kind: 'stage', target }; }
 
-    const existing = input.findSessionFor(target, alreadyTried);
+    const existing = input.findSessionFor(target);
     if (existing !== undefined) { return { kind: 'open', sessionId: existing, target }; }
     return { kind: 'create-and-stage', target };
 }
@@ -1852,7 +1811,7 @@ export function resolveTopic(input: TopicResolutionInput, alreadyTried: Readonly
 - [ ] **Step 4: Run the tests**
 
 Run: `npx vitest run test/logic/iris/topicResolution.test.ts`
-Expected: PASS, 11 tests.
+Expected: PASS, every test in the file green.
 
 - [ ] **Step 5: Commit**
 
@@ -1874,7 +1833,7 @@ git commit -m "feat(iris): pure topic resolution"
 - Consumes: `ArtemisApiService` (Task 1), `ConversationState` (Task 3), `resolveTopic` (Task 4).
 - Produces: `IrisConversationService` with `start()`, `resolveTopicChange(target)`, `navigateTo(params)`, `newConversation()`, `switchCourse(courseId)`, `refreshOverview()`, `reconcileCurrent()`, `reload()`, `state` (read-only), `onDidChange` event.
 
-This task carries local findings **1** (guard matrix), **2** (concurrent detail loads), **3** (`navigateTo` at course switch), **4** (revalidation termination) and **8** (cold-start wording).
+This task carries local findings **1** (guard matrix), **2** (concurrent detail loads), **3** (`navigateTo` at course switch) and **8** (cold-start wording). Finding **4** (revalidation termination) is dissolved by cut 4: one attempt cannot loop.
 
 - [ ] **Step 1: Write the guard matrix into the file header**
 
@@ -1890,7 +1849,7 @@ Before any code, write this comment block at the top of `conversationService.ts`
  * | course switch acquisition| navigationGeneration + requested courseId                     |
  * | new-conversation POST    | navigationGeneration + requested courseId                     |
  * | history / picker open    | navigationGeneration + requested sessionId                    |
- * | index revalidation GET   | navigationGeneration + requested sessionId + triedSessionIds  |
+ * | index revalidation GET   | navigationGeneration + requested sessionId (ONE attempt)      |
  * | overview refresh         | requested courseId + overviewSeq (single-flight, latest wins) |
  * | reconnect detail         | full GuardTuple (it is a load like any other)                 |
  * | send response            | { sessionId, contextRevision } captured before the POST       |
@@ -1973,38 +1932,35 @@ suite('IrisConversationService', () => {
         assert.deepStrictEqual(service.state.effectiveContext(), EX7);
     });
 
-    test('a hit whose GET returns a different context re-resolves instead of adopting it', async () => {
-        // The user picked E1; session 9 was repointed to E2 by another client.
-        // Adopting E2 would hand them a conversation they did not ask for.
+    test('a hit whose GET returns a different context creates a fresh conversation', async () => {
+        // The user picked E7; session 9 was repointed to E5 by another client.
+        // Adopting E5 would hand them a conversation they did not ask for, so we
+        // record what session 9 actually holds and start a new one. Cut 4: we do
+        // NOT walk to the next candidate.
         const service = await startedWithContent();
-        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }], service.state.nextOverviewSeq());
+        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
         const change = service.resolveTopicChange(EX7);
         assert.strictEqual(service.api.deferred.at(-1)?.call, 'detail:42:9');
         service.api.deferred.at(-1)!.resolve(detail(9, EX5, [{ id: 1, sender: 'USER' }]));
         await tick();
-        // Session 9 is now known to hold E5, so it is not retried for E7.
         assert.strictEqual(service.api.deferred.at(-1)?.call, 'create:42');
         service.api.deferred.at(-1)!.resolve(detail(12, COURSE42));
         await change;
         assert.strictEqual(service.state.snapshot().currentSessionId, 12);
         assert.deepStrictEqual(service.state.snapshot().pendingContext?.ctx, EX7);
+        // The index learned the truth, so the next resolution does not re-probe 9.
+        assert.strictEqual(service.state.findSessionFor(EX7), undefined);
+        assert.strictEqual(service.state.findSessionFor(EX5), 9);
     });
 
-    test('revalidation never retries the same session id', async () => {
+    test('the visible conversation is untouched while a revalidation probe is open', async () => {
+        // The probe must not mutate anything: a mismatch, a 403 or a dropped
+        // connection has to leave the student looking at what they were reading.
         const service = await startedWithContent();
-        service.state.setOverview([
-            { sessionId: 9, courseId: 42, context: EX7, lastActivity: 200 },
-            { sessionId: 8, courseId: 42, context: EX7, lastActivity: 100 },
-        ], service.state.nextOverviewSeq());
-        const change = service.resolveTopicChange(EX7);
-        service.api.deferred.at(-1)!.resolve(detail(9, EX5, [{ id: 1, sender: 'USER' }]));
-        await tick();
-        assert.strictEqual(service.api.deferred.at(-1)?.call, 'detail:42:8');
-        service.api.deferred.at(-1)!.resolve(detail(8, EX5, [{ id: 1, sender: 'USER' }]));
-        await tick();
-        assert.strictEqual(service.api.deferred.at(-1)?.call, 'create:42');
-        service.api.deferred.at(-1)!.resolve(detail(12, COURSE42));
-        await change;
+        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
+        void service.resolveTopicChange(EX7);
+        assert.strictEqual(service.state.snapshot().currentSessionId, 1);
+        assert.strictEqual(service.state.contentState(), 'content');
     });
 
     test('a delayed earlier detail load never overwrites a newer one', async () => {
@@ -2113,13 +2069,13 @@ suite('IrisConversationService', () => {
 
     test('a 404 on history open removes the row; a 500 keeps it', async () => {
         const service = await started();
-        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 1 }], service.state.nextOverviewSeq());
+        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 1 }]);
         const gone = service.navigateTo({ courseId: 42, sessionId: 9 });
         service.api.deferred.at(-1)!.reject(new ApiError('not found', 404));
         await gone.catch(() => undefined);
         assert.strictEqual(service.state.snapshot().courseSessions.length, 0);
 
-        service.state.setOverview([{ sessionId: 8, courseId: 42, context: EX7, lastActivity: 1 }], service.state.nextOverviewSeq());
+        service.state.setOverview([{ sessionId: 8, courseId: 42, context: EX7, lastActivity: 1 }]);
         const kept = service.navigateTo({ courseId: 42, sessionId: 8 });
         service.api.deferred.at(-1)!.reject(new ApiError('boom', 500));
         await kept.catch(() => undefined);
@@ -2143,11 +2099,14 @@ suite('IrisConversationService', () => {
         assert.strictEqual(service.state.snapshot().pendingContext, undefined);
     });
 
-    test('navigateTo restores a savedPending only into a still-empty conversation', async () => {
+    test('navigateTo stages nothing at all', async () => {
+        // Cut 2 removed savedPending with undo. navigateTo is now purely
+        // "open this conversation and adopt what the server says".
         const service = await started();
-        const undone = service.navigateTo({ courseId: 42, sessionId: 9, savedPending: EX7 });
-        service.api.deferred.at(-1)!.resolve(detail(9, COURSE42, [{ id: 1, sender: 'USER' }]));
-        await undone;
+        service.state.stagePending(EX7);
+        const opened = service.navigateTo({ courseId: 42, sessionId: 9 });
+        service.api.deferred.at(-1)!.resolve(detail(9, COURSE42));
+        await opened;
         assert.strictEqual(service.state.snapshot().pendingContext, undefined);
     });
 });
@@ -2412,9 +2371,8 @@ export class IrisConversationService {
         if (this.state.sendInFlight) { this._reloadWhenSendSettles = true; return; }
         const { currentSessionId, courseId } = this.state.snapshot();
         // The escape hatch drops EVERYTHING local, which is the whole point of
-        // the command. `setOverview([])` alone leaves knownInvisible, the local
-        // summary overlays and the loaded detail in place, so a wedged client
-        // stays wedged.
+        // the command. `setOverview([])` alone leaves knownInvisible in place,
+        // so a wedged client stays wedged.
         this.state.resetCachesForReload();
         if (currentSessionId === undefined || courseId === undefined) {
             await this.start(this._deps.getWorkspaceExercise());
@@ -2439,7 +2397,7 @@ export class IrisConversationService {
 
     /**
      * Topic-based. Used by the picker, the chip's remove icon and the Ask-Iris
-     * commands. Never by history, the course switch or undo: those address a
+     * commands. Never by history or the course switch: those address a
      * conversation by id and go through navigateTo.
      */
     public async resolveTopicChange(target: ServerContext, courseHint?: number): Promise<TopicChangeOutcome> {
@@ -2457,29 +2415,28 @@ export class IrisConversationService {
         courseHint: number | undefined,
         isCurrent: () => boolean,
     ): Promise<TopicChangeOutcome> {
-        const tried = new Set<number>();
-        // Bounded: every `open` that revalidates to a different context adds its
-        // id to `tried`, so the loop strictly shrinks the candidate set and
-        // terminates at `create-and-stage` at the latest.
+        // Cut 4: at most TWO passes, and the second one cannot probe again.
+        // `revalidated` is set once a probe has come back with a different
+        // context; the index has been corrected by then, so the re-resolution
+        // can only produce `create-and-stage` (or a no-op if the correction
+        // happened to satisfy the target). There is no candidate walk.
+        let revalidated = false;
         for (;;) {
-            const decision = resolveTopic(this._resolutionInput(target), tried);
+            const decision = resolveTopic(this._resolutionInput(target));
             switch (decision.kind) {
                 case 'noop': return { kind: 'noop' };
                 case 'refuse': return { kind: 'rejected', reason: decision.reason };
                 case 'clear-pending': this.state.clearPending(); this._emit(); return { kind: 'unstaged' };
                 case 'stage': this.state.stagePending(decision.target); this._emit(); return { kind: 'staged' };
                 case 'acquire': return await this._acquireForTarget(decision.target, courseHint, isCurrent);
-                case 'create-and-stage': {
-                    const courseId = this.state.snapshot().courseId ?? courseHint;
-                    if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
-                    const captured = this.state.beginLoad();
-                    const fresh = await this._api.createCourseSession(courseId);
-                    if (!this._install(fresh, captured, isCurrent)) { return { kind: 'stale' }; }
-                    if (!sameContext(decision.target, fresh.context)) { this.state.stagePending(decision.target); }
-                    this._emit();
-                    return { kind: 'opened', sessionId: fresh.sessionId };
-                }
+                case 'create-and-stage':
+                    return await this._createAndStage(decision.target, courseHint, isCurrent);
                 case 'open': {
+                    // A second `open` can only mean the index still points at
+                    // something after we already probed once. Refuse to probe
+                    // again and create instead; this is what bounds the loop now
+                    // that there is no exclusion set.
+                    if (revalidated) { return await this._createAndStage(target, courseHint, isCurrent); }
                     const courseId = this.state.snapshot().courseId;
                     if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
                     const probe = await this._probeIn(courseId, decision.sessionId, isCurrent);
@@ -2489,17 +2446,19 @@ export class IrisConversationService {
                     // Without this branch the union is not exhausted and the file
                     // does not type-check.
                     if (probe.kind === 'failed') { return { kind: 'rejected', reason: 'failed' }; }
-                    if (probe.kind === 'gone') { tried.add(decision.sessionId); continue; }
+                    // 400/404: `_probeIn` already forgot the row, so a fresh
+                    // conversation is the only remaining outcome.
+                    if (probe.kind === 'gone') { revalidated = true; continue; }
                     if (!sameContext(probe.detail.context, decision.target)) {
                         // The index was a hypothesis and it was wrong: another
                         // client repointed this session. Do NOT adopt what came
                         // back; that would hand the student a conversation about
                         // a different exercise. Record the truth we just learned
-                        // and try the next candidate. Visible state is untouched,
-                        // so contentState is still `content` and the loop can
-                        // actually make progress.
+                        // and start a fresh conversation instead of hunting for
+                        // an older candidate (cut 4). Visible state is untouched,
+                        // so contentState is still `content`.
                         this.state.updateSummary(summaryOfDetail(probe.detail));
-                        tried.add(decision.sessionId);
+                        revalidated = true;
                         continue;
                     }
                     if (!this._install(probe.detail, probe.guard, isCurrent)) { return { kind: 'stale' }; }
@@ -2567,6 +2526,26 @@ export class IrisConversationService {
         return { kind: 'opened', sessionId: detail.sessionId };
     }
 
+    /**
+     * Fresh conversation for `target`. Extracted because cut 4 gave it a second
+     * caller: a revalidation that came back with a different context creates
+     * instead of walking to the next candidate.
+     */
+    private async _createAndStage(
+        target: ServerContext,
+        courseHint: number | undefined,
+        isCurrent: () => boolean,
+    ): Promise<TopicChangeOutcome> {
+        const courseId = this.state.snapshot().courseId ?? courseHint;
+        if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
+        const captured = this.state.beginLoad();
+        const fresh = await this._api.createCourseSession(courseId);
+        if (!this._install(fresh, captured, isCurrent)) { return { kind: 'stale' }; }
+        if (!sameContext(target, fresh.context)) { this.state.stagePending(target); }
+        this._emit();
+        return { kind: 'opened', sessionId: fresh.sessionId };
+    }
+
     private _resolutionInput(target: ServerContext): TopicResolutionInput {
         const snapshot = this.state.snapshot();
         return {
@@ -2581,14 +2560,15 @@ export class IrisConversationService {
     }
 
     /**
-     * Id-based. History, the course switch and the notice's undo. Never consults
-     * the topic index, so undo cannot try to stage course A's topic into B.
-     * `savedPending` is restored ONLY into a still-empty conversation.
+     * Id-based. History and the course switch. Never consults the topic index.
+     * It stages NOTHING: an explicit "open this conversation" outranks passive
+     * detection, and cut 2 removed the saved-pending restoration that undo
+     * needed.
      */
-    public async navigateTo(params: { courseId: number; sessionId: number; savedPending?: ServerContext }): Promise<void> {
+    public async navigateTo(params: { courseId: number; sessionId: number }): Promise<void> {
         if (this.state.sendInFlight) { return; }
         await this._navigate(async (isCurrent) => {
-            // Reading across courses is legitimate here (undo can point at
+            // Reading across courses is legitimate here (a history row can name
             // course A while course B is open), so the probe's course is the
             // REQUESTED one, not the currently installed one.
             const probe = await this._probeIn(params.courseId, params.sessionId, isCurrent);
@@ -2596,12 +2576,6 @@ export class IrisConversationService {
             if (probe.kind === 'gone' || probe.kind === 'failed') { this._emit(); throw probe.error; }
 
             if (!this._install(probe.detail, probe.guard, isCurrent)) { return; }
-            // Restored ONLY into a still-empty conversation: re-applying a
-            // staging into one that has gained content is exactly the rehoming
-            // invariant 4 forbids.
-            if (params.savedPending && this.state.contentState() === 'empty') {
-                this.state.stagePending(params.savedPending);
-            }
             this._emit();
         });
     }
@@ -2643,33 +2617,42 @@ export class IrisConversationService {
         // conversations that exist, creating duplicates.
         if (this._overviewInFlight?.courseId === courseId) { return this._overviewInFlight.promise; }
         const seq = this.state.nextOverviewSeq();
-        const promise = (async () => {
-            try {
-                const summaries = await this._api.listChatSessionsForCourse(courseId);
-                if (this.state.snapshot().courseId !== courseId) { return; }
-                // Course equality is not enough on its own: A starts, the student
-                // switches to B and back to A, a second A request starts, and the
-                // FIRST A response then arrives under a matching course and
-                // installs over the newer one. Latest-request-wins as well.
-                if (seq !== this.state.overviewSeq) { return; }
-                // `seq` is when this request STARTED, so setOverview keeps only
-                // the local overlays that happened after it and drops the rest.
-                this.state.setOverview(summaries, seq);
-                this._emit();
-            } finally {
-                if (this._overviewInFlight?.promise === promise) { this._overviewInFlight = undefined; }
+        // The overview is a best-effort CACHE, and every caller fires it as
+        // `void refreshOverview()`. So it catches internally and always settles
+        // successfully: relying on each present and future caller to append
+        // `.catch(...)` is how a 500 becomes an unhandled rejection.
+        //
+        // Also note the shape: the request lives in its own async method and the
+        // cleanup is attached with `.finally`, so nothing reads `promise` from
+        // inside its own initializer. The previous form did, and would have hit
+        // the temporal dead zone if the API ever threw synchronously.
+        const promise = this._runOverviewRequest(courseId, seq)
+            .catch((error: unknown) => {
+                logger.warn('Iris overview refresh failed', LogCategory.IRIS_CHAT, error);
+            })
+            .finally(() => {
+                if (this._overviewInFlight?.courseId === courseId) { this._overviewInFlight = undefined; }
                 // The course may have changed while this was in flight; the new
                 // one then still needs its own request.
                 const current = this.state.snapshot().courseId;
                 if (current !== undefined && current !== courseId) {
-                    this.refreshOverview().catch((error: unknown) => {
-                        logger.warn('Overview follow-up failed', LogCategory.IRIS_CHAT, error);
-                    });
+                    void this.refreshOverview();
                 }
-            }
-        })();
+            });
         this._overviewInFlight = { courseId, promise };
         return promise;
+    }
+
+    private async _runOverviewRequest(courseId: number, seq: number): Promise<void> {
+        const summaries = await this._api.listChatSessionsForCourse(courseId);
+        if (this.state.snapshot().courseId !== courseId) { return; }
+        // Course equality is not enough on its own: A starts, the student
+        // switches to B and back to A, a second A request starts, and the FIRST
+        // A response then arrives under a matching course and installs over the
+        // newer one. Latest-request-wins as well.
+        if (seq !== this.state.overviewSeq) { return; }
+        this.state.setOverview(summaries);
+        this._emit();
     }
 
     /** Removes a session the server says is not openable. */
@@ -2687,23 +2670,21 @@ Add to `ConversationState`:
     public resetCachesForReload(): void {
         this._courseSessions = [];
         this._knownInvisible.clear();
-        this._locallyUpdated.clear();
-        // `_detail` and `_arrivalStamps` deliberately SURVIVE until the fresh
-        // detail installs over them. Clearing them here opens a hole with no
-        // guard behind it: `upsertMessage` returns immediately when `_detail` is
-        // undefined, so a USER or LLM frame arriving during the reload GET is
-        // neither stored nor stamped, and it bumps no counter, so nothing
-        // rejects the older response either. The conversation would report
-        // `empty` while the student is looking at their own message. A failed
-        // reload would also leave `contentState` stuck at `unknown` forever.
+        // `_detail` deliberately SURVIVES until the fresh detail installs over
+        // it. Clearing it here opens a hole with no guard behind it:
+        // `upsertMessage` returns immediately when `_detail` is undefined, so a
+        // USER or LLM frame arriving during the reload GET is simply dropped,
+        // and the conversation would report `empty` while the student is
+        // looking at their own message. A failed reload would also leave
+        // `contentState` stuck at `unknown` forever. This "retain detail until a
+        // replacement installs" rule is what keeps the monotonic union of cut 6
+        // from ever producing a FALSE EMPTY, so it and its tests stay.
     }
 
     /** Drops a session from both index sources after a 400/404 open. */
     public forgetSession(sessionId: number): void {
         this._courseSessions = this._courseSessions.filter((s) => s.sessionId !== sessionId);
         this._knownInvisible.delete(sessionId);
-        this._locallyUpdated.delete(sessionId);
-        if (sessionId === this._currentSessionId) { this._arrivalStamps.clear(); }
     }
 ```
 
@@ -3133,7 +3114,7 @@ private _handleContextSwap(conversation: IrisConversationService, message: IrisC
 }
 ```
 
-The `pending-dropped` notice has **no action**. An undo could never work: the marker itself makes the conversation non-empty, so the staging could not be restored. The navigation undo (Task 12) is a different notice.
+The `pending-dropped` notice has **no action**. An undo could never work: the marker itself makes the conversation non-empty, so the staging could not be restored. The navigation notice (Task 12) is a different, also actionless, notice.
 
 - [ ] **Step 6: Route the title update through `updateSummary`**
 
@@ -3306,7 +3287,7 @@ Create `test/unit/services/iris/conversation/sendCoordinator.test.ts`:
 suite('SendCoordinator', () => {
     test('sends the staged context and commits exactly it', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5 });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         assert.deepStrictEqual(c.api.lastSend?.pendingContext, EX5);
         c.api.resolveSend({ id: 11 });
         await sent;
@@ -3316,7 +3297,7 @@ suite('SendCoordinator', () => {
 
     test('a self CTXSWAP arriving before the response leaves the context alone', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5 });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         c.state.applyContextSwap({ transition: 'added', context: EX5 }, swapMessage(20, { transition: 'added' }));
         c.api.resolveSend({ id: 11 });
         await sent;
@@ -3325,7 +3306,7 @@ suite('SendCoordinator', () => {
 
     test('a response arriving after a DIFFERENT CTXSWAP does not overwrite it', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5 });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         c.state.applyContextSwap({ transition: 'added', context: EX7 }, swapMessage(20, { transition: 'added' }));
         c.api.resolveSend({ id: 11 });
         await sent;
@@ -3334,7 +3315,7 @@ suite('SendCoordinator', () => {
 
     test('a session switch mid-request discards the write-back', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5 });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         c.state.beginNavigation(99);
         c.api.resolveSend({ id: 11 });
         await sent;
@@ -3347,7 +3328,7 @@ suite('SendCoordinator', () => {
         // for that reason alone, so the test would pass without ever exercising
         // the sendSeq guard it claims to be about.
         const staleGuard = c.state.beginLoad();
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();
         c.api.resolveSend({ id: 11 });
         await sent;
@@ -3367,8 +3348,8 @@ suite('SendCoordinator', () => {
         // collection actually runs. With committed COURSE42 and no pending it
         // does not, and these tests would silently be about the open POST instead.
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5, workspaceExerciseId: 5, slowFileCollection: true });
-        const first = c.send({ text: 'a', localId: 'l1' });
-        const second = await c.send({ text: 'b', localId: 'l2' });
+        const first = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        const second = await c.send({ text: 'b', localId: 'l2', sessionId: 1 });
         assert.deepStrictEqual(second, { kind: 'rejected', reason: 'send-in-flight' });
         c.releaseFileCollection();
         await tick();
@@ -3382,7 +3363,7 @@ suite('SendCoordinator', () => {
         // collection actually runs. With committed COURSE42 and no pending it
         // does not, and these tests would silently be about the open POST instead.
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5, workspaceExerciseId: 5, slowFileCollection: true });
-        const first = c.send({ text: 'a', localId: 'l1' });
+        const first = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         assert.deepStrictEqual(await c.conversation.resolveTopicChange(EX7), { kind: 'rejected', reason: 'send-in-flight' });
         c.releaseFileCollection();
         await tick();
@@ -3392,7 +3373,7 @@ suite('SendCoordinator', () => {
 
     test('a throw inside file collection aborts the generation and is not an ambiguous send', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5, workspaceExerciseId: 5, fileCollectionThrows: true });
-        const outcome = await c.send({ text: 'a', localId: 'l1' });
+        const outcome = await c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'preparation-failed' });
         assert.strictEqual(c.runLifecycle.aborted.length, 1);
         assert.strictEqual(c.state.sendInFlight, false);
@@ -3405,7 +3386,7 @@ suite('SendCoordinator', () => {
         // the persisted message into state unconditionally would put session 1's
         // message into session 9's transcript.
         const c = await coordinatorWith({ committed: COURSE42 });
-        const sent = c.send({ text: 'a', localId: 'l1' });
+        const sent = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         await tick();
         c.state.beginNavigation(9);
         c.api.resolveSend({ id: 11 });
@@ -3415,8 +3396,8 @@ suite('SendCoordinator', () => {
 
     test('a second send is rejected while one is in flight', async () => {
         const c = await coordinatorWith({ committed: COURSE42 });
-        const first = c.send({ text: 'a', localId: 'l1' });
-        const second = await c.send({ text: 'b', localId: 'l2' });
+        const first = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        const second = await c.send({ text: 'b', localId: 'l2', sessionId: 1 });
         assert.deepStrictEqual(second, { kind: 'rejected', reason: 'send-in-flight' });
         c.api.resolveSend({ id: 11 });
         await first;
@@ -3427,7 +3408,7 @@ suite('SendCoordinator', () => {
         // survives") conflicts with invariant 4, because a successful send gives
         // the conversation content. One rule, applied to every consumer.
         const c = await coordinatorWith({ committed: COURSE42 });
-        const sending = c.send({ text: 'a', localId: 'l1' });
+        const sending = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         const rejected = await c.conversation.resolveTopicChange(EX7);
         assert.deepStrictEqual(rejected, { kind: 'rejected', reason: 'send-in-flight' });
         c.api.resolveSend({ id: 11 });
@@ -3437,13 +3418,13 @@ suite('SendCoordinator', () => {
     test('a send is refused while a navigation load is in flight', async () => {
         const c = await coordinatorWith({ committed: COURSE42 });
         void c.conversation.navigateTo({ courseId: 42, sessionId: 9 });
-        const outcome = await c.send({ text: 'a', localId: 'l1' });
+        const outcome = await c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'navigation-in-flight' });
     });
 
     test('an ambiguous failure adopts the detail, reports unknown and keeps the text', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5 });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();                       // let file collection and the POST start
         c.api.rejectSend(new Error('socket hang up'));
         await tick();                       // let the catch path issue the detail GET
@@ -3457,7 +3438,7 @@ suite('SendCoordinator', () => {
 
     test('a divergent pending dies once ANY content exists, whoever wrote it', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5 });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();
         c.api.rejectSend(new Error('socket hang up'));
         await tick();
@@ -3473,7 +3454,7 @@ suite('SendCoordinator', () => {
         // and the optimistic bubble stuck in `sending` forever.
         const c = await coordinatorWith({ committed: COURSE42 });
         const before = c.state.guard().sendSeq;
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();
         c.api.rejectSend(new Error('socket hang up'));
         await tick();
@@ -3488,7 +3469,7 @@ suite('SendCoordinator', () => {
 
     test('uncommitted files are omitted when the effective context is not the workspace exercise', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX7, workspaceExerciseId: 5 });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();   // file collection is awaited BEFORE the POST
         assert.strictEqual(c.api.lastSend?.uncommittedFiles, undefined);
         c.api.resolveSend({ id: 11 });
@@ -3497,7 +3478,7 @@ suite('SendCoordinator', () => {
 
     test('uncommitted files are attached when the effective context IS the workspace exercise', async () => {
         const c = await coordinatorWith({ committed: COURSE42, pending: EX5, workspaceExerciseId: 5, files: new Map([['A.java', 'x']]) });
-        const sent = c.send({ text: 'hallo', localId: 'l1' });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();   // without this, lastSend is undefined and the test passes for the wrong reason
         assert.strictEqual(c.api.lastSend?.uncommittedFiles?.size, 1);
         c.api.resolveSend({ id: 11 });
@@ -3529,7 +3510,11 @@ export class SendCoordinator {
         private readonly _deps: SendDeps,
     ) {}
 
-    public async send(input: { text: string; localId: string }): Promise<SendOutcome> {
+    // Takes the FULL SendInput. An earlier draft declared the parameter as
+    // `{ text, localId }` while the body read `input.sessionId`, which does not
+    // compile and, worse, would have silently dropped the origin-session check
+    // that this field exists for.
+    public async send(input: SendInput): Promise<SendOutcome> {
         const state = this._conversation.state;
         // Host-enforced, not a disabled button: the webview's streaming state
         // resets on disconnect, so UI gating is not an invariant.
@@ -3660,7 +3645,7 @@ export class SendCoordinator {
      * cannot see it. We therefore do not try to determine whether the message
      * landed. The job is to leave nothing corrupted.
      */
-    private async _reconcileUnknown(input: { text: string; localId: string }, captured: { sessionId: number }): Promise<SendOutcome> {
+    private async _reconcileUnknown(input: SendInput, captured: { sessionId: number }): Promise<SendOutcome> {
         const state = this._conversation.state;
         try {
             const courseId = state.snapshot().courseId!;
@@ -3769,13 +3754,21 @@ suite('subscription reconciliation', () => {
 
     test('never installs a snapshot that predates an unresolved send', async () => {
         // A disconnect does not cancel a POST, so this fires DURING a send.
-        const c = await serviceWith({ sessionId: 1, context: COURSE42 });
-        const sending = c.coordinator.send({ text: 'a', localId: 'l1' });
+        //
+        // `pending: EX5` is load-bearing and must be EXPLICIT. With no pending,
+        // `_commitWriteBack` returns early, the committed context never leaves
+        // COURSE42, and the assertion below is unreachable. An earlier draft
+        // omitted it. Do NOT make `serviceWith` stage EX5 implicitly: other
+        // tests would then depend on hidden setup.
+        const c = await serviceWith({ sessionId: 1, context: COURSE42, pending: EX5 });
+        const sending = c.coordinator.send({ text: 'a', localId: 'l1', sessionId: 1 });
         const done = c.service.reconcileCurrent();
         c.api.resolveSend({ id: 11 });
-        await sending;
+        await sending;                  // sendSeq moves here
         c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [] });
         await done;
+        // The reconnect GET started before the send completed, so it is
+        // discarded and the send's write-back survives.
         assert.deepStrictEqual(c.service.state.snapshot().committedContext, EX5);
     });
 
@@ -3788,6 +3781,43 @@ suite('subscription reconciliation', () => {
         assert.strictEqual(c.service.state.snapshot().knownInvisible.length, 1);
     });
 });
+```
+
+**The `serviceWith` harness, written out.** It is the only harness the plan previously left implicit, which is how the `pending` omission above survived. Build it on Task 5's `makeApi`/`tick`:
+
+```typescript
+/**
+ * A service plus a coordinator with one open conversation. Every field of the
+ * starting state is an explicit option; nothing is staged behind the caller's
+ * back.
+ */
+async function serviceWith(options: {
+    sessionId: number;
+    context: unknown;
+    courseId?: number;
+    pending?: unknown;
+    messages?: unknown[];
+}) {
+    const { api, deferred, resolveCall, resolveSend, rejectSend, rejectCall } = makeApi();
+    const courseId = options.courseId ?? 42;
+    const { deps: d, subscribed } = deps();
+    const service = new IrisConversationService(api as never, d);
+    const run = service.start({ exerciseId: 5, courseId });
+    resolveCall(`current:PROGRAMMING_EXERCISE_CHAT:5:${courseId}`, {
+        sessionId: options.sessionId, courseId, context: options.context,
+        lastActivity: 1000, messages: options.messages ?? [],
+    });
+    await run;
+    resolveCall(`overview:${courseId}`, []);
+    await tick();
+    // start() may have staged the workspace exercise when a course session came
+    // back. Reset to exactly what the test asked for.
+    service.state.clearPending();
+    if (options.pending) { service.state.stagePending(options.pending as never); }
+    const coordinator = new SendCoordinator(api as never, service, sendDeps());
+    return { service, coordinator, subscribed,
+             api: { deferred, resolveCall, resolveSend, rejectSend, rejectCall } };
+}
 ```
 
 - [ ] **Step 2: Run and watch it fail**
@@ -3992,7 +4022,7 @@ git commit -m "feat(iris): add the workspace/course state surface alongside Acti
 The presenter has no conversation dependency at baseline, so this task adds one: `ChatViewStatePresenter` takes `() => IrisConversationService | undefined` (the same getter pattern as everything else, because the service is created in `resolveWebviewView` and the presenter in the constructor), and the provider supplies it here.
 
 **Interfaces:**
-- Produces: `updateIrisState` payload below; `ExtensionMsg.ShowChatNotice`; `WebviewCmd.SelectTopic`, `.OpenConversation`, `.SwitchCourse`, `.NewConversation`, `.UndoNavigation`.
+- Produces: `updateIrisState` payload below; `ExtensionMsg.ShowChatNotice`; `WebviewCmd.SelectTopic`, `.OpenConversation`, `.SwitchCourse`, `.NewConversation`.
 
 - [ ] **Step 1: Replace the Iris state payload**
 
@@ -4039,18 +4069,19 @@ Add the notice:
 
 ```typescript
     /**
-     * One muted line above the composer for 10 s. `undo` is present ONLY for a
-     * navigation the student did not initiate; a dropped staging has no undo,
-     * because the CTXSWAP marker makes the conversation non-empty and the
-     * staging could never be restored.
+     * One muted line above the composer for 10 s. ACTIONLESS (cut 2): there is
+     * no undo payload in PR 1. A dropped staging could never be undone anyway
+     * (the CTXSWAP marker makes the conversation non-empty), and restoring a
+     * saved staging into another conversation needs the cross-course
+     * bookkeeping that cut 2 removed. Undo returns with PR 2, where unsolicited
+     * proactive navigation makes recovery matter.
      */
     showChatNotice: {
         text: string;
-        undo?: { courseId: number; sessionId: number; savedPending?: { mode: string; entityId: number } };
     };
 ```
 
-Commands, all **added** alongside the existing ones: `SelectTopic { mode: string; entityId: number; name?: string }`, `OpenConversation { courseId: number; sessionId: number }`, `SwitchCourse { courseId: number }`, `NewConversation`, `UndoNavigation { courseId: number; sessionId: number; savedPending?: { mode: string; entityId: number } }`. Add each to `COMMANDS_REQUIRING_PAYLOAD` except `NewConversation`. `SelectChatContext`, `SwitchSession`, `OpenArtemisSession`, `CreateNewSession` and `SwitchToWorkspaceContext` stay until Task 15; `SwitchToWorkspaceContext` then goes entirely, because the workspace fallback collapsed into the Start rule and is no longer a user action.
+Commands, all **added** alongside the existing ones: `SelectTopic { mode: string; entityId: number; name?: string }`, `OpenConversation { courseId: number; sessionId: number }`, `SwitchCourse { courseId: number }`, `NewConversation`. There is **no** `UndoNavigation` (cut 2). Add each to `COMMANDS_REQUIRING_PAYLOAD` except `NewConversation`. `SelectChatContext`, `SwitchSession`, `OpenArtemisSession`, `CreateNewSession` and `SwitchToWorkspaceContext` stay until Task 15; `SwitchToWorkspaceContext` then goes entirely, because the workspace fallback collapsed into the Start rule and is no longer a user action.
 
 - [ ] **Step 2: Classify the new events in `baseWebviewProvider.ts`**
 
@@ -4096,7 +4127,7 @@ describe('useChatStore', () => {
     });
 
     it('clears the notice on any navigation', () => {
-        store.showNotice({ text: 'Gewechselt zu BFS', undo: { courseId: 42, sessionId: 9 } });
+        store.showNotice({ text: 'Zu einer anderen Unterhaltung gewechselt.' });
         store.applyState({ currentSessionId: 9 });
         expect(store.notice).toBeUndefined();
     });
@@ -4170,16 +4201,13 @@ Artemis's values from `context-selection.component.scss`: fill `color-mix(in srg
 
 Popover opening upward. Search scoped to the current course. "Kurs-Chat" is a fixed first entry, then the course's exercises with the workspace one pinned and badged. One checkmark on `pending ?? committed`.
 
-**Each entry announces its outcome.** Compute the label by calling the same `resolveTopic` the host will execute, mirrored into the webview as a pure import:
+**One static hint, not per-entry labels** (cut 1). While `contentState === 'content'`, the popover shows a single muted line at the top:
 
-| decision | label |
-|---|---|
-| `stage` | "wird Thema" |
-| `open` | "wechselt zur Unterhaltung" |
-| `create-and-stage` | "neue Unterhaltung" |
-| `noop` / `clear-pending` | no label |
+> "Die Auswahl oeffnet gegebenenfalls eine andere Unterhaltung."
 
-Labels are computed when the popover opens. If `conversations` refreshes while it is open, recompute rather than act on a stale label. All entries are disabled while `contentState === 'unknown'` or `sendInFlight`.
+That states the rule before the click, which is what the per-entry labels were for. It does not need `resolveTopic`, and that matters: `resolveTopic` lives in `src/extension/` and `eslint.config.mjs` forbids `src/webview/**` from importing `@extension/*`. Duplicating the resolver into the webview is worse than dropping the labels, because a second implementation can drift and then the UI predicts an outcome the host does not produce.
+
+All entries are disabled while `contentState === 'unknown'` or `sendInFlight`.
 
 No cross-course entries. `applyContextChange` rejects cross-course, so such a pick could never be a staging, and mixing a navigation into this menu would make one click mean two different things.
 
@@ -4193,19 +4221,23 @@ Search field, then the flat list of `conversations` for the current course, buck
 
 The student's courses, most-recently-viewed then alphabetical. On a fresh installation with nothing tracked, fetch the dashboard course list first and show a loading state; an empty result is an explicit "Keine Kurse gefunden" state, not a silent empty popover. No per-course conversation counts: the overview is per course, so counts would cost one request per course on every open.
 
-- [ ] **Step 6: `ContextSwapRow` and the preview line (§5.6)**
+- [ ] **Step 6: `ContextSwapRow` (§5.6)**
 
 The **marker row** is full width and mirrors `iris-context-switch-divider.component.html`: "Thema gesetzt auf X" / "Thema gewechselt zu X" / "Thema entfernt". Not clickable: we have no exercise page to route to. It renders in transcript order, so it appears before the message that triggered it, matching the server's write order.
 
-The **preview line** is the same component in a dashed italic variant, rendered at the end of the transcript whenever `pendingContext` is set. It sits exactly where the real line will land and uses the same three transitions. This is what tells the student the chip is staged rather than current, which is why the chip can stay single-state.
-
-Note the limit: it is not true that every exercise-scoped conversation carries a marker, because sessions created before the upstream change were born exercise-scoped. We do not synthesise markers for them; the preview line stands on its own.
+**No preview line** (cut 5). The chip shows `pending ?? committed` and does not distinguish staged from committed, which is exactly Artemis's own limitation. Note the related fact that made the preview line less valuable than it looked: not every exercise-scoped conversation carries a marker at all, because sessions created before the upstream change were born exercise-scoped, and we do not synthesise markers for them.
 
 - [ ] **Step 7: `ChatNotice` (§5.6)**
 
-One muted line above the composer, 10 s then fade. Cleared by **any** navigation or course change, not only by its own timeout: undo is an offer to return to the state the system took away, and once the student has moved on themselves there is no such state to return to.
+One muted line above the composer, 10 s then fade. Cleared by **any** navigation or course change, not only by its own timeout.
 
-At most one action, and it is always an `UndoNavigation`, never a topic change.
+**Actionless** (cut 2). It carries text and nothing else. Two strings in PR 1:
+
+- "Zu einer anderen Unterhaltung gewechselt." when a topic change opened an existing conversation,
+- "Neue Unterhaltung gestartet." when it created one, if distinguishing the two costs no extra plumbing; one generic string is acceptable otherwise,
+- and the existing dropped-staging text from Task 6, which never had an action anyway.
+
+The undo button, `savedPending` and the cross-course restoration rules are PR 2.
 
 - [ ] **Step 8: Cold start (§5.7)**
 
@@ -4255,17 +4287,15 @@ it('renders no chip when the topic is the course', () => {
     expect(container).toBeEmptyDOMElement();
 });
 
-it('labels a picker entry with the outcome a click produces', () => {
+it('warns once that the selection may open another conversation', () => {
     render(<ContextPicker {...pickerProps()} />);
-    // Sorting has a known conversation (session 9); Recursion has none.
-    expect(screen.getByTestId('picker-entry-7')).toHaveTextContent('wechselt zur Unterhaltung');
-    expect(screen.getByTestId('picker-entry-5')).toHaveTextContent('neue Unterhaltung');
+    expect(screen.getByText(/oeffnet gegebenenfalls eine andere Unterhaltung/)).toBeInTheDocument();
 });
 
-it('labels every entry "wird Thema" while the conversation is empty', () => {
+it('shows no such warning while the conversation is empty', () => {
+    // Empty means the pick stages in place, so there is nothing to warn about.
     render(<ContextPicker {...pickerProps({ contentState: 'empty' })} />);
-    expect(screen.getByTestId('picker-entry-7')).toHaveTextContent('wird Thema');
-    expect(screen.getByTestId('picker-entry-5')).toHaveTextContent('wird Thema');
+    expect(screen.queryByText(/oeffnet gegebenenfalls eine andere Unterhaltung/)).toBeNull();
 });
 
 it('disables every picker entry while the content state is unknown', () => {
@@ -4289,19 +4319,13 @@ it('lists a lecture conversation in the history but not in the picker', () => {
     expect(screen.queryByText('Woche 3')).toBeNull();
 });
 
-it('renders the preview line at the end of the transcript when something is staged', () => {
+it('renders no preview line, staged or not', () => {
+    // Cut 5. The chip alone carries `pending ?? committed`.
     render(<ChatMessageList
         messages={[{ localId: 'a', role: 'user', content: 'hallo', timestamp: 1 }]}
         pendingContext={EX7}
         committedContext={COURSE42}
     />);
-    const rows = screen.getAllByTestId(/message-row|context-preview/);
-    expect(rows.at(-1)).toHaveAttribute('data-testid', 'context-preview');
-    expect(rows.at(-1)).toHaveTextContent('Thema gesetzt auf Sorting');
-});
-
-it('renders no preview line when nothing is staged', () => {
-    render(<ChatMessageList messages={[]} pendingContext={undefined} committedContext={COURSE42} />);
     expect(screen.queryByTestId('context-preview')).toBeNull();
 });
 
@@ -4320,18 +4344,15 @@ it('renders a stored marker row in transcript order, before the message it trigg
 });
 
 it('clears the notice when the open conversation changes', () => {
-    // Undo is an offer to return to the state the system took away. Once the
-    // student has moved on themselves, there is no such state to return to.
-    const { rerender } = render(<ChatNotice notice={{ text: 'Gewechselt zu Sorting', undo: { courseId: 42, sessionId: 9 } }} currentSessionId={1} onUndo={vi.fn()} onExpire={vi.fn()} />);
-    expect(screen.getByText('Gewechselt zu Sorting')).toBeInTheDocument();
-    rerender(<ChatNotice notice={undefined} currentSessionId={9} onUndo={vi.fn()} onExpire={vi.fn()} />);
-    expect(screen.queryByText('Gewechselt zu Sorting')).toBeNull();
+    const { rerender } = render(<ChatNotice notice={{ text: 'Zu einer anderen Unterhaltung gewechselt.' }} currentSessionId={1} onExpire={vi.fn()} />);
+    expect(screen.getByText('Zu einer anderen Unterhaltung gewechselt.')).toBeInTheDocument();
+    rerender(<ChatNotice notice={undefined} currentSessionId={9} onExpire={vi.fn()} />);
+    expect(screen.queryByText('Zu einer anderen Unterhaltung gewechselt.')).toBeNull();
 });
 
-it('shows no undo action on a dropped-staging notice', () => {
-    // The CTXSWAP marker makes the conversation non-empty, so the staging could
-    // never be restored. Offering the action would be a lie.
-    render(<ChatNotice notice={{ text: 'Deine Vormerkung wurde verworfen.' }} currentSessionId={1} onUndo={vi.fn()} onExpire={vi.fn()} />);
+it('never renders an action, on any notice', () => {
+    // Cut 2: the notice is actionless in PR 1. Undo returns with PR 2.
+    render(<ChatNotice notice={{ text: 'Deine Vormerkung wurde verworfen.' }} currentSessionId={1} onExpire={vi.fn()} />);
     expect(screen.queryByRole('button')).toBeNull();
 });
 
@@ -4695,7 +4716,7 @@ export const SEND_REJECTION_MESSAGES: Record<SendRejection | 'unknown', string> 
     'unknown': 'Unbekannter Ausgang. Pruefe den Verlauf.',
 };
 ```
-- The dispatcher answers `SelectTopic`, `OpenConversation`, `SwitchCourse`, `NewConversation` and `UndoNavigation`, and stops answering `SelectChatContext`, `SwitchSession`, `OpenArtemisSession`, `CreateNewSession` and `SwitchToWorkspaceContext`. The old handler methods stay on the class with no caller, which is what `knip` confirms in Task 15.
+- The dispatcher answers `SelectTopic`, `OpenConversation`, `SwitchCourse` and `NewConversation`, and stops answering `SelectChatContext`, `SwitchSession`, `OpenArtemisSession`, `CreateNewSession` and `SwitchToWorkspaceContext`. The old handler methods stay on the class with no caller, which is what `knip` confirms in Task 15.
 - `resolveWebviewView` calls `void this._conversation?.start(workspaceExercise)` in place of the old `initializeIrisSessionAndLoadMessages` path.
 - `SwitchCourse` calls `this._contextStore.setCurrentCourseId(courseId)` before `switchCourse`, so the course list's "most recently viewed" order and the cold-start path both see it. Task 9 added that accessor and nothing has called it until now.
 - `this._disposables.push(this._conversation.onDidChange(() => this._viewStatePresenter.postSnapshot()))`. The baseline presenter method is `postSnapshot`; there is no `postIrisState`.
@@ -4706,7 +4727,7 @@ Disposal order: `_conversation` is disposed before `_irisSessionManager`, so no 
 
 - [ ] **Step 6: Add the host gating (§7.3)**
 
-In the provider's dispatcher, reject `OpenConversation`, `SwitchCourse`, `NewConversation`, `SelectTopic` and `UndoNavigation` while `state.sendInFlight`, and reject `SendMessage` while `navigationInFlight`. Host-enforced, not a disabled button: the webview's streaming state resets on disconnect, so UI gating is not an invariant.
+In the provider's dispatcher, reject `OpenConversation`, `SwitchCourse`, `NewConversation` and `SelectTopic` while `state.sendInFlight`, and reject `SendMessage` while `navigationInFlight`. Host-enforced, not a disabled button: the webview's streaming state resets on disconnect, so UI gating is not an invariant.
 
 - [ ] **Step 7: Simplify `courseHistory.ts`**
 
@@ -4847,94 +4868,7 @@ Start it early: it needs Artemis review and a release, neither of which we contr
 
 §8 (proactive hints) and §15 (the ambient `sessionId` bug) are PR 2 and are deliberately absent.
 
-**Round 6 of the plan review, and what changed.** Codex confirmed A1 to A4 of round 5 as fixed and split the remainder honestly: **3 design defects, 10 mechanical**. All thirteen are addressed below; the split is why the codex loop stops here (see "Why this plan stops being reviewed" above).
-
-| # | Finding | Resolution |
-|---|---|---|
-| D1 | `reconcileCurrent` had no production caller. `subscribeToSession` only records intent, so an install could complete while the subscription was still pending or being retried, and a CTXSWAP in that gap was never heard | The client's `onDidResubscribe` is wired to `onSubscriptionActive` in Task 5's construction step. One trigger covers a delayed first subscribe and a reconnect, which is exactly what spec §7.7 asks for |
-| D2 | `resetCachesForReload` cleared `_detail` and `_arrivalStamps` **before** the reload GET, so a message arriving during it was neither stored nor stamped (`upsertMessage` returns early with no detail) and bumped no guard, so the older response installed over it and the conversation reported `empty` | Both survive until the fresh detail installs over them. Only the index caches and overlays are dropped |
-| D3 | The send discarded its origin session: a navigation completing between the webview posting the command and the host handling it put the student's prompt into a different conversation, and `no-conversation` could not fail its own bubble | `sendMessage` carries `sessionId`; `SendInput` requires it; a mismatch is rejected as `conversation-changed`; `confirmBubble` and `failBubble` take the origin session as their first argument instead of reading current state at callback time |
-| L1-L10 | Merge overlay not actually applied; `websocket.test.ts` and `chatWebviewProvider.ts` unstaged in Tasks 1 and 6; three `state.nextOverviewSeq()` in service tests; handler tail still elided; the title path silently disabled during coexistence; `_isWorkspaceContext` only in prose; no service-level A-B-A overview test; Task 14 using `text` instead of the baseline's `content` and double-reporting `unknown`; Task 15 not tightening the state fields | All fixed |
-
-**Round 5 of the plan review, and what changed.**
-
-| # | Finding | Resolution |
-|---|---|---|
-| A1 | `installAcquired` was "guarded only by the ticket", which threw away the mutation guards: a CTXSWAP during a same-session reload was overwritten by the older response, leaving a marker announcing E7 next to a committed topic of E5 | Same-session acquisition now takes the **full** `GuardTuple` and installs without `beginNavigation`; only a cross-session switch rebases, authorised by the navigation token |
-| A2 | `installDetail` assigned `_courseId` directly instead of going through `setCourse`, so a course switch kept the previous course's overview, invisible cache and overlays, and `findSessionFor` could return a session from the course just left | The assignment is a `setCourse` call, so the transition is atomic with the install. A test asserts the old course's index is gone |
-| A3 | Invalidating the subscription only on `connected: false` missed the case the baseline explicitly protects: the disconnect notification is debounced, a fast reconnect reports `true` first, and `_converge` then returned with no subscription on the new connection | `_onConnectionStateChanged` invalidates on **every** connection event. Plus: the retained `initializeSession` / `createNewSession` now delegate to `subscribeToSession`, or the old model would set no desire at all between Tasks 6 and 13; and public `unsubscribe()` clears `_subscribedSessionId`. New test for `true` without a preceding `false` |
-| A4 | The overlay epoch was off by one (`at > requestedAt` discarded exactly the in-flight update it protects), latest-request-wins had been dropped when the sequence moved onto the state, and overlays for sessions absent from a response never expired | `>=`, the sequence check restored alongside the course check, and expiry sweeps every overlay older than the completed request |
-| A5 | `reload` called `setOverview([])`, which no longer compiles and never dropped the invisible cache, the overlays or the detail that the command promises to drop | `resetCachesForReload()` |
-| A6 | The early returns never called `failBubble`, so a rejected send left the webview bubble stuck in `sending`, and Task 14 did not inspect `SendOutcome` at all | A `reject()` helper fails the bubble on every early return; Task 14 handles `unknown` explicitly and `SEND_REJECTION_MESSAGES` keeps reason and text together |
-| Locals | `setOverview` called with one argument in seven tests; the `install` helper bypassed `installAcquired`; duplicated field declarations; an invented `_handleLegacy` and `_postNotice`; `unsubscribe` not clearing; Task 10 not staging the provider nor adding `sessionId` to `confirmSentMessage`/`sendRejected`; Task 14 using undefined `sessionId`, `describeSendRejection` and `postIrisState` | All fixed; the handler entry point is now shown as complete code ending at the verbatim baseline body, and the merge overlays with `{ ...m, ...newer }` so a partial local frame cannot erase response fields |
-
-**Round 4 of the plan review, and what changed.**
-
-| # | Finding | Resolution |
-|---|---|---|
-| A1 | `_install` captured the guard, then called `beginNavigation`, which bumps the generation, so `installDetail` rejected **every** install; the return value was ignored, so the service reported success with `detail` and `committedContext` undefined. And the causal ticket was reserved after the request, so `stamp > ticket` was false for exactly the message it exists to keep | One atomic `ConversationState.installAcquired(detail, ticket)`, and the ticket is reserved before every acquisition request and threaded through (`_probeIn` returns its own). `_install` is synchronous and its result is checked at every call site |
-| A2 | `_converge` returned early after a reconnect because `_subscribedSessionId` still named the dead subscription, so no subscription was ever created on the new connection and every later frame was lost. A throw left zero subscriptions with no retry, `resetSession` did not clear the desire, and a deliberate navigation waited up to 3 s | `_onDisconnected` clears `_subscribedSessionId`; reconnect converges immediately; the subscribe is wrapped with a scheduled retry; `resetSession` clears desire, subscription and timer; navigation passes `immediate: true`, because the window damps reconnect storms and was never meant to throttle a student. The meaningless out-of-order test is replaced by four real ones |
-| A3 | The handler is built in the provider's constructor, `_conversation` in `resolveWebviewView`, so passing it by value captured `undefined` forever; and gating on the service merely existing would have dropped every frame while the old path still drove acquisition | A getter (`() => this._conversation`), matching the baseline's own `() => this._irisSessionManager`, plus an `_activeConversation` guard that requires a current session. Until Task 14 the handler falls through to baseline handling |
-| A4 | `_locallyUpdated` never expired, so once another client repointed a session back, the stale local overlay beat the server forever | Request-scoped: each overlay is stamped with the overview sequence and only survives a response whose request started earlier. `forgetSession` clears it too |
-| L1 | The causal merge only appended, so a resend carrying activities on an existing id lost them to the response's older copy | Newer stamped arrivals now overlay matching rows as well as being appended |
-| L2 | The deferred reload and the overview follow-up were fire-and-forget with no rejection handler | Both catch and log |
-| Boundaries | Tasks 1, 5, 6, 7, 10, 14 and 15 were still red | Task 1 migrates the three retained consumers of the overview shape (`sessionSyncUtils.ts:45`, `chatWebviewProvider.ts:657` and `:750`) and widens `createNewSession` too. Task 7 defines `SendOutcome`, `SendRejection` and `SendDeps`, widens the rejection contract, and stages `collectUncommittedFiles.ts`. Task 6 defines `setTitle`. Task 10 makes every new state field optional and gives the presenter its getter. Task 14 uses the real inline `_postMessageSafe` calls instead of invented helpers. Task 15 deletes `chatMessageService.ts` in the same step as `ActiveContext` |
-
-**Round 3 of the plan review, and what changed.**
-
-| # | Finding | Resolution |
-|---|---|---|
-| A1 | The token protected state but not the subscription: `_install` committed, then awaited `subscribeToSession`, so two navigations could leave the transport on the older conversation. Worse, baseline `_subscribeIfConnected` rate-limits and simply **returns**, so a second switch within 3 s left the new conversation with no subscription at all while `_install` treated it as success | The client owns latest-wins: a synchronous `_desiredSessionId` plus a `_converge()` that schedules a retry instead of dropping the attempt, and re-converges if the desire moved while it was subscribing. `subscribeToSession` is synchronous by contract. Three transport tests |
-| A2 | The merge was dead on every `_install` path, because `beginNavigation` cleared `_detail` first, and it could resurrect a message the server deleted | `beginNavigation` keeps the detail when the session is unchanged; the merge is now **causal**, carrying only arrivals stamped after the load's ticket. Five tests, including the service-level reload path |
-| A3 | The global overview single-flight let a course switch join the old course's request, so the new course never got an overview | Keyed by course, with a queued follow-up when the course moved while a request was in flight. Service-level test |
-| A4 | The upsert sat after the assistant branch, so a USER message from the web client and a bodiless answer never reached host state | Ingestion happens right after the source check and the CTXSWAP branch, before any sender or content branching. Rendering still suppresses the USER echo; ownership state does not |
-| A5 | `beginGeneration` and `resetRunUiAndPublish` were outside the `try`, so a synchronous throw skipped the `finally` and latched the lock. A file-collection failure was also treated as an ambiguous send | The `try` opens immediately after the lock; the generation handle is optional; `postStarted` separates local preparation failure from an ambiguous send, so no reconciliation GET is spent on a message that was never sent |
-| A6 | The v3 migration read only `allExercises` and `courses`, losing every recent-only exercise and every legacy course on a v1 upgrade | Reuses the baseline union (`allExercises` + `recentExercises`, `allCourses` + `recentCourses`) by lifting `_unionAndStrip` to module scope. The test now asserts both unions and the stripping |
-| L1 | No title path called `updateSummary`; a stale overview could overwrite a newer local summary; CTXSWAP used the stale detail's activity | `setTitle` routes through `updateSummary`; `_locallyUpdated` protects newer local knowledge from a late overview response; the marker's own `sentAt` becomes the activity key |
-| L2 | The three new collection tests used a context that is not the workspace exercise, so collection never ran and they tested something else | Fixtures use pending `EX5` |
-| L3 | The new mechanisms had no tests | Added for causal merge, session-switch carry, dedup, same-session retention, stale overview, subscription latest-wins and out-of-order settle, navigate-vs-resolve race, course-switch overview, deferred reload coalescing |
-| Boundaries | Tasks 1, 6, 7, 10, 12, 14 and 15 could not be green | The service is now constructed in **Task 5**, unrouted, so Tasks 6, 8 and 10 have something to depend on. Task 1 widens `initializeSession` instead of reaching into `ContextStore` from the transport. Task 6 updates the provider's construction in the same commit. Task 7 leaves `ChatMessageService` alone and only extracts the shared file collector. Task 10 uses the real `test/react/flows/` path and keeps the presenter filling both shapes. Task 12 owns `IrisChatView.tsx` and stays additive. Task 14 uses the verified baseline field names and calls `setCurrentCourseId`. Task 15 strips the websocket client in the same commit as the `ActiveContext` deletion and stages new files explicitly |
-
-**Round 2 of the plan review, and what changed.**
-
-| # | Finding | Resolution |
-|---|---|---|
-| A1 | The navigation token expired between `_probe` and `_install`, so `navigationInFlight` dropped to false in between. A send admitted in that window POSTs to the old session while the view moves to the new one, and its `upsertMessage` writes the old conversation's message into the new transcript | One token per user-visible operation, spanning probe and install. `_install` takes it and re-checks after `subscribeToSession` resolves. `_probeIn` and `_acquireForTarget` take the enclosing token instead of opening their own, so `_navigate` never nests. The send additionally checks the captured session before `upsertMessage` |
-| A2 | `beginSend` came after the awaited file collection, so two sends could both pass the check, and a throw in collection left no generation to abort | Lock and run generation are taken before the first await; collection moved inside the `try`. Four new tests, including the navigation variant |
-| A3 | `upsertMessage` was only called from the send response; the assistant path, the CTXSWAP call signature and reconnect all bypassed it, and an accepted detail load replaced the message array outright, deleting a frame that arrived while it was in flight | New Task 6 step wires the assistant and ARTIFACT paths; the CTXSWAP call passes its marker; `installDetail` now **merges** by server id instead of replacing, which removes the race without a message revision |
-| A4 | Reconnect captured `guard()`, whose `loadTicket` is 0, so `accepts` rejected it every time and reconciliation never installed anything | `beginLoad()` immediately before the GET; Task 8 tests fixed |
-| A5 | Cold Ask-Iris could not acquire: the course was derived from state, which is undefined with no conversation open, and the command's `courseId` was discarded | `resolveTopicChange(target, courseHint?)` threads it through; `courseIdResolver.ts` is retargeted off `ActiveContext` as a named step; the test asserts the real outcome instead of a recorder string |
-| A6 | Task 9 claimed to defer the version bump while its code raised it, called a private `migrate`, and re-added an accessor that already exists | Task 9 adds `StoredStateV3` and an exported `migrateStoredStateToV3` only; the live parser, version and save path all switch atomically in Task 15; the two live-parser tests are `test.skip` until then |
-| L1 | Task 3 missed imports, kept a stale count, and its prose contradicted the corrected eviction expectation | Fixed, plus the inverse-order load test |
-| L2 | `ProbeResult.failed` was unhandled, so the union did not type-check | Handled as `rejected: failed` |
-| L3 | Two separate paths could record the same session with contradictory topics | One `updateSummary`, used by accepted detail, CTXSWAP and revalidation. `applyContextSwap` now also moves `detail.context` |
-| L4 | The Task 7 tests did not implement their own stated mechanics | Rewritten with `await tick()` and named `resolveCall`; the harness is described concretely |
-| L5 | The undecodable-marker branch could reload during an unresolved send | `reload` refuses while sending and defers itself; `SendCoordinator`'s `finally` runs it |
-| L6 | `refreshOverview` was labelled single-flight but only implemented latest-wins | Genuinely single-flight; a second caller joins the outstanding promise |
-| Boundaries | Tasks 1, 2, 6, 9, 11, 13 and 14 could not be green | Task 2 stages `apiResponses.ts`; Task 6 keeps the old acquisition methods; Task 11 is additive; Task 13 adds the `TZ` block to `vitest.config.mts`; Task 14 gains the concrete construction, disposal and routing; every commit step now runs the full gate, not a `--grep` |
-
-**Round 1 of the plan review, and what changed.**
-
-| # | Finding | Resolution |
-|---|---|---|
-| A1 | State never learned about messages received after the load, so `contentState` fell back to `empty` after the first send and the picker could rehome a conversation the student had written in | `ConversationState.upsertMessage`, called from the send response, the assistant path and `applyContextSwap`; five new tests in Task 3 |
-| A2 | The CTXSWAP decoder read `message.attributes`, but the payload lives inside a `json` **content item** and arrives as an **object**. Every real marker would have been rejected | Task 2 rewritten against the verified wire shape, with the source DTOs named; `IrisChatMessageContent` gains `attributes` |
-| A3 | Revalidation called `beginNavigation` before the `GET`, destroying the open conversation's detail; on a mismatch the loop then dead-ended at `refuse/loading` | Navigation is transactional: `_probe` mutates nothing, `beginNavigation` is a commit point inside `_install`. This also repairs the 403/5xx rule of §12 |
-| A4 | The ambiguous-failure guard was constructed **after** its `GET`, so it always accepted and could overwrite a newer CTXSWAP | `state.beginLoad()` before the request, `installDetail` decides |
-| A5 | No acquisition path subscribed to the websocket, and the send path lost `beginGeneration` | `_install` is the single subscribe point; the run lifecycle moves into `SendCoordinator` with an abort on every failing path |
-| A6 | `knownInvisible` was only updated, never entered, and `SessionDetail` had no ordering key | `_rememberFromDetail` enters on every acquisition; `SessionDetail.lastActivity` and `summaryOfDetail` added in Task 1 |
-| A7 | The commit sequence could not be green | New "Commit boundaries" section: additive through Task 12, cut over in 14, delete in 15. Task 1 now migrates the six existing API test call sites |
-| A8 | Task 5 referenced seven helpers it never defined | All written out, including `_probe`, `_acquireForTarget`, `_resolutionInput`, `_forgetSession`, `newConversation`, `reload` and the harness |
-| L1 | `installDetail` skipped the guard when `sessionId` was `undefined` | Guard is now checked unconditionally, with a test for the superseded cold start |
-| L2 | `observationSeq` was read from state, so two concurrent loads captured the same value and could not be ordered | Replaced by `beginLoad()`, which issues a ticket at request start |
-| L3 | The eviction test expected session 2 to survive; the algorithm evicts it first | Expectation corrected to `{1, 7..55}`, with the per-insert reasoning spelled out and a tie-break test added |
-| L4/L5 | Test harnesses were sketches whose asserted call orders were unreachable | `makeApi`/`tick`/`deps`/`started` written out; Task 7 gains explicit mechanics rules |
-| L6 | The store is **already** at version 2, so the planned "bump to 2" would have skipped `migrate` and silently discarded tracked items | Bump is to 3, migration input is the real v2 shape, and it happens in Task 15 |
-| L7 | `_toSessionDetail` defaulted a missing mode to `COURSE_CHAT`, inferring a committed context against invariant 3 | Rejects with `MalformedResponseError`, with a test |
-| L8 | `...` placeholders in the Task 12 and 13 tests | Replaced with real code |
-| L9 | Test count claimed seven, showed eight | Counts removed in favour of naming the suite |
-
-**One finding not accepted.** The review reads §4's "a send carries a `messageDifferentiator`" as a requirement the plan drops. That sentence was v4 residue: §9 and decision 13a of the same spec removed correlation entirely, because `messageDifferentiator` is `@Transient` and a reconciliation `GET` cannot read it back. The plan follows the decided position, and the stale half-sentence has been corrected in the spec instead. A test asserts the field is absent from the send body.
+**Review history removed.** Six rounds of codex findings and their resolutions used to be tabulated here. They documented the ancestry of this document, not any requirement of the implementation, and every accepted resolution is already encoded in the tasks above. The seventh round, which produced the scope cuts, is recorded in "Accepted simplifications" at the top, because that one is normative.
 
 **Local findings from the spec review, carried as tasks.**
 
@@ -4943,12 +4877,12 @@ Start it early: it needs Artemis review and a release, neither of which we contr
 | 1 | Guard matrix per async operation | Task 5, Step 1 |
 | 2 | Ordering between two concurrent detail loads | Task 3 (`beginLoad` ticket), Task 5 (`_navRequestSeq`) |
 | 3 | `navigateTo` at a course switch has no session id | Task 5 (`switchCourse` acquires first) |
-| 4 | Revalidation loop termination | Task 4 (`alreadyTried`), Task 5 |
-| 5 | `knownInvisible` eviction semantics | Task 3 |
+| 4 | Revalidation loop termination | Dissolved by cut 4: one probe, then create |
+| 5 | `knownInvisible` eviction semantics | Cut 3: no eviction |
 | 6 | Send lock vs "a newer pending survives" | Task 7 (one rule: reject every topic change during a send) |
 | 7 | `package.json:59-60` command title | Task 14 |
 | 8 | Cold start says "no Iris session acquisition request" | Task 5 |
 | 9 | Reconciliation-failure cleanup | Task 7 |
 | 10 | Reload with no conversation open | Task 14 |
 
-**Type consistency.** `ServerContext`, `SessionSummary`, `SessionDetail` (Task 1) are used unchanged in Tasks 3 to 8. `GuardTuple` and `ContentState` (Task 3) are consumed by Tasks 4, 5, 7, 8. `TopicDecision` (Task 4) is consumed by Task 5 and mirrored into the picker in Task 12. `sessionId: number` replaces `localSessionId: string` consistently across Tasks 10 and 11.
+**Type consistency.** `ServerContext`, `SessionSummary`, `SessionDetail` (Task 1) are used unchanged in Tasks 3 to 8. `GuardTuple` and `ContentState` (Task 3) are consumed by Tasks 4, 5, 7, 8. `TopicDecision` (Task 4) is consumed by Task 5 only; it is host-only and cut 1 removed its would-be webview consumer. `sessionId: number` replaces `localSessionId: string` consistently across Tasks 10 and 11.
