@@ -417,4 +417,29 @@ suite('IrisConversationService', () => {
         await tick();
         assert.strictEqual(service.api.deferred.filter((d) => d.call.startsWith('detail:')).length, 0);
     });
+
+    test('reconcileCurrent does not block a concurrent navigateTo from installing', async () => {
+        // Regression for the bug fixed in 69f0fe12: reconcileCurrent used to be
+        // wrapped in _navigate, which bumps the shared _navRequestSeq. A resubscribe
+        // signal landing mid-navigation would then make the navigateTo's own
+        // isCurrent() permanently false, and its install would be silently
+        // skipped. reconcileCurrent must not take a navigation token.
+        const service = await started();
+        const nav = service.navigateTo({ courseId: 42, sessionId: 9 });
+        void service.reconcileCurrent();
+        service.api.resolveCall('detail:42:9', detail(9, EX7, [{ id: 1, sender: 'USER' }]));
+        await nav;
+        assert.strictEqual(service.state.snapshot().currentSessionId, 9);
+    });
+
+    test('resolveTopicChange reports failed rather than rejecting on a create 500', async () => {
+        // The dispatcher acts on a TopicChangeOutcome, not an exception: Task 14
+        // writes `const outcome = await resolveTopicChange(...)`, so a server 500
+        // from the create call must resolve to a rejected outcome, not throw.
+        const service = await startedWithContent();
+        const change = service.resolveTopicChange(EX7);
+        service.api.rejectCall('create:42', new ApiError('boom', 500));
+        const outcome = await change;
+        assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'failed' });
+    });
 });

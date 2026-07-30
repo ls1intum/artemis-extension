@@ -272,12 +272,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         if (this._artemisApiService && this._websocketService) {
             this._irisSessionManager = new IrisWebSocketSessionClient(this._artemisApiService, this._websocketService);
+            this._disposables.push(this._irisSessionManager);
             // Constructed right where the session client is, so both exist
-            // together. Pushed onto _disposables BEFORE the session client, so
-            // no in-flight install can subscribe to an already-disposed client.
+            // together. `_drainDisposables` pops LIFO, so pushing the service
+            // AFTER the client disposes it BEFORE the client: no in-flight
+            // install can subscribe to an already-disposed client.
             this._conversation = this._createConversationService(this._irisSessionManager);
             if (this._conversation) { this._disposables.push(this._conversation); }
-            this._disposables.push(this._irisSessionManager);
 
             this._disposables.push(
                 this._irisSessionManager.onDidReceiveMessage(data => this._websocketMessageHandler.handleIrisWebSocketMessage(data))
@@ -346,6 +347,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _createConversationService(client: IrisWebSocketSessionClient): IrisConversationService | undefined {
         if (!this._artemisApiService) { return undefined; }
         return new IrisConversationService(this._artemisApiService, {
+            // TODO(Task 6): `client.subscribeToSession` does not yet meet the
+            // "synchronous, latest-wins" contract `IrisConversationDeps` documents.
+            // It is async, rate-limited to one attempt per 3000ms (a second rapid
+            // call is silently dropped rather than converging to the newer
+            // session), and it never updates `_currentArtemisSessionId` (unlike
+            // `initializeSession`/`createNewSession`). Task 6 rewrites the
+            // transport to actually provide the guarantee; do not fix it here.
             subscribeToSession: (sessionId) => client.subscribeToSession(sessionId),
             getWorkspaceExercise: () => {
                 const exercise = this._contextStore.getWorkspaceExercise();

@@ -38,6 +38,11 @@ export interface IrisConversationDeps {
      * Declares the desired subscription. SYNCHRONOUS by contract: it records the
      * intent immediately and converges in the background, so two rapid
      * navigations cannot leave the transport on the older conversation.
+     *
+     * The guarantee is not fully honoured yet: the production adapter wired in
+     * `chatWebviewProvider.ts` delegates to the current transport, which is
+     * rate-limited and drops a second attempt instead of converging to
+     * latest-wins. Task 6 rewrites the transport to actually provide this.
      */
     subscribeToSession(sessionId: number): void;
     /** Resolves the workspace exercise, or undefined when none is detected. */
@@ -90,10 +95,11 @@ export class IrisConversationService {
      * newly opened conversation actually receives its assistant frames; the old
      * model did this inside the deleted `initializeSession`.
      *
-     * It takes the ENCLOSING navigation's token and re-checks it twice: before
-     * committing, and again after the subscription resolves. Two navigations
-     * whose subscribe calls settle in reverse order would otherwise both commit,
-     * leaving the visible conversation and the live subscription disagreeing.
+     * It takes the ENCLOSING navigation's token and checks it once, immediately
+     * before committing. The subscribe call itself is synchronous by contract
+     * (see `IrisConversationDeps.subscribeToSession`), so there is nothing to
+     * re-check afterwards: it either records the intent or it doesn't, on the
+     * spot.
      */
     private _install(detail: SessionDetail, captured: GuardTuple, isCurrent: () => boolean): boolean {
         if (!isCurrent()) { return false; }
@@ -203,7 +209,16 @@ export class IrisConversationService {
         const carried = this.state.effectiveContext();
         return await this._navigate(async (isCurrent) => {
             const captured = this.state.beginLoad();
-            const fresh = await this._api.createCourseSession(courseId);
+            let fresh: SessionDetail;
+            try {
+                fresh = await this._api.createCourseSession(courseId);
+            } catch (error) {
+                // The dispatcher acts on an OUTCOME, not an exception: a 500 here
+                // must become a notice, not an unhandled rejection on the promise
+                // Task 14's `await newConversation()` awaits.
+                logger.warn('Iris new-conversation create failed', LogCategory.IRIS_CHAT, error);
+                return { kind: 'rejected', reason: 'failed' } as const;
+            }
             if (!this._install(fresh, captured, isCurrent)) { return { kind: 'stale' } as const; }
             if (carried && !sameContext(carried, fresh.context)) { this.state.stagePending(carried); }
             this._emit();
@@ -324,9 +339,9 @@ export class IrisConversationService {
     /**
      * Reads a conversation WITHOUT touching visible state. This is what makes
      * revalidation safe: a mismatch, a 404 or a network failure leaves the open
-     * conversation exactly as it was.
+     * conversation exactly as it was. Takes the ENCLOSING navigation's token; it
+     * never opens one of its own.
      */
-    /** Takes the ENCLOSING navigation's token; it never opens one of its own. */
     private async _probeIn(courseId: number, sessionId: number, isCurrent: () => boolean): Promise<ProbeResult> {
         // Reserved before the request so the caller installs with a guard that
         // predates anything arriving while it is in flight.
@@ -369,7 +384,15 @@ export class IrisConversationService {
             : (courseHint ?? this.state.snapshot().courseId);
         if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
         const captured = this.state.beginLoad();
-        const detail = await this._api.getCurrentChat(target.mode as IrisChatMode, target.entityId, courseId);
+        let detail: SessionDetail;
+        try {
+            detail = await this._api.getCurrentChat(target.mode as IrisChatMode, target.entityId, courseId);
+        } catch (error) {
+            // Same reasoning as `newConversation`: the dispatcher acts on an
+            // outcome, so a 500 here must not reject the returned promise.
+            logger.warn('Iris cold-start acquisition failed', LogCategory.IRIS_CHAT, error);
+            return { kind: 'rejected', reason: 'failed' };
+        }
         if (!this._install(detail, captured, isCurrent)) { return { kind: 'stale' }; }
         if (!sameContext(detail.context, target) && this.state.contentState() === 'empty') {
             this.state.stagePending(target);
@@ -392,7 +415,15 @@ export class IrisConversationService {
         const courseId = this.state.snapshot().courseId ?? courseHint;
         if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
         const captured = this.state.beginLoad();
-        const fresh = await this._api.createCourseSession(courseId);
+        let fresh: SessionDetail;
+        try {
+            fresh = await this._api.createCourseSession(courseId);
+        } catch (error) {
+            // Same reasoning as `newConversation`: the dispatcher acts on an
+            // outcome, so a 500 here must not reject the returned promise.
+            logger.warn('Iris create-and-stage failed', LogCategory.IRIS_CHAT, error);
+            return { kind: 'rejected', reason: 'failed' };
+        }
         if (!this._install(fresh, captured, isCurrent)) { return { kind: 'stale' }; }
         if (!sameContext(target, fresh.context)) { this.state.stagePending(target); }
         this._emit();
