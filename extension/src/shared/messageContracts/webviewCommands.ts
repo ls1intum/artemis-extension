@@ -176,7 +176,14 @@ interface WebviewCmdPayloads {
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat
-    sendMessage: { text: string; localId: string; localSessionId: string };
+    /**
+     * `sessionId` names the conversation the optimistic bubble was drawn in,
+     * so the host can fail it against the ORIGIN session rather than whatever
+     * is open when the command is handled. Optional here because Task 10 is
+     * additive; a later task makes it required alongside the rest of the
+     * conversation-first wire contract.
+     */
+    sendMessage: { text: string; localId: string; localSessionId: string; sessionId?: number };
     selectChatContext: { context: ChatContextType; itemId: number; itemName: string; itemShortName?: string };
     switchSession: { sessionId: string };
     openArtemisSession: { courseId: number; artemisSessionId: number };

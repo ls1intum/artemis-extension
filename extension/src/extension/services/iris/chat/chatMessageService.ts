@@ -1,14 +1,10 @@
-import * as vscode from 'vscode';
-
-import { ExtensionMsg } from '@shared/messageContracts';
-
 import type { IrisServiceDeps } from '@extension/services/iris/context/sessionSyncUtils';
+import { collectUncommittedFiles } from '@extension/services/iris/conversation/collectUncommittedFiles';
 import type { RunLifecycle } from '@extension/services/iris/irisRunStateMachine';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { StruggleContext } from '@extension/services/telemetry';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
-import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
 import { ActiveContext } from '@extension/types';
 
 import { IrisChatSessionService } from './chatSessionService';
@@ -110,7 +106,7 @@ export class ChatMessageService {
         // Open the generation BEFORE the missing-API guard and all the
         // preparation steps, every one of which can throw (guard,
         // _ensureWebSocketConnection, _ensureIrisSession, session guard,
-        // _collectUncommittedFiles) — not just the POST. The webview has
+        // collectUncommittedFiles), not just the POST. The webview has
         // already set streaming=true by now, so a throw with no open
         // generation would leave nothing to abort and the composer would hang.
         const generation = this._runLifecycle.beginGeneration();
@@ -131,7 +127,7 @@ export class ChatMessageService {
             }
 
             // Collect uncommitted files from the current workspace
-            const uncommittedFiles = await this._collectUncommittedFiles();
+            const uncommittedFiles = await collectUncommittedFiles(this.deps.postMessage);
 
             // Send message to Iris
             logger.websocket(`🚀 Sending message to Artemis API... ${JSON.stringify({
@@ -213,59 +209,6 @@ export class ChatMessageService {
             }
         } else {
             logger.websocket(`✅ Using existing Iris session: ${irisSessionManager.currentSessionId}`);
-        }
-    }
-
-    private async _collectUncommittedFiles(): Promise<Map<string, string> | undefined> {
-        let uncommittedFiles: Map<string, string> | undefined;
-
-        // Check if the user has enabled sending uncommitted changes
-        const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
-
-        if (!sendUncommittedChanges) {
-            logger.irisChat('📁 Uncommitted changes sending is disabled by user setting');
-            return undefined;
-        }
-
-        try {
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-
-            // Use unified checker with full options (content + filters + status)
-            const result = await checkWorkspaceFiles(workspaceFolder, {
-                includeContent: true,
-                applyFilters: true,
-                includeStatus: true,
-                checkUnpushed: true,
-                includeDirty: true
-            });
-
-            // Convert to Map for backward compatibility
-            uncommittedFiles = new Map();
-            result.files
-                .filter(f => f.status === 'included' && f.content !== undefined)
-                .forEach(f => uncommittedFiles!.set(f.path, f.content!));
-
-            if (uncommittedFiles.size > 0) {
-                logger.irisChat(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
-
-                // Update display with detailed analysis
-                const excludedFiles = result.files
-                    .filter(f => f.status === 'excluded')
-                    .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
-
-                this.deps.postMessage({
-                    type: ExtensionMsg.UpdateReferencedFiles,
-                    includedFiles: Array.from(uncommittedFiles.keys()),
-                    excludedFiles: excludedFiles,
-                    totalCount: result.totalCount
-                });
-            }
-
-            return uncommittedFiles;
-        } catch (error: unknown) {
-            logger.error('Error collecting uncommitted files', LogCategory.IRIS_CHAT, error);
-            // Continue without uncommitted files - this is not a critical error
-            return undefined;
         }
     }
 }

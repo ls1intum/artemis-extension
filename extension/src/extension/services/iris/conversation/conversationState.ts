@@ -435,6 +435,19 @@ export class ConversationState {
         return 'pending-dropped';
     }
 
+    /**
+     * The send coordinator's write-back. Installs EXACTLY the context that
+     * was attached to the POST, never whatever happens to be pending now: the
+     * caller has already decided (via the context-revision guard) that
+     * nothing moved since the send captured it.
+     */
+    public commitContext(ctx: ServerContext): void {
+        this._committed = ctx;
+        if (this._pending && sameContext(this._pending.ctx, ctx)) {
+            this._pending = undefined;
+        }
+    }
+
     // ---- sends --------------------------------------------------------
 
     public get sendInFlight(): boolean { return this._sendInFlight; }
