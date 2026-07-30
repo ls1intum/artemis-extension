@@ -4130,7 +4130,9 @@ git commit -m "feat(iris): add the workspace/course state surface alongside Acti
 
 ## Task 10: Add the conversation-shaped wire contracts
 
-**Additive.** Every new field and message is added **next to** the existing ones; nothing is removed. `updateIrisState.state` keeps `context`, `activeSessionId` and `sessions` and gains the fields below. `addMessage` keeps `localSessionId` and gains `sessionId`. The old variants are deleted in Task 15, after Task 14 removes their producers and consumers. Replacing them here would break the provider, the presenter, the store and every component in one commit, and none of those are rewritten until Tasks 11 to 14.
+**Additive.** Every new field and message is added **next to** the existing ones; nothing is removed.
+
+**Two of these already landed in Task 6**, because its `_handleContextSwap` posts them and could not compile otherwise: `ExtensionMsg.ShowChatNotice` with its `showChatNotice: { text: string }` payload, and the widening of `addMessage`'s `role` to include `'contextSwap'`. Do not add them twice; this task adds the rest. `updateIrisState.state` keeps `context`, `activeSessionId` and `sessions` and gains the fields below. `addMessage` keeps `localSessionId` and gains `sessionId`. The old variants are deleted in Task 15, after Task 14 removes their producers and consumers. Replacing them here would break the provider, the presenter, the store and every component in one commit, and none of those are rewritten until Tasks 11 to 14.
 
 **Files:**
 - Modify: `src/shared/messageContracts/extensionMessages.ts`
