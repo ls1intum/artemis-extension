@@ -2061,10 +2061,15 @@ suite('IrisConversationService', () => {
         const back = service.switchCourse(42);
         service.api.resolveCall('current:COURSE_CHAT:42:42', { sessionId: 21, courseId: 42, context: COURSE42, lastActivity: 1, messages: [] });
         await back;                                                  // A2 starts here, seq n+2
+        await tick();
+        // BOTH are open now. `resolveCall` takes the newest outstanding one, so
+        // this is A2; `resolveOldestCall` below is A1. Using resolveCall twice
+        // would answer A2 twice and then hang on `await a1`.
+        assert.strictEqual(service.api.outstanding('overview:42').length, 2);
         service.api.resolveCall('overview:42', [{ sessionId: 5, courseId: 42, context: EX7, lastActivity: 9 }]);
         await tick();
         const installed = service.state.snapshot().courseSessions.length;
-        service.api.resolveCall('overview:42', []);                  // A1 answers last, empty
+        service.api.resolveOldestCall('overview:42', []);            // A1 answers last, empty
         await a1;
         await tick();
         // A1's empty answer must not wipe what A2 installed.
@@ -2083,11 +2088,13 @@ suite('IrisConversationService', () => {
         const back = service.switchCourse(42);
         service.api.resolveCall('current:COURSE_CHAT:42:42', { sessionId: 21, courseId: 42, context: COURSE42, lastActivity: 1, messages: [] });
         await back;
-        const before = service.api.deferred.filter((d) => d.call === 'overview:42').length;
-        service.api.resolveCall('overview:42', []);   // A1 settles
         await tick();
-        void service.refreshOverview();               // must JOIN A2, not issue a third
+        const before = service.api.deferred.filter((d) => d.call === 'overview:42').length;
+        service.api.resolveOldestCall('overview:42', []);   // A1 settles, A2 stays open
+        await tick();
+        void service.refreshOverview();                     // must JOIN A2, not issue a third
         assert.strictEqual(service.api.deferred.filter((d) => d.call === 'overview:42').length, before);
+        assert.strictEqual(service.api.outstanding('overview:42').length, 1);
     });
 
     test('a 404 on an indexed hit forgets the row and creates, without a second probe', async () => {
@@ -2180,21 +2187,53 @@ suite('IrisConversationService', () => {
 The harness, written out in full at the top of the file. It is load-bearing: several tests depend on resolving requests **out of order**, which needs a fake that hands back a controllable deferred per call rather than a canned value.
 
 ```typescript
-type Deferred = { call: string; resolve: (v: unknown) => void; reject: (e: unknown) => void };
+// `settled` is load-bearing, not bookkeeping. Two requests can be open under
+// the SAME call name at once (A1 and A2 in the overview race), so a helper that
+// merely scans by name would answer the same one twice: the first "resolve A1"
+// would hit A2 and the test would then hang awaiting A1 forever. Every helper
+// below therefore picks an OUTSTANDING deferred and marks it settled.
+type Deferred = {
+    call: string;
+    settled: boolean;
+    resolve: (v: unknown) => void;
+    reject: (e: unknown) => void;
+};
 
 function makeApi() {
     const deferred: Deferred[] = [];
-    const next = (call: string) => new Promise((resolve, reject) => { deferred.push({ call, resolve, reject }); });
+    const next = (call: string) => new Promise((resolve, reject) => {
+        deferred.push({ call, settled: false, resolve, reject });
+    });
+    const outstanding = (call: string) => deferred.filter((d) => d.call === call && !d.settled);
+    const take = (call: string, which: 'newest' | 'oldest'): Deferred => {
+        const open = outstanding(call);
+        if (open.length === 0) {
+            throw new Error(`no outstanding ${call}; saw ${deferred.map((x) => `${x.call}${x.settled ? '(settled)' : ''}`).join(', ')}`);
+        }
+        const d = which === 'newest' ? open[open.length - 1] : open[0];
+        d.settled = true;
+        return d;
+    };
     return {
         deferred,
+        outstanding,
         /** Resolves the newest outstanding request, whichever it is. */
-        resolveLast: (v: unknown) => deferred[deferred.length - 1].resolve(v),
-        /** Resolves the newest request matching `call`, so order is explicit. */
-        resolveCall: (call: string, v: unknown) => {
-            const d = [...deferred].reverse().find((x) => x.call === call);
-            if (!d) { throw new Error(`no outstanding ${call}; saw ${deferred.map((x) => x.call).join(', ')}`); }
+        resolveLast: (v: unknown) => {
+            const open = deferred.filter((d) => !d.settled);
+            const d = open[open.length - 1];
+            d.settled = true;
             d.resolve(v);
         },
+        /** Resolves the NEWEST outstanding request matching `call`. */
+        resolveCall: (call: string, v: unknown) => { take(call, 'newest').resolve(v); },
+        /**
+         * Resolves the OLDEST outstanding request matching `call`. This is what
+         * makes an A1/B/A2 race testable: the point of those tests is that the
+         * FIRST request answers last.
+         */
+        resolveOldestCall: (call: string, v: unknown) => { take(call, 'oldest').resolve(v); },
+        /** Rejects the newest outstanding request matching `call`. */
+        rejectCall: (call: string, error: unknown) => { take(call, 'newest').reject(error); },
         api: {
             getCurrentChat: (mode: string, entityId: number, courseId: number) => next(`current:${mode}:${entityId}:${courseId}`),
             createCourseSession: (courseId: number) => next(`create:${courseId}`),
@@ -2220,7 +2259,7 @@ function deps() {
 
 /** A service with an open, EMPTY exercise conversation (session 1, topic E5). */
 async function started() {
-    const { api, deferred, resolveLast, resolveCall } = makeApi();
+    const { api, deferred, outstanding, resolveLast, resolveCall, resolveOldestCall, rejectCall } = makeApi();
     const { deps: d, subscribed } = deps();
     const service = new IrisConversationService(api as never, d);
     const run = service.start({ exerciseId: 5, courseId: 42 });
@@ -2229,7 +2268,10 @@ async function started() {
     // start fires refreshOverview; answer it so it cannot bleed into a later assertion.
     resolveCall('overview:42', []);
     await tick();
-    return Object.assign(service, { api: { deferred, resolveLast, resolveCall }, subscribed });
+    return Object.assign(service, {
+        api: { deferred, outstanding, resolveLast, resolveCall, resolveOldestCall, rejectCall },
+        subscribed,
+    });
 }
 
 /** The same, but the conversation already has a user message. */
@@ -2321,12 +2363,16 @@ export class IrisConversationService {
         // `detail` and `committedContext` undefined for a session it had just
         // named as current.
         //
-        // `captured` is reserved BEFORE the request that produced `detail`, not
-        // here. Reserving it after the response would make its ticket equal to
-        // the stamp of a message that arrived while the request was in flight,
-        // and `stamp > ticket` would then drop exactly the message the causal
-        // merge exists to keep. It also carries the mutation guards, which is
-        // what stops a stale same-session response overwriting a CTXSWAP.
+        // `captured` is reserved BEFORE the request that produced `detail`,
+        // never here, for two independent reasons:
+        //
+        // - it carries the MUTATION guards as they stood at request start, so a
+        //   stale same-session response cannot overwrite a CTXSWAP that landed
+        //   while it was in flight. Capturing after the response would read the
+        //   post-swap values and accept unconditionally;
+        // - its load ticket records request-start ORDER, so a delayed earlier
+        //   load cannot install over a later one. A ticket taken here would
+        //   reflect arrival order instead, which is exactly the wrong order.
         if (!this.state.installAcquired(detail, captured)) { return false; }
         // SYNCHRONOUS declaration of intent; the transport converges in the
         // background and owns latest-wins (Task 6). It does NOT mean the STOMP
@@ -3872,7 +3918,7 @@ async function serviceWith(options: {
     pending?: unknown;
     messages?: unknown[];
 }) {
-    const { api, deferred, resolveCall, resolveSend, rejectSend, rejectCall } = makeApi();
+    const { api, deferred, outstanding, resolveCall, resolveOldestCall, resolveSend, rejectSend, rejectCall } = makeApi();
     const courseId = options.courseId ?? 42;
     const { deps: d, subscribed } = deps();
     const service = new IrisConversationService(api as never, d);
@@ -3890,7 +3936,7 @@ async function serviceWith(options: {
     if (options.pending) { service.state.stagePending(options.pending as never); }
     const coordinator = new SendCoordinator(api as never, service, sendDeps());
     return { service, coordinator, subscribed,
-             api: { deferred, resolveCall, resolveSend, rejectSend, rejectCall } };
+             api: { deferred, outstanding, resolveCall, resolveOldestCall, resolveSend, rejectSend, rejectCall } };
 }
 ```
 
