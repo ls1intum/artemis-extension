@@ -73,3 +73,16 @@ suite('extractIrisMessageContent: other inputs (defensive)', () => {
         assert.strictEqual(extractIrisMessageContent(42), '42');
     });
 });
+
+suite('extractIrisMessageContent: object content parts', () => {
+    test('an object content part without textContent yields no text', () => {
+        assert.strictEqual(extractIrisMessageContent([{ type: 'unknown', payload: { a: 1 } }]), '');
+    });
+
+    test('a recognised part is unaffected by an unrecognised sibling', () => {
+        assert.strictEqual(
+            extractIrisMessageContent([{ type: 'unknown' }, { textContent: 'hallo', type: 'text' }]),
+            'hallo',
+        );
+    });
+});

@@ -191,8 +191,10 @@ export interface IrisChatMessage {
 }
 
 export interface IrisChatMessageContent {
-    textContent?: string;
     type?: string;
+    textContent?: string;
+    /** Present on a `json` content item; the CTXSWAP marker payload lives here. */
+    attributes?: unknown;
     [key: string]: unknown;
 }
 
