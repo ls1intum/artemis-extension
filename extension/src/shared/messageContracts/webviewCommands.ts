@@ -85,6 +85,16 @@ export const WebviewCmd = {
     CreateNewSession: 'createNewSession',
     SwitchToWorkspaceContext: 'switchToWorkspaceContext',
     ResetChatSessions: 'resetChatSessions',
+    // Conversation-first commands (Task 10). Added alongside the commands
+    // above, which stay until Task 15; `SwitchToWorkspaceContext` then goes
+    // entirely, because the workspace fallback collapsed into the Start rule
+    // and is no longer a user action. Nothing dispatches these yet; Task 14
+    // does the cut-over. There is no `UndoNavigation` (cut 2): the notice
+    // `showChatNotice` reports is actionless.
+    SelectTopic: 'selectTopic',
+    OpenConversation: 'openConversation',
+    SwitchCourse: 'switchCourse',
+    NewConversation: 'newConversation',
     ReconnectWebSocket: 'reconnectWebSocket',
     ReloadChatSession: 'reloadChatSession',
     ReloadActiveSession: 'reloadActiveSession',
@@ -198,6 +208,19 @@ interface WebviewCmdPayloads {
     createNewSession: undefined;
     switchToWorkspaceContext: undefined;
     resetChatSessions: undefined;
+    /**
+     * Topic-based navigation for the picker, the chip's remove icon and the
+     * Ask-Iris commands (Task 10 wire contract; Task 14 wires the dispatcher).
+     * `mode`/`entityId` name the target `ServerContext`; `name` is a display
+     * hint the webview already knows and the host does not need to re-fetch.
+     */
+    selectTopic: { mode: string; entityId: number; name?: string };
+    /** Id-based navigation for the history popover. Never consults the topic index. */
+    openConversation: { courseId: number; sessionId: number };
+    /** No session id yet, so it acquires first; lands on an empty course conversation. */
+    switchCourse: { courseId: number };
+    /** Header `+`. No payload: the current course is read host-side. */
+    newConversation: undefined;
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
     reloadActiveSession: undefined;
@@ -310,6 +333,10 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.TaskFeedbackClosed,
     WebviewCmd.ProblemStatementScroll,
     WebviewCmd.ProblemStatementSelection,
+    WebviewCmd.SelectTopic,
+    WebviewCmd.OpenConversation,
+    WebviewCmd.SwitchCourse,
+    // NewConversation is deliberately absent: it carries no payload.
 ]);
 
 /** Auto-generated command messages */

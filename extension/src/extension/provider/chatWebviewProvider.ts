@@ -223,7 +223,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 }
             })
         );
-        this._viewStatePresenter = new ChatViewStatePresenter(this._contextStore, (msg) => this._postMessageSafe(msg));
+        this._viewStatePresenter = new ChatViewStatePresenter(
+            this._contextStore,
+            (msg) => this._postMessageSafe(msg),
+            // A getter, not a value: `_conversation` is assigned further down
+            // in this same constructor (and is `undefined` until then), so
+            // capturing it by value here would capture `undefined` forever.
+            // Same reasoning as the `_websocketMessageHandler` getter below.
+            () => this._conversation,
+        );
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
 

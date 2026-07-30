@@ -19,8 +19,24 @@ export interface ChatMessage {
      * with `status: 'error'`. Used by the UI to decide whether Retry is
      * meaningful right now (e.g. `iris-disabled` is persistent; `no-ai`
      * stays non-retryable as long as `.noai` is still detected).
+     *
+     * Widened to match `sendRejected.reason` on the wire (Task 10): the
+     * conversation-first send coordinator (Task 14) can produce reasons the
+     * old model never did, and the store must be able to hold whatever the
+     * wire carries.
      */
-    errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+    errorReason?:
+        | 'no-ai'
+        | 'no-context'
+        | 'iris-disabled'
+        | 'iris-unavailable'
+        | 'send-in-flight'
+        | 'navigation-in-flight'
+        | 'no-conversation'
+        | 'conversation-changed'
+        | 'rate-limit'
+        | 'preparation-failed'
+        | 'unknown';
     /** Tool activity persisted with the message; renders as the trail. */
     activities?: IrisActivityDTO[];
     /** `false` marks an intermediate message: no feedback controls, run continues. */

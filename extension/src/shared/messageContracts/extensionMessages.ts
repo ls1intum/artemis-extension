@@ -107,6 +107,12 @@ interface RenderedProblemStatementPayload {
 export interface IrisRunUiProjection {
     /** Rejects a projection belonging to a session we already left. */
     localSessionId: string;
+    /**
+     * Conversation-first counterpart to `localSessionId`, beside it (not
+     * replacing it) until Task 15. Optional and unpopulated until Task 14
+     * routes run UI through `IrisConversationService`.
+     */
+    sessionId?: number;
     /** Monotonic; the webview drops anything not strictly newer. */
     revision: number;
     /** `null` clears the draft. Always `null` on a commit. */
@@ -216,6 +222,37 @@ interface ExtensionMsgPayloads {
             }>;
             exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean; releaseDate?: string; dueDate?: string; lastViewed?: number }>;
             courses: Array<{ id: number; title: string; shortName?: string; lastViewed?: number }>;
+            // ---- Conversation-first fields (Task 10). EVERY field below is
+            // OPTIONAL until Task 15. They are added to a payload that dozens
+            // of typed React fixtures already construct; making them required
+            // here would force all of those to be rewritten in a commit that
+            // is supposed to be additive, and Task 15 tightens them anyway
+            // once the old fields above are deleted.
+            courseId?: number | undefined;
+            courseTitle?: string | undefined;
+            currentSessionId?: number | undefined;
+            conversationTitle?: string | undefined;
+            /** Excludes CTXSWAP rows. Display only; never the ownership predicate. */
+            displayMessageCount?: number;
+            committedContext?: { mode: string; entityId: number; name?: string } | undefined;
+            pendingContext?: { mode: string; entityId: number; name?: string } | undefined;
+            /** 'unknown' disables the picker, the chip remove icon and Ask-Iris. */
+            contentState?: 'unknown' | 'empty' | 'content';
+            sendInFlight?: boolean;
+            navigationInFlight?: boolean;
+            conversations?: Array<{
+                sessionId: number;
+                courseId: number;
+                mode: string;
+                entityId: number;
+                entityName?: string;
+                title?: string;
+                lastActivity: number;
+            }>;
+            /** The detected workspace exercise, when any. Sourced from the
+             *  same workspace-detection state the old model already tracks;
+             *  not part of `IrisConversationService`'s own state. */
+            workspaceExerciseId?: number | undefined;
         };
         showDiagnostics?: boolean;
     };
@@ -226,6 +263,12 @@ interface ExtensionMsgPayloads {
          * ever emit when they have a session id to attribute the bubble to.
          */
         localSessionId: string;
+        /**
+         * Conversation-first counterpart to `localSessionId`, beside it (not
+         * replacing it) until Task 15. Optional and unpopulated until Task 14
+         * routes message delivery through `IrisConversationService`.
+         */
+        sessionId?: number;
         message: {
             id?: number;
             /**
@@ -251,10 +294,13 @@ interface ExtensionMsgPayloads {
          *  loads whose id no longer matches the currently active session,
          *  so a slow response cannot pollute a freshly switched view. */
         localSessionId: string;
+        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
+        sessionId?: number;
         artemisSessionId: number;
         messages: Array<{
             id?: number;
-            role: 'user' | 'assistant';
+            /** `contextSwap`: see `addMessage.message.role`. */
+            role: 'user' | 'assistant' | 'contextSwap';
             content: string;
             timestamp: number;
             helpful?: boolean | null;
@@ -270,10 +316,13 @@ interface ExtensionMsgPayloads {
      */
     mergeSessionMessages: {
         localSessionId: string;
+        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
+        sessionId?: number;
         artemisSessionId: number;
         messages: Array<{
             id?: number;
-            role: 'user' | 'assistant';
+            /** `contextSwap`: see `addMessage.message.role`. */
+            role: 'user' | 'assistant' | 'contextSwap';
             content: string;
             timestamp: number;
             helpful?: boolean | null;
@@ -286,7 +335,13 @@ interface ExtensionMsgPayloads {
      * the send POST response, so a later history merge matches it by id (no
      * duplicate) and the bubble leaves its `sending` state.
      */
-    confirmSentMessage: { localSessionId: string; localId: string; id: number };
+    confirmSentMessage: {
+        localSessionId: string;
+        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
+        sessionId?: number;
+        localId: string;
+        id: number;
+    };
     loadMessagesError: { localSessionId: string };
     /**
      * A pre-switch open failure: the course overview fetch failed, or the
@@ -346,7 +401,26 @@ interface ExtensionMsgPayloads {
     sendRejected: {
         localId: string;
         localSessionId: string;
-        reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
+        sessionId?: number;
+        /**
+         * Widened for the conversation-first send coordinator (Task 14): the
+         * new values name rejections `IrisConversationService`'s send path
+         * can produce, which the old model never did. The coordinator cannot
+         * report a reason the wire refuses to carry.
+         */
+        reason:
+            | 'no-ai'
+            | 'no-context'
+            | 'iris-disabled'
+            | 'iris-unavailable'
+            | 'send-in-flight'
+            | 'navigation-in-flight'
+            | 'no-conversation'
+            | 'conversation-changed'
+            | 'rate-limit'
+            | 'preparation-failed'
+            | 'unknown';
         errorMessage: string;
     };
     /**

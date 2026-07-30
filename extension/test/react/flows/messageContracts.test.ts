@@ -189,6 +189,140 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.type).toBe('addMessage');
         expect('runUi' in msg).toBe(false);
     });
+
+    // ------------------------------------------------------------------
+    // Task 10: conversation-shaped wire additions. Every field below is
+    // additive (optional, next to the field it complements), so most of
+    // these are compile-time `satisfies` guards: the meaningful failure
+    // mode is a field being narrowed, renamed or made required, which
+    // shows up as a TypeScript error, not a runtime assertion failure.
+    // ------------------------------------------------------------------
+
+    it('UpdateIrisStateMessage accepts the old shape alone (conversation fields all absent)', () => {
+        const msg = {
+            type: 'updateIrisState' as const,
+            state: {
+                context: null,
+                activeSessionId: null,
+                sessions: [],
+                exercises: [],
+                courses: [],
+            },
+        } as ExtMsg<'updateIrisState'>;
+
+        expect(msg.state.courseId).toBeUndefined();
+        expect(msg.state.conversations).toBeUndefined();
+    });
+
+    it('UpdateIrisStateMessage accepts the new conversation-first fields alongside the old ones', () => {
+        const msg = {
+            type: 'updateIrisState' as const,
+            state: {
+                context: null,
+                activeSessionId: null,
+                sessions: [],
+                exercises: [],
+                courses: [],
+                courseId: 5,
+                courseTitle: 'Algorithms',
+                currentSessionId: 42,
+                conversationTitle: 'Recursion help',
+                displayMessageCount: 3,
+                committedContext: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 12, name: 'Sorting' },
+                pendingContext: { mode: 'COURSE_CHAT', entityId: 5 },
+                contentState: 'content' as const,
+                sendInFlight: false,
+                navigationInFlight: false,
+                conversations: [
+                    { sessionId: 42, courseId: 5, mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 12, entityName: 'Sorting', title: 'Recursion help', lastActivity: 1_700_000_000_000 },
+                ],
+                workspaceExerciseId: 12,
+            },
+        } satisfies ExtMsg<'updateIrisState'>;
+
+        expect(msg.state.courseId).toBe(5);
+        expect(msg.state.contentState).toBe('content');
+        expect(msg.state.conversations?.[0].sessionId).toBe(42);
+        expect(msg.state.pendingContext?.mode).toBe('COURSE_CHAT');
+    });
+
+    it('LoadMessagesMessage and MergeSessionMessagesMessage accept a contextSwap row and an optional sessionId', () => {
+        const load = {
+            type: 'loadMessages' as const,
+            localSessionId: 'session-local-1',
+            sessionId: 42,
+            artemisSessionId: 7,
+            messages: [
+                { role: 'contextSwap' as const, content: 'Switched to Sorting', timestamp: 1_700_000_000_000 },
+            ],
+        } satisfies ExtMsg<'loadMessages'>;
+
+        const merge = {
+            type: 'mergeSessionMessages' as const,
+            localSessionId: 'session-local-1',
+            sessionId: 42,
+            artemisSessionId: 7,
+            messages: [
+                { role: 'contextSwap' as const, content: 'Switched to Sorting', timestamp: 1_700_000_000_000 },
+            ],
+        } satisfies ExtMsg<'mergeSessionMessages'>;
+
+        expect(load.messages[0].role).toBe('contextSwap');
+        expect(merge.sessionId).toBe(42);
+    });
+
+    it('ConfirmSentMessageMessage accepts an optional sessionId beside localSessionId', () => {
+        const msg = {
+            type: 'confirmSentMessage' as const,
+            localSessionId: 'session-local-1',
+            sessionId: 42,
+            localId: 'msg-local-1',
+            id: 99,
+        } satisfies ExtMsg<'confirmSentMessage'>;
+
+        expect(msg.sessionId).toBe(42);
+    });
+
+    it('SendRejectedMessage accepts the new conversation-first reasons and an optional sessionId', () => {
+        const msg = {
+            type: 'sendRejected' as const,
+            localId: 'msg-local-1',
+            localSessionId: 'session-local-1',
+            sessionId: 42,
+            reason: 'no-conversation' as const,
+            errorMessage: 'No conversation is open right now.',
+        } satisfies ExtMsg<'sendRejected'>;
+
+        expect(msg.reason).toBe('no-conversation');
+        expect(msg.sessionId).toBe(42);
+    });
+
+    it('IrisRunUiProjection accepts an optional sessionId beside localSessionId', () => {
+        const msg = {
+            type: 'updateIrisRunUi' as const,
+            projection: {
+                localSessionId: 'session-local-1',
+                sessionId: 42,
+                revision: 1,
+                draft: null,
+                activities: [],
+                waiting: false,
+                runState: null,
+            },
+        } satisfies ExtMsg<'updateIrisRunUi'>;
+
+        expect(msg.projection.sessionId).toBe(42);
+    });
+
+    it('ShowChatNoticeMessage (landed in Task 6) has the actionless {text} shape', () => {
+        const msg = {
+            type: 'showChatNotice' as const,
+            text: 'Dropped your staged topic because the conversation moved on.',
+        } satisfies ExtMsg<'showChatNotice'>;
+
+        expect('undo' in msg).toBe(false);
+        expect(msg.text).toContain('staged topic');
+    });
 });
 
 // ============================================================================
@@ -348,6 +482,54 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
 
         expect(msg.command).toBe('reconnectWebSocket');
     });
+
+    // ------------------------------------------------------------------
+    // Task 10: conversation-first commands. Added alongside the existing
+    // Iris Chat commands (SelectChatContext, SwitchSession, etc.), which
+    // stay until Task 15. Nothing dispatches these yet (Task 14).
+    // ------------------------------------------------------------------
+
+    it('SelectTopicCommand has mode, entityId and optional name payload', () => {
+        const msg = {
+            type: 'command' as const,
+            command: 'selectTopic' as const,
+            payload: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 12, name: 'Sorting' },
+        } satisfies WebCmd<'selectTopic'>;
+
+        expect(msg.payload.mode).toBe('PROGRAMMING_EXERCISE_CHAT');
+        expect(msg.payload.entityId).toBe(12);
+    });
+
+    it('OpenConversationCommand has courseId and sessionId payload', () => {
+        const msg = {
+            type: 'command' as const,
+            command: 'openConversation' as const,
+            payload: { courseId: 5, sessionId: 42 },
+        } satisfies WebCmd<'openConversation'>;
+
+        expect(msg.payload.courseId).toBe(5);
+        expect(msg.payload.sessionId).toBe(42);
+    });
+
+    it('SwitchCourseCommand has courseId payload', () => {
+        const msg = {
+            type: 'command' as const,
+            command: 'switchCourse' as const,
+            payload: { courseId: 5 },
+        } satisfies WebCmd<'switchCourse'>;
+
+        expect(msg.payload.courseId).toBe(5);
+    });
+
+    it('NewConversationCommand has type=command, command=newConversation (no payload)', () => {
+        const msg = {
+            type: 'command' as const,
+            command: 'newConversation' as const,
+        } satisfies WebCmd<'newConversation'>;
+
+        expect(msg.command).toBe('newConversation');
+        expect('payload' in msg).toBe(false);
+    });
 });
 
 // ============================================================================
@@ -446,6 +628,38 @@ describe('Message contracts: type guards', () => {
     it('isWebviewMessage rejects problemStatementSelection command without payload', () => {
         const msg = { type: 'command', command: 'problemStatementSelection' };
         expect(isWebviewMessage(msg)).toBe(false);
+    });
+
+    // ------------------------------------------------------------------
+    // Task 10: the three payload-bearing conversation-first commands must
+    // be registered in COMMANDS_REQUIRING_PAYLOAD; newConversation must not
+    // (it has no payload). This is genuinely runtime-checkable: dropping an
+    // entry from that set is exactly the regression these tests catch.
+    // ------------------------------------------------------------------
+
+    it('isWebviewMessage rejects selectTopic command without payload', () => {
+        const msg = { type: 'command', command: 'selectTopic' };
+        expect(isWebviewMessage(msg)).toBe(false);
+    });
+
+    it('isWebviewMessage accepts selectTopic command with payload', () => {
+        const msg = { type: 'command', command: 'selectTopic', payload: { mode: 'COURSE_CHAT', entityId: 5 } };
+        expect(isWebviewMessage(msg)).toBe(true);
+    });
+
+    it('isWebviewMessage rejects openConversation command without payload', () => {
+        const msg = { type: 'command', command: 'openConversation' };
+        expect(isWebviewMessage(msg)).toBe(false);
+    });
+
+    it('isWebviewMessage rejects switchCourse command without payload', () => {
+        const msg = { type: 'command', command: 'switchCourse' };
+        expect(isWebviewMessage(msg)).toBe(false);
+    });
+
+    it('isWebviewMessage accepts newConversation command without payload', () => {
+        const msg = { type: 'command', command: 'newConversation' };
+        expect(isWebviewMessage(msg)).toBe(true);
     });
 });
 

@@ -127,10 +127,18 @@ export abstract class BaseWebviewProvider {
     /** Hard cap on pending messages to prevent unbounded growth. */
     private static readonly MAX_PENDING = 200;
 
-    /** Event-type messages that carry unique data per dispatch and must never be deduplicated. */
+    /**
+     * Event-type messages that carry unique data per dispatch and must never
+     * be deduplicated. `showChatNotice` belongs here: two notices in a row
+     * are two distinct facts about two distinct events, never a replacement
+     * of one another. `updateIrisState` is deliberately NOT listed: it is a
+     * full snapshot, so last-wins (the default coalescing behaviour below)
+     * is correct for it.
+     */
     private static readonly EVENT_TYPES: ReadonlySet<string> = new Set([
         'websocketUpdate',
         'addMessage',
+        'showChatNotice',
     ]);
 
     /**

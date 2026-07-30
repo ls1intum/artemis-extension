@@ -460,7 +460,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // has plausibly cleared since the original send. Computed inline per
     // render because the message list is short and `messages.map` already
     // walks it; rebuilding a Map would be wasted work.
-    const isRetryDisabled = (msg: { errorReason?: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable' }) => {
+    const isRetryDisabled = (msg: { errorReason?: ChatMessage['errorReason'] }) => {
         switch (msg.errorReason) {
             case 'iris-disabled':
                 // Persistent until the user navigates away from the
