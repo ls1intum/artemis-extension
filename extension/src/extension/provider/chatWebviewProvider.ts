@@ -21,6 +21,7 @@ import {
 import { historyResolvesRun } from '@extension/services/iris/chat/historyResolution';
 import type { CourseHistoryEntry } from '@extension/services/iris/context/courseHistory';
 import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
+import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
@@ -66,6 +67,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _viewStatePresenter: ChatViewStatePresenter;
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisWebSocketSessionClient;
+    /**
+     * The conversation-first Iris service. Constructed here so tasks 6, 8 and
+     * 10 all have somewhere to build on; nothing routes to it yet (task 14
+     * does the cut-over). Optional because both `_artemisApiService` and
+     * `_irisSessionManager` are optional at baseline; every later consumer
+     * must guard on it rather than assume it.
+     */
+    private _conversation: IrisConversationService | undefined;
     private _chatDiagnosticsService: ChatDiagnosticsService;
     private _chatSessionService: IrisChatSessionService;
     private _chatMessageService: ChatMessageService;
@@ -263,6 +272,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         if (this._artemisApiService && this._websocketService) {
             this._irisSessionManager = new IrisWebSocketSessionClient(this._artemisApiService, this._websocketService);
+            // Constructed right where the session client is, so both exist
+            // together. Pushed onto _disposables BEFORE the session client, so
+            // no in-flight install can subscribe to an already-disposed client.
+            this._conversation = this._createConversationService(this._irisSessionManager);
+            if (this._conversation) { this._disposables.push(this._conversation); }
             this._disposables.push(this._irisSessionManager);
 
             this._disposables.push(
@@ -276,6 +290,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     void this._reconcileOnResubscribe(sessionId);
                 }),
             );
+            // The production caller for reconcileCurrent: subscribeToSession only
+            // records intent, so an install can complete while the STOMP
+            // subscription is still pending or being retried after a throw, and a
+            // CTXSWAP in that gap is simply never heard. onDidResubscribe fires at
+            // the one moment that is true for both a first subscribe and a
+            // reconnect.
+            if (this._conversation) {
+                this._disposables.push(
+                    this._irisSessionManager.onDidResubscribe((sessionId) => this._conversation!.onSubscriptionActive(sessionId)),
+                );
+            }
 
             // Auto-retry chat reload on websocket reconnect when the chat is
             // currently in an `unavailable` state for the active context.
@@ -315,6 +340,20 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._postNoAiStatus(isNoAiDetected);
             })
         );
+    }
+
+    /** Called where `_irisSessionManager` is created, so both exist together. */
+    private _createConversationService(client: IrisWebSocketSessionClient): IrisConversationService | undefined {
+        if (!this._artemisApiService) { return undefined; }
+        return new IrisConversationService(this._artemisApiService, {
+            subscribeToSession: (sessionId) => client.subscribeToSession(sessionId),
+            getWorkspaceExercise: () => {
+                const exercise = this._contextStore.getWorkspaceExercise();
+                return exercise?.courseId === undefined
+                    ? undefined
+                    : { exerciseId: exercise.id, courseId: exercise.courseId };
+            },
+        });
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────

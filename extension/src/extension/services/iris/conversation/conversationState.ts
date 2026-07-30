@@ -158,6 +158,27 @@ export class ConversationState {
     /** A reconnect changes nothing about which sessions exist. */
     public noteReconnect(): void { /* deliberately empty; documents the decision */ }
 
+    /** Drops every local cache. The "Reload Iris chat" escape hatch. */
+    public resetCachesForReload(): void {
+        this._courseSessions = [];
+        this._knownInvisible.clear();
+        // `_detail` deliberately SURVIVES until the fresh detail installs over
+        // it. Clearing it here opens a hole with no guard behind it:
+        // `upsertMessage` returns immediately when `_detail` is undefined, so a
+        // USER or LLM frame arriving during the reload GET is simply dropped,
+        // and the conversation would report `empty` while the student is
+        // looking at their own message. A failed reload would also leave
+        // `contentState` stuck at `unknown` forever. This "retain detail until a
+        // replacement installs" rule is what keeps the monotonic union of cut 6
+        // from ever producing a FALSE EMPTY, so it and its tests stay.
+    }
+
+    /** Drops a session from both index sources after a 400/404 open. */
+    public forgetSession(sessionId: number): void {
+        this._courseSessions = this._courseSessions.filter((s) => s.sessionId !== sessionId);
+        this._knownInvisible.delete(sessionId);
+    }
+
     // ---- installs -----------------------------------------------------
 
     /**
