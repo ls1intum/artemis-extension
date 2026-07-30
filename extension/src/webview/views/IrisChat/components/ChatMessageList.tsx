@@ -7,25 +7,40 @@ import type { ChatMessage, StreamingState } from '@webview/views/IrisChat/types'
 
 import { ActivityFeed } from './ActivityFeed';
 import styles from './ChatMessageList.module.css';
+import { ContextSwapRow } from './ContextSwapRow';
 import { MessageBubble } from './MessageBubble';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
 
+const IDLE_STREAMING: StreamingState = { isStreaming: false };
+const NO_ACTIVITIES: IrisActivityDTO[] = [];
+const noop = () => { /* the transcript is renderable without a live chat behind it */ };
+
 interface ChatMessageListProps {
     messages: ChatMessage[];
-    streaming: StreamingState;
+    streaming?: StreamingState;
     /** Live tool/command activity for the in-flight run. */
-    activities: IrisActivityDTO[];
+    activities?: IrisActivityDTO[];
     /** The streaming answer draft, or null when none is in flight. */
-    liveDraft: { runId: string; text: string } | null;
+    liveDraft?: { runId: string; text: string } | null;
     /** Current run lifecycle state (drives the FAILED error branch). */
-    runState: IrisRunState | null;
+    runState?: IrisRunState | null;
     /** Error payload for a FAILED run. */
-    runError: { message?: string } | null;
-    onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
-    onSendPrompt: (text: string) => void;
-    hasContext: boolean;
+    runError?: { message?: string } | null;
+    onFeedback?: (messageId: number, feedback: 'positive' | 'negative') => void;
+    onSendPrompt?: (text: string) => void;
+    hasContext?: boolean;
     isChatDisabled?: boolean;
+    /**
+     * The conversation's topic, accepted but deliberately not rendered here.
+     * An earlier draft ended the transcript with a dashed preview line while
+     * something was staged; it was cut, so the composer chip alone carries
+     * `pending ?? committed` and the transcript carries only the markers the
+     * server actually stored. Kept on the contract because the transcript is
+     * where a future preview would have to live, and callers already pass it.
+     */
+    committedContext?: unknown;
+    pendingContext?: unknown;
     /** Invoked when a failed user message's Retry button is clicked. */
     onRetry?: (localId: string) => void;
     /**
@@ -39,14 +54,14 @@ interface ChatMessageListProps {
 
 export function ChatMessageList({
     messages,
-    streaming,
-    activities,
-    liveDraft,
-    runState,
-    runError,
+    streaming = IDLE_STREAMING,
+    activities = NO_ACTIVITIES,
+    liveDraft = null,
+    runState = null,
+    runError = null,
     onFeedback,
-    onSendPrompt,
-    hasContext,
+    onSendPrompt = noop,
+    hasContext = true,
     isChatDisabled,
     onRetry,
     isRetryDisabled,
@@ -75,16 +90,23 @@ export function ChatMessageList({
                     <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
                 ) : (
                     <>
+                        {/* Marker rows render in transcript order, so a stored
+                            topic change appears before the message it
+                            triggered, matching the server's write order. */}
                         {messages.map((message) => (
-                            <MessageBubble
-                                key={message.localId}
-                                message={message}
-                                onFeedback={onFeedback}
-                                onRetry={onRetry}
-                                retryDisabled={
-                                    isRetryDisabled ? isRetryDisabled(message) : false
-                                }
-                            />
+                            message.role === 'contextSwap' ? (
+                                <ContextSwapRow key={message.localId} text={message.content} />
+                            ) : (
+                                <MessageBubble
+                                    key={message.localId}
+                                    message={message}
+                                    onFeedback={onFeedback}
+                                    onRetry={onRetry}
+                                    retryDisabled={
+                                        isRetryDisabled ? isRetryDisabled(message) : false
+                                    }
+                                />
+                            )
                         ))}
 
                         {/* Live run surfaces, in order: activity feed, the

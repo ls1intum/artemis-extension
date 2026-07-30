@@ -1,0 +1,238 @@
+import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { ChatMessageList } from '@webview/views/IrisChat/components/ChatMessageList';
+import { ChatNotice } from '@webview/views/IrisChat/components/ChatNotice';
+import { ContextChip } from '@webview/views/IrisChat/components/ContextChip';
+import { ContextPicker } from '@webview/views/IrisChat/components/ContextPicker';
+import { ConversationHistory } from '@webview/views/IrisChat/components/ConversationHistory';
+import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
+
+// Mock streamdown (ESM-only package)
+vi.mock('streamdown', () => ({
+    Streamdown: ({ children }: { children?: string }) => (
+        <span data-testid="streamdown">{children}</span>
+    ),
+}));
+
+// Mock use-stick-to-bottom (ESM package; must include scrollToBottom fn)
+vi.mock('use-stick-to-bottom', () => ({
+    useStickToBottom: vi.fn().mockReturnValue({
+        scrollRef: { current: null },
+        contentRef: { current: null },
+        isAtBottom: true,
+        scrollToBottom: vi.fn(),
+    }),
+}));
+
+// Mock Shiki/CodeBlock to avoid dynamic imports
+vi.mock('@webview/views/IrisChat/components/CodeBlock', () => ({
+    CodeBlock: ({ children }: { language?: string; children?: string }) => (
+        <pre><code>{children}</code></pre>
+    ),
+}));
+
+const EX5 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 5, name: 'Recursion' };
+const EX7 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 7, name: 'Sorting' };
+const COURSE42 = { mode: 'COURSE_CHAT' as const, entityId: 42 };
+
+const pickerProps = (over: Record<string, unknown> = {}) => ({
+    courseId: 42,
+    committedContext: COURSE42,
+    pendingContext: undefined,
+    contentState: 'content' as const,
+    sendInFlight: false,
+    exercises: [
+        { id: 5, title: 'Recursion', courseId: 42 },
+        { id: 7, title: 'Sorting', courseId: 42 },
+    ],
+    conversations: [{ sessionId: 9, courseId: 42, mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7, lastActivity: 100 }],
+    onSelect: vi.fn(),
+    ...over,
+});
+
+describe('ContextChip', () => {
+    it('shows the chip remove icon while the conversation is empty', () => {
+        render(<ContextChip context={EX5} contentState="empty" onRemove={vi.fn()} onOpenPicker={vi.fn()} />);
+        expect(screen.getByRole('button', { name: 'Thema entfernen' })).toBeInTheDocument();
+    });
+
+    it('hides the chip remove icon once the conversation has content', () => {
+        // With content, removing the topic necessarily means leaving for another
+        // conversation, and a small remove icon must not silently replace the whole
+        // transcript. The picker's Kurs-Chat entry carries that action instead.
+        render(<ContextChip context={EX5} contentState="content" onRemove={vi.fn()} onOpenPicker={vi.fn()} />);
+        expect(screen.queryByRole('button', { name: 'Thema entfernen' })).toBeNull();
+    });
+
+    it('renders no chip when the topic is the course', () => {
+        const { container } = render(
+            <ContextChip context={COURSE42} contentState="empty" onRemove={vi.fn()} onOpenPicker={vi.fn()} />,
+        );
+        expect(container).toBeEmptyDOMElement();
+    });
+});
+
+describe('ContextPicker (topic picker)', () => {
+    it('warns once that the selection may open another conversation', () => {
+        render(<ContextPicker {...pickerProps()} />);
+        expect(screen.getByText(/oeffnet gegebenenfalls eine andere Unterhaltung/)).toBeInTheDocument();
+    });
+
+    it('shows no such warning while the conversation is empty', () => {
+        // Empty means the pick stages in place, so there is nothing to warn about.
+        render(<ContextPicker {...pickerProps({ contentState: 'empty' })} />);
+        expect(screen.queryByText(/oeffnet gegebenenfalls eine andere Unterhaltung/)).toBeNull();
+    });
+
+    it('disables every picker entry while the content state is unknown', () => {
+        render(<ContextPicker {...pickerProps({ contentState: 'unknown' })} />);
+        for (const id of [5, 7]) {
+            expect(screen.getByTestId(`picker-entry-${id}`)).toBeDisabled();
+        }
+        expect(screen.getByTestId('picker-entry-course')).toBeDisabled();
+    });
+
+    it('disables every picker entry while a send is in flight', () => {
+        render(<ContextPicker {...pickerProps({ sendInFlight: true })} />);
+        expect(screen.getByTestId('picker-entry-5')).toBeDisabled();
+    });
+});
+
+describe('ConversationHistory (conversation list)', () => {
+    it('lists a lecture conversation in the history but not in the picker', () => {
+        const lecture = {
+            sessionId: 12,
+            courseId: 42,
+            mode: 'LECTURE_CHAT',
+            entityId: 3,
+            entityName: 'Woche 3',
+            lastActivity: 200,
+        };
+        const history = render(
+            <ConversationHistory conversations={[lecture]} currentSessionId={9} onOpen={vi.fn()} nowMs={300} />,
+        );
+        expect(screen.getByText('Woche 3')).toBeInTheDocument();
+        // Unmounted before the second render: both would otherwise live in the
+        // same document and the picker assertion below could never fail.
+        history.unmount();
+
+        render(<ContextPicker {...pickerProps({ conversations: [lecture] })} />);
+        expect(screen.queryByText('Woche 3')).toBeNull();
+    });
+});
+
+describe('ChatMessageList (transcript)', () => {
+    it('renders no preview line, staged or not', () => {
+        // Cut 5. The chip alone carries `pending ?? committed`.
+        render(<ChatMessageList
+            messages={[{ localId: 'a', role: 'user', content: 'hallo', timestamp: 1 }]}
+            pendingContext={EX7}
+            committedContext={COURSE42}
+        />);
+        expect(screen.queryByTestId('context-preview')).toBeNull();
+    });
+
+    it('renders a stored marker row in transcript order, before the message it triggered', () => {
+        render(<ChatMessageList
+            messages={[
+                { localId: 'm', role: 'contextSwap', content: 'Thema gesetzt auf Sorting', timestamp: 1 },
+                { localId: 'u', role: 'user', content: 'hallo', timestamp: 2 },
+            ]}
+            pendingContext={undefined}
+            committedContext={EX7}
+        />);
+        const rows = screen.getAllByTestId('message-row');
+        expect(rows[0]).toHaveTextContent('Thema gesetzt auf Sorting');
+        expect(rows[1]).toHaveTextContent('hallo');
+    });
+});
+
+describe('ChatNotice', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('clears the notice when the open conversation changes', () => {
+        const { rerender } = render(
+            <ChatNotice
+                notice={{ text: 'Zu einer anderen Unterhaltung gewechselt.' }}
+                currentSessionId={1}
+                onExpire={vi.fn()}
+            />,
+        );
+        expect(screen.getByText('Zu einer anderen Unterhaltung gewechselt.')).toBeInTheDocument();
+        rerender(<ChatNotice notice={undefined} currentSessionId={9} onExpire={vi.fn()} />);
+        expect(screen.queryByText('Zu einer anderen Unterhaltung gewechselt.')).toBeNull();
+    });
+
+    it('asks to be cleared as soon as the conversation changes under it', () => {
+        // A notice is cleared by ANY navigation, not only by its own timeout:
+        // it describes a situation the student has since left.
+        const onExpire = vi.fn();
+        const { rerender } = render(
+            <ChatNotice notice={{ text: 'Neue Unterhaltung gestartet.' }} currentSessionId={1} onExpire={onExpire} />,
+        );
+        expect(onExpire).not.toHaveBeenCalled();
+
+        rerender(
+            <ChatNotice notice={{ text: 'Neue Unterhaltung gestartet.' }} currentSessionId={2} onExpire={onExpire} />,
+        );
+        expect(onExpire).toHaveBeenCalled();
+    });
+
+    it('asks to be cleared after ten seconds', () => {
+        vi.useFakeTimers();
+        const onExpire = vi.fn();
+        render(
+            <ChatNotice notice={{ text: 'Neue Unterhaltung gestartet.' }} currentSessionId={1} onExpire={onExpire} />,
+        );
+
+        vi.advanceTimersByTime(9_999);
+        expect(onExpire).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(onExpire).toHaveBeenCalledTimes(1);
+    });
+
+    it('never renders an action, on any notice', () => {
+        // Cut 2: the notice is actionless in PR 1. Undo returns with PR 2.
+        render(
+            <ChatNotice notice={{ text: 'Deine Vormerkung wurde verworfen.' }} currentSessionId={1} onExpire={vi.fn()} />,
+        );
+        expect(screen.queryByRole('button')).toBeNull();
+    });
+});
+
+describe('IrisChatView cold start', () => {
+    // The brief writes this as `render(<IrisChatView state={{...}} />)`, which
+    // the component has never accepted: it reads the store and takes only
+    // `vscodeApi`. The state is therefore delivered the way the host delivers
+    // it, through an `updateIrisState` snapshot; the assertion is unchanged.
+    const coldStartState = {
+        context: null,
+        activeSessionId: null,
+        sessions: [],
+        exercises: [],
+        courses: [],
+        // Presence of this key is what tells the webview the host speaks the
+        // conversation-first model at all (every value in it is legitimately
+        // empty at cold start).
+        contentState: 'unknown' as const,
+    };
+
+    it('offers the course list on cold start instead of an empty transcript', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: coldStartState });
+
+        expect(await screen.findByText(/Kein Artemis-Arbeitsbereich erkannt/)).toBeInTheDocument();
+    });
+
+    it('renders no header on cold start', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: coldStartState });
+
+        await screen.findByText(/Kein Artemis-Arbeitsbereich erkannt/);
+        expect(screen.queryByRole('button', { name: 'View past conversations' })).toBeNull();
+    });
+});

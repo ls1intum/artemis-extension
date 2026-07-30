@@ -1,0 +1,12 @@
+.notice {
+    padding: 0 16px 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--vscode-descriptionForeground);
+    animation: notice-fade-in 150ms ease;
+}
+
+@keyframes notice-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

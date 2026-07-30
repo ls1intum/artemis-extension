@@ -10,6 +10,15 @@ interface ChatInputProps {
     disabled: boolean;
     placeholder?: string;
     disabledPlaceholder?: string;
+    /**
+     * Controlled draft text. Supplying it hands the composer's state to the
+     * caller (the store's `composerText`, Task 11), which is what lets the
+     * draft survive a re-render triggered from outside this component, e.g. a
+     * topic change that repaints the chip while the student is typing.
+     * Omitted, the component keeps its own local state as before.
+     */
+    value?: string;
+    onValueChange?: (text: string) => void;
 }
 
 export function ChatInput({
@@ -17,8 +26,18 @@ export function ChatInput({
     disabled,
     placeholder = 'Ask Iris anything...',
     disabledPlaceholder = 'Select a course or exercise to start chatting',
+    value: controlledValue,
+    onValueChange,
 }: ChatInputProps) {
-    const [value, setValue] = useState('');
+    const [localValue, setLocalValue] = useState('');
+    const value = controlledValue ?? localValue;
+    const setValue = (text: string) => {
+        if (controlledValue === undefined) {
+            setLocalValue(text);
+            return;
+        }
+        onValueChange?.(text);
+    };
 
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
         // Enter without Shift sends message

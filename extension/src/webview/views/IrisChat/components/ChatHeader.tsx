@@ -25,6 +25,18 @@ interface ChatHeaderProps {
     onOpenContextPicker: (e: React.MouseEvent) => void;
     onNewConversation: () => void;
     onOpenHistory: (e: React.MouseEvent) => void;
+
+    // ---- Conversation-first props (Task 12). Supplying `onOpenCoursePicker`
+    // switches this header to the one-row, two-line layout; without it the
+    // pre-conversation-first two-row layout above stays. Task 15 deletes the
+    // old branch together with the props that feed it.
+    /** Header line 1, and the only clickable label: opens the course list. */
+    courseTitle?: string | null;
+    /** Header line 2, beside `displayMessageCount`. */
+    conversationTitle?: string | null;
+    /** Excludes CTXSWAP marker rows; display only. */
+    displayMessageCount?: number;
+    onOpenCoursePicker?: (e: React.MouseEvent) => void;
 }
 
 export function ChatHeader({
@@ -36,7 +48,68 @@ export function ChatHeader({
     onOpenContextPicker,
     onNewConversation,
     onOpenHistory,
+    courseTitle,
+    conversationTitle,
+    displayMessageCount = 0,
+    onOpenCoursePicker,
 }: ChatHeaderProps) {
+    // The `+` and `history` buttons are identical in both layouts; only what
+    // they sit beside differs.
+    const actionButtons = (newConversationEnabled: boolean) => (
+        <>
+            <button
+                className={styles.iconBtn}
+                onClick={onNewConversation}
+                disabled={!newConversationEnabled}
+                aria-label="New conversation"
+                title="New conversation"
+            >
+                <Plus size={16} />
+            </button>
+            <button
+                className={styles.iconBtn}
+                onClick={onOpenHistory}
+                disabled={disableNavigation}
+                aria-label="View past conversations"
+                title="View past conversations"
+            >
+                <History size={16} />
+            </button>
+        </>
+    );
+
+    if (onOpenCoursePicker) {
+        // One row, two lines. Line 1 is the course and is the only clickable
+        // label, so a click never lands on a target the label did not name.
+        // The topic is deliberately absent here: it lives on the composer
+        // chip, so each fact appears exactly once.
+        const count = displayMessageCount;
+        const conversationLine =
+            `${conversationTitle || 'Neue Unterhaltung'} · ${count} ${count === 1 ? 'Nachricht' : 'Nachrichten'}`;
+
+        return (
+            <div className={styles.header}>
+                <div className={styles.singleRow}>
+                    <span className={styles.icon}>
+                        <BookOpen size={16} />
+                    </span>
+                    <span className={styles.textCol}>
+                        <button
+                            className={styles.courseButton}
+                            onClick={onOpenCoursePicker}
+                            disabled={disableNavigation}
+                        >
+                            <span className={styles.primary}>{courseTitle ?? 'Kurs waehlen'}</span>
+                            <ChevronDown size={14} className={styles.chevron} />
+                        </button>
+                        <span className={styles.secondary}>{conversationLine}</span>
+                    </span>
+                    {actionButtons(!disableNavigation)}
+                </div>
+            </div>
+        );
+    }
+
     const isExercise = context?.type === 'exercise';
 
     const primary = context === null ? 'Select a course or exercise' : context.title;
@@ -68,24 +141,7 @@ export function ChatHeader({
                     <span className={styles.primary}>{convTitle}</span>
                     <span className={styles.secondary}>{convMeta}</span>
                 </span>
-                <button
-                    className={styles.iconBtn}
-                    onClick={onNewConversation}
-                    disabled={!canCreateConversation || disableNavigation}
-                    aria-label="New conversation"
-                    title="New conversation"
-                >
-                    <Plus size={16} />
-                </button>
-                <button
-                    className={styles.iconBtn}
-                    onClick={onOpenHistory}
-                    disabled={disableNavigation}
-                    aria-label="View past conversations"
-                    title="View past conversations"
-                >
-                    <History size={16} />
-                </button>
+                {actionButtons(canCreateConversation && !disableNavigation)}
             </div>
         </div>
     );

@@ -1,0 +1,60 @@
+/* Values mirror Artemis's own chip (context-selection.component.scss): a 12%
+   tint of the primary colour, a 25% border of the same, normal body text
+   colour (NOT the accent colour) and a pill radius. */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 2px 4px 2px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--vscode-charts-blue) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--vscode-charts-blue) 25%, transparent);
+    color: var(--vscode-foreground);
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.label {
+    max-width: 220px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.label:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 999px;
+    color: inherit;
+    opacity: 0.4;
+    cursor: pointer;
+    transition: opacity 150ms ease;
+}
+
+.remove:hover:not(:disabled) {
+    opacity: 1;
+}
+
+.remove:disabled {
+    cursor: default;
+    opacity: 0.25;
+}

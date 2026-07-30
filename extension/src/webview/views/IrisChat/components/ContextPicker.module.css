@@ -13,6 +13,40 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* The topic picker hangs off the composer, so it opens upward. */
+.dialogUp {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.hint {
+    padding: 8px 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--vscode-descriptionForeground);
+    border-bottom: 1px solid var(--vscode-dropdown-border);
+}
+
+.row:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.row:disabled:hover {
+    background: transparent;
+}
+
 .searchWrapper {
     position: sticky;
     top: 0;

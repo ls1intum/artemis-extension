@@ -65,6 +65,7 @@ function MessageBubbleComponent({
 
     return (
         <div
+            data-testid="message-row"
             className={clsx(styles.messageWrapper, {
                 [styles.user]: isUser,
                 [styles.assistant]: isAssistant,

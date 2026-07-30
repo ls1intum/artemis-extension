@@ -1,5 +1,20 @@
+import type { ExtMsg } from '@shared/messageContracts';
 import type { ExerciseRef } from '@shared/types';
 import type { IrisActivityDTO } from '@shared/types/apiResponses';
+
+/**
+ * Conversation-first view types (Task 12), narrowed off the wire shape rather
+ * than re-declared, so a component prop can never silently drift from the
+ * payload it renders. `useChatStore` narrows the same three types locally for
+ * its own state fields; both point at the one wire definition.
+ */
+type WireIrisState = ExtMsg<'updateIrisState'>['state'];
+/** A conversation's topic: `committedContext` / `pendingContext` on the wire. */
+export type ConversationTopic = NonNullable<WireIrisState['committedContext']>;
+/** 'unknown' disables the topic picker and the chip's remove icon. */
+export type ContentState = NonNullable<WireIrisState['contentState']>;
+/** One row of the course-wide conversation list (history popover). */
+export type ConversationSummary = NonNullable<WireIrisState['conversations']>[number];
 
 // Chat message as rendered in the UI
 export interface ChatMessage {

@@ -10,16 +10,249 @@ import type { ChatContextType } from '@shared/types/context';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { compareCoursesForPicker, compareExercisesForPicker } from '@webview/views/IrisChat/pickerSort';
-import type { ChatContext, ContextItem } from '@webview/views/IrisChat/types';
+import type {
+    ChatContext,
+    ContentState,
+    ContextItem,
+    ConversationSummary,
+    ConversationTopic,
+} from '@webview/views/IrisChat/types';
 
 import styles from './ContextPicker.module.css';
 
+/** Stated once at the top of the topic picker while the conversation has content. */
+const TOPIC_CHANGE_HINT = 'Die Auswahl oeffnet gegebenenfalls eine andere Unterhaltung.';
+
 interface ContextPickerProps {
-    context: ChatContext | null;
+    // ---- Pre-conversation-first props. Task 15 deletes them together with
+    // the branch that reads them.
+    context?: ChatContext | null;
+    courses?: ContextItem[];
+    onSelectContext?: (type: ChatContextType, id: number, title: string, shortName?: string) => void;
+    onClose?: () => void;
+
+    /** Read by both branches. */
     exercises: ContextItem[];
-    courses: ContextItem[];
-    onSelectContext: (type: ChatContextType, id: number, title: string, shortName?: string) => void;
-    onClose: () => void;
+
+    // ---- Conversation-first props (Task 12). Supplying BOTH `courseId` and
+    // `onSelect` switches this popover to the topic picker.
+    /** The course the picker is scoped to. There are no cross-course entries. */
+    courseId?: number;
+    committedContext?: ConversationTopic;
+    pendingContext?: ConversationTopic;
+    contentState?: ContentState;
+    sendInFlight?: boolean;
+    /**
+     * Accepted so a caller can hand the picker and the history the same prop
+     * bag. Deliberately unread: the per-entry outcome labels that would have
+     * needed it were cut in favour of one static hint, because computing them
+     * here would mean duplicating the host's `resolveTopic` into the webview
+     * (which `eslint.config.mjs` forbids importing) and a second
+     * implementation can drift, at which point the UI predicts an outcome the
+     * host does not produce.
+     */
+    conversations?: ConversationSummary[];
+    /** Pinned and badged in the list when it belongs to this course. */
+    workspaceExerciseId?: number | null;
+    onSelect?: (topic: ConversationTopic) => void;
+}
+
+/** Shared Escape/Tab handling for both popover variants. */
+function usePopoverKeyDown(dialogRef: React.RefObject<HTMLDivElement | null>, onClose: () => void) {
+    return (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'Escape') {
+            event.stopPropagation();
+            onClose();
+            return;
+        }
+        if (event.key !== 'Tab') { return; }
+
+        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusables || focusables.length === 0) { return; }
+
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+
+        if (event.shiftKey && active === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && active === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
+}
+
+/**
+ * Dispatcher. The two variants are separate components so each keeps its own
+ * hooks: flipping between them unmounts one and mounts the other instead of
+ * changing hook order inside a single instance.
+ */
+export function ContextPicker(props: ContextPickerProps) {
+    if (props.onSelect && props.courseId !== undefined) {
+        return (
+            <TopicPicker
+                courseId={props.courseId}
+                exercises={props.exercises}
+                committedContext={props.committedContext}
+                pendingContext={props.pendingContext}
+                contentState={props.contentState ?? 'unknown'}
+                sendInFlight={props.sendInFlight ?? false}
+                workspaceExerciseId={props.workspaceExerciseId ?? null}
+                onSelect={props.onSelect}
+                onClose={props.onClose}
+            />
+        );
+    }
+    return (
+        <LegacyContextPicker
+            context={props.context ?? null}
+            exercises={props.exercises}
+            courses={props.courses ?? []}
+            onSelectContext={props.onSelectContext}
+            onClose={props.onClose}
+        />
+    );
+}
+
+interface TopicPickerInnerProps {
+    courseId: number;
+    exercises: ContextItem[];
+    committedContext: ConversationTopic | undefined;
+    pendingContext: ConversationTopic | undefined;
+    contentState: ContentState;
+    sendInFlight: boolean;
+    workspaceExerciseId: number | null;
+    onSelect: (topic: ConversationTopic) => void;
+    onClose: (() => void) | undefined;
+}
+
+/**
+ * The topic picker: "Kurs-Chat" as a fixed first entry, then this course's
+ * exercises with the workspace one pinned and badged. One checkmark, on
+ * `pending ?? committed`.
+ *
+ * No cross-course entries. The host rejects a cross-course topic change
+ * outright, so such a pick could never be a staging, and folding a course
+ * navigation into this menu would make one click mean two different things.
+ */
+function TopicPicker({
+    courseId,
+    exercises,
+    committedContext,
+    pendingContext,
+    contentState,
+    sendInFlight,
+    workspaceExerciseId,
+    onSelect,
+    onClose,
+}: TopicPickerInnerProps) {
+    const [searchQuery, setSearchQuery] = useState('');
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    useClickOutside(dialogRef, true, () => onClose?.());
+    const handleKeyDown = usePopoverKeyDown(dialogRef, () => onClose?.());
+
+    // The chip shows `pending ?? committed`, and so does the checkmark: the
+    // two must never disagree about what the topic currently is.
+    const selected = pendingContext ?? committedContext;
+    // 'unknown' means we do not know whether the pick would stage in place or
+    // navigate, and a picker that cannot state its own consequence must not
+    // be usable. An in-flight send owns the conversation until it resolves.
+    const entriesDisabled = contentState === 'unknown' || sendInFlight;
+
+    const q = searchQuery.trim().toLowerCase();
+
+    const courseExercises = useMemo(
+        () => exercises
+            .filter((ex) => ex.courseId === courseId)
+            .map((ex) => ({ ...ex, isWorkspace: ex.isWorkspace || ex.id === workspaceExerciseId }))
+            .sort(compareExercisesForPicker),
+        [exercises, courseId, workspaceExerciseId],
+    );
+
+    const visibleExercises = q.length === 0
+        ? courseExercises
+        : courseExercises.filter((ex) => ex.title.toLowerCase().includes(q)
+            || (ex.shortName ?? '').toLowerCase().includes(q));
+    const showCourseChat = q.length === 0 || 'kurs-chat'.includes(q);
+
+    const isSelected = (mode: string, entityId: number) =>
+        selected?.mode === mode && selected.entityId === entityId;
+
+    return (
+        <div
+            ref={dialogRef}
+            className={styles.dialogUp}
+            role="dialog"
+            aria-modal="true"
+            onKeyDown={handleKeyDown}
+        >
+            {contentState === 'content' && (
+                <div className={styles.hint}>{TOPIC_CHANGE_HINT}</div>
+            )}
+
+            <div className={styles.searchWrapper}>
+                <Search size={14} className={styles.searchIcon} />
+                <input
+                    type="text"
+                    className={styles.searchInput}
+                    placeholder="Thema suchen…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoFocus
+                />
+            </div>
+
+            <div className={styles.list}>
+                {showCourseChat && (
+                    <button
+                        type="button"
+                        className={clsx(styles.row, { [styles.rowActive]: isSelected('COURSE_CHAT', courseId) })}
+                        data-testid="picker-entry-course"
+                        disabled={entriesDisabled}
+                        onClick={() => onSelect({ mode: 'COURSE_CHAT', entityId: courseId })}
+                    >
+                        <BookOpen size={16} className={styles.rowIcon} />
+                        <span className={styles.rowText}>Kurs-Chat</span>
+                        {isSelected('COURSE_CHAT', courseId) && <Check size={16} className={styles.checkIcon} />}
+                    </button>
+                )}
+
+                {visibleExercises.map((exercise) => {
+                    const active = isSelected('PROGRAMMING_EXERCISE_CHAT', exercise.id);
+                    return (
+                        <button
+                            key={exercise.id}
+                            type="button"
+                            className={clsx(styles.row, { [styles.rowActive]: active })}
+                            data-testid={`picker-entry-${exercise.id}`}
+                            disabled={entriesDisabled}
+                            onClick={() => onSelect({
+                                mode: 'PROGRAMMING_EXERCISE_CHAT',
+                                entityId: exercise.id,
+                                name: exercise.title,
+                            })}
+                        >
+                            <File size={16} className={styles.rowIcon} />
+                            <span className={styles.rowText}>
+                                {exercise.title}
+                                {exercise.isWorkspace && <span className={styles.badge}>Workspace</span>}
+                            </span>
+                            {active && <Check size={16} className={styles.checkIcon} />}
+                        </button>
+                    );
+                })}
+
+                {!showCourseChat && visibleExercises.length === 0 && (
+                    <div className={styles.emptyState}>Keine Themen gefunden</div>
+                )}
+            </div>
+        </div>
+    );
 }
 
 /** True if `context` is the "course chat" for the given course id. */
@@ -32,13 +265,22 @@ function isActiveExercise(context: ChatContext | null, exerciseId: number): bool
     return context?.type === 'exercise' && context.id === exerciseId;
 }
 
-export function ContextPicker({ context, exercises, courses, onSelectContext, onClose }: ContextPickerProps) {
+interface LegacyContextPickerProps {
+    context: ChatContext | null;
+    exercises: ContextItem[];
+    courses: ContextItem[];
+    onSelectContext: ((type: ChatContextType, id: number, title: string, shortName?: string) => void) | undefined;
+    onClose: (() => void) | undefined;
+}
+
+function LegacyContextPicker({ context, exercises, courses, onSelectContext, onClose }: LegacyContextPickerProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const dialogRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [showOtherCourses, setShowOtherCourses] = useState(false);
 
-    useClickOutside(dialogRef, true, onClose);
+    useClickOutside(dialogRef, true, () => onClose?.());
+    const handleKeyDown = usePopoverKeyDown(dialogRef, () => onClose?.());
 
     const workspaceExercise = useMemo(() => exercises.find(ex => ex.isWorkspace), [exercises]);
 
@@ -99,37 +341,11 @@ export function ContextPicker({ context, exercises, courses, onSelectContext, on
     }, [isSearching, q, courses, exercises]);
 
     const handleSelectExercise = (exercise: ContextItem) => {
-        onSelectContext('exercise', exercise.id, exercise.title, exercise.shortName);
+        onSelectContext?.('exercise', exercise.id, exercise.title, exercise.shortName);
     };
 
     const handleSelectCourseChat = (course: ContextItem) => {
-        onSelectContext('course', course.id, course.title, course.shortName);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            onClose();
-            return;
-        }
-        if (event.key !== 'Tab') { return; }
-
-        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
-            'button, input, [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusables || focusables.length === 0) { return; }
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-
-        if (event.shiftKey && active === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && active === last) {
-            event.preventDefault();
-            first.focus();
-        }
+        onSelectContext?.('course', course.id, course.title, course.shortName);
     };
 
     const renderExerciseRow = (exercise: ContextItem) => {

@@ -24,7 +24,13 @@ export type HistoryBucket = 'today' | 'yesterday' | 'last7' | 'older';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const byNewestFirst = (a: CourseHistoryEntryVM, b: CourseHistoryEntryVM) => b.lastActivity - a.lastActivity;
+/** The only field the bucketing reads, so both entry shapes can use it. */
+interface HasLastActivity {
+    /** epoch ms; `<= 0` or non-finite is the host's "could not parse" sentinel. */
+    lastActivity: number;
+}
+
+const byNewestFirst = (a: HasLastActivity, b: HasLastActivity) => b.lastActivity - a.lastActivity;
 
 /**
  * Groups course-wide history entries into fixed time buckets for the
@@ -44,20 +50,20 @@ const byNewestFirst = (a: CourseHistoryEntryVM, b: CourseHistoryEntryVM) => b.la
  * Empty buckets are omitted from the result so the popover never renders a
  * heading with nothing under it.
  */
-export function bucketHistoryByTime(
-    entries: CourseHistoryEntryVM[],
+export function bucketHistoryByTime<T extends HasLastActivity>(
+    entries: T[],
     nowMs: number,
-): { bucket: HistoryBucket; entries: CourseHistoryEntryVM[] }[] {
+): { bucket: HistoryBucket; entries: T[] }[] {
     const now = new Date(nowMs);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const startOfYesterday = startOfToday - DAY_MS;
     const startOfLast7 = startOfToday - 7 * DAY_MS;
 
-    const today: CourseHistoryEntryVM[] = [];
-    const yesterday: CourseHistoryEntryVM[] = [];
-    const last7: CourseHistoryEntryVM[] = [];
-    const olderValid: CourseHistoryEntryVM[] = [];
-    const olderInvalid: CourseHistoryEntryVM[] = [];
+    const today: T[] = [];
+    const yesterday: T[] = [];
+    const last7: T[] = [];
+    const olderValid: T[] = [];
+    const olderInvalid: T[] = [];
 
     for (const entry of entries) {
         const t = entry.lastActivity;
@@ -79,7 +85,7 @@ export function bucketHistoryByTime(
     last7.sort(byNewestFirst);
     olderValid.sort(byNewestFirst);
 
-    const groups: { bucket: HistoryBucket; entries: CourseHistoryEntryVM[] }[] = [
+    const groups: { bucket: HistoryBucket; entries: T[] }[] = [
         { bucket: 'today', entries: today },
         { bucket: 'yesterday', entries: yesterday },
         { bucket: 'last7', entries: last7 },

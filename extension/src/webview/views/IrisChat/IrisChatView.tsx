@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import Info from 'lucide-react/dist/esm/icons/info';
 import Menu from 'lucide-react/dist/esm/icons/menu';
+import Plus from 'lucide-react/dist/esm/icons/plus';
 import { useEffect, useRef, useState } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
@@ -8,13 +9,16 @@ import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import { useChatStore } from '@webview/stores/useChatStore';
+import { selectCanChangeTopic, useChatStore } from '@webview/stores/useChatStore';
 
 import { ChatHeader } from './components/ChatHeader';
 import { ChatInput } from './components/ChatInput';
 import { ChatMessageList } from './components/ChatMessageList';
+import { ChatNotice } from './components/ChatNotice';
+import { ContextChip } from './components/ContextChip';
 import { ContextPicker } from './components/ContextPicker';
 import { ConversationHistory } from './components/ConversationHistory';
+import { CoursePicker } from './components/CoursePicker';
 import { ReferencedFiles } from './components/ReferencedFiles';
 import styles from './IrisChatView.module.css';
 import type { ChatMessage } from './types';
@@ -38,6 +42,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const [contextSwitching, setContextSwitching] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
+    const [coursePickerOpen, setCoursePickerOpen] = useState(false);
+    // Whether the host has switched to the conversation-first model. Keyed on
+    // the presence of `contentState` in the snapshot, not on any value derived
+    // from it: every conversation-first field is legitimately empty at cold
+    // start, so only the key itself distinguishes "the host speaks this model"
+    // from "the host does not". Until Task 14 rewires the provider nothing
+    // sends it, so the pre-conversation-first surfaces below stay live and
+    // untouched; Task 15 deletes the flag together with them.
+    const [conversationFirstActive, setConversationFirstActive] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
     // Element that opened the currently-visible popover (context row or
@@ -109,6 +122,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
+                if ('contentState' in msg.state) {
+                    setConversationFirstActive(true);
+                }
                 if (msg.showDiagnostics !== undefined) {
                     setShowDiagnostics(msg.showDiagnostics);
                 }
@@ -412,7 +428,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const openPicker = (opener: HTMLElement) => {
         openerRef.current = opener;
         setHistoryOpen(false);
+        setCoursePickerOpen(false);
         setPickerOpen(true);
+    };
+
+    const openCoursePicker = (opener: HTMLElement) => {
+        openerRef.current = opener;
+        setPickerOpen(false);
+        setHistoryOpen(false);
+        setCoursePickerOpen(true);
     };
 
     // Course-wide history is per-course, not per-exercise: an exercise
@@ -438,15 +462,21 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const openHistory = (opener: HTMLElement) => {
         openerRef.current = opener;
         setPickerOpen(false);
+        setCoursePickerOpen(false);
         setOpenSessionError(null);
-        historyRequestIdRef.current += 1;
-        requestCourseHistoryFor(historyRequestIdRef.current);
+        // The conversation-first list comes with the snapshot, so opening it
+        // costs no request; only the pre-Task-14 popover has to fetch.
+        if (!conversationFirstActive) {
+            historyRequestIdRef.current += 1;
+            requestCourseHistoryFor(historyRequestIdRef.current);
+        }
         setHistoryOpen(true);
     };
 
     const closePopovers = () => {
         setPickerOpen(false);
         setHistoryOpen(false);
+        setCoursePickerOpen(false);
         setOpenSessionError(null);
         openerRef.current?.focus();
         openerRef.current = null;
@@ -503,6 +533,27 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // in-flight run, so the context row and both icon buttons go inert for
     // its duration.
     const disableNavigation = store.streaming.isStreaming;
+
+    // ---- Conversation-first derivations (Task 12).
+    // Always via the selector, never re-derived here: it is deliberately not a
+    // stored field, and a second copy of its rule is exactly how the picker
+    // and the chip would start disagreeing about whether a topic may change.
+    const canChangeTopic = selectCanChangeTopic(store);
+    // The chip and the picker's checkmark must never disagree about what the
+    // topic currently is, so both read the same expression.
+    const topic = store.pendingContext ?? store.committedContext;
+    // No workspace exercise detected and nothing opened: there is no course to
+    // put in a header, so the transcript offers the course list instead of an
+    // empty conversation the student cannot act on.
+    const isColdStart = conversationFirstActive
+        && store.courseId === null
+        && store.currentSessionId === null
+        && store.workspaceExerciseId === null;
+
+    const selectTopic = (mode: string, entityId: number, name?: string) => {
+        postCommand(vscodeApi, 'selectTopic', { mode, entityId, name });
+        closePopovers();
+    };
 
     // Disabled banner = strictly off (instructor disabled, .noai). The
     // unavailable banner (yellow, retry-able) is rendered separately below.
@@ -639,6 +690,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 pickerOpen/historyOpen are mutually exclusive; both popovers
                 are anchored to this section (position: relative) so they
                 render directly beneath the header. */}
+            {!isColdStart && (
             <div className={styles.contextSection}>
                 <ChatHeader
                     context={store.context}
@@ -647,11 +699,37 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     canCreateConversation={canCreateConversation}
                     disableNavigation={disableNavigation}
                     onOpenContextPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
-                    onNewConversation={() => postCommand(vscodeApi, 'createNewSession')}
+                    onNewConversation={() => {
+                        if (conversationFirstActive) {
+                            postCommand(vscodeApi, 'newConversation');
+                        } else {
+                            postCommand(vscodeApi, 'createNewSession');
+                        }
+                    }}
                     onOpenHistory={(e) => openHistory(e.currentTarget as HTMLElement)}
+                    {...(conversationFirstActive ? {
+                        courseTitle: store.courseTitle,
+                        conversationTitle: store.conversationTitle,
+                        displayMessageCount: store.displayMessageCount,
+                        onOpenCoursePicker: (e: React.MouseEvent) => openCoursePicker(e.currentTarget as HTMLElement),
+                    } : {})}
                 />
 
-                {pickerOpen && (
+                {coursePickerOpen && (
+                    <CoursePicker
+                        courses={store.courses}
+                        currentCourseId={store.courseId}
+                        onSelect={(courseId) => {
+                            postCommand(vscodeApi, 'switchCourse', { courseId });
+                            closePopovers();
+                        }}
+                        onClose={closePopovers}
+                    />
+                )}
+
+                {/* The topic picker hangs off the composer, so in the
+                    conversation-first layout it is mounted down there. */}
+                {pickerOpen && !conversationFirstActive && (
                     <ContextPicker
                         context={store.context}
                         exercises={store.exercises}
@@ -664,7 +742,27 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     />
                 )}
 
-                {historyOpen && (
+                {historyOpen && (conversationFirstActive ? (
+                    <ConversationHistory
+                        conversations={store.conversations}
+                        currentSessionId={store.currentSessionId}
+                        onOpen={(conversation) => {
+                            // Id-based, so it never consults the topic index:
+                            // a lecture or text-exercise conversation is
+                            // openable even though it can never be a topic.
+                            postCommand(vscodeApi, 'openConversation', {
+                                courseId: conversation.courseId,
+                                sessionId: conversation.sessionId,
+                            });
+                            closePopovers();
+                        }}
+                        onNewConversation={() => {
+                            postCommand(vscodeApi, 'newConversation');
+                            closePopovers();
+                        }}
+                        onClose={closePopovers}
+                    />
+                ) : (
                     <ConversationHistory
                         entries={store.courseHistory.entries}
                         status={store.courseHistory.status}
@@ -692,8 +790,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         }}
                         onClose={closePopovers}
                     />
-                )}
+                ))}
             </div>
+            )}
 
             {/* Disabled banner (Iris not available or .noai detected) */}
             {disabledBannerText && (
@@ -753,7 +852,20 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             <div className={clsx(styles.messagesSection, {
                 [styles.contextSwitching]: contextSwitching
             })}>
-                {(store.disabledMessage || store.unavailableMessage) ? null
+                {isColdStart ? (
+                    <div className={styles.coldStart}>
+                        <p className={styles.coldStartText}>
+                            Kein Artemis-Arbeitsbereich erkannt. Waehle einen Kurs, um zu starten.
+                        </p>
+                        <CoursePicker
+                            variant="inline"
+                            courses={store.courses}
+                            currentCourseId={store.courseId}
+                            onSelect={(courseId) => postCommand(vscodeApi, 'switchCourse', { courseId })}
+                            onClose={closePopovers}
+                        />
+                    </div>
+                ) : (store.disabledMessage || store.unavailableMessage) ? null
                 : messagesErrored ? (
                     <div className={styles.loadingState}>
                         <div className={styles.loadError} role="alert">
@@ -783,6 +895,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 ) : (
                     <ChatMessageList
                         messages={store.messages}
+                        committedContext={store.committedContext}
+                        pendingContext={store.pendingContext}
                         streaming={store.streaming}
                         activities={store.activities}
                         liveDraft={store.liveDraft}
@@ -806,12 +920,70 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     onOpenFile={handleOpenFile}
                 />
 
+                {/* One muted line above the composer. Actionless in PR 1. */}
+                {conversationFirstActive && (
+                    <ChatNotice
+                        notice={store.notice}
+                        currentSessionId={store.currentSessionId}
+                        onExpire={() => useChatStore.setState({ notice: null })}
+                    />
+                )}
+
+                {/* The topic lives here, on the composer, not in the header:
+                    it is what the next message is about, so it belongs beside
+                    the thing that writes that message. */}
+                {conversationFirstActive && !isColdStart && (
+                    <div className={styles.topicRow}>
+                        <button
+                            className={styles.topicButton}
+                            onClick={(e) => openPicker(e.currentTarget)}
+                            disabled={!canChangeTopic}
+                            aria-label="Thema waehlen"
+                            title="Thema waehlen"
+                        >
+                            <Plus size={14} />
+                        </button>
+                        <ContextChip
+                            context={topic}
+                            contentState={store.contentState}
+                            canChangeTopic={canChangeTopic}
+                            onOpenPicker={() => setPickerOpen(true)}
+                            onRemove={() => {
+                                // Dropping the topic IS selecting the course
+                                // chat; on an empty conversation the host
+                                // stages that in place, with no request.
+                                if (store.courseId !== null) {
+                                    selectTopic('COURSE_CHAT', store.courseId);
+                                }
+                            }}
+                        />
+                        {pickerOpen && store.courseId !== null && (
+                            <ContextPicker
+                                courseId={store.courseId}
+                                exercises={store.exercises}
+                                committedContext={store.committedContext ?? undefined}
+                                pendingContext={store.pendingContext ?? undefined}
+                                contentState={store.contentState}
+                                sendInFlight={store.sendInFlight || store.navigationInFlight}
+                                conversations={store.conversations}
+                                workspaceExerciseId={store.workspaceExerciseId}
+                                onSelect={(picked) => selectTopic(picked.mode, picked.entityId, picked.name)}
+                                onClose={closePopovers}
+                            />
+                        )}
+                    </div>
+                )}
+
                 {/* Chat input — disabled while we are still hydrating the
                     message list so a fast user does not race the load and
                     have their just-sent message swallowed when the server
                     snapshot arrives. */}
                 <ChatInput
                     onSend={handleSendMessage}
+                    {...(conversationFirstActive ? {
+                        value: store.composerText,
+                        onValueChange: store.setComposerText,
+                    } : {})}
                     disabled={
                         isChatDisabled
                         || store.context === null
