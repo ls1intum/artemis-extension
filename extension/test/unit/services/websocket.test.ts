@@ -592,7 +592,7 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
     // ========================================================================
     // Test 2: No connect() Calls from IrisWebSocketSessionClient
     // ========================================================================
-    test('No connect() Calls: _subscribeIfConnected should NEVER call connect()', async () => {
+    test('No connect() Calls: _converge should NEVER call connect()', async () => {
         // Disconnect WebSocket
         await wsService.disconnect();
 
@@ -746,7 +746,7 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         clock.tick(3100);
 
         // Simulate reconnect - this triggers onDidChangeConnectionState event
-        // which will call _subscribeIfConnected if conditions are met
+        // which will call _converge if conditions are met
         wsService.mockClient!.simulateConnect();
 
         // Should have resubscribed (the session manager resubscribes on reconnect)

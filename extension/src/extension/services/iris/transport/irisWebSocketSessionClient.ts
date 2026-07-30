@@ -15,10 +15,12 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
 
 /**
  * Manages Iris chat sessions and WebSocket subscriptions.
- * 
+ *
  * SAFETY FEATURES to prevent connection flooding:
  * 1. Stores unsubscribe function for connection state callback
- * 2. Rate-limits resubscription attempts
+ * 2. Converges towards the desired session (`_converge`): a deliberate
+ *    `subscribeToSession` call is never rate-limited, only reconnect storms
+ *    are damped by MIN_RESUBSCRIBE_INTERVAL_MS
  * 3. Does NOT call connect() - only subscribes if already connected
  */
 export class IrisWebSocketSessionClient implements vscode.Disposable {

@@ -20,6 +20,7 @@ import { IrisWebSocketMessageHandler } from '@extension/services/iris/chat/irisW
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { ConversationState } from '@extension/services/iris/conversation/conversationState';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
+import type { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 
 /**
  * Regression coverage for the FIX described in the whole-branch review: a
@@ -83,7 +84,7 @@ describe('IrisWebSocketMessageHandler: USER frames never finalize a run', () => 
 
 const EX5 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 5 };
 
-function makeHandler(opts: { currentSessionId?: number; courseId?: number } = {}) {
+function makeHandler(opts: { currentSessionId?: number; courseId?: number; irisSessionId?: number } = {}) {
     const runs = new IrisRunStateMachine();
     const posted: ExtensionToWebviewMessage[] = [];
     const state = new ConversationState();
@@ -100,23 +101,32 @@ function makeHandler(opts: { currentSessionId?: number; courseId?: number } = {}
         state.installAcquired(detail, state.beginLoad());
     }
 
+    let notifyChangedCalls = 0;
     const conversation = {
         state,
         reload: () => Promise.resolve(),
-        notifyChanged: () => { /* no-op */ },
+        notifyChanged: () => { notifyChangedCalls++; },
         onSubscriptionActive: () => { /* no-op */ },
     } as unknown as IrisConversationService;
 
+    // Only `currentSessionId` (via ConversationState) is what `_activeConversation`
+    // gates on, but `_handleSessionTitle` ALSO needs a truthy
+    // `getIrisWebSocketSessionClient().currentSessionId` before it even looks at
+    // `_activeConversation`, so the title tests need this wired independently.
+    const irisSessionClient = opts.irisSessionId !== undefined
+        ? ({ currentSessionId: opts.irisSessionId } as unknown as IrisWebSocketSessionClient)
+        : undefined;
+
     const handler = new IrisWebSocketMessageHandler(
         undefined,
-        () => undefined,
+        () => irisSessionClient,
         (message) => posted.push(message),
         runs,
         () => 's1',
         () => conversation,
     );
 
-    return { handler, posted, state, runs };
+    return { handler, posted, state, runs, getNotifyChangedCalls: () => notifyChangedCalls };
 }
 
 /** The real CTXSWAP wire shape (attributes inside a json content item). */
@@ -225,5 +235,35 @@ describe('host state ingestion (Task 6 step 7)', () => {
             3,
         );
         expect(state.contentState()).toBe('empty');
+    });
+});
+
+describe('dormancy guard: the new model must stay inert until a session is actually open', () => {
+    it('processes a frame normally, whatever its sourceSessionId, when the conversation service exists but has no session open', () => {
+        // Between here and Task 14, nothing calls IrisConversationService.start(),
+        // so the service exists (getConversation() is truthy) but
+        // ConversationState.currentSessionId is undefined. `_activeConversation`
+        // MUST treat that as "no active conversation", not as "conversation
+        // active with an undefined current session" — the latter would make
+        // every frame's sourceSessionId (whatever it is) fail the
+        // `sourceSessionId !== current` check and get dropped, silently, for
+        // the whole dormant period. makeHandler() with no currentSessionId
+        // reproduces exactly that shape.
+        const { handler, posted, runs } = makeHandler();
+        handler.handleIrisWebSocketMessage(
+            { type: 'MESSAGE', runId: 'r1', message: { id: 1, sender: 'LLM', content: [{ textContent: 'x', type: 'text' }] } },
+            999, // arbitrary: must not matter while the guard correctly stays closed
+        );
+        expect(runs.currentRunId).toBe('r1');
+        expect(posted.some((p) => p.type === 'addMessage')).toBe(true);
+    });
+});
+
+describe('_handleSessionTitle notifies the conversation service', () => {
+    it('calls notifyChanged after setTitle, so the presenter repaints off onDidChange', () => {
+        const { handler, state, getNotifyChangedCalls } = makeHandler({ currentSessionId: 7, irisSessionId: 7 });
+        handler.handleIrisWebSocketMessage({ type: 'STATUS', sessionTitle: 'Neuer Titel' }, 7);
+        expect(state.snapshot().detail?.title).toBe('Neuer Titel');
+        expect(getNotifyChangedCalls()).toBe(1);
     });
 });

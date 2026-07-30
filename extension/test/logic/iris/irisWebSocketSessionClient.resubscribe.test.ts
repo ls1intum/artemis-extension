@@ -66,13 +66,28 @@ function createWebsocketServiceStub(options: {
 }
 
 describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
+    // 'does not fire when subscribeToIrisSession throws' schedules a
+    // self-rescheduling real setTimeout retry chain (via _scheduleConverge)
+    // that would otherwise keep running after the test ends. Track every
+    // client this describe block creates and dispose them all, which clears
+    // any pending converge timer.
+    const createdClients: IrisWebSocketSessionClient[] = [];
+
+    function trackedClient(...args: ConstructorParameters<typeof IrisWebSocketSessionClient>): IrisWebSocketSessionClient {
+        const client = new IrisWebSocketSessionClient(...args);
+        createdClients.push(client);
+        return client;
+    }
+
     afterEach(() => {
+        for (const client of createdClients) { client.dispose(); }
+        createdClients.length = 0;
         vi.restoreAllMocks();
     });
 
     it('fires the sessionId exactly once after a real successful subscribe', async () => {
         const { service: websocketService } = createWebsocketServiceStub({ isConnected: () => true });
-        const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
+        const client = trackedClient(noopApiService, websocketService);
 
         const fired: number[] = [];
         client.onDidResubscribe((sessionId) => fired.push(sessionId));
@@ -84,7 +99,7 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
 
     it('does not fire when the WebSocket is not connected', async () => {
         const { service: websocketService } = createWebsocketServiceStub({ isConnected: () => false });
-        const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
+        const client = trackedClient(noopApiService, websocketService);
 
         const fired: number[] = [];
         client.onDidResubscribe((sessionId) => fired.push(sessionId));
@@ -101,20 +116,22 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
                 throw new Error('subscribe failed');
             },
         });
-        const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
+        const client = trackedClient(noopApiService, websocketService);
 
         const fired: number[] = [];
         client.onDidResubscribe((sessionId) => fired.push(sessionId));
 
         // subscribeToSession is synchronous (void); the throw is swallowed and
         // logged inside _converge, which schedules a retry instead of firing.
+        // That retry is a real setTimeout; the afterEach above disposes the
+        // client so it does not keep firing after this test ends.
         client.subscribeToSession(42);
         expect(fired).toEqual([]);
     });
 
     it('forces a resubscribe via the connection-state monitor even within MIN_RESUBSCRIBE_INTERVAL_MS', async () => {
         const { service: websocketService, fireConnectionState } = createWebsocketServiceStub({ isConnected: () => true });
-        const client = new IrisWebSocketSessionClient(noopApiService, websocketService);
+        const client = trackedClient(noopApiService, websocketService);
 
         const fired: number[] = [];
         client.onDidResubscribe((sessionId) => fired.push(sessionId));
@@ -290,18 +307,24 @@ describe('IrisWebSocketSessionClient: _converge (latest-wins subscription)', () 
         expect(ws.activeSubscriptionCount).toBe(0);
     });
 
-    it('subscribing to the same session id twice terminates the onDidResubscribe feedback loop', () => {
-        // Task 5's wiring is onDidResubscribe -> onSubscriptionActive ->
-        // reconcileCurrent -> subscribeToSession -> (a successful subscribe
-        // fires onDidResubscribe again). It terminated before only because the
-        // old rate limiter swallowed the re-entrant call. `_converge` must
-        // terminate it instead by recognising it is already subscribed to what
-        // it is asked for.
+    it('a listener that re-enters subscribeToSession from inside onDidResubscribe does not recurse', () => {
+        // Task 5's real wiring is onDidResubscribe -> onSubscriptionActive ->
+        // reconcileCurrent -> subscribeToSession, called SYNCHRONOUSLY from
+        // inside the fire, for the SAME session id that just resubscribed.
+        // Two sequential top-level `subscribeToSession(7)` calls do not
+        // reproduce this: by the second call `_subscribedSessionId` is
+        // already 7 regardless of where that assignment sits relative to the
+        // fire. The re-entrant case only terminates if `_subscribedSessionId`
+        // is set BEFORE `_onDidResubscribe.fire(...)`, so that the listener's
+        // own re-entrant call sees subscribed === desired and returns
+        // immediately instead of recursing (which would stack-overflow).
         const client = makeClient({ connected: true });
         const fired: number[] = [];
-        client.onDidResubscribe((sessionId) => fired.push(sessionId));
+        client.onDidResubscribe((sessionId) => {
+            fired.push(sessionId);
+            client.subscribeToSession(sessionId);
+        });
 
-        client.subscribeToSession(7);
         client.subscribeToSession(7);
 
         expect(fired).toEqual([7]);

@@ -304,6 +304,11 @@ export class IrisWebSocketMessageHandler {
             return;
         }
         conversation.state.setTitle(sessionTitle);
+        // Without this, a server-side rename lands in host state but never
+        // reaches the webview until some unrelated emit happens to fire: the
+        // presenter repaints only off IrisConversationService.onDidChange,
+        // which fires only from _emit/notifyChanged.
+        conversation.notifyChanged();
     }
 
     /**
