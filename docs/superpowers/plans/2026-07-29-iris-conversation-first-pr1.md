@@ -3823,12 +3823,12 @@ git commit -m "feat(iris): send the staged topic under a global send lock"
 **Files:**
 - Modify: `src/extension/services/iris/conversation/conversationService.ts` (`reconcileCurrent` and its trigger `onSubscriptionActive` both already landed in Task 5, because the trigger could not compile without the method; this task adds its tests and the reconnect plumbing around it)
 - ~~Modify: `src/extension/provider/chatReloadDecision.ts`~~ and
-  ~~`irisWebSocketMessageHandler.ts:handleReconnectWebSocket`~~ — **no change needed.** This
+  ~~`irisWebSocketMessageHandler.ts:handleReconnectWebSocket`~~: **no change needed.** This
   list named both files but no step below ever said what to change in them. The manual
   reconnect already reaches `reconcileCurrent` through `subscribeToSession` -> `_converge`
   -> `onDidResubscribe`, and the only plausible edit would be a cut-over gate, which the
   "unrouted until Task 14" rule forbids.
-- ~~Test: `test/unit/provider/chatWebviewProviderReconnect.test.ts` (rewrite)~~ — **deferred to
+- ~~Test: `test/unit/provider/chatWebviewProviderReconnect.test.ts` (rewrite)~~: **deferred to
   Task 14.** It covers live legacy provider code this task does not touch, and spec §14 files
   it among the ~20 suites needing migration. Rewriting it here deletes coverage and buys
   nothing.
