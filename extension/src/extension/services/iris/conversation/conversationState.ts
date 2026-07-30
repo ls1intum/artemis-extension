@@ -440,9 +440,30 @@ export class ConversationState {
      * was attached to the POST, never whatever happens to be pending now: the
      * caller has already decided (via the context-revision guard) that
      * nothing moved since the send captured it.
+     *
+     * Mirrors `applyContextSwap`: the detail and the cached summary must move
+     * with it, or the history row and the positive lookup keep claiming the
+     * old topic while the chip shows the new one, and the next
+     * `refreshOverview` re-derives the open row from the stale detail and
+     * re-stamps the old topic. The window this closes is exactly the one
+     * before the server's own CTXSWAP frame arrives, which is precisely when
+     * the socket is down and this write-back is the only thing that ran.
+     * There is no marker message here (this is the coordinator's own
+     * write-back, not a persisted CTXSWAP row), so unlike `applyContextSwap`
+     * the cached summary's `lastActivity` is left as it already was.
      */
     public commitContext(ctx: ServerContext): void {
         this._committed = ctx;
+        if (this._detail) { this._detail = { ...this._detail, context: ctx }; }
+        if (this._currentSessionId !== undefined && this._courseId !== undefined) {
+            this.updateSummary({
+                sessionId: this._currentSessionId,
+                courseId: this._courseId,
+                context: ctx,
+                title: this._detail?.title,
+                lastActivity: this._detail?.lastActivity ?? 0,
+            });
+        }
         if (this._pending && sameContext(this._pending.ctx, ctx)) {
             this._pending = undefined;
         }

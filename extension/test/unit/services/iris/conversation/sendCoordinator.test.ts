@@ -2,6 +2,7 @@ import * as assert from 'assert';
 
 import type { ServerContext } from '@shared/types/serverContext';
 
+import { ApiError } from '@extension/domain';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import type { SendDeps, SendInput, SendOutcome, SendRejection } from '@extension/services/iris/conversation/sendCoordinator';
 import { SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
@@ -82,19 +83,21 @@ function makeApi() {
 
 /**
  * Builds a SendCoordinator wired to a REAL IrisConversationService (so
- * `resolveTopicChange`/`navigateTo` in the tests exercise real guards) sitting
- * on an already-open conversation (session 1, course 42) with the given
- * committed/pending context. `state` is installed directly through
+ * `resolveTopicChange`/`navigateTo` in the tests exercise real guards).
+ * When `committed` is given, the conversation starts already open (session 1,
+ * course 42) with that committed/pending context, installed directly through
  * ConversationState's own entry points rather than by driving fake HTTP
  * round trips through `start()`, since the shape under test does not depend
- * on how the conversation was acquired.
+ * on how the conversation was acquired. Omitting `committed` leaves no
+ * conversation open at all, for the `no-conversation` rejection path.
  */
 function coordinatorWith(opts: {
-    committed: ServerContext;
+    committed?: ServerContext;
     pending?: ServerContext;
     workspaceExerciseId?: number;
     slowFileCollection?: boolean;
     fileCollectionThrows?: boolean;
+    beginGenerationThrows?: boolean;
     files?: Map<string, string>;
 }) {
     const apiHarness = makeApi();
@@ -105,17 +108,22 @@ function coordinatorWith(opts: {
             : undefined),
     });
 
-    const guard = conversation.state.beginLoad();
-    conversation.state.installDetail(
-        { sessionId: 1, courseId: 42, context: opts.committed, lastActivity: 1000, messages: [] },
-        guard,
-    );
-    if (opts.pending) { conversation.state.stagePending(opts.pending); }
+    if (opts.committed) {
+        const guard = conversation.state.beginLoad();
+        conversation.state.installDetail(
+            { sessionId: 1, courseId: 42, context: opts.committed, lastActivity: 1000, messages: [] },
+            guard,
+        );
+        if (opts.pending) { conversation.state.stagePending(opts.pending); }
+    }
 
     const aborted: number[] = [];
     let nextGeneration = 1;
     const runLifecycle: RunLifecycle = {
-        beginGeneration: () => nextGeneration++,
+        beginGeneration: () => {
+            if (opts.beginGenerationThrows) { throw new Error('beginGeneration failed'); }
+            return nextGeneration++;
+        },
         abortGeneration: (generation: number) => { aborted.push(generation); },
     };
 
@@ -159,12 +167,6 @@ function coordinatorWith(opts: {
         send: (input: SendInput): Promise<SendOutcome> => coordinator.send(input),
         releaseFileCollection: () => releaseFileCollection(),
         get lastBubbleStatus() { return lastBubbleStatus; },
-        // Neither is wired to any SendDeps hook: SendCoordinator has no
-        // "clear composer" or "resend" capability, so these can only ever
-        // stay at their default. The recorders exist to make the tests that
-        // assert their absence readable.
-        get composerTextCleared() { return false; },
-        get resentCount() { return 0; },
         confirmCalls,
         failCalls,
         reportedErrors,
@@ -180,6 +182,24 @@ suite('SendCoordinator', () => {
         await sent;
         assert.deepStrictEqual(c.state.snapshot().committedContext, EX5);
         assert.strictEqual(c.state.snapshot().pendingContext, undefined);
+        assert.deepStrictEqual(c.confirmCalls, [{ sessionId: 1, localId: 'l1', messageId: 11 }]);
+    });
+
+    test('a successful send moves the detail context and the cached summary with the commit', async () => {
+        // commitContext must mirror applyContextSwap: the write-back exists
+        // exactly for the window before the server's own CTXSWAP frame
+        // arrives, which is precisely when the socket is down. Leaving the
+        // detail and the cached summary on the old topic would show the chip
+        // pointing at EX5 while history and the positive lookup still claim
+        // COURSE42, and the next "Ask Iris about exercise 5" would then
+        // create a duplicate conversation instead of finding this one.
+        const c = coordinatorWith({ committed: COURSE42, pending: EX5 });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
+        c.api.resolveSend({ id: 11 });
+        await sent;
+        assert.deepStrictEqual(c.state.snapshot().detail?.context, EX5);
+        assert.deepStrictEqual(c.state.snapshot().knownInvisible.find((s) => s.sessionId === 1)?.context, EX5);
+        assert.strictEqual(c.state.findSessionFor(EX5), 1);
     });
 
     test('a self CTXSWAP arriving before the response leaves the context alone', async () => {
@@ -271,14 +291,46 @@ suite('SendCoordinator', () => {
     test('a send never writes into a conversation that was navigated away from', async () => {
         // The POST lands in session 1 while the view moved to session 9. Writing
         // the persisted message into state unconditionally would put session 1's
-        // message into session 9's transcript.
+        // message into session 9's transcript. beginNavigation alone clears
+        // `_detail` (upsertMessage then no-ops on it regardless of any guard),
+        // so session 9 is given its OWN installed detail here: that is what
+        // actually exercises the cross-session check rather than passing by
+        // accident because there was nothing to write into.
         const c = coordinatorWith({ committed: COURSE42 });
         const sent = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         await tick();
         c.state.beginNavigation(9);
+        const guard9 = c.state.beginLoad();
+        c.state.installDetail({ sessionId: 9, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [] }, guard9);
         c.api.resolveSend({ id: 11 });
         await sent;
-        assert.strictEqual(c.state.snapshot().detail, undefined);
+        assert.strictEqual(c.state.snapshot().detail?.messages.some((m) => m.id === 11), false);
+    });
+
+    test('a send composed against a session that navigation already left is refused', async () => {
+        // The command was composed while session 1 was open (origin: 1), but by
+        // the time the host handles it, a navigation completed and session 9 is
+        // now current. navigationInFlight is already false again, so nothing
+        // upstream of this check catches it; only comparing the origin to the
+        // CURRENT session does.
+        const c = coordinatorWith({ committed: COURSE42 });
+        c.state.beginNavigation(9);
+        const guard9 = c.state.beginLoad();
+        c.state.installDetail({ sessionId: 9, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [] }, guard9);
+        const outcome = await c.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'conversation-changed' });
+        assert.strictEqual(c.api.sendCount, 0);
+        // Must fail the ORIGIN bubble (1), not the session that is open NOW
+        // (9): the webview drew this bubble in session 1, and session 9 has a
+        // transcript of its own that this bubble does not belong to.
+        assert.deepStrictEqual(c.failCalls, [{ sessionId: 1, localId: 'l1', reason: 'conversation-changed' }]);
+    });
+
+    test('a send with no open conversation is rejected as no-conversation', async () => {
+        const c = coordinatorWith({});
+        const outcome = await c.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'no-conversation' });
+        assert.deepStrictEqual(c.failCalls, [{ sessionId: 1, localId: 'l1', reason: 'no-conversation' }]);
     });
 
     test('a second send is rejected while one is in flight', async () => {
@@ -286,6 +338,11 @@ suite('SendCoordinator', () => {
         const first = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         const second = await c.send({ text: 'b', localId: 'l2', sessionId: 1 });
         assert.deepStrictEqual(second, { kind: 'rejected', reason: 'send-in-flight' });
+        // The rejection must fail the SECOND bubble (l2), against ITS origin
+        // session, with the reason just decided. The first send is still open
+        // at this point (its own confirmBubble has not fired yet), so this is
+        // the only entry.
+        assert.deepStrictEqual(c.failCalls, [{ sessionId: 1, localId: 'l2', reason: 'send-in-flight' }]);
         c.api.resolveSend({ id: 11 });
         await first;
     });
@@ -307,6 +364,7 @@ suite('SendCoordinator', () => {
         void c.conversation.navigateTo({ courseId: 42, sessionId: 9 });
         const outcome = await c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'navigation-in-flight' });
+        assert.deepStrictEqual(c.failCalls, [{ sessionId: 1, localId: 'l1', reason: 'navigation-in-flight' }]);
     });
 
     test('an ambiguous failure adopts the detail, reports unknown and keeps the text', async () => {
@@ -318,9 +376,29 @@ suite('SendCoordinator', () => {
         c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: EX5, lastActivity: 1000, messages: [{ id: 11, sender: 'USER' }] });
         const outcome = await sent;
         assert.deepStrictEqual(outcome, { kind: 'unknown' });
-        assert.strictEqual(c.composerTextCleared, false);
         assert.strictEqual(c.state.snapshot().pendingContext, undefined);
-        assert.strictEqual(c.resentCount, 0);
+        // Nothing was resent: exactly the one POST from the original attempt,
+        // never a second one triggered by the recovery path.
+        assert.strictEqual(c.api.sendCount, 1);
+    });
+
+    test('a context swap arriving during reconciliation is not overwritten by its stale GET', async () => {
+        // The reconciliation guard is captured BEFORE the GET fires, at the top
+        // of `_reconcileUnknown`, not after the response lands. Capturing it
+        // after would make the guard tautological (it would always match
+        // whatever the state happens to be right then), and a CTXSWAP that
+        // landed WHILE the GET was in flight would be clobbered by the older
+        // snapshot the GET returns.
+        const c = coordinatorWith({ committed: COURSE42, pending: EX5 });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
+        await tick();
+        c.api.rejectSend(new Error('socket hang up'));
+        await tick();   // the catch path issues the detail GET; the guard is captured here
+        c.state.applyContextSwap({ transition: 'added', context: EX7 }, swapMessage(21, { transition: 'added' }));
+        // The GET's response is the STALE, pre-swap state: it must not win.
+        c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [{ id: 1, sender: 'USER' }] });
+        await sent;
+        assert.deepStrictEqual(c.state.snapshot().committedContext, EX7);
     });
 
     test('a divergent pending dies once ANY content exists, whoever wrote it', async () => {
@@ -351,11 +429,59 @@ suite('SendCoordinator', () => {
         assert.strictEqual(c.state.sendInFlight, false);
         assert.strictEqual(c.state.guard().sendSeq, before + 1);
         assert.strictEqual(c.lastBubbleStatus, 'error');
-        assert.strictEqual(c.composerTextCleared, false);
+        assert.deepStrictEqual(c.reportedErrors, ['Iris konnte nicht erreicht werden. Der Verlauf ist möglicherweise nicht aktuell.']);
+    });
+
+    test('a second send is rejected while a reconciliation GET is outstanding', async () => {
+        // That endSend() runs at all is one thing; that it runs only in the
+        // `finally`, AFTER reconciliation, is another. If it ran earlier (e.g.
+        // moved into the catch, ahead of `_reconcileUnknown`), the lock would
+        // be open for the whole reconciliation GET, and a second send composed
+        // in that window would be admitted instead of rejected.
+        const c = coordinatorWith({ committed: COURSE42 });
+        const sent = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        await tick();
+        c.api.rejectSend(new Error('socket hang up'));
+        await tick();   // the catch path has issued the detail GET; it is still outstanding
+        assert.strictEqual(c.state.sendInFlight, true);
+        const second = await c.send({ text: 'b', localId: 'l2', sessionId: 1 });
+        assert.deepStrictEqual(second, { kind: 'rejected', reason: 'send-in-flight' });
+        c.api.rejectCall('detail:42:1', new Error('still down'));
+        await sent;
+    });
+
+    test('a 429 from the send is reported as a rate limit, not reconciled', async () => {
+        const c = coordinatorWith({ committed: COURSE42 });
+        const sent = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        await tick();
+        c.api.rejectSend(new ApiError('Too Many Requests', 429));
+        const outcome = await sent;
+        assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'rate-limit' });
+        assert.strictEqual(c.state.sendInFlight, false);
+        // A 429 is a definite, known outcome; unlike the generic-failure path
+        // it must not spend a reconciliation GET.
+        assert.strictEqual(c.api.deferred.filter((d) => d.call.startsWith('detail:')).length, 0);
+        assert.deepStrictEqual(c.failCalls, [{ sessionId: 1, localId: 'l1', reason: 'rate-limit' }]);
+    });
+
+    test('a beginGeneration throw still releases the lock', async () => {
+        // beginGeneration/resetRunUiAndPublish must run INSIDE the try, or a
+        // synchronous throw here skips the finally entirely and the lock,
+        // taken just before, is never released.
+        const c = coordinatorWith({ committed: COURSE42, beginGenerationThrows: true });
+        const outcome = await c.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'preparation-failed' });
+        assert.strictEqual(c.state.sendInFlight, false);
+        assert.strictEqual(c.runLifecycle.aborted.length, 0);   // no generation was ever created to abort
     });
 
     test('uncommitted files are omitted when the effective context is not the workspace exercise', async () => {
-        const c = coordinatorWith({ committed: COURSE42, pending: EX7, workspaceExerciseId: 5 });
+        // `files` is deliberately non-empty here: if the entity-id comparison in
+        // `_isWorkspaceContext` were ever weakened to "a workspace exercise is
+        // known" (dropping the entityId match), collection would still run and
+        // exercise 7's chat would carry exercise 5's working diff. An omitted
+        // `files` fixture would pass either way and never catch that.
+        const c = coordinatorWith({ committed: COURSE42, pending: EX7, workspaceExerciseId: 5, files: new Map([['A.java', 'x']]) });
         const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();   // file collection is awaited BEFORE the POST
         assert.strictEqual(c.api.lastSend?.uncommittedFiles, undefined);
