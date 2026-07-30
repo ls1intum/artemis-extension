@@ -3822,9 +3822,16 @@ git commit -m "feat(iris): send the staged topic under a global send lock"
 
 **Files:**
 - Modify: `src/extension/services/iris/conversation/conversationService.ts` (`reconcileCurrent` and its trigger `onSubscriptionActive` both already landed in Task 5, because the trigger could not compile without the method; this task adds its tests and the reconnect plumbing around it)
-- Modify: `src/extension/provider/chatReloadDecision.ts`
-- Modify: `src/extension/services/iris/chat/irisWebSocketMessageHandler.ts:handleReconnectWebSocket`
-- Test: `test/unit/provider/chatWebviewProviderReconnect.test.ts` (rewrite)
+- ~~Modify: `src/extension/provider/chatReloadDecision.ts`~~ and
+  ~~`irisWebSocketMessageHandler.ts:handleReconnectWebSocket`~~ — **no change needed.** This
+  list named both files but no step below ever said what to change in them. The manual
+  reconnect already reaches `reconcileCurrent` through `subscribeToSession` -> `_converge`
+  -> `onDidResubscribe`, and the only plausible edit would be a cut-over gate, which the
+  "unrouted until Task 14" rule forbids.
+- ~~Test: `test/unit/provider/chatWebviewProviderReconnect.test.ts` (rewrite)~~ — **deferred to
+  Task 14.** It covers live legacy provider code this task does not touch, and spec §14 files
+  it among the ~20 suites needing migration. Rewriting it here deletes coverage and buys
+  nothing.
 
 - [ ] **Step 1: Write the failing reconnect tests**
 
@@ -3984,7 +3991,7 @@ Run: `npm run compile-tests && npx vscode-test --label unit --grep "reconnect"`
 Expected: PASS.
 
 ```bash
-git add src/extension/services/iris/conversation/conversationService.ts src/extension/provider/chatReloadDecision.ts src/extension/services/iris/chat/irisWebSocketMessageHandler.ts test/unit/provider/chatWebviewProviderReconnect.test.ts
+git add test/unit/services/iris/conversation/conversationService.test.ts
 git commit -m "feat(iris): reconcile the full session detail after a reconnect"
 ```
 
