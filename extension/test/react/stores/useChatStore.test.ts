@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { ExtMsg, IrisRunUiProjection } from '@shared/messageContracts';
 import type { IrisActivityDTO } from '@shared/types/apiResponses';
 
-import { useChatStore } from '@webview/stores/useChatStore';
+import { selectCanChangeTopic, useChatStore } from '@webview/stores/useChatStore';
 import type { ChatMessage, ReferencedFilesData } from '@webview/views/IrisChat/types';
 
 const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -750,6 +750,171 @@ describe('useChatStore', () => {
 
 			const message = useChatStore.getState().messages.find((m) => m.localId === 'asst-x');
 			expect(message?.id).toBeUndefined();
+		});
+	});
+
+	// Task 11: the store additionally mirrors ONE server conversation,
+	// beside the still-live context/sessions model above. Nothing is wired
+	// up yet (Task 14 does that); these tests pin the new store surface in
+	// isolation, driven directly through setIrisState and the new/extended
+	// actions.
+	describe('conversation-first mirror (Task 11)', () => {
+		describe('addMessage session guard', () => {
+			it('drops an addMessage for a session that is not open', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+				useChatStore.getState().addMessage(makeMessage({ localId: 'msg-x' }), 3);
+
+				expect(useChatStore.getState().messages).toHaveLength(0);
+			});
+
+			it('accepts an addMessage whose sessionId matches currentSessionId', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+				useChatStore.getState().addMessage(makeMessage({ localId: 'msg-y' }), 7);
+
+				expect(useChatStore.getState().messages).toHaveLength(1);
+			});
+
+			it('is inert (no drop) when no sessionId is supplied, even with a currentSessionId set', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+				useChatStore.getState().addMessage(makeMessage({ localId: 'msg-z' }));
+
+				expect(useChatStore.getState().messages).toHaveLength(1);
+			});
+		});
+
+		it('accepts and stores a contextSwap-role message, the persisted transcript-divider row', () => {
+			useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+			useChatStore.getState().addMessage(
+				{ localId: 'ctx-1', role: 'contextSwap', content: 'Thema gesetzt auf BFS', timestamp: 1 },
+				7,
+			);
+
+			expect(useChatStore.getState().messages[0].role).toBe('contextSwap');
+		});
+
+		it('clears the notice on any navigation (the next setIrisState)', () => {
+			useChatStore.getState().showNotice({ text: 'Zu einer anderen Unterhaltung gewechselt.' });
+			expect(useChatStore.getState().notice).toEqual({ text: 'Zu einer anderen Unterhaltung gewechselt.' });
+
+			useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 9 }));
+
+			expect(useChatStore.getState().notice).toBeNull();
+		});
+
+		it('keeps the composer text when a send reports an unknown outcome', () => {
+			useChatStore.getState().setComposerText('hallo');
+			useChatStore.getState().addMessage(makeMessage({ localId: 'l1', role: 'user', status: 'sending' }));
+
+			useChatStore.getState().markMessageFailed('l1', 'Unbekannter Fehler', 'unknown');
+
+			expect(useChatStore.getState().composerText).toBe('hallo');
+		});
+
+		describe('selectCanChangeTopic (derived, not a stored field)', () => {
+			it('disables the picker while contentState is unknown', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ contentState: 'unknown' }));
+
+				expect(selectCanChangeTopic(useChatStore.getState())).toBe(false);
+			});
+
+			it('disables the picker while a send is in flight', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ contentState: 'empty', sendInFlight: true }));
+
+				expect(selectCanChangeTopic(useChatStore.getState())).toBe(false);
+			});
+
+			it('disables the picker while a navigation is in flight', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ contentState: 'empty', navigationInFlight: true }));
+
+				expect(selectCanChangeTopic(useChatStore.getState())).toBe(false);
+			});
+
+			it('enables the picker once content state is known and nothing is in flight', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ contentState: 'empty' }));
+
+				expect(selectCanChangeTopic(useChatStore.getState())).toBe(true);
+			});
+		});
+
+		describe('sessionId-keyed guards beside the localSessionId-keyed ones', () => {
+			const projection = (over: Partial<IrisRunUiProjection> = {}): IrisRunUiProjection => ({
+				localSessionId: 's1', revision: 1, draft: null, activities: [],
+				waiting: false, runState: null, ...over,
+			});
+
+			it('applyRunUi drops a projection whose sessionId does not match currentSessionId', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+				useChatStore.getState().applyRunUi(
+					projection({ revision: 9, sessionId: 3, draft: { runId: 'A', text: 'x' } }),
+					's1',
+				);
+
+				expect(useChatStore.getState().liveDraft).toBeNull();
+			});
+
+			it('applyRunUi accepts a projection whose sessionId matches currentSessionId', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+				useChatStore.getState().applyRunUi(
+					projection({ revision: 9, sessionId: 7, draft: { runId: 'A', text: 'x' } }),
+					's1',
+				);
+
+				expect(useChatStore.getState().liveDraft?.text).toBe('x');
+			});
+
+			it('applyCommit drops a message whose sessionId does not match currentSessionId', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+				useChatStore.getState().applyCommit(
+					{ id: 1, localId: 'l1', role: 'assistant', content: 'final', timestamp: 0, status: 'sent' },
+					undefined,
+					's1',
+					's1',
+					3,
+				);
+
+				expect(useChatStore.getState().messages).toHaveLength(0);
+			});
+
+			it('applyCommit accepts a message whose sessionId matches currentSessionId', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+				useChatStore.getState().applyCommit(
+					{ id: 1, localId: 'l1', role: 'assistant', content: 'final', timestamp: 0, status: 'sent' },
+					undefined,
+					's1',
+					's1',
+					7,
+				);
+
+				expect(useChatStore.getState().messages).toHaveLength(1);
+			});
+
+			it('mergeLoadedMessages drops a merge whose sessionId does not match currentSessionId', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1', currentSessionId: 7 }));
+
+				useChatStore.getState().mergeLoadedMessages('s1', [
+					{ id: 1, localId: 'h1', role: 'assistant', content: 'answer', timestamp: 1 },
+				], 3);
+
+				expect(useChatStore.getState().messages).toHaveLength(0);
+			});
+
+			it('mergeLoadedMessages accepts a merge whose sessionId matches currentSessionId', () => {
+				useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1', currentSessionId: 7 }));
+
+				useChatStore.getState().mergeLoadedMessages('s1', [
+					{ id: 1, localId: 'h1', role: 'assistant', content: 'answer', timestamp: 1 },
+				], 7);
+
+				expect(useChatStore.getState().messages).toHaveLength(1);
+			});
 		});
 	});
 });
