@@ -2853,7 +2853,7 @@ Tasks 6, 8 and 10 all need `IrisConversationService` to exist on the provider. C
 
 Both dependencies are optional at baseline, so the service is too. Every later consumer therefore guards on it rather than assuming it, and the old path keeps running untouched when Iris is unavailable.
 
-Give the service a `dispose()` that disposes `_onDidChange` and clears `_overviewInFlight`; the provider pushes it onto `_disposables` **before** the session client, so no install can subscribe to a disposed client.
+Give the service a `dispose()` that disposes `_onDidChange` and clears `_overviewInFlight`. The service must be **disposed before** the session client, so no in-flight install can subscribe to a disposed client. `_drainDisposables` (`baseWebviewProvider.ts`) **pops**, so disposal is LIFO: to be disposed first, the service must be pushed onto `_disposables` **last**, i.e. AFTER the session client. Pushing it first achieves the exact opposite.
 
 **Wire the subscription-active signal here, not in Task 8.** `subscribeToSession` only records intent, so an install can complete while the STOMP subscription is still pending or being retried after a throw, and a CTXSWAP in that gap is simply never heard. The client already fires `onDidResubscribe(sessionId)` when a subscription genuinely becomes active, which is the one moment that is true for both a first subscribe and a reconnect:
 
@@ -4857,7 +4857,7 @@ Add a provider test: a `SelectTopic` that resolves to `opened` posts exactly one
 
 The **presenter keeps filling the old `updateIrisState` fields**. They are still required by the contract until Task 15, and the webview components still read them until then; stopping here would be a contract violation dressed as a cleanup.
 
-Disposal order: `_conversation` is disposed before `_irisSessionManager`, so no in-flight install can subscribe to a disposed client.
+Disposal order: `_conversation` is disposed before `_irisSessionManager`, so no in-flight install can subscribe to a disposed client. Since `_drainDisposables` pops, that means pushing `_conversation` onto `_disposables` AFTER the client (see Task 5).
 
 - [ ] **Step 6: Add the host gating (§7.3)**
 
