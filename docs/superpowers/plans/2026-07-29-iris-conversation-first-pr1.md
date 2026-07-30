@@ -86,7 +86,7 @@ These are facts about Artemis `main` (`553aab7595`), not design choices. **Nothi
 | `src/extension/services/iris/context/contextMarkers.ts` | Decode a `CTXSWAP` message into `{transition, mode, entityId, name}`; render its label. |
 | `src/extension/services/iris/conversation/conversationState.ts` | Pure state container: current session, detail, committed/pending context, per-session epochs, `knownInvisible`. No I/O. |
 | `src/extension/services/iris/conversation/topicResolution.ts` | Pure decision function for §4's resolution table. Returns a `TopicDecision`, performs no requests. **Host-only**: the webview must not import it (`eslint.config.mjs` bans `@extension/*` from `src/webview/**`), which is why cut 1 removed its only webview consumer. |
-| `src/extension/services/iris/conversation/conversationService.ts` | Executes decisions: acquisition, navigation, revalidation loop, overview refresh, guard matrix. The only place that calls the chat API. |
+| `src/extension/services/iris/conversation/conversationService.ts` | Executes decisions: acquisition, navigation, single revalidation, overview refresh, guard matrix. The only place that calls the chat API. |
 | `src/extension/services/iris/conversation/sendCoordinator.ts` | One in-flight send, the send/navigation mutex, `pendingContext` on the wire, ambiguous-failure reconciliation. |
 | `src/webview/views/IrisChat/components/ContextChip.tsx` + `.module.css` | The composer topic chip (§5.2). |
 | `src/webview/views/IrisChat/components/ContextSwapRow.tsx` + `.module.css` | The transcript `CTXSWAP` line (§5.6). The dashed preview line is **cut 5**. |
@@ -1440,6 +1440,13 @@ export class ConversationState {
      */
     public upsertMessage(message: IrisChatMessage): void {
         if (!this._detail) { return; }
+        // Keep the detail canonical for activity too, or `setOverview`'s
+        // re-derivation of the current row would hand back a value older than
+        // what we already know and the history would sort backwards.
+        const at = message.sentAt ? Date.parse(message.sentAt) : NaN;
+        if (!Number.isNaN(at) && at > this._detail.lastActivity) {
+            this._detail = { ...this._detail, lastActivity: at };
+        }
         if (typeof message.id === 'number') {
             const existing = this._detail.messages.findIndex((m) => m.id === message.id);
             if (existing >= 0) {
@@ -1472,7 +1479,18 @@ export class ConversationState {
         // this only at render time would let `findSessionFor` hand back a
         // session under a topic it no longer holds.
         if (this._detail && this._detail.sessionId === this._currentSessionId) {
-            this.updateSummary(summaryOfDetail(this._detail));
+            const fromOverview = summaries.find((s) => s.sessionId === this._detail!.sessionId);
+            this.updateSummary({
+                ...summaryOfDetail(this._detail),
+                // MAX, not the detail's value. The detail is canonical for the
+                // topic and the title, but activity only ever moves forward and
+                // the two sources learn about it independently: the server may
+                // have counted a message we have not seen, and we may have seen
+                // one it had not counted when the request was answered. Taking
+                // the detail's value alone would let an overview response walk
+                // the history sort order backwards.
+                lastActivity: Math.max(this._detail.lastActivity, fromOverview?.lastActivity ?? 0),
+            });
         }
     }
 
@@ -2031,17 +2049,64 @@ suite('IrisConversationService', () => {
     });
 
     test('an older overview response does not install over a newer one for the same course', async () => {
-        // A starts, the student switches to B and back to A, a second A request
-        // starts, and the FIRST A response then arrives under a matching course.
-        // The course check alone admits it; the sequence check is what does not.
+        // A1 starts, the student switches to B and back to A, A2 starts, and A1
+        // only THEN answers. The requests genuinely overlap; an earlier version
+        // of this test resolved A1 before starting A2, so the sequence guard it
+        // claims to be about was never exercised.
         const service = await started();
-        const first = service.refreshOverview();
-        service.api.resolveCall('overview:42', []);
-        await first;
-        const second = service.refreshOverview();
+        const a1 = service.refreshOverview();                       // A1, seq n
+        const switched = service.switchCourse(43);
+        service.api.resolveCall('current:COURSE_CHAT:43:43', { sessionId: 20, courseId: 43, context: { mode: 'COURSE_CHAT', entityId: 43 }, lastActivity: 1, messages: [] });
+        await switched;
+        const back = service.switchCourse(42);
+        service.api.resolveCall('current:COURSE_CHAT:42:42', { sessionId: 21, courseId: 42, context: COURSE42, lastActivity: 1, messages: [] });
+        await back;                                                  // A2 starts here, seq n+2
         service.api.resolveCall('overview:42', [{ sessionId: 5, courseId: 42, context: EX7, lastActivity: 9 }]);
-        await second;
-        assert.strictEqual(service.state.snapshot().courseSessions.length, 1);
+        await tick();
+        const installed = service.state.snapshot().courseSessions.length;
+        service.api.resolveCall('overview:42', []);                  // A1 answers last, empty
+        await a1;
+        await tick();
+        // A1's empty answer must not wipe what A2 installed.
+        assert.strictEqual(service.state.snapshot().courseSessions.length, installed);
+    });
+
+    test('a settling older overview does not clear the newer flight', async () => {
+        // The cleanup identifies the REQUEST, not the course. With a
+        // course-equality check, A1 settling would clear A2's tracking and the
+        // next refresh would duplicate a request that is still open.
+        const service = await started();
+        void service.refreshOverview();
+        const switched = service.switchCourse(43);
+        service.api.resolveCall('current:COURSE_CHAT:43:43', { sessionId: 20, courseId: 43, context: { mode: 'COURSE_CHAT', entityId: 43 }, lastActivity: 1, messages: [] });
+        await switched;
+        const back = service.switchCourse(42);
+        service.api.resolveCall('current:COURSE_CHAT:42:42', { sessionId: 21, courseId: 42, context: COURSE42, lastActivity: 1, messages: [] });
+        await back;
+        const before = service.api.deferred.filter((d) => d.call === 'overview:42').length;
+        service.api.resolveCall('overview:42', []);   // A1 settles
+        await tick();
+        void service.refreshOverview();               // must JOIN A2, not issue a third
+        assert.strictEqual(service.api.deferred.filter((d) => d.call === 'overview:42').length, before);
+    });
+
+    test('a 404 on an indexed hit forgets the row and creates, without a second probe', async () => {
+        // The `gone` branch of the revalidation. It routes through the same
+        // `revalidated` flag as a context mismatch, so there is exactly one
+        // detail GET and then a create.
+        const service = await startedWithContent();
+        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
+        const change = service.resolveTopicChange(EX7);
+        service.api.rejectCall('detail:42:9', new ApiError('gone', 404));
+        await tick();
+        assert.strictEqual(service.api.deferred.filter((d) => d.call.startsWith('detail:')).length, 1);
+        assert.strictEqual(service.api.deferred.at(-1)?.call, 'create:42');
+        service.api.deferred.at(-1)!.resolve(detail(12, COURSE42));
+        await change;
+        assert.strictEqual(service.state.snapshot().currentSessionId, 12);
+        assert.deepStrictEqual(service.state.snapshot().pendingContext?.ctx, EX7);
+        // Session 9 was forgotten, so it can no longer answer a lookup.
+        assert.strictEqual(service.state.findSessionFor(EX7), undefined);
     });
 
     test('a navigateTo racing a resolveTopicChange leaves exactly one winner', async () => {
@@ -2217,7 +2282,7 @@ export class IrisConversationService {
     private readonly _onDidChange = new vscode.EventEmitter<void>();
     public readonly onDidChange = this._onDidChange.event;
 
-    private _overviewInFlight: { courseId: number; promise: Promise<void> } | undefined;
+    private _overviewInFlight: { courseId: number; seq: number; promise: Promise<void> } | undefined;
     private _navRequestSeq = 0;
     private _navInFlight = 0;
     private _reloadWhenSendSettles = false;
@@ -2555,12 +2620,14 @@ export class IrisConversationService {
             committedContext: snapshot.committedContext,
             pendingContext: snapshot.pendingContext,
             contentState: this.state.contentState(),
-            findSessionFor: (t, exclude) => this.state.findSessionFor(t, exclude),
+            findSessionFor: (t) => this.state.findSessionFor(t),
         };
     }
 
     /**
-     * Id-based. History and the course switch. Never consults the topic index.
+     * Id-based. The history opens a conversation through this. The course
+     * switch cannot: it has no session id yet, so it acquires first (see
+     * `switchCourse`). Never consults the topic index.
      * It stages NOTHING: an explicit "open this conversation" outranks passive
      * detection, and cut 2 removed the saved-pending restoration that undo
      * needed.
@@ -2617,6 +2684,13 @@ export class IrisConversationService {
         // conversations that exist, creating duplicates.
         if (this._overviewInFlight?.courseId === courseId) { return this._overviewInFlight.promise; }
         const seq = this.state.nextOverviewSeq();
+        // `_overviewInFlight` is ONE slot, so a switch to another course
+        // overwrites this entry rather than queueing beside it. The cleanup
+        // below must therefore identify the request, not merely its course:
+        // A1 starts, B replaces it, A2 replaces B, A1 settles, and a
+        // course-equality check would clear A2's tracking. The next A refresh
+        // would then issue a duplicate request while A2 is still open.
+        // `seq` is unique per request, so it is the identity to compare.
         // The overview is a best-effort CACHE, and every caller fires it as
         // `void refreshOverview()`. So it catches internally and always settles
         // successfully: relying on each present and future caller to append
@@ -2631,7 +2705,7 @@ export class IrisConversationService {
                 logger.warn('Iris overview refresh failed', LogCategory.IRIS_CHAT, error);
             })
             .finally(() => {
-                if (this._overviewInFlight?.courseId === courseId) { this._overviewInFlight = undefined; }
+                if (this._overviewInFlight?.seq === seq) { this._overviewInFlight = undefined; }
                 // The course may have changed while this was in flight; the new
                 // one then still needs its own request.
                 const current = this.state.snapshot().courseId;
@@ -2639,7 +2713,7 @@ export class IrisConversationService {
                     void this.refreshOverview();
                 }
             });
-        this._overviewInFlight = { courseId, promise };
+        this._overviewInFlight = { courseId, seq, promise };
         return promise;
     }
 
@@ -2702,11 +2776,11 @@ type ProbeResult =
 
 Points the implementer must not paraphrase away:
 
-- **`beginNavigation` is a commit point.** It runs only inside `_install`, after a successful `GET`. Calling it before a request is the exact defect this task exists to avoid: it wipes the detail, `contentState()` drops to `unknown`, and `resolveTopic` then answers `refuse/loading` forever instead of trying the next candidate or creating a conversation. The revalidation loop would silently stop working.
+- **`beginNavigation` is a commit point.** It runs only inside `_install`, after a successful `GET`. Calling it before a request is the exact defect this task exists to avoid: it wipes the detail, `contentState()` drops to `unknown`, and `resolveTopic` then answers `refuse/loading` forever instead of creating a conversation. Revalidation would silently stop working.
 - **`_probe` never mutates visible state.** A mismatch, a 403, a 5xx or a dropped connection leaves the open transcript exactly as it was. This is also what makes the 403/5xx rule of spec §12 real: keeping the row is pointless if the conversation the student was reading has already been thrown away.
 - **Every acquisition path goes through `_install`,** which is the only place that subscribes to the websocket. The old model did this inside `initializeSession`, which Task 7 deletes; skipping it means a conversation can POST but never receives an answer.
 - `refreshOverview` guards on both `_overviewSeq` and the requested `courseId`. The sequence alone would let a slow course-A response win whenever no newer refresh had started.
-- `navigateTo` rethrows so the provider can surface `openSessionError`. `resolveTopicChange` never throws and reports through `TopicChangeOutcome` instead, because the picker needs an outcome to label, not an exception.
+- `navigateTo` rethrows so the provider can surface `openSessionError`. `resolveTopicChange` never throws and reports through `TopicChangeOutcome` instead, because the dispatcher needs an outcome to act on (it decides whether to raise the navigation notice), not an exception.
 
 - [ ] **Step 5: Construct the service in the provider, routed to nothing**
 
@@ -4193,11 +4267,11 @@ Line 1 is the course and is **the only clickable part**, opening `CoursePicker`.
 
 Artemis's values from `context-selection.component.scss`: fill `color-mix(in srgb, var(--vscode-charts-blue) 12%, transparent)`, border at 25%, **normal body text colour** (`--vscode-foreground`), pill radius, remove icon at 40% opacity going to 100% on hover.
 
-**One visual state.** The chip shows `pending ?? committed` and does not distinguish staged from committed; the preview line does that. No chip when the topic is the course. Clicking the chip opens the picker.
+**One visual state.** The chip shows `pending ?? committed` and does not distinguish staged from committed, exactly as Artemis's own chip does not (cut 5 removed the preview line that would have). No chip when the topic is the course. Clicking the chip opens the picker.
 
-**The remove icon appears only while `contentState === 'empty'`.** There it does what its shape promises: it drops the topic in place, no request, no visible change beyond the chip. On a conversation with content, removing the topic necessarily means leaving for another conversation, and a small remove icon must not silently replace the whole transcript. There the icon is hidden and the picker's "Kurs-Chat" entry carries the action, labelled like every other entry.
+**The remove icon appears only while `contentState === 'empty'`.** There it does what its shape promises: it drops the topic in place, no request, no visible change beyond the chip. On a conversation with content, removing the topic necessarily means leaving for another conversation, and a small remove icon must not silently replace the whole transcript. There the icon is hidden and the picker's "Kurs-Chat" entry carries the action, under the same static hint as every other entry.
 
-- [ ] **Step 3: `ContextPicker` with effect labels (§5.3)**
+- [ ] **Step 3: `ContextPicker` (§5.3)**
 
 Popover opening upward. Search scoped to the current course. "Kurs-Chat" is a fixed first entry, then the course's exercises with the workspace one pinned and badged. One checkmark on `pending ?? committed`.
 
@@ -4231,7 +4305,7 @@ The **marker row** is full width and mirrors `iris-context-switch-divider.compon
 
 One muted line above the composer, 10 s then fade. Cleared by **any** navigation or course change, not only by its own timeout.
 
-**Actionless** (cut 2). It carries text and nothing else. Two strings in PR 1:
+**Actionless** (cut 2). It carries text and nothing else. Three cases in PR 1:
 
 - "Zu einer anderen Unterhaltung gewechselt." when a topic change opened an existing conversation,
 - "Neue Unterhaltung gestartet." when it created one, if distinguishing the two costs no extra plumbing; one generic string is acceptable otherwise,
@@ -4717,6 +4791,19 @@ export const SEND_REJECTION_MESSAGES: Record<SendRejection | 'unknown', string> 
 };
 ```
 - The dispatcher answers `SelectTopic`, `OpenConversation`, `SwitchCourse` and `NewConversation`, and stops answering `SelectChatContext`, `SwitchSession`, `OpenArtemisSession`, `CreateNewSession` and `SwitchToWorkspaceContext`. The old handler methods stay on the class with no caller, which is what `knip` confirms in Task 15.
+- **The dispatcher posts the navigation notice.** Cut 2 kept the notice precisely so a topic pick that replaces the whole transcript is explained afterwards, and the component is useless if nothing raises it. `SelectTopic` whose `TopicChangeOutcome` is `opened` posts `ShowChatNotice` with "Zu einer anderen Unterhaltung gewechselt."; `NewConversation` posts "Neue Unterhaltung gestartet." `OpenConversation` from the history posts **nothing**: that navigation is what the student explicitly asked for, so there is nothing to explain. Outcomes `staged`, `unstaged` and `noop` post nothing either, because the transcript did not move. The Ask-Iris progress message (Step 3) is a separate surface and does not cover the webview picker.
+
+```typescript
+        const outcome = await conversation.resolveTopicChange(target);
+        if (outcome.kind === 'opened') {
+            this._postMessageSafe({
+                type: ExtensionMsg.ShowChatNotice,
+                text: 'Zu einer anderen Unterhaltung gewechselt.',
+            });
+        }
+```
+
+Add a provider test: a `SelectTopic` that resolves to `opened` posts exactly one `showChatNotice`, and one that resolves to `staged` posts none.
 - `resolveWebviewView` calls `void this._conversation?.start(workspaceExercise)` in place of the old `initializeIrisSessionAndLoadMessages` path.
 - `SwitchCourse` calls `this._contextStore.setCurrentCourseId(courseId)` before `switchCourse`, so the course list's "most recently viewed" order and the cold-start path both see it. Task 9 added that accessor and nothing has called it until now.
 - `this._disposables.push(this._conversation.onDidChange(() => this._viewStatePresenter.postSnapshot()))`. The baseline presenter method is `postSnapshot`; there is no `postIrisState`.
@@ -4810,7 +4897,7 @@ Expected: both succeed. `esbuild.js:9-25` builds `main` (desktop) and `browser` 
 Not automatable and not optional. Walk the six paths in order and record the result in the PR body:
 
 1. Open a workspace for an exercise with no existing conversation. It must acquire one and show the exercise as the topic. This is #373.
-2. Send a message. The marker line appears before your message, the chip stops looking staged, and the preview line disappears.
+2. Send a message. The marker line appears before your message, and the chip keeps showing the same topic, now committed rather than staged.
 3. Pick a different exercise in the picker while the conversation has content. It must open or create another conversation, never move this one.
 4. Trigger a build failure on another exercise so Artemis's `onBuildFailure` repoints a session. The extension must render the marker and update the chip, not sit on a stale context.
 5. Kill the network mid-send. The composer text survives, nothing is resent, and the outcome is reported as unknown.
