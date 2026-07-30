@@ -46,13 +46,12 @@ suite('extractIrisMessageContent: array of content parts', () => {
         assert.strictEqual(extractIrisMessageContent([{ textContent: 'only' }]), 'only');
     });
 
-    test('part without textContent falls back to String(item)', () => {
-        // Items without textContent and without a custom toString collapse
-        // to the default `[object Object]` rendering. Not pretty, but the
-        // function must not crash and must still return a string.
+    test('part without textContent yields empty string', () => {
+        // Items without textContent are unrecognised and contribute nothing.
+        // The function must not crash and must still return a string.
         const out = extractIrisMessageContent([{}]);
         assert.strictEqual(typeof out, 'string');
-        assert.ok(out.length > 0);
+        assert.strictEqual(out, '');
     });
 
     test('empty array falls through to JSON.stringify', () => {
