@@ -4914,6 +4914,8 @@ git rm src/extension/services/iris/context/sessionManager.ts \
 
 Then delete `ActiveContext`, `ContextSource`, `StoredSession` and the old `ContextSnapshot` from `src/shared/types/context.ts`. Keep `ChatContextType` only if a consumer still needs it; otherwise delete it too. Remove `getActiveContext` / `setActiveContext` / `onDidChangeActiveContext`, `incrementActiveSessionMessageCount`, `getActiveSession` and every session accessor from `contextStore.ts`.
 
+**Re-source `courseTitle` before deleting `contextSnapshot.ts`.** `chatViewStatePresenter._serializeConversation` resolves the header's course name by scanning `contextSnapshot.courses`, and that snapshot builder is on this task's delete list. The underlying data survives (the v3 migration keeps tracked courses), only the carrier dies, so point the presenter at the tracked-course repository directly. `courseTitle` is an **optional** wire field, so if this is missed there is no compile error: the course line in the header simply goes blank forever. `workspaceExerciseId` is unaffected, it comes from `ContextStore.getWorkspaceExerciseId()`, which is the new surface and stays.
+
 Then raise `STORE_VERSION` to `3` in `contextPersistence.ts` and un-skip the migration test written in Task 9. Doing it here, and not earlier, is what makes it safe: nothing reads `activeContext` any more, so dropping it costs the student nothing, and the v3 branch of `migrate` keeps their tracked exercises and courses.
 
 - [ ] **Step 3: Delete the superseded wire fields**
