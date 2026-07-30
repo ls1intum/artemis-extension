@@ -2,6 +2,8 @@ import * as assert from 'assert';
 
 import { ApiError } from '@extension/domain';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
+import type { SendDeps } from '@extension/services/iris/conversation/sendCoordinator';
+import { SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
 
 const detail = (sessionId: number, context: unknown, messages: unknown[] = []) =>
     ({ sessionId, courseId: 42, context, messages });
@@ -57,11 +59,17 @@ function makeApi() {
         resolveOldestCall: (call: string, v: unknown) => { take(call, 'oldest').resolve(v); },
         /** Rejects the newest outstanding request matching `call`. */
         rejectCall: (call: string, error: unknown) => { take(call, 'newest').reject(error); },
+        /** Resolves the (single, lock-guaranteed) outstanding send. */
+        resolveSend: (v: unknown) => { take('send', 'newest').resolve(v); },
+        rejectSend: (error: unknown) => { take('send', 'newest').reject(error); },
         api: {
             getCurrentChat: (mode: string, entityId: number, courseId: number) => next(`current:${mode}:${entityId}:${courseId}`),
             createCourseSession: (courseId: number) => next(`create:${courseId}`),
             getChatSessionById: (courseId: number, sessionId: number) => next(`detail:${courseId}:${sessionId}`),
             listChatSessionsForCourse: (courseId: number) => next(`overview:${courseId}`),
+            // Only exercised by the `serviceWith`/`SendCoordinator` reconnect tests
+            // below; every other test in this file never calls send().
+            sendChatMessage: () => next('send'),
         },
     };
 }
@@ -102,6 +110,67 @@ async function startedWithContent() {
     const service = await started();
     service.state.upsertMessage({ id: 11, sender: 'USER' } as never);
     return service;
+}
+
+/** Same helper as Task 3's ConversationState tests and Task 7's sendCoordinator tests. */
+const swapMessage = (id: number, attributes: unknown) =>
+    ({ id, sender: 'CTXSWAP', content: [{ type: 'json', attributes }] });
+
+/**
+ * Minimal SendDeps: no run-UI plumbing, no files, everything else a no-op.
+ * Only used to drive `SendCoordinator.send` far enough to observe its guard
+ * interaction with `reconcileCurrent`; nothing here is itself under test.
+ */
+function sendDeps(): SendDeps {
+    return {
+        runLifecycle: { beginGeneration: () => 1, abortGeneration: () => { /* noop */ } },
+        resetRunUiAndPublish: () => { /* noop */ },
+        collectUncommittedFiles: () => Promise.resolve(undefined),
+        confirmBubble: () => { /* noop */ },
+        failBubble: () => { /* noop */ },
+        reportError: () => { /* noop */ },
+        // No workspace exercise: keeps `send()` from taking the
+        // `collectUncommittedFiles` await, so `sendChatMessage` fires
+        // synchronously (before the caller's next microtask), matching what the
+        // reconnect-ordering tests below assume when they call `send()` and
+        // `reconcileCurrent()` back to back with no tick between them.
+        getWorkspaceExerciseId: () => undefined,
+    };
+}
+
+/**
+ * A service plus a coordinator with one open conversation. Every field of the
+ * starting state is an explicit option; nothing is staged behind the caller's
+ * back.
+ */
+async function serviceWith(options: {
+    sessionId: number;
+    context: unknown;
+    courseId?: number;
+    pending?: unknown;
+    messages?: unknown[];
+}) {
+    const { api, deferred, outstanding, resolveCall, resolveOldestCall, resolveSend, rejectSend, rejectCall } = makeApi();
+    const courseId = options.courseId ?? 42;
+    const { deps: d, subscribed } = deps();
+    const service = new IrisConversationService(api as never, d);
+    const run = service.start({ exerciseId: 5, courseId });
+    resolveCall(`current:PROGRAMMING_EXERCISE_CHAT:5:${courseId}`, {
+        sessionId: options.sessionId, courseId, context: options.context,
+        lastActivity: 1000, messages: options.messages ?? [],
+    });
+    await run;
+    resolveCall(`overview:${courseId}`, []);
+    await tick();
+    // start() may have staged the workspace exercise when a course session came
+    // back. Reset to exactly what the test asked for.
+    service.state.clearPending();
+    if (options.pending) { service.state.stagePending(options.pending as never); }
+    const coordinator = new SendCoordinator(api as never, service, sendDeps());
+    return {
+        service, coordinator, subscribed,
+        api: { deferred, outstanding, resolveCall, resolveOldestCall, resolveSend, rejectSend, rejectCall },
+    };
 }
 
 suite('IrisConversationService', () => {
@@ -441,5 +510,93 @@ suite('IrisConversationService', () => {
         service.api.rejectCall('create:42', new ApiError('boom', 500));
         const outcome = await change;
         assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'failed' });
+    });
+});
+
+/**
+ * Task 8: `reconcileCurrent` and its trigger `onSubscriptionActive` were both
+ * authored in Task 5 (the trigger cannot compile without the method), and two
+ * of the brief's cases already exist above under their own names:
+ *  - "subscribes before adopting the snapshot" === 'reconcileCurrent subscribes
+ *    before the detail GET resolves'.
+ *  - "a signal for a session we already left is ignored" === 'onSubscriptionActive
+ *    ignores a signal for a session that is no longer current'.
+ * This suite adds only the cases neither of those cover: onSubscriptionActive's
+ * full accept path (not just the reject path), a genuine context CHANGE on
+ * reconcile (the existing test above resolves with the SAME context), the
+ * CTXSWAP-during-reconcile race, the send/reconnect ordering race, and the
+ * knownInvisible non-interference case.
+ */
+suite('subscription reconciliation', () => {
+    test('a delayed first subscription still triggers a reconciliation', async () => {
+        // Not only reconnects: a first subscribe that was retried after a throw
+        // leaves the same gap, and the same trigger closes it.
+        const c = await serviceWith({ sessionId: 1, context: COURSE42 });
+        c.service.onSubscriptionActive(1);
+        c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: EX5, lastActivity: 1000, messages: [] });
+        await tick();
+        assert.deepStrictEqual(c.service.state.snapshot().committedContext, EX5);
+    });
+
+    test('re-adopts the server mode and entityId, not merely the messages', async () => {
+        const c = await serviceWith({ sessionId: 1, context: COURSE42 });
+        const done = c.service.reconcileCurrent();
+        c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: EX5, lastActivity: 1000, messages: [] });
+        await done;
+        assert.deepStrictEqual(c.service.state.snapshot().committedContext, EX5);
+        // The adoption has to reach the INDEX as well, not only the chip. A
+        // cached summary left on the abandoned topic makes `findSessionFor`
+        // answer a later pick with a conversation that no longer holds what was
+        // asked for, which is the duplicate-conversation bug in miniature.
+        // Without these two lines this test is fully subsumed by the delayed
+        // first subscription case above.
+        assert.strictEqual(c.service.state.findSessionFor(EX5), 1);
+        assert.strictEqual(c.service.state.findSessionFor(COURSE42), undefined);
+    });
+
+    test('is discarded when a CTXSWAP arrived while it was in flight', async () => {
+        const c = await serviceWith({ sessionId: 1, context: COURSE42 });
+        const done = c.service.reconcileCurrent();
+        c.service.state.applyContextSwap({ transition: 'added', context: EX7 }, swapMessage(20, { transition: 'added' }));
+        c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [] });
+        await done;
+        assert.deepStrictEqual(c.service.state.snapshot().committedContext, EX7);
+    });
+
+    test('never installs a snapshot that predates an unresolved send', async () => {
+        // A disconnect does not cancel a POST, so this fires DURING a send.
+        //
+        // `pending: EX5` is load-bearing and must be EXPLICIT. With no pending,
+        // `_commitWriteBack` returns early, the committed context never leaves
+        // COURSE42, and the assertion below is unreachable. Do NOT make
+        // `serviceWith` stage EX5 implicitly: other tests would then depend on
+        // hidden setup.
+        const c = await serviceWith({ sessionId: 1, context: COURSE42, pending: EX5 });
+        const sending = c.coordinator.send({ text: 'a', localId: 'l1', sessionId: 1 });
+        const done = c.service.reconcileCurrent();
+        c.api.resolveSend({ id: 11 });
+        await sending;                  // sendSeq moves here
+        c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [] });
+        await done;
+        // The reconnect GET started before the send completed, so it is
+        // discarded and the send's write-back survives.
+        assert.deepStrictEqual(c.service.state.snapshot().committedContext, EX5);
+    });
+
+    test('leaves knownInvisible untouched', async () => {
+        // `serviceWith` itself already remembers session 1 as invisible (its
+        // overview comes back empty), so the baseline going in is 1, not 0.
+        // Asserting a bare `1` after adding session 9 would silently expect
+        // reconcileCurrent to have WIPED that pre-existing entry; asserting `2`
+        // and that session 9's own data survived is what actually pins "the
+        // invisible cache is untouched by a reconcile".
+        const c = await serviceWith({ sessionId: 1, context: COURSE42 });
+        c.service.state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX5, lastActivity: 1 });
+        const done = c.service.reconcileCurrent();
+        c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [] });
+        await done;
+        const invisible = c.service.state.snapshot().knownInvisible;
+        assert.strictEqual(invisible.length, 2);
+        assert.deepStrictEqual(invisible.find((s) => s.sessionId === 9)?.context, EX5);
     });
 });
