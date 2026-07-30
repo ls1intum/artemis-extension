@@ -244,7 +244,7 @@ describe('dormancy guard: the new model must stay inert until a session is actua
         // so the service exists (getConversation() is truthy) but
         // ConversationState.currentSessionId is undefined. `_activeConversation`
         // MUST treat that as "no active conversation", not as "conversation
-        // active with an undefined current session" — the latter would make
+        // active with an undefined current session": the latter would make
         // every frame's sourceSessionId (whatever it is) fail the
         // `sourceSessionId !== current` check and get dropped, silently, for
         // the whole dormant period. makeHandler() with no currentSessionId
