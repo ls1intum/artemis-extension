@@ -98,7 +98,7 @@ These are facts about Artemis `main` (`553aab7595`), not design choices. **Nothi
 | Path | Lines | Why |
 |---|---|---|
 | `src/extension/services/iris/context/sessionManager.ts` | 334 | The per-context session index, rehoming, empty-session cleanup. |
-| `src/extension/services/iris/context/sessionSyncUtils.ts` | 146 | Imports server sessions by filtering on their mutable context. `IrisServiceDeps` moves to `conversation/deps.ts` (Task 5). |
+| `src/extension/services/iris/context/sessionSyncUtils.ts` | 146 | Imports server sessions by filtering on their mutable context. `IrisServiceDeps` moves to `conversation/deps.ts` in **Task 15**, where this file is actually deleted. Moving it earlier would re-point four live importers for no benefit. |
 | `src/extension/services/iris/context/contextSnapshot.ts` | - | Builds the per-context bucket and the local active session. |
 | `test/unit/services/iris/context/sessionManager.test.ts` | - | Tests a deleted file. |
 | `test/unit/services/iris/context/sessionSyncUtils.test.ts` | - | Tests a deleted file. |
@@ -1846,7 +1846,6 @@ git commit -m "feat(iris): pure topic resolution"
 
 **Files:**
 - Create: `src/extension/services/iris/conversation/conversationService.ts`
-- Create: `src/extension/services/iris/conversation/deps.ts` (the `IrisServiceDeps` interface, moved out of the deleted `sessionSyncUtils.ts`)
 - Test: `test/unit/services/iris/conversation/conversationService.test.ts` (create)
 
 **Interfaces:**
@@ -3822,7 +3821,7 @@ git commit -m "feat(iris): send the staged topic under a global send lock"
 ## Task 8: Reconcile the full detail whenever a subscription becomes active
 
 **Files:**
-- Modify: `src/extension/services/iris/conversation/conversationService.ts` (add `reconcileCurrent`; its trigger, `onSubscriptionActive`, was wired in Task 5)
+- Modify: `src/extension/services/iris/conversation/conversationService.ts` (`reconcileCurrent` and its trigger `onSubscriptionActive` both already landed in Task 5, because the trigger could not compile without the method; this task adds its tests and the reconnect plumbing around it)
 - Modify: `src/extension/provider/chatReloadDecision.ts`
 - Modify: `src/extension/services/iris/chat/irisWebSocketMessageHandler.ts:handleReconnectWebSocket`
 - Test: `test/unit/provider/chatWebviewProviderReconnect.test.ts` (rewrite)
@@ -4898,7 +4897,7 @@ git rm src/extension/services/iris/context/sessionManager.ts \
        test/unit/services/iris/context/sessionSyncUtils.test.ts
 ```
 
-`IrisServiceDeps` lived in `sessionSyncUtils.ts`; it moved to `conversation/deps.ts` in Task 5. Re-point the remaining importers.
+`IrisServiceDeps` lives in `sessionSyncUtils.ts`, which this step deletes. Create `conversation/deps.ts` with it **here** and re-point the remaining importers (`chatContextManager.ts`, the reduced `chatSessionService.ts`, `chatWebviewProvider.ts` and the `services/iris/index.ts` re-export; `chatMessageService.ts` is deleted in this same task).
 
 - [ ] **Step 2: Retire `ActiveContext` and raise the store to v3**
 
