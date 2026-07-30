@@ -10,7 +10,7 @@
 import * as assert from 'assert';
 import type * as vscode from 'vscode';
 
-import { ContextPersistence, parseStoredState } from '@extension/services/iris/context/contextPersistence';
+import { ContextPersistence, migrateStoredStateToV3, parseStoredState } from '@extension/services/iris/context/contextPersistence';
 import type { StoredState } from '@extension/services/iris/context/contextStateTypes';
 
 const minimal: StoredState = {
@@ -203,5 +203,60 @@ suite('parseStoredState — trust on inner items (light-touch contract)', () => 
         const bad = { ...minimal, sessions: { foo: 'not an array' as unknown } };
         const parsed = parseStoredState(bad);
         assert.ok(parsed, 'light-touch guard accepts malformed inner items');
+    });
+});
+
+// ── migrateStoredStateToV3 (Task 9 prep, consumed by Task 15) ──────────
+
+suite('migrateStoredStateToV3', () => {
+    test('the ACTUAL v2 state migrates: tracked items survive, activeContext does not', () => {
+        // The baseline is already at STORE_VERSION 2 (contextPersistence.ts:9),
+        // so this migration is v2 to v3 and its input is the real v2 shape.
+        // Writing it as "v1 to v2" would leave every existing installation on a
+        // version the new code believes is current, and the stale activeContext
+        // would survive into cold start.
+        const migrated = migrateStoredStateToV3({
+            version: 2,
+            activeContext: { type: 'exercise', id: 5, title: 'BFS', source: 'user-selected', locked: true, selectedAt: 1 },
+            activeSessionId: 'local-1',
+            sessions: { 'exercise:5': [{ id: 'local-1', contextKey: 'exercise:5', preview: 'x', messageCount: 2, createdAt: 1, lastActivity: 2 }] },
+            exercises: [{ id: 5, title: 'BFS', courseId: 42 }],
+            courses: [{ id: 42, title: 'EIST' }],
+        });
+        assert.strictEqual(migrated.version, 3);
+        assert.strictEqual(migrated.exercises.length, 1);
+        assert.strictEqual(migrated.courses.length, 1);
+        assert.ok(!('activeContext' in migrated));
+        assert.ok(!('sessions' in migrated));
+        assert.ok(!('activeSessionId' in migrated));
+    });
+
+    test('a pre-v2 state unions all* with recent*, losing nothing', () => {
+        // Reading only `allExercises` and `courses` drops the recent-only
+        // exercise and EVERY legacy course. The baseline migration unions both
+        // pairs, so this migration must too.
+        const migrated = migrateStoredStateToV3({
+            version: 1,
+            allExercises: [{ id: 5, title: 'BFS', courseId: 42, priority: 3 }],
+            recentExercises: [{ id: 6, title: 'DFS', courseId: 42, lastViewed: 99 }],
+            allCourses: [{ id: 42, title: 'EIST' }],
+            recentCourses: [{ id: 43, title: 'PSE' }],
+        });
+        assert.strictEqual(migrated.version, 3);
+        assert.deepStrictEqual(migrated.exercises.map((e) => e.id).sort(), [5, 6]);
+        assert.deepStrictEqual(migrated.courses.map((c) => c.id).sort(), [42, 43]);
+        assert.ok(!('priority' in migrated.exercises[0]));
+    });
+
+    // The two below assert on the LIVE parser, which only becomes v3 in Task 15.
+    // Written now, skipped now, un-skipped there, so the deletion commit has a
+    // test waiting for it instead of one written after the fact.
+    test.skip('a v3 state round-trips unchanged (un-skip in Task 15)', () => {
+        const state = { version: 3, exercises: [], courses: [] };
+        assert.deepStrictEqual(parseStoredState(state), state);
+    });
+
+    test.skip('parseStoredState rejects a v3 shape that still carries sessions (un-skip in Task 15)', () => {
+        assert.strictEqual(parseStoredState({ version: 3, exercises: [], courses: [], sessions: {} }), null);
     });
 });

@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 
 import { ContextStore } from '@extension/services/iris/context/contextStore';
-import { ActiveContext } from '@extension/types';
+import { ActiveContext, TrackedExercise } from '@extension/types';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('ContextStore Test Suite', () => {
@@ -673,5 +673,71 @@ suite('ContextStore workspace accessors', () => {
         store.clearWorkspaceFlag();
         sub.dispose();
         assert.strictEqual(calls.length, 0);
+    });
+});
+
+suite('ContextStore navigation course id (Task 9)', () => {
+    let store: ContextStore;
+
+    setup(() => {
+        store = new ContextStore(new MockExtensionContext());
+    });
+
+    test('getCurrentCourseId returns undefined before any set', () => {
+        assert.strictEqual(store.getCurrentCourseId(), undefined);
+    });
+
+    test('setCurrentCourseId then getCurrentCourseId round-trips', () => {
+        store.setCurrentCourseId(42);
+        assert.strictEqual(store.getCurrentCourseId(), 42);
+    });
+
+    test('setCurrentCourseId(undefined) clears a previously set value', () => {
+        store.setCurrentCourseId(42);
+        store.setCurrentCourseId(undefined);
+        assert.strictEqual(store.getCurrentCourseId(), undefined);
+    });
+});
+
+suite('ContextStore onDidChangeWorkspaceExercise (Task 9)', () => {
+    let store: ContextStore;
+
+    setup(() => {
+        store = new ContextStore(new MockExtensionContext());
+    });
+
+    test('fires when registerExercise sets the workspace flag', () => {
+        const fired: Array<TrackedExercise | undefined> = [];
+        const sub = store.onDidChangeWorkspaceExercise(ex => fired.push(ex));
+        store.registerExercise({ id: 1, title: 'Ws', isWorkspace: true });
+        sub.dispose();
+        assert.strictEqual(fired.length, 1);
+        assert.strictEqual(fired[0]?.id, 1);
+    });
+
+    test('does not fire when registering a non-workspace exercise', () => {
+        const fired: Array<TrackedExercise | undefined> = [];
+        const sub = store.onDidChangeWorkspaceExercise(ex => fired.push(ex));
+        store.registerExercise({ id: 2, title: 'Not ws' });
+        sub.dispose();
+        assert.strictEqual(fired.length, 0);
+    });
+
+    test('fires with undefined when clearWorkspaceFlag removes the workspace exercise', () => {
+        store.registerExercise({ id: 3, title: 'Ws', isWorkspace: true });
+        const fired: Array<TrackedExercise | undefined> = [];
+        const sub = store.onDidChangeWorkspaceExercise(ex => fired.push(ex));
+        store.clearWorkspaceFlag();
+        sub.dispose();
+        assert.strictEqual(fired.length, 1);
+        assert.strictEqual(fired[0], undefined);
+    });
+
+    test('does not fire when clearWorkspaceFlag is called with no workspace exercise set', () => {
+        const fired: Array<TrackedExercise | undefined> = [];
+        const sub = store.onDidChangeWorkspaceExercise(ex => fired.push(ex));
+        store.clearWorkspaceFlag();
+        sub.dispose();
+        assert.strictEqual(fired.length, 0);
     });
 });

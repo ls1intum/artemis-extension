@@ -43,6 +43,26 @@ export class ContextStore {
     public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
 
     /**
+     * Task 9: fires whenever the workspace-flagged exercise changes (set via
+     * `registerExercise`, cleared via `clearWorkspaceFlag`). Distinct from
+     * `onDidChangeActiveContext`: the workspace exercise is derived from the
+     * folder's git remote and does not necessarily track what the user is
+     * chatting about. The struggle detector follows this event from Task 14
+     * onward; nothing consumes it yet.
+     */
+    private readonly _onDidChangeWorkspaceExercise = new vscode.EventEmitter<TrackedExercise | undefined>();
+    public readonly onDidChangeWorkspaceExercise = this._onDidChangeWorkspaceExercise.event;
+
+    /**
+     * Task 9: navigation state for "which course is the user currently
+     * looking at", distinct from the workspace exercise's course. In-memory
+     * only (not persisted, not part of `StoredState`); it resets on every
+     * extension reload, which matches its role as transient UI navigation
+     * state rather than a durable preference.
+     */
+    private _currentCourseId: number | undefined;
+
+    /**
      * Task 12: fires the context key(s) affected by a session mutation
      * (message sent, session created/rehomed/retitled). A `void` event would
      * force consumers to drop everything on every mutation; carrying the
@@ -74,6 +94,7 @@ export class ContextStore {
     public dispose(): void {
         this._onDidChangeActiveContext.dispose();
         this._onDidChangeSessions.dispose();
+        this._onDidChangeWorkspaceExercise.dispose();
     }
 
     public snapshot(): ContextSnapshot {
@@ -96,20 +117,35 @@ export class ContextStore {
         return this._repository.getWorkspaceExercise()?.id;
     }
 
+    public getCurrentCourseId(): number | undefined {
+        return this._currentCourseId;
+    }
+
+    public setCurrentCourseId(courseId: number | undefined): void {
+        this._currentCourseId = courseId;
+    }
+
     /**
-     * Clears the `isWorkspace` flag on all tracked exercises. Silent: does NOT fire
-     * `onDidChangeActiveContext`. Callers that need a UI refresh must post a snapshot
-     * themselves — see `ChatWebviewProvider.clearWorkspaceExercise`.
+     * Clears the `isWorkspace` flag on all tracked exercises. Silent with
+     * respect to `onDidChangeActiveContext` (does NOT fire it). Callers that
+     * need a UI refresh must post a snapshot themselves, see
+     * `ChatWebviewProvider.clearWorkspaceExercise`. It DOES fire
+     * `onDidChangeWorkspaceExercise` when a workspace exercise was actually
+     * cleared, since that event exists specifically to track this flag.
      */
     public clearWorkspaceFlag(): void {
+        const previousWorkspace = this._repository.getWorkspaceExercise();
         this._repository.clearAllWorkspaceFlags();
         this._persistence.save(this.state);
+        this._fireWorkspaceExerciseChangeIfNeeded(previousWorkspace);
     }
 
     public registerExercise(input: ExerciseInput): ContextSnapshot {
+        const previousWorkspace = this._repository.getWorkspaceExercise();
         this._repository.upsertExercise(input);
         this._repository.trimExerciseHistory();
         this._persistence.save(this.state);
+        this._fireWorkspaceExerciseChangeIfNeeded(previousWorkspace);
         return this.snapshot();
     }
 
@@ -256,6 +292,13 @@ export class ContextStore {
         const changed = previous?.type !== current?.type || previous?.id !== current?.id;
         if (changed) {
             this._onDidChangeActiveContext.fire({ current, previous });
+        }
+    }
+
+    private _fireWorkspaceExerciseChangeIfNeeded(previous: TrackedExercise | undefined): void {
+        const current = this._repository.getWorkspaceExercise();
+        if (previous?.id !== current?.id) {
+            this._onDidChangeWorkspaceExercise.fire(current);
         }
     }
 }
