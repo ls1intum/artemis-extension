@@ -165,9 +165,12 @@ export class IrisConversationService {
      * Installing the detail and then never checking again is what leaves the
      * chip showing a topic the server abandoned.
      */
-    public onSubscriptionActive(sessionId: number): void {
+    public async onSubscriptionActive(sessionId: number): Promise<void> {
         if (sessionId !== this.state.snapshot().currentSessionId) { return; }
-        void this.reconcileCurrent();
+        // Awaitable so the ONE caller can inspect the reconciled result: the
+        // provider decides afterwards whether the recovered history proves an
+        // in-flight run finished while the socket was down.
+        await this.reconcileCurrent();
     }
 
     /**

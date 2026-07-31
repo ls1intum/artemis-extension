@@ -62,6 +62,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // that fetch has finished; without this the picker says "No courses
     // found" the instant it opens.
     const [coursesLoading, setCoursesLoading] = useState(false);
+    /** Whether a `refreshCourses` is outstanding. See the snapshot handler. */
+    const coursesRequested = useRef(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
     // Element that opened the currently-visible popover (context row or
@@ -158,11 +160,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
-                // Only a snapshot that actually carries courses ends the wait.
-                // Every conversation change emits one too (an overview refresh,
-                // a send settling), and clearing on those flashes "No courses
-                // found" before the dashboard fetch has landed.
-                if (msg.state.courses.length > 0) {
+                // The host answers a refresh with exactly one snapshot, so the
+                // next one after the request ends the wait. Keyed on the
+                // request being ANSWERED rather than on the list being
+                // non-empty: a student whose dashboard genuinely has no courses
+                // must reach "No courses found", not a permanent skeleton.
+                if (coursesRequested.current) {
+                    coursesRequested.current = false;
                     setCoursesLoading(false);
                 }
                 if (msg.showDiagnostics !== undefined) {
@@ -418,13 +422,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     };
 
     const handleFeedback = (messageId: number, feedback: 'positive' | 'negative') => {
-        const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
-        if (typeof activeSession?.artemisSessionId !== 'number') {return;}
-        postCommand(vscodeApi, 'messageFeedback', {
-            sessionId: activeSession.artemisSessionId,
-            messageId,
-            feedback,
-        });
+        // The conversation IS the Artemis session under the flag. Resolving it
+        // through the old model's session list makes every thumbs click a
+        // silent no-op: the list is empty and `activeSessionId` is null, while
+        // the buttons stay rendered.
+        const sessionId = conversationFirstActive
+            ? store.currentSessionId
+            : store.sessions.find(s => s.id === store.activeSessionId)?.artemisSessionId ?? null;
+        if (typeof sessionId !== 'number') { return; }
+        postCommand(vscodeApi, 'messageFeedback', { sessionId, messageId, feedback });
     };
 
     const handleOpenFile = (path: string) => {
@@ -485,6 +491,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // student's cursor.
     const requestCoursesIfEmpty = () => {
         if (useChatStore.getState().courses.length > 0) { return; }
+        coursesRequested.current = true;
         setCoursesLoading(true);
         postCommand(vscodeApi, 'refreshCourses');
     };
@@ -571,7 +578,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             case 'no-ai':
                 return store.isNoAiDetected;
             case 'no-context':
-                return store.context === null;
+                return !hasConversation;
             default:
                 return false;
         }

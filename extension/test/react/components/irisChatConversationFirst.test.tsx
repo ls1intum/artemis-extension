@@ -649,3 +649,90 @@ describe('IrisChatView transcript keying', () => {
         expect(send?.payload?.localSessionId).toBe(localSessionKeyFor(900));
     });
 });
+
+describe('IrisChatView actions that used to read the old model', () => {
+    const activeState = {
+        context: null,
+        activeSessionId: null,
+        sessions: [],
+        exercises: [],
+        courses: [{ id: 42, title: 'Introduction to Computer Science' }],
+        courseId: 42,
+        courseTitle: 'Introduction to Computer Science',
+        currentSessionId: 900,
+        conversationTitle: 'BFS loop',
+        displayMessageCount: 1,
+        contentState: 'content' as const,
+        conversationFirst: true,
+    };
+
+    async function openWithAnswer(api: ReturnType<typeof createMockVsCodeApi>) {
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage({
+            type: 'loadMessages',
+            localSessionId: localSessionKeyFor(900),
+            sessionId: 900,
+            artemisSessionId: 900,
+            messages: [{ id: 5, role: 'assistant' as const, content: 'because', timestamp: 1, final: true }],
+        });
+        await screen.findByText('because');
+    }
+
+    it('feedback resolves the Artemis session from the conversation', async () => {
+        // It used to look the id up in the old model's session list, which is
+        // empty now: every thumbs click was a silent no-op while the buttons
+        // stayed rendered.
+        const api = createMockVsCodeApi();
+        await openWithAnswer(api);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Helpful' }));
+
+        const feedback = getPostMessageCalls(api)
+            .map(([m]) => m as { command?: string; payload?: { sessionId?: number; messageId?: number; feedback?: string } })
+            .find(m => m.command === 'messageFeedback');
+        expect(feedback?.payload).toEqual({ sessionId: 900, messageId: 5, feedback: 'positive' });
+    });
+
+    it('a message that failed with no-context becomes retryable once a conversation is open', async () => {
+        const api = createMockVsCodeApi();
+        await openWithAnswer(api);
+        await userEvent.type(screen.getByRole('textbox'), 'hello{Enter}');
+        const localId = getPostMessageCalls(api)
+            .map(([m]) => m as { command?: string; payload?: { localId?: string } })
+            .find(m => m.command === 'sendMessage')?.payload?.localId as string;
+
+        dispatchExtensionMessage({
+            type: 'sendRejected',
+            localId,
+            localSessionId: localSessionKeyFor(900),
+            sessionId: 900,
+            reason: 'no-context',
+            errorMessage: 'Please select a course or exercise context first.',
+        });
+
+        // The old gate keyed on `store.context`, which nothing sets any more, so
+        // Retry was disabled forever.
+        expect(await screen.findByRole('button', { name: 'Retry sending this message' })).toBeEnabled();
+    });
+
+    it('a genuinely empty dashboard reaches "No courses found" instead of a permanent skeleton', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, courseId: null, currentSessionId: null, courses: [], workspaceExerciseId: null },
+        });
+        await screen.findByText(/No Artemis workspace detected/);
+        expect(getPostMessageCalls(api).some(([m]) => (m as { command?: string }).command === 'refreshCourses')).toBe(true);
+
+        // The host answers with a snapshot that still has no courses, because
+        // the student really has none.
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, courseId: null, currentSessionId: null, courses: [], workspaceExerciseId: null },
+        });
+
+        expect(await screen.findByText('No courses found')).toBeInTheDocument();
+    });
+});

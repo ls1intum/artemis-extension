@@ -53,14 +53,19 @@ interface ExerciseContextChangeEvent {
 }
 
 /**
- * Generation-scoped baseline for reconnect reconciliation. A bare id is not
- * enough: `generation` is the anti-stale key that lets a POST for an older
- * send be told apart from the still-current one (codex round 1, findings 1-4).
+ * Generation-scoped baseline for missed-terminal-frame recovery. A bare id is
+ * not enough: `generation` is the anti-stale key that lets a POST for an older
+ * send be told apart from the still-current one.
+ *
+ * Keyed on the CONVERSATION, like everything else on this path. It used to
+ * carry the old model's local session id and was compared against
+ * `contextStore.snapshot().activeSession`, which is `undefined` once the
+ * conversation model drives: the whole recovery was unreachable, so a run
+ * whose terminal frame was lost stayed `waiting` until the next navigation.
  */
-interface ReconcileMarker {
-    generation: number;       // _runs.generation at dispatch; the anti-stale key
-    localSessionId: string;
-    artemisSessionId: number; // the id onDidResubscribe fires
+interface RecoveryBaseline {
+    generation: number;      // _runs.generation at dispatch; the anti-stale key
+    sessionId: number;       // the conversation the send went to
     baselineMessageId: number;
 }
 
@@ -101,15 +106,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      */
     private readonly _runs = new IrisRunStateMachine();
 
-    /** Generation-scoped baseline for reconnect reconciliation. `undefined`
-     *  when no send is outstanding. Overwritten on each successful POST, cleared
-     *  by _resetRunsAndMarker on session/context navigation. */
-    private _reconcileMarker: ReconcileMarker | undefined;
-    /** Single-flight for the reconcile fetch. `_reconcilePendingAgain` coalesces
-     *  a resubscribe that arrives while a fetch is in flight, so the run is
-     *  re-checked once after it settles instead of being dropped. */
-    private _reconcileInFlight = false;
-    private _reconcilePendingAgain = false;
+    /** Baseline for missed-terminal-frame recovery. `undefined` when no send is
+     *  outstanding. Opened on each successful POST, cleared on navigation. */
+    private _recovery: RecoveryBaseline | undefined;
 
     /**
      * Context-keyed single-flight guard for chat-session reloads. Auto-retry
@@ -331,22 +330,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._disposables.push(
                 this._irisSessionManager.onDidConnectionStateChange(() => this._websocketMessageHandler.publishCurrentStatus())
             );
+            // ONE subscription, one owner. subscribeToSession only records
+            // intent, so an install can complete while the STOMP subscription
+            // is still pending or being retried after a throw, and a CTXSWAP in
+            // that gap is simply never heard. onDidResubscribe fires at the one
+            // moment that is true for both a first subscribe and a reconnect,
+            // which is also the only moment a missed terminal frame can be
+            // recovered.
             this._disposables.push(
                 this._irisSessionManager.onDidResubscribe((sessionId) => {
-                    void this._reconcileOnResubscribe(sessionId);
+                    void this._recoverOnResubscribe(sessionId);
                 }),
             );
-            // The production caller for reconcileCurrent: subscribeToSession only
-            // records intent, so an install can complete while the STOMP
-            // subscription is still pending or being retried after a throw, and a
-            // CTXSWAP in that gap is simply never heard. onDidResubscribe fires at
-            // the one moment that is true for both a first subscribe and a
-            // reconnect.
-            if (this._conversation) {
-                this._disposables.push(
-                    this._irisSessionManager.onDidResubscribe((sessionId) => this._conversation!.onSubscriptionActive(sessionId)),
-                );
-            }
 
             // Auto-retry chat reload on websocket reconnect when the chat is
             // currently in an `unavailable` state for the active context.
@@ -560,100 +555,83 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return entry.promise;
     }
 
-    // ── Reconnect reconciliation ───────────────────────────────────────
+    // ── Reconnect recovery ─────────────────────────────────────────────
 
     /**
-     * Reset the run machine AND the reconcile marker together so they can never
-     * drift. Used on every real context change and by every session-navigation
-     * resetRuns path.
+     * Reset the run machine AND the recovery baseline together so they can
+     * never drift.
      */
     private _resetRunsAndMarker(): void {
-        this._reconcileMarker = undefined;
-        this._reconcilePendingAgain = false;
+        this._recovery = undefined;
         this._websocketMessageHandler.resetRuns();
     }
 
     /**
-     * After a genuine resubscribe (not the premature connection event), recover a
-     * run whose terminal frame was missed during the disconnect. Gated so an idle,
-     * pre-dispatch, or never-bound run opens nothing, and so a stale fetch can
-     * neither resolve nor mutate the wrong run/session. Resolves only on
-     * conclusive proof (a persisted assistant message past the baseline), never on
-     * mere fetch success.
+     * THE path for a resubscribe: exactly one owner, for both halves of the
+     * repair.
+     *
+     * `IrisConversationService.onSubscriptionActive` re-reads the conversation
+     * and merges it (host state and, through `deliverTranscript`, the visible
+     * transcript), which recovers the ANSWER. It cannot recover the RUN,
+     * because the run machine is the provider's. So this method awaits the
+     * reconciliation and then, on conclusive proof only (a persisted assistant
+     * message past the send baseline), resolves the run and republishes clean
+     * run UI. Without the second half the thinking indicator spins forever
+     * after a mid-answer disconnect even though the answer is on screen.
+     *
+     * Everything is gated so an idle, pre-dispatch or never-bound run resolves
+     * nothing, and so a newer send, a same-generation run rebind or a
+     * navigation during the reconciliation aborts the resolve.
      */
-    private async _reconcileOnResubscribe(resubscribedSessionId: number): Promise<void> {
-        const marker = this._reconcileMarker;
-        // Gate: a send is outstanding for the CURRENT generation, we are still
-        // waiting, and the current generation has bound its run (so resolveCurrentRun
-        // is safe, see Task 2). pendingGeneration true => first frame never arrived
-        // => fall back to manual reload, do not resolve out-of-band.
-        if (!marker
+    private async _recoverOnResubscribe(sessionId: number): Promise<void> {
+        const conversation = this._conversation;
+        if (!conversation) { return; }
+
+        // Captured BEFORE the await, so the decision is made against the state
+        // the resubscribe found, not against whatever it settles into.
+        const baseline = this._recovery;
+        // pendingGeneration true => the first frame never arrived => the run
+        // was never bound, and resolving it would finalize the wrong one.
+        const eligible = baseline !== undefined
+            && this._runs.waiting
+            && !this._runs.pendingGeneration
+            && baseline.generation === this._runs.generation
+            && baseline.sessionId === sessionId
+            && sessionId === conversation.state.snapshot().currentSessionId;
+        // Pin the bound run: within ONE generation, admit() can rebind
+        // _currentRunId to a later unknown run (A -> C) without bumping the
+        // generation. History proving A finished must not then finalize C.
+        const boundRunId = this._runs.currentRunId;
+
+        try {
+            await conversation.onSubscriptionActive(sessionId);
+        } catch (error: unknown) {
+            logger.error('Reconnect reconciliation failed', LogCategory.IRIS_CHAT, error);
+            return;
+        }
+
+        if (!eligible || !baseline || !boundRunId) { return; }
+        // Re-validate EVERYTHING after the await.
+        if (this._recovery !== baseline
+            || this._runs.generation !== baseline.generation
+            || this._runs.currentRunId !== boundRunId
             || !this._runs.waiting
             || this._runs.pendingGeneration
-            || marker.generation !== this._runs.generation
-            || marker.artemisSessionId !== resubscribedSessionId) {
+            || conversation.state.snapshot().currentSessionId !== baseline.sessionId) {
             return;
         }
-        if (this._reconcileInFlight) { this._reconcilePendingAgain = true; return; }
-
-        // Confirm the marker still matches the live session before fetching.
-        const snapshot = this._contextStore.snapshot();
-        if (snapshot.activeSession?.id !== marker.localSessionId
-            || snapshot.activeSession?.artemisSessionId !== marker.artemisSessionId) {
-            return;
-        }
-        // Pin the bound run: within ONE generation, admit() can rebind
-        // _currentRunId to a later unknown run (A -> C) without bumping generation.
-        // History proving A finished must not then finalize C.
-        const boundRunId = this._runs.currentRunId;
-        if (!boundRunId) { return; }
-
-        this._reconcileInFlight = true;
-        try {
-            const messages = await this._chatSessionService.fetchActiveSessionHistory(marker.artemisSessionId);
-            // Re-validate EVERYTHING after the await: a newer send (generation++),
-            // a same-generation run rebind (currentRunId changed), a terminal frame
-            // (waiting=false), or a session/context switch during the fetch must all
-            // abort both the merge and the resolve.
-            if (this._reconcileMarker !== marker
-                || this._runs.generation !== marker.generation
-                || this._runs.currentRunId !== boundRunId
-                || !this._runs.waiting
-                || this._runs.pendingGeneration) {
-                return;
-            }
-            const live = this._contextStore.snapshot();
-            if (live.activeSession?.id !== marker.localSessionId
-                || live.activeSession?.artemisSessionId !== marker.artemisSessionId) {
-                return;
-            }
-            // Only now is it safe to mutate the webview and resolve.
-            this._postMessageSafe({
-                type: ExtensionMsg.MergeSessionMessages,
-                localSessionId: marker.localSessionId,
-                artemisSessionId: marker.artemisSessionId,
-                messages,
-            });
-            if (historyResolvesRun(messages, marker.baselineMessageId)) {
-                this._runs.resolveCurrentRun();
-                // A pure WS drop mid-answer never clears the handler's own
-                // draft/activities/error (only the webview store is reset on
-                // disconnect), so a plain republish would resurrect the stale
-                // partial as a phantom duplicate bubble. Clear it here.
-                this._websocketMessageHandler.resetRunUiAndPublish();
-                this._reconcileMarker = undefined;
-            }
-        } catch (err: unknown) {
-            logger.error('Reconnect reconciliation failed', LogCategory.IRIS_CHAT, err);
-        } finally {
-            this._reconcileInFlight = false;
-            if (this._reconcilePendingAgain) {
-                this._reconcilePendingAgain = false;
-                // Re-run once for the coalesced trigger, using the current session.
-                const again = this._contextStore.snapshot().activeSession?.artemisSessionId;
-                if (again !== undefined) { void this._reconcileOnResubscribe(again); }
-            }
-        }
+        // Persisted history alone cannot prove a run ENDED (a missed FAILED
+        // frame leaves no message), so only a newer final assistant message
+        // counts. Anything else leaves the run waiting for the manual reload.
+        const messages = toWireMessages(conversation.state.snapshot().detail?.messages);
+        if (!historyResolvesRun(messages, baseline.baselineMessageId)) { return; }
+        this._runs.resolveCurrentRun();
+        // A pure WS drop mid-answer never clears the handler's own
+        // draft/activities/error (only the webview store is reset on
+        // disconnect), so a plain republish would resurrect the stale partial
+        // as a phantom duplicate bubble. Clear it here.
+        this._websocketMessageHandler.resetRunUiAndPublish();
+        this._recovery = undefined;
     }
 
     public resolveWebviewView(
@@ -1065,6 +1043,31 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         logger.info('Reloading Iris chat from the server...', LogCategory.IRIS_CHAT);
         await this._conversation.reload();
         await this._conversation.refreshOverview();
+        // Re-check availability HERE, not on the navigation hook: a reload
+        // re-installs the SAME conversation, so nothing else on this path can
+        // clear the banner that sent the student to the Retry button in the
+        // first place. Without it, `iris-unavailable` shows the banner,
+        // disables the composer, and Retry leaves both exactly as they were.
+        await this._refreshAvailability();
+    }
+
+    /**
+     * Re-runs the Iris settings check for the open conversation and publishes
+     * the result: both banners hidden when it comes back enabled, the matching
+     * banner otherwise. The old model did this inside its context loader, which
+     * no longer runs.
+     */
+    private async _refreshAvailability(): Promise<void> {
+        const context = this._availabilityContext();
+        if (!context) { return; }
+        const availability = await this._chatSessionService.checkAndLoadIrisSettings(context);
+        if (availability.kind === 'enabled') {
+            this._chatSessionService.resetAvailability();
+            this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
+            this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
+            return;
+        }
+        this._chatSessionService.postAvailability(availability, context);
     }
 
     /**
@@ -1615,20 +1618,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // message through `reportError` inside the coordinator, and posting
             // a second OpenSessionError would show the same failure twice.
             if (outcome.kind === 'sent') {
-                // Open the reconnect marker ONLY for the still-current,
+                // Open the recovery baseline ONLY for the still-current,
                 // still-waiting generation: an inbound run may have opened a
-                // newer one while the POST was in flight, and reconciling
-                // against it would resolve the wrong run.
-                const artemisSessionId = this._irisSessionManager?.currentSessionId;
+                // newer one while the POST was in flight, and recovering
+                // against it would resolve the wrong run. This is also what
+                // stops an older POST completing late from replacing a newer
+                // baseline.
                 if (outcome.messageId !== undefined
-                    && localSessionId
-                    && artemisSessionId !== undefined
                     && this._lastSendGeneration === this._runs.generation
                     && this._runs.waiting) {
-                    this._reconcileMarker = {
+                    this._recovery = {
                         generation: this._lastSendGeneration,
-                        localSessionId,
-                        artemisSessionId,
+                        sessionId,
                         baselineMessageId: outcome.messageId,
                     };
                 }

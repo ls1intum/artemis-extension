@@ -180,10 +180,18 @@ suite('ChatWebviewProvider: reload Iris chat', () => {
         // calls the command makes, and the real service's `reload` decides
         // internally between reload and start.
         (h.provider as unknown as { _conversation: unknown })._conversation = {
-            state: { snapshot: () => ({ currentSessionId: 7, courseId: 42 }) },
+            state: {
+                snapshot: () => ({ currentSessionId: 7, courseId: 42 }),
+                // The reload re-checks availability, which reads the topic.
+                effectiveContext: () => ({ mode: 'COURSE_CHAT', entityId: 42 }),
+            },
             reload: async () => { calls.push('reload'); },
             refreshOverview: async () => { calls.push('refreshOverview'); },
         };
+        h.sandbox.stub(
+            (h.provider as unknown as { _chatSessionService: { checkAndLoadIrisSettings: () => Promise<unknown> } })._chatSessionService,
+            'checkAndLoadIrisSettings',
+        ).resolves({ kind: 'enabled' } as never);
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
@@ -198,7 +206,10 @@ suite('ChatWebviewProvider: reload Iris chat', () => {
         // re-reads, and the overview refresh is a no-op without a course.
         const started: string[] = [];
         (h.provider as unknown as { _conversation: unknown })._conversation = {
-            state: { snapshot: () => ({ currentSessionId: undefined, courseId: undefined }) },
+            state: {
+                snapshot: () => ({ currentSessionId: undefined, courseId: undefined }),
+                effectiveContext: () => undefined,
+            },
             reload: async () => { started.push('start'); },
             refreshOverview: async () => { started.push('refreshOverview'); },
         };
@@ -498,6 +509,59 @@ suite('ChatWebviewProvider: the conversation-first send path', () => {
         assert.ok(rejected, 'a send that cannot be carried must fail its bubble');
         assert.strictEqual(rejected.localId, 'l1');
         assert.strictEqual(rejected.reason, 'no-context');
+    });
+});
+
+suite('ChatWebviewProvider: reload clears the banner that sent you to Retry', () => {
+    let h: Harness;
+    let postSpy: sinon.SinonSpy;
+
+    setup(() => {
+        h = buildHarness();
+        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+    });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    test('a reload re-checks availability and hides both banners when Iris is back', async () => {
+        // A reload re-installs the SAME conversation, so the navigation hook
+        // (which keys on a session change) cannot clear anything. Without the
+        // re-check, `iris-unavailable` shows the banner, disables the composer,
+        // and Retry leaves both exactly as they were: the only escape is
+        // navigating to a different conversation.
+        h.api.listChatSessionsForCourse.resolves([]);
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
+        h.api.getChatSessionById.resolves(detail({ sessionId: 1 }));
+        const check = h.sandbox.stub(
+            (h.provider as unknown as { _chatSessionService: { checkAndLoadIrisSettings: () => Promise<unknown> } })._chatSessionService,
+            'checkAndLoadIrisSettings',
+        ).resolves({ kind: 'enabled' } as never);
+        postSpy.resetHistory();
+
+        await h.provider.reloadIrisChat();
+
+        assert.strictEqual(check.callCount, 1, 'the reload must re-check availability');
+        const types = postSpy.getCalls().map(c => (c.args[0] as { type?: string })?.type);
+        assert.ok(types.includes('hideUnavailableState'), 'the unavailable banner must be cleared');
+        assert.ok(types.includes('hideDisabledState'));
+    });
+
+    test('a reload that still finds Iris unavailable keeps the banner up', async () => {
+        h.api.listChatSessionsForCourse.resolves([]);
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
+        h.api.getChatSessionById.resolves(detail({ sessionId: 1 }));
+        h.sandbox.stub(
+            (h.provider as unknown as { _chatSessionService: { checkAndLoadIrisSettings: () => Promise<unknown> } })._chatSessionService,
+            'checkAndLoadIrisSettings',
+        ).resolves({ kind: 'unavailable', reason: 'still down' } as never);
+        postSpy.resetHistory();
+
+        await h.provider.reloadIrisChat();
+
+        const types = postSpy.getCalls().map(c => (c.args[0] as { type?: string })?.type);
+        assert.ok(types.includes('showUnavailableState'), 'a still-broken Iris must keep saying so');
+        assert.ok(!types.includes('hideUnavailableState'));
     });
 });
 
