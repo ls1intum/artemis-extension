@@ -18,6 +18,8 @@
 
 Added 2026-07-30 after a scope review, codex-signed. **This section outranks any code example further down that still shows a removed mechanism.** If a task body and this list disagree, this list wins and the task body is stale.
 
+**All user-facing strings are ENGLISH (decided 2026-07-31, during Task 12).** This plan and the design spec were written with German strings, and the plan transliterated the umlauts to ASCII ("Kurs waehlen", "oeffnet"), which would have shipped looking like a bug. The deciding fact is that everything the extension ships today is English, including every `aria-label`, so German visible labels beside English screen-reader labels was the real defect. Wherever a task body still quotes a German string (the cut table below included), translate it; the meaning is normative, the wording is not. This covers webview labels, `showInformationMessage` texts, and the host-side marker strings from `describeContextSwap`.
+
 The rewrite itself is proportionate: the create endpoint the extension calls no longer exists, so 940 installations are broken against production (#373). What was disproportionate was PR 1's polish and its concurrency defence. Seven mechanisms are cut.
 
 | # | Cut | What replaces it | What we give up |
@@ -4651,12 +4653,18 @@ This task carries local findings **7** (the `package.json` title) and the "Reloa
 
 **Turn the interface on (added during Task 12).** Task 12 built the whole conversation-first UI behind an explicit activation flag, `conversationFirst?: boolean` on `updateIrisState.state`, and deliberately never sets it. This task must set it: `ChatViewStatePresenter._serializeConversation` returns `conversationFirst: true` once the dispatcher answers `selectTopic`, `openConversation`, `switchCourse` and `newConversation`. Until it does, the webview renders the old interface, which is what keeps every commit between Task 12 and this one shippable.
 
+Setting the flag and giving the four new commands their handlers must happen in ONE commit. The conversation-first branches post only the new commands (Task 12's round-2 fix removed the paired legacy posts, because with an activation flag they were unreachable before this task and useless after it), so a commit that sets the flag without the handlers leaves every navigation control dead.
+
 The flag exists because feature detection cannot work here: `_serializeConversation` already emits every conversation-first field (including `contentState: 'unknown'`) from Task 10 onward, in every production session, so a webview that detects "is the new shape present" switches on immediately and finds a service nothing has driven. That failure was real and was caught in Task 12's review.
 
 Two consequences to check in this task, both of which the flag exposes rather than causes:
 
 - The history popover reads `store.conversations` and no longer issues `requestCourseHistory`. That list comes from `snapshot.courseSessions`, so the overview must actually be refreshed for the current course before the popover is useful; otherwise it correctly but uselessly reports an empty history.
 - `IrisChatView`'s cold-start screen triggers on "no course, no session, no workspace exercise". Once the flag is on, confirm that state is only reachable when it is genuinely true.
+
+**Finish `CoursePicker`'s fetch-and-load (deferred from Task 12).** Step 5 of Task 12 specifies "fetch the dashboard course list first and show a loading state" for a fresh installation with nothing tracked. Task 12 built and tested the `status` prop's `'loading'` and empty states but could not trigger them: no caller passes `status`, because the webview has no way to ask for a course refresh. `WebviewCmd.ReloadCourses` is NOT the answer. It is registered only in `controller/commands/navigationCommands.ts`, reachable only through `WebViewMessageHandler`, which only `artemisWebviewProvider` (the main panel) constructs; the chat provider's `_handleCommand` has no case for it and drops it to a debug log. Its handler also calls `showCourseList()`, so routing to it would navigate the main panel from a sidebar click.
+
+So this task adds a chat-side refresh command, answers it in `chatWebviewProvider._handleCommand` by fetching courses into `ContextStore` and re-posting the snapshot, and passes `status` from `IrisChatView` at both `CoursePicker` call sites. Until that lands, `CoursePicker`'s loading branch is unreachable production code: a fresh installation shows "No courses found" immediately instead of loading and then listing them.
 
 - [ ] **Step 1: Write the failing command tests**
 
@@ -4683,14 +4691,14 @@ suite('Ask Iris commands', () => {
     test('Ask-Iris on a conversation with content says it opened another one', async () => {
         const { commands, messages } = harness({ contentState: 'content', outcome: { kind: 'opened', sessionId: 12 } });
         await commands.askIrisAboutExercise({ exerciseId: 5, exerciseTitle: 'BFS', courseId: 42 });
-        assert.match(messages.at(-1)!, /andere Unterhaltung|neue Unterhaltung/);
+        assert.match(messages.at(-1)!, /different conversation|new conversation/);
     });
 
     test('Ask-Iris is rejected while a send is in flight', async () => {
         const { commands, messages, service } = harness({ sendInFlight: true });
         await commands.askIrisAboutExercise({ exerciseId: 5, exerciseTitle: 'BFS', courseId: 42 });
         assert.strictEqual(service.calls.length, 0);
-        assert.match(messages.at(-1)!, /Iris antwortet gerade/);
+        assert.match(messages.at(-1)!, /answering right now/);
     });
 });
 
@@ -4776,10 +4784,10 @@ Because the result may be a different conversation, the progress message must sa
 
 | outcome | message |
 |---|---|
-| `staged` | "Iris schaut jetzt auf BFS." |
-| `opened` | "Iris schaut jetzt auf BFS, in einer anderen Unterhaltung." |
-| `rejected: loading` | "Iris laedt noch. Versuch es gleich nochmal." |
-| `rejected: send-in-flight` | "Iris antwortet gerade. Warte kurz." |
+| `staged` | "Iris is now looking at BFS." |
+| `opened` | "Iris is now looking at BFS, in a different conversation." |
+| `rejected: loading` | "Iris is still loading. Try again in a moment." |
+| `rejected: send-in-flight` | "Iris is answering right now. Please wait." |
 
 Delete `setExerciseContext`, `setCourseContext` and `getSelectedContext` from `types/IChatWebviewProvider.ts` and the provider.
 
@@ -4846,13 +4854,13 @@ Define the user-facing strings next to the coordinator so a reason and its text 
 
 ```typescript
 export const SEND_REJECTION_MESSAGES: Record<SendRejection | 'unknown', string> = {
-    'send-in-flight': 'Iris antwortet gerade. Warte kurz.',
-    'navigation-in-flight': 'Die Unterhaltung wird gerade geladen.',
-    'no-conversation': 'Keine Unterhaltung offen.',
-    'conversation-changed': 'Die Unterhaltung hat gewechselt. Schick die Nachricht noch einmal.',
-    'rate-limit': 'Du hast dein Nachrichtenlimit erreicht.',
-    'preparation-failed': 'Die Nachricht konnte nicht vorbereitet werden.',
-    'unknown': 'Unbekannter Ausgang. Pruefe den Verlauf.',
+    'send-in-flight': 'Iris is answering right now. Please wait.',
+    'navigation-in-flight': 'The conversation is still loading.',
+    'no-conversation': 'No conversation is open.',
+    'conversation-changed': 'The conversation changed. Send your message again.',
+    'rate-limit': 'You have reached your message limit.',
+    'preparation-failed': 'The message could not be prepared.',
+    'unknown': 'Unknown outcome. Check the transcript.',
 };
 ```
 - The dispatcher answers `SelectTopic`, `OpenConversation`, `SwitchCourse` and `NewConversation`, and stops answering `SelectChatContext`, `SwitchSession`, `OpenArtemisSession`, `CreateNewSession` and `SwitchToWorkspaceContext`. The old handler methods stay on the class with no caller, which is what `knip` confirms in Task 15.
