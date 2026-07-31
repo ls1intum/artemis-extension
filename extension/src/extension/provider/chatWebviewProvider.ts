@@ -2,12 +2,13 @@ import * as vscode from 'vscode';
 
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
+import type { ServerContext } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
 import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { ChatContextReason, IrisServiceDeps } from '@extension/services/iris';
+import type { IrisServiceDeps } from '@extension/services/iris';
 import { IrisWebSocketMessageHandler } from '@extension/services/iris';
 import {
     ChatContextManager,
@@ -21,6 +22,8 @@ import {
 import { historyResolvesRun } from '@extension/services/iris/chat/historyResolution';
 import type { CourseHistoryEntry } from '@extension/services/iris/context/courseHistory';
 import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
+import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
+import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -119,6 +122,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
 
+    /** Last workspace exercise announced through `onDidChangeExerciseContext`,
+     *  so the event can still carry `previousExerciseId`. The store's own
+     *  workspace event reports only the current one. */
+    private _lastWorkspaceExerciseId: number | undefined;
+
     private readonly _onDidSendIrisChatMessage = new vscode.EventEmitter<string>();
     public readonly onDidSendIrisChatMessage = this._onDidSendIrisChatMessage.event;
 
@@ -181,15 +189,29 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = contextStore;
+        // Struggle detection follows the WORKSPACE, never the chat topic: the
+        // detector observes the code that is open, and `workspaceDetectionService`
+        // derives that from the folder's git remote. A topic change points the
+        // chat at an exercise whose code is usually not open at all, so it must
+        // not retarget the detector (that firing used to live on
+        // `onDidChangeActiveContext` below).
         this._disposables.push(
-            this._contextStore.onDidChangeActiveContext(({ current, previous }) => {
-                if (current?.type === 'exercise') {
-                    this._onDidChangeExerciseContext.fire({
-                        exerciseId: current.id,
-                        previousExerciseId: previous?.type === 'exercise' ? previous.id : undefined,
-                        exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
-                    });
-                }
+            this._contextStore.onDidChangeWorkspaceExercise((current) => {
+                // A clear announces nothing: there is no exercise to start a
+                // session for, and the id stays remembered so the NEXT
+                // workspace exercise can still report what it replaced.
+                if (!current) { return; }
+                const previousExerciseId = this._lastWorkspaceExerciseId;
+                this._lastWorkspaceExerciseId = current.id;
+                this._onDidChangeExerciseContext.fire({
+                    exerciseId: current.id,
+                    previousExerciseId,
+                    exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
+                });
+            })
+        );
+        this._disposables.push(
+            this._contextStore.onDidChangeActiveContext(() => {
                 // Real context change (type/id differs from previous — the
                 // event fires only on actual changes). Drop any stale
                 // availability classification from the outgoing context so
@@ -838,10 +860,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return undefined;
     }
 
-    public getSelectedContext(): ActiveContext | null {
-        return this._chatContextManager.getSelectedContext();
-    }
-
     public getSelectedExerciseId(): number | undefined {
         return this._chatContextManager.getSelectedExerciseId();
     }
@@ -869,26 +887,36 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._viewStatePresenter.postSnapshot();
     }
 
-    public setCourseContext(
-        courseId: number,
-        courseTitle: string,
-        reason: ChatContextReason = 'user-selected',
-        shortName?: string,
-    ): void {
-        this._chatContextManager.setCourseContext(courseId, courseTitle, reason, shortName);
+    // ── Conversation-first entry points for the commands ───────────────
+
+    /**
+     * The Ask-Iris commands' single entry point: point the open conversation at
+     * `target`, acquiring one when none is open. The course id must travel WITH
+     * the target, because on a fresh window `ConversationState.courseId` is
+     * `undefined` and a resolution without it can only answer `no-course`.
+     * A missing hint is resolved from the exercise before asking.
+     */
+    public async askIrisAbout(target: ServerContext, courseHint?: number): Promise<TopicChangeOutcome> {
+        if (!this._conversation) {
+            return { kind: 'rejected', reason: 'failed' };
+        }
+        const courseId = target.mode === 'COURSE_CHAT'
+            ? target.entityId
+            : courseHint ?? await resolveCourseIdForExercise(target.entityId, this._contextStore, this._artemisApiService);
+        return await this._conversation.resolveTopicChange(target, courseId);
     }
 
-    public setExerciseContext(
-        exerciseId: number,
-        exerciseTitle: string,
-        reason: ChatContextReason = 'user-selected',
-        shortName?: string,
-        releaseDate?: string,
-        dueDate?: string,
-        courseId?: number,
-    ): void {
-        this._chatContextManager.setExerciseContext(exerciseId, exerciseTitle, reason, shortName, releaseDate, dueDate, courseId);
-        // Telemetry event is now fired by the onDidChangeActiveContext subscription
+    /**
+     * The "Reload Iris chat" escape hatch behind `artemis.resetIrisChat`. Drops
+     * every local cache and re-reads from the server: the open conversation
+     * when there is one, the start path when there is none. Nothing is
+     * destroyed on Artemis, which is why the command no longer confirms.
+     */
+    public async reloadIrisChat(): Promise<void> {
+        if (!this._conversation) { return; }
+        logger.info('Reloading Iris chat from the server...', LogCategory.IRIS_CHAT);
+        await this._conversation.reload();
+        await this._conversation.refreshOverview();
     }
 
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
@@ -1221,7 +1249,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
             return;
         }
-        this.setExerciseContext(
+        this._chatContextManager.setExerciseContext(
             workspaceExercise.id,
             workspaceExercise.title,
             'workspace-detected',

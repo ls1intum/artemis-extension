@@ -57,7 +57,7 @@
       },
       {
         "command": "artemis.resetIrisChat",
-        "title": "Artemis: Reset Iris Chat Sessions (Debug)",
+        "title": "Artemis: Reload Iris Chat",
         "icon": "$(refresh)"
       },
       {

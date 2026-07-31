@@ -232,7 +232,12 @@ suite('ChatWebviewProvider.openArtemisSession', () => {
         // A user context-select bumps the navigation token (via
         // loadAllSessionsForContext) while A's overview is still pending.
         h.api.getIrisCourseChatSettings.resolves({ settings: { enabled: false } } as never);
-        h.provider.setCourseContext(500, 'Picked Course', 'user-selected');
+        // The provider's public setCourseContext is gone (Task 14 routes topic
+        // changes through IrisConversationService); the old-model context
+        // selection this suite exercises now goes through the dispatcher's
+        // still-present handler.
+        (h.provider as unknown as { _handleContextSelection: (t: string, id: number, name: string) => void })
+            ._handleContextSelection('course', 500, 'Picked Course');
         await tick();
 
         h.postSpy.resetHistory();

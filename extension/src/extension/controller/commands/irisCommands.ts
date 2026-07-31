@@ -3,10 +3,43 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { getPayload, WebviewCmd } from '@shared/messageContracts';
 
+import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { extractErrorMessage } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
+
+/**
+ * What the student is told after an Ask-Iris click. The result may be a
+ * DIFFERENT conversation (a topic that cannot be staged onto a conversation
+ * with content opens a new one), so the message has to say so; silently
+ * replacing the transcript is the one outcome the old command could not
+ * distinguish. Returns `undefined` when there is nothing worth saying.
+ */
+export function askIrisOutcomeMessage(outcome: TopicChangeOutcome, title: string): string | undefined {
+    switch (outcome.kind) {
+        case 'staged':
+        case 'noop':
+        case 'unstaged':
+            return `Iris is now looking at ${title}.`;
+        case 'opened':
+            return `Iris is now looking at ${title}, in a different conversation.`;
+        case 'stale':
+            return undefined;
+        case 'rejected':
+            switch (outcome.reason) {
+                case 'loading':
+                    return 'Iris is still loading. Try again in a moment.';
+                case 'send-in-flight':
+                    return 'Iris is answering right now. Please wait.';
+                case 'cross-course':
+                    return 'That topic belongs to another course.';
+                case 'no-course':
+                case 'failed':
+                    return 'Iris could not switch to that topic. Please try again.';
+            }
+    }
+}
 
 export class IrisCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -23,18 +56,12 @@ export class IrisCommandModule {
             const {
                 exerciseId,
                 exerciseTitle,
-                exerciseShortName,
-                releaseDate,
-                dueDate,
                 courseId
             } = getPayload<WebCmd<'askIrisAboutExercise'>>(message);
 
             logger.debug('Button clicked with data:', LogCategory.IRIS_CHAT, {
                 exerciseId,
                 exerciseTitle,
-                exerciseShortName,
-                releaseDate,
-                dueDate,
                 courseId
             });
 
@@ -50,26 +77,23 @@ export class IrisCommandModule {
             const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
             const title = exerciseTitle || `Exercise ${exerciseId}`;
 
-            logger.debug(`Chat provider available: ${!!chatProvider}`, LogCategory.IRIS_CHAT);
-            logger.debug('Calling setExerciseContext with:', LogCategory.IRIS_CHAT, {
-                exerciseId,
-                title,
-                reason: 'user-selected',
-                shortName: exerciseShortName,
-                releaseDate,
-                dueDate,
-                courseId
-            });
-
             // Note: We don't call updateDetectedExercise here because it can trigger
             // autoSelectContext() which might select the wrong exercise based on priority.
-            // The setExerciseContext call below will properly register and set the context.
 
-            if (chatProvider && typeof chatProvider.setExerciseContext === 'function') {
-                chatProvider.setExerciseContext(exerciseId, title, 'user-selected', exerciseShortName, releaseDate, dueDate, courseId);
-                logger.info('setExerciseContext called successfully', LogCategory.IRIS_CHAT);
-            } else {
-                logger.warn('WARNING: Chat provider is unavailable or does not support exercise context selection', LogCategory.IRIS_CHAT);
+            if (!chatProvider || typeof chatProvider.askIrisAbout !== 'function') {
+                logger.warn('WARNING: Chat provider is unavailable or does not support topic selection', LogCategory.IRIS_CHAT);
+                return;
+            }
+            // The payload's courseId travels WITH the target: on a fresh window
+            // no conversation is open, so the service has no course of its own
+            // and would answer `no-course` if this were dropped here.
+            const outcome = await chatProvider.askIrisAbout(
+                { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: exerciseId, name: title },
+                courseId,
+            );
+            const notice = askIrisOutcomeMessage(outcome, title);
+            if (notice) {
+                vscode.window.showInformationMessage(notice);
             }
         } catch (error: unknown) {
             logger.error('Failed to open Iris chat for exercise:', LogCategory.IRIS_CHAT, error);
@@ -79,7 +103,7 @@ export class IrisCommandModule {
 
     private handleAskIrisAboutCourse = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseId, courseTitle, courseShortName } = getPayload<WebCmd<'askIrisAboutCourse'>>(message);
+            const { courseId, courseTitle } = getPayload<WebCmd<'askIrisAboutCourse'>>(message);
 
             if (!courseId) {
                 vscode.window.showWarningMessage('Unable to open Iris chat: missing course information.');
@@ -89,10 +113,19 @@ export class IrisCommandModule {
             await vscode.commands.executeCommand('iris.chatView.focus');
 
             const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
-            if (chatProvider && typeof chatProvider.setCourseContext === 'function') {
-                chatProvider.setCourseContext(courseId, courseTitle || `Course ${courseId}`, 'user-selected', courseShortName);
-            } else {
-                logger.warn('Iris chat provider is unavailable or does not support course context selection.', LogCategory.IRIS_CHAT);
+            if (!chatProvider || typeof chatProvider.askIrisAbout !== 'function') {
+                logger.warn('Iris chat provider is unavailable or does not support topic selection.', LogCategory.IRIS_CHAT);
+                return;
+            }
+            const title = courseTitle || `Course ${courseId}`;
+            // A course chat IS the course, so the hint is the entity itself.
+            const outcome = await chatProvider.askIrisAbout(
+                { mode: 'COURSE_CHAT', entityId: courseId, name: title },
+                courseId,
+            );
+            const notice = askIrisOutcomeMessage(outcome, title);
+            if (notice) {
+                vscode.window.showInformationMessage(notice);
             }
         } catch (error: unknown) {
             logger.error('Failed to open Iris chat for course:', LogCategory.IRIS_CHAT, error);
