@@ -60,22 +60,22 @@ export function parseContextSwap(message: IrisChatMessage): ContextSwap | undefi
 }
 
 function labelFor(context: ServerContext | undefined): string {
-    if (!context) { return 'den Kurs'; }
+    if (!context) { return 'the course'; }
     if (context.name) { return context.name; }
     switch (context.mode) {
-        case 'COURSE_CHAT': return 'den Kurs';
-        case 'LECTURE_CHAT': return `Vorlesung ${context.entityId}`;
+        case 'COURSE_CHAT': return 'the course';
+        case 'LECTURE_CHAT': return `Lecture ${context.entityId}`;
         case 'PROGRAMMING_EXERCISE_CHAT':
-        case 'TEXT_EXERCISE_CHAT': return `Aufgabe ${context.entityId}`;
-        default: return `Kontext ${context.entityId}`;
+        case 'TEXT_EXERCISE_CHAT': return `Exercise ${context.entityId}`;
+        default: return `Context ${context.entityId}`;
     }
 }
 
 /** Mirrors Artemis `iris-context-switch-divider.component.html`. */
 export function describeContextSwap(swap: ContextSwap): string {
     switch (swap.transition) {
-        case 'added': return `Thema gesetzt auf ${labelFor(swap.context)}`;
-        case 'changed': return `Thema gewechselt zu ${labelFor(swap.context)}`;
-        case 'removed': return 'Thema entfernt';
+        case 'added': return `Topic set to ${labelFor(swap.context)}`;
+        case 'changed': return `Topic changed to ${labelFor(swap.context)}`;
+        case 'removed': return 'Topic removed';
     }
 }

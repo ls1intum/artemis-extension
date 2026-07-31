@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
@@ -7,6 +8,7 @@ import { ChatNotice } from '@webview/views/IrisChat/components/ChatNotice';
 import { ContextChip } from '@webview/views/IrisChat/components/ContextChip';
 import { ContextPicker } from '@webview/views/IrisChat/components/ContextPicker';
 import { ConversationHistory } from '@webview/views/IrisChat/components/ConversationHistory';
+import { CoursePicker } from '@webview/views/IrisChat/components/CoursePicker';
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
 
 // Mock streamdown (ESM-only package)
@@ -55,15 +57,15 @@ const pickerProps = (over: Record<string, unknown> = {}) => ({
 describe('ContextChip', () => {
     it('shows the chip remove icon while the conversation is empty', () => {
         render(<ContextChip context={EX5} contentState="empty" onRemove={vi.fn()} onOpenPicker={vi.fn()} />);
-        expect(screen.getByRole('button', { name: 'Thema entfernen' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Remove topic' })).toBeInTheDocument();
     });
 
     it('hides the chip remove icon once the conversation has content', () => {
         // With content, removing the topic necessarily means leaving for another
         // conversation, and a small remove icon must not silently replace the whole
-        // transcript. The picker's Kurs-Chat entry carries that action instead.
+        // transcript. The picker's "Course chat" entry carries that action instead.
         render(<ContextChip context={EX5} contentState="content" onRemove={vi.fn()} onOpenPicker={vi.fn()} />);
-        expect(screen.queryByRole('button', { name: 'Thema entfernen' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Remove topic' })).toBeNull();
     });
 
     it('renders no chip when the topic is the course', () => {
@@ -77,13 +79,13 @@ describe('ContextChip', () => {
 describe('ContextPicker (topic picker)', () => {
     it('warns once that the selection may open another conversation', () => {
         render(<ContextPicker {...pickerProps()} />);
-        expect(screen.getByText(/oeffnet gegebenenfalls eine andere Unterhaltung/)).toBeInTheDocument();
+        expect(screen.getByText(/may open a different conversation/)).toBeInTheDocument();
     });
 
     it('shows no such warning while the conversation is empty', () => {
         // Empty means the pick stages in place, so there is nothing to warn about.
         render(<ContextPicker {...pickerProps({ contentState: 'empty' })} />);
-        expect(screen.queryByText(/oeffnet gegebenenfalls eine andere Unterhaltung/)).toBeNull();
+        expect(screen.queryByText(/may open a different conversation/)).toBeNull();
     });
 
     it('disables every picker entry while the content state is unknown', () => {
@@ -124,10 +126,25 @@ describe('ConversationHistory (conversation list)', () => {
 });
 
 describe('ChatMessageList (transcript)', () => {
+    // The brief's snippets pass three props. The component's live-run props
+    // are required on purpose (a caller that forgets `hasContext` must get a
+    // type error, not the wrong welcome copy), so the fixture supplies them.
+    const listProps = {
+        streaming: { isStreaming: false },
+        activities: [],
+        liveDraft: null,
+        runState: null,
+        runError: null,
+        onFeedback: vi.fn(),
+        onSendPrompt: vi.fn(),
+        hasContext: true,
+    };
+
     it('renders no preview line, staged or not', () => {
         // Cut 5. The chip alone carries `pending ?? committed`.
         render(<ChatMessageList
-            messages={[{ localId: 'a', role: 'user', content: 'hallo', timestamp: 1 }]}
+            {...listProps}
+            messages={[{ localId: 'a', role: 'user', content: 'hello', timestamp: 1 }]}
             pendingContext={EX7}
             committedContext={COURSE42}
         />);
@@ -136,16 +153,17 @@ describe('ChatMessageList (transcript)', () => {
 
     it('renders a stored marker row in transcript order, before the message it triggered', () => {
         render(<ChatMessageList
+            {...listProps}
             messages={[
-                { localId: 'm', role: 'contextSwap', content: 'Thema gesetzt auf Sorting', timestamp: 1 },
-                { localId: 'u', role: 'user', content: 'hallo', timestamp: 2 },
+                { localId: 'm', role: 'contextSwap', content: 'Topic set to Sorting', timestamp: 1 },
+                { localId: 'u', role: 'user', content: 'hello', timestamp: 2 },
             ]}
             pendingContext={undefined}
             committedContext={EX7}
         />);
         const rows = screen.getAllByTestId('message-row');
-        expect(rows[0]).toHaveTextContent('Thema gesetzt auf Sorting');
-        expect(rows[1]).toHaveTextContent('hallo');
+        expect(rows[0]).toHaveTextContent('Topic set to Sorting');
+        expect(rows[1]).toHaveTextContent('hello');
     });
 });
 
@@ -157,14 +175,14 @@ describe('ChatNotice', () => {
     it('clears the notice when the open conversation changes', () => {
         const { rerender } = render(
             <ChatNotice
-                notice={{ text: 'Zu einer anderen Unterhaltung gewechselt.' }}
+                notice={{ text: 'Switched to a different conversation.' }}
                 currentSessionId={1}
                 onExpire={vi.fn()}
             />,
         );
-        expect(screen.getByText('Zu einer anderen Unterhaltung gewechselt.')).toBeInTheDocument();
+        expect(screen.getByText('Switched to a different conversation.')).toBeInTheDocument();
         rerender(<ChatNotice notice={undefined} currentSessionId={9} onExpire={vi.fn()} />);
-        expect(screen.queryByText('Zu einer anderen Unterhaltung gewechselt.')).toBeNull();
+        expect(screen.queryByText('Switched to a different conversation.')).toBeNull();
     });
 
     it('asks to be cleared as soon as the conversation changes under it', () => {
@@ -172,12 +190,12 @@ describe('ChatNotice', () => {
         // it describes a situation the student has since left.
         const onExpire = vi.fn();
         const { rerender } = render(
-            <ChatNotice notice={{ text: 'Neue Unterhaltung gestartet.' }} currentSessionId={1} onExpire={onExpire} />,
+            <ChatNotice notice={{ text: 'Started a new conversation.' }} currentSessionId={1} onExpire={onExpire} />,
         );
         expect(onExpire).not.toHaveBeenCalled();
 
         rerender(
-            <ChatNotice notice={{ text: 'Neue Unterhaltung gestartet.' }} currentSessionId={2} onExpire={onExpire} />,
+            <ChatNotice notice={{ text: 'Started a new conversation.' }} currentSessionId={2} onExpire={onExpire} />,
         );
         expect(onExpire).toHaveBeenCalled();
     });
@@ -186,7 +204,7 @@ describe('ChatNotice', () => {
         vi.useFakeTimers();
         const onExpire = vi.fn();
         render(
-            <ChatNotice notice={{ text: 'Neue Unterhaltung gestartet.' }} currentSessionId={1} onExpire={onExpire} />,
+            <ChatNotice notice={{ text: 'Started a new conversation.' }} currentSessionId={1} onExpire={onExpire} />,
         );
 
         vi.advanceTimersByTime(9_999);
@@ -195,12 +213,130 @@ describe('ChatNotice', () => {
         expect(onExpire).toHaveBeenCalledTimes(1);
     });
 
+    it('still expires when the parent re-renders throughout the ten seconds', () => {
+        // The real caller passes an inline arrow and re-renders on every store
+        // change, which now includes every keystroke in the composer. If the
+        // timeout depended on that identity it would restart on each render and
+        // the notice would sit there for as long as the student keeps typing.
+        vi.useFakeTimers();
+        const onExpire = vi.fn();
+        const { rerender } = render(
+            <ChatNotice notice={{ text: 'Started a new conversation.' }} currentSessionId={1} onExpire={() => onExpire()} />,
+        );
+
+        for (let elapsed = 0; elapsed < 10_000; elapsed += 1_000) {
+            vi.advanceTimersByTime(1_000);
+            rerender(
+                <ChatNotice notice={{ text: 'Started a new conversation.' }} currentSessionId={1} onExpire={() => onExpire()} />,
+            );
+        }
+
+        expect(onExpire).toHaveBeenCalledTimes(1);
+    });
+
     it('never renders an action, on any notice', () => {
         // Cut 2: the notice is actionless in PR 1. Undo returns with PR 2.
         render(
-            <ChatNotice notice={{ text: 'Deine Vormerkung wurde verworfen.' }} currentSessionId={1} onExpire={vi.fn()} />,
+            <ChatNotice notice={{ text: 'Your staged topic was discarded.' }} currentSessionId={1} onExpire={vi.fn()} />,
         );
         expect(screen.queryByRole('button')).toBeNull();
+    });
+});
+
+describe('CoursePicker', () => {
+    it('shows a loading state instead of an empty result while the course list is still being fetched', () => {
+        // An empty list only means "no courses" once something has actually
+        // looked. Until then the picker must not answer the question.
+        render(<CoursePicker courses={[]} currentCourseId={null} status="loading" onSelect={vi.fn()} onClose={vi.fn()} />);
+        expect(screen.queryByText('No courses found')).toBeNull();
+    });
+
+    it('states an empty result explicitly once the list is ready', () => {
+        render(<CoursePicker courses={[]} currentCourseId={null} status="ready" onSelect={vi.fn()} onClose={vi.fn()} />);
+        expect(screen.getByText('No courses found')).toBeInTheDocument();
+    });
+});
+
+describe('IrisChatView model switch', () => {
+    // EXACTLY what `chatViewStatePresenter._serializeSnapshot` +
+    // `_serializeConversation` put on the wire in a logged-in session today:
+    // the old model populated, every conversation-first field present but
+    // empty, and no `conversationFirst`. This shape shipped before the flag
+    // existed and rendered the new, unusable interface; that is what these two
+    // tests pin down.
+    const hostShapeToday = {
+        context: {
+            type: 'exercise' as const,
+            id: 5,
+            title: 'Recursion',
+            shortName: 'REC',
+            courseId: 42,
+            locked: false,
+            source: 'workspace-detected' as const,
+        },
+        activeSessionId: 'local-1',
+        sessions: [{
+            id: 'local-1',
+            artemisSessionId: 900,
+            preview: '',
+            title: 'BFS loop',
+            messageCount: 8,
+            createdAt: 1,
+            lastActivity: 2,
+        }],
+        exercises: [{ id: 5, title: 'Recursion', courseId: 42 }],
+        courses: [{ id: 42, title: 'Introduction to Computer Science' }],
+        workspaceExerciseId: 5,
+        courseId: undefined,
+        courseTitle: undefined,
+        currentSessionId: undefined,
+        conversationTitle: undefined,
+        displayMessageCount: 0,
+        committedContext: undefined,
+        pendingContext: undefined,
+        contentState: 'unknown' as const,
+        sendInFlight: false,
+        navigationInFlight: false,
+        conversations: [],
+    };
+
+    it('keeps the old interface while the host only mirrors the conversation-first fields', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: hostShapeToday });
+
+        // The real exercise, not "Choose a course".
+        expect(await screen.findByText('Recursion')).toBeInTheDocument();
+        expect(screen.queryByText('Choose a course')).toBeNull();
+
+        // And the context picker is still reachable from the header.
+        await userEvent.click(screen.getByText('Recursion'));
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('switches to the new interface only once the host answers the new commands', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: {
+                ...hostShapeToday,
+                courseId: 42,
+                courseTitle: 'Introduction to Computer Science',
+                currentSessionId: 900,
+                conversationTitle: 'BFS loop',
+                displayMessageCount: 8,
+                contentState: 'content' as const,
+                conversationFirst: true,
+            },
+        });
+
+        // Asserted on the conversation line first: the course title alone is
+        // ambiguous, because the OLD header shows it too (as the exercise's
+        // course subtitle), and the store update and the flag land in two
+        // commits, so there is one intermediate frame with the old header and
+        // the new data.
+        expect(await screen.findByText(/BFS loop · 8 messages/)).toBeInTheDocument();
+        // Line 1 is a button, and it is the only clickable part of the header.
+        expect(screen.getByRole('button', { name: /Introduction to Computer Science/ })).toBeInTheDocument();
     });
 });
 
@@ -215,24 +351,22 @@ describe('IrisChatView cold start', () => {
         sessions: [],
         exercises: [],
         courses: [],
-        // Presence of this key is what tells the webview the host speaks the
-        // conversation-first model at all (every value in it is legitimately
-        // empty at cold start).
         contentState: 'unknown' as const,
+        conversationFirst: true,
     };
 
     it('offers the course list on cold start instead of an empty transcript', async () => {
         render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
         dispatchExtensionMessage({ type: 'updateIrisState', state: coldStartState });
 
-        expect(await screen.findByText(/Kein Artemis-Arbeitsbereich erkannt/)).toBeInTheDocument();
+        expect(await screen.findByText(/No Artemis workspace detected/)).toBeInTheDocument();
     });
 
     it('renders no header on cold start', async () => {
         render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
         dispatchExtensionMessage({ type: 'updateIrisState', state: coldStartState });
 
-        await screen.findByText(/Kein Artemis-Arbeitsbereich erkannt/);
+        await screen.findByText(/No Artemis workspace detected/);
         expect(screen.queryByRole('button', { name: 'View past conversations' })).toBeNull();
     });
 });

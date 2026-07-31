@@ -12,24 +12,20 @@ import { MessageBubble } from './MessageBubble';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
 
-const IDLE_STREAMING: StreamingState = { isStreaming: false };
-const NO_ACTIVITIES: IrisActivityDTO[] = [];
-const noop = () => { /* the transcript is renderable without a live chat behind it */ };
-
 interface ChatMessageListProps {
     messages: ChatMessage[];
-    streaming?: StreamingState;
+    streaming: StreamingState;
     /** Live tool/command activity for the in-flight run. */
-    activities?: IrisActivityDTO[];
+    activities: IrisActivityDTO[];
     /** The streaming answer draft, or null when none is in flight. */
-    liveDraft?: { runId: string; text: string } | null;
+    liveDraft: { runId: string; text: string } | null;
     /** Current run lifecycle state (drives the FAILED error branch). */
-    runState?: IrisRunState | null;
+    runState: IrisRunState | null;
     /** Error payload for a FAILED run. */
-    runError?: { message?: string } | null;
-    onFeedback?: (messageId: number, feedback: 'positive' | 'negative') => void;
-    onSendPrompt?: (text: string) => void;
-    hasContext?: boolean;
+    runError: { message?: string } | null;
+    onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
+    onSendPrompt: (text: string) => void;
+    hasContext: boolean;
     isChatDisabled?: boolean;
     /**
      * The conversation's topic, accepted but deliberately not rendered here.
@@ -54,14 +50,14 @@ interface ChatMessageListProps {
 
 export function ChatMessageList({
     messages,
-    streaming = IDLE_STREAMING,
-    activities = NO_ACTIVITIES,
-    liveDraft = null,
-    runState = null,
-    runError = null,
+    streaming,
+    activities,
+    liveDraft,
+    runState,
+    runError,
     onFeedback,
-    onSendPrompt = noop,
-    hasContext = true,
+    onSendPrompt,
+    hasContext,
     isChatDisabled,
     onRetry,
     isRetryDisabled,

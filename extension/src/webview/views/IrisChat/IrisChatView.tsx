@@ -43,13 +43,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const [pickerOpen, setPickerOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [coursePickerOpen, setCoursePickerOpen] = useState(false);
-    // Whether the host has switched to the conversation-first model. Keyed on
-    // the presence of `contentState` in the snapshot, not on any value derived
-    // from it: every conversation-first field is legitimately empty at cold
-    // start, so only the key itself distinguishes "the host speaks this model"
-    // from "the host does not". Until Task 14 rewires the provider nothing
-    // sends it, so the pre-conversation-first surfaces below stay live and
-    // untouched; Task 15 deletes the flag together with them.
+    // Whether the host DISPATCHES the conversation-first commands, which is
+    // the only thing that makes this interface usable. It must come from the
+    // host as its own flag: the presenter already mirrors every
+    // conversation-first field whenever the conversation service exists (i.e.
+    // in every logged-in session today), and all of those fields are
+    // legitimately empty at cold start, so neither their values nor the
+    // presence of a key can distinguish "answers this model" from "merely
+    // mirrors it". Task 14 sets the flag on the commit that cuts the
+    // dispatcher over; Task 15 deletes it with the old surfaces.
     const [conversationFirstActive, setConversationFirstActive] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
@@ -122,9 +124,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
-                if ('contentState' in msg.state) {
-                    setConversationFirstActive(true);
-                }
+                setConversationFirstActive(msg.state.conversationFirst === true);
                 if (msg.showDiagnostics !== undefined) {
                     setShowDiagnostics(msg.showDiagnostics);
                 }
@@ -550,9 +550,34 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         && store.currentSessionId === null
         && store.workspaceExerciseId === null;
 
+    // Every conversation-first action posts its new command AND the old
+    // equivalent, per the additive rule for this task: Task 14 sets
+    // `conversationFirst` on the same commit that stops the host answering the
+    // old commands, so exactly one of the two is ever acted on. The pairing is
+    // only safe as long as that stays one commit; splitting it would make a
+    // single click create two conversations or run two navigations.
     const selectTopic = (mode: string, entityId: number, name?: string) => {
         postCommand(vscodeApi, 'selectTopic', { mode, entityId, name });
+        postCommand(vscodeApi, 'selectChatContext', {
+            context: mode === 'COURSE_CHAT' ? 'course' : 'exercise',
+            itemId: entityId,
+            itemName: name ?? '',
+        });
         closePopovers();
+    };
+
+    const newConversation = () => {
+        postCommand(vscodeApi, 'newConversation');
+        postCommand(vscodeApi, 'createNewSession');
+    };
+
+    const switchCourse = (courseId: number) => {
+        postCommand(vscodeApi, 'switchCourse', { courseId });
+        postCommand(vscodeApi, 'selectChatContext', {
+            context: 'course',
+            itemId: courseId,
+            itemName: store.courses.find((course) => course.id === courseId)?.title ?? '',
+        });
     };
 
     // Disabled banner = strictly off (instructor disabled, .noai). The
@@ -701,7 +726,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     onOpenContextPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
                     onNewConversation={() => {
                         if (conversationFirstActive) {
-                            postCommand(vscodeApi, 'newConversation');
+                            newConversation();
                         } else {
                             postCommand(vscodeApi, 'createNewSession');
                         }
@@ -720,7 +745,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         courses={store.courses}
                         currentCourseId={store.courseId}
                         onSelect={(courseId) => {
-                            postCommand(vscodeApi, 'switchCourse', { courseId });
+                            switchCourse(courseId);
                             closePopovers();
                         }}
                         onClose={closePopovers}
@@ -754,10 +779,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                                 courseId: conversation.courseId,
                                 sessionId: conversation.sessionId,
                             });
+                            postCommand(vscodeApi, 'openArtemisSession', {
+                                courseId: conversation.courseId,
+                                artemisSessionId: conversation.sessionId,
+                            });
                             closePopovers();
                         }}
                         onNewConversation={() => {
-                            postCommand(vscodeApi, 'newConversation');
+                            newConversation();
                             closePopovers();
                         }}
                         onClose={closePopovers}
@@ -855,13 +884,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 {isColdStart ? (
                     <div className={styles.coldStart}>
                         <p className={styles.coldStartText}>
-                            Kein Artemis-Arbeitsbereich erkannt. Waehle einen Kurs, um zu starten.
+                            No Artemis workspace detected. Choose a course to get started.
                         </p>
                         <CoursePicker
                             variant="inline"
                             courses={store.courses}
                             currentCourseId={store.courseId}
-                            onSelect={(courseId) => postCommand(vscodeApi, 'switchCourse', { courseId })}
+                            onSelect={switchCourse}
                             onClose={closePopovers}
                         />
                     </div>
@@ -938,8 +967,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             className={styles.topicButton}
                             onClick={(e) => openPicker(e.currentTarget)}
                             disabled={!canChangeTopic}
-                            aria-label="Thema waehlen"
-                            title="Thema waehlen"
+                            aria-label="Choose topic"
+                            title="Choose topic"
                         >
                             <Plus size={14} />
                         </button>
@@ -947,7 +976,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             context={topic}
                             contentState={store.contentState}
                             canChangeTopic={canChangeTopic}
-                            onOpenPicker={() => setPickerOpen(true)}
+                            onOpenPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
                             onRemove={() => {
                                 // Dropping the topic IS selecting the course
                                 // chat; on an empty conversation the host

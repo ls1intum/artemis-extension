@@ -85,7 +85,7 @@ export function ChatHeader({
         // chip, so each fact appears exactly once.
         const count = displayMessageCount;
         const conversationLine =
-            `${conversationTitle || 'Neue Unterhaltung'} · ${count} ${count === 1 ? 'Nachricht' : 'Nachrichten'}`;
+            `${conversationTitle || 'New conversation'} · ${count} ${count === 1 ? 'message' : 'messages'}`;
 
         return (
             <div className={styles.header}>
@@ -99,7 +99,7 @@ export function ChatHeader({
                             onClick={onOpenCoursePicker}
                             disabled={disableNavigation}
                         >
-                            <span className={styles.primary}>{courseTitle ?? 'Kurs waehlen'}</span>
+                            <span className={styles.primary}>{courseTitle ?? 'Choose a course'}</span>
                             <ChevronDown size={14} className={styles.chevron} />
                         </button>
                         <span className={styles.secondary}>{conversationLine}</span>

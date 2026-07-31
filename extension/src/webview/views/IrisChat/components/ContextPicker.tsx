@@ -3,12 +3,12 @@ import BookOpen from 'lucide-react/dist/esm/icons/book-open';
 import Check from 'lucide-react/dist/esm/icons/check';
 import File from 'lucide-react/dist/esm/icons/file';
 import Search from 'lucide-react/dist/esm/icons/search';
-import type { KeyboardEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
 
 import type { ChatContextType } from '@shared/types/context';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
+import { usePopoverKeyDown } from '@webview/hooks/usePopoverKeyDown';
 import { compareCoursesForPicker, compareExercisesForPicker } from '@webview/views/IrisChat/pickerSort';
 import type {
     ChatContext,
@@ -21,7 +21,7 @@ import type {
 import styles from './ContextPicker.module.css';
 
 /** Stated once at the top of the topic picker while the conversation has content. */
-const TOPIC_CHANGE_HINT = 'Die Auswahl oeffnet gegebenenfalls eine andere Unterhaltung.';
+const TOPIC_CHANGE_HINT = 'Selecting may open a different conversation.';
 
 interface ContextPickerProps {
     // ---- Pre-conversation-first props. Task 15 deletes them together with
@@ -55,35 +55,6 @@ interface ContextPickerProps {
     /** Pinned and badged in the list when it belongs to this course. */
     workspaceExerciseId?: number | null;
     onSelect?: (topic: ConversationTopic) => void;
-}
-
-/** Shared Escape/Tab handling for both popover variants. */
-function usePopoverKeyDown(dialogRef: React.RefObject<HTMLDivElement | null>, onClose: () => void) {
-    return (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            onClose();
-            return;
-        }
-        if (event.key !== 'Tab') { return; }
-
-        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input, [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusables || focusables.length === 0) { return; }
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-
-        if (event.shiftKey && active === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && active === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    };
 }
 
 /**
@@ -178,7 +149,7 @@ function TopicPicker({
         ? courseExercises
         : courseExercises.filter((ex) => ex.title.toLowerCase().includes(q)
             || (ex.shortName ?? '').toLowerCase().includes(q));
-    const showCourseChat = q.length === 0 || 'kurs-chat'.includes(q);
+    const showCourseChat = q.length === 0 || 'course chat'.includes(q);
 
     const isSelected = (mode: string, entityId: number) =>
         selected?.mode === mode && selected.entityId === entityId;
@@ -188,6 +159,7 @@ function TopicPicker({
             ref={dialogRef}
             className={styles.dialogUp}
             role="dialog"
+            aria-label="Select topic"
             aria-modal="true"
             onKeyDown={handleKeyDown}
         >
@@ -200,7 +172,7 @@ function TopicPicker({
                 <input
                     type="text"
                     className={styles.searchInput}
-                    placeholder="Thema suchen…"
+                    placeholder="Search topics…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     autoFocus
@@ -217,7 +189,7 @@ function TopicPicker({
                         onClick={() => onSelect({ mode: 'COURSE_CHAT', entityId: courseId })}
                     >
                         <BookOpen size={16} className={styles.rowIcon} />
-                        <span className={styles.rowText}>Kurs-Chat</span>
+                        <span className={styles.rowText}>Course chat</span>
                         {isSelected('COURSE_CHAT', courseId) && <Check size={16} className={styles.checkIcon} />}
                     </button>
                 )}
@@ -248,7 +220,7 @@ function TopicPicker({
                 })}
 
                 {!showCourseChat && visibleExercises.length === 0 && (
-                    <div className={styles.emptyState}>Keine Themen gefunden</div>
+                    <div className={styles.emptyState}>No topics found</div>
                 )}
             </div>
         </div>

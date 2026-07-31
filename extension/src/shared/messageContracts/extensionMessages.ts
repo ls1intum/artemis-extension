@@ -253,6 +253,20 @@ interface ExtensionMsgPayloads {
              *  same workspace-detection state the old model already tracks;
              *  not part of `IrisConversationService`'s own state. */
             workspaceExerciseId?: number | undefined;
+            /**
+             * True once the host dispatcher answers the conversation-first
+             * commands (Task 14 sets it). Absent until then, so this build
+             * keeps rendering the old interface. Task 15 deletes it together
+             * with the old fields.
+             *
+             * It has to be its own flag rather than something inferred from
+             * the fields above: the presenter already fills every one of them
+             * whenever the conversation service exists, and all of them are
+             * legitimately empty at cold start, so neither a value nor the
+             * presence of a key can tell "the host answers this model" from
+             * "the host merely mirrors it".
+             */
+            conversationFirst?: boolean;
         };
         showDiagnostics?: boolean;
     };

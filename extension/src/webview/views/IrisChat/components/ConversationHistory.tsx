@@ -4,10 +4,10 @@ import Info from 'lucide-react/dist/esm/icons/info';
 import MessageSquare from 'lucide-react/dist/esm/icons/message-square';
 import Plus from 'lucide-react/dist/esm/icons/plus';
 import Search from 'lucide-react/dist/esm/icons/search';
-import type { KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
+import { usePopoverKeyDown } from '@webview/hooks/usePopoverKeyDown';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
 import type { CourseHistoryEntryVM, HistoryBucket } from '@webview/views/IrisChat/historyBuckets';
 import { bucketHistoryByTime } from '@webview/views/IrisChat/historyBuckets';
@@ -20,13 +20,6 @@ const BUCKET_LABELS: Record<HistoryBucket, string> = {
     yesterday: 'Yesterday',
     last7: 'Last 7 days',
     older: 'Older',
-};
-
-const BUCKET_LABELS_DE: Record<HistoryBucket, string> = {
-    today: 'Heute',
-    yesterday: 'Gestern',
-    last7: 'Letzte 7 Tage',
-    older: 'Aelter',
 };
 
 interface ConversationHistoryProps {
@@ -53,35 +46,6 @@ interface ConversationHistoryProps {
     onOpen?: (conversation: ConversationSummary) => void;
     /** Injected so bucketing stays deterministic in tests. */
     nowMs?: number;
-}
-
-/** Shared Escape/Tab handling for both popover variants. */
-function usePopoverKeyDown(dialogRef: React.RefObject<HTMLDivElement | null>, onClose: () => void) {
-    return (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            onClose();
-            return;
-        }
-        if (event.key !== 'Tab') { return; }
-
-        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input, [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusables || focusables.length === 0) { return; }
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-
-        if (event.shiftKey && active === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && active === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    };
 }
 
 /**
@@ -164,6 +128,7 @@ function ConversationList({
             ref={dialogRef}
             className={styles.dialog}
             role="dialog"
+            aria-label="Conversations"
             aria-modal="true"
             onKeyDown={handleKeyDown}
         >
@@ -173,7 +138,7 @@ function ConversationList({
                     <input
                         type="text"
                         className={styles.searchInput}
-                        placeholder="Unterhaltungen durchsuchen…"
+                        placeholder="Search conversations…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         autoFocus
@@ -186,19 +151,19 @@ function ConversationList({
                         onClick={onNewConversation}
                     >
                         <Plus size={14} />
-                        Neue Unterhaltung
+                        New conversation
                     </button>
                 )}
             </div>
 
             <div className={styles.list}>
                 {matches.length === 0 && (
-                    <div className={styles.emptyState}>Keine Unterhaltungen</div>
+                    <div className={styles.emptyState}>No conversations</div>
                 )}
 
                 {buckets.map(({ bucket, entries: bucketEntries }) => (
                     <div key={bucket} className={styles.bucketGroup}>
-                        <div className={styles.bucketHeader}>{BUCKET_LABELS_DE[bucket]}</div>
+                        <div className={styles.bucketHeader}>{BUCKET_LABELS[bucket]}</div>
                         {bucketEntries.map((conversation) => {
                             const active = conversation.sessionId === currentSessionId;
                             return (
@@ -212,11 +177,11 @@ function ConversationList({
                                     <MessageSquare size={16} className={styles.rowIcon} />
                                     <span className={styles.rowTextColumn}>
                                         <span className={styles.rowText}>
-                                            {conversation.title || 'Unbenannte Unterhaltung'}
+                                            {conversation.title || 'Untitled conversation'}
                                         </span>
                                         <span className={styles.rowSubtitleSplit}>
                                             <span className={styles.rowContext}>
-                                                {conversation.entityName ?? 'Kurs-Chat'}
+                                                {conversation.entityName ?? 'Course chat'}
                                             </span>
                                             <span className={styles.rowTime}>
                                                 {formatRelativeTime(conversation.lastActivity)}

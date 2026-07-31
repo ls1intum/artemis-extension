@@ -38,6 +38,15 @@ export function ChatNotice({ notice, currentSessionId, onExpire }: ChatNoticePro
     // for. Read through a ref so it is not a stale closure either.
     const currentSessionIdRef = useRef(currentSessionId);
     currentSessionIdRef.current = currentSessionId;
+    // Likewise for the callback. Callers pass an inline arrow, so it is a new
+    // function on every parent render; depending on it would clear and restart
+    // the timeout below on each one, and the parent re-renders on every store
+    // change (every keystroke, now that the composer is store-backed). The
+    // notice would then never expire while the student is typing, which is
+    // exactly when it is in the way.
+    const onExpireRef = useRef(onExpire);
+    onExpireRef.current = onExpire;
+
     useEffect(() => {
         if (text !== undefined) {
             noticeSessionRef.current = currentSessionIdRef.current;
@@ -46,15 +55,15 @@ export function ChatNotice({ notice, currentSessionId, onExpire }: ChatNoticePro
 
     useEffect(() => {
         if (text !== undefined && noticeSessionRef.current !== currentSessionId) {
-            onExpire();
+            onExpireRef.current();
         }
-    }, [text, currentSessionId, onExpire]);
+    }, [text, currentSessionId]);
 
     useEffect(() => {
         if (text === undefined) { return undefined; }
-        const timer = setTimeout(onExpire, NOTICE_TTL_MS);
+        const timer = setTimeout(() => onExpireRef.current(), NOTICE_TTL_MS);
         return () => clearTimeout(timer);
-    }, [text, onExpire]);
+    }, [text]);
 
     if (text === undefined) { return null; }
 

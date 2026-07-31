@@ -836,7 +836,7 @@ describe('useChatStore', () => {
 			useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
 
 			useChatStore.getState().addMessage(
-				{ localId: 'ctx-1', role: 'contextSwap', content: 'Thema gesetzt auf BFS', timestamp: 1 },
+				{ localId: 'ctx-1', role: 'contextSwap', content: 'Topic set to BFS', timestamp: 1 },
 				7,
 			);
 
@@ -844,8 +844,8 @@ describe('useChatStore', () => {
 		});
 
 		it('clears the notice on any navigation (the next setIrisState)', () => {
-			useChatStore.getState().showNotice({ text: 'Zu einer anderen Unterhaltung gewechselt.' });
-			expect(useChatStore.getState().notice).toEqual({ text: 'Zu einer anderen Unterhaltung gewechselt.' });
+			useChatStore.getState().showNotice({ text: 'Switched to a different conversation.' });
+			expect(useChatStore.getState().notice).toEqual({ text: 'Switched to a different conversation.' });
 
 			useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 9 }));
 

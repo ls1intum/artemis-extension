@@ -1,7 +1,7 @@
 import styles from './ContextSwapRow.module.css';
 
 interface ContextSwapRowProps {
-    /** The stored marker text ("Thema gesetzt auf X", "Thema entfernt", ...). */
+    /** The stored marker text ("Topic set to X", "Topic removed", ...). */
     text: string;
 }
 

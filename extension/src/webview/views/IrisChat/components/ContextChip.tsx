@@ -16,7 +16,12 @@ interface ContextChipProps {
      */
     canChangeTopic?: boolean;
     onRemove: () => void;
-    onOpenPicker: () => void;
+    /**
+     * Receives the click so the caller can record which element opened the
+     * picker: it is the element focus must return to on close, and the one
+     * whose sibling popovers have to be closed first.
+     */
+    onOpenPicker: (event: React.MouseEvent) => void;
 }
 
 /**
@@ -46,7 +51,7 @@ export function ContextChip({
         return null;
     }
 
-    const label = context.name ?? 'Thema';
+    const label = context.name ?? 'Topic';
 
     return (
         <div className={styles.chip}>
@@ -55,7 +60,7 @@ export function ContextChip({
                 className={styles.label}
                 onClick={onOpenPicker}
                 disabled={!canChangeTopic}
-                title="Thema aendern"
+                title="Change topic"
             >
                 {label}
             </button>
@@ -65,8 +70,8 @@ export function ContextChip({
                     className={styles.remove}
                     onClick={onRemove}
                     disabled={!canChangeTopic}
-                    aria-label="Thema entfernen"
-                    title="Thema entfernen"
+                    aria-label="Remove topic"
+                    title="Remove topic"
                 >
                     <X size={12} />
                 </button>

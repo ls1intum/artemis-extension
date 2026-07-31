@@ -81,18 +81,18 @@ describe('isContextSwap', () => {
 describe('describeContextSwap', () => {
     it('labels the three transitions', () => {
         const ctx = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' };
-        expect(describeContextSwap({ transition: 'added', context: ctx })).toBe('Thema gesetzt auf BFS');
-        expect(describeContextSwap({ transition: 'changed', context: ctx })).toBe('Thema gewechselt zu BFS');
-        expect(describeContextSwap({ transition: 'removed', context: undefined })).toBe('Thema entfernt');
+        expect(describeContextSwap({ transition: 'added', context: ctx })).toBe('Topic set to BFS');
+        expect(describeContextSwap({ transition: 'changed', context: ctx })).toBe('Topic changed to BFS');
+        expect(describeContextSwap({ transition: 'removed', context: undefined })).toBe('Topic removed');
     });
 
     it('falls back to a neutral label when the name is missing', () => {
         expect(describeContextSwap({ transition: 'added', context: { mode: 'LECTURE_CHAT', entityId: 8 } }))
-            .toBe('Thema gesetzt auf Vorlesung 8');
+            .toBe('Topic set to Lecture 8');
     });
 
     it('falls back to the id for an unknown mode', () => {
         expect(describeContextSwap({ transition: 'added', context: { mode: 'FUTURE_CHAT', entityId: 8 } }))
-            .toBe('Thema gesetzt auf Kontext 8');
+            .toBe('Topic set to Context 8');
     });
 });

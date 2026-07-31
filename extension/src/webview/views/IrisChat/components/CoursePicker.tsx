@@ -1,10 +1,10 @@
 import clsx from 'clsx';
 import BookOpen from 'lucide-react/dist/esm/icons/book-open';
 import Check from 'lucide-react/dist/esm/icons/check';
-import type { KeyboardEvent } from 'react';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
+import { usePopoverKeyDown } from '@webview/hooks/usePopoverKeyDown';
 import { compareCoursesForPicker } from '@webview/views/IrisChat/pickerSort';
 import type { ContextItem } from '@webview/views/IrisChat/types';
 
@@ -57,31 +57,7 @@ export function CoursePicker({
 
     const sorted = useMemo(() => [...courses].sort(compareCoursesForPicker), [courses]);
 
-    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            onClose();
-            return;
-        }
-        if (event.key !== 'Tab') { return; }
-
-        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input, [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusables || focusables.length === 0) { return; }
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-
-        if (event.shiftKey && active === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && active === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    };
+    const handleKeyDown = usePopoverKeyDown(dialogRef, onClose);
 
     return (
         <div
@@ -90,6 +66,7 @@ export function CoursePicker({
             // but resolves to undefined in the camelCaseOnly production bundle.
             className={variant === 'inline' ? styles.dialogInline : styles.dialog}
             role="dialog"
+            aria-label="Select course"
             aria-modal={variant === 'popover' ? true : undefined}
             aria-busy={status === 'loading'}
             onKeyDown={handleKeyDown}
@@ -103,7 +80,7 @@ export function CoursePicker({
             )}
 
             {status === 'ready' && sorted.length === 0 && (
-                <div className={styles.emptyState}>Keine Kurse gefunden</div>
+                <div className={styles.emptyState}>No courses found</div>
             )}
 
             {status === 'ready' && sorted.map((course) => {
