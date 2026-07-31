@@ -19,6 +19,7 @@ const BUCKET_LABELS: Record<HistoryBucket, string> = {
     today: 'Today',
     yesterday: 'Yesterday',
     last7: 'Last 7 days',
+    last30: 'Last 30 days',
     older: 'Older',
 };
 
