@@ -4649,6 +4649,15 @@ git commit -m "fix(iris): ascending due dates and DST-safe history buckets"
 
 This task carries local findings **7** (the `package.json` title) and the "Reload with no conversation open" case.
 
+**Turn the interface on (added during Task 12).** Task 12 built the whole conversation-first UI behind an explicit activation flag, `conversationFirst?: boolean` on `updateIrisState.state`, and deliberately never sets it. This task must set it: `ChatViewStatePresenter._serializeConversation` returns `conversationFirst: true` once the dispatcher answers `selectTopic`, `openConversation`, `switchCourse` and `newConversation`. Until it does, the webview renders the old interface, which is what keeps every commit between Task 12 and this one shippable.
+
+The flag exists because feature detection cannot work here: `_serializeConversation` already emits every conversation-first field (including `contentState: 'unknown'`) from Task 10 onward, in every production session, so a webview that detects "is the new shape present" switches on immediately and finds a service nothing has driven. That failure was real and was caught in Task 12's review.
+
+Two consequences to check in this task, both of which the flag exposes rather than causes:
+
+- The history popover reads `store.conversations` and no longer issues `requestCourseHistory`. That list comes from `snapshot.courseSessions`, so the overview must actually be refreshed for the current course before the popover is useful; otherwise it correctly but uselessly reports an empty history.
+- `IrisChatView`'s cold-start screen triggers on "no course, no session, no workspace exercise". Once the flag is on, confirm that state is only reachable when it is genuinely true.
+
 - [ ] **Step 1: Write the failing command tests**
 
 ```typescript
@@ -4921,6 +4930,8 @@ Then raise `STORE_VERSION` to `3` in `contextPersistence.ts` and un-skip the mig
 - [ ] **Step 3: Delete the superseded wire fields**
 
 In `shared/messageContracts/`, remove `context`, `activeSessionId` and `sessions` from `updateIrisState.state` and make every field Task 10 added there **required** (`courseId`, `courseTitle`, `currentSessionId`, `conversationTitle`, `displayMessageCount`, `committedContext`, `pendingContext`, `contentState`, `sendInFlight`, `navigationInFlight`, `conversations`, `workspaceExerciseId`), together with `sendMessage.sessionId`; make `sessionId` required and delete `localSessionId` on `addMessage`, `loadMessages`, `mergeSessionMessages`, `confirmSentMessage`, `sendRejected` and `IrisRunUiProjection` (Task 10 added the optional `sessionId` to all six, including `confirmSentMessage` and `sendRejected`, and Task 14 made their producers fill it, which is what makes tightening them possible here); delete the `SelectChatContext`, `SwitchSession`, `OpenArtemisSession`, `CreateNewSession` and `SwitchToWorkspaceContext` commands and their `COMMANDS_REQUIRING_PAYLOAD` entries. Then delete the matching stale-guard branches in `useChatStore.ts`.
+
+Also delete `conversationFirst`, the activation flag Task 12 added and Task 14 sets. Once the old fields are gone there is only one interface left, so a flag that selects between two of them has nothing to select. Deleting it is what forces the webview's old rendering branches out with it: while the flag survives, `tsc` is perfectly happy to keep both.
 
 Run: `npm run check-types`
 Expected: PASS with no changes needed elsewhere. Any error here names a consumer Task 14 missed; fix it rather than restoring the field.
