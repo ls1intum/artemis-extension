@@ -24,6 +24,15 @@ const entries: CourseHistoryEntryVM[] = [
         title: '',
         lastActivity: NOW - 5 * 24 * 60 * 60 * 1000,
     },
+    {
+        artemisSessionId: 3,
+        courseId: 7,
+        mode: 'COURSE_CHAT',
+        entityId: 7,
+        entityName: 'Graph Traversal',
+        title: 'Older discussion',
+        lastActivity: NOW - 15 * 24 * 60 * 60 * 1000,
+    },
 ];
 
 const props = {
@@ -43,6 +52,7 @@ describe('ConversationHistory', () => {
         render(<ConversationHistory {...props} />);
         expect(screen.getByText('Today')).toBeInTheDocument();
         expect(screen.getByText('Last 7 days')).toBeInTheDocument();
+        expect(screen.getByText('Last 30 days')).toBeInTheDocument();
     });
 
     it('falls back to "Untitled conversation" when title is missing/empty', () => {

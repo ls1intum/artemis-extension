@@ -16,7 +16,10 @@ export interface CourseHistoryEntryVM {
     entityName?: string;
     /** conversation title */
     title?: string;
-    /** epoch ms: lastActivityDate ?? creationDate; 0 = host could not parse either */
+    /**
+     * epoch ms: lastActivityDate ?? creationDate; `<= 0` or non-finite is the
+     * host's sentinel for "could not parse either".
+     */
     lastActivity: number;
 }
 
@@ -33,12 +36,13 @@ const byNewestFirst = (a: HasLastActivity, b: HasLastActivity) => b.lastActivity
 /**
  * Start of the local-timezone day `daysBack` days before `now`, as epoch ms.
  *
- * Calendar arithmetic, not a fixed 24-hour span: subtracting
- * `daysBack * DAY_MS` from `now` lands an hour into the wrong day whenever a
+ * Calendar arithmetic, not a fixed 24-hour span: passing a negative
+ * day-of-month into the `Date` constructor and letting it roll the calendar
+ * back resolves the correct year/month/day in the local timezone even when a
  * DST transition falls between `now` and the target day (a 23-hour
- * spring-forward day or a 25-hour fall-back day). Letting the `Date`
- * constructor roll the day-of-month back and resolve the resulting
- * year/month/day in the local timezone sidesteps that entirely.
+ * spring-forward day or a 25-hour fall-back day). Subtracting a fixed
+ * `daysBack * 24 * 60 * 60 * 1000` instead would land an hour into the wrong
+ * day whenever that happens.
  */
 function startOfDayOffset(now: Date, daysBack: number): number {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysBack).getTime();
