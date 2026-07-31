@@ -92,6 +92,14 @@ export const WebviewCmd = {
     // does the cut-over. There is no `UndoNavigation` (cut 2): the notice
     // `showChatNotice` reports is actionless.
     SelectTopic: 'selectTopic',
+    /**
+     * Chat-side course refresh. Deliberately NOT `ReloadCourses`: that one is
+     * registered only in `navigationCommands.ts`, reachable only through
+     * `WebViewMessageHandler` (which only the main panel constructs), and its
+     * handler navigates the main panel to the course list. A sidebar click
+     * must not do that.
+     */
+    RefreshCourses: 'refreshCourses',
     OpenConversation: 'openConversation',
     SwitchCourse: 'switchCourse',
     NewConversation: 'newConversation',
@@ -219,6 +227,8 @@ interface WebviewCmdPayloads {
     openConversation: { courseId: number; sessionId: number };
     /** No session id yet, so it acquires first; lands on an empty course conversation. */
     switchCourse: { courseId: number };
+    /** Asks the host to fetch the dashboard course list into the store and re-post the snapshot. */
+    refreshCourses: undefined;
     /** Header `+`. No payload: the current course is read host-side. */
     newConversation: undefined;
     reconnectWebSocket: undefined;

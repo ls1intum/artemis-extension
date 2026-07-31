@@ -130,7 +130,8 @@ suite('ChatWebviewProvider.requestCourseHistory', () => {
         h.api.listChatSessionsForCourse.withArgs(3).resolves([
             summary({ id: 42, entityId: 3, mode: 'COURSE_CHAT', title: 'Earlier chat', lastActivityDate: '2024-02-01T10:00:00Z' }),
             summary({ id: 55, entityId: 88, mode: 'PROGRAMMING_EXERCISE_CHAT', entityName: 'Sorting', title: 'Q', lastActivityDate: '2024-03-01T10:00:00Z' }),
-            // Excluded modes (lecture/text-exercise chat) must not appear.
+            // Every mode is surfaced now (Task 14 step 7): a lecture chat can
+            // never be a topic, but it can be opened by id.
             summary({ id: 66, entityId: 5, mode: 'LECTURE_CHAT' }),
         ]);
 
@@ -141,7 +142,7 @@ suite('ChatWebviewProvider.requestCourseHistory', () => {
         const payload = call!.args[0] as { courseId: number; requestId: number; entries: Array<{ artemisSessionId: number }> };
         assert.strictEqual(payload.courseId, 3);
         assert.strictEqual(payload.requestId, 11);
-        assert.strictEqual(payload.entries.length, 2, 'lecture chat must be excluded');
+        assert.strictEqual(payload.entries.length, 3, 'no mode is filtered out of the history');
         assert.strictEqual(payload.entries[0].artemisSessionId, 55, 'newest lastActivity must sort first');
     });
 

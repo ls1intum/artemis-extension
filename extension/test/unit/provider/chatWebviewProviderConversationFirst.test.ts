@@ -230,10 +230,16 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         navigateThrows: false,
     };
     (provider as unknown as { _conversation: unknown })._conversation = {
+        // The full surface the presenter reads: the provider posts a snapshot
+        // on every conversation change now, so a partial double makes
+        // postSnapshot throw rather than fail an assertion.
         state: {
             get sendInFlight() { return fake.sendInFlight; },
-            snapshot: () => ({ currentSessionId: 1, courseId: 42 }),
+            snapshot: () => ({ currentSessionId: 1, courseId: 42, courseSessions: [] }),
+            displayMessageCount: () => 0,
+            contentState: () => 'content',
         },
+        navigationInFlight: false,
         resolveTopicChange: async (target: unknown) => {
             fake.calls.push({ name: 'resolveTopicChange', args: target });
             return fake.topicOutcome;
@@ -351,6 +357,23 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
 
         assert.deepStrictEqual(fake.calls, [], 'the host must not reach the service at all');
         assert.deepStrictEqual(noticesFrom(postSpy), []);
+    });
+
+    test('refreshCourses reads the dashboard into the store and re-posts the snapshot', async () => {
+        const populate = h.sandbox.stub(
+            h.provider as unknown as { _populateAvailableContexts: () => Promise<void> },
+            '_populateAvailableContexts',
+        ).callsFake(async () => { h.contextStore.registerCourse({ id: 42, title: 'Algorithms' }); });
+
+        dispatch(h.provider, 'refreshCourses');
+        await settle();
+
+        assert.strictEqual(populate.callCount, 1);
+        const states = postSpy.getCalls()
+            .map(c => c.args[0] as { type?: string; state?: { courses: unknown[] } })
+            .filter(m => m?.type === 'updateIrisState');
+        assert.ok(states.length > 0, 'the refreshed course list must be posted back');
+        assert.strictEqual(states.at(-1)?.state?.courses.length, 1);
     });
 
     test('the retired commands are no longer answered', async () => {

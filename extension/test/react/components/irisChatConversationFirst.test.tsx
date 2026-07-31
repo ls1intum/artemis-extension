@@ -470,6 +470,45 @@ describe('IrisChatView cold start', () => {
     });
 });
 
+describe('IrisChatView course refresh', () => {
+    const coldStartState = {
+        context: null,
+        activeSessionId: null,
+        sessions: [],
+        exercises: [],
+        courses: [],
+        contentState: 'unknown' as const,
+        conversationFirst: true,
+    };
+
+    it('asks the host for the course list on a cold start and shows a loading list until it answers', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: coldStartState });
+
+        await screen.findByText(/No Artemis workspace detected/);
+        expect(getPostMessageCalls(api).some(([m]) => (m as { command?: string }).command === 'refreshCourses')).toBe(true);
+        // Loading, NOT "No courses found": nothing is tracked on a fresh
+        // installation, so an empty list means nothing until the fetch lands.
+        expect(screen.getByRole('dialog', { name: 'Select course' })).toHaveAttribute('aria-busy', 'true');
+        expect(screen.queryByText('No courses found')).toBeNull();
+    });
+
+    it('lists the courses once the host answers with a snapshot', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: coldStartState });
+        await screen.findByText(/No Artemis workspace detected/);
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...coldStartState, courses: [{ id: 42, title: 'Introduction to Computer Science' }] },
+        });
+
+        expect(await screen.findByTestId('course-entry-42')).toBeInTheDocument();
+    });
+});
+
 describe('IrisChatView navigation notice', () => {
     // The host raises the notice AFTER the navigation's snapshot, which is
     // what makes it describe the conversation the student is now looking at.

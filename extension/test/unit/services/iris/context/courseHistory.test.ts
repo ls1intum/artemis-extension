@@ -23,7 +23,7 @@ const summary = (overrides: {
 });
 
 suite('buildCourseHistory', () => {
-    test('excludes lecture and text-exercise modes', () => {
+    test('surfaces every mode, including the ones that can never be a topic', () => {
         const out = buildCourseHistory(
             [
                 summary({ id: 1, mode: 'COURSE_CHAT' }),
@@ -34,9 +34,12 @@ suite('buildCourseHistory', () => {
             7,
         );
 
+        // A lecture or text-exercise conversation is openable by id even
+        // though the topic picker can never select one, so the history must
+        // list it (spec 5.4).
         assert.deepStrictEqual(
             out.map((entry) => entry.artemisSessionId).sort((a, b) => a - b),
-            [1, 4],
+            [1, 2, 3, 4],
         );
     });
 

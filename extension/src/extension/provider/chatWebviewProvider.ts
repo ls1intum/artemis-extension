@@ -1040,6 +1040,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 case WebviewCmd.NewConversation:
                     void this._handleNewConversation();
                     break;
+                case WebviewCmd.RefreshCourses:
+                    // A fresh installation tracks no courses at all, so the
+                    // course picker has nothing to list until the dashboard
+                    // has been read once.
+                    void this._populateAvailableContexts()
+                        .then(() => this._viewStatePresenter.postSnapshot())
+                        .catch((err: unknown) => {
+                            logger.error('Error refreshing courses', LogCategory.IRIS_CHAT, err);
+                            this._viewStatePresenter.postSnapshot();
+                        });
+                    break;
                 case WebviewCmd.RequestCourseHistory: {
                     const { courseId, requestId } = getPayload<WebCmd<'requestCourseHistory'>>(message);
                     if (typeof courseId === 'number' && typeof requestId === 'number') {

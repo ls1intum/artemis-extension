@@ -54,6 +54,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // mirrors it". Task 14 sets the flag on the commit that cuts the
     // dispatcher over; Task 15 deletes it with the old surfaces.
     const [conversationFirstActive, setConversationFirstActive] = useState(false);
+    // True while the host is reading the dashboard course list. A fresh
+    // installation tracks nothing, so an empty list is only meaningful once
+    // that fetch has finished; without this the picker says "No courses
+    // found" the instant it opens.
+    const [coursesLoading, setCoursesLoading] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
     // Element that opened the currently-visible popover (context row or
@@ -126,6 +131,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
                 setConversationFirstActive(msg.state.conversationFirst === true);
+                // Any snapshot answers the refresh: the course list travels on
+                // it, so there is nothing left to wait for.
+                setCoursesLoading(false);
                 if (msg.showDiagnostics !== undefined) {
                     setShowDiagnostics(msg.showDiagnostics);
                 }
@@ -441,8 +449,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setPickerOpen(true);
     };
 
+    // Only when there is nothing to show: `status: 'loading'` hides the list,
+    // so refreshing an already-populated picker would blank it under the
+    // student's cursor.
+    const requestCoursesIfEmpty = () => {
+        if (useChatStore.getState().courses.length > 0) { return; }
+        setCoursesLoading(true);
+        postCommand(vscodeApi, 'refreshCourses');
+    };
+
     const openCoursePicker = (opener: HTMLElement) => {
         openerRef.current = opener;
+        requestCoursesIfEmpty();
         setPickerOpen(false);
         setHistoryOpen(false);
         setCoursePickerOpen(true);
@@ -558,6 +576,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         && store.courseId === null
         && store.currentSessionId === null
         && store.workspaceExerciseId === null;
+
+    // The cold start renders the course list as the whole screen, so it must
+    // fetch on its own: there is no picker for the student to open first.
+    const coldStartFetched = useRef(false);
+    useEffect(() => {
+        if (!isColdStart || coldStartFetched.current) { return; }
+        coldStartFetched.current = true;
+        requestCoursesIfEmpty();
+    });
 
     // The conversation-first branches post ONLY conversation-first commands,
     // and Task 14 owns making the host answer them. Posting the old equivalent
@@ -737,6 +764,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <CoursePicker
                         courses={store.courses}
                         currentCourseId={store.courseId}
+                        status={coursesLoading ? 'loading' : 'ready'}
                         onSelect={(courseId) => {
                             postCommand(vscodeApi, 'switchCourse', { courseId });
                             closePopovers();
@@ -879,6 +907,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             variant="inline"
                             courses={store.courses}
                             currentCourseId={store.courseId}
+                            status={coursesLoading ? 'loading' : 'ready'}
                             onSelect={(courseId) => postCommand(vscodeApi, 'switchCourse', { courseId })}
                             onClose={closePopovers}
                         />

@@ -16,21 +16,20 @@ export interface CourseHistoryEntry {
     lastActivity: number;
 }
 
-/** Modes surfaced in the course-wide history. Lecture and text-exercise chats are excluded. */
-const INCLUDED_MODES: ReadonlySet<string> = new Set<IrisChatMode>(['COURSE_CHAT', 'PROGRAMMING_EXERCISE_CHAT']);
-
 /**
- * Aggregates the course's chat-session overview into the course-wide history list:
- * course chats and programming-exercise chats only, newest-first, no message counts
- * (the overview summary does not carry any).
+ * Aggregates the course's chat-session overview into the course-wide history
+ * list, newest-first, no message counts (the overview summary does not carry
+ * any). EVERY mode is surfaced: a lecture or text-exercise conversation can
+ * never be a topic, but it can absolutely be opened by id, and hiding it here
+ * made prior conversations unreachable rather than read-only.
  */
 export function buildCourseHistory(summaries: SessionSummary[], courseId: number): CourseHistoryEntry[] {
     return summaries
-        .filter((summary) => INCLUDED_MODES.has(summary.context.mode))
         .map((summary) => ({
             artemisSessionId: summary.sessionId,
             courseId,
-            // Safe: narrowed to a known IrisChatMode by the filter above.
+            // The transport represents every mode the server may report; this
+            // list is display-only, so an unknown one is carried as it came.
             mode: summary.context.mode as IrisChatMode,
             entityId: summary.context.entityId,
             entityName: summary.context.name,
