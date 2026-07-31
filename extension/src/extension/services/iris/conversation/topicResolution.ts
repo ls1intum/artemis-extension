@@ -3,7 +3,7 @@ import { sameContext } from '@shared/types/serverContext';
 
 import type { ContentState } from './conversationState';
 
-export type TopicDecision =
+type TopicDecision =
     /** Already there. */
     | { kind: 'noop' }
     /** Drop the staging; no request. */

@@ -1,5 +1,3 @@
-import type { ActiveContext } from '@shared/types/context';
-
 import type { ArtemisApiService } from '@extension/api';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
@@ -11,10 +9,10 @@ import type { ContextStore } from './contextStore';
  *   2. api.getExerciseDetails(...).exercise.course.id (registers the exercise
  *      back into the store on success)
  *
- * Returns undefined if both fail. Keyed on the exercise id rather than on an
- * `ActiveContext` (spec 10): the conversation-first commands know an exercise,
- * not a selected context, and this is the only code that can find a course for
- * an exercise the store has never seen, which is exactly the fresh-window case.
+ * Returns undefined if both fail. Keyed on the exercise id (spec 10): every
+ * caller knows an exercise, not a selected context, and this is the only code
+ * that can find a course for an exercise the store has never seen, which is
+ * exactly the fresh-window case.
  */
 export async function resolveCourseIdForExercise(
     exerciseId: number,
@@ -47,23 +45,4 @@ export async function resolveCourseIdForExercise(
         logger.warn('Failed to resolve course from exercise details:', LogCategory.IRIS_CHAT, error);
         return undefined;
     }
-}
-
-/**
- * `ActiveContext`-shaped adapter for the surviving old-model call sites
- * (`chatSessionService`, `sessionSyncUtils`). It disappears with them in the
- * next task; the exercise-keyed function above is the one new code uses.
- */
-export async function resolveCourseIdFromContext(
-    context: ActiveContext,
-    contextStore: ContextStore,
-    api: ArtemisApiService | undefined,
-): Promise<number | undefined> {
-    if (context.type === 'course') {
-        return context.id;
-    }
-    if (context.courseId) {
-        return context.courseId;
-    }
-    return resolveCourseIdForExercise(context.id, contextStore, api);
 }

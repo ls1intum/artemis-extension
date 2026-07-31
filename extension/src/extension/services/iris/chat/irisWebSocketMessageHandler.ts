@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import type { ExtensionToWebviewMessage, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 import type { IrisChatMessage } from '@shared/types/apiResponses';
-import { localSessionKeyFor } from '@shared/types/serverContext';
 
 import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
@@ -57,19 +56,15 @@ export class IrisWebSocketMessageHandler {
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _runs: IrisRunStateMachine,
-        private readonly _getLocalSessionId: () => string | undefined,
         private readonly _getConversation: () => IrisConversationService | undefined,
-        private readonly _onSessionTitleUpdate?: (artemisSessionId: number, title: string) => void,
     ) { }
 
     /**
-     * Gates every new-model behaviour (the source-session check, the CTXSWAP
-     * branch, host-state ingestion) on the conversation being *active*, not
-     * merely constructed. Until Task 14 cuts over, nothing calls
-     * `IrisConversationService.start()`, so the service exists with no
-     * session, and `ConversationState.currentSessionId` stays `undefined`.
-     * Treating "the service exists" as authoritative would drop every frame
-     * the old model is still relying on.
+     * Gates every behaviour that needs a conversation (the source-session
+     * check, the CTXSWAP branch, host-state ingestion) on one being *open*,
+     * not merely constructed: the service exists from activation, but
+     * `ConversationState.currentSessionId` stays `undefined` until `start()`
+     * or a navigation has installed something.
      */
     private get _activeConversation(): IrisConversationService | undefined {
         const conversation = this._getConversation();
@@ -85,11 +80,8 @@ export class IrisWebSocketMessageHandler {
         // 1. Source check FIRST: before admission, before run state, before the
         //    title handler. A frame from the conversation we just left must not
         //    be able to bind an unknown run as current or rename the live
-        //    session. Everything in this block happens ONLY while the new
-        //    model is driving. Before the Task 14 cut-over the old path still
-        //    owns acquisition, so ConversationState has no session and a
-        //    source check against it would drop every frame. Skipping this
-        //    block means "behave as the baseline".
+        //    session. Skipped only while nothing is open yet, when there is
+        //    no conversation to check the frame against.
         const conversation = this._activeConversation;
         if (conversation !== undefined) {
             const current = conversation.state.snapshot().currentSessionId;
@@ -196,8 +188,8 @@ export class IrisWebSocketMessageHandler {
             if (!intermediate) { this._activities = []; }
         }
 
-        const target = this._targetSession();
-        if (!target) {
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) {
             // No conversation to attribute this message to. Dropping is
             // correct: rendering it would attach it to whatever conversation
             // the student opens next.
@@ -208,8 +200,7 @@ export class IrisWebSocketMessageHandler {
         const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
         this._postMessage({
             type: ExtensionMsg.AddMessage,
-            localSessionId: target.localSessionId,
-            sessionId: target.sessionId,
+            sessionId,
             message: {
                 id: msg.id,
                 role: 'assistant',
@@ -234,35 +225,22 @@ export class IrisWebSocketMessageHandler {
         }
     }
 
-    /**
-     * The conversation a frame belongs to, plus the local key the wire still
-     * requires. The conversation model is authoritative once it is driving:
-     * `_getLocalSessionId()` reads the OLD model's active session, which no
-     * longer exists there, so every frame would be dropped (or, worse,
-     * attributed to a leftover session and rendered under another
-     * conversation's transcript).
-     */
-    private _targetSession(): { sessionId?: number; localSessionId: string } | undefined {
-        const sessionId = this._activeConversation?.state.snapshot().currentSessionId;
-        if (sessionId !== undefined) {
-            return { sessionId, localSessionId: localSessionKeyFor(sessionId) };
-        }
-        const localSessionId = this._getLocalSessionId();
-        return localSessionId ? { localSessionId } : undefined;
+    /** The conversation a frame belongs to, or `undefined` when none is open. */
+    private _targetSessionId(): number | undefined {
+        return this._activeConversation?.state.snapshot().currentSessionId;
     }
 
     /**
      * `undefined` when there is nothing to attribute the projection to.
-     * `localSessionId` is a required `string` on the projection, so the
-     * narrowing has to happen HERE: "the webview will reject it" is not
-     * reachable, tsc rejects it first.
+     * `sessionId` is a required `number` on the projection, so the narrowing
+     * has to happen HERE: "the webview will reject it" is not reachable, tsc
+     * rejects it first.
      */
     private _buildProjection(): IrisRunUiProjection | undefined {
-        const target = this._targetSession();
-        if (!target) { return undefined; }
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) { return undefined; }
         return {
-            localSessionId: target.localSessionId,
-            sessionId: target.sessionId,
+            sessionId,
             revision: ++this._revision,
             draft: this._draft,
             activities: this._activities,
@@ -317,12 +295,7 @@ export class IrisWebSocketMessageHandler {
         logger.info(`Session title received: "${sessionTitle}" for session ${artemisSessionId}`, LogCategory.WEBSOCKET);
 
         const conversation = this._activeConversation;
-        if (!conversation) {
-            // Coexistence until Task 14: the old model still owns the title, and
-            // returning here would silently disable renaming for eight commits.
-            this._onSessionTitleUpdate?.(artemisSessionId, sessionTitle);
-            return;
-        }
+        if (!conversation) { return; }
         conversation.state.setTitle(sessionTitle);
         // Without this, a server-side rename lands in host state but never
         // reaches the webview until some unrelated emit happens to fire: the
@@ -349,12 +322,11 @@ export class IrisWebSocketMessageHandler {
             return;
         }
         const outcome = conversation.state.applyContextSwap(swap, message);
-        const target = this._targetSession();
-        if (target) {
+        const sessionId = this._targetSessionId();
+        if (sessionId !== undefined) {
             this._postMessage({
                 type: ExtensionMsg.AddMessage,
-                localSessionId: target.localSessionId,
-                sessionId: target.sessionId,
+                sessionId,
                 message: {
                     id: message.id,
                     role: 'contextSwap',

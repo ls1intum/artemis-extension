@@ -32,13 +32,13 @@ export interface GuardTuple {
     loadTicket: number;
 }
 
-export interface PendingContext {
+interface PendingContext {
     ctx: ServerContext;
     sessionId: number;
     baseRevision: number;
 }
 
-export interface ConversationSnapshot {
+interface ConversationSnapshot {
     courseId: number | undefined;
     currentSessionId: number | undefined;
     detail: SessionDetail | undefined;
@@ -48,7 +48,7 @@ export interface ConversationSnapshot {
     knownInvisible: SessionSummary[];
 }
 
-export type SwapOutcome = 'pending-satisfied' | 'pending-dropped' | 'no-pending';
+type SwapOutcome = 'pending-satisfied' | 'pending-dropped' | 'no-pending';
 
 export class ConversationState {
     private _courseId: number | undefined;

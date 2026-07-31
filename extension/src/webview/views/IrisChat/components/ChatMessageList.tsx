@@ -27,16 +27,6 @@ interface ChatMessageListProps {
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
     isChatDisabled?: boolean;
-    /**
-     * The conversation's topic, accepted but deliberately not rendered here.
-     * An earlier draft ended the transcript with a dashed preview line while
-     * something was staged; it was cut, so the composer chip alone carries
-     * `pending ?? committed` and the transcript carries only the markers the
-     * server actually stored. Kept on the contract because the transcript is
-     * where a future preview would have to live, and callers already pass it.
-     */
-    committedContext?: unknown;
-    pendingContext?: unknown;
     /** Invoked when a failed user message's Retry button is clicked. */
     onRetry?: (localId: string) => void;
     /**

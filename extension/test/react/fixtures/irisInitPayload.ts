@@ -6,31 +6,24 @@ export function createIrisInitPayload(
     return {
         type: 'updateIrisState',
         state: {
-            context: {
-                type: 'course',
-                id: 1,
-                title: 'Test Course',
-                shortName: 'TC',
-                locked: false,
-                source: 'user-selected',
-            },
-            activeSessionId: 'session-1',
-            sessions: [
-                {
-                    id: 'session-1',
-                    artemisSessionId: 42,
-                    preview: 'Hello, how can I help?',
-                    messageCount: 2,
-                    createdAt: 1700000000000,
-                    lastActivity: 1700001000000,
-                },
-            ],
             exercises: [
                 { id: 10, title: 'Recent Exercise', shortName: 'RE', courseId: 1, isWorkspace: false },
             ],
             courses: [
                 { id: 1, title: 'Test Course', shortName: 'TC' },
             ],
+            courseId: 1,
+            courseTitle: 'Test Course',
+            currentSessionId: 42,
+            conversationTitle: 'Hello, how can I help?',
+            displayMessageCount: 2,
+            committedContext: undefined,
+            pendingContext: undefined,
+            contentState: 'content',
+            sendInFlight: false,
+            navigationInFlight: false,
+            conversations: [],
+            workspaceExerciseId: undefined,
             ...overrides,
         },
     };

@@ -1,11 +1,8 @@
 import * as vscode from 'vscode';
 
-import { ArtemisApiService } from '@extension/api';
-import { contextToIrisMode } from '@extension/services/iris/context/contextChatMode';
 import { type IrisWebSocketMessage, isIrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
 import { logger } from '@extension/services/loggingService';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
-import { ActiveContext } from '@extension/types';
 
 /**
  * Minimum interval between resubscription attempts (milliseconds).
@@ -25,10 +22,10 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
  */
 export class IrisWebSocketSessionClient implements vscode.Disposable {
     /**
-     * Transient runtime copy of the Artemis session ID for WebSocket subscription.
-     * The authoritative copy lives in `ContextStore.StoredSession.artemisSessionId`
-     * (used for session re-initialization across context switches).
-     * Both copies are synchronized by `IrisChatSessionService` during lifecycle operations.
+     * The conversation this client currently speaks for. Set by
+     * `subscribeToSession`, cleared by `resetSession`;
+     * `IrisConversationService` is the only thing that decides what it should
+     * be, so there is no second copy to keep in sync.
      */
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
@@ -49,7 +46,6 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     public readonly onDidResubscribe = this._onDidResubscribe.event;
 
     constructor(
-        private readonly _artemisApiService: ArtemisApiService,
         private readonly _websocketService: ArtemisWebsocketService
     ) {
         this._startWebSocketMonitoring();
@@ -103,41 +99,6 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             clearTimeout(this._convergeTimer);
             this._convergeTimer = undefined;
         }
-    }
-
-    public async initializeSession(context: ActiveContext, courseId: number, storedSessionId?: number): Promise<number> {
-        logger.session(`Initializing session for ${context.type} ${context.id}`);
-
-        let sessionId: number;
-
-        if (storedSessionId) {
-            logger.session(`Using stored Artemis session ID: ${storedSessionId}`);
-            sessionId = storedSessionId;
-        } else {
-            logger.session('Fetching current session from Artemis');
-            const mode = contextToIrisMode(context.type);
-            const session = await this._artemisApiService.getCurrentChat(mode, context.id, courseId);
-            sessionId = session.sessionId;
-        }
-
-        this._currentArtemisSessionId = sessionId;
-        this.subscribeToSession(sessionId);
-        return sessionId;
-    }
-
-    /**
-     * Creates a new session for `context`, courseId permitting. Task 5 replaces this
-     * whole method; for now every session is born COURSE_CHAT (Artemis PR #12696), so
-     * the mode/entityId this ActiveContext carries do not travel with the create call.
-     */
-    public async createNewSession(context: ActiveContext, courseId: number): Promise<number> {
-        logger.session(`Creating NEW Iris session for ${context.type} ${context.id}`);
-
-        const newSession = await this._artemisApiService.createCourseSession(courseId);
-
-        this._currentArtemisSessionId = newSession.sessionId;
-        this.subscribeToSession(newSession.sessionId);
-        return newSession.sessionId;
     }
 
     public subscribeToSession(sessionId: number): void {

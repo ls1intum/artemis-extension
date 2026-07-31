@@ -1,4 +1,3 @@
-import clsx from 'clsx';
 import Info from 'lucide-react/dist/esm/icons/info';
 import Menu from 'lucide-react/dist/esm/icons/menu';
 import Plus from 'lucide-react/dist/esm/icons/plus';
@@ -6,7 +5,6 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
-import { localSessionKeyFor } from '@shared/types/serverContext';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
@@ -32,31 +30,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
     const {
         setIrisState, setShowDiagnostics, addMessage,
-        applyLoadedMessages, setMessageLoadError,
-        clearMessages, setReferencedFiles, setWebSocketStatus,
+        applyLoadedMessages,
+        setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setUnavailableMessage, setNoAiDetected,
         resetTransientChatUi, applyRunUi, applyCommit,
-        markMessageFailed, applyCourseHistory, setCourseHistoryError,
+        markMessageFailed,
         setOpenSessionError, mergeLoadedMessages, confirmSentMessage,
         showNotice,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
-    const [contextSwitching, setContextSwitching] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [coursePickerOpen, setCoursePickerOpen] = useState(false);
-    // Whether the host DISPATCHES the conversation-first commands, which is
-    // the only thing that makes this interface usable. It must come from the
-    // host as its own flag: the presenter already mirrors every
-    // conversation-first field whenever the conversation service exists (i.e.
-    // in every logged-in session today), and all of those fields are
-    // legitimately empty at cold start, so neither their values nor the
-    // presence of a key can distinguish "answers this model" from "merely
-    // mirrors it". Task 14 sets the flag on the commit that cuts the
-    // dispatcher over; Task 15 deletes it with the old surfaces.
-    // Read from the STORE, so the message listener cannot see a stale value
-    // (see the field's comment in useChatStore).
-    const conversationFirstActive = store.conversationFirst;
     // True while the host is reading the dashboard course list. A fresh
     // installation tracks nothing, so an empty list is only meaningful once
     // that fetch has finished; without this the picker says "No courses
@@ -64,7 +49,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const [coursesLoading, setCoursesLoading] = useState(false);
     /** Whether a `refreshCourses` is outstanding. See the snapshot handler. */
     const coursesRequested = useRef(false);
-    const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
     // Element that opened the currently-visible popover (context row or
     // history button), captured so focus can be restored to it on close.
@@ -72,50 +56,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // are different elements and a click-outside close must return focus
     // to whichever one was actually clicked.
     const openerRef = useRef<HTMLElement | null>(null);
-    // Monotonic id for `requestCourseHistory`, bumped on every history open
-    // and Retry so the store can drop a response for a request that is no
-    // longer the latest one.
-    const historyRequestIdRef = useRef(0);
-
     // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
-
-    // Detect context switches for animation
-    useEffect(() => {
-        const currentId = store.context?.id;
-
-        if (previousContextId.current !== null && currentId !== previousContextId.current) {
-            // Context changed - trigger fade out/in animation
-            setContextSwitching(true);
-
-            // Reset animation after messages load (500ms for fade out + load + fade in)
-            const timer = setTimeout(() => {
-                setContextSwitching(false);
-            }, 500);
-
-            return () => clearTimeout(timer);
-        }
-
-        previousContextId.current = currentId ?? null;
-        return undefined;
-    }, [store.context?.id]);
-
-    // Close the history popover once the active session actually changes:
-    // the success signal for a row click's `openArtemisSession` (which does
-    // NOT close the popover itself, so a resulting inline openSessionError
-    // stays visible). Guarded on the ref already having a value so this
-    // never fires on the render that first opens the popover.
-    const previousActiveSessionIdForHistory = useRef<string | null>(null);
-    useEffect(() => {
-        if (
-            historyOpen
-            && previousActiveSessionIdForHistory.current !== null
-            && store.activeSessionId !== previousActiveSessionIdForHistory.current
-        ) {
-            closePopovers();
-        }
-        previousActiveSessionIdForHistory.current = store.activeSessionId;
-    }, [store.activeSessionId, historyOpen]);
 
     // Run lock: navigation cannot abandon an in-flight run. The moment
     // streaming starts, close/neutralize any popover or side menu that was
@@ -130,33 +72,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     }, [store.streaming.isStreaming]);
 
-    // Which conversation the visible transcript belongs to. Under the flag the
-    // host addresses everything by the numeric conversation id and derives the
-    // local key from it, so the old `activeSessionId` (which nothing sets any
-    // more) must not be consulted.
-    const transcriptKey = conversationFirstActive
-        ? (store.currentSessionId === null ? null : localSessionKeyFor(store.currentSessionId))
-        : store.activeSessionId;
-
     // Message listener - handles messages from extension
     useExtensionMessage((msg) => {
         // Reads the store directly, not the render-time closure: messages
-        // arrive between renders and the key must be the CURRENT one.
-        const currentKey = (): string | null => {
-            const state = useChatStore.getState();
-            return state.conversationFirst
-                ? (state.currentSessionId === null ? null : localSessionKeyFor(state.currentSessionId))
-                : state.activeSessionId;
-        };
-        const belongsHere = (m: { localSessionId?: string; sessionId?: number }): boolean => {
-            const state = useChatStore.getState();
-            if (!state.conversationFirst) { return m.localSessionId === currentKey(); }
-            // Numeric id first: it is the authoritative key under the flag, and
-            // the local one is a synthetic derived from it.
-            return m.sessionId !== undefined
-                ? m.sessionId === state.currentSessionId
-                : m.localSessionId === currentKey();
-        };
+        // arrive between renders and the conversation must be the CURRENT one.
+        const belongsHere = (m: { sessionId: number }): boolean =>
+            m.sessionId === useChatStore.getState().currentSessionId;
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
@@ -188,42 +109,31 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     final: m.final,
                     status: 'sent',
                 };
-                // The projection now owns the transient run UI: applyCommit
+                // The projection owns the transient run UI: applyCommit
                 // clears the draft/waiting atomically with the committed
                 // message when a runUi is attached, and leaves them untouched
                 // for an intermediate (final:false) message so the waiting flag
-                // survives until the run truly ends. Both producers always set
-                // localSessionId (and drop the message when they have no
-                // active session), so it is required on the wire contract.
+                // survives until the run truly ends.
                 if (!belongsHere(msg)) { break; }
-                applyCommit(
-                    mapped,
-                    msg.runUi,
-                    msg.localSessionId,
-                    msg.localSessionId,
-                );
+                applyCommit(mapped, msg.runUi, msg.sessionId);
                 break;
             }
 
             case ExtensionMsg.UpdateIrisRunUi: {
-                if (!belongsHere(msg.projection)) { break; }
-                applyRunUi(msg.projection, msg.projection.localSessionId);
+                applyRunUi(msg.projection);
                 break;
             }
 
             case ExtensionMsg.LoadMessages: {
-                // Discard any load that does not match the currently active
-                // local session. This covers the obvious "user switched
-                // sessions while a load was in flight" case AND the subtler
-                // one where there is no active session at all (clearMessages,
-                // never-selected, etc.) — in both we must not mutate the
-                // store with a payload the user has navigated away from.
+                // Discard any load for a conversation that is no longer open:
+                // the student navigated while it was in flight, and the
+                // transcript they are reading must not be replaced.
                 if (!belongsHere(msg)) {
                     break;
                 }
                 resetTransientChatUi();
                 applyLoadedMessages(
-                    msg.localSessionId,
+                    msg.sessionId,
                     msg.messages.map((m) => ({
                         id: m.id,
                         localId: crypto.randomUUID(),
@@ -238,18 +148,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 );
                 break;
             }
-
-            case ExtensionMsg.LoadMessagesError: {
-                if (!belongsHere(msg)) {
-                    break;
-                }
-                setMessageLoadError(msg.localSessionId);
-                break;
-            }
-
-            case ExtensionMsg.ClearChatMessages:
-                clearMessages();
-                break;
 
             case ExtensionMsg.UpdateReferencedFiles: {
                 setReferencedFiles({
@@ -297,16 +195,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 setUnavailableMessage(null);
                 break;
 
-            case ExtensionMsg.UpdateCourseHistory: {
-                applyCourseHistory(msg.requestId, msg.entries);
-                break;
-            }
-
-            case ExtensionMsg.CourseHistoryError: {
-                setCourseHistoryError(msg.requestId);
-                break;
-            }
-
             case ExtensionMsg.UpdateNoAiStatus: {
                 setNoAiDetected(msg.isNoAiDetected);
                 break;
@@ -337,7 +225,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 // Deliberately NO resetTransientChatUi(): a merge must not wipe a live draft.
                 // It only folds the persisted history into the list by id.
                 mergeLoadedMessages(
-                    msg.localSessionId,
+                    msg.sessionId,
                     msg.messages.map((m) => ({
                         id: m.id,
                         localId: crypto.randomUUID(),
@@ -367,16 +255,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, applyCourseHistory, setCourseHistoryError, setOpenSessionError, mergeLoadedMessages, confirmSentMessage, showNotice]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, setOpenSessionError, mergeLoadedMessages, confirmSentMessage, showNotice]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
-        const localSessionId = transcriptKey;
         // The conversation the bubble is drawn in travels WITH the send, so the
         // host can refuse it if a navigation completed in between rather than
         // posting the student's text into whatever is open by then.
-        const sessionId = conversationFirstActive ? store.currentSessionId ?? undefined : undefined;
-        if (localSessionId === null) {
+        const sessionId = store.currentSessionId;
+        if (sessionId === null) {
             // Nothing to address a rejection to. The composer is already
             // disabled in this state, so this is a defensive guard against a
             // programmer error.
@@ -402,10 +289,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         //   - websocket disconnect (terminal connection state)
         store.startStreaming();
 
-        // Send to extension. localSessionId lets the host echo it back on
+        // Send to extension. `sessionId` lets the host echo it back on
         // rejection so the webview can ignore stale responses after a
-        // session switch.
-        postCommand(vscodeApi, 'sendMessage', { text, localId, localSessionId, sessionId });
+        // navigation.
+        postCommand(vscodeApi, 'sendMessage', { text, localId, sessionId });
     };
 
     const handleRetry = (localId: string) => {
@@ -422,14 +309,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     };
 
     const handleFeedback = (messageId: number, feedback: 'positive' | 'negative') => {
-        // The conversation IS the Artemis session under the flag. Resolving it
-        // through the old model's session list makes every thumbs click a
-        // silent no-op: the list is empty and `activeSessionId` is null, while
-        // the buttons stay rendered.
-        const sessionId = conversationFirstActive
-            ? store.currentSessionId
-            : store.sessions.find(s => s.id === store.activeSessionId)?.artemisSessionId ?? null;
-        if (typeof sessionId !== 'number') { return; }
+        // The conversation IS the Artemis session.
+        const sessionId = store.currentSessionId;
+        if (sessionId === null) { return; }
         postCommand(vscodeApi, 'messageFeedback', { sessionId, messageId, feedback });
     };
 
@@ -452,11 +334,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'openDiagnostics');
     };
 
-    const handleDebugSessions = () => {
-        setSideMenuOpen(false);
-        postCommand(vscodeApi, 'debugSessions');
-    };
-
     const handleOpenSettings = (setting?: string) => {
         postCommand(vscodeApi, 'openSettings', { setting: setting ?? 'Artemis' });
     };
@@ -467,12 +344,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     const handleRetryChatLoad = () => {
         postCommand(vscodeApi, 'reloadChatSession');
-    };
-
-    // Target-preserving retry for a failed message load: reload ONLY the
-    // active session, without jumping back to the context's default session.
-    const handleRetryActiveSession = () => {
-        postCommand(vscodeApi, 'reloadActiveSession');
     };
 
     // Popover open/close helpers. The two popovers are mutually exclusive.
@@ -504,37 +375,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setCoursePickerOpen(true);
     };
 
-    // Course-wide history is per-course, not per-exercise: an exercise
-    // context resolves to its course, a course context resolves to itself.
-    const resolveHistoryCourseId = (): number | undefined => {
-        if (store.context === null) { return undefined; }
-        return store.context.type === 'course' ? store.context.id : store.context.courseId;
-    };
-
-    // Shared by the initial open and the popover's own Retry button. With no
-    // resolvable course (no context selected yet) there is nothing to fetch,
-    // so the slice goes straight to `ready`/empty instead of round-tripping.
-    const requestCourseHistoryFor = (requestId: number) => {
-        const courseId = resolveHistoryCourseId();
-        store.setCourseHistoryLoading(requestId);
-        if (courseId === undefined) {
-            store.applyCourseHistory(requestId, []);
-            return;
-        }
-        postCommand(vscodeApi, 'requestCourseHistory', { courseId, requestId });
-    };
-
     const openHistory = (opener: HTMLElement) => {
         openerRef.current = opener;
         setPickerOpen(false);
         setCoursePickerOpen(false);
         setOpenSessionError(null);
-        // The conversation-first list comes with the snapshot, so opening it
-        // costs no request; only the pre-Task-14 popover has to fetch.
-        if (!conversationFirstActive) {
-            historyRequestIdRef.current += 1;
-            requestCourseHistoryFor(historyRequestIdRef.current);
-        }
+        // The conversation list comes with the snapshot, so opening it costs
+        // no request.
         setHistoryOpen(true);
     };
 
@@ -550,12 +397,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // Check if chat is disabled
     const isChatDisabled = store.disabledMessage !== null || store.isNoAiDetected;
 
-    // "There is something to talk to". Under the flag that is a conversation,
-    // not an old-model context: nothing selects a context any more, so keying
-    // the composer on `context !== null` would disable it forever.
-    const hasConversation = conversationFirstActive
-        ? store.currentSessionId !== null
-        : store.context !== null;
+    /** "There is something to talk to", i.e. a conversation is open. */
+    const hasConversation = store.currentSessionId !== null;
 
     // Decide whether the Retry button on a failed user message should be
     // active right now. Retry is meaningful only when the underlying cause
@@ -584,29 +427,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     };
 
-    // Header data. activeSession backs the conversation row (title, message
-    // count, last-activity); courseName is the exercise-context subtitle
-    // (course chat contexts show a fixed "Course chat" subtitle instead, see
-    // ChatHeader).
-    const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
-    const courseName = store.context?.type === 'exercise'
-        ? store.courses.find(c => c.id === store.context?.courseId)?.title ?? null
-        : null;
-    // Mirrors the retired context dropdown's canCreateNewSession intent: a
-    // brand new, still-empty active session should be reused rather than
-    // spawning another empty one, and a create must not race an in-flight
-    // send.
-    const canCreateConversation =
-        store.context !== null
-        && (activeSession?.messageCount ?? 0) > 0
-        && !store.streaming.isStreaming;
-
     // Run lock (see the effect above): navigation cannot abandon an
-    // in-flight run, so the context row and both icon buttons go inert for
-    // its duration.
+    // in-flight run, so the header's course label and both icon buttons go
+    // inert for its duration.
     const disableNavigation = store.streaming.isStreaming;
 
-    // ---- Conversation-first derivations (Task 12).
     // Always via the selector, never re-derived here: it is deliberately not a
     // stored field, and a second copy of its rule is exactly how the picker
     // and the chip would start disagreeing about whether a topic may change.
@@ -617,7 +442,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // No workspace exercise detected and nothing opened: there is no course to
     // put in a header, so the transcript offers the course list instead of an
     // empty conversation the student cannot act on.
-    const isColdStart = conversationFirstActive
+    //
+    // Gated on the first snapshot having arrived, for the same reason
+    // `messagesHydrated` is: before it, "nothing is open" and "we have not
+    // been told yet" are indistinguishable, and guessing the former flashes
+    // the course chooser at every student who does have a conversation.
+    const isColdStart = store.hasReceivedInitialIrisState
         && store.courseId === null
         && store.currentSessionId === null
         && store.workspaceExerciseId === null;
@@ -634,15 +464,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // new function on every render and reads the store, not the closure.
     }, [isColdStart]);
 
-    // The conversation-first branches post ONLY conversation-first commands,
-    // and Task 14 owns making the host answer them. Posting the old equivalent
-    // beside each one cannot help: before Task 14 these branches are behind a
-    // flag nothing sets, so it is unreachable, and after Task 14 it is either
-    // dropped in a debug log or, if the flag and the removal of the old
-    // handlers land in two commits, acted on as well, turning one click into
-    // two context selections or two conversations. `_handleCommand` still has
-    // live SelectChatContext, CreateNewSession and OpenArtemisSession cases,
-    // and Task 15 is what deletes those contracts, so that window is real.
     const selectTopic = (mode: string, entityId: number, name?: string) => {
         postCommand(vscodeApi, 'selectTopic', { mode, entityId, name });
         closePopovers();
@@ -668,9 +489,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // hydration.
     let disabledPlaceholder: string | undefined;
     if (!hasConversation) {
-        disabledPlaceholder = conversationFirstActive
-            ? 'Choose a course to start chatting'
-            : 'Select a course or exercise to start chatting';
+        disabledPlaceholder = 'Choose a course to start chatting';
     } else if (store.isNoAiDetected) {
         disabledPlaceholder = 'AI assistance is disabled (.noai detected)';
     } else if (store.disabledMessage) {
@@ -679,25 +498,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         disabledPlaceholder = 'Iris is temporarily unavailable. Retry to reload.';
     }
 
-    // Hydrated when either no context is selected (legit "Select a course"
-    // steady state) or when the active session has a successful load. The
-    // gap "context set + activeSessionId === null" is the cold-start window
-    // and renders the loader. Keyed on local UUID, not Artemis id, because
-    // brand-new sessions have a UUID before the server round-trip returns.
+    // Hydrated when either nothing is open (legit "Choose a course" steady
+    // state) or the open conversation's transcript has arrived. The gap
+    // "conversation open, transcript not yet delivered" renders the loader.
     const messagesHydrated =
         store.hasReceivedInitialIrisState
-        && (
-            (conversationFirstActive ? !hasConversation : store.context === null)
-            || (transcriptKey !== null
-                && store.messageLoad !== null
-                && store.messageLoad.localSessionId === transcriptKey
-                && store.messageLoad.status === 'success')
-        );
-    const messagesErrored =
-        transcriptKey !== null
-        && store.messageLoad !== null
-        && store.messageLoad.localSessionId === transcriptKey
-        && store.messageLoad.status === 'error';
+        && (!hasConversation || store.loadedSessionId === store.currentSessionId);
     // Availability failures (disabled / temporarily unavailable) are NOT
     // "history failed to load" — gate the loader on them so the spinner
     // does not spin forever next to a banner that already states the
@@ -705,7 +511,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const isChatUnavailable = store.unavailableMessage !== null;
     const messagesLoading =
         !messagesHydrated
-        && !messagesErrored
         && !store.disabledMessage
         && !isChatUnavailable;
 
@@ -754,20 +559,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             </button>
 
                             {store.showDiagnostics && (
-                                <>
-                                    <button
-                                        className={styles.menuItem}
-                                        onClick={handleOpenDiagnostics}
-                                    >
-                                        Diagnostics
-                                    </button>
-                                    <button
-                                        className={styles.menuItem}
-                                        onClick={handleDebugSessions}
-                                    >
-                                        Debug Sessions (Raw)
-                                    </button>
-                                </>
+                                <button
+                                    className={styles.menuItem}
+                                    onClick={handleOpenDiagnostics}
+                                >
+                                    Diagnostics
+                                </button>
                             )}
 
                             <div className={styles.menuDivider} />
@@ -781,33 +578,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             </div>
 
-            {/* Two-row header: context (course/exercise) + conversation.
-                pickerOpen/historyOpen are mutually exclusive; both popovers
-                are anchored to this section (position: relative) so they
-                render directly beneath the header. */}
+            {/* Header: course line + conversation line. The popovers are
+                anchored to this section (position: relative) so they render
+                directly beneath the header. */}
             {!isColdStart && (
             <div className={styles.contextSection}>
                 <ChatHeader
-                    context={store.context}
-                    activeSession={activeSession}
-                    courseName={courseName}
-                    canCreateConversation={canCreateConversation}
+                    courseTitle={store.courseTitle}
+                    conversationTitle={store.conversationTitle}
+                    displayMessageCount={store.displayMessageCount}
                     disableNavigation={disableNavigation}
-                    onOpenContextPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
-                    onNewConversation={() => {
-                        if (conversationFirstActive) {
-                            postCommand(vscodeApi, 'newConversation');
-                        } else {
-                            postCommand(vscodeApi, 'createNewSession');
-                        }
-                    }}
+                    onOpenCoursePicker={(e) => openCoursePicker(e.currentTarget as HTMLElement)}
+                    onNewConversation={() => postCommand(vscodeApi, 'newConversation')}
                     onOpenHistory={(e) => openHistory(e.currentTarget as HTMLElement)}
-                    {...(conversationFirstActive ? {
-                        courseTitle: store.courseTitle,
-                        conversationTitle: store.conversationTitle,
-                        displayMessageCount: store.displayMessageCount,
-                        onOpenCoursePicker: (e: React.MouseEvent) => openCoursePicker(e.currentTarget as HTMLElement),
-                    } : {})}
                 />
 
                 {coursePickerOpen && (
@@ -823,22 +606,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     />
                 )}
 
-                {/* The topic picker hangs off the composer, so in the
-                    conversation-first layout it is mounted down there. */}
-                {pickerOpen && !conversationFirstActive && (
-                    <ContextPicker
-                        context={store.context}
-                        exercises={store.exercises}
-                        courses={store.courses}
-                        onSelectContext={(type, id, title, shortName) => {
-                            postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
-                            closePopovers();
-                        }}
-                        onClose={closePopovers}
-                    />
-                )}
+                {/* The topic picker hangs off the composer, so it is
+                    mounted down there rather than here. */}
 
-                {historyOpen && (conversationFirstActive ? (
+                {historyOpen && (
                     <ConversationHistory
                         conversations={store.conversations}
                         currentSessionId={store.currentSessionId}
@@ -858,35 +629,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         }}
                         onClose={closePopovers}
                     />
-                ) : (
-                    <ConversationHistory
-                        entries={store.courseHistory.entries}
-                        status={store.courseHistory.status}
-                        activeArtemisSessionId={activeSession?.artemisSessionId ?? null}
-                        canCreateConversation={canCreateConversation}
-                        openError={store.openSessionError}
-                        onSelectEntry={(entry) => {
-                            // Deliberately does NOT close the popover: a
-                            // resulting openSessionError needs a visible
-                            // destination. It closes once the active
-                            // session actually changes (see the effect
-                            // above) or on Escape/click-outside.
-                            postCommand(vscodeApi, 'openArtemisSession', {
-                                courseId: entry.courseId,
-                                artemisSessionId: entry.artemisSessionId,
-                            });
-                        }}
-                        onNewConversation={() => {
-                            postCommand(vscodeApi, 'createNewSession');
-                            closePopovers();
-                        }}
-                        onRetry={() => {
-                            historyRequestIdRef.current += 1;
-                            requestCourseHistoryFor(historyRequestIdRef.current);
-                        }}
-                        onClose={closePopovers}
-                    />
-                ))}
+                )}
             </div>
             )}
 
@@ -898,11 +641,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* Iris-availability transient banner: chat-reload couldn't reach
+            {/* Iris-availability transient banner: the chat couldn't reach
                 Iris (network/5xx/timeout). The Retry button triggers
-                ReloadChatSession on the extension side, which is also fired
-                automatically on websocket reconnect — so the user has both
-                a manual and an automatic path back to a working chat. */}
+                ReloadChatSession on the extension side, which re-reads the
+                open conversation from the server. It is the only path back:
+                a websocket reconnect repairs the SUBSCRIPTION and reconciles
+                the transcript, but it does not re-run the availability
+                check. */}
             {showUnavailableBanner && (
                 <div className={styles.unavailableBanner} role="alert">
                     <Info size={16} />
@@ -937,17 +682,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* Message list with context-switch animation and hydration loader.
-                Hierarchy: availability banner state (disabled/unavailable
-                already render their own banner above and gate everything
-                else) > error UI > loader (context-switch animation OR
-                pending hydration) > populated/welcome list.
-                When disabled or unavailable is set, the central "Failed to
-                load chat history" UI is suppressed — the banner above is the
-                authoritative error surface. */}
-            <div className={clsx(styles.messagesSection, {
-                [styles.contextSwitching]: contextSwitching
-            })}>
+            {/* Message list with hydration loader. Hierarchy: availability
+                banner state (disabled/unavailable already render their own
+                banner above and gate everything else) > loader (pending
+                hydration) > populated/welcome list. */}
+            <div className={styles.messagesSection}>
                 {isColdStart ? (
                     <div className={styles.coldStart}>
                         <p className={styles.coldStartText}>
@@ -963,19 +702,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         />
                     </div>
                 ) : (store.disabledMessage || store.unavailableMessage) ? null
-                : messagesErrored ? (
-                    <div className={styles.loadingState}>
-                        <div className={styles.loadError} role="alert">
-                            Failed to load chat history.
-                            <button
-                                className={styles.retryButton}
-                                onClick={handleRetryActiveSession}
-                            >
-                                Retry
-                            </button>
-                        </div>
-                    </div>
-                ) : (contextSwitching || messagesLoading) ? (
+                : messagesLoading ? (
                     <div className={styles.loadingState} aria-busy="true" aria-live="polite">
                         {irisLogoUri && (
                             <img
@@ -992,8 +719,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 ) : (
                     <ChatMessageList
                         messages={store.messages}
-                        committedContext={store.committedContext}
-                        pendingContext={store.pendingContext}
                         streaming={store.streaming}
                         activities={store.activities}
                         liveDraft={store.liveDraft}
@@ -1018,18 +743,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 />
 
                 {/* One muted line above the composer. Actionless in PR 1. */}
-                {conversationFirstActive && (
-                    <ChatNotice
-                        notice={store.notice}
-                        currentSessionId={store.currentSessionId}
-                        onExpire={() => useChatStore.setState({ notice: null })}
-                    />
-                )}
+                <ChatNotice
+                    notice={store.notice}
+                    currentSessionId={store.currentSessionId}
+                    onExpire={() => useChatStore.setState({ notice: null })}
+                />
 
                 {/* The topic lives here, on the composer, not in the header:
                     it is what the next message is about, so it belongs beside
                     the thing that writes that message. */}
-                {conversationFirstActive && !isColdStart && (
+                {!isColdStart && (
                     <div className={styles.topicRow}>
                         <button
                             className={styles.topicButton}
@@ -1077,10 +800,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     snapshot arrives. */}
                 <ChatInput
                     onSend={handleSendMessage}
-                    {...(conversationFirstActive ? {
-                        value: store.composerText,
-                        onValueChange: store.setComposerText,
-                    } : {})}
+                    value={store.composerText}
+                    onValueChange={store.setComposerText}
                     disabled={
                         isChatDisabled
                         || !hasConversation

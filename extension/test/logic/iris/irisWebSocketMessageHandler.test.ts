@@ -15,7 +15,6 @@ vi.mock('vscode', () => {
 
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 import type { SessionDetail } from '@shared/types/serverContext';
-import { localSessionKeyFor } from '@shared/types/serverContext';
 
 import { IrisWebSocketMessageHandler } from '@extension/services/iris/chat/irisWebSocketMessageHandler';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
@@ -32,17 +31,9 @@ import type { IrisWebSocketSessionClient } from '@extension/services/iris/transp
  */
 describe('IrisWebSocketMessageHandler: USER frames never finalize a run', () => {
     it('a USER MESSAGE scoped to the current run leaves it waiting and still accepting PARTIALs', () => {
-        const runs = new IrisRunStateMachine();
-        const posted: ExtensionToWebviewMessage[] = [];
-
-        const handler = new IrisWebSocketMessageHandler(
-            undefined,
-            () => undefined,
-            (message) => posted.push(message),
-            runs,
-            () => 's1',
-            () => undefined,
-        );
+        // A conversation has to be open for the projection to have anything to
+        // be addressed to; without one the handler drops every frame.
+        const { handler, posted, runs } = makeHandler({ currentSessionId: 1 });
 
         // Start a generation and bind run 'A' as current, mirroring a real send.
         runs.beginGeneration();
@@ -123,7 +114,6 @@ function makeHandler(opts: { currentSessionId?: number; courseId?: number; irisS
         () => irisSessionClient,
         (message) => posted.push(message),
         runs,
-        () => 's1',
         () => conversation,
     );
 
@@ -239,24 +229,23 @@ describe('host state ingestion (Task 6 step 7)', () => {
     });
 });
 
-describe('dormancy guard: the new model must stay inert until a session is actually open', () => {
-    it('processes a frame normally, whatever its sourceSessionId, when the conversation service exists but has no session open', () => {
-        // Between here and Task 14, nothing calls IrisConversationService.start(),
-        // so the service exists (getConversation() is truthy) but
-        // ConversationState.currentSessionId is undefined. `_activeConversation`
-        // MUST treat that as "no active conversation", not as "conversation
-        // active with an undefined current session": the latter would make
-        // every frame's sourceSessionId (whatever it is) fail the
-        // `sourceSessionId !== current` check and get dropped, silently, for
-        // the whole dormant period. makeHandler() with no currentSessionId
-        // reproduces exactly that shape.
+describe('nothing open: the source check is skipped, but there is still nothing to render into', () => {
+    it('admits the run yet renders no bubble when no conversation is open', () => {
+        // `currentSessionId` is undefined before anything is installed.
+        // `_activeConversation` must treat that as "no conversation", not as
+        // "conversation whose current session is undefined": the latter would
+        // make every frame fail `sourceSessionId !== current` and be dropped
+        // before the run machine ever sees it, so a run that started just
+        // before the install would never be admitted at all. The bubble itself
+        // is still dropped, because there is no conversation to attribute it
+        // to and rendering it would attach it to whatever opens next.
         const { handler, posted, runs } = makeHandler();
         handler.handleIrisWebSocketMessage(
             { type: 'MESSAGE', runId: 'r1', message: { id: 1, sender: 'LLM', content: [{ textContent: 'x', type: 'text' }] } },
-            999, // arbitrary: must not matter while the guard correctly stays closed
+            999, // arbitrary: must not matter while nothing is open
         );
         expect(runs.currentRunId).toBe('r1');
-        expect(posted.some((p) => p.type === 'addMessage')).toBe(true);
+        expect(posted.some((p) => p.type === 'addMessage')).toBe(false);
     });
 });
 
@@ -269,12 +258,11 @@ describe('frames are attributed to the conversation, not the old local session',
             900,
         );
 
-        const added = posted.find((m) => (m as { type?: string }).type === 'addMessage') as
-            { sessionId?: number; localSessionId?: string } | undefined;
-        expect(added?.sessionId).toBe(900);
         // Without this the answer lands under the PREVIOUS conversation's
         // transcript, and is persisted in a different one.
-        expect(added?.localSessionId).toBe(localSessionKeyFor(900));
+        const added = posted.find((m) => (m as { type?: string }).type === 'addMessage') as
+            { sessionId?: number } | undefined;
+        expect(added?.sessionId).toBe(900);
     });
 
     it('the run-UI projection carries it too, so the indicator belongs to one conversation', () => {
@@ -283,9 +271,8 @@ describe('frames are attributed to the conversation, not the old local session',
         handler.publishCurrentRunUi();
 
         const runUi = posted.find((m) => (m as { type?: string }).type === 'updateIrisRunUi') as
-            { projection?: { sessionId?: number; localSessionId?: string } } | undefined;
+            { projection?: { sessionId?: number } } | undefined;
         expect(runUi?.projection?.sessionId).toBe(900);
-        expect(runUi?.projection?.localSessionId).toBe(localSessionKeyFor(900));
     });
 });
 

@@ -5,7 +5,7 @@ import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension
 import { isIrisActivity } from '@extension/services/iris/parseIrisWs';
 
 /** One transcript row as the webview renders it. */
-export interface WireMessage {
+interface WireMessage {
     id?: number;
     role: 'user' | 'assistant' | 'contextSwap';
     content: string;

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CourseHistoryEntryVM } from '@webview/views/IrisChat/historyBuckets';
 import { bucketHistoryByTime } from '@webview/views/IrisChat/historyBuckets';
+import type { ConversationSummary } from '@webview/views/IrisChat/types';
 
-const entry = (lastActivity: number, id = 1): CourseHistoryEntryVM =>
-    ({ artemisSessionId: id, courseId: 42, mode: 'COURSE_CHAT', entityId: 42, lastActivity });
+const entry = (lastActivity: number, id = 1): ConversationSummary =>
+    ({ sessionId: id, courseId: 42, mode: 'COURSE_CHAT', entityId: 42, lastActivity });
 const bucketOf = (lastActivity: number, nowMs: number) =>
     bucketHistoryByTime([entry(lastActivity)], nowMs)[0]?.bucket;
 
@@ -101,7 +101,7 @@ describe('bucketHistoryByTime', () => {
             [entry(Number.NaN, 1), entry(Date.parse('2026-01-01T00:00:00Z'), 2), entry(0, 3)],
             now,
         );
-        expect(groups.at(-1)?.entries.map((e) => e.artemisSessionId)).toEqual([2, 1, 3]);
+        expect(groups.at(-1)?.entries.map((e) => e.sessionId)).toEqual([2, 1, 3]);
     });
 
     it('sorts entries within a bucket newest-first, including two valid entries inside older', () => {

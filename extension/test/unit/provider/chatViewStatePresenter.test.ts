@@ -82,21 +82,24 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         h.sandbox.restore();
     });
 
-    test('conversation getter returning undefined leaves every new field undefined; old fields still populate', () => {
+    test('conversation getter returning undefined still emits every field, at its empty value', () => {
         h.contextStore.registerCourse({ id: 5, title: 'Algorithms' });
         const presenter = h.build(() => undefined);
 
         presenter.postSnapshot();
         const state = h.latestState();
 
-        assert.strictEqual(state.courses.length, 1, 'old-model courses must still populate');
+        assert.strictEqual(state.courses.length, 1, 'the tracked courses must still populate');
         assert.strictEqual(state.courseId, undefined);
+        assert.strictEqual(state.courseTitle, undefined);
         assert.strictEqual(state.currentSessionId, undefined);
-        assert.strictEqual(state.contentState, undefined);
-        assert.strictEqual(state.conversations, undefined);
-        assert.strictEqual(state.sendInFlight, undefined);
-        assert.strictEqual(state.conversationFirst, undefined,
-            'without a conversation service there is nothing to activate');
+        // 'unknown', not undefined: every field is required on the wire now, so
+        // "no conversation" has to be stated rather than left off.
+        assert.strictEqual(state.contentState, 'unknown');
+        assert.deepStrictEqual(state.conversations, []);
+        assert.strictEqual(state.sendInFlight, false);
+        assert.strictEqual(state.navigationInFlight, false);
+        assert.strictEqual(state.displayMessageCount, 0);
     });
 
     test('conversation getter returning a live service populates every new field from its state', () => {
@@ -121,8 +124,10 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         const state = h.latestState();
 
         assert.strictEqual(state.courseId, 5);
-        // Resolved against the OLD model's course list (ConversationSnapshot
-        // carries only the id, not a display title).
+        // Resolved against the tracked-course repository: ConversationSnapshot
+        // carries only the id, never a display title, and this field is
+        // OPTIONAL-shaped enough that losing its source blanks the header's
+        // course line with no compile error anywhere.
         assert.strictEqual(state.courseTitle, 'Algorithms');
         assert.strictEqual(state.currentSessionId, 42);
         assert.strictEqual(state.conversationTitle, 'Recursion help');
@@ -135,10 +140,6 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(state.conversations?.length, 1);
         assert.strictEqual(state.conversations?.[0].sessionId, 42);
         assert.strictEqual(state.conversations?.[0].entityName, 'Sorting');
-        // The activation flag. The webview renders the old interface until it
-        // is true, and the conversation-first controls post ONLY the new
-        // commands, so this and the dispatcher's four new cases are one commit.
-        assert.strictEqual(state.conversationFirst, true);
     });
 
     test('workspaceExerciseId is sourced from ContextStore, independent of the conversation getter', () => {

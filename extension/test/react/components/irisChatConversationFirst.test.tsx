@@ -2,8 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { localSessionKeyFor } from '@shared/types/serverContext';
-
 import { createMockVsCodeApi, dispatchExtensionMessage, getPostMessageCalls } from '@test/react/__helpers__/vscodeApi';
 import { ChatMessageList } from '@webview/views/IrisChat/components/ChatMessageList';
 import { ChatNotice } from '@webview/views/IrisChat/components/ChatNotice';
@@ -38,7 +36,6 @@ vi.mock('@webview/views/IrisChat/components/CodeBlock', () => ({
 }));
 
 const EX5 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 5, name: 'Recursion' };
-const EX7 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 7, name: 'Sorting' };
 const COURSE42 = { mode: 'COURSE_CHAT' as const, entityId: 42 };
 
 const pickerProps = (over: Record<string, unknown> = {}) => ({
@@ -147,8 +144,6 @@ describe('ChatMessageList (transcript)', () => {
         render(<ChatMessageList
             {...listProps}
             messages={[{ localId: 'a', role: 'user', content: 'hello', timestamp: 1 }]}
-            pendingContext={EX7}
-            committedContext={COURSE42}
         />);
         expect(screen.queryByTestId('context-preview')).toBeNull();
     });
@@ -160,8 +155,6 @@ describe('ChatMessageList (transcript)', () => {
                 { localId: 'm', role: 'contextSwap', content: 'Topic set to Sorting', timestamp: 1 },
                 { localId: 'u', role: 'user', content: 'hello', timestamp: 2 },
             ]}
-            pendingContext={undefined}
-            committedContext={EX7}
         />);
         const rows = screen.getAllByTestId('message-row');
         expect(rows[0]).toHaveTextContent('Topic set to Sorting');
@@ -259,33 +252,10 @@ describe('CoursePicker', () => {
     });
 });
 
-describe('IrisChatView model switch', () => {
-    // EXACTLY what `chatViewStatePresenter._serializeSnapshot` +
-    // `_serializeConversation` put on the wire in a logged-in session today:
-    // the old model populated, every conversation-first field present but
-    // empty, and no `conversationFirst`. This shape shipped before the flag
-    // existed and rendered the new, unusable interface; that is what these two
-    // tests pin down.
+describe('IrisChatView header', () => {
+    // EXACTLY what `chatViewStatePresenter` puts on the wire in a logged-in
+    // session with no conversation open yet.
     const hostShapeToday = {
-        context: {
-            type: 'exercise' as const,
-            id: 5,
-            title: 'Recursion',
-            shortName: 'REC',
-            courseId: 42,
-            locked: false,
-            source: 'workspace-detected' as const,
-        },
-        activeSessionId: 'local-1',
-        sessions: [{
-            id: 'local-1',
-            artemisSessionId: 900,
-            preview: '',
-            title: 'BFS loop',
-            messageCount: 8,
-            createdAt: 1,
-            lastActivity: 2,
-        }],
         exercises: [{ id: 5, title: 'Recursion', courseId: 42 }],
         courses: [{ id: 42, title: 'Introduction to Computer Science' }],
         workspaceExerciseId: 5,
@@ -302,20 +272,7 @@ describe('IrisChatView model switch', () => {
         conversations: [],
     };
 
-    it('keeps the old interface while the host only mirrors the conversation-first fields', async () => {
-        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
-        dispatchExtensionMessage({ type: 'updateIrisState', state: hostShapeToday });
-
-        // The real exercise, not "Choose a course".
-        expect(await screen.findByText('Recursion')).toBeInTheDocument();
-        expect(screen.queryByText('Choose a course')).toBeNull();
-
-        // And the context picker is still reachable from the header.
-        await userEvent.click(screen.getByText('Recursion'));
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-
-    it('switches to the new interface only once the host answers the new commands', async () => {
+    it('renders the course and conversation lines from the conversation fields', async () => {
         render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
         dispatchExtensionMessage({
             type: 'updateIrisState',
@@ -327,28 +284,19 @@ describe('IrisChatView model switch', () => {
                 conversationTitle: 'BFS loop',
                 displayMessageCount: 8,
                 contentState: 'content' as const,
-                conversationFirst: true,
             },
         });
 
-        // Asserted on the conversation line first: the course title alone is
-        // ambiguous, because the OLD header shows it too (as the exercise's
-        // course subtitle), and the store update and the flag land in two
-        // commits, so there is one intermediate frame with the old header and
-        // the new data.
         expect(await screen.findByText(/BFS loop · 8 messages/)).toBeInTheDocument();
         // Line 1 is a button, and it is the only clickable part of the header.
         expect(screen.getByRole('button', { name: /Introduction to Computer Science/ })).toBeInTheDocument();
     });
 
     describe('posts only conversation-first commands', () => {
-        // Every one of the four paths, not just the topic pick. The host still
-        // has live SelectChatContext, CreateNewSession and OpenArtemisSession
-        // cases at this commit, so a legacy post beside any new one would be
-        // acted on as well the moment the flag arrives ahead of its removal,
-        // turning one click into two context selections or two conversations.
-        // This invariant has already been reversed twice; the next person to
-        // touch it will have none of that context, so all four are pinned.
+        // Every one of the four paths, not just the topic pick: the retired
+        // command names are gone from the contract, and a build that resurrected
+        // one would post a command no handler answers. This invariant has
+        // already been reversed twice, so all four are pinned.
         const activeState = {
             ...hostShapeToday,
             courseId: 42,
@@ -357,7 +305,6 @@ describe('IrisChatView model switch', () => {
             conversationTitle: 'BFS loop',
             displayMessageCount: 8,
             contentState: 'content' as const,
-            conversationFirst: true,
             // A second course and a second conversation, so the controls below
             // land on a row that is NOT the current one: clicking the current
             // row is defined as "just close", which would post nothing and let
@@ -423,12 +370,6 @@ describe('IrisChatView model switch', () => {
                 render(<IrisChatView vscodeApi={api} />);
                 dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
 
-                // Wait for the new header before touching anything. The store
-                // update and the flag land in separate commits, so the first
-                // frame still shows the OLD header, whose controls are
-                // different ones: its `+` is disabled at that point and its
-                // course row opens the legacy picker, either of which would
-                // make these assertions pass or fail for the wrong reason.
                 await screen.findByText(/BFS loop · 8 messages/);
 
                 await act();
@@ -447,13 +388,9 @@ describe('IrisChatView cold start', () => {
     // `vscodeApi`. The state is therefore delivered the way the host delivers
     // it, through an `updateIrisState` snapshot; the assertion is unchanged.
     const coldStartState = {
-        context: null,
-        activeSessionId: null,
-        sessions: [],
         exercises: [],
         courses: [],
         contentState: 'unknown' as const,
-        conversationFirst: true,
     };
 
     it('offers the course list on cold start instead of an empty transcript', async () => {
@@ -474,13 +411,9 @@ describe('IrisChatView cold start', () => {
 
 describe('IrisChatView course refresh', () => {
     const coldStartState = {
-        context: null,
-        activeSessionId: null,
-        sessions: [],
         exercises: [],
         courses: [],
         contentState: 'unknown' as const,
-        conversationFirst: true,
     };
 
     it('asks the host for the course list on a cold start and shows a loading list until it answers', async () => {
@@ -515,9 +448,6 @@ describe('IrisChatView navigation notice', () => {
     // The host raises the notice AFTER the navigation's snapshot, which is
     // what makes it describe the conversation the student is now looking at.
     const activeState = {
-        context: null,
-        activeSessionId: null,
-        sessions: [],
         exercises: [],
         courses: [{ id: 42, title: 'Introduction to Computer Science' }],
         courseId: 42,
@@ -526,7 +456,6 @@ describe('IrisChatView navigation notice', () => {
         conversationTitle: 'BFS loop',
         displayMessageCount: 8,
         contentState: 'content' as const,
-        conversationFirst: true,
     };
 
     it('renders the notice the host posts after a topic pick opened another conversation', async () => {
@@ -573,9 +502,6 @@ describe('IrisChatView navigation notice', () => {
 
 describe('IrisChatView transcript keying', () => {
     const activeState = {
-        context: null,
-        activeSessionId: null,
-        sessions: [],
         exercises: [],
         courses: [{ id: 42, title: 'Introduction to Computer Science' }],
         courseId: 42,
@@ -584,20 +510,18 @@ describe('IrisChatView transcript keying', () => {
         conversationTitle: 'BFS loop',
         displayMessageCount: 2,
         contentState: 'content' as const,
-        conversationFirst: true,
     };
 
     const transcript = (sessionId: number, text: string) => ({
         type: 'loadMessages' as const,
-        localSessionId: localSessionKeyFor(sessionId),
         sessionId,
-        artemisSessionId: sessionId,
         messages: [{ id: 1, role: 'assistant' as const, content: text, timestamp: 1 }],
     });
 
     it('renders the transcript the host posts for the open conversation', async () => {
-        // The old model no longer sets `activeSessionId`, so a transcript keyed
-        // on it would be dropped and the student would look at an empty chat.
+        // The transcript is keyed on the conversation id: a transcript for a
+        // conversation that is no longer open is dropped, and one for the open
+        // conversation must land.
         render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
         dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
 
@@ -625,7 +549,6 @@ describe('IrisChatView transcript keying', () => {
 
         dispatchExtensionMessage({
             type: 'addMessage',
-            localSessionId: localSessionKeyFor(900),
             sessionId: 900,
             message: { id: 2, role: 'assistant', content: 'and the answer', timestamp: 2 },
         });
@@ -643,18 +566,14 @@ describe('IrisChatView transcript keying', () => {
         await userEvent.type(screen.getByRole('textbox'), 'hello{Enter}');
 
         const send = getPostMessageCalls(api)
-            .map(([m]) => m as { command?: string; payload?: { sessionId?: number; localSessionId?: string } })
+            .map(([m]) => m as { command?: string; payload?: { sessionId?: number } })
             .find(m => m.command === 'sendMessage');
         expect(send?.payload?.sessionId).toBe(900);
-        expect(send?.payload?.localSessionId).toBe(localSessionKeyFor(900));
     });
 });
 
 describe('IrisChatView actions that used to read the old model', () => {
     const activeState = {
-        context: null,
-        activeSessionId: null,
-        sessions: [],
         exercises: [],
         courses: [{ id: 42, title: 'Introduction to Computer Science' }],
         courseId: 42,
@@ -663,7 +582,6 @@ describe('IrisChatView actions that used to read the old model', () => {
         conversationTitle: 'BFS loop',
         displayMessageCount: 1,
         contentState: 'content' as const,
-        conversationFirst: true,
     };
 
     async function openWithAnswer(api: ReturnType<typeof createMockVsCodeApi>) {
@@ -671,9 +589,7 @@ describe('IrisChatView actions that used to read the old model', () => {
         dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
         dispatchExtensionMessage({
             type: 'loadMessages',
-            localSessionId: localSessionKeyFor(900),
             sessionId: 900,
-            artemisSessionId: 900,
             messages: [{ id: 5, role: 'assistant' as const, content: 'because', timestamp: 1, final: true }],
         });
         await screen.findByText('because');
@@ -705,7 +621,6 @@ describe('IrisChatView actions that used to read the old model', () => {
         dispatchExtensionMessage({
             type: 'sendRejected',
             localId,
-            localSessionId: localSessionKeyFor(900),
             sessionId: 900,
             reason: 'no-context',
             errorMessage: 'Please select a course or exercise context first.',

@@ -2,77 +2,83 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChatHeader } from '@webview/views/IrisChat/components/ChatHeader';
-import type { ChatContext, ChatSession } from '@webview/views/IrisChat/types';
-
-const exerciseCtx: ChatContext = { type: 'exercise', id: 5, title: 'Sorting Lab', locked: false, source: 'user-selected' };
-const session: ChatSession = { id: 's1', preview: '', title: 'My chat', messageCount: 3, createdAt: 0, lastActivity: Date.now() };
 
 const noop = () => {};
-const base = { context: exerciseCtx, activeSession: session, courseName: 'Algorithms', canCreateConversation: true, onOpenContextPicker: noop, onNewConversation: noop, onOpenHistory: noop };
+const base = {
+    courseTitle: 'Algorithms',
+    conversationTitle: 'My chat',
+    displayMessageCount: 3,
+    onOpenCoursePicker: noop,
+    onNewConversation: noop,
+    onOpenHistory: noop,
+};
 
 describe('ChatHeader', () => {
-    it('shows exercise title bold with course name dim, and conversation meta', () => {
+    it('shows the course as the clickable label and the conversation meta below it', () => {
         render(<ChatHeader {...base} />);
-        expect(screen.getByText('Sorting Lab')).toBeInTheDocument();
-        expect(screen.getByText('Algorithms')).toBeInTheDocument();
-        expect(screen.getByText('My chat')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Algorithms/ })).toBeInTheDocument();
+        expect(screen.getByText(/My chat/)).toBeInTheDocument();
         expect(screen.getByText(/3 messages/)).toBeInTheDocument();
     });
+
     it('always renders new-conversation and history buttons with labels', () => {
         render(<ChatHeader {...base} />);
         expect(screen.getByLabelText('New conversation')).toBeInTheDocument();
         expect(screen.getByLabelText('View past conversations')).toBeInTheDocument();
     });
-    it('disables new-conversation when canCreateConversation is false', () => {
-        render(<ChatHeader {...base} canCreateConversation={false} />);
-        expect(screen.getByLabelText('New conversation')).toBeDisabled();
-    });
-    it('fires the picker/history/new callbacks', () => {
-        const onOpenContextPicker = vi.fn(), onOpenHistory = vi.fn(), onNewConversation = vi.fn();
-        render(<ChatHeader {...base} onOpenContextPicker={onOpenContextPicker} onOpenHistory={onOpenHistory} onNewConversation={onNewConversation} />);
-        fireEvent.click(screen.getByRole('button', { name: /Sorting Lab/ }));
+
+    it('fires the course-picker/history/new callbacks', () => {
+        const onOpenCoursePicker = vi.fn(), onOpenHistory = vi.fn(), onNewConversation = vi.fn();
+        render(<ChatHeader {...base} onOpenCoursePicker={onOpenCoursePicker} onOpenHistory={onOpenHistory} onNewConversation={onNewConversation} />);
+        fireEvent.click(screen.getByRole('button', { name: /Algorithms/ }));
         fireEvent.click(screen.getByLabelText('View past conversations'));
         fireEvent.click(screen.getByLabelText('New conversation'));
-        expect(onOpenContextPicker).toHaveBeenCalledOnce();
+        expect(onOpenCoursePicker).toHaveBeenCalledOnce();
         expect(onOpenHistory).toHaveBeenCalledOnce();
         expect(onNewConversation).toHaveBeenCalledOnce();
     });
-    it('falls back to "New conversation" title and "Course chat" secondary for a course context', () => {
-        render(<ChatHeader {...base} context={{ type: 'course', id: 2, title: 'Algorithms', locked: false, source: 'user-selected' }} activeSession={undefined} courseName={null} />);
-        expect(screen.getByText('New conversation')).toBeInTheDocument();
-        expect(screen.getByText('Course chat')).toBeInTheDocument();
+
+    it('falls back to "Choose a course" and "New conversation" when nothing is named yet', () => {
+        render(<ChatHeader {...base} courseTitle={null} conversationTitle={null} displayMessageCount={0} />);
+        expect(screen.getByText('Choose a course')).toBeInTheDocument();
+        expect(screen.getByText(/New conversation · 0 messages/)).toBeInTheDocument();
+    });
+
+    it('uses the singular for exactly one message', () => {
+        render(<ChatHeader {...base} displayMessageCount={1} />);
+        expect(screen.getByText(/1 message$/)).toBeInTheDocument();
     });
 
     describe('disableNavigation', () => {
-        it('disables the context row, new-conversation, and history buttons', () => {
+        it('disables the course label, new-conversation, and history buttons', () => {
             render(<ChatHeader {...base} disableNavigation />);
-            expect(screen.getByRole('button', { name: /Sorting Lab/ })).toBeDisabled();
+            expect(screen.getByRole('button', { name: /Algorithms/ })).toBeDisabled();
             expect(screen.getByLabelText('New conversation')).toBeDisabled();
             expect(screen.getByLabelText('View past conversations')).toBeDisabled();
         });
 
-        it('does not fire onOpenContextPicker/onNewConversation/onOpenHistory when clicked', () => {
-            const onOpenContextPicker = vi.fn(), onOpenHistory = vi.fn(), onNewConversation = vi.fn();
+        it('does not fire onOpenCoursePicker/onNewConversation/onOpenHistory when clicked', () => {
+            const onOpenCoursePicker = vi.fn(), onOpenHistory = vi.fn(), onNewConversation = vi.fn();
             render(
                 <ChatHeader
                     {...base}
                     disableNavigation
-                    onOpenContextPicker={onOpenContextPicker}
+                    onOpenCoursePicker={onOpenCoursePicker}
                     onOpenHistory={onOpenHistory}
                     onNewConversation={onNewConversation}
                 />
             );
-            fireEvent.click(screen.getByRole('button', { name: /Sorting Lab/ }));
+            fireEvent.click(screen.getByRole('button', { name: /Algorithms/ }));
             fireEvent.click(screen.getByLabelText('View past conversations'));
             fireEvent.click(screen.getByLabelText('New conversation'));
-            expect(onOpenContextPicker).not.toHaveBeenCalled();
+            expect(onOpenCoursePicker).not.toHaveBeenCalled();
             expect(onOpenHistory).not.toHaveBeenCalled();
             expect(onNewConversation).not.toHaveBeenCalled();
         });
 
         it('is interactive again when disableNavigation is false (default)', () => {
             render(<ChatHeader {...base} />);
-            expect(screen.getByRole('button', { name: /Sorting Lab/ })).not.toBeDisabled();
+            expect(screen.getByRole('button', { name: /Algorithms/ })).not.toBeDisabled();
             expect(screen.getByLabelText('View past conversations')).not.toBeDisabled();
         });
     });

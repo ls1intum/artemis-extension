@@ -1,21 +1,12 @@
-import type { ActiveContext, StoredSession, TrackedCourse, TrackedExercise } from '@extension/types';
-
-export interface StoredState {
-    version: number;
-    activeContext: ActiveContext | null;
-    activeSessionId: string | null;
-    exercises: TrackedExercise[];
-    courses: TrackedCourse[];
-    sessions: Record<string, StoredSession[]>;
-}
+import type { TrackedCourse, TrackedExercise } from '@extension/types';
 
 /**
- * The shape after the conversation-first rewrite. No sessions, no active
- * context. Lives alongside `StoredState` (v2) until Task 15 raises
- * `STORE_VERSION` to 3, tightens `parseStoredState` to this shape, and
- * removes the last reader of `activeContext`.
+ * The persisted store after the conversation-first rewrite: tracked items
+ * only. No `activeContext`, no local sessions. `IrisConversationService`
+ * owns the open conversation and re-reads it from Artemis, so there is
+ * nothing conversation-shaped left to persist.
  */
-export interface StoredStateV3 {
+export interface StoredState {
     version: 3;
     exercises: TrackedExercise[];
     courses: TrackedCourse[];

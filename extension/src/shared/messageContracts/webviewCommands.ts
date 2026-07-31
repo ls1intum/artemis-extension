@@ -2,8 +2,6 @@
  * Webview -> Extension command contracts.
  */
 
-import type { ChatContextType } from '@shared/types/context';
-
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
     Ready: 'ready',
@@ -78,19 +76,9 @@ export const WebviewCmd = {
 
     // Iris Chat
     SendMessage: 'sendMessage',
-    SelectChatContext: 'selectChatContext',
-    SwitchSession: 'switchSession',
-    OpenArtemisSession: 'openArtemisSession',
-    RequestCourseHistory: 'requestCourseHistory',
-    CreateNewSession: 'createNewSession',
-    SwitchToWorkspaceContext: 'switchToWorkspaceContext',
     ResetChatSessions: 'resetChatSessions',
-    // Conversation-first commands (Task 10). Added alongside the commands
-    // above, which stay until Task 15; `SwitchToWorkspaceContext` then goes
-    // entirely, because the workspace fallback collapsed into the Start rule
-    // and is no longer a user action. Nothing dispatches these yet; Task 14
-    // does the cut-over. There is no `UndoNavigation` (cut 2): the notice
-    // `showChatNotice` reports is actionless.
+    // Conversation-first navigation. There is no `UndoNavigation` (cut 2):
+    // the notice `showChatNotice` reports is actionless.
     SelectTopic: 'selectTopic',
     /**
      * Chat-side course refresh. Deliberately NOT `ReloadCourses`: that one is
@@ -105,11 +93,9 @@ export const WebviewCmd = {
     NewConversation: 'newConversation',
     ReconnectWebSocket: 'reconnectWebSocket',
     ReloadChatSession: 'reloadChatSession',
-    ReloadActiveSession: 'reloadActiveSession',
     MessageFeedback: 'messageFeedback',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
-    DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
 
     // Dev tools
@@ -197,30 +183,15 @@ interface WebviewCmdPayloads {
     /**
      * `sessionId` names the conversation the optimistic bubble was drawn in,
      * so the host can fail it against the ORIGIN session rather than whatever
-     * is open when the command is handled. Optional here because Task 10 is
-     * additive; a later task makes it required alongside the rest of the
-     * conversation-first wire contract.
+     * is open when the command is handled.
      */
-    sendMessage: { text: string; localId: string; localSessionId: string; sessionId?: number };
-    selectChatContext: { context: ChatContextType; itemId: number; itemName: string; itemShortName?: string };
-    switchSession: { sessionId: string };
-    openArtemisSession: { courseId: number; artemisSessionId: number };
-    /**
-     * Requests the course-wide history popover's contents. `requestId` is a
-     * webview-generated monotonic counter, bumped on every open/retry, so the
-     * store can drop a response that no longer matches the latest request
-     * (e.g. a slow Course-A fetch answering after the user switched to
-     * Course-B).
-     */
-    requestCourseHistory: { courseId: number; requestId: number };
-    createNewSession: undefined;
-    switchToWorkspaceContext: undefined;
+    sendMessage: { text: string; localId: string; sessionId: number };
     resetChatSessions: undefined;
     /**
      * Topic-based navigation for the picker, the chip's remove icon and the
-     * Ask-Iris commands (Task 10 wire contract; Task 14 wires the dispatcher).
-     * `mode`/`entityId` name the target `ServerContext`; `name` is a display
-     * hint the webview already knows and the host does not need to re-fetch.
+     * Ask-Iris commands. `mode`/`entityId` name the target `ServerContext`;
+     * `name` is a display hint the webview already knows and the host does
+     * not need to re-fetch.
      */
     selectTopic: { mode: string; entityId: number; name?: string };
     /** Id-based navigation for the history popover. Never consults the topic index. */
@@ -233,11 +204,9 @@ interface WebviewCmdPayloads {
     newConversation: undefined;
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
-    reloadActiveSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     openFile: { filePath: string };
     openDiagnostics: undefined;
-    debugSessions: undefined;
     openHelpPopup: undefined;
 
     // Dev tools
@@ -326,10 +295,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SaveGitIdentity,
     WebviewCmd.PerformHealthChecks,
     WebviewCmd.SendMessage,
-    WebviewCmd.SelectChatContext,
-    WebviewCmd.SwitchSession,
-    WebviewCmd.OpenArtemisSession,
-    WebviewCmd.RequestCourseHistory,
     WebviewCmd.MessageFeedback,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,

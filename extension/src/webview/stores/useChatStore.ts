@@ -5,11 +5,8 @@ import type { ExtMsg, IrisRunUiProjection, WebSocketDisplayStatus } from '@share
 import type { IrisActivityDTO, IrisRunState } from '@shared/types/apiResponses';
 
 import { mergeHistory } from '@webview/stores/mergeHistory';
-import type { CourseHistoryEntryVM } from '@webview/views/IrisChat/historyBuckets';
 import type {
-    ChatContext,
     ChatMessage,
-    ChatSession,
     ContextItem,
     ReferencedFilesData,
     StreamingState,
@@ -24,62 +21,37 @@ import type {
 type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
 
 /**
- * Conversation-first wire shape (Task 10), narrowed field-by-field below
- * instead of duplicated by hand, so a store field can never silently drift
- * from the wire type it mirrors.
+ * The wire shape, narrowed field-by-field below instead of duplicated by
+ * hand, so a store field can never silently drift from the wire type it
+ * mirrors.
  */
 type WireIrisState = ExtMsg<'updateIrisState'>['state'];
 type ConversationTopic = NonNullable<WireIrisState['committedContext']>;
 type ContentState = NonNullable<WireIrisState['contentState']>;
 type ConversationSummary = NonNullable<WireIrisState['conversations']>[number];
 
-interface MessageLoadResult {
-    localSessionId: string;
-    status: 'success' | 'error';
-}
-
-/**
- * Course-wide conversation history for the ConversationHistory popover
- * (Task 11). `requestId` is the latest `requestCourseHistory` request the
- * webview has issued; `applyCourseHistory`/`setCourseHistoryError` ignore
- * any response whose `requestId` does not match it, so a slow response for
- * a course the user has since navigated away from cannot land here.
- */
-interface CourseHistoryState {
-    status: 'idle' | 'loading' | 'error' | 'ready';
-    entries: CourseHistoryEntryVM[];
-    requestId: number;
-}
-
 interface ChatState {
-    // Context
-    context: ChatContext | null;
-    activeSessionId: string | null;
-    sessions: ChatSession[];
     /**
      * Flips to true on the first UpdateIrisState. Lets the renderer
-     * distinguish "no session" from "snapshot pending" so the cold-mount
+     * distinguish "no conversation" from "snapshot pending" so the cold-mount
      * frame stays on the loader instead of flashing the welcome state.
      */
     hasReceivedInitialIrisState: boolean;
     exercises: ContextItem[];
     courses: ContextItem[];
 
-    // Conversation-first mirror (Task 11). Additive alongside `context` /
-    // `activeSessionId` / `sessions` above: those stay live until the
-    // provider is rewired (Task 14) and are deleted only in Task 15.
     // `null` follows the file's existing "absent" convention (see
     // `openSessionError`, `disabledMessage`) rather than `undefined`.
-    /** The open conversation's course id (Task 12 CoursePicker: marks the current course). */
+    /** The open conversation's course id (CoursePicker: marks the current course). */
     courseId: number | null;
-    /** The open conversation's course title (Task 12 header line 1, opens CoursePicker). */
+    /** The open conversation's course title (header line 1, opens CoursePicker). */
     courseTitle: string | null;
     /** The one server conversation this webview mirrors, if any. */
     currentSessionId: number | null;
-    /** The open conversation's title (Task 12 header line 2, beside `displayMessageCount`). */
+    /** The open conversation's title (header line 2, beside `displayMessageCount`). */
     conversationTitle: string | null;
     /**
-     * Displayed message count, excluding CTXSWAP rows (Task 12 header line 2).
+     * Displayed message count, excluding CTXSWAP rows (header line 2).
      * Display only, never the ownership predicate. `0`, not `null`, is the
      * absent value: it is a count, not an identity reference, so it follows
      * `sendInFlight`/`navigationInFlight`'s "falsy default of its own type"
@@ -96,18 +68,8 @@ interface ChatState {
     navigationInFlight: boolean;
     /** Course-wide conversation list for the topic picker / history. */
     conversations: ConversationSummary[];
-    /** The detected workspace exercise, when any (Task 12 ContextPicker pin/badge). */
+    /** The detected workspace exercise, when any (ContextPicker pin/badge). */
     workspaceExerciseId: number | null;
-    /**
-     * Whether the host answers the conversation-first commands and addresses
-     * the transcript by conversation id (Task 14). It lives in the STORE, not
-     * in component state: the message listener has to key every incoming
-     * transcript on it, and a listener that closes over React state reads the
-     * value from the render it was created in. A snapshot and the transcript it
-     * implies arrive in the same tick, so that stale read is not hypothetical:
-     * it drops the first transcript of every session. Task 15 deletes it.
-     */
-    conversationFirst: boolean;
     /**
      * An actionless informational banner (e.g. a server-initiated repoint).
      * Cleared by the next `setIrisState` that actually NAVIGATES, matching
@@ -117,31 +79,25 @@ interface ChatState {
      * navigation fires emits another snapshot a round trip later.
      */
     notice: { text: string } | null;
-    /**
-     * Composer draft text. Lifted out of `ChatInput`'s local `useState`
-     * (Task 11); the component itself is not rewired until Task 12.
-     */
+    /** Composer draft text, lifted out of `ChatInput`'s local `useState`. */
     composerText: string;
 
-    // Course-wide conversation history (ConversationHistory popover)
-    courseHistory: CourseHistoryState;
     /**
-     * Task 10's cross-context `openArtemisSession` failure. Distinct from
-     * `unavailableMessage`: nothing about chat availability changed, only
-     * the specific row the user clicked could not be opened, so it renders
-     * as an inline banner inside the history popover rather than the global
-     * banner.
+     * A conversation the student asked for could not be opened. Distinct from
+     * `unavailableMessage`: nothing about chat availability changed, only the
+     * specific row they clicked could not be opened, so it renders as an
+     * inline banner inside the history popover rather than the global banner.
      */
     openSessionError: string | null;
 
     // Messages
     messages: ChatMessage[];
     /**
-     * Outcome of the most recent message hydration. `null` means we have
-     * not yet received a load result for any session; the webview shows
-     * the loader until this matches the active session.
+     * The conversation whose transcript is currently in `messages`. `null`
+     * until the first transcript arrives; the webview shows the loader until
+     * this matches the open conversation.
      */
-    messageLoad: MessageLoadResult | null;
+    loadedSessionId: number | null;
 
     // Streaming
     streaming: StreamingState;
@@ -172,51 +128,41 @@ interface ChatState {
 
     // Actions
     setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
-    /** Apply messages and record a successful hydration for the given session. */
-    applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
+    /** Replace the transcript with `sessionId`'s, and record the hydration. */
+    applyLoadedMessages: (sessionId: number, messages: ChatMessage[]) => void;
     /**
      * Non-destructive counterpart to `applyLoadedMessages`, used by the
      * reconnect reconciliation path: merges a persisted history snapshot
      * into the live list instead of replacing it, so an in-flight optimistic
-     * bubble survives. Ignored if `localSessionId` no longer matches the
-     * active session (the reconcile landed after a session switch).
+     * bubble survives. Ignored if `sessionId` is no longer the open
+     * conversation (the reconcile landed after a navigation).
      */
-    mergeLoadedMessages: (localSessionId: string, messages: ChatMessage[], sessionId?: number) => void;
-    /** Record that hydration failed for the given session. */
-    setMessageLoadError: (localSessionId: string) => void;
+    mergeLoadedMessages: (sessionId: number, messages: ChatMessage[]) => void;
     /**
      * Upserts by server `id`; messages without one always append (see
-     * `upsertMessage`). `sessionId` is the conversation-first counterpart to
-     * the `localSessionId`-keyed guards elsewhere in this store (Task 11):
-     * inert when omitted, and drops the message only when supplied AND it
-     * does not match `currentSessionId`, so Task 14 can start passing it in
-     * one call site at a time without a breaking signature change here.
+     * `upsertMessage`). `sessionId` is inert when omitted (the optimistic
+     * bubble is drawn in whatever is open), and drops the message when
+     * supplied AND it is not the open conversation.
      */
     addMessage: (message: ChatMessage, sessionId?: number) => void;
     /**
      * Apply a standalone run-UI snapshot (streaming draft/activities/run
-     * state). Rejects a projection for a session we already left, or one
-     * that is not strictly newer than the last applied revision. Also
-     * honours `projection.sessionId` beside `projection.localSessionId`
-     * (inert when the projection carries none, see `addMessage`).
+     * state). Rejects a projection for a conversation we already left, or one
+     * that is not strictly newer than the last applied revision.
      */
-    applyRunUi: (projection: IrisRunUiProjection, activeLocalSessionId: string) => void;
+    applyRunUi: (projection: IrisRunUiProjection) => void;
     /**
      * Commit a message and (optionally) its run-UI projection in one atomic
      * update, so the webview can never observe the draft cleared before the
-     * committed message lands. The message's session is checked
+     * committed message lands. The message's conversation is checked
      * independently of the projection's, since a projection-less commit
-     * (e.g. an error bubble) still must not land in a session we already
-     * left. `messageSessionId` is the conversation-first counterpart to
-     * `messageLocalSessionId` (inert when omitted, see `addMessage`); the
-     * projection's own `sessionId` (if any) is honoured the same way.
+     * (e.g. an error bubble) still must not land in a conversation we already
+     * left.
      */
     applyCommit: (
         message: ChatMessage,
         projection: IrisRunUiProjection | undefined,
-        messageLocalSessionId: string,
-        activeLocalSessionId: string,
-        messageSessionId?: number,
+        messageSessionId: number,
     ) => void;
     /**
      * Mark a still-pending user message as failed. Returns `true` only if
@@ -233,15 +179,6 @@ interface ChatState {
     removeMessage: (localId: string) => void;
     /** Stamps a still-pending optimistic user bubble with its server id and `status: 'sent'`. No-op if no such bubble exists. */
     confirmSentMessage: (localId: string, id: number) => void;
-    clearMessages: () => void;
-
-    // Course history actions
-    /** Bumps `requestId` and moves the slice to `loading`. */
-    setCourseHistoryLoading: (requestId: number) => void;
-    /** Ignored if `requestId` no longer matches the slice's current `requestId`. */
-    applyCourseHistory: (requestId: number, entries: CourseHistoryEntryVM[]) => void;
-    /** Ignored (stale) if `requestId` no longer matches the slice's current `requestId`. */
-    setCourseHistoryError: (requestId: number) => void;
     setOpenSessionError: (message: string | null) => void;
 
     // Streaming actions
@@ -258,7 +195,6 @@ interface ChatState {
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
     setShowDiagnostics: (show: boolean) => void;
 
-    // Conversation-first actions (Task 11)
     /** Sets the composer's draft text (lifted out of `ChatInput`'s local state, see above). */
     setComposerText: (text: string) => void;
     /** Raises an actionless chat notice. Cleared by the next `setIrisState` call. */
@@ -287,9 +223,6 @@ export const useChatStore = create<ChatState>()(
     devtools(
         (set) => ({
             // Initial state
-            context: null,
-            activeSessionId: null,
-            sessions: [],
             hasReceivedInitialIrisState: false,
             exercises: [],
             courses: [],
@@ -305,13 +238,11 @@ export const useChatStore = create<ChatState>()(
             navigationInFlight: false,
             conversations: [],
             workspaceExerciseId: null,
-            conversationFirst: false,
             notice: null,
             composerText: '',
-            courseHistory: { status: 'idle', entries: [], requestId: 0 },
             openSessionError: null,
             messages: [],
-            messageLoad: null,
+            loadedSessionId: null,
             streaming: IDLE_STREAMING,
             liveDraft: null,
             activities: [],
@@ -329,25 +260,6 @@ export const useChatStore = create<ChatState>()(
             // Actions
             setIrisState: (state) => {
                 set((previous) => ({
-                    context: state.context ? {
-                        type: state.context.type,
-                        id: state.context.id,
-                        title: state.context.title,
-                        shortName: state.context.shortName,
-                        courseId: state.context.courseId,
-                        locked: state.context.locked,
-                        source: state.context.source,
-                    } : null,
-                    activeSessionId: state.activeSessionId,
-                    sessions: state.sessions.map(s => ({
-                        id: s.id,
-                        artemisSessionId: s.artemisSessionId,
-                        preview: s.preview,
-                        title: s.title,
-                        messageCount: s.messageCount,
-                        createdAt: s.createdAt,
-                        lastActivity: s.lastActivity,
-                    })),
                     exercises: state.exercises,
                     courses: state.courses,
                     hasReceivedInitialIrisState: true,
@@ -363,7 +275,6 @@ export const useChatStore = create<ChatState>()(
                     navigationInFlight: state.navigationInFlight ?? false,
                     conversations: state.conversations ?? [],
                     workspaceExerciseId: state.workspaceExerciseId ?? null,
-                    conversationFirst: state.conversationFirst === true,
                     // A notice is cleared by any navigation or course change
                     // (the design's phrasing). A snapshot that moves neither
                     // the conversation nor the course is not a navigation, so
@@ -375,23 +286,16 @@ export const useChatStore = create<ChatState>()(
                 }), false, 'setIrisState');
             },
 
-            applyLoadedMessages: (localSessionId, messages) => {
+            applyLoadedMessages: (sessionId, messages) => {
                 set({
                     messages,
-                    messageLoad: { localSessionId, status: 'success' },
+                    loadedSessionId: sessionId,
                 }, false, 'applyLoadedMessages');
             },
 
-            mergeLoadedMessages: (localSessionId, messages, sessionId) => {
-                if (localSessionId !== useChatStore.getState().activeSessionId) { return; }
-                if (sessionId !== undefined && sessionId !== useChatStore.getState().currentSessionId) { return; }
+            mergeLoadedMessages: (sessionId, messages) => {
+                if (sessionId !== useChatStore.getState().currentSessionId) { return; }
                 set((s) => ({ messages: mergeHistory(s.messages, messages) }), false, 'mergeLoadedMessages');
-            },
-
-            setMessageLoadError: (localSessionId) => {
-                set({
-                    messageLoad: { localSessionId, status: 'error' },
-                }, false, 'setMessageLoadError');
             },
 
             addMessage: (message, sessionId) => {
@@ -399,9 +303,8 @@ export const useChatStore = create<ChatState>()(
                 set((state) => ({ messages: upsertMessage(state.messages, message) }), false, 'addMessage');
             },
 
-            applyRunUi: (projection, activeLocalSessionId) => {
-                if (projection.localSessionId !== activeLocalSessionId) { return; }
-                if (projection.sessionId !== undefined && projection.sessionId !== useChatStore.getState().currentSessionId) { return; }
+            applyRunUi: (projection) => {
+                if (projection.sessionId !== useChatStore.getState().currentSessionId) { return; }
                 if (projection.revision <= useChatStore.getState().lastRunUiRevision) { return; }
                 set({
                     liveDraft: projection.draft,
@@ -413,20 +316,18 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'applyRunUi');
             },
 
-            applyCommit: (message, projection, messageLocalSessionId, activeLocalSessionId, messageSessionId) => {
+            applyCommit: (message, projection, messageSessionId) => {
                 // Session-check the MESSAGE independently: a projection-less
-                // error bubble still must not land in a session we already left.
-                if (messageLocalSessionId !== activeLocalSessionId) { return; }
+                // error bubble still must not land in a conversation we left.
                 const currentSessionId = useChatStore.getState().currentSessionId;
-                if (messageSessionId !== undefined && messageSessionId !== currentSessionId) { return; }
+                if (messageSessionId !== currentSessionId) { return; }
 
                 // One set() so the message and its run state can never be
                 // observed apart, and the draft is never cleared first.
                 set((s) => {
                     const messages = upsertMessage(s.messages, message);
                     const accepts = projection !== undefined
-                        && projection.localSessionId === activeLocalSessionId
-                        && (projection.sessionId === undefined || projection.sessionId === currentSessionId)
+                        && projection.sessionId === currentSessionId
                         && projection.revision > s.lastRunUiRevision;
                     if (!accepts) { return { messages }; }
                     return {
@@ -471,39 +372,6 @@ export const useChatStore = create<ChatState>()(
                             : m,
                     ),
                 }), false, 'confirmSentMessage');
-            },
-
-            clearMessages: () => {
-                set({
-                    messages: [],
-                    messageLoad: null,
-                    streaming: IDLE_STREAMING,
-                    liveDraft: null,
-                    activities: [],
-                    runState: null,
-                    runError: null,
-                    lastRunUiRevision: 0,
-                }, false, 'clearMessages');
-            },
-
-            setCourseHistoryLoading: (requestId) => {
-                set({
-                    courseHistory: { status: 'loading', entries: [], requestId },
-                }, false, 'setCourseHistoryLoading');
-            },
-
-            applyCourseHistory: (requestId, entries) => {
-                if (requestId !== useChatStore.getState().courseHistory.requestId) { return; }
-                set({
-                    courseHistory: { status: 'ready', entries, requestId },
-                }, false, 'applyCourseHistory');
-            },
-
-            setCourseHistoryError: (requestId) => {
-                if (requestId !== useChatStore.getState().courseHistory.requestId) { return; }
-                set({
-                    courseHistory: { status: 'error', entries: [], requestId },
-                }, false, 'setCourseHistoryError');
             },
 
             setOpenSessionError: (message) => {
@@ -575,7 +443,6 @@ export const useChatStore = create<ChatState>()(
                 set({ showDiagnostics: show }, false, 'setShowDiagnostics');
             },
 
-            // Conversation-first actions (Task 11)
             setComposerText: (text) => {
                 set({ composerText: text }, false, 'setComposerText');
             },
@@ -596,8 +463,8 @@ export const useChatStore = create<ChatState>()(
  * used right now. Deliberately NOT a stored field: `contentState`,
  * `sendInFlight` and `navigationInFlight` are each written from a single
  * place today (`setIrisState`), but a hand-synced `canChangeTopic` field
- * would silently go stale the moment a second writer appears (Task 14 adds
- * more). Computing it fresh on every read makes that impossible.
+ * would silently go stale the moment a second writer appears. Computing it
+ * fresh on every read makes that impossible.
  */
 export function selectCanChangeTopic(
     state: Pick<ChatState, 'contentState' | 'sendInFlight' | 'navigationInFlight'>,

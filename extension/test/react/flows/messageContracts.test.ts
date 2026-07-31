@@ -128,7 +128,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('IrisChatAddMessage has correct message shape', () => {
         const msg = {
             type: 'addMessage' as const,
-            localSessionId: 'session-local-1',
+            sessionId: 42,
             message: {
                 id: 1,
                 role: 'assistant' as const,
@@ -160,7 +160,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         const msg = {
             type: 'updateIrisRunUi' as const,
             projection: {
-                localSessionId: 'session-local-1',
+                sessionId: 42,
                 revision: 3,
                 draft: { runId: 'run-1', text: 'partial answer...' },
                 activities: [],
@@ -170,7 +170,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         } satisfies ExtMsg<'updateIrisRunUi'>;
 
         expect(msg.type).toBe('updateIrisRunUi');
-        expect(msg.projection.localSessionId).toBe('session-local-1');
+        expect(msg.projection.sessionId).toBe(42);
         expect(msg.projection.draft?.runId).toBe('run-1');
         expect(msg.projection.runState).toBe('RUNNING');
     });
@@ -178,7 +178,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('IrisChatAddMessage is valid without runUi (non-run bubble, e.g. provider error)', () => {
         const msg = {
             type: 'addMessage' as const,
-            localSessionId: 'session-local-1',
+            sessionId: 42,
             message: {
                 role: 'assistant' as const,
                 content: 'Error: something went wrong',
@@ -191,36 +191,16 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     });
 
     // ------------------------------------------------------------------
-    // Task 10: conversation-shaped wire additions. Every field below is
-    // additive (optional, next to the field it complements), so most of
-    // these are compile-time `satisfies` guards: the meaningful failure
-    // mode is a field being narrowed, renamed or made required, which
-    // shows up as a TypeScript error, not a runtime assertion failure.
+    // The conversation-shaped wire. Every field is REQUIRED, so these are
+    // mostly compile-time `satisfies` guards: the meaningful failure mode is
+    // a field being narrowed, renamed or dropped, which shows up as a
+    // TypeScript error rather than a runtime assertion failure.
     // ------------------------------------------------------------------
 
-    it('UpdateIrisStateMessage accepts the old shape alone (conversation fields all absent)', () => {
+    it('UpdateIrisStateMessage carries the whole conversation state, every field required', () => {
         const msg = {
             type: 'updateIrisState' as const,
             state: {
-                context: null,
-                activeSessionId: null,
-                sessions: [],
-                exercises: [],
-                courses: [],
-            },
-        } as ExtMsg<'updateIrisState'>;
-
-        expect(msg.state.courseId).toBeUndefined();
-        expect(msg.state.conversations).toBeUndefined();
-    });
-
-    it('UpdateIrisStateMessage accepts the new conversation-first fields alongside the old ones', () => {
-        const msg = {
-            type: 'updateIrisState' as const,
-            state: {
-                context: null,
-                activeSessionId: null,
-                sessions: [],
                 exercises: [],
                 courses: [],
                 courseId: 5,
@@ -242,16 +222,15 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
 
         expect(msg.state.courseId).toBe(5);
         expect(msg.state.contentState).toBe('content');
+        expect(msg.state.courseTitle).toBe('Algorithms');
         expect(msg.state.conversations?.[0].sessionId).toBe(42);
         expect(msg.state.pendingContext?.mode).toBe('COURSE_CHAT');
     });
 
-    it('LoadMessagesMessage and MergeSessionMessagesMessage accept a contextSwap row and an optional sessionId', () => {
+    it('LoadMessagesMessage and MergeSessionMessagesMessage carry a contextSwap row and their conversation', () => {
         const load = {
             type: 'loadMessages' as const,
-            localSessionId: 'session-local-1',
             sessionId: 42,
-            artemisSessionId: 7,
             messages: [
                 { role: 'contextSwap' as const, content: 'Switched to Sorting', timestamp: 1_700_000_000_000 },
             ],
@@ -259,9 +238,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
 
         const merge = {
             type: 'mergeSessionMessages' as const,
-            localSessionId: 'session-local-1',
             sessionId: 42,
-            artemisSessionId: 7,
             messages: [
                 { role: 'contextSwap' as const, content: 'Switched to Sorting', timestamp: 1_700_000_000_000 },
             ],
@@ -271,10 +248,9 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(merge.sessionId).toBe(42);
     });
 
-    it('ConfirmSentMessageMessage accepts an optional sessionId beside localSessionId', () => {
+    it('ConfirmSentMessageMessage carries the conversation the bubble was drawn in', () => {
         const msg = {
             type: 'confirmSentMessage' as const,
-            localSessionId: 'session-local-1',
             sessionId: 42,
             localId: 'msg-local-1',
             id: 99,
@@ -283,11 +259,10 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.sessionId).toBe(42);
     });
 
-    it('SendRejectedMessage accepts the new conversation-first reasons and an optional sessionId', () => {
+    it('SendRejectedMessage carries the conversation-first reasons and its conversation', () => {
         const msg = {
             type: 'sendRejected' as const,
             localId: 'msg-local-1',
-            localSessionId: 'session-local-1',
             sessionId: 42,
             reason: 'no-conversation' as const,
             errorMessage: 'No conversation is open right now.',
@@ -297,11 +272,10 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.sessionId).toBe(42);
     });
 
-    it('IrisRunUiProjection accepts an optional sessionId beside localSessionId', () => {
+    it('IrisRunUiProjection carries the conversation it belongs to', () => {
         const msg = {
             type: 'updateIrisRunUi' as const,
             projection: {
-                localSessionId: 'session-local-1',
                 sessionId: 42,
                 revision: 1,
                 draft: null,
@@ -391,28 +365,28 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
             payload: {
                 text: 'What is a for loop?',
                 localId: 'msg-local-1',
-                localSessionId: 'session-local-1',
+                sessionId: 42,
             },
         } satisfies WebCmd<'sendMessage'>;
 
         expect(msg.payload.text).toBe('What is a for loop?');
         expect(msg.payload.localId).toBe('msg-local-1');
-        expect(msg.payload.localSessionId).toBe('session-local-1');
+        expect(msg.payload.sessionId).toBe(42);
     });
 
-    it('SelectChatContextCommand has context, itemId, and itemName payload', () => {
+    it('SelectTopicCommand has mode, entityId and an optional name payload', () => {
         const msg = {
             type: 'command' as const,
-            command: 'selectChatContext' as const,
+            command: 'selectTopic' as const,
             payload: {
-                context: 'exercise',
-                itemId: 5,
-                itemName: 'Hello World Exercise',
+                mode: 'PROGRAMMING_EXERCISE_CHAT',
+                entityId: 5,
+                name: 'Hello World Exercise',
             },
-        } satisfies WebCmd<'selectChatContext'>;
+        } satisfies WebCmd<'selectTopic'>;
 
-        expect(msg.payload.context).toBe('exercise');
-        expect(msg.payload.itemId).toBe(5);
+        expect(msg.payload.mode).toBe('PROGRAMMING_EXERCISE_CHAT');
+        expect(msg.payload.entityId).toBe(5);
     });
 
     it('BackToDashboardCommand has type=command, command=backToDashboard', () => {

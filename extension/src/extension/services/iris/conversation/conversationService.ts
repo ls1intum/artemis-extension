@@ -33,7 +33,7 @@ import { resolveTopic } from './topicResolution';
  * replace course-B's list.
  */
 
-export interface IrisConversationDeps {
+interface IrisConversationDeps {
     /**
      * Declares the desired subscription. SYNCHRONOUS by contract: it records the
      * intent immediately and converges in the background, so two rapid

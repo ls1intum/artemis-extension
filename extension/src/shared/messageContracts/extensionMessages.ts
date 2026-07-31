@@ -5,12 +5,10 @@
 import type {
     ExerciseDetailsResponse,
     IrisActivityDTO,
-    IrisChatMode,
     IrisRunState,
     ResultSummary,
     SubmissionSummary,
 } from '@shared/types/apiResponses';
-import type { ChatContextType } from '@shared/types/context';
 
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
@@ -59,11 +57,7 @@ export const ExtensionMsg = {
     UpdateIrisState: 'updateIrisState',
     AddMessage: 'addMessage',
     LoadMessages: 'loadMessages',
-    LoadMessagesError: 'loadMessagesError',
     OpenSessionError: 'openSessionError',
-    UpdateCourseHistory: 'updateCourseHistory',
-    CourseHistoryError: 'courseHistoryError',
-    ClearChatMessages: 'clearChatMessages',
     UpdateReferencedFiles: 'updateReferencedFiles',
     UpdateWebSocketStatus: 'updateWebSocketStatus',
     ShowDisabledState: 'showDisabledState',
@@ -105,14 +99,9 @@ interface RenderedProblemStatementPayload {
  * able to observe the draft cleared before the committed message landed.
  */
 export interface IrisRunUiProjection {
-    /** Rejects a projection belonging to a session we already left. */
-    localSessionId: string;
-    /**
-     * Conversation-first counterpart to `localSessionId`, beside it (not
-     * replacing it) until Task 15. Optional and unpopulated until Task 14
-     * routes run UI through `IrisConversationService`.
-     */
-    sessionId?: number;
+    /** The conversation this projection belongs to; the webview drops any
+     *  projection for a conversation it has already left. */
+    sessionId: number;
     /** Monotonic; the webview drops anything not strictly newer. */
     revision: number;
     /** `null` clears the draft. Always `null` on a commit. */
@@ -207,40 +196,29 @@ interface ExtensionMsgPayloads {
         | { updateType: 'submissionProcessing'; data: { state: string; participationId: number; buildTimingInfo?: { buildStartDate?: string; estimatedCompletionDate?: string } } };
 
     // Iris Chat
+    /**
+     * The whole visible chat state, in one snapshot. Every field is REQUIRED:
+     * there is exactly one interface now, so a producer that cannot fill a
+     * field has to say so with an explicit `undefined`/`null` rather than by
+     * omitting a key the webview would then silently default.
+     */
     updateIrisState: {
         state: {
-            context: { type: ChatContextType; id: number; title: string; shortName?: string; courseId?: number; locked: boolean; source: 'user-selected' | 'workspace-detected' | 'system-default' } | null;
-            activeSessionId: string | null;
-            sessions: Array<{
-                id: string;
-                artemisSessionId?: number;
-                preview: string;
-                title?: string;
-                messageCount: number;
-                createdAt: number;
-                lastActivity: number;
-            }>;
             exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean; releaseDate?: string; dueDate?: string; lastViewed?: number }>;
             courses: Array<{ id: number; title: string; shortName?: string; lastViewed?: number }>;
-            // ---- Conversation-first fields (Task 10). EVERY field below is
-            // OPTIONAL until Task 15. They are added to a payload that dozens
-            // of typed React fixtures already construct; making them required
-            // here would force all of those to be rewritten in a commit that
-            // is supposed to be additive, and Task 15 tightens them anyway
-            // once the old fields above are deleted.
-            courseId?: number | undefined;
-            courseTitle?: string | undefined;
-            currentSessionId?: number | undefined;
-            conversationTitle?: string | undefined;
+            courseId: number | undefined;
+            courseTitle: string | undefined;
+            currentSessionId: number | undefined;
+            conversationTitle: string | undefined;
             /** Excludes CTXSWAP rows. Display only; never the ownership predicate. */
-            displayMessageCount?: number;
-            committedContext?: { mode: string; entityId: number; name?: string } | undefined;
-            pendingContext?: { mode: string; entityId: number; name?: string } | undefined;
+            displayMessageCount: number;
+            committedContext: { mode: string; entityId: number; name?: string } | undefined;
+            pendingContext: { mode: string; entityId: number; name?: string } | undefined;
             /** 'unknown' disables the picker, the chip remove icon and Ask-Iris. */
-            contentState?: 'unknown' | 'empty' | 'content';
-            sendInFlight?: boolean;
-            navigationInFlight?: boolean;
-            conversations?: Array<{
+            contentState: 'unknown' | 'empty' | 'content';
+            sendInFlight: boolean;
+            navigationInFlight: boolean;
+            conversations: Array<{
                 sessionId: number;
                 courseId: number;
                 mode: string;
@@ -249,40 +227,19 @@ interface ExtensionMsgPayloads {
                 title?: string;
                 lastActivity: number;
             }>;
-            /** The detected workspace exercise, when any. Sourced from the
-             *  same workspace-detection state the old model already tracks;
-             *  not part of `IrisConversationService`'s own state. */
-            workspaceExerciseId?: number | undefined;
-            /**
-             * True once the host dispatcher answers the conversation-first
-             * commands (Task 14 sets it). Absent until then, so this build
-             * keeps rendering the old interface. Task 15 deletes it together
-             * with the old fields.
-             *
-             * It has to be its own flag rather than something inferred from
-             * the fields above: the presenter already fills every one of them
-             * whenever the conversation service exists, and all of them are
-             * legitimately empty at cold start, so neither a value nor the
-             * presence of a key can tell "the host answers this model" from
-             * "the host merely mirrors it".
-             */
-            conversationFirst?: boolean;
+            /** The detected workspace exercise, when any. Comes from
+             *  workspace detection, not from `IrisConversationService`. */
+            workspaceExerciseId: number | undefined;
         };
         showDiagnostics?: boolean;
     };
     addMessage: {
         /**
-         * Session this bubble belongs to; the webview drops stale sessions.
-         * Both producers (the WS handler and the provider's catch path) only
-         * ever emit when they have a session id to attribute the bubble to.
+         * Conversation this bubble belongs to; the webview drops a bubble for
+         * a conversation it has already left. Every producer only emits when
+         * it has a conversation to attribute the bubble to.
          */
-        localSessionId: string;
-        /**
-         * Conversation-first counterpart to `localSessionId`, beside it (not
-         * replacing it) until Task 15. Optional and unpopulated until Task 14
-         * routes message delivery through `IrisConversationService`.
-         */
-        sessionId?: number;
+        sessionId: number;
         message: {
             id?: number;
             /**
@@ -304,13 +261,10 @@ interface ExtensionMsgPayloads {
         runUi?: IrisRunUiProjection;
     };
     loadMessages: {
-        /** Local session UUID this load belongs to. The webview ignores
-         *  loads whose id no longer matches the currently active session,
-         *  so a slow response cannot pollute a freshly switched view. */
-        localSessionId: string;
-        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
-        sessionId?: number;
-        artemisSessionId: number;
+        /** The conversation this transcript belongs to. The webview ignores
+         *  loads for a conversation it has already left, so a slow response
+         *  cannot pollute a freshly opened one. */
+        sessionId: number;
         messages: Array<{
             id?: number;
             /** `contextSwap`: see `addMessage.message.role`. */
@@ -329,10 +283,7 @@ interface ExtensionMsgPayloads {
      * persisted answer without wiping optimistic/error bubbles.
      */
     mergeSessionMessages: {
-        localSessionId: string;
-        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
-        sessionId?: number;
-        artemisSessionId: number;
+        sessionId: number;
         messages: Array<{
             id?: number;
             /** `contextSwap`: see `addMessage.message.role`. */
@@ -350,13 +301,10 @@ interface ExtensionMsgPayloads {
      * duplicate) and the bubble leaves its `sending` state.
      */
     confirmSentMessage: {
-        localSessionId: string;
-        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
-        sessionId?: number;
+        sessionId: number;
         localId: string;
         id: number;
     };
-    loadMessagesError: { localSessionId: string };
     /**
      * A pre-switch open failure: the course overview fetch failed, or the
      * requested Artemis session id was not present in it. Distinct from
@@ -366,28 +314,6 @@ interface ExtensionMsgPayloads {
      * local session. The history popover surfaces it inline.
      */
     openSessionError: { message: string };
-    /**
-     * Answers a `requestCourseHistory` command: the course-wide history for
-     * the course-history popover, newest-first (see `buildCourseHistory`).
-     * `requestId` echoes the request so the store can drop a stale response
-     * whose `requestId` no longer matches the latest request.
-     */
-    updateCourseHistory: {
-        courseId: number;
-        requestId: number;
-        entries: Array<{
-            artemisSessionId: number;
-            courseId: number;
-            mode: IrisChatMode;
-            entityId: number;
-            entityName?: string;
-            title?: string;
-            lastActivity: number;
-        }>;
-    };
-    /** `requestCourseHistory` failed (e.g. the overview fetch threw). */
-    courseHistoryError: { courseId: number; requestId: number };
-    clearChatMessages: undefined;
     updateReferencedFiles: {
         includedFiles: string[];
         excludedFiles: Array<{ path: string; reason?: string }>;
@@ -409,14 +335,12 @@ interface ExtensionMsgPayloads {
      * Posted by the extension host when a user-initiated `sendMessage`
      * command was rejected synchronously (e.g. no chat context, .noai
      * detected, Iris disabled for this exercise). The webview uses
-     * `localId` + `localSessionId` to find the optimistic user message and
+     * `localId` + `sessionId` to find the optimistic user message and
      * mark it failed so the thinking indicator does not get stuck.
      */
     sendRejected: {
         localId: string;
-        localSessionId: string;
-        /** Conversation-first counterpart to `localSessionId`; see `addMessage`. */
-        sessionId?: number;
+        sessionId: number;
         /**
          * Widened for the conversation-first send coordinator (Task 14): the
          * new values name rejections `IrisConversationService`'s send path

@@ -175,11 +175,15 @@ export interface IrisChatSessionSummary {
     [key: string]: unknown;
 }
 
-/** Senders Artemis persists. `CTXSWAP` rows are context-change markers, not chat. */
-export type IrisMessageSender = 'USER' | 'LLM' | 'ARTIFACT' | 'CTXSWAP';
-
 export interface IrisChatMessage {
     id?: number;
+    /**
+     * `USER` | `LLM` | `ARTIFACT` | `CTXSWAP`, as Artemis persists them, and
+     * deliberately widened to `string`: the server may add a sender this
+     * build has never heard of, and a narrowed union would make that a parse
+     * failure rather than a row we render conservatively. `CTXSWAP` rows are
+     * context-change markers, not chat.
+     */
     sender?: string;
     sentAt?: string;
     content?: IrisChatMessageContent[];

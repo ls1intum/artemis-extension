@@ -1,17 +1,9 @@
-import { ArtemisApiService } from '@extension/api';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
-import { fetchSessionsWithMessages } from '@extension/services/iris/context/sessionSyncUtils';
-
-interface DebugSessionsResult {
-    report: string;
-    sessionCount: number;
-}
 
 export class ChatDiagnosticsService {
     constructor(
         private readonly _contextStore: ContextStore,
-        private readonly _artemisApiService: ArtemisApiService | undefined,
         private readonly _exerciseRegistry: ExerciseRegistry,
     ) { }
 
@@ -22,44 +14,7 @@ export class ChatDiagnosticsService {
         report += 'Generated at: ' + new Date().toISOString() + '\n';
         report += '='.repeat(80) + '\n\n';
 
-        report += '📌 ACTIVE CONTEXT:\n';
-        if (snapshot.activeContext) {
-            report += `  Type: ${snapshot.activeContext.type}\n`;
-            report += `  ID: ${snapshot.activeContext.id}\n`;
-            report += `  Title: ${snapshot.activeContext.title}\n`;
-            report += `  Short Name: ${snapshot.activeContext.shortName ?? '—'}\n`;
-            report += `  Source: ${snapshot.activeContext.source}\n`;
-            report += `  Locked: ${snapshot.activeContext.locked}\n`;
-            report += `  Selected At: ${new Date(snapshot.activeContext.selectedAt).toISOString()}\n`;
-        } else {
-            report += '  No context selected\n';
-        }
-
-        report += '\n💬 ACTIVE SESSION:\n';
-        if (snapshot.activeSession) {
-            report += `  ID: ${snapshot.activeSession.id}\n`;
-            report += `  Preview: ${snapshot.activeSession.preview}\n`;
-            report += `  Messages: ${snapshot.activeSession.messageCount}\n`;
-            report += `  Created: ${new Date(snapshot.activeSession.createdAt).toISOString()}\n`;
-            report += `  Last Activity: ${new Date(snapshot.activeSession.lastActivity).toISOString()}\n`;
-        } else {
-            report += '  No session available\n';
-        }
-
-        report += `\n🗂️  SESSIONS (${snapshot.sessions.length} total):\n`;
-        if (snapshot.sessions.length > 0) {
-            snapshot.sessions.forEach((session, idx) => {
-                report += `  ${idx + 1}. ${session.id}\n`;
-                report += `     Preview: ${session.preview}\n`;
-                report += `     Messages: ${session.messageCount}\n`;
-                report += `     Created: ${new Date(session.createdAt).toISOString()}\n`;
-                report += `     Last Activity: ${new Date(session.lastActivity).toISOString()}\n`;
-            });
-        } else {
-            report += '  No sessions recorded\n';
-        }
-
-        report += `\n💻 EXERCISES (${snapshot.exercises.length}):\n`;
+        report += `💻 EXERCISES (${snapshot.exercises.length}):\n`;
         if (snapshot.exercises.length > 0) {
             snapshot.exercises.forEach((exercise, idx) => {
                 report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}${exercise.isWorkspace ? ' ⭐' : ''}\n`;
@@ -105,77 +60,5 @@ export class ChatDiagnosticsService {
         }
 
         return report;
-    }
-
-    public async generateDebugSessionsReport(): Promise<DebugSessionsResult> {
-        const activeContext = this._contextStore.getActiveContext();
-        if (!activeContext) {
-            throw new Error('No context selected. Please select an exercise or course first.');
-        }
-
-        if (!this._artemisApiService) {
-            throw new Error('Artemis API service not available');
-        }
-
-        let report = '='.repeat(80) + '\n';
-        report += '🔍 RAW ARTEMIS SESSION DEBUG DATA\n';
-        report += 'Generated at: ' + new Date().toISOString() + '\n';
-        report += '='.repeat(80) + '\n\n';
-
-        report += '📌 CURRENT CONTEXT:\n';
-        report += `  Type: ${activeContext.type}\n`;
-        report += `  ID: ${activeContext.id}\n`;
-        report += `  Title: ${activeContext.title}\n`;
-        report += `  Short Name: ${activeContext.shortName ?? '—'}\n\n`;
-
-        report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
-
-        const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, this._contextStore, activeContext);
-
-        report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
-        report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;
-        report += '='.repeat(80) + '\n\n';
-
-        const snapshot = this._contextStore.snapshot();
-        const contextKey = `${activeContext.type}:${activeContext.id}`;
-        const localSessions = snapshot.sessions.filter(s => s.contextKey === contextKey);
-
-        report += `💾 LOCAL STORAGE INFO:\n`;
-        report += `   Context Key: ${contextKey}\n`;
-        report += `   Local Sessions for this context: ${localSessions.length}\n`;
-        report += `   All Local Sessions (all contexts): ${snapshot.sessions.length}\n`;
-        if (snapshot.sessions.length > localSessions.length) {
-            const otherContexts = new Set(snapshot.sessions.map(s => s.contextKey).filter(k => k !== contextKey));
-            report += `   ⚠️  WARNING: Found sessions from other contexts: ${Array.from(otherContexts).join(', ')}\n`;
-        }
-        report += '\n';
-
-        report += `📋 SNAPSHOT SESSIONS (what UI shows):\n`;
-        report += `   Total in snapshot: ${snapshot.sessions.length}\n`;
-        if (snapshot.sessions.length > 0) {
-            snapshot.sessions.forEach((s, idx) => {
-                report += `   ${idx + 1}. Session ${s.id} (artemisId: ${s.artemisSessionId}) - contextKey: ${s.contextKey}\n`;
-                report += `      Preview: "${s.preview}"\n`;
-                report += `      Messages: ${s.messageCount}\n`;
-            });
-        }
-        report += '\n' + '='.repeat(80) + '\n\n';
-
-        if (artemisSessionsListFromServer.length === 0) {
-            report += '⚠️  No sessions found on Artemis for this context.\n';
-        } else {
-            artemisSessionsListFromServer.forEach((session, idx) => {
-                report += `SESSION ${idx + 1}:\n`;
-                report += '-'.repeat(80) + '\n';
-                report += JSON.stringify(session, null, 2);
-                report += '\n\n';
-            });
-        }
-
-        report += '='.repeat(80) + '\n';
-        report += 'END OF DEBUG DATA\n';
-        report += '='.repeat(80) + '\n';
-
-        return { report, sessionCount: artemisSessionsListFromServer.length };
     }
 }

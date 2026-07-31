@@ -1,28 +1,3 @@
-import type { IrisChatMode } from '@shared/types/apiResponses';
-
-/**
- * Webview mirror of the host's `CourseHistoryEntry`
- * (`@extension/services/iris/context/courseHistory.ts`). Kept as a plain
- * duplicate rather than a shared import because the webview bundle must not
- * pull in extension-host modules.
- */
-export interface CourseHistoryEntryVM {
-    artemisSessionId: number;
-    courseId: number;
-    /** COURSE_CHAT | programming-exercise chat */
-    mode: IrisChatMode;
-    entityId: number;
-    /** exercise name (for the context label) */
-    entityName?: string;
-    /** conversation title */
-    title?: string;
-    /**
-     * epoch ms: lastActivityDate ?? creationDate; `<= 0` or non-finite is the
-     * host's sentinel for "could not parse either".
-     */
-    lastActivity: number;
-}
-
 export type HistoryBucket = 'today' | 'yesterday' | 'last7' | 'last30' | 'older';
 
 /** The only field the bucketing reads, so both entry shapes can use it. */

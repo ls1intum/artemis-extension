@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { ExtMsg, IrisRunUiProjection } from '@shared/messageContracts';
 import type { IrisActivityDTO } from '@shared/types/apiResponses';
@@ -16,11 +16,20 @@ const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 });
 
 const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = {}): ExtMsg<'updateIrisState'>['state'] => ({
-	context: null,
-	activeSessionId: null,
-	sessions: [],
 	exercises: [],
 	courses: [],
+	courseId: undefined,
+	courseTitle: undefined,
+	currentSessionId: undefined,
+	conversationTitle: undefined,
+	displayMessageCount: 0,
+	committedContext: undefined,
+	pendingContext: undefined,
+	contentState: 'unknown',
+	sendInFlight: false,
+	navigationInFlight: false,
+	conversations: [],
+	workspaceExerciseId: undefined,
 	...overrides,
 });
 
@@ -36,9 +45,8 @@ describe('useChatStore', () => {
 	it('initializes with empty state', () => {
 		const { result } = renderHook(() => useChatStore());
 
-		expect(result.current.context).toBeNull();
 		expect(result.current.messages).toEqual([]);
-		expect(result.current.sessions).toEqual([]);
+		expect(result.current.currentSessionId).toBeNull();
 		expect(result.current.streaming.isStreaming).toBe(false);
 		expect(result.current.isLoading).toBe(false);
 		expect(result.current.webSocketStatus).toBe('unknown');
@@ -50,7 +58,7 @@ describe('useChatStore', () => {
 		expect(result.current.hasReceivedInitialIrisState).toBe(false);
 	});
 
-	it('hasReceivedInitialIrisState flips to true on first setIrisState and stays true after clearMessages', () => {
+	it('hasReceivedInitialIrisState flips to true on first setIrisState and stays true afterwards', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		expect(result.current.hasReceivedInitialIrisState).toBe(false);
@@ -61,11 +69,10 @@ describe('useChatStore', () => {
 
 		expect(result.current.hasReceivedInitialIrisState).toBe(true);
 
-		// clearMessages must not reset the flag — the webview is still
-		// considered initialized, just emptied. Resetting would re-trigger
-		// the cold-mount skeleton on every session switch.
+		// A later snapshot must not reset the flag: resetting would
+		// re-trigger the cold-mount skeleton on every navigation.
 		act(() => {
-			result.current.clearMessages();
+			result.current.setIrisState(makeIrisState({ currentSessionId: 900 }));
 		});
 
 		expect(result.current.hasReceivedInitialIrisState).toBe(true);
@@ -96,7 +103,7 @@ describe('useChatStore', () => {
 		expect(result.current.messages[1].role).toBe('assistant');
 	});
 
-	it('clearMessages resets messages to empty array', () => {
+	it('applyLoadedMessages replaces the transcript wholesale', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
@@ -105,7 +112,7 @@ describe('useChatStore', () => {
 		});
 
 		act(() => {
-			result.current.clearMessages();
+			result.current.applyLoadedMessages(901, []);
 		});
 
 		expect(result.current.messages).toEqual([]);
@@ -147,51 +154,19 @@ describe('useChatStore', () => {
 		expect(result.current.webSocketStatus).toBe('connected');
 	});
 
-	it('messageLoad starts as null and applyLoadedMessages records success per session', () => {
+	it('loadedSessionId starts as null and applyLoadedMessages records the conversation it hydrated', () => {
 		const { result } = renderHook(() => useChatStore());
 
-		expect(result.current.messageLoad).toBeNull();
+		expect(result.current.loadedSessionId).toBeNull();
 
 		act(() => {
-			result.current.applyLoadedMessages('local-A', [
+			result.current.applyLoadedMessages(900, [
 				{ id: 1, localId: 'a', role: 'user', content: 'Hi', timestamp: 1, helpful: null, status: 'sent' },
 			]);
 		});
 
 		expect(result.current.messages).toHaveLength(1);
-		expect(result.current.messageLoad).toEqual({ localSessionId: 'local-A', status: 'success' });
-	});
-
-	it('setMessageLoadError records the failed sessionId without touching messages', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.applyLoadedMessages('local-A', [
-				{ id: 1, localId: 'a', role: 'user', content: 'Old', timestamp: 1, helpful: null, status: 'sent' },
-			]);
-		});
-		act(() => {
-			result.current.setMessageLoadError('local-A');
-		});
-
-		expect(result.current.messages).toHaveLength(1);
-		expect(result.current.messageLoad).toEqual({ localSessionId: 'local-A', status: 'error' });
-	});
-
-	it('clearMessages also resets messageLoad so the next session shows the skeleton', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.applyLoadedMessages('local-A', [
-				{ id: 1, localId: 'a', role: 'user', content: 'Hi', timestamp: 1, helpful: null, status: 'sent' },
-			]);
-		});
-		act(() => {
-			result.current.clearMessages();
-		});
-
-		expect(result.current.messages).toEqual([]);
-		expect(result.current.messageLoad).toBeNull();
+		expect(result.current.loadedSessionId).toBe(900);
 	});
 
 	it('setDisabledMessage sets disabled reason', () => {
@@ -353,28 +328,9 @@ describe('useChatStore', () => {
 		expect(result.current.showDiagnostics).toBe(false);
 	});
 
-	it('setIrisState updates context and session data', () => {
+	it('setIrisState mirrors the tracked exercises and courses for the pickers', () => {
 		const { result } = renderHook(() => useChatStore());
 		const irisState = makeIrisState({
-			context: {
-				type: 'exercise',
-				id: 42,
-				title: 'Sorting Algorithms',
-				shortName: 'sort',
-				locked: false,
-				source: 'workspace-detected',
-			},
-			activeSessionId: 'session-abc',
-			sessions: [
-				{
-					id: 'session-abc',
-					artemisSessionId: 1001,
-					preview: 'How do I fix...',
-					messageCount: 5,
-					createdAt: 1000000,
-					lastActivity: 1000100,
-				},
-			],
 			exercises: [{ id: 42, title: 'Sorting Algorithms', courseId: 10 }],
 			courses: [{ id: 10, title: 'Algorithms' }],
 		});
@@ -383,61 +339,19 @@ describe('useChatStore', () => {
 			result.current.setIrisState(irisState);
 		});
 
-		expect(result.current.activeSessionId).toBe('session-abc');
-		expect(result.current.sessions).toHaveLength(1);
-		expect(result.current.context?.type).toBe('exercise');
-		expect(result.current.context?.id).toBe(42);
 		expect(result.current.exercises).toHaveLength(1);
 		expect(result.current.courses).toHaveLength(1);
-	});
-
-	it('setIrisState passes courseId from context directly', () => {
-		const { result } = renderHook(() => useChatStore());
-		const irisState = makeIrisState({
-			context: {
-				type: 'exercise',
-				id: 42,
-				title: 'Exercise',
-				courseId: 10,
-				locked: false,
-				source: 'workspace-detected',
-			},
-			exercises: [{ id: 42, title: 'Exercise', courseId: 10 }],
-		});
-
-		act(() => {
-			result.current.setIrisState(irisState);
-		});
-
-		expect(result.current.context?.courseId).toBe(10);
-	});
-
-	it('setIrisState with null context sets context to null', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		// First set a context
-		act(() => {
-			result.current.setIrisState(makeIrisState({
-				context: { type: 'course', id: 1, title: 'Course', locked: false, source: 'user-selected' },
-			}));
-		});
-
-		// Then clear it
-		act(() => {
-			result.current.setIrisState(makeIrisState({ context: null }));
-		});
-
-		expect(result.current.context).toBeNull();
 	});
 
 	it('resetTransientChatUi clears the run UI and streaming state', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
+			result.current.setIrisState(makeIrisState({ currentSessionId: 900 }));
 			result.current.applyRunUi({
-				localSessionId: 's1', revision: 1, draft: { runId: 'A', text: 'partial' },
+				sessionId: 900, revision: 1, draft: { runId: 'A', text: 'partial' },
 				activities: [makeActivity()], waiting: true, runState: 'RUNNING',
-			}, 's1');
+			});
 		});
 
 		act(() => {
@@ -456,11 +370,12 @@ describe('useChatStore', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
+			result.current.setIrisState(makeIrisState({ currentSessionId: 900 }));
 			result.current.addMessage(makeMessage({ localId: 'msg-1' }));
 			result.current.applyRunUi({
-				localSessionId: 's1', revision: 1, draft: { runId: 'A', text: 'partial' },
+				sessionId: 900, revision: 1, draft: { runId: 'A', text: 'partial' },
 				activities: [makeActivity()], waiting: true, runState: 'RUNNING',
-			}, 's1');
+			});
 		});
 
 		act(() => {
@@ -589,20 +504,21 @@ describe('useChatStore', () => {
 		});
 	});
 
-	it('clearMessages also clears the run UI (draft, activities, run state, revision)', () => {
+	it('resetTransientChatUi clears the run UI (draft, activities, run state, revision)', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
+			result.current.setIrisState(makeIrisState({ currentSessionId: 900 }));
 			const activity: IrisActivityDTO = { id: 'a1', kind: 'TOOL', name: 'search', state: 'RUNNING' };
 			result.current.applyRunUi({
-				localSessionId: 's1', revision: 3, draft: { runId: 'A', text: 'partial' },
+				sessionId: 900, revision: 3, draft: { runId: 'A', text: 'partial' },
 				activities: [activity],
 				waiting: true, runState: 'RUNNING',
-			}, 's1');
+			});
 		});
 
 		act(() => {
-			result.current.clearMessages();
+			result.current.resetTransientChatUi();
 		});
 
 		expect(result.current.liveDraft).toBeNull();
@@ -613,12 +529,17 @@ describe('useChatStore', () => {
 	});
 
 	describe('streaming and commits', () => {
+		const OPEN = 900;
 		const projection = (over: Partial<IrisRunUiProjection> = {}): IrisRunUiProjection => ({
-			localSessionId: 's1', revision: 1, draft: null, activities: [],
+			sessionId: OPEN, revision: 1, draft: null, activities: [],
 			waiting: false, runState: null, ...over,
 		});
 		const msg = (id: number | undefined, content: string): ChatMessage => ({
 			id, localId: `l${id ?? 'x'}`, role: 'assistant', content, timestamp: 0, status: 'sent',
+		});
+
+		beforeEach(() => {
+			useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: OPEN }));
 		});
 
 		it('upserts by server id instead of duplicating', () => {
@@ -635,39 +556,39 @@ describe('useChatStore', () => {
 		});
 
 		it('applies a newer projection and rejects an older revision', () => {
-			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'hi' } }), 's1');
+			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'hi' } }));
 			expect(useChatStore.getState().liveDraft?.text).toBe('hi');
-			useChatStore.getState().applyRunUi(projection({ revision: 4, draft: { runId: 'A', text: 'stale' } }), 's1');
+			useChatStore.getState().applyRunUi(projection({ revision: 4, draft: { runId: 'A', text: 'stale' } }));
 			expect(useChatStore.getState().liveDraft?.text).toBe('hi');
 		});
 
-		it('rejects a projection for another session', () => {
-			useChatStore.getState().applyRunUi(projection({ revision: 9, draft: { runId: 'A', text: 'x' } }), 's2');
+		it('rejects a projection for another conversation', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 9, sessionId: 901, draft: { runId: 'A', text: 'x' } }));
 			expect(useChatStore.getState().liveDraft).toBeNull();
 		});
 
 		it('applies a commit atomically: message present, draft cleared, one update', () => {
-			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'partial' } }), 's1');
-			useChatStore.getState().applyCommit(msg(3, 'final'), projection({ revision: 2 }), 's1', 's1');
+			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'partial' } }));
+			useChatStore.getState().applyCommit(msg(3, 'final'), projection({ revision: 2 }), OPEN);
 			expect(useChatStore.getState().messages).toHaveLength(1);
 			expect(useChatStore.getState().liveDraft).toBeNull();
 		});
 
 		it('inserts a projection-less bubble without touching run state', () => {
-			useChatStore.getState().applyRunUi(projection({ revision: 1, waiting: true }), 's1');
-			useChatStore.getState().applyCommit(msg(4, 'error'), undefined, 's1', 's1');
+			useChatStore.getState().applyRunUi(projection({ revision: 1, waiting: true }));
+			useChatStore.getState().applyCommit(msg(4, 'error'), undefined, OPEN);
 			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			expect(useChatStore.getState().messages).toHaveLength(1);
 		});
 
-		it('drops a projection-less bubble from a stale session', () => {
-			useChatStore.getState().applyCommit(msg(5, 'stale'), undefined, 's-old', 's1');
+		it('drops a projection-less bubble from a conversation we already left', () => {
+			useChatStore.getState().applyCommit(msg(5, 'stale'), undefined, 901);
 			expect(useChatStore.getState().messages).toHaveLength(0);
 		});
 
 		it('applies the message but rejects a stale-revision projection, leaving run-UI fields untouched', () => {
-			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'live' }, waiting: true }), 's1');
-			useChatStore.getState().applyCommit(msg(6, 'final'), projection({ revision: 5 }), 's1', 's1');
+			useChatStore.getState().applyRunUi(projection({ revision: 5, draft: { runId: 'A', text: 'live' }, waiting: true }));
+			useChatStore.getState().applyCommit(msg(6, 'final'), projection({ revision: 5 }), OPEN);
 
 			expect(useChatStore.getState().messages.some((m) => m.id === 6 && m.content === 'final')).toBe(true);
 			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'A', text: 'live' });
@@ -676,9 +597,9 @@ describe('useChatStore', () => {
 			expect(useChatStore.getState().lastRunUiRevision).toBe(5);
 		});
 
-		it('applies the message but rejects a projection scoped to another session, leaving run-UI fields untouched', () => {
-			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'live' }, waiting: true }), 's1');
-			useChatStore.getState().applyCommit(msg(7, 'final'), projection({ revision: 2, localSessionId: 's2' }), 's1', 's1');
+		it('applies the message but rejects a projection scoped to another conversation, leaving run-UI fields untouched', () => {
+			useChatStore.getState().applyRunUi(projection({ revision: 1, draft: { runId: 'A', text: 'live' }, waiting: true }));
+			useChatStore.getState().applyCommit(msg(7, 'final'), projection({ revision: 2, sessionId: 901 }), OPEN);
 
 			expect(useChatStore.getState().messages.some((m) => m.id === 7 && m.content === 'final')).toBe(true);
 			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'A', text: 'live' });
@@ -689,12 +610,12 @@ describe('useChatStore', () => {
 
 	describe('mergeLoadedMessages', () => {
 		it('merges history into the live list, preserving an optimistic user bubble already stamped with an id', () => {
-			useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1' }));
+			useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 900 }));
 			useChatStore.getState().addMessage({
 				id: 2, localId: 'optimistic-b', role: 'user', content: 'my question', timestamp: 1, status: 'sent',
 			});
 
-			useChatStore.getState().mergeLoadedMessages('s1', [
+			useChatStore.getState().mergeLoadedMessages(900, [
 				{ id: 2, localId: 'history-y', role: 'user', content: 'my question', timestamp: 1 },
 				{ id: 3, localId: 'history-z', role: 'assistant', content: 'answer', timestamp: 2 },
 			]);
@@ -705,13 +626,13 @@ describe('useChatStore', () => {
 			expect(messages[1]).toMatchObject({ id: 3, localId: 'history-z', content: 'answer' });
 		});
 
-		it('is ignored when localSessionId does not match the active session', () => {
-			useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1' }));
+		it('is ignored when the sessionId is not the open conversation', () => {
+			useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 900 }));
 			useChatStore.getState().addMessage({
 				id: 2, localId: 'optimistic-b', role: 'user', content: 'my question', timestamp: 1, status: 'sent',
 			});
 
-			useChatStore.getState().mergeLoadedMessages('s-other', [
+			useChatStore.getState().mergeLoadedMessages(901, [
 				{ id: 2, localId: 'history-y', role: 'user', content: 'my question', timestamp: 1 },
 				{ id: 3, localId: 'history-z', role: 'assistant', content: 'answer', timestamp: 2 },
 			]);
@@ -753,17 +674,9 @@ describe('useChatStore', () => {
 		});
 	});
 
-	// Task 11: the store additionally mirrors ONE server conversation,
-	// beside the still-live context/sessions model above. Nothing is wired
-	// up yet (Task 14 does that); these tests pin the new store surface in
-	// isolation, driven directly through setIrisState and the new/extended
-	// actions.
-	describe('conversation-first mirror (Task 11)', () => {
-		// Fix round 1: courseId, courseTitle, conversationTitle,
-		// displayMessageCount and workspaceExerciseId feed Task 12's header
-		// and pickers directly, which is outside this task's own consumers,
-		// but the fields still need to exist and mirror correctly now so
-		// Task 12 does not have to edit this file to finish its own task.
+	// The store mirrors ONE server conversation. These tests pin that surface
+	// in isolation, driven directly through setIrisState and the actions.
+	describe('conversation mirror', () => {
 		describe('header/picker fields (courseId, courseTitle, conversationTitle, displayMessageCount, workspaceExerciseId)', () => {
 			it('setIrisState mirrors courseId, defaulting to null when the wire omits it', () => {
 				useChatStore.getState().setIrisState(makeIrisState({ courseId: 42 }));
@@ -887,9 +800,9 @@ describe('useChatStore', () => {
 			});
 		});
 
-		describe('sessionId-keyed guards beside the localSessionId-keyed ones', () => {
+		describe('every guard keys on the open conversation', () => {
 			const projection = (over: Partial<IrisRunUiProjection> = {}): IrisRunUiProjection => ({
-				localSessionId: 's1', revision: 1, draft: null, activities: [],
+				sessionId: 7, revision: 1, draft: null, activities: [],
 				waiting: false, runState: null, ...over,
 			});
 
@@ -898,7 +811,6 @@ describe('useChatStore', () => {
 
 				useChatStore.getState().applyRunUi(
 					projection({ revision: 9, sessionId: 3, draft: { runId: 'A', text: 'x' } }),
-					's1',
 				);
 
 				expect(useChatStore.getState().liveDraft).toBeNull();
@@ -909,7 +821,6 @@ describe('useChatStore', () => {
 
 				useChatStore.getState().applyRunUi(
 					projection({ revision: 9, sessionId: 7, draft: { runId: 'A', text: 'x' } }),
-					's1',
 				);
 
 				expect(useChatStore.getState().liveDraft?.text).toBe('x');
@@ -921,8 +832,6 @@ describe('useChatStore', () => {
 				useChatStore.getState().applyCommit(
 					{ id: 1, localId: 'l1', role: 'assistant', content: 'final', timestamp: 0, status: 'sent' },
 					undefined,
-					's1',
-					's1',
 					3,
 				);
 
@@ -935,8 +844,6 @@ describe('useChatStore', () => {
 				useChatStore.getState().applyCommit(
 					{ id: 1, localId: 'l1', role: 'assistant', content: 'final', timestamp: 0, status: 'sent' },
 					undefined,
-					's1',
-					's1',
 					7,
 				);
 
@@ -944,21 +851,21 @@ describe('useChatStore', () => {
 			});
 
 			it('mergeLoadedMessages drops a merge whose sessionId does not match currentSessionId', () => {
-				useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1', currentSessionId: 7 }));
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
 
-				useChatStore.getState().mergeLoadedMessages('s1', [
+				useChatStore.getState().mergeLoadedMessages(3, [
 					{ id: 1, localId: 'h1', role: 'assistant', content: 'answer', timestamp: 1 },
-				], 3);
+				]);
 
 				expect(useChatStore.getState().messages).toHaveLength(0);
 			});
 
 			it('mergeLoadedMessages accepts a merge whose sessionId matches currentSessionId', () => {
-				useChatStore.getState().setIrisState(makeIrisState({ activeSessionId: 's1', currentSessionId: 7 }));
+				useChatStore.getState().setIrisState(makeIrisState({ currentSessionId: 7 }));
 
-				useChatStore.getState().mergeLoadedMessages('s1', [
+				useChatStore.getState().mergeLoadedMessages(7, [
 					{ id: 1, localId: 'h1', role: 'assistant', content: 'answer', timestamp: 1 },
-				], 7);
+				]);
 
 				expect(useChatStore.getState().messages).toHaveLength(1);
 			});
