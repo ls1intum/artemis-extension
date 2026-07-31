@@ -550,34 +550,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         && store.currentSessionId === null
         && store.workspaceExerciseId === null;
 
-    // Every conversation-first action posts its new command AND the old
-    // equivalent, per the additive rule for this task: Task 14 sets
-    // `conversationFirst` on the same commit that stops the host answering the
-    // old commands, so exactly one of the two is ever acted on. The pairing is
-    // only safe as long as that stays one commit; splitting it would make a
-    // single click create two conversations or run two navigations.
+    // The conversation-first branches post ONLY conversation-first commands,
+    // and Task 14 owns making the host answer them. Posting the old equivalent
+    // beside each one cannot help: before Task 14 these branches are behind a
+    // flag nothing sets, so it is unreachable, and after Task 14 it is either
+    // dropped in a debug log or, if the flag and the removal of the old
+    // handlers land in two commits, acted on as well, turning one click into
+    // two context selections or two conversations. `_handleCommand` still has
+    // live SelectChatContext, CreateNewSession and OpenArtemisSession cases,
+    // and Task 15 is what deletes those contracts, so that window is real.
     const selectTopic = (mode: string, entityId: number, name?: string) => {
         postCommand(vscodeApi, 'selectTopic', { mode, entityId, name });
-        postCommand(vscodeApi, 'selectChatContext', {
-            context: mode === 'COURSE_CHAT' ? 'course' : 'exercise',
-            itemId: entityId,
-            itemName: name ?? '',
-        });
         closePopovers();
-    };
-
-    const newConversation = () => {
-        postCommand(vscodeApi, 'newConversation');
-        postCommand(vscodeApi, 'createNewSession');
-    };
-
-    const switchCourse = (courseId: number) => {
-        postCommand(vscodeApi, 'switchCourse', { courseId });
-        postCommand(vscodeApi, 'selectChatContext', {
-            context: 'course',
-            itemId: courseId,
-            itemName: store.courses.find((course) => course.id === courseId)?.title ?? '',
-        });
     };
 
     // Disabled banner = strictly off (instructor disabled, .noai). The
@@ -726,7 +710,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     onOpenContextPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
                     onNewConversation={() => {
                         if (conversationFirstActive) {
-                            newConversation();
+                            postCommand(vscodeApi, 'newConversation');
                         } else {
                             postCommand(vscodeApi, 'createNewSession');
                         }
@@ -745,7 +729,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         courses={store.courses}
                         currentCourseId={store.courseId}
                         onSelect={(courseId) => {
-                            switchCourse(courseId);
+                            postCommand(vscodeApi, 'switchCourse', { courseId });
                             closePopovers();
                         }}
                         onClose={closePopovers}
@@ -779,14 +763,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                                 courseId: conversation.courseId,
                                 sessionId: conversation.sessionId,
                             });
-                            postCommand(vscodeApi, 'openArtemisSession', {
-                                courseId: conversation.courseId,
-                                artemisSessionId: conversation.sessionId,
-                            });
                             closePopovers();
                         }}
                         onNewConversation={() => {
-                            newConversation();
+                            postCommand(vscodeApi, 'newConversation');
                             closePopovers();
                         }}
                         onClose={closePopovers}
@@ -890,7 +870,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             variant="inline"
                             courses={store.courses}
                             currentCourseId={store.courseId}
-                            onSelect={switchCourse}
+                            onSelect={(courseId) => postCommand(vscodeApi, 'switchCourse', { courseId })}
                             onClose={closePopovers}
                         />
                     </div>

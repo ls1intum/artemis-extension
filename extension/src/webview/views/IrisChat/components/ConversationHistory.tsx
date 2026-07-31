@@ -261,6 +261,7 @@ function LegacyConversationHistory({
             ref={dialogRef}
             className={styles.dialog}
             role="dialog"
+            aria-label="Past conversations"
             aria-modal="true"
             aria-busy={isLoading}
             onKeyDown={handleKeyDown}

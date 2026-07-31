@@ -102,7 +102,7 @@ interface TopicPickerInnerProps {
 }
 
 /**
- * The topic picker: "Kurs-Chat" as a fixed first entry, then this course's
+ * The topic picker: "Course chat" as a fixed first entry, then this course's
  * exercises with the workspace one pinned and badged. One checkmark, on
  * `pending ?? committed`.
  *
@@ -385,6 +385,7 @@ function LegacyContextPicker({ context, exercises, courses, onSelectContext, onC
             ref={dialogRef}
             className={styles.dialog}
             role="dialog"
+            aria-label="Select course or exercise"
             aria-modal="true"
             onKeyDown={handleKeyDown}
         >

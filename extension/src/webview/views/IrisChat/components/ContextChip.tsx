@@ -29,16 +29,16 @@ interface ContextChipProps {
  * and does not distinguish staged from committed, exactly as Artemis's own
  * chip does not.
  *
- * No chip at all when the topic is the course: "course chat" is the absence of
- * a topic, and a chip reading "Kurs-Chat" would claim a scope the conversation
- * does not have.
+ * No chip at all when the topic is the course: a course chat is the absence of
+ * a topic, and a chip reading "Course chat" would claim a scope the
+ * conversation does not have.
  *
  * The remove icon appears ONLY while the conversation is empty. There it does
  * what its shape promises: it drops the topic in place, with no request and no
  * visible change beyond the chip. On a conversation with content, removing the
  * topic necessarily means leaving for another conversation, and a small remove
  * icon must not silently replace the whole transcript. There the icon is
- * hidden and the picker's "Kurs-Chat" entry carries that action instead.
+ * hidden and the picker's "Course chat" entry carries that action instead.
  */
 export function ContextChip({
     context,

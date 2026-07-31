@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
+import { createMockVsCodeApi, dispatchExtensionMessage, getPostMessageCalls } from '@test/react/__helpers__/vscodeApi';
 import { ChatMessageList } from '@webview/views/IrisChat/components/ChatMessageList';
 import { ChatNotice } from '@webview/views/IrisChat/components/ChatNotice';
 import { ContextChip } from '@webview/views/IrisChat/components/ContextChip';
@@ -337,6 +337,33 @@ describe('IrisChatView model switch', () => {
         expect(await screen.findByText(/BFS loop · 8 messages/)).toBeInTheDocument();
         // Line 1 is a button, and it is the only clickable part of the header.
         expect(screen.getByRole('button', { name: /Introduction to Computer Science/ })).toBeInTheDocument();
+    });
+
+    it('posts only the conversation-first command when a topic is picked', async () => {
+        // Never the old equivalent beside it. The host still has a live
+        // SelectChatContext case at this commit, so a paired post would be
+        // acted on as well the moment the flag arrives ahead of its removal,
+        // turning one click into two context selections.
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: {
+                ...hostShapeToday,
+                courseId: 42,
+                courseTitle: 'Introduction to Computer Science',
+                currentSessionId: 900,
+                contentState: 'content' as const,
+                conversationFirst: true,
+            },
+        });
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Choose topic' }));
+        await userEvent.click(screen.getByTestId('picker-entry-5'));
+
+        const commands = getPostMessageCalls(api).map(([msg]) => (msg as { command?: string }).command);
+        expect(commands).toContain('selectTopic');
+        expect(commands).not.toContain('selectChatContext');
     });
 });
 
