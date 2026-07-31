@@ -339,31 +339,103 @@ describe('IrisChatView model switch', () => {
         expect(screen.getByRole('button', { name: /Introduction to Computer Science/ })).toBeInTheDocument();
     });
 
-    it('posts only the conversation-first command when a topic is picked', async () => {
-        // Never the old equivalent beside it. The host still has a live
-        // SelectChatContext case at this commit, so a paired post would be
+    describe('posts only conversation-first commands', () => {
+        // Every one of the four paths, not just the topic pick. The host still
+        // has live SelectChatContext, CreateNewSession and OpenArtemisSession
+        // cases at this commit, so a legacy post beside any new one would be
         // acted on as well the moment the flag arrives ahead of its removal,
-        // turning one click into two context selections.
-        const api = createMockVsCodeApi();
-        render(<IrisChatView vscodeApi={api} />);
-        dispatchExtensionMessage({
-            type: 'updateIrisState',
-            state: {
-                ...hostShapeToday,
+        // turning one click into two context selections or two conversations.
+        // This invariant has already been reversed twice; the next person to
+        // touch it will have none of that context, so all four are pinned.
+        const activeState = {
+            ...hostShapeToday,
+            courseId: 42,
+            courseTitle: 'Introduction to Computer Science',
+            currentSessionId: 900,
+            conversationTitle: 'BFS loop',
+            displayMessageCount: 8,
+            contentState: 'content' as const,
+            conversationFirst: true,
+            // A second course and a second conversation, so the controls below
+            // land on a row that is NOT the current one: clicking the current
+            // row is defined as "just close", which would post nothing and let
+            // the assertions pass without exercising anything.
+            courses: [
+                { id: 42, title: 'Introduction to Computer Science' },
+                { id: 43, title: 'Algorithms' },
+            ],
+            conversations: [{
+                sessionId: 901,
                 courseId: 42,
-                courseTitle: 'Introduction to Computer Science',
-                currentSessionId: 900,
-                contentState: 'content' as const,
-                conversationFirst: true,
+                mode: 'PROGRAMMING_EXERCISE_CHAT',
+                entityId: 7,
+                entityName: 'Sorting',
+                title: 'Earlier question',
+                lastActivity: 100,
+            }],
+        };
+
+        const paths = [
+            {
+                what: 'a topic is picked',
+                act: async () => {
+                    await userEvent.click(await screen.findByRole('button', { name: 'Choose topic' }));
+                    await userEvent.click(screen.getByTestId('picker-entry-5'));
+                },
+                posts: 'selectTopic',
+                neverPosts: 'selectChatContext',
             },
-        });
+            {
+                what: 'a new conversation is started',
+                act: async () => {
+                    await userEvent.click(await screen.findByRole('button', { name: 'New conversation' }));
+                },
+                posts: 'newConversation',
+                neverPosts: 'createNewSession',
+            },
+            {
+                what: 'the course is switched',
+                act: async () => {
+                    await userEvent.click(
+                        await screen.findByRole('button', { name: /Introduction to Computer Science/ }),
+                    );
+                    await userEvent.click(screen.getByTestId('course-entry-43'));
+                },
+                posts: 'switchCourse',
+                neverPosts: 'selectChatContext',
+            },
+            {
+                what: 'another conversation is opened',
+                act: async () => {
+                    await userEvent.click(await screen.findByRole('button', { name: 'View past conversations' }));
+                    await userEvent.click(screen.getByText('Earlier question'));
+                },
+                posts: 'openConversation',
+                neverPosts: 'openArtemisSession',
+            },
+        ];
 
-        await userEvent.click(await screen.findByRole('button', { name: 'Choose topic' }));
-        await userEvent.click(screen.getByTestId('picker-entry-5'));
+        for (const { what, act, posts, neverPosts } of paths) {
+            it(`when ${what}`, async () => {
+                const api = createMockVsCodeApi();
+                render(<IrisChatView vscodeApi={api} />);
+                dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
 
-        const commands = getPostMessageCalls(api).map(([msg]) => (msg as { command?: string }).command);
-        expect(commands).toContain('selectTopic');
-        expect(commands).not.toContain('selectChatContext');
+                // Wait for the new header before touching anything. The store
+                // update and the flag land in separate commits, so the first
+                // frame still shows the OLD header, whose controls are
+                // different ones: its `+` is disabled at that point and its
+                // course row opens the legacy picker, either of which would
+                // make these assertions pass or fail for the wrong reason.
+                await screen.findByText(/BFS loop · 8 messages/);
+
+                await act();
+
+                const commands = getPostMessageCalls(api).map(([msg]) => (msg as { command?: string }).command);
+                expect(commands).toContain(posts);
+                expect(commands).not.toContain(neverPosts);
+            });
+        }
     });
 });
 
