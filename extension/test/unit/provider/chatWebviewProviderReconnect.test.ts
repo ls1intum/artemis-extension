@@ -175,8 +175,12 @@ function injectSendCoordinator(
         },
     };
     // The availability gate runs in front of the coordinator and would
-    // otherwise reject: the stubbed API answers no Iris settings.
-    sinon.stub(inner._chatSessionService, 'checkAndLoadIrisSettings').resolves({ kind: 'enabled' } as never);
+    // otherwise reject: the stubbed API answers no Iris settings. Guarded so a
+    // second injection in the same test does not double-stub.
+    const check = inner._chatSessionService.checkAndLoadIrisSettings as unknown as { isSinonProxy?: boolean };
+    if (!check.isSinonProxy) {
+        sinon.stub(inner._chatSessionService, 'checkAndLoadIrisSettings').resolves({ kind: 'enabled' } as never);
+    }
 }
 
 function assistant(id: number, over: Partial<{ final: boolean }> = {}) {
@@ -278,6 +282,27 @@ suite('ChatWebviewProvider reconnect reconciliation', () => {
         assert.strictEqual(marker.baselineMessageId, 100);
         assert.strictEqual(marker.generation, runs.generation);
         assert.strictEqual(marker.artemisSessionId, 42);
+    });
+
+    test('an older POST completing late must not replace the newer marker', async () => {
+        // The scenario the old two-generation test covered: the coordinator
+        // serialises OUR sends, but an inbound run can still open a newer
+        // generation, and a late completion must not point reconciliation at
+        // a run it did not start.
+        activateSession(h.contextStore, 5, 42);
+        h.setCurrentSessionId(42);
+        injectSendCoordinator(h.provider, { messageId: 100 });
+        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', localSessionId: 'session-42', sessionId: 42 });
+        const newer = internals(h.provider)._reconcileMarker as { generation: number; baselineMessageId: number };
+
+        // A second send whose generation is already stale by the time it
+        // returns (an inbound run opened a newer one meanwhile).
+        injectSendCoordinator(h.provider, { messageId: 50, supersede: true });
+        await internals(h.provider)._handleChatMessage({ text: 'a', localId: 'l1', localSessionId: 'session-42', sessionId: 42 });
+
+        const after = internals(h.provider)._reconcileMarker as { generation: number; baselineMessageId: number };
+        assert.strictEqual(after.baselineMessageId, newer.baselineMessageId, 'the stale POST must not replace the marker');
+        assert.strictEqual(after.generation, newer.generation);
     });
 
     test('a send superseded by a newer generation opens no marker', async () => {

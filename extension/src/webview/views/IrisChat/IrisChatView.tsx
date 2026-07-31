@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { localSessionKeyFor } from '@shared/types/serverContext';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
@@ -53,7 +54,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // presence of a key can distinguish "answers this model" from "merely
     // mirrors it". Task 14 sets the flag on the commit that cuts the
     // dispatcher over; Task 15 deletes it with the old surfaces.
-    const [conversationFirstActive, setConversationFirstActive] = useState(false);
+    // Read from the STORE, so the message listener cannot see a stale value
+    // (see the field's comment in useChatStore).
+    const conversationFirstActive = store.conversationFirst;
     // True while the host is reading the dashboard course list. A fresh
     // installation tracks nothing, so an empty list is only meaningful once
     // that fetch has finished; without this the picker says "No courses
@@ -125,15 +128,43 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     }, [store.streaming.isStreaming]);
 
+    // Which conversation the visible transcript belongs to. Under the flag the
+    // host addresses everything by the numeric conversation id and derives the
+    // local key from it, so the old `activeSessionId` (which nothing sets any
+    // more) must not be consulted.
+    const transcriptKey = conversationFirstActive
+        ? (store.currentSessionId === null ? null : localSessionKeyFor(store.currentSessionId))
+        : store.activeSessionId;
+
     // Message listener - handles messages from extension
     useExtensionMessage((msg) => {
+        // Reads the store directly, not the render-time closure: messages
+        // arrive between renders and the key must be the CURRENT one.
+        const currentKey = (): string | null => {
+            const state = useChatStore.getState();
+            return state.conversationFirst
+                ? (state.currentSessionId === null ? null : localSessionKeyFor(state.currentSessionId))
+                : state.activeSessionId;
+        };
+        const belongsHere = (m: { localSessionId?: string; sessionId?: number }): boolean => {
+            const state = useChatStore.getState();
+            if (!state.conversationFirst) { return m.localSessionId === currentKey(); }
+            // Numeric id first: it is the authoritative key under the flag, and
+            // the local one is a synthetic derived from it.
+            return m.sessionId !== undefined
+                ? m.sessionId === state.currentSessionId
+                : m.localSessionId === currentKey();
+        };
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
-                setConversationFirstActive(msg.state.conversationFirst === true);
-                // Any snapshot answers the refresh: the course list travels on
-                // it, so there is nothing left to wait for.
-                setCoursesLoading(false);
+                // Only a snapshot that actually carries courses ends the wait.
+                // Every conversation change emits one too (an overview refresh,
+                // a send settling), and clearing on those flashes "No courses
+                // found" before the dashboard fetch has landed.
+                if (msg.state.courses.length > 0) {
+                    setCoursesLoading(false);
+                }
                 if (msg.showDiagnostics !== undefined) {
                     setShowDiagnostics(msg.showDiagnostics);
                 }
@@ -160,19 +191,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 // survives until the run truly ends. Both producers always set
                 // localSessionId (and drop the message when they have no
                 // active session), so it is required on the wire contract.
-                const activeLocalSessionId = useChatStore.getState().activeSessionId ?? '';
+                if (!belongsHere(msg)) { break; }
                 applyCommit(
                     mapped,
                     msg.runUi,
                     msg.localSessionId,
-                    activeLocalSessionId,
+                    msg.localSessionId,
                 );
                 break;
             }
 
             case ExtensionMsg.UpdateIrisRunUi: {
-                const activeLocalSessionId = useChatStore.getState().activeSessionId ?? '';
-                applyRunUi(msg.projection, activeLocalSessionId);
+                if (!belongsHere(msg.projection)) { break; }
+                applyRunUi(msg.projection, msg.projection.localSessionId);
                 break;
             }
 
@@ -183,8 +214,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 // one where there is no active session at all (clearMessages,
                 // never-selected, etc.) — in both we must not mutate the
                 // store with a payload the user has navigated away from.
-                const currentSessionId = useChatStore.getState().activeSessionId;
-                if (currentSessionId !== msg.localSessionId) {
+                if (!belongsHere(msg)) {
                     break;
                 }
                 resetTransientChatUi();
@@ -206,8 +236,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.LoadMessagesError: {
-                const currentSessionId = useChatStore.getState().activeSessionId;
-                if (currentSessionId !== msg.localSessionId) {
+                if (!belongsHere(msg)) {
                     break;
                 }
                 setMessageLoadError(msg.localSessionId);
@@ -284,8 +313,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 // switched session — the corresponding optimistic message
                 // would not exist in the active session anyway, and clearing
                 // transient UI for an unrelated session is wrong.
-                const currentSessionId = useChatStore.getState().activeSessionId;
-                if (currentSessionId !== msg.localSessionId) {
+                if (!belongsHere(msg)) {
                     break;
                 }
                 const matched = markMessageFailed(msg.localId, msg.errorMessage, msg.reason);
@@ -301,7 +329,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.MergeSessionMessages: {
-                if (msg.localSessionId !== useChatStore.getState().activeSessionId) { break; }
+                if (!belongsHere(msg)) { break; }
                 // Deliberately NO resetTransientChatUi(): a merge must not wipe a live draft.
                 // It only folds the persisted history into the list by id.
                 mergeLoadedMessages(
@@ -330,7 +358,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.ConfirmSentMessage: {
-                if (msg.localSessionId !== useChatStore.getState().activeSessionId) { break; }
+                if (!belongsHere(msg)) { break; }
                 confirmSentMessage(msg.localId, msg.id);
                 break;
             }
@@ -339,12 +367,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
-        const localSessionId = store.activeSessionId;
+        const localSessionId = transcriptKey;
+        // The conversation the bubble is drawn in travels WITH the send, so the
+        // host can refuse it if a navigation completed in between rather than
+        // posting the student's text into whatever is open by then.
+        const sessionId = conversationFirstActive ? store.currentSessionId ?? undefined : undefined;
         if (localSessionId === null) {
-            // No active session — the extension host could not correlate
-            // a SendRejected back to a message anyway. The ChatInput is
-            // already disabled in this state, so this is just a defensive
-            // guard against a programmer error.
+            // Nothing to address a rejection to. The composer is already
+            // disabled in this state, so this is a defensive guard against a
+            // programmer error.
             return;
         }
 
@@ -370,7 +401,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // Send to extension. localSessionId lets the host echo it back on
         // rejection so the webview can ignore stale responses after a
         // session switch.
-        postCommand(vscodeApi, 'sendMessage', { text, localId, localSessionId });
+        postCommand(vscodeApi, 'sendMessage', { text, localId, localSessionId, sessionId });
     };
 
     const handleRetry = (localId: string) => {
@@ -512,6 +543,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // Check if chat is disabled
     const isChatDisabled = store.disabledMessage !== null || store.isNoAiDetected;
 
+    // "There is something to talk to". Under the flag that is a conversation,
+    // not an old-model context: nothing selects a context any more, so keying
+    // the composer on `context !== null` would disable it forever.
+    const hasConversation = conversationFirstActive
+        ? store.currentSessionId !== null
+        : store.context !== null;
+
     // Decide whether the Retry button on a failed user message should be
     // active right now. Retry is meaningful only when the underlying cause
     // has plausibly cleared since the original send. Computed inline per
@@ -584,7 +622,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         if (!isColdStart || coldStartFetched.current) { return; }
         coldStartFetched.current = true;
         requestCoursesIfEmpty();
-    });
+        // Only the cold start can trigger it, and the ref makes it once-only.
+        // `requestCoursesIfEmpty` is deliberately absent from the deps: it is a
+        // new function on every render and reads the store, not the closure.
+    }, [isColdStart]);
 
     // The conversation-first branches post ONLY conversation-first commands,
     // and Task 14 owns making the host answer them. Posting the old equivalent
@@ -619,8 +660,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // 'Loading…' when the chat is otherwise usable but still waiting for
     // hydration.
     let disabledPlaceholder: string | undefined;
-    if (store.context === null) {
-        disabledPlaceholder = 'Select a course or exercise to start chatting';
+    if (!hasConversation) {
+        disabledPlaceholder = conversationFirstActive
+            ? 'Choose a course to start chatting'
+            : 'Select a course or exercise to start chatting';
     } else if (store.isNoAiDetected) {
         disabledPlaceholder = 'AI assistance is disabled (.noai detected)';
     } else if (store.disabledMessage) {
@@ -637,16 +680,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const messagesHydrated =
         store.hasReceivedInitialIrisState
         && (
-            store.context === null
-            || (store.activeSessionId !== null
+            (conversationFirstActive ? !hasConversation : store.context === null)
+            || (transcriptKey !== null
                 && store.messageLoad !== null
-                && store.messageLoad.localSessionId === store.activeSessionId
+                && store.messageLoad.localSessionId === transcriptKey
                 && store.messageLoad.status === 'success')
         );
     const messagesErrored =
-        store.activeSessionId !== null
+        transcriptKey !== null
         && store.messageLoad !== null
-        && store.messageLoad.localSessionId === store.activeSessionId
+        && store.messageLoad.localSessionId === transcriptKey
         && store.messageLoad.status === 'error';
     // Availability failures (disabled / temporarily unavailable) are NOT
     // "history failed to load" — gate the loader on them so the spinner
@@ -951,7 +994,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         runError={store.runError}
                         onFeedback={handleFeedback}
                         onSendPrompt={handleSendMessage}
-                        hasContext={store.context !== null}
+                        hasContext={hasConversation}
                         isChatDisabled={isChatDisabled}
                         onRetry={handleRetry}
                         isRetryDisabled={isRetryDisabled}
@@ -1033,7 +1076,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     } : {})}
                     disabled={
                         isChatDisabled
-                        || store.context === null
+                        || !hasConversation
                         || isChatUnavailable
                         || messagesLoading
                         || store.streaming.isStreaming

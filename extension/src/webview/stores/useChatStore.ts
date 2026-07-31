@@ -99,6 +99,16 @@ interface ChatState {
     /** The detected workspace exercise, when any (Task 12 ContextPicker pin/badge). */
     workspaceExerciseId: number | null;
     /**
+     * Whether the host answers the conversation-first commands and addresses
+     * the transcript by conversation id (Task 14). It lives in the STORE, not
+     * in component state: the message listener has to key every incoming
+     * transcript on it, and a listener that closes over React state reads the
+     * value from the render it was created in. A snapshot and the transcript it
+     * implies arrive in the same tick, so that stale read is not hypothetical:
+     * it drops the first transcript of every session. Task 15 deletes it.
+     */
+    conversationFirst: boolean;
+    /**
      * An actionless informational banner (e.g. a server-initiated repoint).
      * Cleared by the next `setIrisState` that actually NAVIGATES, matching
      * "a notice is cleared by any navigation or course change" from the
@@ -295,6 +305,7 @@ export const useChatStore = create<ChatState>()(
             navigationInFlight: false,
             conversations: [],
             workspaceExerciseId: null,
+            conversationFirst: false,
             notice: null,
             composerText: '',
             courseHistory: { status: 'idle', entries: [], requestId: 0 },
@@ -352,6 +363,7 @@ export const useChatStore = create<ChatState>()(
                     navigationInFlight: state.navigationInFlight ?? false,
                     conversations: state.conversations ?? [],
                     workspaceExerciseId: state.workspaceExerciseId ?? null,
+                    conversationFirst: state.conversationFirst === true,
                     // A notice is cleared by any navigation or course change
                     // (the design's phrasing). A snapshot that moves neither
                     // the conversation nor the course is not a navigation, so

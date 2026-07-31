@@ -3,6 +3,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import type { SessionDetail } from '@shared/types/serverContext';
+import { localSessionKeyFor } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
@@ -36,6 +37,7 @@ function buildHarness(): Harness {
     const websocket = {
         onDidChangeConnectionState: new vscode.EventEmitter<{ connected: boolean }>().event,
         isConnected: () => true,
+        getDisplayStatus: () => 'connected',
     };
     const noAi = {
         isNoAiEnabled: false,
@@ -433,16 +435,174 @@ suite('ChatWebviewProvider: the conversation-first send path', () => {
         assert.ok(confirm, 'the optimistic bubble must be confirmed');
         assert.strictEqual(confirm.id, 77);
         assert.strictEqual(confirm.sessionId, 1, 'addressed to the conversation it was drawn in');
-        assert.strictEqual(confirm.localSessionId, 'local-1');
+        // The local key is DERIVED from the origin session, not read from
+        // provider state, so a navigation during the POST cannot re-address it.
+        assert.strictEqual(confirm.localSessionId, localSessionKeyFor(1));
+    });
+
+    test('availability is checked against the CONVERSATION, not a stale selected context', async () => {
+        // The old active context does not follow a course switch, so validating
+        // against it asks Artemis about the previous course's Iris settings.
+        h.contextStore.setActiveContext({
+            type: 'course', id: 99, title: 'A course we left', courseId: 99,
+            source: 'user-selected', locked: false, selectedAt: 0,
+        });
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42, context: { mode: 'COURSE_CHAT', entityId: 42 } }));
+        await h.provider.askIrisAbout({ mode: 'COURSE_CHAT', entityId: 42 }, 42);
+        const check = (h.provider as unknown as {
+            _chatSessionService: { checkAndLoadIrisSettings: sinon.SinonStub };
+        })._chatSessionService.checkAndLoadIrisSettings;
+        check.resetHistory();
+        h.api.sendChatMessage.resolves({ id: 77, sender: 'USER' } as never);
+
+        await send();
+
+        assert.strictEqual(check.firstCall.args[0].id, 42, 'the conversation names the course');
+        assert.strictEqual(check.firstCall.args[0].type, 'course');
+    });
+
+    test('a bubble is addressed from the ORIGIN argument, never from whatever is open now', async () => {
+        // White-box on purpose. Navigation is refused mid-send today, so a
+        // divergence is not reachable through the public surface; the argument
+        // is what keeps this correct when that changes (and it is the whole
+        // reason SendDeps passes the origin session in the first place).
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
+        const deps = (h.provider as unknown as { _sendCoordinator: { _deps: {
+            confirmBubble: (sessionId: number, localId: string, id: number) => void;
+            failBubble: (sessionId: number, localId: string, reason: string) => void;
+        } } })._sendCoordinator._deps;
+
+        deps.confirmBubble(7, 'l1', 99);
+        deps.failBubble(7, 'l2', 'rate-limit');
+
+        const addressed = postSpy.getCalls()
+            .map(c => c.args[0] as { type?: string; localSessionId?: string; sessionId?: number })
+            .filter(m => m?.type === 'confirmSentMessage' || m?.type === 'sendRejected');
+        assert.strictEqual(addressed.length, 2);
+        for (const message of addressed) {
+            assert.strictEqual(message.sessionId, 7);
+            assert.strictEqual(message.localSessionId, localSessionKeyFor(7));
+        }
     });
 
     test('with no conversation to send to, the bubble is failed rather than left hanging', async () => {
+        // No conversation means no course either, so the availability gate is
+        // the first to refuse; what matters is that SOMETHING fails the bubble
+        // instead of leaving it stuck in `sending` with the indicator spinning.
         await send();
 
         const rejected = postSpy.getCalls()
-            .map(c => c.args[0] as { type?: string; reason?: string })
+            .map(c => c.args[0] as { type?: string; reason?: string; localId?: string })
             .find(m => m?.type === 'sendRejected');
         assert.ok(rejected, 'a send that cannot be carried must fail its bubble');
-        assert.strictEqual(rejected.reason, 'no-conversation');
+        assert.strictEqual(rejected.localId, 'l1');
+        assert.strictEqual(rejected.reason, 'no-context');
+    });
+});
+
+suite('ChatWebviewProvider: the conversation owns the transcript', () => {
+    let h: Harness;
+    let postSpy: sinon.SinonSpy;
+
+    setup(() => {
+        h = buildHarness();
+        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+    });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    const loads = () => postSpy.getCalls()
+        .map(c => c.args[0] as { type?: string; sessionId?: number; localSessionId?: string; messages?: Array<{ role: string; content: string }> })
+        .filter(m => m?.type === 'loadMessages');
+
+    test('an acquired conversation posts its transcript, keyed by the conversation id', async () => {
+        h.api.getCurrentChat.resolves(detail({
+            sessionId: 1,
+            messages: [
+                { id: 3, sender: 'USER', content: [{ type: 'text', textContent: 'why?' }], sentAt: '2025-01-01T00:00:00Z' },
+                { id: 4, sender: 'LLM', content: [{ type: 'text', textContent: 'because' }], sentAt: '2025-01-01T00:01:00Z' },
+            ] as never,
+        }));
+
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
+
+        const posted = loads();
+        assert.strictEqual(posted.length, 1, 'exactly one transcript per install');
+        assert.strictEqual(posted[0].sessionId, 1);
+        assert.strictEqual(posted[0].localSessionId, localSessionKeyFor(1));
+        assert.deepStrictEqual(posted[0].messages?.map(m => m.role), ['user', 'assistant']);
+    });
+
+    test('the snapshot naming the conversation is posted BEFORE its transcript', async () => {
+        // The webview keys an incoming transcript on the conversation the
+        // snapshot names. A transcript that overtakes its own snapshot is
+        // addressed to the conversation the student just left, and is dropped:
+        // an empty chat under a correct header.
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1, messages: [{ id: 3, sender: 'USER' }] as never }));
+
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
+
+        const posted = postSpy.getCalls().map(c => c.args[0] as { type?: string; state?: { currentSessionId?: number } });
+        const transcriptAt = posted.findIndex(m => m?.type === 'loadMessages');
+        assert.ok(transcriptAt > 0, 'the transcript must be posted');
+        // The snapshot in force when the transcript lands must already name the
+        // conversation it belongs to; an earlier snapshot from the same
+        // navigation still names the previous one.
+        const inForce = posted.slice(0, transcriptAt).filter(m => m?.type === 'updateIrisState').at(-1);
+        assert.strictEqual(inForce?.state?.currentSessionId, 1);
+    });
+
+    test('a persisted context-swap row is rendered as a divider, not as an assistant bubble', async () => {
+        h.api.getCurrentChat.resolves(detail({
+            sessionId: 1,
+            messages: [{
+                id: 3,
+                sender: 'CTXSWAP',
+                content: [{ type: 'json', attributes: { transition: 'added', entityMode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' } }],
+            }] as never,
+        }));
+
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
+
+        const row = loads()[0].messages?.[0];
+        assert.strictEqual(row?.role, 'contextSwap');
+        assert.strictEqual(row?.content, 'Topic set to BFS');
+    });
+
+    test('the old acquisition never runs beside it: one acquisition, one subscription', async () => {
+        // An existing installation still has a PERSISTED active context, so the
+        // old path is reachable on the very first launch after the cut-over.
+        // That is exactly the case that used to acquire a second session.
+        h.contextStore.setActiveContext({
+            type: 'exercise', id: 5, title: 'BFS', courseId: 42,
+            source: 'workspace-detected', locked: false, selectedAt: Date.now(),
+        });
+        const loadAll = h.sandbox.stub(
+            (h.provider as unknown as { _chatSessionService: { loadAllSessionsForContext: () => Promise<void> } })._chatSessionService,
+            'loadAllSessionsForContext',
+        ).resolves();
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
+
+        await (h.provider as unknown as { _sendInitData: () => Promise<void> })._sendInitData();
+
+        // The old path imports the server's sessions, skips the empty one the
+        // conversation model just acquired, creates ANOTHER, resubscribes the
+        // socket to it, and leaves the source check dropping every frame.
+        assert.strictEqual(loadAll.callCount, 0);
+    });
+
+    test('registering courses does not open a conversation behind the cold start', async () => {
+        (h.provider as unknown as { _courseDataCache: unknown })._courseDataCache = {
+            fetch: async () => ({ courses: [{ course: { id: 42, title: 'Algorithms' } }] }),
+        };
+
+        await (h.provider as unknown as { _populateAvailableContexts: () => Promise<void> })._populateAvailableContexts();
+
+        assert.strictEqual(h.contextStore.snapshot().courses.length, 1, 'the picker still gets its list');
+        // Auto-select is what used to select a context, which the old
+        // acquisition then turned into a real server session while the webview
+        // was telling the student there was nothing to talk about.
+        assert.strictEqual(h.contextStore.getActiveContext(), null);
+        assert.strictEqual(h.api.getCurrentChat.callCount, 0);
     });
 });

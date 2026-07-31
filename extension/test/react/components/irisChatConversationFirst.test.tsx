@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { localSessionKeyFor } from '@shared/types/serverContext';
+
 import { createMockVsCodeApi, dispatchExtensionMessage, getPostMessageCalls } from '@test/react/__helpers__/vscodeApi';
 import { ChatMessageList } from '@webview/views/IrisChat/components/ChatMessageList';
 import { ChatNotice } from '@webview/views/IrisChat/components/ChatNotice';
@@ -566,5 +568,84 @@ describe('IrisChatView navigation notice', () => {
         dispatchExtensionMessage({ type: 'updateIrisState', state: { ...activeState, currentSessionId: 901 } });
 
         await waitFor(() => expect(screen.queryByText('Started a new conversation.')).toBeNull());
+    });
+});
+
+describe('IrisChatView transcript keying', () => {
+    const activeState = {
+        context: null,
+        activeSessionId: null,
+        sessions: [],
+        exercises: [],
+        courses: [{ id: 42, title: 'Introduction to Computer Science' }],
+        courseId: 42,
+        courseTitle: 'Introduction to Computer Science',
+        currentSessionId: 900,
+        conversationTitle: 'BFS loop',
+        displayMessageCount: 2,
+        contentState: 'content' as const,
+        conversationFirst: true,
+    };
+
+    const transcript = (sessionId: number, text: string) => ({
+        type: 'loadMessages' as const,
+        localSessionId: localSessionKeyFor(sessionId),
+        sessionId,
+        artemisSessionId: sessionId,
+        messages: [{ id: 1, role: 'assistant' as const, content: text, timestamp: 1 }],
+    });
+
+    it('renders the transcript the host posts for the open conversation', async () => {
+        // The old model no longer sets `activeSessionId`, so a transcript keyed
+        // on it would be dropped and the student would look at an empty chat.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+
+        dispatchExtensionMessage(transcript(900, 'because the loop never terminates'));
+
+        expect(await screen.findByText('because the loop never terminates')).toBeInTheDocument();
+    });
+
+    it('drops a transcript for a conversation that is no longer open', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage(transcript(900, 'the open one'));
+        await screen.findByText('the open one');
+
+        dispatchExtensionMessage(transcript(901, 'a conversation we already left'));
+
+        expect(screen.queryByText('a conversation we already left')).toBeNull();
+    });
+
+    it('an assistant frame for the open conversation lands in it', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage(transcript(900, 'first'));
+        await screen.findByText('first');
+
+        dispatchExtensionMessage({
+            type: 'addMessage',
+            localSessionId: localSessionKeyFor(900),
+            sessionId: 900,
+            message: { id: 2, role: 'assistant', content: 'and the answer', timestamp: 2 },
+        });
+
+        expect(await screen.findByText('and the answer')).toBeInTheDocument();
+    });
+
+    it('the send carries the conversation the bubble was drawn in', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage(transcript(900, 'first'));
+        await screen.findByText('first');
+
+        await userEvent.type(screen.getByRole('textbox'), 'hello{Enter}');
+
+        const send = getPostMessageCalls(api)
+            .map(([m]) => m as { command?: string; payload?: { sessionId?: number; localSessionId?: string } })
+            .find(m => m.command === 'sendMessage');
+        expect(send?.payload?.sessionId).toBe(900);
+        expect(send?.payload?.localSessionId).toBe(localSessionKeyFor(900));
     });
 });

@@ -1,5 +1,7 @@
 import * as assert from 'assert';
 
+import type { SessionDetail } from '@shared/types/serverContext';
+
 import { ApiError } from '@extension/domain';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import type { SendDeps } from '@extension/services/iris/conversation/sendCoordinator';
@@ -79,11 +81,18 @@ const tick = () => new Promise((r) => setImmediate(r));
 
 function deps() {
     const subscribed: number[] = [];
+    /** Every transcript the service handed out, in order: `load` replaces the
+     *  visible one, `merge` folds into it. */
+    const delivered: Array<{ sessionId: number; mode: 'load' | 'merge'; count: number }> = [];
     return {
         subscribed,
+        delivered,
         deps: {
             subscribeToSession: async (sessionId: number) => { subscribed.push(sessionId); },
             getWorkspaceExercise: () => ({ exerciseId: 5, courseId: 42 }),
+            deliverTranscript: (detail: SessionDetail, mode: 'load' | 'merge') => {
+                delivered.push({ sessionId: detail.sessionId, mode, count: detail.messages.length });
+            },
         },
     };
 }
@@ -91,7 +100,7 @@ function deps() {
 /** A service with an open, EMPTY exercise conversation (session 1, topic E5). */
 async function started() {
     const { api, deferred, outstanding, resolveLast, resolveCall, resolveOldestCall, rejectCall } = makeApi();
-    const { deps: d, subscribed } = deps();
+    const { deps: d, subscribed, delivered } = deps();
     const service = new IrisConversationService(api as never, d);
     const run = service.start({ exerciseId: 5, courseId: 42 });
     resolveLast(detail(1, EX5));
@@ -102,6 +111,7 @@ async function started() {
     return Object.assign(service, {
         api: { deferred, outstanding, resolveLast, resolveCall, resolveOldestCall, rejectCall },
         subscribed,
+        delivered,
     });
 }
 
@@ -152,7 +162,7 @@ async function serviceWith(options: {
 }) {
     const { api, deferred, outstanding, resolveCall, resolveOldestCall, resolveSend, rejectSend, rejectCall } = makeApi();
     const courseId = options.courseId ?? 42;
-    const { deps: d, subscribed } = deps();
+    const { deps: d, subscribed, delivered } = deps();
     const service = new IrisConversationService(api as never, d);
     const run = service.start({ exerciseId: 5, courseId });
     resolveCall(`current:PROGRAMMING_EXERCISE_CHAT:5:${courseId}`, {
@@ -168,10 +178,50 @@ async function serviceWith(options: {
     if (options.pending) { service.state.stagePending(options.pending as never); }
     const coordinator = new SendCoordinator(api as never, service, sendDeps());
     return {
-        service, coordinator, subscribed,
+        service, coordinator, subscribed, delivered,
         api: { deferred, outstanding, resolveCall, resolveOldestCall, resolveSend, rejectSend, rejectCall },
     };
 }
+
+suite('IrisConversationService transcript delivery', () => {
+    test('start delivers the acquired conversation transcript, replacing what was there', async () => {
+        // The service is the only thing that knows a conversation was adopted,
+        // so it is the only place that can guarantee the transcript follows.
+        const { api, deferred } = makeApi();
+        const { deps: d, delivered } = deps();
+        const service = new IrisConversationService(api as never, d);
+
+        const started = service.start({ exerciseId: 5, courseId: 42 });
+        deferred[0].resolve({ ...detail(1, EX5), messages: [{ id: 3, sender: 'USER' }] });
+        await started;
+
+        assert.deepStrictEqual(delivered, [{ sessionId: 1, mode: 'load', count: 1 }]);
+    });
+
+    test('a topic pick that opens another conversation delivers ITS transcript', async () => {
+        const service = await started();
+        const before = service.delivered.length;
+
+        // The open conversation is empty, so a course-chat pick stages in place
+        // and must NOT deliver anything; only an install does.
+        await service.resolveTopicChange(COURSE42);
+
+        assert.strictEqual(service.delivered.length, before, 'staging moves no transcript');
+    });
+
+    test('reconnect reconciliation MERGES instead of replacing', async () => {
+        // A merge is what lets a recovered answer arrive without wiping an
+        // optimistic bubble or a live draft that survived the drop.
+        const service = await started();
+        const before = service.delivered.length;
+
+        const reconciled = service.reconcileCurrent();
+        service.api.resolveCall('detail:42:1', { ...detail(1, EX5), messages: [{ id: 9, sender: 'LLM' }] });
+        await reconciled;
+
+        assert.deepStrictEqual(service.delivered.slice(before), [{ sessionId: 1, mode: 'merge', count: 1 }]);
+    });
+});
 
 suite('IrisConversationService', () => {
     test('start acquires the workspace exercise session in one call', async () => {

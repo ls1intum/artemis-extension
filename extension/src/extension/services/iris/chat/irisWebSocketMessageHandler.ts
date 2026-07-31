@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ExtensionToWebviewMessage, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 import type { IrisChatMessage } from '@shared/types/apiResponses';
+import { localSessionKeyFor } from '@shared/types/serverContext';
 
 import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
@@ -195,19 +196,20 @@ export class IrisWebSocketMessageHandler {
             if (!intermediate) { this._activities = []; }
         }
 
-        const localSessionId = this._getLocalSessionId();
-        if (!localSessionId) {
-            // No active session to attribute this message to. Dropping is
-            // correct: rendering it would attach it to whatever session the
-            // user opens next.
-            logger.info('Dropping Iris message: no active local session', LogCategory.WEBSOCKET);
+        const target = this._targetSession();
+        if (!target) {
+            // No conversation to attribute this message to. Dropping is
+            // correct: rendering it would attach it to whatever conversation
+            // the student opens next.
+            logger.info('Dropping Iris message: no session to attribute it to', LogCategory.WEBSOCKET);
             return;
         }
 
         const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
         this._postMessage({
             type: ExtensionMsg.AddMessage,
-            localSessionId,
+            localSessionId: target.localSessionId,
+            sessionId: target.sessionId,
             message: {
                 id: msg.id,
                 role: 'assistant',
@@ -233,16 +235,34 @@ export class IrisWebSocketMessageHandler {
     }
 
     /**
-     * `undefined` when there is no active local session. `localSessionId` on the
-     * projection is a required `string`, and the accessor is
-     * `snapshot().activeSession?.id`, so the narrowing has to happen HERE.
-     * "The webview will reject it" is not reachable: tsc rejects it first.
+     * The conversation a frame belongs to, plus the local key the wire still
+     * requires. The conversation model is authoritative once it is driving:
+     * `_getLocalSessionId()` reads the OLD model's active session, which no
+     * longer exists there, so every frame would be dropped (or, worse,
+     * attributed to a leftover session and rendered under another
+     * conversation's transcript).
+     */
+    private _targetSession(): { sessionId?: number; localSessionId: string } | undefined {
+        const sessionId = this._activeConversation?.state.snapshot().currentSessionId;
+        if (sessionId !== undefined) {
+            return { sessionId, localSessionId: localSessionKeyFor(sessionId) };
+        }
+        const localSessionId = this._getLocalSessionId();
+        return localSessionId ? { localSessionId } : undefined;
+    }
+
+    /**
+     * `undefined` when there is nothing to attribute the projection to.
+     * `localSessionId` is a required `string` on the projection, so the
+     * narrowing has to happen HERE: "the webview will reject it" is not
+     * reachable, tsc rejects it first.
      */
     private _buildProjection(): IrisRunUiProjection | undefined {
-        const localSessionId = this._getLocalSessionId();
-        if (!localSessionId) { return undefined; }
+        const target = this._targetSession();
+        if (!target) { return undefined; }
         return {
-            localSessionId,
+            localSessionId: target.localSessionId,
+            sessionId: target.sessionId,
             revision: ++this._revision,
             draft: this._draft,
             activities: this._activities,
@@ -329,11 +349,12 @@ export class IrisWebSocketMessageHandler {
             return;
         }
         const outcome = conversation.state.applyContextSwap(swap, message);
-        const localSessionId = this._getLocalSessionId();
-        if (localSessionId) {
+        const target = this._targetSession();
+        if (target) {
             this._postMessage({
                 type: ExtensionMsg.AddMessage,
-                localSessionId,
+                localSessionId: target.localSessionId,
+                sessionId: target.sessionId,
                 message: {
                     id: message.id,
                     role: 'contextSwap',

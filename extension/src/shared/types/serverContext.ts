@@ -60,3 +60,15 @@ export function summaryOfDetail(detail: SessionDetail): SessionSummary {
         lastActivity: detail.lastActivity,
     };
 }
+
+/**
+ * Bridge key for the wire fields that still REQUIRE a `localSessionId` while
+ * the old session model is being removed. Under `conversationFirst` there is no
+ * local session id any more, so host and webview derive the same synthetic one
+ * from the conversation id. Both sides import this, because two independent
+ * template literals that must match is exactly how a transcript goes silently
+ * blank. Deleted in Task 15 together with `localSessionId`.
+ */
+export function localSessionKeyFor(sessionId: number): string {
+    return `conversation-${sessionId}`;
+}

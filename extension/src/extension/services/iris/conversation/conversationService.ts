@@ -47,6 +47,22 @@ export interface IrisConversationDeps {
     subscribeToSession(sessionId: number): void;
     /** Resolves the workspace exercise, or undefined when none is detected. */
     getWorkspaceExercise(): { exerciseId: number; courseId: number } | undefined;
+    /**
+     * Renders an installed conversation's transcript.
+     *
+     * Every install goes through it, which is what makes "the conversation
+     * model owns the transcript" true rather than aspirational: the service is
+     * the only thing that knows a conversation was just adopted, and a caller
+     * that has to remember to render afterwards is a caller that will forget on
+     * one of the six paths.
+     *
+     * `mode: 'load'` REPLACES the visible transcript (a fresh install: the
+     * student is now looking at a different conversation, or at a re-read of
+     * this one). `mode: 'merge'` folds the rows in by id and is used by
+     * reconnect reconciliation, which must not wipe an optimistic bubble or a
+     * live draft.
+     */
+    deliverTranscript(detail: SessionDetail, mode: 'load' | 'merge'): void;
 }
 
 export type TopicChangeOutcome =
@@ -127,6 +143,12 @@ export class IrisConversationService {
         // subscription is live, which is why the reconciliation below exists.
         this._deps.subscribeToSession(detail.sessionId);
         this._emit();
+        // AFTER the emit, never before it. The webview keys an incoming
+        // transcript on the conversation the snapshot names, so a transcript
+        // that overtakes its own snapshot is addressed to the conversation the
+        // student has just left and is dropped: an empty chat under a correct
+        // header.
+        this._deps.deliverTranscript(detail, 'load');
         return true;
     }
 
@@ -602,6 +624,11 @@ export class IrisConversationService {
                 return;
             }
             this._emit();
+            // MERGE, not load: a reconnect must recover the answer whose
+            // terminal frame was missed without wiping an optimistic bubble or
+            // a live draft that survived the drop. After the emit, for the same
+            // reason as `_install`.
+            this._deps.deliverTranscript(detail, 'merge');
         } catch (error) {
             logger.warn('Iris reconcile-on-resubscribe failed', LogCategory.IRIS_CHAT, error);
         }

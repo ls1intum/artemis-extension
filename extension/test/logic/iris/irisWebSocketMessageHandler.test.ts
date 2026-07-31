@@ -15,6 +15,7 @@ vi.mock('vscode', () => {
 
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 import type { SessionDetail } from '@shared/types/serverContext';
+import { localSessionKeyFor } from '@shared/types/serverContext';
 
 import { IrisWebSocketMessageHandler } from '@extension/services/iris/chat/irisWebSocketMessageHandler';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
@@ -256,6 +257,35 @@ describe('dormancy guard: the new model must stay inert until a session is actua
         );
         expect(runs.currentRunId).toBe('r1');
         expect(posted.some((p) => p.type === 'addMessage')).toBe(true);
+    });
+});
+
+describe('frames are attributed to the conversation, not the old local session', () => {
+    it('an assistant message carries the conversation id and its derived local key', () => {
+        const { handler, posted } = makeHandler({ currentSessionId: 900 });
+
+        handler.handleIrisWebSocketMessage(
+            { type: 'MESSAGE', runId: 'r1', message: { id: 7, sender: 'LLM', content: [{ type: 'text', textContent: 'hi' }] } },
+            900,
+        );
+
+        const added = posted.find((m) => (m as { type?: string }).type === 'addMessage') as
+            { sessionId?: number; localSessionId?: string } | undefined;
+        expect(added?.sessionId).toBe(900);
+        // Without this the answer lands under the PREVIOUS conversation's
+        // transcript, and is persisted in a different one.
+        expect(added?.localSessionId).toBe(localSessionKeyFor(900));
+    });
+
+    it('the run-UI projection carries it too, so the indicator belongs to one conversation', () => {
+        const { handler, posted } = makeHandler({ currentSessionId: 900 });
+
+        handler.publishCurrentRunUi();
+
+        const runUi = posted.find((m) => (m as { type?: string }).type === 'updateIrisRunUi') as
+            { projection?: { sessionId?: number; localSessionId?: string } } | undefined;
+        expect(runUi?.projection?.sessionId).toBe(900);
+        expect(runUi?.projection?.localSessionId).toBe(localSessionKeyFor(900));
     });
 });
 
