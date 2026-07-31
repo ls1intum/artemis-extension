@@ -429,7 +429,7 @@ suite('SendCoordinator', () => {
         assert.strictEqual(c.state.sendInFlight, false);
         assert.strictEqual(c.state.guard().sendSeq, before + 1);
         assert.strictEqual(c.lastBubbleStatus, 'error');
-        assert.deepStrictEqual(c.reportedErrors, ['Iris konnte nicht erreicht werden. Der Verlauf ist möglicherweise nicht aktuell.']);
+        assert.deepStrictEqual(c.reportedErrors, ['Iris could not be reached. The transcript may be out of date.']);
     });
 
     test('a second send is rejected while a reconciliation GET is outstanding', async () => {

@@ -37,6 +37,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         resetTransientChatUi, applyRunUi, applyCommit,
         markMessageFailed, applyCourseHistory, setCourseHistoryError,
         setOpenSessionError, mergeLoadedMessages, confirmSentMessage,
+        showNotice,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
@@ -312,13 +313,21 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
 
+            case ExtensionMsg.ShowChatNotice: {
+                // Raised by the host AFTER the navigation's snapshot, so the
+                // notice describes the conversation the student is now
+                // looking at.
+                showNotice({ text: msg.text });
+                break;
+            }
+
             case ExtensionMsg.ConfirmSentMessage: {
                 if (msg.localSessionId !== useChatStore.getState().activeSessionId) { break; }
                 confirmSentMessage(msg.localId, msg.id);
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, applyCourseHistory, setCourseHistoryError, setOpenSessionError, mergeLoadedMessages, confirmSentMessage]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, applyCourseHistory, setCourseHistoryError, setOpenSessionError, mergeLoadedMessages, confirmSentMessage, showNotice]);
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();

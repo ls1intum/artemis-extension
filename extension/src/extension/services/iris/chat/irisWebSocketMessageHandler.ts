@@ -347,7 +347,7 @@ export class IrisWebSocketMessageHandler {
             // non-empty, so the staging could never be restored.
             this._postMessage({
                 type: ExtensionMsg.ShowChatNotice,
-                text: 'Das Thema wurde anderweitig geaendert. Deine Vormerkung wurde verworfen.',
+                text: 'The topic was changed elsewhere. Your staged topic was discarded.',
             });
         }
         conversation.notifyChanged();

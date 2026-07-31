@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -467,5 +467,65 @@ describe('IrisChatView cold start', () => {
 
         await screen.findByText(/No Artemis workspace detected/);
         expect(screen.queryByRole('button', { name: 'View past conversations' })).toBeNull();
+    });
+});
+
+describe('IrisChatView navigation notice', () => {
+    // The host raises the notice AFTER the navigation's snapshot, which is
+    // what makes it describe the conversation the student is now looking at.
+    const activeState = {
+        context: null,
+        activeSessionId: null,
+        sessions: [],
+        exercises: [],
+        courses: [{ id: 42, title: 'Introduction to Computer Science' }],
+        courseId: 42,
+        courseTitle: 'Introduction to Computer Science',
+        currentSessionId: 900,
+        conversationTitle: 'BFS loop',
+        displayMessageCount: 8,
+        contentState: 'content' as const,
+        conversationFirst: true,
+    };
+
+    it('renders the notice the host posts after a topic pick opened another conversation', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+
+        dispatchExtensionMessage({ type: 'showChatNotice', text: 'Switched to a different conversation.' });
+
+        expect(await screen.findByText('Switched to a different conversation.')).toBeInTheDocument();
+    });
+
+    it('survives a snapshot that navigates nowhere, e.g. the overview refresh that follows', async () => {
+        // The same navigation fires `refreshOverview`, whose response emits
+        // another snapshot a round trip later. Clearing on every snapshot
+        // would make the notice flash and vanish.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage({ type: 'showChatNotice', text: 'Started a new conversation.' });
+        await screen.findByText('Started a new conversation.');
+
+        // The message count moves so the assertion below can WAIT for this
+        // snapshot to be rendered; asserting straight away would pass even if
+        // the snapshot cleared the notice, because the clear had not flushed.
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, displayMessageCount: 9 },
+        });
+        await screen.findByText(/BFS loop · 9 messages/);
+
+        expect(screen.getByText('Started a new conversation.')).toBeInTheDocument();
+    });
+
+    it('is cleared by the next real navigation', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage({ type: 'showChatNotice', text: 'Started a new conversation.' });
+        await screen.findByText('Started a new conversation.');
+
+        dispatchExtensionMessage({ type: 'updateIrisState', state: { ...activeState, currentSessionId: 901 } });
+
+        await waitFor(() => expect(screen.queryByText('Started a new conversation.')).toBeNull());
     });
 });

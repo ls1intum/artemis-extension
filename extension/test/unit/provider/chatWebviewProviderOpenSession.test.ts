@@ -233,11 +233,10 @@ suite('ChatWebviewProvider.openArtemisSession', () => {
         // loadAllSessionsForContext) while A's overview is still pending.
         h.api.getIrisCourseChatSettings.resolves({ settings: { enabled: false } } as never);
         // The provider's public setCourseContext is gone (Task 14 routes topic
-        // changes through IrisConversationService); the old-model context
-        // selection this suite exercises now goes through the dispatcher's
-        // still-present handler.
-        (h.provider as unknown as { _handleContextSelection: (t: string, id: number, name: string) => void })
-            ._handleContextSelection('course', 500, 'Picked Course');
+        // changes through IrisConversationService), so this suite drives the
+        // old-model context selection through the manager that still owns it.
+        (h.provider as unknown as { _chatContextManager: { handleContextSelection: (t: string, id: number, name: string) => void } })
+            ._chatContextManager.handleContextSelection('course', 500, 'Picked Course');
         await tick();
 
         h.postSpy.resetHistory();

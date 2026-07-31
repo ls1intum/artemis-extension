@@ -95,6 +95,8 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(state.contentState, undefined);
         assert.strictEqual(state.conversations, undefined);
         assert.strictEqual(state.sendInFlight, undefined);
+        assert.strictEqual(state.conversationFirst, undefined,
+            'without a conversation service there is nothing to activate');
     });
 
     test('conversation getter returning a live service populates every new field from its state', () => {
@@ -133,6 +135,10 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(state.conversations?.length, 1);
         assert.strictEqual(state.conversations?.[0].sessionId, 42);
         assert.strictEqual(state.conversations?.[0].entityName, 'Sorting');
+        // The activation flag. The webview renders the old interface until it
+        // is true, and the conversation-first controls post ONLY the new
+        // commands, so this and the dispatcher's four new cases are one commit.
+        assert.strictEqual(state.conversationFirst, true);
     });
 
     test('workspaceExerciseId is sourced from ContextStore, independent of the conversation getter', () => {

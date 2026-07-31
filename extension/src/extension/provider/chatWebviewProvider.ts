@@ -13,7 +13,6 @@ import { IrisWebSocketMessageHandler } from '@extension/services/iris';
 import {
     ChatContextManager,
     ChatDiagnosticsService,
-    ChatMessageService,
     ContextStore,
     IRIS_CHAT_HELP_MARKDOWN,
     IrisChatSessionService,
@@ -23,8 +22,10 @@ import { historyResolvesRun } from '@extension/services/iris/chat/historyResolut
 import type { CourseHistoryEntry } from '@extension/services/iris/context/courseHistory';
 import { buildCourseHistory } from '@extension/services/iris/context/courseHistory';
 import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
+import { collectUncommittedFiles } from '@extension/services/iris/conversation/collectUncommittedFiles';
 import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
+import { SEND_REJECTION_MESSAGES, SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
@@ -78,9 +79,21 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * must guard on it rather than assume it.
      */
     private _conversation: IrisConversationService | undefined;
+    /** The conversation-first send path. Built next to `_conversation`. */
+    private _sendCoordinator: SendCoordinator | undefined;
+    /**
+     * The LOCAL session id the current send's optimistic bubble was drawn in,
+     * captured from the `sendMessage` command. The coordinator addresses a
+     * bubble by the numeric conversation id, but the wire (and the webview's
+     * own guard) still key on the local id until the old model is deleted, and
+     * reading the live one at call time would address a bubble the student can
+     * no longer see after a mid-send navigation.
+     */
+    private _sendOriginLocalSessionId: string | undefined;
+    /** Generation opened by the most recent send, for the reconnect marker. */
+    private _lastSendGeneration: number | undefined;
     private _chatDiagnosticsService: ChatDiagnosticsService;
     private _chatSessionService: IrisChatSessionService;
-    private _chatMessageService: ChatMessageService;
     private _chatContextManager: ChatContextManager;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _noAiDetectionService: NoAiDetectionService;
@@ -271,17 +284,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             () => this._irisSessionManager,
             { resetRuns: () => this._resetRunsAndMarker() },
         );
-        this._chatMessageService = new ChatMessageService(
-            deps,
-            this._websocketService,
-            () => this._irisSessionManager,
-            this._chatSessionService,
-            createRunLifecycle(
-                this._runs,
-                () => this._websocketMessageHandler.resetRunUiAndPublish(),
-                () => this._websocketMessageHandler.publishCurrentRunUi(),
-            ),
-        );
         this._chatContextManager = new ChatContextManager(
             deps,
             this._chatSessionService,
@@ -312,7 +314,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // AFTER the client disposes it BEFORE the client: no in-flight
             // install can subscribe to an already-disposed client.
             this._conversation = this._createConversationService(this._irisSessionManager);
-            if (this._conversation) { this._disposables.push(this._conversation); }
+            if (this._conversation) {
+                this._disposables.push(this._conversation);
+                this._sendCoordinator = this._createSendCoordinator(this._conversation);
+                // The single repaint trigger for the conversation-first state:
+                // every service mutation ends in an emit, so the webview never
+                // has to be told about a navigation twice.
+                this._disposables.push(
+                    this._conversation.onDidChange(() => this._viewStatePresenter.postSnapshot()),
+                );
+            }
 
             this._disposables.push(
                 this._irisSessionManager.onDidReceiveMessage(({ frame, sourceSessionId }) =>
@@ -376,6 +387,55 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._postNoAiStatus(isNoAiDetected);
             })
         );
+    }
+
+    /**
+     * Built next to `_conversation`, so both exist together. `sessionId` is
+     * read at CALL time, never captured: this factory runs once and the open
+     * conversation changes underneath it. Both bubble callbacks take the ORIGIN
+     * session as their first argument, so a bubble is always addressed in the
+     * conversation it was drawn in.
+     */
+    private _createSendCoordinator(conversation: IrisConversationService): SendCoordinator | undefined {
+        if (!this._artemisApiService) { return undefined; }
+        const runLifecycle = createRunLifecycle(
+            this._runs,
+            () => this._websocketMessageHandler.resetRunUiAndPublish(),
+            () => this._websocketMessageHandler.publishCurrentRunUi(),
+        );
+        return new SendCoordinator(this._artemisApiService, conversation, {
+            runLifecycle: {
+                // Remembers the generation the coordinator opened. The reconnect
+                // marker needs it, and `SendOutcome` deliberately does not carry
+                // it: this callback is the provider's own, so recording it here
+                // costs nothing and keeps the recovery of a missed terminal
+                // frame (mergeSessionMessages) working after the cut-over.
+                beginGeneration: () => {
+                    const generation = runLifecycle.beginGeneration();
+                    this._lastSendGeneration = generation;
+                    return generation;
+                },
+                abortGeneration: (generation) => runLifecycle.abortGeneration(generation),
+            },
+            resetRunUiAndPublish: () => this._websocketMessageHandler.resetRunUiAndPublish(),
+            collectUncommittedFiles: () => collectUncommittedFiles((msg) => this._postMessageSafe(msg)),
+            confirmBubble: (sessionId, localId, id) => {
+                if (id === undefined) { return; }
+                const localSessionId = this._sendOriginLocalSessionId;
+                if (!localSessionId) { return; }
+                this._postMessageSafe({ type: ExtensionMsg.ConfirmSentMessage, localSessionId, sessionId, localId, id });
+            },
+            failBubble: (sessionId, localId, reason) => {
+                const localSessionId = this._sendOriginLocalSessionId;
+                if (!localSessionId) { return; }
+                this._postMessageSafe({
+                    type: ExtensionMsg.SendRejected, localId, localSessionId, sessionId, reason,
+                    errorMessage: SEND_REJECTION_MESSAGES[reason],
+                });
+            },
+            reportError: (message) => this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message }),
+            getWorkspaceExerciseId: () => this._contextStore.getWorkspaceExerciseId(),
+        });
     }
 
     /** Called where `_irisSessionManager` is created, so both exist together. */
@@ -601,7 +661,21 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
         this._viewDisposables.push(configListener);
 
+        // The conversation-first acquisition. One call gives the id, the
+        // topic, the title and the transcript; without a detected workspace
+        // exercise it makes no request at all and the webview shows the
+        // cold-start course chooser.
+        void this._conversation?.start(this._workspaceForStart());
+
         // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
+    }
+
+    /** The detected workspace exercise, in the shape `start` expects. */
+    private _workspaceForStart(): { exerciseId: number; courseId: number } | undefined {
+        const exercise = this._contextStore.getWorkspaceExercise();
+        return exercise?.courseId === undefined
+            ? undefined
+            : { exerciseId: exercise.id, courseId: exercise.courseId };
     }
 
     // ── Rendering ──────────────────────────────────────────────────────
@@ -936,32 +1010,36 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     });
                     break;
                 }
-                case WebviewCmd.SelectChatContext: {
-                    const { context, itemId, itemName, itemShortName } = getPayload<WebCmd<'selectChatContext'>>(message);
-                    if (context && typeof itemId === 'number' && typeof itemName === 'string') {
-                        this._handleContextSelection(context, itemId, itemName, itemShortName);
+                // ── Conversation-first navigation. The old commands
+                // (selectChatContext, createNewSession, switchSession,
+                // openArtemisSession, switchToWorkspaceContext) are no longer
+                // answered: the interface that posted them is off from this
+                // commit on. Their handlers stay on the class with no caller
+                // until Task 15 removes them.
+                case WebviewCmd.SelectTopic: {
+                    const { mode, entityId, name } = getPayload<WebCmd<'selectTopic'>>(message);
+                    if (typeof mode === 'string' && typeof entityId === 'number') {
+                        void this._handleSelectTopic({ mode, entityId, name });
                     }
                     break;
                 }
-                case WebviewCmd.CreateNewSession:
-                    this.createNewSession();
-                    break;
-                case WebviewCmd.SwitchSession: {
-                    const { sessionId } = getPayload<WebCmd<'switchSession'>>(message);
-                    if (typeof sessionId === 'string') {
-                        this.switchToSession(sessionId);
+                case WebviewCmd.OpenConversation: {
+                    const { courseId, sessionId } = getPayload<WebCmd<'openConversation'>>(message);
+                    if (typeof courseId === 'number' && typeof sessionId === 'number') {
+                        void this._handleOpenConversation({ courseId, sessionId });
                     }
                     break;
                 }
-                case WebviewCmd.OpenArtemisSession: {
-                    const { courseId, artemisSessionId } = getPayload<WebCmd<'openArtemisSession'>>(message);
-                    if (typeof courseId === 'number' && typeof artemisSessionId === 'number') {
-                        void this.openArtemisSession({ courseId, artemisSessionId }).catch(err => {
-                            logger.error('Error opening Artemis session', LogCategory.IRIS_CHAT, err);
-                        });
+                case WebviewCmd.SwitchCourse: {
+                    const { courseId } = getPayload<WebCmd<'switchCourse'>>(message);
+                    if (typeof courseId === 'number') {
+                        void this._handleSwitchCourse(courseId);
                     }
                     break;
                 }
+                case WebviewCmd.NewConversation:
+                    void this._handleNewConversation();
+                    break;
                 case WebviewCmd.RequestCourseHistory: {
                     const { courseId, requestId } = getPayload<WebCmd<'requestCourseHistory'>>(message);
                     if (typeof courseId === 'number' && typeof requestId === 'number') {
@@ -971,9 +1049,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     }
                     break;
                 }
-                case WebviewCmd.SwitchToWorkspaceContext:
-                    this._handleSwitchToWorkspaceContext();
-                    break;
                 case WebviewCmd.OpenDiagnostics:
                     void this._handleOpenDiagnostics().catch(err => {
                         logger.error('Error opening diagnostics', LogCategory.IRIS_CHAT, err);
@@ -1215,10 +1290,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
-    private _handleContextSelection(contextType: ChatContextType, itemId: number, itemName: string, itemShortName?: string): void {
-        this._chatContextManager.handleContextSelection(contextType, itemId, itemName, itemShortName);
-    }
-
     private async _loadIrisMessagesIfNeeded(): Promise<void> {
         logger.debug('_loadIrisMessagesIfNeeded called', LogCategory.IRIS_CHAT);
         const activeContext = this._contextStore.getActiveContext();
@@ -1243,24 +1314,88 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         );
     }
 
-    private _handleSwitchToWorkspaceContext(): void {
-        const workspaceExercise = this._chatContextManager.handleSwitchToWorkspaceContext();
-        if (!workspaceExercise) {
-            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
-            return;
-        }
-        this._chatContextManager.setExerciseContext(
-            workspaceExercise.id,
-            workspaceExercise.title,
-            'workspace-detected',
-            workspaceExercise.shortName,
-            workspaceExercise.releaseDate,
-            workspaceExercise.dueDate,
-            workspaceExercise.courseId
-        );
+    // ── Conversation-first navigation handlers (spec 7.3) ──────────────
+
+    /**
+     * Host-enforced navigation gate. Not a disabled button: the webview's
+     * streaming state resets on disconnect, so UI gating is not an invariant,
+     * and a navigation admitted mid-send would move the conversation out from
+     * under a POST that is still open.
+     */
+    private _refuseNavigationWhileSending(command: string): boolean {
+        if (this._conversation?.state.sendInFlight !== true) { return false; }
+        logger.info(`Refused ${command}: a send is in flight`, LogCategory.IRIS_CHAT);
+        return true;
     }
 
-    private async _handleChatMessage(message: { text?: string; localId?: string; localSessionId?: string }): Promise<void> {
+    private async _handleSelectTopic(target: ServerContext): Promise<void> {
+        const conversation = this._conversation;
+        if (!conversation || this._refuseNavigationWhileSending('selectTopic')) { return; }
+        const outcome = await conversation.resolveTopicChange(target);
+        // Only `opened` moved the transcript, and replacing everything the
+        // student was reading is the one result that has to be explained.
+        // `staged`, `unstaged` and `noop` left it where it was.
+        if (outcome.kind === 'opened') {
+            this._postMessageSafe({
+                type: ExtensionMsg.ShowChatNotice,
+                text: 'Switched to a different conversation.',
+            });
+        }
+    }
+
+    private async _handleOpenConversation(params: { courseId: number; sessionId: number }): Promise<void> {
+        const conversation = this._conversation;
+        if (!conversation || this._refuseNavigationWhileSending('openConversation')) { return; }
+        try {
+            // No notice: this navigation is exactly what the student asked for,
+            // so there is nothing to explain.
+            await conversation.navigateTo(params);
+        } catch (error: unknown) {
+            logger.error('openConversation failed', LogCategory.IRIS_CHAT, error);
+            this._postMessageSafe({
+                type: ExtensionMsg.OpenSessionError,
+                message: 'Could not open that conversation. Please try again.',
+            });
+        }
+    }
+
+    private async _handleSwitchCourse(courseId: number): Promise<void> {
+        const conversation = this._conversation;
+        if (!conversation || this._refuseNavigationWhileSending('switchCourse')) { return; }
+        // Recorded BEFORE the acquisition so the course list's
+        // most-recently-viewed order and the cold-start path both see it even
+        // if the acquisition fails.
+        this._contextStore.setCurrentCourseId(courseId);
+        try {
+            await conversation.switchCourse(courseId);
+        } catch (error: unknown) {
+            logger.error('switchCourse failed', LogCategory.IRIS_CHAT, error);
+            this._postMessageSafe({
+                type: ExtensionMsg.OpenSessionError,
+                message: 'Could not open that course. Please try again.',
+            });
+        }
+    }
+
+    private async _handleNewConversation(): Promise<void> {
+        const conversation = this._conversation;
+        if (!conversation || this._refuseNavigationWhileSending('newConversation')) { return; }
+        const outcome = await conversation.newConversation();
+        if (outcome.kind === 'opened') {
+            this._postMessageSafe({
+                type: ExtensionMsg.ShowChatNotice,
+                text: 'Started a new conversation.',
+            });
+        }
+    }
+
+    /**
+     * The conversation-first send path. The availability check (\.noai, no
+     * context, Iris disabled/unavailable) stays IN FRONT of the coordinator:
+     * it is the only thing that knows about instructor settings, and its
+     * rejections still carry the banner side effects.
+     */
+    private async _handleChatMessage(message: { text?: string; localId?: string; localSessionId?: string; sessionId?: number }): Promise<void> {
         if (typeof message.text !== 'string') { return; }
 
         const content = message.text;
@@ -1271,76 +1406,112 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // even when the call never returns (e.g. network hang).
         this._onDidAttemptIrisChatSend.fire({ content, status: 'pending' });
 
-        try {
-            const result = await this._chatMessageService.sendMessage({
-                text: content,
-                isNoAiEnabled: this._noAiDetectionService.isNoAiEnabled,
-                struggleContext: this.getStruggleContext(),
+        const unavailable = await this._checkSendAvailability();
+        if (unavailable) {
+            this._onDidAttemptIrisChatSend.fire({
+                content,
+                status: 'failed',
+                errorMessage: `send-rejected: ${unavailable.reason}`,
             });
+            this._handleRejectedSend(unavailable, localId, localSessionId);
+            return;
+        }
 
-            if (result.sent) {
-                // Confirm the optimistic bubble INDEPENDENTLY of the marker: an older
-                // out-of-order send still needs its bubble stamped, and this must never
-                // touch a newer marker.
-                if (result.sentMessageId !== undefined && localId && localSessionId) {
-                    this._postMessageSafe({
-                        type: ExtensionMsg.ConfirmSentMessage,
-                        localSessionId,
-                        localId,
-                        id: result.sentMessageId,
-                    });
-                }
-                // Open the marker ONLY for the still-current, still-waiting generation.
-                // The state machine supports overlapping generations, so a POST for an
-                // older generation can return after a newer send started; it must not
-                // replace or clear the newer generation's marker.
+        // `sessionId` comes from the command so a navigation between composing
+        // and handling is caught; the open conversation is the fallback for a
+        // webview build that does not send it yet.
+        const sessionId = message.sessionId ?? this._conversation?.state.snapshot().currentSessionId;
+        if (!this._sendCoordinator || !localId || sessionId === undefined) {
+            // Nothing can carry this send. The bubble must still be failed, or
+            // the student is left with a message stuck in `sending` and a
+            // thinking indicator that never clears.
+            this._onDidAttemptIrisChatSend.fire({
+                content,
+                status: 'failed',
+                errorMessage: 'send-rejected: no-conversation',
+            });
+            if (localId && localSessionId) {
+                this._postMessageSafe({
+                    type: ExtensionMsg.SendRejected,
+                    localId,
+                    localSessionId,
+                    reason: 'no-conversation',
+                    errorMessage: SEND_REJECTION_MESSAGES['no-conversation'],
+                });
+            }
+            return;
+        }
+
+        try {
+            this._sendOriginLocalSessionId = localSessionId;
+            const outcome = await this._sendCoordinator.send({ text: content, localId, sessionId });
+            // Neither non-sent outcome needs anything here. `rejected` already
+            // failed the bubble with its reason; `unknown` already surfaced its
+            // message through `reportError` inside the coordinator, and posting
+            // a second OpenSessionError would show the same failure twice.
+            if (outcome.kind === 'sent') {
+                // Open the reconnect marker ONLY for the still-current,
+                // still-waiting generation: an inbound run may have opened a
+                // newer one while the POST was in flight, and reconciling
+                // against it would resolve the wrong run.
                 const artemisSessionId = this._irisSessionManager?.currentSessionId;
-                if (result.sentMessageId !== undefined
+                if (outcome.messageId !== undefined
                     && localSessionId
                     && artemisSessionId !== undefined
-                    && result.generation === this._runs.generation
+                    && this._lastSendGeneration === this._runs.generation
                     && this._runs.waiting) {
                     this._reconcileMarker = {
-                        generation: result.generation,
+                        generation: this._lastSendGeneration,
                         localSessionId,
                         artemisSessionId,
-                        baselineMessageId: result.sentMessageId,
+                        baselineMessageId: outcome.messageId,
                     };
                 }
                 this._onDidAttemptIrisChatSend.fire({ content, status: 'sent' });
                 this._onDidSendIrisChatMessage.fire(content);
             } else {
-                // Fire terminal 'failed' so the pending event is never orphaned.
                 this._onDidAttemptIrisChatSend.fire({
                     content,
                     status: 'failed',
-                    errorMessage: `send-rejected: ${result.reason ?? 'unknown'}`,
+                    errorMessage: `send-${outcome.kind === 'rejected' ? `rejected: ${outcome.reason}` : 'unknown'}`,
                 });
-                this._handleRejectedSend(result, localId, localSessionId);
             }
         } catch (error: unknown) {
+            // The coordinator resolves every failure it knows about, so a throw
+            // here is a programmer error rather than a send failure. Surface it
+            // and release the composer.
             const errorMessage = error instanceof Error ? error.message : String(error);
             this._onDidAttemptIrisChatSend.fire({ content, status: 'failed', errorMessage });
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
-            // Belt and braces: release the composer even if the throw left no
-            // open generation to abort. The bubble carries no runUi, so on its
-            // own it would leave run state (and the indicator) untouched.
             this._websocketMessageHandler.publishCurrentRunUi();
-            // Use the captured send-time localSessionId, never the live
-            // snapshot: after a mid-flight session switch the live snapshot
-            // would file this send's error under the new session.
-            if (localSessionId) {
-                this._postMessageSafe({
-                    type: ExtensionMsg.AddMessage,
-                    localSessionId,
-                    message: {
-                        role: 'assistant',
-                        content: `Error: ${errorMessage}`,
-                        timestamp: Date.now(),
-                    },
-                });
-            }
         }
+    }
+
+    /**
+     * The pre-send availability gate, lifted out of `ChatMessageService` so the
+     * coordinator does not have to know about instructor settings. Returns the
+     * rejection to report, or `undefined` when the send may proceed.
+     */
+    private async _checkSendAvailability(): Promise<Parameters<ChatWebviewProvider['_handleRejectedSend']>[0] | undefined> {
+        if (this._noAiDetectionService.isNoAiEnabled) {
+            logger.warn('Chat blocked: .noai file detected', LogCategory.IRIS_CHAT);
+            return { sent: false, reason: 'no-ai' };
+        }
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext) {
+            logger.warn('No active context', LogCategory.IRIS_CHAT);
+            return { sent: false, reason: 'no-context' };
+        }
+        const availability = await this._chatSessionService.checkAndLoadIrisSettings(activeContext);
+        if (availability.kind === 'enabled') { return undefined; }
+        // Disabled and unavailable are kept apart so the webview's Retry stays
+        // active for the transient case and inert for the intentional one.
+        return {
+            sent: false,
+            reason: availability.kind === 'disabled' ? 'iris-disabled' : 'iris-unavailable',
+            contextLabel: activeContext.type === 'course' ? 'course' : 'exercise',
+            capturedContext: activeContext,
+        };
     }
 
     private async _handleMessageFeedback(message: { sessionId?: number; messageId?: number; feedback?: string }): Promise<void> {

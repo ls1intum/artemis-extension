@@ -41,9 +41,10 @@ interface ProviderInternals {
     _runs: IrisRunStateMachine;
     _reconcileMarker: unknown;
     _reconcileOnResubscribe: (sessionId: number) => Promise<void>;
-    _handleChatMessage: (m: { text?: string; localId?: string; localSessionId?: string }) => Promise<void>;
+    _handleChatMessage: (m: { text?: string; localId?: string; localSessionId?: string; sessionId?: number }) => Promise<void>;
     _chatSessionService: IrisChatSessionService;
-    _chatMessageService: { sendMessage: (input: unknown) => Promise<unknown> };
+    _lastSendGeneration: number | undefined;
+    _sendCoordinator: { send: (input: unknown) => Promise<unknown> } | undefined;
     _websocketMessageHandler: IrisWebSocketMessageHandler;
 }
 
@@ -150,14 +151,40 @@ function beginBoundRun(runs: IrisRunStateMachine, runId: string): number {
     return generation;
 }
 
+/**
+ * Stands in for `SendCoordinator`: opens a generation through the same machine
+ * the real runLifecycle wrapper uses, records it the way that wrapper does, and
+ * reports a persisted message. `supersede` mimics an inbound run opening a
+ * newer generation before the POST returns.
+ */
+function injectSendCoordinator(
+    provider: ChatWebviewProvider,
+    opts: { messageId?: number; supersede?: boolean },
+): void {
+    const inner = internals(provider);
+    inner._sendCoordinator = {
+        send: async () => {
+            const generation = inner._runs.beginGeneration();
+            inner._runs.admit({ runId: 'run-send' } as never);
+            inner._lastSendGeneration = generation;
+            if (opts.supersede) {
+                inner._runs.beginGeneration();
+                inner._runs.admit({ runId: 'run-inbound' } as never);
+            }
+            return { kind: 'sent', messageId: opts.messageId };
+        },
+    };
+    // The availability gate runs in front of the coordinator and would
+    // otherwise reject: the stubbed API answers no Iris settings.
+    sinon.stub(inner._chatSessionService, 'checkAndLoadIrisSettings').resolves({ kind: 'enabled' } as never);
+}
+
 function assistant(id: number, over: Partial<{ final: boolean }> = {}) {
     return { id, role: 'assistant' as const, content: 'a', timestamp: Date.now(), final: true, ...over };
 }
 
 const mergeCalls = (postSpy: sinon.SinonSpy) =>
     postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'mergeSessionMessages');
-const confirmCalls = (postSpy: sinon.SinonSpy) =>
-    postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'confirmSentMessage');
 const runUiCalls = (postSpy: sinon.SinonSpy) =>
     postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'updateIrisRunUi');
 
@@ -232,35 +259,37 @@ suite('ChatWebviewProvider reconnect reconciliation', () => {
         assert.ok(internals(h.provider)._reconcileMarker, 'marker must not be cleared by the aborted reconcile');
     });
 
-    test('gen 2 POST resolves before gen 1: gen 1 late completion does not replace/clear gen 2 marker (but still confirms its bubble)', async () => {
+    test('a successful send opens the marker for the generation it began', async () => {
+        // Task 14 routes the send through SendCoordinator, whose runLifecycle
+        // is the provider's own callback and therefore records the generation
+        // it opened. The double stands in for exactly that: nothing else about
+        // the coordinator matters to the marker.
         const runs = internals(h.provider)._runs;
         activateSession(h.contextStore, 5, 42);
         h.setCurrentSessionId(42);
-        // Drive the machine to generation 2, waiting.
-        beginBoundRun(runs, 'run-1');
-        beginBoundRun(runs, 'run-2');
-        assert.strictEqual(runs.generation, 2);
+        injectSendCoordinator(h.provider, { messageId: 100 });
 
-        const sendStub = h.sandbox.stub(internals(h.provider)._chatMessageService, 'sendMessage');
-        sendStub.onFirstCall().resolves({ sent: true, sentMessageId: 100, generation: 2 });
-        sendStub.onSecondCall().resolves({ sent: true, sentMessageId: 50, generation: 1 });
+        // `sessionId` is the conversation the bubble was drawn in; the host
+        // falls back to the open conversation, which this harness does not
+        // construct (no websocket service).
+        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', localSessionId: 'session-42', sessionId: 42 });
 
-        // gen 2's POST returns first and opens the marker.
-        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', localSessionId: 'session-42' });
-        const markerAfterGen2 = internals(h.provider)._reconcileMarker as { generation: number; baselineMessageId: number };
-        assert.strictEqual(markerAfterGen2.generation, 2);
-        assert.strictEqual(markerAfterGen2.baselineMessageId, 100);
+        const marker = internals(h.provider)._reconcileMarker as { generation: number; baselineMessageId: number; artemisSessionId: number };
+        assert.strictEqual(marker.baselineMessageId, 100);
+        assert.strictEqual(marker.generation, runs.generation);
+        assert.strictEqual(marker.artemisSessionId, 42);
+    });
 
-        // gen 1's POST returns late. It must NOT overwrite the newer marker...
-        await internals(h.provider)._handleChatMessage({ text: 'a', localId: 'l1', localSessionId: 'session-42' });
-        const markerAfterGen1 = internals(h.provider)._reconcileMarker as { generation: number; baselineMessageId: number };
-        assert.strictEqual(markerAfterGen1.generation, 2, 'gen 1 must not replace the gen 2 marker');
-        assert.strictEqual(markerAfterGen1.baselineMessageId, 100, 'gen 2 baseline must survive');
+    test('a send superseded by a newer generation opens no marker', async () => {
+        // An inbound run opened a newer generation while the POST was in
+        // flight. Reconciling this send against it would resolve the wrong run.
+        activateSession(h.contextStore, 5, 42);
+        h.setCurrentSessionId(42);
+        injectSendCoordinator(h.provider, { messageId: 100, supersede: true });
 
-        // ...but its optimistic bubble is still confirmed, independent of the marker.
-        const confirms = confirmCalls(h.postSpy);
-        assert.ok(confirms.some(c => (c.args[0] as { id?: number }).id === 100), 'gen 2 bubble confirmed');
-        assert.ok(confirms.some(c => (c.args[0] as { id?: number }).id === 50), 'gen 1 bubble still confirmed');
+        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', localSessionId: 'session-42', sessionId: 42 });
+
+        assert.strictEqual(internals(h.provider)._reconcileMarker, undefined);
     });
 
     test('same-generation run rebind (A -> C) during fetch aborts resolution (currentRunId re-check)', async () => {

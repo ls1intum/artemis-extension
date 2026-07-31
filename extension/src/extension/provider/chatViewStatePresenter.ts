@@ -77,6 +77,13 @@ export class ChatViewStatePresenter {
         if (!conversation) { return {}; }
         const snapshot = conversation.state.snapshot();
         return {
+            // The activation flag. It is set HERE, on the same commit that
+            // makes the dispatcher answer selectTopic, openConversation,
+            // switchCourse and newConversation: the conversation-first
+            // interface posts only those, so a flag without the handlers
+            // leaves every navigation control dead, and handlers without the
+            // flag leave the interface invisible.
+            conversationFirst: true,
             courseId: snapshot.courseId,
             courseTitle: snapshot.courseId === undefined
                 ? undefined

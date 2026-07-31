@@ -16,6 +16,21 @@ export type SendRejection =
     /** Local setup failed; nothing was sent, so nothing is ambiguous. */
     | 'preparation-failed';
 
+/**
+ * The user-facing text for every rejection, defined next to the reasons so a
+ * reason and its message cannot drift apart. `unknown` is included because the
+ * bubble is failed with it too.
+ */
+export const SEND_REJECTION_MESSAGES: Record<SendRejection | 'unknown', string> = {
+    'send-in-flight': 'Iris is answering right now. Please wait.',
+    'navigation-in-flight': 'The conversation is still loading.',
+    'no-conversation': 'No conversation is open.',
+    'conversation-changed': 'The conversation changed. Send your message again.',
+    'rate-limit': 'You have reached your message limit.',
+    'preparation-failed': 'The message could not be prepared.',
+    'unknown': 'Unknown outcome. Check the transcript.',
+};
+
 export type SendOutcome =
     | { kind: 'sent'; messageId: number | undefined }
     | { kind: 'rejected'; reason: SendRejection }
@@ -205,7 +220,7 @@ export class SendCoordinator {
             // Reconciliation itself failed. Surface it, do not retry. But the
             // lock, the bubble and the composer must still end in a defined
             // state, which the finally block and this call guarantee.
-            this._deps.reportError('Iris konnte nicht erreicht werden. Der Verlauf ist möglicherweise nicht aktuell.');
+            this._deps.reportError('Iris could not be reached. The transcript may be out of date.');
         }
         this._deps.failBubble(captured.sessionId, input.localId, 'unknown');   // bubble leaves `sending`
         // The composer text is deliberately NOT cleared and nothing is resent.

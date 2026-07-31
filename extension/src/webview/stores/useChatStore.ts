@@ -100,8 +100,11 @@ interface ChatState {
     workspaceExerciseId: number | null;
     /**
      * An actionless informational banner (e.g. a server-initiated repoint).
-     * Cleared by the next `setIrisState`, matching "a notice is cleared by
-     * any navigation or course change" from the design.
+     * Cleared by the next `setIrisState` that actually NAVIGATES, matching
+     * "a notice is cleared by any navigation or course change" from the
+     * design. Clearing on every snapshot instead would kill the notice the
+     * host posts right after a navigation: the overview refresh that the same
+     * navigation fires emits another snapshot a round trip later.
      */
     notice: { text: string } | null;
     /**
@@ -314,7 +317,7 @@ export const useChatStore = create<ChatState>()(
 
             // Actions
             setIrisState: (state) => {
-                set({
+                set((previous) => ({
                     context: state.context ? {
                         type: state.context.type,
                         id: state.context.id,
@@ -350,10 +353,14 @@ export const useChatStore = create<ChatState>()(
                     conversations: state.conversations ?? [],
                     workspaceExerciseId: state.workspaceExerciseId ?? null,
                     // A notice is cleared by any navigation or course change
-                    // (the design's phrasing), and setIrisState is the sole
-                    // vehicle that carries a navigation result today.
-                    notice: null,
-                }, false, 'setIrisState');
+                    // (the design's phrasing). A snapshot that moves neither
+                    // the conversation nor the course is not a navigation, so
+                    // it leaves the notice alone.
+                    notice: (state.currentSessionId ?? null) === previous.currentSessionId
+                        && (state.courseId ?? null) === previous.courseId
+                        ? previous.notice
+                        : null,
+                }), false, 'setIrisState');
             },
 
             applyLoadedMessages: (localSessionId, messages) => {
