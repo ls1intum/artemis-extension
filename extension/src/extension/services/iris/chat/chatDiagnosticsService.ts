@@ -5,7 +5,7 @@ import { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 
 function describeContext(context: ServerContext | undefined): string {
-    return context ? `${context.mode}/${context.entityId}${context.name ? ` (${context.name})` : ''}` : '—';
+    return context ? `${context.mode}/${context.entityId}${context.name ? ` (${context.name})` : ''}` : 'none';
 }
 
 export class ChatDiagnosticsService {
@@ -89,9 +89,9 @@ export class ChatDiagnosticsService {
         }
         const snapshot = conversation.state.snapshot();
         let section = '💬 CONVERSATION:\n';
-        section += `  Session ID: ${snapshot.currentSessionId ?? '—'}\n`;
-        section += `  Course ID: ${snapshot.courseId ?? '—'}\n`;
-        section += `  Title: ${snapshot.detail?.title ?? '—'}\n`;
+        section += `  Session ID: ${snapshot.currentSessionId ?? 'none'}\n`;
+        section += `  Course ID: ${snapshot.courseId ?? 'none'}\n`;
+        section += `  Title: ${snapshot.detail?.title ?? 'none'}\n`;
         section += `  Committed topic: ${describeContext(snapshot.committedContext)}\n`;
         section += `  Staged topic: ${describeContext(snapshot.pendingContext?.ctx)}\n`;
         section += `  Content state: ${conversation.state.contentState()}\n`;

@@ -23,7 +23,7 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
 export class IrisWebSocketSessionClient implements vscode.Disposable {
     /**
      * The conversation this client currently speaks for. Set by
-     * `subscribeToSession`, cleared by `resetSession`;
+     * `subscribeToSession` and cleared only by `dispose`.
      * `IrisConversationService` is the only thing that decides what it should
      * be, so there is no second copy to keep in sync.
      */
@@ -87,18 +87,6 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         // Leaving this set means a later subscribeToSession for the SAME id sees
         // subscribed === desired and returns without resubscribing.
         this._subscribedSessionId = undefined;
-    }
-
-    /** Unsubscribe AND clear the cached session ID (used on context switch). */
-    public resetSession(): void {
-        this.unsubscribe();
-        this._currentArtemisSessionId = undefined;
-        // Otherwise a later reconnect resurrects a session that was deliberately reset.
-        this._desiredSessionId = undefined;
-        if (this._convergeTimer) {
-            clearTimeout(this._convergeTimer);
-            this._convergeTimer = undefined;
-        }
     }
 
     public subscribeToSession(sessionId: number): void {

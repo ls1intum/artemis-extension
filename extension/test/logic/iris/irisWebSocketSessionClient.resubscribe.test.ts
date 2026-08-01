@@ -288,15 +288,6 @@ describe('IrisWebSocketSessionClient: _converge (latest-wins subscription)', () 
         expect(ws.subscribedIds.at(-1)).toBe(4);
     });
 
-    it('resetSession stops a later reconnect from resurrecting the session', () => {
-        const client = makeClient({ connected: true });
-        client.subscribeToSession(7);
-        client.resetSession();
-        ws.dropConnection();
-        ws.restoreConnection();
-        expect(ws.activeSubscriptionCount).toBe(0);
-    });
-
     it('a listener that re-enters subscribeToSession from inside onDidResubscribe does not recurse', () => {
         // Task 5's real wiring is onDidResubscribe -> onSubscriptionActive ->
         // reconcileCurrent -> subscribeToSession, called SYNCHRONOUSLY from

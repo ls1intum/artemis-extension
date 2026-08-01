@@ -34,9 +34,9 @@ export function compareExercisesForPicker(a: ContextItem, b: ContextItem): numbe
 }
 
 /**
- * Course order for the picker's groups + "Choose another course…" list.
- * Mirrors the host `compareCoursesForDisplay`: most-recently-viewed first
- * (when `lastViewed` is on the wire), then alphabetical by title.
+ * Course order for the course picker. Mirrors the host
+ * `compareCoursesForDisplay`: most-recently-viewed first (when `lastViewed` is
+ * on the wire), then alphabetical by title.
  */
 export function compareCoursesForPicker(a: ContextItem, b: ContextItem): number {
     return (b.lastViewed ?? 0) - (a.lastViewed ?? 0)

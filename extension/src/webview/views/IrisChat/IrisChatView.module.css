@@ -248,10 +248,6 @@
     cursor: default;
 }
 
-.contextSwitching {
-    opacity: 0.3;
-}
-
 .loadingState {
     display: flex;
     flex-direction: column;
@@ -282,16 +278,6 @@
     to {
         transform: rotate(360deg);
     }
-}
-
-.loadError {
-    padding: 12px 14px;
-    border-radius: 6px;
-    background: var(--vscode-inputValidation-errorBackground, var(--vscode-input-background));
-    color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
-    border: 1px solid var(--vscode-inputValidation-errorBorder, transparent);
-    font-size: 13px;
-    line-height: 1.4;
 }
 
 /* Input Section */

@@ -49,7 +49,6 @@ const pickerProps = (over: Record<string, unknown> = {}) => ({
         { id: 5, title: 'Recursion', courseId: 42 },
         { id: 7, title: 'Sorting', courseId: 42 },
     ],
-    conversations: [{ sessionId: 9, courseId: 42, mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7, lastActivity: 100 }],
     onSelect: vi.fn(),
     ...over,
 });
@@ -124,19 +123,19 @@ describe('ConversationHistory (conversation list)', () => {
             courseId: 42,
             mode: 'LECTURE_CHAT',
             entityId: 3,
-            entityName: 'Woche 3',
+            entityName: 'Week 3',
             lastActivity: 200,
         };
         const history = render(
             <ConversationHistory conversations={[lecture]} currentSessionId={9} onOpen={vi.fn()} nowMs={300} />,
         );
-        expect(screen.getByText('Woche 3')).toBeInTheDocument();
+        expect(screen.getByText('Week 3')).toBeInTheDocument();
         // Unmounted before the second render: both would otherwise live in the
         // same document and the picker assertion below could never fail.
         history.unmount();
 
-        render(<ContextPicker {...pickerProps({ conversations: [lecture] })} />);
-        expect(screen.queryByText('Woche 3')).toBeNull();
+        render(<ContextPicker {...pickerProps()} />);
+        expect(screen.queryByText('Week 3')).toBeNull();
     });
 });
 
@@ -154,15 +153,6 @@ describe('ChatMessageList (transcript)', () => {
         onSendPrompt: vi.fn(),
         hasContext: true,
     };
-
-    it('renders no preview line, staged or not', () => {
-        // Cut 5. The chip alone carries `pending ?? committed`.
-        render(<ChatMessageList
-            {...listProps}
-            messages={[{ localId: 'a', role: 'user', content: 'hello', timestamp: 1 }]}
-        />);
-        expect(screen.queryByTestId('context-preview')).toBeNull();
-    });
 
     it('renders a stored marker row in transcript order, before the message it triggered', () => {
         render(<ChatMessageList

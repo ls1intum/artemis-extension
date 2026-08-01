@@ -35,9 +35,9 @@ function startOfDayOffset(now: Date, daysBack: number): number {
  * year/month/day in the local timezone).
  *
  * An entry with an invalid or unparseable timestamp (`lastActivity <= 0` or
- * non-finite, the host's sentinel for a date it could not parse, see
- * `buildCourseHistory`) always lands in Older, sorted after every validly
- * dated Older entry.
+ * non-finite, which is what the host sends when neither `lastActivityDate`
+ * nor `creationDate` parses) always lands in Older, sorted after every
+ * validly dated Older entry.
  *
  * Empty buckets are omitted from the result so the popover never renders a
  * heading with nothing under it.

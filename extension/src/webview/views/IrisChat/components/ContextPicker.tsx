@@ -8,12 +8,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { usePopoverKeyDown } from '@webview/hooks/usePopoverKeyDown';
 import { compareExercisesForPicker } from '@webview/views/IrisChat/pickerSort';
-import type {
-    ContentState,
-    ContextItem,
-    ConversationSummary,
-    ConversationTopic,
-} from '@webview/views/IrisChat/types';
+import type { ContentState, ContextItem, ConversationTopic } from '@webview/views/IrisChat/types';
 
 import styles from './ContextPicker.module.css';
 
@@ -29,16 +24,6 @@ interface ContextPickerProps {
     pendingContext?: ConversationTopic;
     contentState?: ContentState;
     sendInFlight?: boolean;
-    /**
-     * Accepted so a caller can hand the picker and the history the same prop
-     * bag. Deliberately unread: the per-entry outcome labels that would have
-     * needed it were cut in favour of one static hint, because computing them
-     * here would mean duplicating the host's `resolveTopic` into the webview
-     * (which `eslint.config.mjs` forbids importing) and a second
-     * implementation can drift, at which point the UI predicts an outcome the
-     * host does not produce.
-     */
-    conversations?: ConversationSummary[];
     /** Pinned and badged in the list when it belongs to this course. */
     workspaceExerciseId?: number | null;
     onSelect: (topic: ConversationTopic) => void;

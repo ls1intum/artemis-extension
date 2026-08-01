@@ -832,7 +832,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                                 pendingContext={store.pendingContext ?? undefined}
                                 contentState={store.contentState}
                                 sendInFlight={store.sendInFlight || store.navigationInFlight}
-                                conversations={store.conversations}
                                 workspaceExerciseId={store.workspaceExerciseId}
                                 onSelect={(picked) => selectTopic(picked.mode, picked.entityId, picked.name)}
                                 onClose={closePopovers}

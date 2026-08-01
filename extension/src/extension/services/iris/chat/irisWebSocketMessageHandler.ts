@@ -42,9 +42,10 @@ export class IrisWebSocketMessageHandler {
     //
     // NOTE: on disconnect, only the webview store is reset (via
     // UpdateWebSocketStatus -> resetTransientChatUi in the webview). This
-    // handler-side projection is intentionally left untouched here; clearing
-    // it on reconnect is owned by the deferred reconnect-reconciliation work,
-    // not an oversight of this handler.
+    // handler-side projection is left untouched here on purpose: the
+    // provider's `_recoverOnResubscribe` clears it (resetRunUiAndPublish)
+    // once the reconciled history proves the run finished, which is the only
+    // moment a stale partial is known to be stale.
     private _draft: { runId: string; text: string } | null = null;
     private _activities: IrisActivityDTO[] = [];
     private _runState: IrisRunState | null = null;

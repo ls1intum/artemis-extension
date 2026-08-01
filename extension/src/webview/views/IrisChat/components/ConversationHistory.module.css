@@ -172,31 +172,6 @@
     font-size: 12px;
 }
 
-.errorState {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 24px 12px;
-    text-align: center;
-    font-size: 13px;
-    color: var(--vscode-descriptionForeground);
-}
-
-.retryButton {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    padding: 4px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.retryButton:hover {
-    background: var(--vscode-button-hoverBackground);
-}
-
 .bucketGroup {
     display: flex;
     flex-direction: column;
@@ -209,21 +184,6 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--vscode-descriptionForeground);
-}
-
-.skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-}
-
-.skeletonRow {
-    height: 36px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, var(--vscode-list-hoverBackground) 25%, var(--vscode-dropdown-border) 37%, var(--vscode-list-hoverBackground) 63%);
-    background-size: 400% 100%;
-    animation: skeleton-pulse 1.4s ease infinite;
 }
 
 @keyframes skeleton-pulse {

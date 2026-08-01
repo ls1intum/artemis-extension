@@ -769,7 +769,7 @@ describe('useChatStore', () => {
 			useChatStore.getState().setComposerText('hallo');
 			useChatStore.getState().addMessage(makeMessage({ localId: 'l1', role: 'user', status: 'sending' }));
 
-			useChatStore.getState().markMessageFailed('l1', 'Unbekannter Fehler', 'unknown');
+			useChatStore.getState().markMessageFailed('l1', 'Unknown error', 'unknown');
 
 			expect(useChatStore.getState().composerText).toBe('hallo');
 		});
