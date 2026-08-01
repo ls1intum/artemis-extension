@@ -61,20 +61,23 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     // A navigation-initiating popover stays open until the navigation lands,
     // so a failure has somewhere to be read (see `openSessionError` below).
-    // The success signal is the conversation actually changing. Guarded on the
-    // ref already holding a value so this never fires on the render that
-    // opened the popover.
-    const previousSessionIdForPopovers = useRef<number | null>(null);
+    // The success signal is the conversation differing from the one that was
+    // open when the popover was opened, so the id is CAPTURED at open time
+    // rather than tracked as "the previous value": `currentSessionId` is
+    // legitimately `null` whenever nothing is open (a failed acquisition, Iris
+    // unavailable), and the header and both popovers still render in that
+    // state, so `null` cannot double as "no popover is open". `undefined` can:
+    // it is not part of the field's type.
+    const sessionWhenPopoverOpened = useRef<number | null | undefined>(undefined);
     useEffect(() => {
-        if (
-            (historyOpen || coursePickerOpen)
-            && previousSessionIdForPopovers.current !== null
-            && store.currentSessionId !== previousSessionIdForPopovers.current
-        ) {
+        if (sessionWhenPopoverOpened.current === undefined) { return; }
+        if (store.currentSessionId !== sessionWhenPopoverOpened.current) {
+            // Also clears `openSessionError`, so a failure the student has
+            // since navigated past cannot sit on top of the conversation that
+            // did load.
             closePopovers();
         }
-        previousSessionIdForPopovers.current = store.currentSessionId;
-    }, [store.currentSessionId, historyOpen, coursePickerOpen]);
+    }, [store.currentSessionId]);
 
     // Run lock: navigation cannot abandon an in-flight run. The moment
     // streaming starts, close/neutralize any popover or side menu that was
@@ -389,6 +392,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         requestCoursesIfEmpty();
         setPickerOpen(false);
         setHistoryOpen(false);
+        // Symmetric with `openHistory`: without this, a send-path error from
+        // `reportError` (which names a send, not a course) renders as an alert
+        // inside "Select course" arbitrarily long after the send that caused it.
+        setOpenSessionError(null);
+        sessionWhenPopoverOpened.current = useChatStore.getState().currentSessionId;
         setCoursePickerOpen(true);
     };
 
@@ -397,6 +405,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setPickerOpen(false);
         setCoursePickerOpen(false);
         setOpenSessionError(null);
+        sessionWhenPopoverOpened.current = useChatStore.getState().currentSessionId;
         // The conversation list comes with the snapshot, so opening it costs
         // no request.
         setHistoryOpen(true);
@@ -407,6 +416,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setHistoryOpen(false);
         setCoursePickerOpen(false);
         setOpenSessionError(null);
+        sessionWhenPopoverOpened.current = undefined;
         openerRef.current?.focus();
         openerRef.current = null;
     };

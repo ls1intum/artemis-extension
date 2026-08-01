@@ -355,6 +355,11 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         assert.deepStrictEqual(noticesFrom(postSpy), ['Started a new conversation.']);
     });
 
+    const openErrorsFrom = (spy: sinon.SinonSpy): string[] => spy.getCalls()
+        .map(c => c.args[0] as { type?: string; message?: string })
+        .filter(m => m?.type === 'openSessionError')
+        .map(m => m.message as string);
+
     test('every navigation is refused while a send is in flight', async () => {
         fake.sendInFlight = true;
 
@@ -366,6 +371,38 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
 
         assert.deepStrictEqual(fake.calls, [], 'the host must not reach the service at all');
         assert.deepStrictEqual(noticesFrom(postSpy), []);
+    });
+
+    test('a refusal ANSWERS, so the click the student made is not silently dropped', async () => {
+        // The popovers stay open until their navigation lands, so a refusal
+        // that posted nothing would leave the row simply not reacting.
+        fake.sendInFlight = true;
+
+        dispatch(h.provider, 'selectTopic', { mode: 'COURSE_CHAT', entityId: 42 });
+        dispatch(h.provider, 'openConversation', { courseId: 42, sessionId: 5 });
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        dispatch(h.provider, 'newConversation');
+        await settle();
+
+        const errors = openErrorsFrom(postSpy);
+        assert.strictEqual(errors.length, 4, 'every refused navigation must report');
+        for (const message of errors) {
+            assert.match(message, /finish answering/);
+        }
+    });
+
+    test('a navigation with no conversation service at all also answers', async () => {
+        (h.provider as unknown as { _conversation: undefined })._conversation = undefined;
+
+        dispatch(h.provider, 'selectTopic', { mode: 'COURSE_CHAT', entityId: 42 });
+        dispatch(h.provider, 'newConversation');
+        await settle();
+
+        const errors = openErrorsFrom(postSpy);
+        assert.strictEqual(errors.length, 2);
+        for (const message of errors) {
+            assert.match(message, /not available right now/);
+        }
     });
 
     test('refreshCourses reads the dashboard into the store and re-posts the snapshot', async () => {

@@ -332,6 +332,104 @@ describe('IrisChatView surfaces a failed navigation', () => {
         expect(screen.getByRole('dialog', { name: 'Select course' })).toBeInTheDocument();
     });
 
+    // `currentSessionId` is legitimately null whenever nothing is open (a
+    // failed acquisition, Iris unavailable), and the header and both popovers
+    // still render then, so a guard that reads null as "no popover is open"
+    // never fires and the popover stays mounted over the conversation that
+    // did load, still showing the previous failure.
+    it('closes the history popover on a navigation started from a null session', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, currentSessionId: undefined, conversationTitle: undefined },
+        });
+        await screen.findByRole('button', { name: 'View past conversations' });
+
+        await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+        await userEvent.click(screen.getByText('Earlier question'));
+        expect(screen.getByRole('dialog', { name: 'Conversations' })).toBeInTheDocument();
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, currentSessionId: 901, conversationTitle: 'Earlier question' },
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'Conversations' })).toBeNull();
+        });
+    });
+
+    it('closes the course picker on a navigation started from a null session', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, currentSessionId: undefined, conversationTitle: undefined },
+        });
+        await screen.findByRole('button', { name: /Introduction to Computer Science/ });
+
+        await userEvent.click(screen.getByRole('button', { name: /Introduction to Computer Science/ }));
+        await userEvent.click(screen.getByTestId('course-entry-43'));
+        expect(screen.getByRole('dialog', { name: 'Select course' })).toBeInTheDocument();
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, courseId: 43, courseTitle: 'Algorithms', currentSessionId: 902 },
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'Select course' })).toBeNull();
+        });
+    });
+
+    it('a successful retry leaves no stale failure banner behind', async () => {
+        // The first switch fails and the banner appears. The student picks a
+        // different course, that one succeeds, and the failure message must
+        // not survive on top of the conversation that did load.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, currentSessionId: undefined, conversationTitle: undefined },
+        });
+        await screen.findByRole('button', { name: /Introduction to Computer Science/ });
+
+        await userEvent.click(screen.getByRole('button', { name: /Introduction to Computer Science/ }));
+        await userEvent.click(screen.getByTestId('course-entry-43'));
+        dispatchExtensionMessage({
+            type: 'openSessionError',
+            message: 'Could not open that course. Please try again.',
+        });
+        expect(await screen.findByRole('alert')).toHaveTextContent('Could not open that course.');
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, courseId: 43, courseTitle: 'Algorithms', currentSessionId: 902 },
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByRole('alert')).toBeNull();
+        });
+        expect(screen.queryByRole('dialog', { name: 'Select course' })).toBeNull();
+    });
+
+    it('a fresh course picker does not inherit a send-path error', async () => {
+        // `reportError` names a send, not a course. Only `openHistory` used to
+        // clear the field, so a send-path error could ONLY ever surface here,
+        // wearing the wrong context entirely.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByText(/BFS loop/);
+
+        dispatchExtensionMessage({
+            type: 'openSessionError',
+            message: 'Iris could not be reached. The transcript may be out of date.',
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: /Introduction to Computer Science/ }));
+
+        expect(screen.getByRole('dialog', { name: 'Select course' })).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('closes the popover once the navigation actually lands', async () => {
         render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
         dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });

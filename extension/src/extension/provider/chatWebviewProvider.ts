@@ -1019,20 +1019,39 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // ── Conversation-first navigation handlers (spec 7.3) ──────────────
 
     /**
-     * Host-enforced navigation gate. Not a disabled button: the webview's
-     * streaming state resets on disconnect, so UI gating is not an invariant,
-     * and a navigation admitted mid-send would move the conversation out from
-     * under a POST that is still open.
+     * Host-enforced navigation gate, returning the conversation a navigation
+     * may proceed against. Not a disabled button: the webview's streaming
+     * state resets on disconnect, so UI gating is not an invariant, and a
+     * navigation admitted mid-send would move the conversation out from under
+     * a POST that is still open.
+     *
+     * A refusal ANSWERS. The popovers stay open until their navigation lands,
+     * so a refusal that posted nothing would leave the student's click with no
+     * response at all: the row would simply not react.
      */
-    private _refuseNavigationWhileSending(command: string): boolean {
-        if (this._conversation?.state.sendInFlight !== true) { return false; }
-        logger.info(`Refused ${command}: a send is in flight`, LogCategory.IRIS_CHAT);
-        return true;
+    private _conversationForNavigation(command: string): IrisConversationService | undefined {
+        const conversation = this._conversation;
+        if (!conversation) {
+            this._postMessageSafe({
+                type: ExtensionMsg.OpenSessionError,
+                message: 'Iris is not available right now.',
+            });
+            return undefined;
+        }
+        if (conversation.state.sendInFlight) {
+            logger.info(`Refused ${command}: a send is in flight`, LogCategory.IRIS_CHAT);
+            this._postMessageSafe({
+                type: ExtensionMsg.OpenSessionError,
+                message: 'Wait for Iris to finish answering before switching.',
+            });
+            return undefined;
+        }
+        return conversation;
     }
 
     private async _handleSelectTopic(target: ServerContext): Promise<void> {
-        const conversation = this._conversation;
-        if (!conversation || this._refuseNavigationWhileSending('selectTopic')) { return; }
+        const conversation = this._conversationForNavigation('selectTopic');
+        if (!conversation) { return; }
         const outcome = await conversation.resolveTopicChange(target);
         // Only `opened` moved the transcript, and replacing everything the
         // student was reading is the one result that has to be explained.
@@ -1046,8 +1065,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _handleOpenConversation(params: { courseId: number; sessionId: number }): Promise<void> {
-        const conversation = this._conversation;
-        if (!conversation || this._refuseNavigationWhileSending('openConversation')) { return; }
+        const conversation = this._conversationForNavigation('openConversation');
+        if (!conversation) { return; }
         try {
             // No notice: this navigation is exactly what the student asked for,
             // so there is nothing to explain.
@@ -1062,8 +1081,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _handleSwitchCourse(courseId: number): Promise<void> {
-        const conversation = this._conversation;
-        if (!conversation || this._refuseNavigationWhileSending('switchCourse')) { return; }
+        const conversation = this._conversationForNavigation('switchCourse');
+        if (!conversation) { return; }
         // Recorded BEFORE the acquisition so the course list's
         // most-recently-viewed order and the cold-start path both see it even
         // if the acquisition fails.
@@ -1080,8 +1099,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _handleNewConversation(): Promise<void> {
-        const conversation = this._conversation;
-        if (!conversation || this._refuseNavigationWhileSending('newConversation')) { return; }
+        const conversation = this._conversationForNavigation('newConversation');
+        if (!conversation) { return; }
         const outcome = await conversation.newConversation();
         if (outcome.kind === 'opened') {
             this._postMessageSafe({
