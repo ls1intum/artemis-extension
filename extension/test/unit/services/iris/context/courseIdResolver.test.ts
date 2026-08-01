@@ -103,5 +103,3 @@ suite('resolveCourseIdForExercise', () => {
         assert.strictEqual(id, undefined);
     });
 });
-
-/** The adapter the surviving old-model call sites still use. */

@@ -628,7 +628,7 @@ describe('IrisChatView', () => {
 
 		it('keeps loader on the very first render before any UpdateIrisState (cold-mount welcome flash guard)', () => {
 			// Pre-init state: no snapshot has arrived yet. Even though
-			// currentSessionId is null, the welcome state must NOT flash —
+			// currentSessionId is null, the welcome state must NOT flash:
 			// we cannot tell "nothing open" from "snapshot pending" until
 			// the first UpdateIrisState push.
 			useChatStore.setState({
@@ -645,7 +645,7 @@ describe('IrisChatView', () => {
 
 		it('keeps the loader when a snapshot names a conversation whose transcript has not arrived', async () => {
 			// The host posts the snapshot first and the transcript a moment
-			// later. That gap means "the transcript is still coming" — the
+			// later. That gap means "the transcript is still coming": the
 			// Iris greeting must NOT flash.
 			useChatStore.setState({
 				currentSessionId: null,

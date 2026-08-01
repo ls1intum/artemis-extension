@@ -250,6 +250,107 @@ describe('CoursePicker', () => {
         render(<CoursePicker courses={[]} currentCourseId={null} status="ready" onSelect={vi.fn()} onClose={vi.fn()} />);
         expect(screen.getByText('No courses found')).toBeInTheDocument();
     });
+
+    it('renders a failed course switch as an inline banner', () => {
+        render(
+            <CoursePicker
+                courses={[{ id: 42, title: 'Algorithms' }]}
+                currentCourseId={null}
+                openError="Could not open that course. Please try again."
+                onSelect={vi.fn()}
+                onClose={vi.fn()}
+            />,
+        );
+        expect(screen.getByRole('alert')).toHaveTextContent('Could not open that course.');
+    });
+
+    it('renders no alert banner when there is no error', () => {
+        render(<CoursePicker courses={[]} currentCourseId={null} onSelect={vi.fn()} onClose={vi.fn()} />);
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
+// The failure this pins is a WRITE-ONLY channel: three live host paths post
+// `openSessionError`, the store holds it, and nothing rendered it. A student
+// whose navigation failed saw a popover sitting there showing nothing.
+describe('IrisChatView surfaces a failed navigation', () => {
+    const activeState = {
+        exercises: [],
+        courses: [
+            { id: 42, title: 'Introduction to Computer Science' },
+            { id: 43, title: 'Algorithms' },
+        ],
+        courseId: 42,
+        courseTitle: 'Introduction to Computer Science',
+        currentSessionId: 900,
+        conversationTitle: 'BFS loop',
+        displayMessageCount: 8,
+        contentState: 'content' as const,
+        conversations: [{
+            sessionId: 901,
+            courseId: 42,
+            mode: 'PROGRAMMING_EXERCISE_CHAT',
+            entityId: 7,
+            entityName: 'Sorting',
+            title: 'Earlier question',
+            lastActivity: 100,
+        }],
+    };
+
+    it('shows the error inside the history popover, which stays open to hold it', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByText(/BFS loop/);
+
+        await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+        await userEvent.click(screen.getByText('Earlier question'));
+
+        // The host answers the failed open. The popover must still be mounted.
+        dispatchExtensionMessage({
+            type: 'openSessionError',
+            message: 'Could not open that conversation. Please try again.',
+        });
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Could not open that conversation.');
+        expect(screen.getByRole('dialog', { name: 'Conversations' })).toBeInTheDocument();
+    });
+
+    it('shows the error inside the course picker, which stays open to hold it', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByText(/BFS loop/);
+
+        await userEvent.click(screen.getByRole('button', { name: /Introduction to Computer Science/ }));
+        await userEvent.click(screen.getByTestId('course-entry-43'));
+
+        dispatchExtensionMessage({
+            type: 'openSessionError',
+            message: 'Could not open that course. Please try again.',
+        });
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Could not open that course.');
+        expect(screen.getByRole('dialog', { name: 'Select course' })).toBeInTheDocument();
+    });
+
+    it('closes the popover once the navigation actually lands', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByText(/BFS loop/);
+
+        await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+        await userEvent.click(screen.getByText('Earlier question'));
+        expect(screen.getByRole('dialog', { name: 'Conversations' })).toBeInTheDocument();
+
+        // The conversation changing IS the success signal.
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, currentSessionId: 901, conversationTitle: 'Earlier question' },
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'Conversations' })).toBeNull();
+        });
+    });
 });
 
 describe('IrisChatView header', () => {

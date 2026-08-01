@@ -128,6 +128,7 @@ export function ContextPicker({
                         type="button"
                         className={clsx(styles.row, { [styles.rowActive]: isSelected('COURSE_CHAT', courseId) })}
                         data-testid="picker-entry-course"
+                        aria-current={isSelected('COURSE_CHAT', courseId) || undefined}
                         disabled={entriesDisabled}
                         onClick={() => onSelect({ mode: 'COURSE_CHAT', entityId: courseId })}
                     >
@@ -145,6 +146,7 @@ export function ContextPicker({
                             type="button"
                             className={clsx(styles.row, { [styles.rowActive]: active })}
                             data-testid={`picker-entry-${exercise.id}`}
+                            aria-current={active || undefined}
                             disabled={entriesDisabled}
                             onClick={() => onSelect({
                                 mode: 'PROGRAMMING_EXERCISE_CHAT',

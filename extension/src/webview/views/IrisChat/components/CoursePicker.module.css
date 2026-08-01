@@ -95,3 +95,14 @@
     0% { background-position: 100% 50%; }
     100% { background-position: 0 50%; }
 }
+
+.errorBanner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--vscode-inputValidation-errorBackground, var(--vscode-input-background));
+    color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+    border-bottom: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-dropdown-border));
+    font-size: 12px;
+}

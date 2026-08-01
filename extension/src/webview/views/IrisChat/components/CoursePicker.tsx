@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import BookOpen from 'lucide-react/dist/esm/icons/book-open';
 import Check from 'lucide-react/dist/esm/icons/check';
+import Info from 'lucide-react/dist/esm/icons/info';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
@@ -26,6 +27,8 @@ interface CoursePickerProps {
      * header to hang it off, so the list IS the empty transcript).
      */
     variant?: 'popover' | 'inline';
+    /** A course switch the host could not carry out. See ConversationHistory. */
+    openError?: string | null;
     onSelect: (courseId: number) => void;
     onClose: () => void;
 }
@@ -42,6 +45,7 @@ export function CoursePicker({
     currentCourseId,
     status = 'ready',
     variant = 'popover',
+    openError = null,
     onSelect,
     onClose,
 }: CoursePickerProps) {
@@ -71,6 +75,13 @@ export function CoursePicker({
             aria-busy={status === 'loading'}
             onKeyDown={handleKeyDown}
         >
+            {openError && (
+                <div className={styles.errorBanner} role="alert">
+                    <Info size={14} />
+                    <span>{openError}</span>
+                </div>
+            )}
+
             {status === 'loading' && (
                 <div className={styles.skeleton}>
                     <div className={styles.skeletonRow} />

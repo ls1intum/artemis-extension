@@ -92,6 +92,35 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.exercises[0].id, 3, 'workspace exercise must come first');
     });
 
+    // The two "sorted" tests above lean on insertion order: the repository
+    // PREPENDS new items, so a freshly registered list is already in the
+    // expected order and a no-op sort would pass them. This one registers in
+    // an order the sort has to actually undo, and re-registers an existing
+    // item (an UPDATE replaces in place without moving it).
+    test('snapshot sorts, it does not just echo insertion order', () => {
+        const originalNow = Date.now;
+        let t = 1000;
+        Date.now = () => t;
+        try {
+            t = 3000; contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+            t = 2000; contextStore.registerExercise({ id: 2, title: 'Ex 2' });
+            t = 1000; contextStore.registerExercise({ id: 3, title: 'Ex 3' });
+            // Ex 1 is now the OLDEST-viewed but the LAST element of the stored
+            // array (prepend order), so insertion order alone gives [3, 2, 1]
+            // and lastViewed order gives [1, 2, 3]. They disagree.
+            const exercises = contextStore.snapshot().exercises.map(e => e.id);
+            assert.deepStrictEqual(exercises, [1, 2, 3], 'exercises must be sorted by lastViewed desc');
+
+            t = 3000; contextStore.registerCourse({ id: 10, title: 'C 10' });
+            t = 2000; contextStore.registerCourse({ id: 20, title: 'C 20' });
+            t = 1000; contextStore.registerCourse({ id: 30, title: 'C 30' });
+            const courses = contextStore.snapshot().courses.map(c => c.id);
+            assert.deepStrictEqual(courses, [10, 20, 30], 'courses must be sorted by lastViewed desc');
+        } finally {
+            Date.now = originalNow;
+        }
+    });
+
     test('snapshot hides past-deadline exercises but keeps the workspace one', () => {
         const past = '2020-01-01T00:00:00.000Z';
         const future = new Date(Date.now() + 86400000).toISOString();
@@ -103,6 +132,24 @@ suite('ContextStore Test Suite', () => {
         const snapshot = contextStore.snapshot();
         const ids = snapshot.exercises.map(e => e.id).sort();
         assert.deepStrictEqual(ids, [2, 4, 5], 'past-deadline #3 hidden, others kept');
+    });
+
+    // Liam's decision: an overdue exercise the student is demonstrably still
+    // talking about stays pickable. Without it the composer chip names a topic
+    // the picker cannot show, so the checkmark has nothing to land on.
+    test('snapshot keeps a past-deadline exercise when it is the conversation topic', () => {
+        const past = '2020-01-01T00:00:00.000Z';
+        contextStore.registerExercise({ id: 3, title: 'Overdue topic', dueDate: past });
+        contextStore.registerExercise({ id: 4, title: 'Overdue, not the topic', dueDate: past });
+
+        assert.deepStrictEqual(
+            contextStore.snapshot().exercises.map(e => e.id), [],
+            'precondition: both are hidden with no topic',
+        );
+        assert.deepStrictEqual(
+            contextStore.snapshot(3).exercises.map(e => e.id), [3],
+            'only the topic survives the deadline filter',
+        );
     });
 
     test('snapshot keeps exercise with malformed dueDate (treated as no deadline)', () => {

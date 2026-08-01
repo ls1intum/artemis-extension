@@ -246,6 +246,7 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
             snapshot: () => ({ currentSessionId: 1, courseId: 42, courseSessions: [] }),
             displayMessageCount: () => 0,
             contentState: () => 'content',
+            effectiveContext: () => undefined,
         },
         navigationInFlight: false,
         resolveTopicChange: async (target: unknown) => {

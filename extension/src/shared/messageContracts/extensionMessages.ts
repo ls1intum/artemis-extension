@@ -306,12 +306,12 @@ interface ExtensionMsgPayloads {
         id: number;
     };
     /**
-     * A pre-switch open failure: the course overview fetch failed, or the
-     * requested Artemis session id was not present in it. Distinct from
-     * {@link loadMessagesError} (which is keyed to a `localSessionId` and
-     * dropped unless it matches the active session): nothing was mutated and
-     * the active session is untouched, so this cannot be attributed to any
-     * local session. The history popover surfaces it inline.
+     * A navigation the student asked for that the host could not carry out:
+     * the open failed, the course switch failed, or a send could not be
+     * prepared. Deliberately carries no `sessionId`: nothing was mutated and
+     * the open conversation is untouched, so there is no conversation to
+     * attribute it to. The popover the student is looking at surfaces it
+     * inline; the global banners are reserved for availability.
      */
     openSessionError: { message: string };
     updateReferencedFiles: {

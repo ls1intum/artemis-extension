@@ -214,7 +214,7 @@ suite('IrisAvailabilityService Test Suite', () => {
             // comes from the iris-settings endpoint. A 403 from the profile
             // probe (or any other endpoint in the flow) is an
             // infrastructure / auth issue and must NOT be misclassified as
-            // disabled — otherwise a transient permissions hiccup would
+            // disabled, otherwise a transient permissions hiccup would
             // surface the "instructor disabled Iris" overlay.
             mockApiService.getProfileInfo.rejects(new ApiError('Forbidden', 403));
 

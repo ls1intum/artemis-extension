@@ -120,7 +120,7 @@ describe('Iris Chat Flow', () => {
 					workspaceExerciseId: undefined,
 				},
 			});
-			// And the matching transcript — the host always delivers one once
+			// And the matching transcript. The host always delivers one once
 			// the conversation is installed; the input stays disabled until
 			// then so the student does not race the hydration.
 			dispatchExtensionMessage({
@@ -760,7 +760,7 @@ describe('Iris Chat Flow', () => {
 				},
 			});
 
-			// Still loader — the transcript has not arrived yet.
+			// Still loader: the transcript has not arrived yet.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 
 			dispatchExtensionMessage({

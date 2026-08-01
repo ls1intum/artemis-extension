@@ -59,6 +59,23 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
 
+    // A navigation-initiating popover stays open until the navigation lands,
+    // so a failure has somewhere to be read (see `openSessionError` below).
+    // The success signal is the conversation actually changing. Guarded on the
+    // ref already holding a value so this never fires on the render that
+    // opened the popover.
+    const previousSessionIdForPopovers = useRef<number | null>(null);
+    useEffect(() => {
+        if (
+            (historyOpen || coursePickerOpen)
+            && previousSessionIdForPopovers.current !== null
+            && store.currentSessionId !== previousSessionIdForPopovers.current
+        ) {
+            closePopovers();
+        }
+        previousSessionIdForPopovers.current = store.currentSessionId;
+    }, [store.currentSessionId, historyOpen, coursePickerOpen]);
+
     // Run lock: navigation cannot abandon an in-flight run. The moment
     // streaming starts, close/neutralize any popover or side menu that was
     // already open. Without this, a late click inside one (still mounted
@@ -598,9 +615,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         courses={store.courses}
                         currentCourseId={store.courseId}
                         status={coursesLoading ? 'loading' : 'ready'}
+                        openError={store.openSessionError}
                         onSelect={(courseId) => {
+                            // Deliberately does NOT close: a course switch that
+                            // fails posts `openSessionError`, which needs a
+                            // visible destination. The effect above closes it
+                            // once the conversation actually changes.
                             postCommand(vscodeApi, 'switchCourse', { courseId });
-                            closePopovers();
                         }}
                         onClose={closePopovers}
                     />
@@ -613,15 +634,20 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <ConversationHistory
                         conversations={store.conversations}
                         currentSessionId={store.currentSessionId}
+                        openError={store.openSessionError}
                         onOpen={(conversation) => {
                             // Id-based, so it never consults the topic index:
                             // a lecture or text-exercise conversation is
                             // openable even though it can never be a topic.
+                            //
+                            // Deliberately does NOT close the popover: an open
+                            // that fails posts `openSessionError`, which needs a
+                            // visible destination. The effect above closes it
+                            // once the conversation actually changes.
                             postCommand(vscodeApi, 'openConversation', {
                                 courseId: conversation.courseId,
                                 sessionId: conversation.sessionId,
                             });
-                            closePopovers();
                         }}
                         onNewConversation={() => {
                             postCommand(vscodeApi, 'newConversation');
@@ -697,6 +723,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             courses={store.courses}
                             currentCourseId={store.courseId}
                             status={coursesLoading ? 'loading' : 'ready'}
+                            openError={store.openSessionError}
                             onSelect={(courseId) => postCommand(vscodeApi, 'switchCourse', { courseId })}
                             onClose={closePopovers}
                         />

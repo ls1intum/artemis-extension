@@ -51,11 +51,7 @@ interface ExerciseContextChangeEvent {
  * not enough: `generation` is the anti-stale key that lets a POST for an older
  * send be told apart from the still-current one.
  *
- * Keyed on the CONVERSATION, like everything else on this path. It used to
- * carry the old model's local session id and was compared against
- * `contextStore.snapshot().activeSession`, which is `undefined` once the
- * conversation model drives: the whole recovery was unreachable, so a run
- * whose terminal frame was lost stayed `waiting` until the next navigation.
+ * Keyed on the CONVERSATION, like everything else on this path.
  */
 interface RecoveryBaseline {
     generation: number;      // _runs.generation at dispatch; the anti-stale key
@@ -166,8 +162,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // detector observes the code that is open, and `workspaceDetectionService`
         // derives that from the folder's git remote. A topic change points the
         // chat at an exercise whose code is usually not open at all, so it must
-        // not retarget the detector (that firing used to live on
-        // `onDidChangeActiveContext` below).
+        // not retarget the detector.
         this._disposables.push(
             this._contextStore.onDidChangeWorkspaceExercise((current) => {
                 // A clear announces nothing: there is no exercise to start a
@@ -603,8 +598,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     // ── Workspace detection sink ──────────────────────────────────────
     // Called by wireWorkspaceDetection at activation. The provider implements
-    // the sink because it owns the ChatContextManager + presenter that need
-    // to be refreshed when the workspace exercise changes.
+    // the sink because it owns the presenter that has to repost the snapshot
+    // when the workspace exercise changes.
 
     public registerWorkspaceExercise(input: {
         id: number;

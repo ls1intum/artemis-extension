@@ -77,7 +77,7 @@ export class IrisAvailabilityService {
     /**
      * Clear the tracked availability state. Called on navigation so a stale
      * `unavailable` from a previous conversation cannot leak into the new
-     * one. Does not emit any UI messages — the caller is responsible for
+     * one. Does not emit any UI messages: the caller is responsible for
      * hiding banners for the outgoing conversation.
      */
     public resetAvailability(): void {
@@ -127,7 +127,7 @@ export class IrisAvailabilityService {
 
         logger.info(`Checking Iris settings for ${context.type}: ${context.title}`, LogCategory.IRIS_CHAT);
 
-        // Step 1: Profile probe. A 403 here is NOT a disable signal — that
+        // Step 1: Profile probe. A 403 here is NOT a disable signal. That
         // would mean "user not allowed to read the server profile", which
         // is an infrastructure / auth issue. Profile-fetch failures
         // therefore funnel through the same `unavailable` path as any
@@ -146,7 +146,7 @@ export class IrisAvailabilityService {
 
         // Step 2: Resolve courseId for an exercise context. Failures here
         // are transient (registry not populated yet, exercise-details
-        // endpoint dropped) — never a disable signal.
+        // endpoint dropped), never a disable signal.
         let courseId: number;
         if (context.type === 'course') {
             courseId = context.id;
@@ -169,7 +169,7 @@ export class IrisAvailabilityService {
             return { kind: 'disabled' };
         }
 
-        // Step 3: Iris settings call — this is the ONLY endpoint where a
+        // Step 3: Iris settings call. This is the ONLY endpoint where a
         // 403 has a "disabled" semantic (course-level forbidden = Iris
         // chat off for this user). All other status codes (incl. 401,
         // 4xx, 5xx) plus network/timeout/malformed map to unavailable
@@ -215,7 +215,7 @@ export class IrisAvailabilityService {
  *   - `MalformedResponseError` (subclass of ApiError) → unavailable
  *   - any other Error / network / `TypeError`        → unavailable
  *
- * No string-matching on `error.message.includes('403')` — the historical
+ * No string-matching on `error.message.includes('403')`: the historical
  * fallback was inherited code with no good reason to keep it and could
  * misclassify unrelated errors whose message happened to contain '403'.
  */

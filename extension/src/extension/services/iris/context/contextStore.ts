@@ -67,12 +67,16 @@ export class ContextStore {
 
     /**
      * What the pickers render. An exercise past its due date is hidden unless
-     * it is the workspace one, and both lists are sorted for display; the
-     * sort is computed here rather than stored, so nothing can go stale.
+     * it is the workspace one or `topicExerciseId` (the conversation's current
+     * topic): an overdue exercise the student is demonstrably still talking
+     * about must stay pickable, or the chip names a topic the picker cannot
+     * show a checkmark for. Both lists are sorted for display, computed here
+     * rather than stored so nothing can go stale.
      */
-    public snapshot(): ContextSnapshot {
+    public snapshot(topicExerciseId?: number): ContextSnapshot {
         const nowMs = Date.now();
-        const visibleExercises = this._state.exercises.filter(ex => ex.isWorkspace || !isPastDeadline(ex, nowMs));
+        const visibleExercises = this._state.exercises.filter(ex =>
+            ex.isWorkspace || ex.id === topicExerciseId || !isPastDeadline(ex, nowMs));
         return {
             exercises: [...visibleExercises].sort(compareExercisesForDisplay),
             courses: [...this._state.courses].sort(compareCoursesForDisplay),

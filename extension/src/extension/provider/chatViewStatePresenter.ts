@@ -39,7 +39,10 @@ export class ChatViewStatePresenter {
     ) {}
 
     public postSnapshot(): void {
-        const snapshot = this._contextStore.snapshot();
+        // The topic travels INTO the snapshot: the tracked-item store hides
+        // past-deadline exercises, and the one the conversation is about has
+        // to survive that filter.
+        const snapshot = this._contextStore.snapshot(this._topicExerciseId());
         const config = vscode.workspace.getConfiguration('artemis');
         const showDiagnostics = config.get<boolean>('developerMode', false);
         this._postMessage({
@@ -52,6 +55,18 @@ export class ChatViewStatePresenter {
             },
             showDiagnostics,
         });
+    }
+
+    /**
+     * The exercise the open conversation is about, when it is about one.
+     * `effectiveContext()` is `pending ?? committed`, which is exactly what
+     * the picker draws its checkmark on, so both must resolve to the same
+     * exercise or a staged overdue topic disappears from the list it was
+     * staged from.
+     */
+    private _topicExerciseId(): number | undefined {
+        const topic = this._getConversation()?.state.effectiveContext();
+        return topic?.mode === 'PROGRAMMING_EXERCISE_CHAT' ? topic.entityId : undefined;
     }
 
     /**

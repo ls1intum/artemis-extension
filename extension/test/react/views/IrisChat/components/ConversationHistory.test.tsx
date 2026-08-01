@@ -67,11 +67,15 @@ describe('ConversationHistory', () => {
         expect(screen.getAllByTestId('history-active')).toHaveLength(1);
     });
 
-    it('clicking a row calls onOpen with that conversation', () => {
+    it('clicking a row calls onOpen with that conversation AND does not close the popover', () => {
         const onOpen = vi.fn();
-        render(<ConversationHistory {...props} onOpen={onOpen} />);
+        const onClose = vi.fn();
+        render(<ConversationHistory {...props} onOpen={onOpen} onClose={onClose} />);
         fireEvent.click(screen.getByText('Untitled conversation'));
         expect(onOpen).toHaveBeenCalledWith(conversations[1]);
+        // Staying open is what gives a resulting `openError` a visible
+        // destination; the caller closes it once the conversation changes.
+        expect(onClose).not.toHaveBeenCalled();
     });
 
     it('clicking the already-open row does not call onOpen, and closes the popover instead', () => {
@@ -100,6 +104,16 @@ describe('ConversationHistory', () => {
     it('shows an empty state when the course has no conversations', () => {
         render(<ConversationHistory {...props} conversations={[]} />);
         expect(screen.getByText('No conversations')).toBeInTheDocument();
+    });
+
+    it('renders openError as an inline banner inside the popover', () => {
+        render(<ConversationHistory {...props} openError="That conversation is no longer available." />);
+        expect(screen.getByRole('alert')).toHaveTextContent('That conversation is no longer available.');
+    });
+
+    it('renders no alert banner when openError is null', () => {
+        render(<ConversationHistory {...props} openError={null} />);
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
     it('filters by title and by entity name', () => {

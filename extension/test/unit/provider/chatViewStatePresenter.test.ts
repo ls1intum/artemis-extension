@@ -43,6 +43,8 @@ function fakeConversation(over: {
             displayMessageCount: () => over.displayMessageCount ?? 0,
             contentState: () => over.contentState ?? 'unknown',
             sendInFlight: over.sendInFlight ?? false,
+            // `pending ?? committed`, exactly as ConversationState computes it.
+            effectiveContext: () => over.pendingCtx ?? over.committedContext,
         },
         navigationInFlight: over.navigationInFlight ?? false,
     } as unknown as IrisConversationService;
@@ -140,6 +142,43 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(state.conversations?.length, 1);
         assert.strictEqual(state.conversations?.[0].sessionId, 42);
         assert.strictEqual(state.conversations?.[0].entityName, 'Sorting');
+    });
+
+    // The store hides past-deadline exercises. The presenter is the only thing
+    // that knows what the conversation is about, so it has to pass the topic in
+    // or the chip names an exercise the picker refuses to list.
+    test('the conversation topic travels into the snapshot, so an overdue topic stays listed', () => {
+        const past = '2020-01-01T00:00:00.000Z';
+        h.contextStore.registerExercise({ id: 12, title: 'Sorting', dueDate: past } as never);
+
+        const withoutTopic = h.build(() => undefined);
+        withoutTopic.postSnapshot();
+        assert.deepStrictEqual(h.latestState().exercises.map(e => e.id), [],
+            'precondition: an overdue exercise is hidden');
+
+        const presenter = h.build(() => fakeConversation({
+            courseId: 5,
+            currentSessionId: 42,
+            committedContext: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 12, name: 'Sorting' },
+        }));
+        presenter.postSnapshot();
+
+        assert.deepStrictEqual(h.latestState().exercises.map(e => e.id), [12]);
+    });
+
+    test('a STAGED topic keeps its exercise listed too, so the checkmark has somewhere to land', () => {
+        const past = '2020-01-01T00:00:00.000Z';
+        h.contextStore.registerExercise({ id: 12, title: 'Sorting', dueDate: past } as never);
+
+        const presenter = h.build(() => fakeConversation({
+            courseId: 5,
+            currentSessionId: 42,
+            committedContext: { mode: 'COURSE_CHAT', entityId: 5 },
+            pendingCtx: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 12, name: 'Sorting' },
+        }));
+        presenter.postSnapshot();
+
+        assert.deepStrictEqual(h.latestState().exercises.map(e => e.id), [12]);
     });
 
     test('workspaceExerciseId is sourced from ContextStore, independent of the conversation getter', () => {

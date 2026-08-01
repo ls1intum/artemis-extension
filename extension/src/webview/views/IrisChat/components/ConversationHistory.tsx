@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import Check from 'lucide-react/dist/esm/icons/check';
+import Info from 'lucide-react/dist/esm/icons/info';
 import MessageSquare from 'lucide-react/dist/esm/icons/message-square';
 import Plus from 'lucide-react/dist/esm/icons/plus';
 import Search from 'lucide-react/dist/esm/icons/search';
@@ -30,6 +31,13 @@ interface ConversationHistoryProps {
     onOpen?: (conversation: ConversationSummary) => void;
     onNewConversation?: () => void;
     onClose?: () => void;
+    /**
+     * A navigation the student asked for here that the host could not carry
+     * out. Rendered inline rather than as the global banner: nothing about
+     * chat availability changed, only the row they clicked could not be
+     * opened, and the popover is where they are looking.
+     */
+    openError?: string | null;
     /** Injected so bucketing stays deterministic in tests. */
     nowMs?: number;
 }
@@ -51,6 +59,7 @@ export function ConversationHistory({
     onOpen,
     onNewConversation,
     onClose,
+    openError = null,
 }: ConversationHistoryProps) {
     const dialogRef = useRef<HTMLDivElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -100,6 +109,13 @@ export function ConversationHistory({
                     </button>
                 )}
             </div>
+
+            {openError && (
+                <div className={styles.errorBanner} role="alert">
+                    <Info size={14} />
+                    <span>{openError}</span>
+                </div>
+            )}
 
             <div className={styles.list}>
                 {matches.length === 0 && (
