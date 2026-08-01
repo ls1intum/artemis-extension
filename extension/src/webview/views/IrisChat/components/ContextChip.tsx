@@ -1,5 +1,6 @@
 import X from 'lucide-react/dist/esm/icons/x';
 
+import { contextLabel } from '@webview/views/IrisChat/contextLabel';
 import type { ContentState, ConversationTopic } from '@webview/views/IrisChat/types';
 
 import styles from './ContextChip.module.css';
@@ -51,7 +52,10 @@ export function ContextChip({
         return null;
     }
 
-    const label = context.name ?? 'Topic';
+    // `name` is filled in by the host from the tracked exercises when the
+    // server did not send one; the fallback names the entity rather than
+    // reading the literal word "Topic".
+    const label = contextLabel(context);
 
     return (
         <div className={styles.chip}>

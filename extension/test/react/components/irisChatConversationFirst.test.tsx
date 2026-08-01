@@ -67,6 +67,21 @@ describe('ContextChip', () => {
         expect(screen.queryByRole('button', { name: 'Remove topic' })).toBeNull();
     });
 
+    it('names a nameless topic by its entity, never the literal word "Topic"', () => {
+        // What `_toSessionDetail` produces: `{ mode, entityId }`, no name. The
+        // host fills one in from the tracked exercises when it has one; this is
+        // the fallback for when it does not.
+        render(
+            <ContextChip
+                context={{ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }}
+                contentState="content"
+                onRemove={vi.fn()}
+                onOpenPicker={vi.fn()}
+            />,
+        );
+        expect(screen.getByRole('button', { name: 'Exercise 5' })).toBeInTheDocument();
+    });
+
     it('renders no chip when the topic is the course', () => {
         const { container } = render(
             <ContextChip context={COURSE42} contentState="empty" onRemove={vi.fn()} onOpenPicker={vi.fn()} />,

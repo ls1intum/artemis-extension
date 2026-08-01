@@ -62,6 +62,23 @@ describe('ConversationHistory', () => {
         expect(screen.getByText((text) => text.includes('Course chat'))).toBeInTheDocument();
     });
 
+    // THE SHAPE THE HOST ACTUALLY PRODUCES on every detail load: only the
+    // overview endpoint carries `entityName`. Labelling this row "Course chat"
+    // is not a missing label, it is a wrong one.
+    it('names a nameless row by its mode instead of calling it a course chat', () => {
+        const nameless: ConversationSummary[] = [{
+            sessionId: 4,
+            courseId: 7,
+            mode: 'PROGRAMMING_EXERCISE_CHAT',
+            entityId: 42,
+            title: 'BFS loop',
+            lastActivity: NOW - 60_000,
+        }];
+        render(<ConversationHistory {...props} conversations={nameless} />);
+        expect(screen.getByText('Exercise 42')).toBeInTheDocument();
+        expect(screen.queryByText('Course chat')).toBeNull();
+    });
+
     it('marks the conversation matching currentSessionId as active', () => {
         render(<ConversationHistory {...props} />);
         expect(screen.getAllByTestId('history-active')).toHaveLength(1);

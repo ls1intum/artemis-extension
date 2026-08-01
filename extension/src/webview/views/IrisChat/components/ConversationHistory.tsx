@@ -9,6 +9,7 @@ import { useRef, useState } from 'react';
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { usePopoverKeyDown } from '@webview/hooks/usePopoverKeyDown';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
+import { contextLabel } from '@webview/views/IrisChat/contextLabel';
 import type { HistoryBucket } from '@webview/views/IrisChat/historyBuckets';
 import { bucketHistoryByTime } from '@webview/views/IrisChat/historyBuckets';
 import type { ConversationSummary } from '@webview/views/IrisChat/types';
@@ -142,7 +143,14 @@ export function ConversationHistory({
                                         </span>
                                         <span className={styles.rowSubtitleSplit}>
                                             <span className={styles.rowContext}>
-                                                {conversation.entityName ?? 'Course chat'}
+                                                {/* Mode-aware: only the overview endpoint sends
+                                                    `entityName`, so a nameless EXERCISE row must
+                                                    not be labelled a course chat. */}
+                                                {contextLabel({
+                                                    mode: conversation.mode,
+                                                    entityId: conversation.entityId,
+                                                    name: conversation.entityName,
+                                                })}
                                             </span>
                                             <span className={styles.rowTime}>
                                                 {formatRelativeTime(conversation.lastActivity)}

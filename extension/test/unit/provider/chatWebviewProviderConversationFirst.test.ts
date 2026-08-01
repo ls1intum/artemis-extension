@@ -164,6 +164,93 @@ suite('ChatWebviewProvider: Ask Iris', () => {
     });
 });
 
+/**
+ * Iris availability is a question about the COURSE the conversation is in, and
+ * the student must not have to send a message to learn the answer. The old
+ * model asked it as step 0 of every context load; the conversation-first
+ * rewrite deleted every caller of that step.
+ */
+suite('ChatWebviewProvider: availability is checked without a send', () => {
+    let h: Harness;
+    let postSpy: sinon.SinonSpy;
+    let check: sinon.SinonStub;
+
+    const posted = (spy: sinon.SinonSpy, type: string): unknown[] => spy.getCalls()
+        .map(c => c.args[0] as { type?: string })
+        .filter(m => m?.type === type);
+
+    setup(() => {
+        h = buildHarness();
+        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        check = h.sandbox.stub(
+            (h.provider as unknown as { _availability: { checkAndLoadIrisSettings: () => Promise<unknown> } })._availability,
+            'checkAndLoadIrisSettings',
+        ).resolves({ kind: 'disabled' } as never);
+        // `start` fires an overview refresh, and an unstubbed sinon method
+        // answers `undefined`, which the real endpoint cannot: it routes
+        // through `expectArray` and throws on a non-array.
+        h.api.listChatSessionsForCourse.resolves([]);
+    });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    const startConversation = () => (h.provider as unknown as { _startConversation: () => Promise<void> })._startConversation();
+
+    test('a conversation landing in a course with Iris disabled posts the banner before any send', async () => {
+        h.api.getCurrentChat.resolves(detail({
+            sessionId: 1, courseId: 42, context: { mode: 'COURSE_CHAT', entityId: 42 },
+        }));
+
+        await h.provider.askIrisAbout({ mode: 'COURSE_CHAT', entityId: 42 }, 42);
+        await settle();
+
+        assert.strictEqual(check.callCount, 1, 'the navigation itself must ask');
+        assert.strictEqual(posted(postSpy, 'showDisabledState').length, 1);
+        assert.strictEqual(h.api.sendChatMessage.callCount, 0, 'nothing was sent to find this out');
+    });
+
+    test('re-opening the view re-asks even though the conversation did not change', async () => {
+        // `_onConversationChanged` guards on the session id, so a re-install of
+        // the SAME conversation posts no banner through that path at all.
+        h.provider.registerWorkspaceExercise({
+            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+        });
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42 }));
+        await startConversation();
+
+        postSpy.resetHistory();
+        check.resetHistory();
+        await startConversation();
+
+        assert.strictEqual(check.callCount, 1);
+        assert.strictEqual(posted(postSpy, 'showDisabledState').length, 1);
+    });
+
+    test('an answer that outlived its conversation is not published', async () => {
+        // Course 42's settings call resolves only after the student has already
+        // switched to 43. Publishing it would be exactly the stale banner
+        // `resetAvailability` exists to prevent.
+        let release42: (value: unknown) => void = () => undefined;
+        check.onFirstCall().returns(new Promise(resolve => { release42 = resolve; }));
+        check.onSecondCall().resolves({ kind: 'enabled' } as never);
+        h.api.getCurrentChat
+            .withArgs('COURSE_CHAT', 42, 42)
+            .resolves(detail({ sessionId: 1, courseId: 42, context: { mode: 'COURSE_CHAT', entityId: 42 } }));
+        h.api.getCurrentChat
+            .withArgs('COURSE_CHAT', 43, 43)
+            .resolves(detail({ sessionId: 2, courseId: 43, context: { mode: 'COURSE_CHAT', entityId: 43 } }));
+
+        await h.provider.askIrisAbout({ mode: 'COURSE_CHAT', entityId: 42 }, 42);
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        postSpy.resetHistory();
+        release42({ kind: 'disabled' });
+        await settle();
+
+        assert.strictEqual(posted(postSpy, 'showDisabledState').length, 0);
+    });
+});
+
 suite('ChatWebviewProvider: reload Iris chat', () => {
     let h: Harness;
     let calls: string[];
@@ -243,7 +330,7 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         // postSnapshot throw rather than fail an assertion.
         state: {
             get sendInFlight() { return fake.sendInFlight; },
-            snapshot: () => ({ currentSessionId: 1, courseId: 42, courseSessions: [] }),
+            snapshot: () => ({ currentSessionId: 1, courseId: 42, courseSessions: [], knownInvisible: [] }),
             displayMessageCount: () => 0,
             contentState: () => 'content',
             effectiveContext: () => undefined,

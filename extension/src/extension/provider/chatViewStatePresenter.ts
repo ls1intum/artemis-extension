@@ -2,11 +2,13 @@ import * as vscode from 'vscode';
 
 import type { ExtensionToWebviewMessage, ExtMsg } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
+import type { ServerContext } from '@shared/types/serverContext';
 
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 
 type IrisViewState = ExtMsg<'updateIrisState'>['state'];
+type ConversationSnapshot = ReturnType<IrisConversationService['state']['snapshot']>;
 
 /** The conversation half of the snapshot when no conversation service exists. */
 const NO_CONVERSATION = {
@@ -70,6 +72,53 @@ export class ChatViewStatePresenter {
     }
 
     /**
+     * The course's conversations for the history popover: the overview rows
+     * plus the ones only the invisible cache knows about, deduplicated by
+     * session id with the overview row winning. Both sources are already
+     * course-scoped (`setCourse` clears the cache), and `updateSummary` keeps a
+     * session in exactly one of them, so the dedup is a guarantee rather than a
+     * repair.
+     */
+    private _conversationRows(snapshot: ConversationSnapshot): IrisViewState['conversations'] {
+        const byId = new Map<number, ConversationSnapshot['courseSessions'][number]>();
+        for (const summary of [...snapshot.knownInvisible, ...snapshot.courseSessions]) {
+            byId.set(summary.sessionId, summary);
+        }
+        return [...byId.values()].map(summary => {
+            const context = this._named(summary.context) ?? summary.context;
+            return {
+                sessionId: summary.sessionId,
+                courseId: summary.courseId,
+                mode: context.mode,
+                entityId: context.entityId,
+                entityName: context.name,
+                title: summary.title,
+                lastActivity: summary.lastActivity,
+            };
+        });
+    }
+
+    /**
+     * Fills a display name the SERVER did not supply. Only the overview
+     * endpoint returns `entityName`; every detail load (`sessions/current`, the
+     * by-id GET, a fresh conversation) builds its context from `mode` and
+     * `entityId` alone. Without this the chip reads the literal word "Topic"
+     * and a history row falls back to its mode.
+     *
+     * Exercises only, and only `PROGRAMMING_EXERCISE_CHAT`, exactly like
+     * `_availabilityContext`: the tracked repository holds programming
+     * exercises, and a LECTURE_CHAT `entityId` would collide with an exercise
+     * id and hand back a wrong title with full confidence.
+     */
+    private _named(context: ServerContext | undefined): ServerContext | undefined {
+        if (!context || context.name !== undefined || context.mode !== 'PROGRAMMING_EXERCISE_CHAT') {
+            return context;
+        }
+        const title = this._contextStore.getExerciseById(context.entityId)?.title;
+        return title === undefined ? context : { ...context, name: title };
+    }
+
+    /**
      * The open conversation, projected onto the wire.
      *
      * `courseTitle` has no equivalent in `ConversationSnapshot` (it only
@@ -88,20 +137,19 @@ export class ChatViewStatePresenter {
             currentSessionId: snapshot.currentSessionId,
             conversationTitle: snapshot.detail?.title,
             displayMessageCount: conversation.state.displayMessageCount(),
-            committedContext: snapshot.committedContext,
-            pendingContext: snapshot.pendingContext?.ctx,
+            committedContext: this._named(snapshot.committedContext),
+            pendingContext: this._named(snapshot.pendingContext?.ctx),
             contentState: conversation.state.contentState(),
             sendInFlight: conversation.state.sendInFlight,
             navigationInFlight: conversation.navigationInFlight,
-            conversations: snapshot.courseSessions.map(summary => ({
-                sessionId: summary.sessionId,
-                courseId: summary.courseId,
-                mode: summary.context.mode,
-                entityId: summary.context.entityId,
-                entityName: summary.context.name,
-                title: summary.title,
-                lastActivity: summary.lastActivity,
-            })),
+            // The overview UNION the invisible cache (spec 5.4), deduplicated by
+            // session id. `knownInvisible` holds conversations the USER-scoped
+            // overview does not list, starting with the one you are in before
+            // it has a user message: without the union the open conversation is
+            // simply absent from its own history, so §5.4's checkmark has
+            // nothing to land on and pressing `+` then opening an older
+            // conversation makes the new one unreachable.
+            conversations: this._conversationRows(snapshot),
         };
     }
 }

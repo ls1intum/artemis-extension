@@ -479,11 +479,29 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
         this._viewDisposables.push(configListener);
 
-        // The conversation-first acquisition. One call gives the id, the
-        // topic, the title and the transcript; without a detected workspace
-        // exercise it makes no request at all and the webview shows the
-        // cold-start course chooser.
-        void this._conversation?.start(this._workspaceForStart()).catch((error: unknown) => {
+        void this._startConversation().catch((error: unknown) => {
+            logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
+        });
+
+        // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
+    }
+
+    /**
+     * The conversation-first acquisition. One call gives the id, the topic, the
+     * title and the transcript; without a detected workspace exercise it makes
+     * no request at all and the webview shows the cold-start course chooser.
+     *
+     * The availability check afterwards is not a duplicate of the one
+     * `_onConversationChanged` runs: re-opening the view re-installs the SAME
+     * conversation, so that hook's id guard early-returns and nothing would
+     * ever ask whether Iris is enabled here.
+     */
+    private async _startConversation(): Promise<void> {
+        const conversation = this._conversation;
+        if (!conversation) { return; }
+        try {
+            await conversation.start(this._workspaceForStart());
+        } catch (error: unknown) {
             // A failed acquisition leaves no session and therefore no
             // transcript, so the loader would spin forever. The banner's Retry
             // routes back through reloadIrisChat.
@@ -492,9 +510,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 type: ExtensionMsg.ShowUnavailableState,
                 message: 'Iris could not be reached. Retry to reload the conversation.',
             });
-        });
-
-        // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
+            return;
+        }
+        await this._refreshAvailability();
     }
 
     /**
@@ -511,6 +529,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
         this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
         this._resetRunsAndMarker();
+        // The two banners above were hidden for the conversation the student
+        // has just LEFT, and nothing has asked the question for the one they
+        // are now in. Without this re-check, a course whose instructor never
+        // enabled Iris presents a fully working chat with an enabled composer,
+        // and the student learns otherwise only when their first message fails.
+        void this._refreshAvailability().catch((error: unknown) => {
+            logger.error('Iris availability re-check failed', LogCategory.IRIS_CHAT, error);
+        });
     }
 
     /** The detected workspace exercise, in the shape `start` expects. */
@@ -665,6 +691,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const context = this._availabilityContext();
         if (!context) { return; }
         const availability = await this._availability.checkAndLoadIrisSettings(context);
+        // The check now runs on every navigation, so two can be open at once
+        // (course 42, then 43 before 42's settings answer). Publishing 42's
+        // answer against 43 is precisely the stale banner `resetAvailability`
+        // exists to prevent, so a check that outlived its conversation says
+        // nothing. The same comparison guards the send path's banner.
+        const live = this._availabilityContext();
+        if (!live || live.type !== context.type || live.id !== context.id) { return; }
         if (availability.kind === 'enabled') {
             this._availability.resetAvailability();
             this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
