@@ -185,8 +185,3 @@
     letter-spacing: 0.03em;
     color: var(--vscode-descriptionForeground);
 }
-
-@keyframes skeleton-pulse {
-    0% { background-position: 100% 50%; }
-    100% { background-position: 0 50%; }
-}

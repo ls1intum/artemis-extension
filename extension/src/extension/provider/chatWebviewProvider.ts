@@ -1068,7 +1068,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private _handleOpenHelpPopup(): void {
         vscode.window.showInformationMessage(
-            'Iris Chat Context Guide',
+            'Iris Chat Guide',
             { modal: true, detail: IRIS_CHAT_HELP_MARKDOWN }
         );
     }

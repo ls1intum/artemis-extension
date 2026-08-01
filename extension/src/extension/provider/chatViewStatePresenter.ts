@@ -85,7 +85,7 @@ export class ChatViewStatePresenter {
             byId.set(summary.sessionId, summary);
         }
         return [...byId.values()].map(summary => {
-            const context = this._named(summary.context) ?? summary.context;
+            const context = this._named(summary.context);
             return {
                 sessionId: summary.sessionId,
                 courseId: summary.courseId,
@@ -109,7 +109,13 @@ export class ChatViewStatePresenter {
      * `_availabilityContext`: the tracked repository holds programming
      * exercises, and a LECTURE_CHAT `entityId` would collide with an exercise
      * id and hand back a wrong title with full confidence.
+     *
+     * The overload pair states the one fact callers need: it answers
+     * `undefined` only for an `undefined` input, so the non-optional history
+     * row needs no fallback of its own.
      */
+    private _named(context: ServerContext): ServerContext;
+    private _named(context: ServerContext | undefined): ServerContext | undefined;
     private _named(context: ServerContext | undefined): ServerContext | undefined {
         if (!context || context.name !== undefined || context.mode !== 'PROGRAMMING_EXERCISE_CHAT') {
             return context;

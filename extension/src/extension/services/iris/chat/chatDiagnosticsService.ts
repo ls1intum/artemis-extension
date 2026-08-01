@@ -17,7 +17,7 @@ export class ChatDiagnosticsService {
          * one in the provider's constructor. Same house pattern as
          * `ChatViewStatePresenter`.
          */
-        private readonly _getConversation: () => IrisConversationService | undefined = () => undefined,
+        private readonly _getConversation: () => IrisConversationService | undefined,
     ) { }
 
     public generateDiagnosticsReport(): string {

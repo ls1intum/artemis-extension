@@ -264,8 +264,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             case ExtensionMsg.ShowChatNotice: {
                 // Raised by the host AFTER the navigation's snapshot, so the
                 // notice describes the conversation the student is now
-                // looking at.
-                showNotice({ text: msg.text });
+                // looking at. `tone` travels with it: a refused topic change
+                // and a failed new conversation have no other surface, so
+                // dropping it renders a failure as a muted grey aside.
+                showNotice({ text: msg.text, tone: msg.tone });
                 break;
             }
 
@@ -592,7 +594,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                                 className={styles.menuItem}
                                 onClick={handleOpenHelp}
                             >
-                                Chat Context Guide
+                                Iris Chat Guide
                             </button>
 
                             {store.showDiagnostics && (

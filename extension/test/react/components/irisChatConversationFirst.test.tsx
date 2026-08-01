@@ -235,6 +235,28 @@ describe('ChatNotice', () => {
         expect(onExpire).toHaveBeenCalledTimes(1);
     });
 
+    it('states an error-toned notice assertively, not as a muted aside', () => {
+        // The refusal surface for the two navigations that have no popover.
+        // Rendering it in the informational style would say "here is what
+        // happened" about a click that did nothing.
+        render(
+            <ChatNotice
+                notice={{ text: 'Could not change the topic. Please try again.', tone: 'error' }}
+                currentSessionId={1}
+                onExpire={vi.fn()}
+            />,
+        );
+        expect(screen.getByRole('alert')).toHaveTextContent('Could not change the topic.');
+    });
+
+    it('keeps an untoned notice informational', () => {
+        render(
+            <ChatNotice notice={{ text: 'Started a new conversation.' }} currentSessionId={1} onExpire={vi.fn()} />,
+        );
+        expect(screen.getByRole('status')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('never renders an action, on any notice', () => {
         // Cut 2: the notice is actionless in PR 1. Undo returns with PR 2.
         render(
@@ -466,6 +488,24 @@ describe('IrisChatView surfaces a failed navigation', () => {
 
         expect(screen.getByRole('dialog', { name: 'Select course' })).toBeInTheDocument();
         expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('renders a refused navigation as an error, tone and all', async () => {
+        // THE WIRE, not the component. The host is the only producer of
+        // `tone`, and a message handler that drops it leaves the error style
+        // and `role="alert"` unreachable in production while every
+        // component-level test still passes.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByText(/BFS loop/);
+
+        dispatchExtensionMessage({
+            type: 'showChatNotice',
+            text: 'Could not change the topic. Please try again.',
+            tone: 'error',
+        });
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Could not change the topic.');
     });
 
     it('closes the TOPIC picker when the conversation changes underneath it', async () => {
