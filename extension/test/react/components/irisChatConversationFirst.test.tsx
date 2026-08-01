@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockVsCodeApi, dispatchExtensionMessage, getPostMessageCalls } from '@test/react/__helpers__/vscodeApi';
+import { useChatStore } from '@webview/stores/useChatStore';
 import { ChatMessageList } from '@webview/views/IrisChat/components/ChatMessageList';
 import { ChatNotice } from '@webview/views/IrisChat/components/ChatNotice';
 import { ContextChip } from '@webview/views/IrisChat/components/ContextChip';
@@ -283,6 +284,38 @@ describe('CoursePicker', () => {
         render(<CoursePicker courses={[]} currentCourseId={null} onSelect={vi.fn()} onClose={vi.fn()} />);
         expect(screen.queryByRole('alert')).toBeNull();
     });
+
+    // The fresh-install path: the picker opens with nothing in it, so there is
+    // no focusable child. With focus left outside the dialog, the key handler
+    // ON the dialog never sees a key at all.
+    it('holds focus while it is still loading, so Escape reaches it', async () => {
+        const onClose = vi.fn();
+        render(<CoursePicker courses={[]} currentCourseId={null} status="loading" onSelect={vi.fn()} onClose={onClose} />);
+        const dialog = screen.getByRole('dialog');
+
+        expect(dialog.contains(document.activeElement)).toBe(true);
+        await userEvent.keyboard('{Escape}');
+        expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it('moves focus onto the first row once the rows arrive', () => {
+        const { rerender } = render(
+            <CoursePicker courses={[]} currentCourseId={null} status="loading" onSelect={vi.fn()} onClose={vi.fn()} />,
+        );
+        rerender(
+            <CoursePicker
+                courses={[{ id: 42, title: 'Algorithms' }]}
+                currentCourseId={null}
+                status="ready"
+                onSelect={vi.fn()}
+                onClose={vi.fn()}
+            />,
+        );
+
+        // A one-shot effect cannot do this: it ran when there was nothing to
+        // focus and never runs again.
+        expect(document.activeElement).toBe(screen.getByTestId('course-entry-42'));
+    });
 });
 
 // The failure this pins is a WRITE-ONLY channel: three live host paths post
@@ -443,6 +476,54 @@ describe('IrisChatView surfaces a failed navigation', () => {
 
         expect(screen.getByRole('dialog', { name: 'Select course' })).toBeInTheDocument();
         expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('closes the TOPIC picker when the conversation changes underneath it', async () => {
+        // Not merely focus theft. With the picker open on course 42, a
+        // navigation the student did not start (an Ask-Iris command from the
+        // dashboard) re-scopes the rows to course 43, and the row they were
+        // aiming at now stages a different course's exercise.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByText(/BFS loop/);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Choose topic' }));
+        expect(screen.getByRole('dialog', { name: 'Select topic' })).toBeInTheDocument();
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, courseId: 43, courseTitle: 'Algorithms', currentSessionId: 902 },
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'Select topic' })).toBeNull();
+        });
+    });
+
+    it('clears the failure when the popover closes, not merely on the next open', async () => {
+        // Both openers clear `openSessionError` themselves, so a test that
+        // only re-opens a popover passes with the clear in `closePopovers`
+        // deleted. The store is where the deletion is actually visible.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByText(/BFS loop/);
+
+        await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
+        await userEvent.click(screen.getByText('Earlier question'));
+        dispatchExtensionMessage({
+            type: 'openSessionError',
+            message: 'Could not open that conversation. Please try again.',
+        });
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...activeState, currentSessionId: 901, conversationTitle: 'Earlier question' },
+        });
+
+        await waitFor(() => {
+            expect(useChatStore.getState().openSessionError).toBeNull();
+        });
     });
 
     it('closes the popover once the navigation actually lands', async () => {

@@ -362,13 +362,16 @@ interface ExtensionMsgPayloads {
         errorMessage: string;
     };
     /**
-     * An informative, actionless notice for the conversation-first path (e.g.
-     * a staged topic dropped by an incoming context-swap marker). No undo: the
-     * marker itself already made the conversation non-empty, so the staging
-     * could never be restored. Not yet consumed by the webview; the path that
-     * produces it stays dormant until Task 14.
+     * An actionless notice on the composer's own line (e.g. a navigation the
+     * student did not ask for, or a topic change the host refused). No undo:
+     * a context-swap marker has already made the conversation non-empty, so a
+     * dropped staging could never be restored.
+     *
+     * `tone: 'error'` is what a refused topic change or a failed new
+     * conversation uses: those two clicks have no popover left to hold an
+     * `openSessionError`, so this line is the only place they can answer.
      */
-    showChatNotice: { text: string };
+    showChatNotice: { text: string; tone?: 'info' | 'error' };
 
     // Exercise/Repo responses
     updateRepoStatus: {

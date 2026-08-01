@@ -255,29 +255,6 @@ suite('ContextStore workspace accessors', () => {
     });
 });
 
-suite('ContextStore navigation course id', () => {
-    let store: ContextStore;
-
-    setup(() => {
-        store = new ContextStore(new MockExtensionContext());
-    });
-
-    test('getCurrentCourseId returns undefined before any set', () => {
-        assert.strictEqual(store.getCurrentCourseId(), undefined);
-    });
-
-    test('setCurrentCourseId then getCurrentCourseId round-trips', () => {
-        store.setCurrentCourseId(42);
-        assert.strictEqual(store.getCurrentCourseId(), 42);
-    });
-
-    test('setCurrentCourseId(undefined) clears a previously set value', () => {
-        store.setCurrentCourseId(42);
-        store.setCurrentCourseId(undefined);
-        assert.strictEqual(store.getCurrentCourseId(), undefined);
-    });
-});
-
 suite('ContextStore onDidChangeWorkspaceExercise', () => {
     let store: ContextStore;
 

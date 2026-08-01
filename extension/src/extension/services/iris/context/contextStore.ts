@@ -39,15 +39,6 @@ export class ContextStore {
     private readonly _onDidChangeWorkspaceExercise = new vscode.EventEmitter<TrackedExercise | undefined>();
     public readonly onDidChangeWorkspaceExercise = this._onDidChangeWorkspaceExercise.event;
 
-    /**
-     * Navigation state for "which course is the user currently looking at",
-     * distinct from the workspace exercise's course. In-memory only (not
-     * persisted, not part of `StoredState`); it resets on every extension
-     * reload, which matches its role as transient UI navigation state rather
-     * than a durable preference.
-     */
-    private _currentCourseId: number | undefined;
-
     constructor(context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
         this._persistence = new ContextPersistence(context);
@@ -98,14 +89,6 @@ export class ContextStore {
     /** Display name for a tracked course, when we have one. */
     public getCourseTitle(courseId: number): string | undefined {
         return this._repository.getCourseById(courseId)?.title;
-    }
-
-    public getCurrentCourseId(): number | undefined {
-        return this._currentCourseId;
-    }
-
-    public setCurrentCourseId(courseId: number | undefined): void {
-        this._currentCourseId = courseId;
     }
 
     /**

@@ -260,13 +260,13 @@ describe('IrisChatView', () => {
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
-			const resetButton = screen.getByText('Reset & Sync Sessions');
+			const resetButton = screen.getByText('Reload Iris Chat');
 
 			// The run starts while the side menu is still open.
 			useChatStore.setState({ streaming: { isStreaming: true } });
 
 			await waitFor(() => {
-				expect(screen.queryByText('Reset & Sync Sessions')).not.toBeInTheDocument();
+				expect(screen.queryByText('Reload Iris Chat')).not.toBeInTheDocument();
 			});
 
 			fireEvent.click(resetButton);
@@ -851,7 +851,7 @@ describe('IrisChatView', () => {
 		const menuButton = screen.getByRole('button', { name: 'Menu' });
 		await userEvent.click(menuButton);
 
-		expect(screen.getByText('Reset & Sync Sessions')).toBeInTheDocument();
+		expect(screen.getByText('Reload Iris Chat')).toBeInTheDocument();
 	});
 
 	it('reset sessions sends resetChatSessions command', async () => {
@@ -859,7 +859,7 @@ describe('IrisChatView', () => {
 		render(<IrisChatView vscodeApi={mockApi} />);
 
 		await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
-		await userEvent.click(screen.getByText('Reset & Sync Sessions'));
+		await userEvent.click(screen.getByText('Reload Iris Chat'));
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({

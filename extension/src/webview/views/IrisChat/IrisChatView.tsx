@@ -339,6 +339,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'openFile', { filePath: path });
     };
 
+    // Nothing local owns conversations any more, so there is nothing to
+    // reset: the command re-reads the open conversation from the server, and
+    // `package.json` names it "Artemis: Reload Iris Chat".
     const handleResetSessions = () => {
         setSideMenuOpen(false);
         postCommand(vscodeApi, 'resetChatSessions');
@@ -374,6 +377,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         openerRef.current = opener;
         setHistoryOpen(false);
         setCoursePickerOpen(false);
+        // Captured like the other two openers. Without it the effect above
+        // never fires for the topic picker, so a navigation the student did
+        // not start (an Ask-Iris command landing on another course) swaps the
+        // rows under the cursor and the click stages a DIFFERENT course's
+        // exercise. It also keeps the ref honest when this opener closes the
+        // history: otherwise the ref stays live for a popover that is gone.
+        sessionWhenPopoverOpened.current = useChatStore.getState().currentSessionId;
         setPickerOpen(true);
     };
 
@@ -576,7 +586,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                                 onClick={handleResetSessions}
                                 disabled={store.streaming.isStreaming}
                             >
-                                Reset & Sync Sessions
+                                Reload Iris Chat
                             </button>
                             <button
                                 className={styles.menuItem}

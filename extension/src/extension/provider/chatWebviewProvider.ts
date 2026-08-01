@@ -46,6 +46,9 @@ interface ExerciseContextChangeEvent {
     exerciseRoot?: vscode.Uri;
 }
 
+/** The four navigations the webview can ask for. Each has its own refusal surface. */
+type NavigationCommand = 'selectTopic' | 'openConversation' | 'switchCourse' | 'newConversation';
+
 /**
  * Generation-scoped baseline for missed-terminal-frame recovery. A bare id is
  * not enough: `generation` is the anti-stale key that lets a POST for an older
@@ -190,7 +193,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
 
-        this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._exerciseRegistry);
+        this._chatDiagnosticsService = new ChatDiagnosticsService(
+            this._contextStore,
+            this._exerciseRegistry,
+            // A getter for the same reason as the presenter's: `_conversation`
+            // is assigned further down in this constructor.
+            () => this._conversation,
+        );
         this._availability = new IrisAvailabilityService(
             this._contextStore,
             this._artemisApiService,
@@ -577,6 +586,21 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      */
     public getStruggleContext(): StruggleContext | undefined {
         return this._telemetryManager?.getStruggleContext();
+    }
+
+    /**
+     * The course the open conversation is in, for anything outside the chat
+     * that has to name one (the Iris health check).
+     *
+     * Read from the conversation rather than mirrored into `ContextStore`:
+     * the conversation IS the course now, and a second copy could only ever
+     * be the one that is wrong. The mirror this replaces was written on the
+     * course-picker path alone, so on the normal path (a workspace exercise,
+     * acquired by `start`) the health check answered "select a course first"
+     * about a chat that was plainly showing one.
+     */
+    public get currentCourseId(): number | undefined {
+        return this._conversation?.state.snapshot().courseId;
     }
 
     /**
@@ -1062,24 +1086,48 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * so a refusal that posted nothing would leave the student's click with no
      * response at all: the row would simply not react.
      */
-    private _conversationForNavigation(command: string): IrisConversationService | undefined {
+    private _conversationForNavigation(command: NavigationCommand): IrisConversationService | undefined {
         const conversation = this._conversation;
         if (!conversation) {
-            this._postMessageSafe({
-                type: ExtensionMsg.OpenSessionError,
-                message: 'Iris is not available right now.',
-            });
+            this._answerFailedNavigation(command, 'Iris is not available right now.');
             return undefined;
         }
         if (conversation.state.sendInFlight) {
             logger.info(`Refused ${command}: a send is in flight`, LogCategory.IRIS_CHAT);
-            this._postMessageSafe({
-                type: ExtensionMsg.OpenSessionError,
-                message: 'Wait for Iris to finish answering before switching.',
-            });
+            this._answerFailedNavigation(command, 'Wait for Iris to finish answering before switching.');
             return undefined;
         }
         return conversation;
+    }
+
+    /**
+     * Puts a refusal where the student was looking when they clicked.
+     *
+     * The history and the course picker stay open until their navigation
+     * lands, so an inline `openSessionError` has a mounted host there. The
+     * topic picker closes on the click itself, and the header's
+     * new-conversation button never had a popover at all, so for those two
+     * `openSessionError` is a write into a surface nothing renders: they
+     * answer on the composer's notice line, which sits exactly where the
+     * picker was.
+     */
+    private _answerFailedNavigation(command: NavigationCommand, message: string): void {
+        if (command === 'openConversation' || command === 'switchCourse') {
+            this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message });
+            return;
+        }
+        this._postMessageSafe({ type: ExtensionMsg.ShowChatNotice, text: message, tone: 'error' });
+    }
+
+    /** What a `{ kind: 'rejected' }` outcome says to the student. */
+    private _rejectionMessage(reason: Extract<TopicChangeOutcome, { kind: 'rejected' }>['reason'], failedMessage: string): string {
+        switch (reason) {
+            case 'send-in-flight': return 'Wait for Iris to finish answering before switching.';
+            case 'loading': return 'Still loading this conversation. Try again in a moment.';
+            case 'cross-course': return 'That topic belongs to a different course. Switch course first.';
+            case 'no-course': return 'Choose a course first.';
+            case 'failed': return failedMessage;
+        }
     }
 
     private async _handleSelectTopic(target: ServerContext): Promise<void> {
@@ -1094,6 +1142,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 type: ExtensionMsg.ShowChatNotice,
                 text: 'Switched to a different conversation.',
             });
+            return;
+        }
+        // A `rejected` outcome is the service saying it did NOT do what was
+        // asked (the create threw, the target is in another course, the
+        // conversation is still loading). Dropping it leaves the chip on the
+        // old topic with no explanation at all.
+        if (outcome.kind === 'rejected') {
+            logger.info(`selectTopic rejected: ${outcome.reason}`, LogCategory.IRIS_CHAT);
+            this._answerFailedNavigation(
+                'selectTopic',
+                this._rejectionMessage(outcome.reason, 'Could not change the topic. Please try again.'),
+            );
         }
     }
 
@@ -1116,10 +1176,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleSwitchCourse(courseId: number): Promise<void> {
         const conversation = this._conversationForNavigation('switchCourse');
         if (!conversation) { return; }
-        // Recorded BEFORE the acquisition so the course list's
-        // most-recently-viewed order and the cold-start path both see it even
-        // if the acquisition fails.
-        this._contextStore.setCurrentCourseId(courseId);
         try {
             await conversation.switchCourse(courseId);
         } catch (error: unknown) {
@@ -1140,6 +1196,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 type: ExtensionMsg.ShowChatNotice,
                 text: 'Started a new conversation.',
             });
+            return;
+        }
+        // The create can simply fail (a 500 from `sessions?courseId`), and the
+        // header's `+` has no popover to hold an error, so this line is the
+        // only thing between the student and a button that does nothing.
+        if (outcome.kind === 'rejected') {
+            logger.info(`newConversation rejected: ${outcome.reason}`, LogCategory.IRIS_CHAT);
+            this._answerFailedNavigation(
+                'newConversation',
+                this._rejectionMessage(outcome.reason, 'Could not start a new conversation. Please try again.'),
+            );
         }
     }
 

@@ -10,3 +10,12 @@
     from { opacity: 0; }
     to { opacity: 1; }
 }
+
+/* The refusal flavour: same line, stated as a failure. */
+.noticeError {
+    padding: 0 16px 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--vscode-errorForeground);
+    animation: notice-fade-in 150ms ease;
+}

@@ -6,7 +6,7 @@ import styles from './ChatNotice.module.css';
 const NOTICE_TTL_MS = 10_000;
 
 interface ChatNoticeProps {
-    notice: { text: string } | null | undefined;
+    notice: { text: string; tone?: 'info' | 'error' } | null | undefined;
     /** The conversation the notice belongs to; a change to it clears the notice. */
     currentSessionId: number | null | undefined;
     /** Clears the notice in the store (timeout, or a navigation happened). */
@@ -28,6 +28,9 @@ interface ChatNoticeProps {
  */
 export function ChatNotice({ notice, currentSessionId, onExpire }: ChatNoticeProps) {
     const text = notice?.text;
+    // A refused navigation is the only surface those clicks have, so it is
+    // announced and styled as a failure rather than as a muted aside.
+    const isError = notice?.tone === 'error';
     // The conversation this notice was raised under. Written only when the
     // text changes, so a later session change is detectable as a mismatch.
     const noticeSessionRef = useRef<number | null | undefined>(undefined);
@@ -68,7 +71,9 @@ export function ChatNotice({ notice, currentSessionId, onExpire }: ChatNoticePro
     if (text === undefined) { return null; }
 
     return (
-        <div className={styles.notice} role="status">
+        // Static camelCase lookups only: a dynamic `styles[tone]` survives
+        // vitest and resolves to undefined in the production bundle.
+        <div className={isError ? styles.noticeError : styles.notice} role={isError ? 'alert' : 'status'}>
             {text}
         </div>
     );

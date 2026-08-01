@@ -78,7 +78,7 @@ interface ChatState {
      * host posts right after a navigation: the overview refresh that the same
      * navigation fires emits another snapshot a round trip later.
      */
-    notice: { text: string } | null;
+    notice: { text: string; tone?: 'info' | 'error' } | null;
     /** Composer draft text, lifted out of `ChatInput`'s local `useState`. */
     composerText: string;
 
@@ -198,7 +198,7 @@ interface ChatState {
     /** Sets the composer's draft text (lifted out of `ChatInput`'s local state, see above). */
     setComposerText: (text: string) => void;
     /** Raises an actionless chat notice. Cleared by the next `setIrisState` call. */
-    showNotice: (notice: { text: string }) => void;
+    showNotice: (notice: { text: string; tone?: 'info' | 'error' }) => void;
 }
 
 const IDLE_STREAMING: StreamingState = {

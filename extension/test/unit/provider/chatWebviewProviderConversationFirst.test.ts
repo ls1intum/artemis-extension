@@ -362,10 +362,19 @@ function dispatch(provider: ChatWebviewProvider, command: string, payload?: unkn
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
+/** Informational notices only: a refusal wears `tone: 'error'`. */
 function noticesFrom(postSpy: sinon.SinonSpy): string[] {
     return postSpy.getCalls()
-        .map(c => c.args[0] as { type?: string; text?: string })
-        .filter(m => m?.type === 'showChatNotice')
+        .map(c => c.args[0] as { type?: string; text?: string; tone?: string })
+        .filter(m => m?.type === 'showChatNotice' && m.tone !== 'error')
+        .map(m => String(m.text));
+}
+
+/** The refusal surface for the two navigations that have no popover left. */
+function errorNoticesFrom(postSpy: sinon.SinonSpy): string[] {
+    return postSpy.getCalls()
+        .map(c => c.args[0] as { type?: string; text?: string; tone?: string })
+        .filter(m => m?.type === 'showChatNotice' && m.tone === 'error')
         .map(m => String(m.text));
 }
 
@@ -426,11 +435,13 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         assert.ok(postSpy.getCalls().some(c => (c.args[0] as { type?: string })?.type === 'openSessionError'));
     });
 
-    test('switchCourse records the course BEFORE acquiring, so the cold-start path sees it', async () => {
+    test('switchCourse asks the service to acquire that course', async () => {
+        // Nothing mirrors the course any more: the conversation is the single
+        // source of truth for it, and `ChatWebviewProvider.currentCourseId`
+        // reads it from there.
         dispatch(h.provider, 'switchCourse', { courseId: 43 });
         await settle();
 
-        assert.strictEqual(h.contextStore.getCurrentCourseId(), 43);
         assert.deepStrictEqual(fake.calls, [{ name: 'switchCourse', args: 43 }]);
     });
 
@@ -460,9 +471,12 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         assert.deepStrictEqual(noticesFrom(postSpy), []);
     });
 
-    test('a refusal ANSWERS, so the click the student made is not silently dropped', async () => {
-        // The popovers stay open until their navigation lands, so a refusal
-        // that posted nothing would leave the row simply not reacting.
+    test('a refusal ANSWERS on a surface that renders, one per navigation', async () => {
+        // Both popovers stay open until their navigation lands, so an inline
+        // `openSessionError` reaches them. The topic picker closes on the
+        // click and the header's `+` has no popover at all, so those two would
+        // be posting into a surface nothing renders: they answer on the
+        // composer's notice line instead.
         fake.sendInFlight = true;
 
         dispatch(h.provider, 'selectTopic', { mode: 'COURSE_CHAT', entityId: 42 });
@@ -472,8 +486,10 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         await settle();
 
         const errors = openErrorsFrom(postSpy);
-        assert.strictEqual(errors.length, 4, 'every refused navigation must report');
-        for (const message of errors) {
+        const notices = errorNoticesFrom(postSpy);
+        assert.strictEqual(errors.length, 2, 'the two popover-backed navigations report inline');
+        assert.strictEqual(notices.length, 2, 'the two popover-less ones report on the notice line');
+        for (const message of [...errors, ...notices]) {
             assert.match(message, /finish answering/);
         }
     });
@@ -485,11 +501,57 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         dispatch(h.provider, 'newConversation');
         await settle();
 
-        const errors = openErrorsFrom(postSpy);
-        assert.strictEqual(errors.length, 2);
-        for (const message of errors) {
+        const notices = errorNoticesFrom(postSpy);
+        assert.strictEqual(notices.length, 2);
+        for (const message of notices) {
             assert.match(message, /not available right now/);
         }
+    });
+
+    test('a REJECTED topic change answers instead of vanishing', async () => {
+        // `resolveTopicChange` answers with an outcome, never a throw: a 500
+        // from the create endpoint arrives here as `{ kind: 'rejected' }`, and
+        // a dispatcher that only acts on `opened` drops it silently while the
+        // chip stays on the old topic.
+        fake.topicOutcome = { kind: 'rejected', reason: 'failed' };
+
+        dispatch(h.provider, 'selectTopic', { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7 });
+        await settle();
+
+        assert.deepStrictEqual(errorNoticesFrom(postSpy), ['Could not change the topic. Please try again.']);
+        assert.deepStrictEqual(noticesFrom(postSpy), [], 'a failure is not an informational notice');
+    });
+
+    test('a REJECTED topic change states the reason it was given', async () => {
+        fake.topicOutcome = { kind: 'rejected', reason: 'cross-course' };
+
+        dispatch(h.provider, 'selectTopic', { mode: 'COURSE_CHAT', entityId: 99 });
+        await settle();
+
+        assert.deepStrictEqual(errorNoticesFrom(postSpy), ['That topic belongs to a different course. Switch course first.']);
+    });
+
+    test('a REJECTED new conversation answers too', async () => {
+        // The header's `+` is clickable in the send-in-flight-but-not-streaming
+        // window, so this is reachable and it has nowhere else to be seen.
+        fake.newOutcome = { kind: 'rejected', reason: 'failed' };
+
+        dispatch(h.provider, 'newConversation');
+        await settle();
+
+        assert.deepStrictEqual(errorNoticesFrom(postSpy), ['Could not start a new conversation. Please try again.']);
+    });
+
+    test('a stale outcome says nothing: nothing was changed and nothing failed', async () => {
+        fake.topicOutcome = { kind: 'stale' };
+        fake.newOutcome = { kind: 'stale' };
+
+        dispatch(h.provider, 'selectTopic', { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7 });
+        dispatch(h.provider, 'newConversation');
+        await settle();
+
+        assert.deepStrictEqual(errorNoticesFrom(postSpy), []);
+        assert.deepStrictEqual(openErrorsFrom(postSpy), []);
     });
 
     test('refreshCourses reads the dashboard into the store and re-posts the snapshot', async () => {

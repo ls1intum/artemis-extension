@@ -1,10 +1,23 @@
+import type { ServerContext } from '@shared/types/serverContext';
+
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
+
+function describeContext(context: ServerContext | undefined): string {
+    return context ? `${context.mode}/${context.entityId}${context.name ? ` (${context.name})` : ''}` : '—';
+}
 
 export class ChatDiagnosticsService {
     constructor(
         private readonly _contextStore: ContextStore,
         private readonly _exerciseRegistry: ExerciseRegistry,
+        /**
+         * A GETTER, not a value: the conversation service is built after this
+         * one in the provider's constructor. Same house pattern as
+         * `ChatViewStatePresenter`.
+         */
+        private readonly _getConversation: () => IrisConversationService | undefined = () => undefined,
     ) { }
 
     public generateDiagnosticsReport(): string {
@@ -13,6 +26,8 @@ export class ChatDiagnosticsService {
         report += '🐛 IRIS CHAT DIAGNOSTICS\n';
         report += 'Generated at: ' + new Date().toISOString() + '\n';
         report += '='.repeat(80) + '\n\n';
+
+        report += this._conversationSection();
 
         report += `💻 EXERCISES (${snapshot.exercises.length}):\n`;
         if (snapshot.exercises.length > 0) {
@@ -60,5 +75,30 @@ export class ChatDiagnosticsService {
         }
 
         return report;
+    }
+
+    /**
+     * The open conversation, which is what this report is mostly asked about.
+     * The removed "Debug Sessions (Raw)" command described the local session
+     * store that no longer exists; this describes what replaced it.
+     */
+    private _conversationSection(): string {
+        const conversation = this._getConversation();
+        if (!conversation) {
+            return '💬 CONVERSATION:\n  No conversation service (no Artemis API or websocket service)\n\n';
+        }
+        const snapshot = conversation.state.snapshot();
+        let section = '💬 CONVERSATION:\n';
+        section += `  Session ID: ${snapshot.currentSessionId ?? '—'}\n`;
+        section += `  Course ID: ${snapshot.courseId ?? '—'}\n`;
+        section += `  Title: ${snapshot.detail?.title ?? '—'}\n`;
+        section += `  Committed topic: ${describeContext(snapshot.committedContext)}\n`;
+        section += `  Staged topic: ${describeContext(snapshot.pendingContext?.ctx)}\n`;
+        section += `  Content state: ${conversation.state.contentState()}\n`;
+        section += `  Messages (displayed / stored): ${conversation.state.displayMessageCount()} / ${snapshot.detail?.messages.length ?? 0}\n`;
+        section += `  Send in flight: ${conversation.state.sendInFlight}\n`;
+        section += `  Navigation in flight: ${conversation.navigationInFlight}\n`;
+        section += `  Overview rows: ${snapshot.courseSessions.length} (+${snapshot.knownInvisible.length} known but unlisted)\n\n`;
+        return section;
     }
 }

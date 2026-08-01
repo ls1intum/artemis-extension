@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { AuthManager } from '@extension/services/auth';
-import type { ContextStore } from '@extension/services/iris';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
@@ -64,7 +63,7 @@ function registerReloadIrisChatCommand(chatWebviewProvider: ChatWebviewProvider)
 function registerIrisHealthCheckCommand(
     authManager: AuthManager,
     artemisApiService: ArtemisApiService,
-    contextStore: ContextStore,
+    chatWebviewProvider: ChatWebviewProvider,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.checkIrisHealth', async () => {
         try {
@@ -73,13 +72,13 @@ function registerIrisHealthCheckCommand(
                 return;
             }
 
-            // The course now comes from the store, not from a selected chat
-            // context: the conversation owns the course, and the health check
-            // asks about a course, never about a topic.
-            const courseId = contextStore.getCurrentCourseId();
+            // The OPEN CONVERSATION names the course. It is the only thing
+            // that does now, and the health check asks about a course, never
+            // about a topic.
+            const courseId = chatWebviewProvider.currentCourseId;
 
             if (!courseId) {
-                vscode.window.showWarningMessage('Please select a course or exercise context before checking Iris health status.');
+                vscode.window.showWarningMessage('Open a conversation in the Iris chat first, so there is a course to check.');
                 return;
             }
 
@@ -677,7 +676,6 @@ interface CommandDeps {
     artemisApiService: ArtemisApiService;
     artemisWebsocketService: ArtemisWebsocketService;
     telemetryManager: ITelemetryManager;
-    contextStore: ContextStore;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
@@ -688,7 +686,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerLoginCommand(),
         registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
         registerReloadIrisChatCommand(deps.chatWebviewProvider),
-        registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.contextStore),
+        registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.chatWebviewProvider),
         registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerGoToSourceErrorCommand(),

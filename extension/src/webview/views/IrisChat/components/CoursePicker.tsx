@@ -55,11 +55,19 @@ export function CoursePicker({
     // return to, so a click outside must not close it.
     useClickOutside(dialogRef, variant === 'popover', onClose);
 
-    useEffect(() => {
-        dialogRef.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
-    }, []);
-
     const sorted = useMemo(() => [...courses].sort(compareCoursesForPicker), [courses]);
+
+    // The dialog itself is the fallback focus target, and the effect re-runs
+    // when the rows arrive. On a fresh installation the picker opens EMPTY
+    // (status 'loading'), so there is no focusable child to take focus; with a
+    // one-shot `[]` effect focus stayed outside the dialog entirely, and since
+    // the handler below is on the dialog, neither Escape nor the Tab trap ever
+    // saw a key. That is exactly the state a first-time student opens it in.
+    useEffect(() => {
+        const dialog = dialogRef.current;
+        if (!dialog) { return; }
+        (dialog.querySelector<HTMLElement>('button:not(:disabled)') ?? dialog).focus();
+    }, [status, sorted.length]);
 
     const handleKeyDown = usePopoverKeyDown(dialogRef, onClose);
 
@@ -70,6 +78,10 @@ export function CoursePicker({
             // but resolves to undefined in the camelCaseOnly production bundle.
             className={variant === 'inline' ? styles.dialogInline : styles.dialog}
             role="dialog"
+            // Focusable so the dialog can hold focus while it is still loading
+            // and has no rows yet. Not reachable by Tab (-1), so it does not
+            // join the trap's cycle once the rows arrive.
+            tabIndex={-1}
             aria-label="Select course"
             aria-modal={variant === 'popover' ? true : undefined}
             aria-busy={status === 'loading'}
