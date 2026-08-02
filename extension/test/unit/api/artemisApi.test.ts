@@ -134,6 +134,35 @@ suite('Artemis API Service Test Suite', () => {
         }
     });
 
+    test("keeps Artemis' machine-readable errorKey on the ApiError", async () => {
+        // Artemis' problem response. `title` is prose for people and may be
+        // reworded any time; `errorKey` is the contract that code may branch on.
+        global.fetch = async () => ({
+            ok: false,
+            status: 403,
+            statusText: 'Forbidden',
+            text: async () => JSON.stringify({
+                title: 'Iris is disabled for course 42',
+                status: 403,
+                errorKey: 'iris.course_disabled',
+                message: 'error.iris.course_disabled',
+            }),
+        } as any);
+
+        try {
+            await apiService.getCurrentUser();
+            assert.fail('Should have thrown error');
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual(error.status, 403);
+            assert.strictEqual(
+                (error as { errorKey?: string }).errorKey,
+                'iris.course_disabled',
+                'the discriminator must survive the parse, not just the prose',
+            );
+        }
+    });
+
     test('should get exercise details', async () => {
         const exerciseId = 123;
         global.fetch = async (url: any) => {

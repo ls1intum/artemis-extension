@@ -5,6 +5,7 @@ import * as sinon from 'sinon';
 import type { SessionDetail } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
+import { ApiError } from '@extension/domain/errors';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
@@ -314,6 +315,9 @@ interface FakeConversation {
     topicOutcome: TopicChangeOutcome;
     newOutcome: TopicChangeOutcome;
     navigateThrows: boolean;
+    /** Rejections the host must classify, rather than the bare Error `navigateThrows` raises. */
+    switchCourseError?: unknown;
+    navigateError?: unknown;
 }
 
 function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation {
@@ -346,10 +350,12 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         },
         navigateTo: async (params: unknown) => {
             fake.calls.push({ name: 'navigateTo', args: params });
+            if (fake.navigateError) { throw fake.navigateError; }
             if (fake.navigateThrows) { throw new Error('gone'); }
         },
         switchCourse: async (courseId: unknown) => {
             fake.calls.push({ name: 'switchCourse', args: courseId });
+            if (fake.switchCourseError) { throw fake.switchCourseError; }
         },
     };
     return fake;
@@ -457,6 +463,103 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         .map(c => c.args[0] as { type?: string; message?: string })
         .filter(m => m?.type === 'openSessionError')
         .map(m => m.message as string);
+
+    /** Artemis' answer for a course whose Iris is switched off, as the API layer surfaces it. */
+    const irisDisabled = (): ApiError =>
+        new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled');
+
+    const messageTypesFrom = (spy: sinon.SinonSpy): string[] => spy.getCalls()
+        .map(c => (c.args[0] as { type?: string })?.type ?? '')
+        .filter(Boolean);
+
+    test('switching into a course with Iris switched off names that, and does not invite a retry', async () => {
+        fake.switchCourseError = irisDisabled();
+
+        dispatch(h.provider, 'switchCourse', { courseId: 9027 });
+        await settle();
+
+        const errors = openErrorsFrom(postSpy);
+        assert.strictEqual(errors.length, 1, 'one inline answer for the one navigation');
+        assert.match(errors[0], /not enabled|disabled|turned off/i, 'must name the actual reason');
+        assert.doesNotMatch(errors[0], /try again/i, 'an immediate retry cannot change this');
+    });
+
+    test('a failed switch leaves the PREVIOUS course unlabelled', async () => {
+        // The switch failed, so we are still in the old course. A persistent
+        // disabled banner belongs to the course you are IN, and posting one
+        // here would brand a course whose Iris works fine.
+        fake.switchCourseError = irisDisabled();
+
+        dispatch(h.provider, 'switchCourse', { courseId: 9027 });
+        await settle();
+
+        assert.ok(
+            !messageTypesFrom(postSpy).includes('showDisabledState'),
+            'the disabled banner is for the active course, not for one we failed to reach',
+        );
+    });
+
+    test('classifies by the errorKey, not by the prose Artemis happens to send', async () => {
+        // `detail` is whatever won the API layer's fallback chain, so it degrades
+        // to the human-readable title the day Artemis stops sending `message`.
+        // The key is the contract; matching the prose would silently regress.
+        fake.switchCourseError = new ApiError(
+            'Request failed',
+            403,
+            'Iris is disabled for course 9027',
+            'iris.course_disabled',
+        );
+
+        dispatch(h.provider, 'switchCourse', { courseId: 9027 });
+        await settle();
+
+        assert.doesNotMatch(openErrorsFrom(postSpy)[0], /try again/i);
+    });
+
+    test('disabled-looking prose without the key is NOT treated as disabled', async () => {
+        // The other half of the pin: with the key gone, prose that reads exactly
+        // like the disabled case must fall back to the generic wording. Together
+        // with the test above this rules out a classifier matching either one.
+        fake.switchCourseError = new ApiError('Request failed', 403, 'Iris is disabled for course 9027', undefined);
+
+        dispatch(h.provider, 'switchCourse', { courseId: 9027 });
+        await settle();
+
+        assert.match(openErrorsFrom(postSpy)[0], /try again/i);
+    });
+
+    test('a 403 that is not the disabled key keeps the retryable wording', async () => {
+        // Guards the classifier: "any 403" would be wrong, only THIS key is permanent.
+        fake.switchCourseError = new ApiError('Request failed', 403, 'error.http.403', 'access.denied');
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        assert.match(openErrorsFrom(postSpy)[0], /try again/i);
+    });
+
+    test('opening a history row from a switched-off course reports the same reason', async () => {
+        fake.navigateError = irisDisabled();
+
+        dispatch(h.provider, 'openConversation', { courseId: 9027, sessionId: 5 });
+        await settle();
+
+        const errors = openErrorsFrom(postSpy);
+        assert.strictEqual(errors.length, 1);
+        assert.match(errors[0], /not enabled|disabled|turned off/i);
+        assert.doesNotMatch(errors[0], /try again/i);
+    });
+
+    test('a transient course switch failure keeps its retryable wording', async () => {
+        fake.switchCourseError = new ApiError('Request failed', 503, undefined);
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        const errors = openErrorsFrom(postSpy);
+        assert.strictEqual(errors.length, 1);
+        assert.match(errors[0], /try again/i, 'a 503 IS worth retrying');
+    });
 
     test('every navigation is refused while a send is in flight', async () => {
         fake.sendInFlight = true;

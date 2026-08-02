@@ -5,6 +5,12 @@ export class ApiError extends Error {
         message: string,
         public readonly status: number,
         public readonly detail?: string,
+        /**
+         * Artemis' stable discriminator (its response's `errorKey`), e.g.
+         * `iris.course_disabled`. `detail` is whichever human-facing field won
+         * the parse and may be reworded at will, so branch on this instead.
+         */
+        public readonly errorKey?: string,
     ) {
         super(message);
         this.name = 'ApiError';

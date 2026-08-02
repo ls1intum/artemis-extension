@@ -6,6 +6,7 @@ import type { ServerContext, SessionDetail } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
 import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
+import { ApiError } from '@extension/domain/errors';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
@@ -60,6 +61,26 @@ interface RecoveryBaseline {
     generation: number;      // _runs.generation at dispatch; the anti-stale key
     sessionId: number;       // the conversation the send went to
     baselineMessageId: number;
+}
+
+/** Artemis' `errorKey` for "this course has Iris switched off". */
+const IRIS_COURSE_DISABLED = 'iris.course_disabled';
+
+/**
+ * Tells a settings-level refusal apart from a transient failure. Only an
+ * instructor can lift the former, so inviting an immediate retry is misleading.
+ * Matched on the stable `errorKey`, never on `detail`: that one is a fallback
+ * chain over human-facing fields and degrades to prose without notice.
+ */
+function isIrisDisabledForCourse(error: unknown): boolean {
+    return error instanceof ApiError
+        && error.status === 403
+        && error.errorKey === IRIS_COURSE_DISABLED;
+}
+
+/** Both course-scoped navigations answer inline, so they share one wording. */
+function navigationFailureMessage(error: unknown, fallback: string): string {
+    return isIrisDisabledForCourse(error) ? 'Iris chat is not enabled for that course.' : fallback;
 }
 
 export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
@@ -1168,7 +1189,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             logger.error('openConversation failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
                 type: ExtensionMsg.OpenSessionError,
-                message: 'Could not open that conversation. Please try again.',
+                message: navigationFailureMessage(error, 'Could not open that conversation. Please try again.'),
             });
         }
     }
@@ -1182,7 +1203,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             logger.error('switchCourse failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
                 type: ExtensionMsg.OpenSessionError,
-                message: 'Could not open that course. Please try again.',
+                // No banner here: the switch failed, so we are still in the
+                // PREVIOUS course, and a persistent "Iris is disabled" state
+                // would mislabel that one.
+                message: navigationFailureMessage(error, 'Could not open that course. Please try again.'),
             });
         }
     }

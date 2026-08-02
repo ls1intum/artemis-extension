@@ -124,6 +124,7 @@ export class ArtemisApiService {
             // Try to extract detailed error message from response body
             let errorMessage = `API request failed: ${response.status}`;
             let errorDetail: string | undefined;
+            let errorKey: string | undefined;
             try {
                 const errorBody = await response.text();
                 if (errorBody) {
@@ -131,8 +132,11 @@ export class ArtemisApiService {
                         const parsed: unknown = JSON.parse(errorBody);
                         // Artemis uses different fields for error messages
                         if (parsed && typeof parsed === 'object') {
-                            const errorObj = parsed as { message?: string; detail?: string; title?: string; error?: string };
+                            const errorObj = parsed as { message?: string; detail?: string; title?: string; error?: string; errorKey?: string };
                             errorDetail = errorObj.message || errorObj.detail || errorObj.title || errorObj.error;
+                            // Kept separately: `errorDetail` above is a fallback chain over
+                            // human-facing fields, so it is not safe to branch on.
+                            errorKey = typeof errorObj.errorKey === 'string' ? errorObj.errorKey : undefined;
                         }
                     } catch {
                         // Response is not JSON, use raw text if meaningful
@@ -149,7 +153,7 @@ export class ArtemisApiService {
                 errorMessage = `${errorMessage}: ${errorDetail}`;
             }
 
-            throw new ApiError(errorMessage, response.status, errorDetail);
+            throw new ApiError(errorMessage, response.status, errorDetail, errorKey);
         }
 
         return response;
