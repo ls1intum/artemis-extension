@@ -57,7 +57,7 @@
       },
       {
         "command": "artemis.resetIrisChat",
-        "title": "Artemis: Reset Iris Chat Sessions (Debug)",
+        "title": "Artemis: Reload Iris Chat",
         "icon": "$(refresh)"
       },
       {
@@ -271,7 +271,8 @@
     "analyze:text": "node -e \"const e=require('esbuild'),f=require('fs'); e.analyzeMetafile(JSON.parse(f.readFileSync('dist/meta-webview.json','utf8'))).then(console.log)\"",
     "analyze:ext": "esbuild-visualizer --metadata=dist/meta-extension.json --open",
     "build:analyze": "npm run package && npm run analyze",
-    "compile-tests": "tsc -p . --outDir out && tsc-alias -p tsconfig.json",
+    "clean-out": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
+    "compile-tests": "npm run clean-out && tsc -p . --outDir out && tsc-alias -p tsconfig.json",
     "watch-tests": "npm-run-all -p watch-tests:tsc watch-tests:alias",
     "watch-tests:tsc": "tsc -p . -w --outDir out",
     "watch-tests:alias": "tsc-alias -w -p tsconfig.json",
@@ -322,7 +323,7 @@
     "@vitejs/plugin-react": "5.2.0",
     "@vitest/coverage-v8": "4.0.18",
     "@vscode/test-cli": "0.0.12",
-    "@vscode/test-electron": "2.5.2",
+    "@vscode/test-electron": "3.1.0",
     "axe-core": "4.11.1",
     "esbuild": "0.28.0",
     "esbuild-css-modules-plugin": "3.1.5",

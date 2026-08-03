@@ -5,12 +5,9 @@ import { TrackedItemRepository } from '@extension/services/iris/context/trackedI
 
 function makeState(): StoredState {
     return {
-        version: 2,
+        version: 3,
         exercises: [],
         courses: [],
-        sessions: {},
-        activeContext: null,
-        activeSessionId: null,
     };
 }
 

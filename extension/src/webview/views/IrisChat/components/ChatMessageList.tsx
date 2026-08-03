@@ -7,6 +7,7 @@ import type { ChatMessage, StreamingState } from '@webview/views/IrisChat/types'
 
 import { ActivityFeed } from './ActivityFeed';
 import styles from './ChatMessageList.module.css';
+import { ContextSwapRow } from './ContextSwapRow';
 import { MessageBubble } from './MessageBubble';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
@@ -75,16 +76,23 @@ export function ChatMessageList({
                     <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
                 ) : (
                     <>
+                        {/* Marker rows render in transcript order, so a stored
+                            topic change appears before the message it
+                            triggered, matching the server's write order. */}
                         {messages.map((message) => (
-                            <MessageBubble
-                                key={message.localId}
-                                message={message}
-                                onFeedback={onFeedback}
-                                onRetry={onRetry}
-                                retryDisabled={
-                                    isRetryDisabled ? isRetryDisabled(message) : false
-                                }
-                            />
+                            message.role === 'contextSwap' ? (
+                                <ContextSwapRow key={message.localId} text={message.content} />
+                            ) : (
+                                <MessageBubble
+                                    key={message.localId}
+                                    message={message}
+                                    onFeedback={onFeedback}
+                                    onRetry={onRetry}
+                                    retryDisabled={
+                                        isRetryDisabled ? isRetryDisabled(message) : false
+                                    }
+                                />
+                            )
                         ))}
 
                         {/* Live run surfaces, in order: activity feed, the

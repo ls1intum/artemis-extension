@@ -1,13 +1,9 @@
 import * as vscode from 'vscode';
 
-import { logger } from '@extension/services/loggingService';
-import type { TrackedExercise } from '@extension/types';
-import { ActiveContext, ContextSnapshot } from '@extension/types';
+import type { ContextSnapshot, TrackedExercise } from '@extension/types';
 
 import { ContextPersistence } from './contextPersistence';
-import { buildContextSnapshot } from './contextSnapshot';
-import type { StoredState } from './contextStateTypes';
-import { SessionManager } from './sessionManager';
+import { compareCoursesForDisplay, compareExercisesForDisplay } from './contextSorting';
 import type { CourseInput, ExerciseInput } from './trackedItemRepository';
 import { TrackedItemRepository } from './trackedItemRepository';
 
@@ -21,49 +17,34 @@ const DEFAULT_OPTIONS: Required<ContextStoreOptions> = {
     courseArchiveLimit: 400,
 };
 
-// ── Utilities ─────────────────────────────────────────────────────
-
-function now(): number {
-    return Date.now();
-}
-
-interface ActiveContextChangeEvent {
-    current: ActiveContext | null;
-    previous: ActiveContext | null;
+function isPastDeadline(ex: TrackedExercise, nowMs: number): boolean {
+    if (!ex.dueDate) { return false; }
+    const due = new Date(ex.dueDate).getTime();
+    return Number.isFinite(due) && due <= nowMs;
 }
 
 export class ContextStore {
-    private state: StoredState;
+    private readonly _state: ReturnType<ContextPersistence['load']>;
     private options: Required<ContextStoreOptions>;
     private readonly _persistence: ContextPersistence;
-    private readonly _sessionManager: SessionManager;
     private readonly _repository: TrackedItemRepository;
 
-    private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
-    public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
-
     /**
-     * Task 12: fires the context key(s) affected by a session mutation
-     * (message sent, session created/rehomed/retitled). A `void` event would
-     * force consumers to drop everything on every mutation; carrying the
-     * key(s) lets the course-history cache invalidate only the course(s)
-     * actually touched.
+     * Fires whenever the workspace-flagged exercise changes (set via
+     * `registerExercise`, cleared via `clearWorkspaceFlag`). The workspace
+     * exercise is derived from the folder's git remote and is deliberately
+     * independent of what the student is chatting about: the struggle
+     * detector follows this event, the chat follows its conversation.
      */
-    private readonly _onDidChangeSessions = new vscode.EventEmitter<{ contextKeys: string[] }>();
-    public readonly onDidChangeSessions = this._onDidChangeSessions.event;
+    private readonly _onDidChangeWorkspaceExercise = new vscode.EventEmitter<TrackedExercise | undefined>();
+    public readonly onDidChangeWorkspaceExercise = this._onDidChangeWorkspaceExercise.event;
 
     constructor(context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
         this._persistence = new ContextPersistence(context);
-        this.state = this._persistence.load();
-        this._sessionManager = new SessionManager(
-            () => this.state,
-            () => this.state.activeContext,
-            () => this._persistence.save(this.state),
-            contextKeys => this._onDidChangeSessions.fire({ contextKeys }),
-        );
+        this._state = this._persistence.load();
         this._repository = new TrackedItemRepository(
-            () => this.state,
+            () => this._state,
             {
                 exerciseArchiveLimit: this.options.exerciseArchiveLimit,
                 courseArchiveLimit: this.options.courseArchiveLimit,
@@ -72,16 +53,25 @@ export class ContextStore {
     }
 
     public dispose(): void {
-        this._onDidChangeActiveContext.dispose();
-        this._onDidChangeSessions.dispose();
+        this._onDidChangeWorkspaceExercise.dispose();
     }
 
-    public snapshot(): ContextSnapshot {
-        return buildContextSnapshot(this.state);
-    }
-
-    public getActiveContext(): ActiveContext | null {
-        return this.state.activeContext;
+    /**
+     * What the pickers render. An exercise past its due date is hidden unless
+     * it is the workspace one or `topicExerciseId` (the conversation's current
+     * topic): an overdue exercise the student is demonstrably still talking
+     * about must stay pickable, or the chip names a topic the picker cannot
+     * show a checkmark for. Both lists are sorted for display, computed here
+     * rather than stored so nothing can go stale.
+     */
+    public snapshot(topicExerciseId?: number): ContextSnapshot {
+        const nowMs = Date.now();
+        const visibleExercises = this._state.exercises.filter(ex =>
+            ex.isWorkspace || ex.id === topicExerciseId || !isPastDeadline(ex, nowMs));
+        return {
+            exercises: [...visibleExercises].sort(compareExercisesForDisplay),
+            courses: [...this._state.courses].sort(compareCoursesForDisplay),
+        };
     }
 
     public getExerciseById(exerciseId: number): TrackedExercise | undefined {
@@ -96,166 +86,57 @@ export class ContextStore {
         return this._repository.getWorkspaceExercise()?.id;
     }
 
+    /** Display name for a tracked course, when we have one. */
+    public getCourseTitle(courseId: number): string | undefined {
+        return this._repository.getCourseById(courseId)?.title;
+    }
+
     /**
-     * Clears the `isWorkspace` flag on all tracked exercises. Silent: does NOT fire
-     * `onDidChangeActiveContext`. Callers that need a UI refresh must post a snapshot
-     * themselves — see `ChatWebviewProvider.clearWorkspaceExercise`.
+     * Clears the `isWorkspace` flag on all tracked exercises. Callers that
+     * need a UI refresh must post a snapshot themselves, see
+     * `ChatWebviewProvider.clearWorkspaceExercise`. It DOES fire
+     * `onDidChangeWorkspaceExercise` when a workspace exercise was actually
+     * cleared, since that event exists specifically to track this flag.
      */
     public clearWorkspaceFlag(): void {
+        const previousWorkspace = this._repository.getWorkspaceExercise();
         this._repository.clearAllWorkspaceFlags();
-        this._persistence.save(this.state);
+        this._persistence.save(this._state);
+        this._fireWorkspaceExerciseChangeIfNeeded(previousWorkspace);
     }
 
     public registerExercise(input: ExerciseInput): ContextSnapshot {
+        const previousWorkspace = this._repository.getWorkspaceExercise();
         this._repository.upsertExercise(input);
         this._repository.trimExerciseHistory();
-        this._persistence.save(this.state);
+        this._persistence.save(this._state);
+        this._fireWorkspaceExerciseChangeIfNeeded(previousWorkspace);
         return this.snapshot();
     }
 
     public registerCourse(input: CourseInput): ContextSnapshot {
         this._repository.upsertCourse(input);
         this._repository.trimCourseHistory();
-        this._persistence.save(this.state);
+        this._persistence.save(this._state);
         return this.snapshot();
     }
 
     public removeExercise(exerciseId: number): ContextSnapshot {
         this._repository.removeExercise(exerciseId);
-
-        const active = this.state.activeContext;
-        if (active?.type === 'exercise' && active.id === exerciseId) {
-            this.clearActiveContext();
-        }
-
-        this._persistence.save(this.state);
+        this._persistence.save(this._state);
         return this.snapshot();
     }
 
     public removeCourse(courseId: number): ContextSnapshot {
         this._repository.removeCourse(courseId);
-
-        const active = this.state.activeContext;
-        if (active?.type === 'course' && active.id === courseId) {
-            this.clearActiveContext();
-        }
-
-        this._persistence.save(this.state);
+        this._persistence.save(this._state);
         return this.snapshot();
     }
 
-    public setActiveContext(context: ActiveContext): ContextSnapshot {
-        logger.context('setActiveContext called with:', context);
-        logger.context('Previous active context:', this.state.activeContext);
-
-        const previous = this.state.activeContext;
-        this.state.activeContext = {
-            ...context,
-            selectedAt: now(),
-        };
-
-        logger.context('New active context set to:', this.state.activeContext);
-
-        this._persistence.save(this.state);
-        this._fireContextChangeIfNeeded(previous, this.state.activeContext);
-        return this.snapshot();
-    }
-
-    public unlockActiveContext(): ContextSnapshot {
-        if (this.state.activeContext) {
-            this.state.activeContext = {
-                ...this.state.activeContext,
-                locked: false,
-            };
-            this._persistence.save(this.state);
-        }
-        return this.snapshot();
-    }
-
-    public clearActiveContext(): ContextSnapshot {
-        const previous = this.state.activeContext;
-        this.state.activeContext = null;
-        this.state.activeSessionId = null;
-        this._persistence.save(this.state);
-        this._fireContextChangeIfNeeded(previous, null);
-        return this.snapshot();
-    }
-
-    public createSession(preview = 'New conversation'): ContextSnapshot {
-        this._sessionManager.createSession(preview);
-        return this.snapshot();
-    }
-
-    public createSessionWithDetails(
-        preview: string,
-        messageCount: number,
-        createdAt: number,
-        artemisSessionId?: number,
-        title?: string,
-        lastActivity?: number,
-    ): ContextSnapshot {
-        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, title, lastActivity);
-        return this.snapshot();
-    }
-
-    public switchSession(sessionId: string): ContextSnapshot {
-        this._sessionManager.switchSession(sessionId);
-        return this.snapshot();
-    }
-
-    /**
-     * Idempotent cross-context upsert keyed by `artemisSessionId`. Returns the
-     * local session id (so the atomic open flow can immediately
-     * `switchSession` to it). Delegates the rehome/collapse logic to
-     * {@link SessionManager.upsertSessionFromOverview}.
-     */
-    public upsertSessionFromOverview(entry: {
-        contextKey: string;
-        artemisSessionId: number;
-        title?: string;
-        lastActivity: number;
-    }): string {
-        return this._sessionManager.upsertSessionFromOverview(entry);
-    }
-
-    public clearSessionsForContext(contextKey: string): ContextSnapshot {
-        this._sessionManager.clearSessionsForContext(contextKey);
-        return this.snapshot();
-    }
-
-    public switchToFirstSession(): ContextSnapshot {
-        this._sessionManager.switchToFirstSession();
-        return this.snapshot();
-    }
-
-    public incrementActiveSessionMessageCount(): void {
-        this._sessionManager.incrementActiveSessionMessageCount();
-    }
-
-    public setActiveSessionMessageCount(count: number): void {
-        this._sessionManager.setActiveSessionMessageCount(count);
-    }
-
-    public cleanupEmptySessions(): void {
-        this._sessionManager.cleanupEmptySessions();
-    }
-
-    public updateSessionTitle(artemisSessionId: number, title: string): boolean {
-        return this._sessionManager.updateSessionTitle(artemisSessionId, title);
-    }
-
-    public setArtemisSessionId(artemisSessionId: number | undefined): void {
-        this._sessionManager.setArtemisSessionId(artemisSessionId);
-    }
-
-    public clearAllSessions(): void {
-        this._sessionManager.clearAllSessions();
-    }
-
-    private _fireContextChangeIfNeeded(previous: ActiveContext | null, current: ActiveContext | null): void {
-        const changed = previous?.type !== current?.type || previous?.id !== current?.id;
-        if (changed) {
-            this._onDidChangeActiveContext.fire({ current, previous });
+    private _fireWorkspaceExerciseChangeIfNeeded(previous: TrackedExercise | undefined): void {
+        const current = this._repository.getWorkspaceExercise();
+        if (previous?.id !== current?.id) {
+            this._onDidChangeWorkspaceExercise.fire(current);
         }
     }
 }

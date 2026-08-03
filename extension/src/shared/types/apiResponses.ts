@@ -177,6 +177,13 @@ export interface IrisChatSessionSummary {
 
 export interface IrisChatMessage {
     id?: number;
+    /**
+     * `USER` | `LLM` | `ARTIFACT` | `CTXSWAP`, as Artemis persists them, and
+     * deliberately widened to `string`: the server may add a sender this
+     * build has never heard of, and a narrowed union would make that a parse
+     * failure rather than a row we render conservatively. `CTXSWAP` rows are
+     * context-change markers, not chat.
+     */
     sender?: string;
     sentAt?: string;
     content?: IrisChatMessageContent[];
@@ -188,8 +195,10 @@ export interface IrisChatMessage {
 }
 
 export interface IrisChatMessageContent {
-    textContent?: string;
     type?: string;
+    textContent?: string;
+    /** Present on a `json` content item; the CTXSWAP marker payload lives here. */
+    attributes?: unknown;
     [key: string]: unknown;
 }
 

@@ -1,32 +1,25 @@
-import type { ActiveContext } from '@shared/types/context';
-
 import type { ArtemisApiService } from '@extension/api';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
 import type { ContextStore } from './contextStore';
 
 /**
- * Resolves the courseId for an ActiveContext, walking:
- *   1. context.courseId (or context.id when type === 'course')
- *   2. contextStore.getExerciseById(...).courseId
- *   3. api.getExerciseDetails(...).exercise.course.id (registers the exercise back into the store on success)
+ * Resolves the course an exercise belongs to, walking:
+ *   1. contextStore.getExerciseById(...).courseId
+ *   2. api.getExerciseDetails(...).exercise.course.id (registers the exercise
+ *      back into the store on success)
  *
- * Returns undefined if all three paths fail. Mirrors the legacy private
- * resolveCourseIdForExercise from chatSessionService.ts so behavior is preserved
- * across both the IrisChatSessionService and sessionSyncUtils call sites.
+ * Returns undefined if both fail. Keyed on the exercise id (spec 10): every
+ * caller knows an exercise, not a selected context, and this is the only code
+ * that can find a course for an exercise the store has never seen, which is
+ * exactly the fresh-window case.
  */
-export async function resolveCourseIdFromContext(
-    context: ActiveContext,
+export async function resolveCourseIdForExercise(
+    exerciseId: number,
     contextStore: ContextStore,
     api: ArtemisApiService | undefined,
 ): Promise<number | undefined> {
-    if (context.type === 'course') {
-        return context.id;
-    }
-    if (context.courseId) {
-        return context.courseId;
-    }
-    const tracked = contextStore.getExerciseById(context.id);
+    const tracked = contextStore.getExerciseById(exerciseId);
     if (tracked?.courseId) {
         return tracked.courseId;
     }
@@ -34,13 +27,16 @@ export async function resolveCourseIdFromContext(
         return undefined;
     }
     try {
-        const details = await api.getExerciseDetails(context.id);
+        const details = await api.getExerciseDetails(exerciseId);
         const resolved = details?.exercise?.course?.id;
         if (resolved) {
             contextStore.registerExercise({
-                id: context.id,
-                title: context.title,
-                shortName: context.shortName,
+                id: exerciseId,
+                // The details response is the better title (it is the server's
+                // own), but a tracked row may already carry one and the input
+                // requires a definite string.
+                title: details.exercise?.title ?? tracked?.title ?? `Exercise ${exerciseId}`,
+                shortName: details.exercise?.shortName ?? tracked?.shortName,
                 courseId: resolved,
             });
         }

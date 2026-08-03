@@ -11,14 +11,10 @@ suite('ContextPersistence Migration', () => {
         mockContext = new MockExtensionContext();
     });
 
-    test('default state when nothing stored is v2 with empty lists', () => {
+    test('default state when nothing stored is v3 with empty lists', () => {
         const p = new ContextPersistence(mockContext as unknown as vscode.ExtensionContext);
         const loaded = p.load();
-        assert.strictEqual(loaded.version, 2);
-        assert.deepStrictEqual(loaded.exercises, []);
-        assert.deepStrictEqual(loaded.courses, []);
-        assert.deepStrictEqual(loaded.sessions, {});
-        assert.strictEqual(loaded.activeSessionId, null);
+        assert.deepStrictEqual(loaded, { version: 3, exercises: [], courses: [] });
     });
 
     test('migrates v1 by union-merging recent + all, stripping priority/lastUpdated', () => {
@@ -46,7 +42,7 @@ suite('ContextPersistence Migration', () => {
         const p = new ContextPersistence(mockContext as unknown as vscode.ExtensionContext);
         const loaded = p.load();
 
-        assert.strictEqual(loaded.version, 2);
+        assert.strictEqual(loaded.version, 3);
 
         const ids = loaded.exercises.map(e => e.id).sort();
         assert.deepStrictEqual(ids, [1, 2, 3]);
@@ -58,12 +54,16 @@ suite('ContextPersistence Migration', () => {
         assert.strictEqual((merged as { priority?: number }).priority, undefined);
         assert.strictEqual((merged as { lastUpdated?: number }).lastUpdated, undefined);
 
-        assert.deepStrictEqual(loaded.sessions, {});
-        assert.strictEqual(loaded.activeSessionId, null);
+        // The retired keys are DROPPED, not carried forward: a v3 store that
+        // still had them would be rejected by parseStoredState on the next load.
+        assert.ok(!('sessions' in loaded));
+        assert.ok(!('activeSessionId' in loaded));
+        assert.ok(!('activeContext' in loaded));
 
-        const persisted = mockContext.globalState.get('iris.contextStore') as { version: number; recentExercises?: unknown };
-        assert.strictEqual(persisted.version, 2);
+        const persisted = mockContext.globalState.get('iris.contextStore') as { version: number; recentExercises?: unknown; sessions?: unknown };
+        assert.strictEqual(persisted.version, 3);
         assert.strictEqual(persisted.recentExercises, undefined);
+        assert.strictEqual(persisted.sessions, undefined);
     });
 
     test('handles partial v1 with only recentExercises (no all*)', () => {

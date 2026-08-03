@@ -106,6 +106,10 @@ export class TrackedItemRepository {
         return merged;
     }
 
+    public getCourseById(id: number): TrackedCourse | undefined {
+        return this._getState().courses.find(c => c.id === id);
+    }
+
     public removeCourse(id: number): void {
         const state = this._getState();
         state.courses = state.courses.filter(c => c.id !== id);

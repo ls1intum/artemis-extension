@@ -1,77 +1,73 @@
 import BookOpen from 'lucide-react/dist/esm/icons/book-open';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
-import File from 'lucide-react/dist/esm/icons/file';
 import History from 'lucide-react/dist/esm/icons/history';
-import MessageSquare from 'lucide-react/dist/esm/icons/message-square';
 import Plus from 'lucide-react/dist/esm/icons/plus';
-
-import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
-import type { ChatContext, ChatSession } from '@webview/views/IrisChat/types';
 
 import styles from './ChatHeader.module.css';
 
 interface ChatHeaderProps {
-    context: ChatContext | null;
-    activeSession: ChatSession | undefined;
-    courseName: string | null;
-    canCreateConversation: boolean;
+    /** Header line 1, and the only clickable label: opens the course list. */
+    courseTitle: string | null;
+    /** Header line 2, beside `displayMessageCount`. */
+    conversationTitle: string | null;
+    /** Excludes CTXSWAP marker rows; display only. */
+    displayMessageCount: number;
     /**
-     * True while Iris is responding to the current run. All navigation
-     * affordances here (context row, new conversation, history) change
-     * context or the active session, which would abandon the in-flight
-     * run, so they are made non-interactive rather than merely dimmed.
+     * True while Iris is responding to the current run. Every affordance here
+     * navigates, which would abandon the in-flight run, so they are made
+     * non-interactive rather than merely dimmed.
      */
     disableNavigation?: boolean;
-    onOpenContextPicker: (e: React.MouseEvent) => void;
+    onOpenCoursePicker: (e: React.MouseEvent) => void;
     onNewConversation: () => void;
     onOpenHistory: (e: React.MouseEvent) => void;
 }
 
+/**
+ * One row, two lines. Line 1 is the course and is the only clickable label,
+ * so a click never lands on a target the label did not name. The topic is
+ * deliberately absent here: it lives on the composer chip.
+ *
+ * The course title does appear twice, here and on the composer whenever the
+ * topic IS the course. The two answer different questions (which course am I
+ * in, versus what is the next message about), so the composer's copy carries
+ * an aria-label that keeps the two buttons apart for anyone navigating by
+ * accessible name.
+ */
 export function ChatHeader({
-    context,
-    activeSession,
-    courseName,
-    canCreateConversation,
+    courseTitle,
+    conversationTitle,
+    displayMessageCount,
     disableNavigation = false,
-    onOpenContextPicker,
+    onOpenCoursePicker,
     onNewConversation,
     onOpenHistory,
 }: ChatHeaderProps) {
-    const isExercise = context?.type === 'exercise';
-
-    const primary = context === null ? 'Select a course or exercise' : context.title;
-    const secondary = context === null ? null : isExercise ? courseName : 'Course chat';
-
-    const count = activeSession?.messageCount ?? 0;
-    const convTitle = activeSession?.title || 'New conversation';
-    const convMeta = activeSession
-        ? `${formatRelativeTime(activeSession.lastActivity)} · ${count} message${count === 1 ? '' : 's'}`
-        : 'No messages yet';
+    const count = displayMessageCount;
+    const conversationLine =
+        `${conversationTitle || 'New conversation'} · ${count} ${count === 1 ? 'message' : 'messages'}`;
 
     return (
         <div className={styles.header}>
-            <button className={styles.contextRow} onClick={onOpenContextPicker} disabled={disableNavigation}>
+            <div className={styles.singleRow}>
                 <span className={styles.icon}>
-                    {isExercise ? <File size={16} /> : <BookOpen size={16} />}
+                    <BookOpen size={16} />
                 </span>
                 <span className={styles.textCol}>
-                    <span className={styles.primary}>{primary}</span>
-                    {secondary !== null && <span className={styles.secondary}>{secondary}</span>}
-                </span>
-                <ChevronDown size={14} className={styles.chevron} />
-            </button>
-            <div className={styles.conversationRow}>
-                <span className={styles.icon}>
-                    <MessageSquare size={16} />
-                </span>
-                <span className={styles.textCol}>
-                    <span className={styles.primary}>{convTitle}</span>
-                    <span className={styles.secondary}>{convMeta}</span>
+                    <button
+                        className={styles.courseButton}
+                        onClick={onOpenCoursePicker}
+                        disabled={disableNavigation}
+                    >
+                        <span className={styles.primary}>{courseTitle ?? 'Choose a course'}</span>
+                        <ChevronDown size={14} className={styles.chevron} />
+                    </button>
+                    <span className={styles.secondary}>{conversationLine}</span>
                 </span>
                 <button
                     className={styles.iconBtn}
                     onClick={onNewConversation}
-                    disabled={!canCreateConversation || disableNavigation}
+                    disabled={disableNavigation}
                     aria-label="New conversation"
                     title="New conversation"
                 >

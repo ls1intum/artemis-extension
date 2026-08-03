@@ -5,7 +5,6 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
-import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
 import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
@@ -40,30 +39,23 @@ function registerLogoutCommand(
     });
 }
 
-function registerResetIrisChatCommand(chatWebviewProvider: ChatWebviewProvider): vscode.Disposable {
+function registerReloadIrisChatCommand(chatWebviewProvider: ChatWebviewProvider): vscode.Disposable {
+    // Kept as an escape hatch for a wedged client: drop everything local and
+    // re-read from the server. It no longer pretends to own conversations,
+    // which live on Artemis, so the command id stays (no keybinding breaks)
+    // while the modal confirmation goes: there is nothing destructive left to
+    // confirm.
     return vscode.commands.registerCommand('artemis.resetIrisChat', async () => {
-        const confirmation = await vscode.window.showWarningMessage(
-            'This will clear all local Iris chat session data and reload from Artemis. Continue?',
-            { modal: true },
-            'Yes, Reset',
-            'Cancel'
-        );
-
-        if (confirmation !== 'Yes, Reset') {
-            return;
-        }
-
         try {
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: "Resetting Iris Chat Sessions...",
-                cancellable: false
+                title: 'Reloading Iris chat...',
+                cancellable: false,
             }, async () => {
-                await chatWebviewProvider.clearAllSessions();
-                vscode.window.showInformationMessage('✅ Iris chat sessions have been reset and reloaded from Artemis.');
+                await chatWebviewProvider.reloadIrisChat();
             });
         } catch (error: unknown) {
-            vscode.window.showErrorMessage(`Failed to reset Iris chat: ${extractErrorMessage(error)}`);
+            vscode.window.showErrorMessage(`Failed to reload Iris chat: ${extractErrorMessage(error)}`);
         }
     });
 }
@@ -71,7 +63,7 @@ function registerResetIrisChatCommand(chatWebviewProvider: ChatWebviewProvider):
 function registerIrisHealthCheckCommand(
     authManager: AuthManager,
     artemisApiService: ArtemisApiService,
-    providerRegistry: IProviderRegistry,
+    chatWebviewProvider: ChatWebviewProvider,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.checkIrisHealth', async () => {
         try {
@@ -80,12 +72,13 @@ function registerIrisHealthCheckCommand(
                 return;
             }
 
-            const chatProvider = providerRegistry.getChatWebviewProvider();
-            const activeContext = chatProvider?.getSelectedContext?.();
-            const courseId = activeContext?.type === 'course' ? activeContext.id : activeContext?.courseId;
+            // The chat's own course, which is what the health check asks
+            // about; never a topic. It survives a course with no conversation,
+            // so the check still works where Iris is switched off.
+            const courseId = chatWebviewProvider.currentCourseId;
 
             if (!courseId) {
-                vscode.window.showWarningMessage('Please select a course or exercise context before checking Iris health status.');
+                vscode.window.showWarningMessage('Choose a course in the Iris chat first, so there is one to check.');
                 return;
             }
 
@@ -683,7 +676,6 @@ interface CommandDeps {
     artemisApiService: ArtemisApiService;
     artemisWebsocketService: ArtemisWebsocketService;
     telemetryManager: ITelemetryManager;
-    providerRegistry: IProviderRegistry;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
@@ -693,8 +685,8 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
     return vscode.Disposable.from(
         registerLoginCommand(),
         registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
-        registerResetIrisChatCommand(deps.chatWebviewProvider),
-        registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.providerRegistry),
+        registerReloadIrisChatCommand(deps.chatWebviewProvider),
+        registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.chatWebviewProvider),
         registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerGoToSourceErrorCommand(),

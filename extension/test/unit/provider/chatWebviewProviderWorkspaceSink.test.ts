@@ -50,30 +50,34 @@ suite('ChatWebviewProvider workspace sink', () => {
         sandbox.restore();
     });
 
-    test('registerWorkspaceExercise delegates to chatContextManager.registerExerciseAndAutoSelect', () => {
-        const ccm = (provider as unknown as { _chatContextManager: { registerExerciseAndAutoSelect: sinon.SinonStub } })._chatContextManager;
-        const spy = sandbox.stub(ccm, 'registerExerciseAndAutoSelect');
+    test('registerWorkspaceExercise registers the exercise and re-posts the snapshot', () => {
+        const internals = provider as unknown as {
+            _contextStore: { registerExercise: sinon.SinonStub };
+            _viewStatePresenter: { postSnapshot: sinon.SinonStub };
+        };
+        const register = sandbox.stub(internals._contextStore, 'registerExercise');
+        const post = sandbox.stub(internals._viewStatePresenter, 'postSnapshot');
         const input = { id: 1, title: 'X', source: 'workspace-detected' as const, isWorkspace: true as const };
+
         provider.registerWorkspaceExercise(input);
-        assert.ok(spy.calledOnceWith(input));
+
+        assert.ok(register.calledOnceWith(input));
+        assert.ok(post.calledOnce, 'postSnapshot should fire');
+        assert.ok(register.calledBefore(post), 'the store must be updated before the snapshot is posted');
     });
 
-    test('clearWorkspaceExercise calls clearStaleWorkspaceContext, clearWorkspaceFlag, postSnapshot in order', () => {
+    test('clearWorkspaceExercise calls clearWorkspaceFlag then postSnapshot', () => {
         const internals = provider as unknown as {
-            _chatContextManager: { clearStaleWorkspaceContext: sinon.SinonStub };
             _contextStore: { clearWorkspaceFlag: sinon.SinonStub };
             _viewStatePresenter: { postSnapshot: sinon.SinonStub };
         };
-        const a = sandbox.stub(internals._chatContextManager, 'clearStaleWorkspaceContext');
         const b = sandbox.stub(internals._contextStore, 'clearWorkspaceFlag');
         const c = sandbox.stub(internals._viewStatePresenter, 'postSnapshot');
 
         provider.clearWorkspaceExercise();
 
-        assert.ok(a.calledOnce, 'clearStaleWorkspaceContext should fire');
         assert.ok(b.calledOnce, 'clearWorkspaceFlag should fire');
         assert.ok(c.calledOnce, 'postSnapshot should fire');
-        assert.ok(a.calledBefore(b), 'clearStale must run before clearFlag');
         assert.ok(b.calledBefore(c), 'clearFlag must run before postSnapshot');
     });
 });

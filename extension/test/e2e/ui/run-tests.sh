@@ -40,8 +40,17 @@ trap cleanup EXIT
 npx @vscode/vsce package --no-dependencies --skip-license -o test-extension.vsix
 
 echo "=== Phase 4: Setting up test environment ==="
-extest get-vscode
-extest get-chromedriver
+# Pinned, and not by preference: vscode-extension-tester hardcodes the macOS
+# executable as `Contents/MacOS/Electron` (codeUtil.js), which VS Code stopped
+# shipping with 1.110. Against a newer build every extest command dies with
+# status 127 and the whole UI suite cannot start. Still present in the latest
+# 8.23.0, so upgrading is not a way out. 1.109.1 is the last build that carries
+# the expected binary. Drop this once the tester resolves the executable from
+# the bundle, the way @vscode/test-electron 3.1.0 already does.
+UI_CODE_VERSION="${UI_CODE_VERSION:-1.109.1}"
+
+extest get-vscode --code_version "$UI_CODE_VERSION"
+extest get-chromedriver --code_version "$UI_CODE_VERSION"
 extest install-vsix --vsix_file test-extension.vsix
 
 # Compose the final settings.json passed to each `extest run-tests`. By
@@ -85,7 +94,7 @@ for test_file in out/test/e2e/ui/*.ui.test.js; do
   # reaching extension elements. The load-bearing setting is
   # `workbench.welcomePage.experimentalOnboarding: false`, identified via
   # redhat-developer/vscode-extension-tester#2345. See issue #176.
-  extest run-tests "$test_file" --mocha_config .mocharc.ui.yml --code_settings "$SETTINGS_FILE" 2>&1 | tee "$log_file"
+  extest run-tests "$test_file" --code_version "$UI_CODE_VERSION" --mocha_config .mocharc.ui.yml --code_settings "$SETTINGS_FILE" 2>&1 | tee "$log_file"
   rc=${PIPESTATUS[0]}
 
   # Distinguish "actually ran" from "skipped because .env was missing".

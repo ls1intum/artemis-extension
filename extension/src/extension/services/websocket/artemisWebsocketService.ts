@@ -53,7 +53,7 @@ export class ArtemisWebsocketService {
     public subscribeToPersonalResults(): void { this._subscriptions.subscribeToPersonalResults(); }
     public subscribeToPersonalSubmissions(): void { this._subscriptions.subscribeToPersonalSubmissions(); }
     public subscribeToSubmissionProcessing(): void { this._subscriptions.subscribeToSubmissionProcessing(); }
-    public subscribeToIrisSession(id: number, onMessage: (m: unknown) => void): () => void {
+    public subscribeToIrisSession(id: number, onMessage: (m: unknown, sourceSessionId: number) => void): () => void {
         return this._subscriptions.subscribeToIrisSession(id, onMessage);
     }
 
