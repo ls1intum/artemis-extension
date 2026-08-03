@@ -23,6 +23,11 @@ export function askIrisOutcomeMessage(outcome: TopicChangeOutcome, title: string
         case 'unstaged':
         case 'opened':
             return `Iris is now looking at ${title}.`;
+        // The chat already carries the persistent "Iris is off in this course"
+        // banner, and the move itself succeeded. A notification on top would be
+        // a second, retry-shaped answer to something no retry can change.
+        case 'course-disabled':
+            return undefined;
         case 'stale':
             return undefined;
         case 'rejected':

@@ -69,15 +69,22 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // state, so `null` cannot double as "no popover is open". `undefined` can:
     // it is not part of the field's type.
     const sessionWhenPopoverOpened = useRef<number | null | undefined>(undefined);
+    // The course is captured alongside it, because a course move does not
+    // always change the conversation id: entering a course whose Iris is
+    // switched off leaves it null, and it may have been null before. Without
+    // this the picker would stay parked on top of the banner that explains
+    // where the student now is.
+    const courseWhenPopoverOpened = useRef<number | null | undefined>(undefined);
     useEffect(() => {
         if (sessionWhenPopoverOpened.current === undefined) { return; }
-        if (store.currentSessionId !== sessionWhenPopoverOpened.current) {
+        if (store.currentSessionId !== sessionWhenPopoverOpened.current
+            || store.courseId !== courseWhenPopoverOpened.current) {
             // Also clears `openSessionError`, so a failure the student has
             // since navigated past cannot sit on top of the conversation that
             // did load.
             closePopovers();
         }
-    }, [store.currentSessionId]);
+    }, [store.currentSessionId, store.courseId]);
 
     // Run lock: navigation cannot abandon an in-flight run. The moment
     // streaming starts, close/neutralize any popover or side menu that was
@@ -386,6 +393,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // exercise. It also keeps the ref honest when this opener closes the
         // history: otherwise the ref stays live for a popover that is gone.
         sessionWhenPopoverOpened.current = useChatStore.getState().currentSessionId;
+        courseWhenPopoverOpened.current = useChatStore.getState().courseId;
         setPickerOpen(true);
     };
 
@@ -409,6 +417,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // inside "Select course" arbitrarily long after the send that caused it.
         setOpenSessionError(null);
         sessionWhenPopoverOpened.current = useChatStore.getState().currentSessionId;
+        courseWhenPopoverOpened.current = useChatStore.getState().courseId;
         setCoursePickerOpen(true);
     };
 
@@ -418,6 +427,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setCoursePickerOpen(false);
         setOpenSessionError(null);
         sessionWhenPopoverOpened.current = useChatStore.getState().currentSessionId;
+        courseWhenPopoverOpened.current = useChatStore.getState().courseId;
         // The conversation list comes with the snapshot, so opening it costs
         // no request.
         setHistoryOpen(true);
@@ -429,6 +439,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setCoursePickerOpen(false);
         setOpenSessionError(null);
         sessionWhenPopoverOpened.current = undefined;
+        courseWhenPopoverOpened.current = undefined;
         openerRef.current?.focus();
         openerRef.current = null;
     };
@@ -527,12 +538,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // 'Loading…' when the chat is otherwise usable but still waiting for
     // hydration.
     let disabledPlaceholder: string | undefined;
-    if (!hasConversation) {
+    if (store.disabledMessage) {
+        // Ahead of the no-conversation case on purpose. Entering a course whose
+        // Iris is switched off leaves us with a course and no conversation, and
+        // "Choose a course" would send the student back to the picker they just
+        // used, past a banner that already gives the real reason.
+        disabledPlaceholder = 'Iris chat is not available here';
+    } else if (!hasConversation) {
         disabledPlaceholder = 'Choose a course to start chatting';
     } else if (store.isNoAiDetected) {
         disabledPlaceholder = 'AI assistance is disabled (.noai detected)';
-    } else if (store.disabledMessage) {
-        disabledPlaceholder = 'Iris chat is not available for this exercise';
     } else if (showUnavailableBanner) {
         disabledPlaceholder = 'Iris is temporarily unavailable. Retry to reload.';
     }

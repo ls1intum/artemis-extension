@@ -5,7 +5,7 @@ import type { ServerContext, SessionDetail } from '@shared/types/serverContext';
 import { sameContext } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
-import { ApiError } from '@extension/domain';
+import { ApiError, isIrisCourseDisabled } from '@extension/domain';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
 import type { GuardTuple } from './conversationState';
@@ -44,6 +44,13 @@ interface IrisConversationDeps {
      * is not rate-limited for a deliberate navigation.
      */
     subscribeToSession(sessionId: number): void;
+    /**
+     * Stops following the current conversation without intending another. Only
+     * entering a course that has none needs this: `subscribeToSession` records
+     * an intent, and leaving that intent in place makes the next reconnect
+     * resubscribe to a conversation we have left.
+     */
+    leaveSession(): void;
     /** Resolves the workspace exercise, or undefined when none is detected. */
     getWorkspaceExercise(): { exerciseId: number; courseId: number } | undefined;
     /**
@@ -69,9 +76,23 @@ export type TopicChangeOutcome =
     | { kind: 'staged' }
     | { kind: 'unstaged' }
     | { kind: 'opened'; sessionId: number }
+    /**
+     * We are now IN the target's course, which has Iris switched off, so there
+     * is no conversation and nothing was staged. Not a rejection: the move the
+     * student asked for happened, and the persistent banner already explains
+     * the rest. Callers must not add a retry prompt on top of it.
+     */
+    | { kind: 'course-disabled' }
     /** A newer navigation superseded this one; nothing was changed. */
     | { kind: 'stale' }
     | { kind: 'rejected'; reason: 'loading' | 'cross-course' | 'send-in-flight' | 'no-course' | 'failed' };
+
+/** What a course switch did. `disabled` still moved us; see the kind above. */
+export type CourseSwitchOutcome =
+    | { kind: 'opened'; sessionId: number }
+    | { kind: 'disabled' }
+    | { kind: 'stale' }
+    | { kind: 'rejected'; reason: 'send-in-flight' | 'failed' };
 
 type ProbeResult =
     | { kind: 'ok'; detail: SessionDetail; guard: GuardTuple }
@@ -375,6 +396,15 @@ export class IrisConversationService {
         try {
             detail = await this._api.getCurrentChat(target.mode as IrisChatMode, target.entityId, courseId);
         } catch (error) {
+            // A cold start into a course whose Iris is off is the same
+            // destination as a switch into one: land there, so the banner has a
+            // course to label and the student is not left with nothing selected.
+            if (isIrisCourseDisabled(error)) {
+                logger.info(`Iris is switched off in course ${courseId}; entering it anyway`, LogCategory.IRIS_CHAT);
+                return this._enterCourseWithoutConversation(courseId, isCurrent)
+                    ? { kind: 'course-disabled' }
+                    : { kind: 'stale' };
+            }
             // Same reasoning as `newConversation`: the dispatcher acts on an
             // outcome, so a 500 here must not reject the returned promise.
             logger.warn('Iris cold-start acquisition failed', LogCategory.IRIS_CHAT, error);
@@ -426,22 +456,64 @@ export class IrisConversationService {
     }
 
     /**
-     * A course switch has no session id when it begins, so it cannot be a
-     * navigateTo. It acquires first and installs the result, which lands on an
-     * EMPTY course conversation by construction.
+     * Lands in `courseId` with NO conversation, INSIDE the caller's navigation.
+     * A course whose Iris is switched off is a destination: `sessions/current`
+     * answers 403 there, so there is nothing to acquire, but staying behind
+     * would leave the student in the old course reading about a different one.
+     * Artemis' own client cannot even reach that state, because its course
+     * follows the page.
+     *
+     * Private, and takes `isCurrent`, deliberately. An earlier draft let the
+     * caller catch the 403 and start a FRESH navigation, which made a slow 403
+     * for course A outrank a switch to course B issued after it.
      */
-    public async switchCourse(courseId: number): Promise<void> {
-        if (this.state.sendInFlight) { return; }
-        await this._navigate(async (isCurrent) => {
+    private _enterCourseWithoutConversation(courseId: number, isCurrent: () => boolean): boolean {
+        if (!isCurrent()) { return false; }
+        // Order matters: the navigation drops the session and the detail first,
+        // so `setCourse` cannot clear the caches while a conversation from the
+        // old course is still considered current.
+        this.state.beginNavigation(undefined);
+        this.state.setCourse(courseId);
+        // The transport keeps an INTENT, not just a subscription, so dropping
+        // the conversation locally is not enough: without this the next
+        // reconnect resubscribes to the conversation we have just left.
+        this._deps.leaveSession();
+        this._emit();
+        return true;
+    }
+
+    /**
+     * Opens `courseId`'s conversation. A course with Iris switched off is
+     * entered all the same, without one; see {@link CourseSwitchOutcome}.
+     */
+    public async switchCourse(courseId: number): Promise<CourseSwitchOutcome> {
+        if (this.state.sendInFlight) { return { kind: 'rejected', reason: 'send-in-flight' }; }
+        return await this._navigate(async (isCurrent) => {
             const captured = this.state.beginLoad();
-            const detail = await this._api.getCurrentChat('COURSE_CHAT', courseId, courseId);
+            let detail: SessionDetail;
+            try {
+                detail = await this._api.getCurrentChat('COURSE_CHAT', courseId, courseId);
+            } catch (error) {
+                // Handled HERE, inside this navigation, so a slow refusal cannot
+                // outrank a switch the student made after it.
+                if (isIrisCourseDisabled(error)) {
+                    logger.info(`Iris is switched off in course ${courseId}; entering it anyway`, LogCategory.IRIS_CHAT);
+                    return this._enterCourseWithoutConversation(courseId, isCurrent)
+                        ? { kind: 'disabled' } as const
+                        : { kind: 'stale' } as const;
+                }
+                logger.warn('Iris course switch failed', LogCategory.IRIS_CHAT, error);
+                if (!isCurrent()) { return { kind: 'stale' } as const; }
+                throw error;
+            }
             // setCourse clears knownInvisible; it runs inside installAcquired,
             // AFTER the request, so a failed switch does not throw away the
             // current course's cache and with it the only route to its hidden
             // conversations.
-            if (!this._install(detail, captured, isCurrent)) { return; }
+            if (!this._install(detail, captured, isCurrent)) { return { kind: 'stale' } as const; }
             void this.refreshOverview();
             this._emit();
+            return { kind: 'opened', sessionId: detail.sessionId } as const;
         });
     }
 

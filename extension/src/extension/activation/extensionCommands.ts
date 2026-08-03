@@ -72,13 +72,13 @@ function registerIrisHealthCheckCommand(
                 return;
             }
 
-            // The OPEN CONVERSATION names the course. It is the only thing
-            // that does now, and the health check asks about a course, never
-            // about a topic.
+            // The chat's own course, which is what the health check asks
+            // about; never a topic. It survives a course with no conversation,
+            // so the check still works where Iris is switched off.
             const courseId = chatWebviewProvider.currentCourseId;
 
             if (!courseId) {
-                vscode.window.showWarningMessage('Open a conversation in the Iris chat first, so there is a course to check.');
+                vscode.window.showWarningMessage('Choose a course in the Iris chat first, so there is one to check.');
                 return;
             }
 

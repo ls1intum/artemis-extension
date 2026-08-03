@@ -120,9 +120,17 @@ suite('ChatWebviewProvider: struggle decoupling', () => {
 
 suite('ChatWebviewProvider: Ask Iris', () => {
     let h: Harness;
+    let postSpy: sinon.SinonSpy;
 
-    setup(() => { h = buildHarness(); });
+    setup(() => {
+        h = buildHarness();
+        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+    });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    const postedTypes = (): string[] => postSpy.getCalls()
+        .map(c => (c.args[0] as { type?: string })?.type ?? '')
+        .filter(Boolean);
 
     test('with no conversation open, Ask-Iris acquires one instead of refusing', async () => {
         // The cold-start row of the resolution table. Without the course hint
@@ -149,6 +157,80 @@ suite('ChatWebviewProvider: Ask Iris', () => {
         await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' });
 
         assert.deepStrictEqual(h.api.getCurrentChat.firstCall.args, ['PROGRAMMING_EXERCISE_CHAT', 5, 42]);
+    });
+
+    test('Ask-Iris on another course SWITCHES to it instead of refusing', async () => {
+        // Artemis' client cannot refuse this: clicking the exercise navigates to
+        // its page and the chat's course follows. Here nothing navigates, so the
+        // command has to make the same move itself, in the same order a student
+        // would: course first, then the topic in it.
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' }, 42);
+        // The course move acquires course 43's own conversation.
+        h.api.getCurrentChat.resolves(detail({ sessionId: 2, courseId: 43, context: { mode: 'COURSE_CHAT', entityId: 43 } }));
+
+        const outcome = await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 9, name: 'DFS' }, 43);
+
+        // The whole compound operation, not just its first half: the course
+        // moved, the topic was staged in the conversation that came with it, and
+        // the student was told, because they clicked an exercise and got a new
+        // transcript.
+        assert.deepStrictEqual(outcome, { kind: 'staged' });
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot(): { courseId?: number; currentSessionId?: number; pendingContext?: { ctx: unknown } } } };
+        })._conversation;
+        const snapshot = conversation.state.snapshot();
+        assert.strictEqual(snapshot.courseId, 43, 'the chat must be in the target course');
+        assert.strictEqual(snapshot.currentSessionId, 2, 'with that course\'s conversation');
+        assert.deepStrictEqual(snapshot.pendingContext?.ctx, { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 9, name: 'DFS' });
+        assert.ok(
+            noticesFrom(postSpy).some(n => /Switched to/.test(n)),
+            'a transcript the student did not ask to replace has to be announced',
+        );
+    });
+
+    test('Ask-Iris into a course with Iris off lands there and says why, without staging', async () => {
+        // The move still happens; only the conversation cannot. Staging a topic
+        // into a course that has none would leave the chip naming a topic no
+        // send could ever use.
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' }, 42);
+        h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+
+        const outcome = await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 9, name: 'DFS' }, 43);
+
+        // NOT a rejection. The move succeeded; only the conversation cannot
+        // exist. Reporting `failed` would put a retry prompt on top of a banner
+        // that no retry can clear.
+        assert.deepStrictEqual(outcome, { kind: 'course-disabled' });
+        assert.ok(postedTypes().includes('showDisabledState'), 'the banner is the answer');
+        assert.deepStrictEqual(
+            noticesFrom(postSpy).filter(n => /Switched to/.test(n)),
+            [],
+            'the banner is a standing state; a fading notice next to it says the same thing twice',
+        );
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot(): { courseId?: number; currentSessionId?: number; pendingContext?: unknown } } };
+        })._conversation;
+        const snapshot = conversation.state.snapshot();
+        assert.strictEqual(snapshot.courseId, 43, 'we are in the course the student asked about');
+        assert.strictEqual(snapshot.currentSessionId, undefined, 'with no conversation');
+        assert.strictEqual(snapshot.pendingContext, undefined, 'and nothing staged into thin air');
+    });
+
+    test('Ask-Iris from a COLD start into a disabled course still lands there', async () => {
+        // No conversation is open, so there is no course to switch away from and
+        // the acquisition itself meets the 403. It has to reach the same
+        // destination as the switch does, or the behaviour would exist only for
+        // students who happened to have another course open.
+        h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+
+        const outcome = await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 9, name: 'DFS' }, 43);
+
+        assert.deepStrictEqual(outcome, { kind: 'course-disabled' });
+        assert.ok(postedTypes().includes('showDisabledState'), 'landing without a banner leaves the panel unexplained');
+        const conversation = (h.provider as unknown as { _conversation: { state: { snapshot(): { courseId?: number } } } })._conversation;
+        assert.strictEqual(conversation.state.snapshot().courseId, 43);
     });
 
     test('Ask-Iris refuses an exercise whose course cannot be resolved', async () => {
@@ -332,6 +414,7 @@ interface FakeConversation {
     navigateThrows: boolean;
     /** Rejections the host must classify, rather than the bare Error `navigateThrows` raises. */
     switchCourseError?: unknown;
+    switchOutcome: { kind: string; sessionId?: number; reason?: string };
     navigateError?: unknown;
 }
 
@@ -341,6 +424,7 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         sendInFlight: false,
         topicOutcome: { kind: 'staged' },
         newOutcome: { kind: 'opened', sessionId: 9 },
+        switchOutcome: { kind: 'opened', sessionId: 5 },
         navigateThrows: false,
     };
     (provider as unknown as { _conversation: unknown })._conversation = {
@@ -371,6 +455,7 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         switchCourse: async (courseId: unknown) => {
             fake.calls.push({ name: 'switchCourse', args: courseId });
             if (fake.switchCourseError) { throw fake.switchCourseError; }
+            return fake.switchOutcome;
         },
     };
     return fake;
@@ -419,6 +504,18 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
             name: 'resolveTopicChange',
             args: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7, name: 'BFS' },
         }]);
+    });
+
+    test('Ask-Iris abandons the topic when its own course switch was superseded', async () => {
+        // The compound operation is switch-then-stage. If a newer navigation won
+        // the switch, staging afterwards would take a fresh navigation token and
+        // let this stale click cancel whatever the student chose instead.
+        fake.switchOutcome = { kind: 'stale' };
+
+        const outcome = await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 9, name: 'DFS' }, 43);
+
+        assert.deepStrictEqual(outcome, { kind: 'stale' });
+        assert.deepStrictEqual(fake.calls.filter(c => c.name === 'resolveTopicChange'), [], 'nothing may be staged');
     });
 
     test('a topic pick posts no notice even when it acquired a conversation', async () => {
@@ -492,48 +589,29 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         .map(c => (c.args[0] as { type?: string })?.type ?? '')
         .filter(Boolean);
 
-    test('switching into a course with Iris switched off names that, and does not invite a retry', async () => {
-        fake.switchCourseError = irisDisabled();
+    test('a course entered without a conversation is labelled where the student now is', async () => {
+        // The service reports `disabled` once it has LANDED there (it classifies
+        // the 403 inside its own navigation). All this handler owes it is the
+        // banner, and specifically not an inline error: nothing failed.
+        fake.switchOutcome = { kind: 'disabled' };
 
         dispatch(h.provider, 'switchCourse', { courseId: 9027 });
         await settle();
 
-        const errors = openErrorsFrom(postSpy);
-        assert.strictEqual(errors.length, 1, 'one inline answer for the one navigation');
-        assert.match(errors[0], /not enabled|disabled|turned off/i, 'must name the actual reason');
-        assert.doesNotMatch(errors[0], /try again/i, 'an immediate retry cannot change this');
+        assert.ok(messageTypesFrom(postSpy).includes('showDisabledState'), 'the panel must say why it is empty');
+        assert.deepStrictEqual(openErrorsFrom(postSpy), [], 'no inline error: the navigation succeeded');
     });
 
-    test('a failed switch leaves the PREVIOUS course unlabelled', async () => {
-        // The switch failed, so we are still in the old course. A persistent
-        // disabled banner belongs to the course you are IN, and posting one
-        // here would brand a course whose Iris works fine.
-        fake.switchCourseError = irisDisabled();
+    test('a switch that was superseded says nothing at all', async () => {
+        // `stale` means a newer navigation won. Labelling the course we did not
+        // reach would brand whichever one the student is actually looking at.
+        fake.switchOutcome = { kind: 'stale' };
 
         dispatch(h.provider, 'switchCourse', { courseId: 9027 });
         await settle();
 
-        assert.ok(
-            !messageTypesFrom(postSpy).includes('showDisabledState'),
-            'the disabled banner is for the active course, not for one we failed to reach',
-        );
-    });
-
-    test('classifies by the errorKey, not by the prose Artemis happens to send', async () => {
-        // `detail` is whatever won the API layer's fallback chain, so it degrades
-        // to the human-readable title the day Artemis stops sending `message`.
-        // The key is the contract; matching the prose would silently regress.
-        fake.switchCourseError = new ApiError(
-            'Request failed',
-            403,
-            'Iris is disabled for course 9027',
-            'iris.course_disabled',
-        );
-
-        dispatch(h.provider, 'switchCourse', { courseId: 9027 });
-        await settle();
-
-        assert.doesNotMatch(openErrorsFrom(postSpy)[0], /try again/i);
+        assert.ok(!messageTypesFrom(postSpy).includes('showDisabledState'));
+        assert.deepStrictEqual(openErrorsFrom(postSpy), []);
     });
 
     test('disabled-looking prose without the key is NOT treated as disabled', async () => {

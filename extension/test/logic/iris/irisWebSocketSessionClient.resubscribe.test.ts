@@ -311,3 +311,40 @@ describe('IrisWebSocketSessionClient: _converge (latest-wins subscription)', () 
         expect(fired).toEqual([7]);
     });
 });
+
+describe('IrisWebSocketSessionClient: leaveSession', () => {
+    const createdClients: IrisWebSocketSessionClient[] = [];
+
+    function trackedClient(...args: ConstructorParameters<typeof IrisWebSocketSessionClient>): IrisWebSocketSessionClient {
+        const client = new IrisWebSocketSessionClient(...args);
+        createdClients.push(client);
+        return client;
+    }
+
+    afterEach(() => {
+        for (const client of createdClients) { client.dispose(); }
+        createdClients.length = 0;
+        vi.restoreAllMocks();
+    });
+
+    it('forgets the conversation, so a reconnect does not resubscribe to it', async () => {
+        // `unsubscribe()` alone leaves the desired id in place, and every
+        // reconnect resubscribes to whatever is desired. Entering a course
+        // without a conversation has to clear the INTENT, not just the current
+        // protocol subscription.
+        const subscribed: number[] = [];
+        const { service, fireConnectionState } = createWebsocketServiceStub({
+            isConnected: () => true,
+            subscribeToIrisSession: (id) => { subscribed.push(id); return () => { /* unsubscribe */ }; },
+        });
+        const client = trackedClient(service);
+        await client.subscribeToSession(42);
+        expect(subscribed).toEqual([42]);
+
+        client.leaveSession();
+        fireConnectionState(true);
+
+        expect(subscribed).toEqual([42]);
+        expect(client.currentSessionId).toBeUndefined();
+    });
+});

@@ -7,8 +7,8 @@ import { IrisConversationService } from '@extension/services/iris/conversation/c
 import type { SendDeps } from '@extension/services/iris/conversation/sendCoordinator';
 import { SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
 
-const detail = (sessionId: number, context: unknown, messages: unknown[] = []) =>
-    ({ sessionId, courseId: 42, context, messages });
+const detail = (sessionId: number, context: unknown, messages: unknown[] = [], courseId = 42) =>
+    ({ sessionId, courseId, context, messages });
 
 const EX5 = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 };
 const EX7 = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7 };
@@ -81,14 +81,17 @@ const tick = () => new Promise((r) => setImmediate(r));
 
 function deps() {
     const subscribed: number[] = [];
+    let leftCount = 0;
     /** Every transcript the service handed out, in order: `load` replaces the
      *  visible one, `merge` folds into it. */
     const delivered: Array<{ sessionId: number; mode: 'load' | 'merge'; count: number }> = [];
     return {
         subscribed,
         delivered,
+        getLeftCount: () => leftCount,
         deps: {
             subscribeToSession: async (sessionId: number) => { subscribed.push(sessionId); },
+            leaveSession: () => { leftCount++; },
             getWorkspaceExercise: () => ({ exerciseId: 5, courseId: 42 }),
             deliverTranscript: (detail: SessionDetail, mode: 'load' | 'merge') => {
                 delivered.push({ sessionId: detail.sessionId, mode, count: detail.messages.length });
@@ -100,7 +103,7 @@ function deps() {
 /** A service with an open, EMPTY exercise conversation (session 1, topic E5). */
 async function started() {
     const { api, deferred, outstanding, resolveLast, resolveCall, resolveOldestCall, rejectCall } = makeApi();
-    const { deps: d, subscribed, delivered } = deps();
+    const { deps: d, subscribed, delivered, getLeftCount } = deps();
     const service = new IrisConversationService(api as never, d);
     const run = service.start({ exerciseId: 5, courseId: 42 });
     resolveLast(detail(1, EX5));
@@ -112,6 +115,7 @@ async function started() {
         api: { deferred, outstanding, resolveLast, resolveCall, resolveOldestCall, rejectCall },
         subscribed,
         delivered,
+        getLeftCount,
     });
 }
 
@@ -292,6 +296,40 @@ suite('IrisConversationService', () => {
         await Promise.all([first, second]);
         assert.strictEqual(service.state.snapshot().currentSessionId, 4);
         assert.deepStrictEqual(service.state.snapshot().committedContext, EX7);
+    });
+
+    test('entering a course with Iris off stops following the old conversation', async () => {
+        // `subscribeToSession` records an INTENT, so dropping the conversation
+        // locally is not enough: the transport would resubscribe to it on the
+        // next reconnect and keep feeding frames for a conversation that is no
+        // longer on screen.
+        const service = await startedWithContent();
+        const before = service.getLeftCount();
+
+        const change = service.switchCourse(43);
+        service.api.rejectCall('current:COURSE_CHAT:43:43', new ApiError('nope', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+        const outcome = await change;
+
+        assert.deepStrictEqual(outcome, { kind: 'disabled' });
+        assert.strictEqual(service.state.snapshot().courseId, 43);
+        assert.strictEqual(service.state.snapshot().currentSessionId, undefined);
+        assert.strictEqual(service.getLeftCount(), before + 1, 'the transport must be told, not just the state');
+    });
+
+    test('a slow refusal cannot outrank a switch the student made after it', async () => {
+        // The ordering hazard the disabled branch would have created if the
+        // provider caught the 403 and started a FRESH navigation: course A's
+        // refusal arriving last would land on A although B was chosen later.
+        const service = await startedWithContent();
+
+        const toA = service.switchCourse(43);
+        const toB = service.switchCourse(44);
+        service.api.resolveCall('current:COURSE_CHAT:44:44', detail(20, { mode: 'COURSE_CHAT', entityId: 44 }, [], 44));
+        service.api.rejectCall('current:COURSE_CHAT:43:43', new ApiError('nope', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+
+        assert.deepStrictEqual(await toA, { kind: 'stale' });
+        await toB;
+        assert.strictEqual(service.state.snapshot().courseId, 44, 'the later choice wins');
     });
 
     test('a course switch acquires an empty course conversation and clears the invisible cache', async () => {

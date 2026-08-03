@@ -6,7 +6,7 @@ import type { ServerContext, SessionDetail } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
 import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
-import { ApiError } from '@extension/domain/errors';
+import { isIrisCourseDisabled } from '@extension/domain/errors';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
@@ -21,7 +21,7 @@ import { historyResolvesRun } from '@extension/services/iris/chat/historyResolut
 import type { AvailabilityContext } from '@extension/services/iris/chat/irisAvailabilityService';
 import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
 import { collectUncommittedFiles } from '@extension/services/iris/conversation/collectUncommittedFiles';
-import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { CourseSwitchOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { toWireMessages } from '@extension/services/iris/conversation/messageFormatting';
 import { SEND_REJECTION_MESSAGES, SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
@@ -63,24 +63,14 @@ interface RecoveryBaseline {
     baselineMessageId: number;
 }
 
-/** Artemis' `errorKey` for "this course has Iris switched off". */
-const IRIS_COURSE_DISABLED = 'iris.course_disabled';
-
 /**
- * Tells a settings-level refusal apart from a transient failure. Only an
- * instructor can lift the former, so inviting an immediate retry is misleading.
- * Matched on the stable `errorKey`, never on `detail`: that one is a fallback
- * chain over human-facing fields and degrades to prose without notice.
+ * Wording for a navigation that could not be made. The course switch no longer
+ * reaches this with a disabled course (the service enters it instead), but
+ * opening a history row in one still can, and a "please try again" would
+ * promise something no retry can deliver.
  */
-function isIrisDisabledForCourse(error: unknown): boolean {
-    return error instanceof ApiError
-        && error.status === 403
-        && error.errorKey === IRIS_COURSE_DISABLED;
-}
-
-/** Both course-scoped navigations answer inline, so they share one wording. */
 function navigationFailureMessage(error: unknown, fallback: string): string {
-    return isIrisDisabledForCourse(error) ? 'Iris chat is not enabled for that course.' : fallback;
+    return isIrisCourseDisabled(error) ? 'Iris chat is not enabled for that course.' : fallback;
 }
 
 export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
@@ -355,6 +345,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         if (!this._artemisApiService) { return undefined; }
         return new IrisConversationService(this._artemisApiService, {
             subscribeToSession: (sessionId) => client.subscribeToSession(sessionId),
+            leaveSession: () => client.leaveSession(),
             getWorkspaceExercise: () => {
                 const exercise = this._contextStore.getWorkspaceExercise();
                 return exercise?.courseId === undefined
@@ -711,7 +702,29 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // the exact input that makes the check say nothing. With no conversation
         // open the acquisition would have answered `no-course` anyway.
         if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
-        return await this._conversation.resolveTopicChange(target, courseId);
+
+        // The target may live in ANOTHER course. Refusing would leave the
+        // student staring at the course they were already in, having clicked
+        // something else entirely. Artemis' client never has to refuse: opening
+        // an exercise navigates to its page and the chat's course follows the
+        // URL. Nothing navigates here, so make the same move explicitly, in the
+        // order a student would: the course first, the topic in it afterwards.
+        const open = this._conversation.state.snapshot().courseId;
+        if (open !== undefined && open !== courseId) {
+            const switched = await this._switchCourseForAskIris(courseId);
+            // Only an opened conversation can carry a topic. The other three
+            // outcomes each already say everything the student needs, and none
+            // of them may be dressed up as a failed topic change:
+            // `disabled` shows the banner, `stale` means a newer navigation won,
+            // and `rejected` is reported by the caller, once.
+            if (switched.kind === 'disabled') { return this._answerCourseDisabled(courseId); }
+            if (switched.kind === 'stale') { return { kind: 'stale' }; }
+            if (switched.kind === 'rejected') { return { kind: 'rejected', reason: switched.reason }; }
+        }
+        const outcome = await this._conversation.resolveTopicChange(target, courseId);
+        // The cold start reaches the same destination through the acquisition
+        // rather than through a switch, and owes the student the same banner.
+        return outcome.kind === 'course-disabled' ? this._answerCourseDisabled(courseId) : outcome;
     }
 
     /**
@@ -786,10 +799,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
-     * What the Iris availability check runs against: the OPEN CONVERSATION.
-     * Nothing else names a course any more, and asking Artemis about the
-     * previous course's Iris settings after a course switch is exactly the bug
-     * a stored selection used to cause.
+     * What the Iris availability check runs against: where the chat IS, which is
+     * usually the open conversation and otherwise the course alone (a course
+     * with Iris switched off is entered without one). Never a stored selection:
+     * asking Artemis about the previous course's settings after a switch is
+     * exactly the bug that used to cause.
      */
     private _availabilityContext(): AvailabilityContext | null {
         const conversation = this._conversation;
@@ -1199,17 +1213,67 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const conversation = this._conversationForNavigation('switchCourse');
         if (!conversation) { return; }
         try {
-            await conversation.switchCourse(courseId);
+            // A course whose Iris is switched off is a destination, not a
+            // failure: the service lands there with no conversation, INSIDE the
+            // navigation that asked for it, and reports `disabled`. All this
+            // handler owes it is the banner. Anything else IS a failure and is
+            // answered inline, in the picker that is still open to hold it.
+            const outcome = await conversation.switchCourse(courseId);
+            if (outcome.kind === 'disabled') { this._announceCourseDisabled(courseId); }
         } catch (error: unknown) {
             logger.error('switchCourse failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
                 type: ExtensionMsg.OpenSessionError,
-                // No banner here: the switch failed, so we are still in the
-                // PREVIOUS course, and a persistent "Iris is disabled" state
-                // would mislabel that one.
                 message: navigationFailureMessage(error, 'Could not open that course. Please try again.'),
             });
         }
+    }
+
+    /**
+     * The course move an Ask-Iris click implies. Returns whether a conversation
+     * is now open in `courseId`, which is the only case where staging a topic
+     * makes sense. Unlike the header's own switch this one announces itself:
+     * the student clicked an exercise, not a course, so the transcript changing
+     * under them is a side effect and has to be named.
+     */
+    private async _switchCourseForAskIris(courseId: number): Promise<CourseSwitchOutcome> {
+        if (!this._conversation) { return { kind: 'rejected', reason: 'failed' }; }
+        try {
+            const outcome = await this._conversation.switchCourse(courseId);
+            if (outcome.kind === 'opened') {
+                this._postMessageSafe({
+                    type: ExtensionMsg.ShowChatNotice,
+                    text: `Switched to ${this._contextStore.getCourseTitle(courseId) ?? 'another course'}.`,
+                });
+            }
+            return outcome;
+        } catch (error: unknown) {
+            // Reported by the caller, not here: `askIrisAbout` turns this into a
+            // rejection and the command layer already answers every rejection
+            // with a message. Two notifications for one click is worse than one
+            // that names the topic rather than the course.
+            logger.error('Ask-Iris course switch failed', LogCategory.IRIS_CHAT, error);
+            return { kind: 'rejected', reason: 'failed' };
+        }
+    }
+
+    /** Announces the course we just entered, and reports it as such. */
+    private _answerCourseDisabled(courseId: number): TopicChangeOutcome {
+        this._announceCourseDisabled(courseId);
+        return { kind: 'course-disabled' };
+    }
+
+    /**
+     * The persistent "Iris is off here" state for the course we just entered.
+     * Goes through the availability service so `lastAvailability` records it and
+     * the next enabled course clears it, exactly as a settings probe would.
+     */
+    private _announceCourseDisabled(courseId: number): void {
+        this._availability.postAvailability({ kind: 'disabled' }, {
+            type: 'course',
+            id: courseId,
+            title: this._contextStore.getCourseTitle(courseId) ?? `Course ${courseId}`,
+        });
     }
 
     private async _handleNewConversation(): Promise<void> {

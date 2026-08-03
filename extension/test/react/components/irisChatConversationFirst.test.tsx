@@ -160,6 +160,52 @@ describe('ContextChip', () => {
     });
 });
 
+describe('IrisChatView in a course whose Iris is switched off', () => {
+    const disabledCourse = {
+        exercises: [],
+        courses: [{ id: 9027, title: 'Iris Disabled Course' }],
+        courseId: 9027,
+        courseTitle: 'Iris Disabled Course',
+        currentSessionId: null,
+        contentState: 'unknown' as const,
+    };
+
+    it('closes the course picker even though no conversation id changed', async () => {
+        // Both the course we left and the one we entered have no conversation,
+        // so `currentSessionId` stays null and the popover's usual success
+        // signal never fires. Leaving it open would park the picker on top of
+        // the banner that explains where the student now is.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...disabledCourse, courseId: 9026, courseTitle: 'Iris Conversation Test' },
+        });
+        await userEvent.click(await screen.findByRole('button', { name: /Iris Conversation Test/ }));
+        expect(screen.getByRole('dialog', { name: 'Select course' })).toBeInTheDocument();
+
+        dispatchExtensionMessage({ type: 'updateIrisState', state: disabledCourse });
+
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Select course' })).toBeNull());
+    });
+
+    it('says Iris is off rather than telling the student to choose a course', async () => {
+        // Entering such a course is a destination now, so the panel is legitimately
+        // conversation-less. "Choose a course to start chatting" would send the
+        // student back to a picker they have just used, past a banner that
+        // already states the real reason.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: disabledCourse });
+        dispatchExtensionMessage({
+            type: 'showDisabledState',
+            message: 'Iris chat is not enabled for this course. Please contact your instructor.',
+        });
+
+        expect(await screen.findByText(/not enabled for this course/)).toBeInTheDocument();
+        const input = screen.getByPlaceholderText(/./) as HTMLTextAreaElement;
+        expect(input.placeholder).not.toMatch(/choose a course/i);
+    });
+});
+
 describe('IrisChatView names the course chat on the composer', () => {
     it('passes the real course title down, not the generic fallback', async () => {
         // Pins the prop, not just the component: without the wiring in

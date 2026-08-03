@@ -18,7 +18,7 @@ The topic is what your next message is about, shown above the input: as a chip w
 Use the **+** button beside it to choose a topic, or the small **x** on the chip to talk about the course instead. The topic always changes in the conversation you are in; it never moves you to another one. Once the conversation has messages, the change is written into the transcript as a divider, so you can always see which messages belong to which topic. To start a clean conversation instead, use the **+** in the header.
 
 ## Switching conversations
-- The **course name** in the header opens your course list. Switching course opens that course's conversation.
+- The **course name** in the header opens your course list. Switching course opens that course's conversation. A course whose instructor has switched Iris off can still be opened; the chat then says so instead of hiding the course.
 - The **history** button lists every conversation in the current course, newest first, with the open one checked. Lecture and text-exercise conversations are listed too and can be continued, even though they cannot be chosen as a topic.
 - The **+** button in the header starts a fresh conversation in the same course, carrying the current topic over.
 

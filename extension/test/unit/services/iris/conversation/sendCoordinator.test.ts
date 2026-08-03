@@ -103,6 +103,7 @@ function coordinatorWith(opts: {
     const apiHarness = makeApi();
     const conversation = new IrisConversationService(apiHarness.api as never, {
         subscribeToSession: () => { /* not exercised by these tests */ },
+        leaveSession: () => { /* not exercised by these tests */ },
         deliverTranscript: () => { /* the transcript is the provider's business */ },
         getWorkspaceExercise: () => (opts.workspaceExerciseId !== undefined
             ? { exerciseId: opts.workspaceExerciseId, courseId: 42 }

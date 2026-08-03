@@ -23,7 +23,7 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
 export class IrisWebSocketSessionClient implements vscode.Disposable {
     /**
      * The conversation this client currently speaks for. Set by
-     * `subscribeToSession` and cleared only by `dispose`.
+     * `subscribeToSession`, cleared by `leaveSession` and by `dispose`.
      * `IrisConversationService` is the only thing that decides what it should
      * be, so there is no second copy to keep in sync.
      */
@@ -87,6 +87,19 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         // Leaving this set means a later subscribeToSession for the SAME id sees
         // subscribed === desired and returns without resubscribing.
         this._subscribedSessionId = undefined;
+    }
+
+    /**
+     * Stops following a conversation WITHOUT intending another one. Distinct
+     * from `unsubscribe()`, which only tears down the protocol subscription and
+     * leaves the desired id in place, so the next reconnect resubscribes to a
+     * conversation the client has left. The one caller is entering a course
+     * that has no conversation to follow.
+     */
+    public leaveSession(): void {
+        this._desiredSessionId = undefined;
+        this._currentArtemisSessionId = undefined;
+        this.unsubscribe();
     }
 
     public subscribeToSession(sessionId: number): void {
