@@ -163,10 +163,10 @@ export class IrisWebSocketMessageHandler {
 
         const content = extractIrisMessageContent(msg.content);
         if (msg.sender === 'USER') {
-            // A USER frame is the echoed prompt, never a run terminator; it must
-            // not finalize the current run even if the server ever scopes it to
-            // a runId.
+            // Never a run terminator, whoever wrote it: it must not finalize the
+            // current run even if the server ever scopes it to a runId.
             this.publishCurrentRunUi();
+            this._renderForeignUserMessage(msg, content);
             return;
         }
 
@@ -224,6 +224,42 @@ export class IrisWebSocketMessageHandler {
                 sentAt: sentAtMs,
             });
         }
+    }
+
+    /**
+     * A USER message on this conversation that the webview has not drawn: one
+     * the student wrote SOMEWHERE ELSE (the Artemis web client, a second
+     * window), or the server's echo of our own prompt.
+     *
+     * These used to be dropped wholesale, on the grounds that a USER frame is
+     * only ever our own echo. That quietly broke the promise the whole
+     * conversation-first model rests on: what you see is what the server has.
+     * The host state already recorded it (every MESSAGE frame with a body is
+     * upserted above), so the message reappeared on the next reload, which made
+     * the gap look like a rendering delay rather than a loss.
+     *
+     * Deliberately NOT gated on `sendInFlight`. That flag is set before file
+     * collection and stays set through the POST and its reconciliation, and
+     * another client can write throughout, so suppressing by timing loses those
+     * messages for good: nothing re-delivers the transcript when a send settles.
+     * Telling our own echo apart from a foreign message is the webview's job,
+     * because only it knows what it drew (see `upsertMessage` in the store).
+     */
+    private _renderForeignUserMessage(msg: IrisChatMessage, content: string): void {
+        if (!content) { return; }
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) { return; }
+
+        this._postMessage({
+            type: ExtensionMsg.AddMessage,
+            sessionId,
+            message: {
+                id: msg.id,
+                role: 'user',
+                content,
+                timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+            },
+        });
     }
 
     /** The conversation a frame belongs to, or `undefined` when none is open. */

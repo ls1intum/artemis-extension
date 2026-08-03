@@ -215,6 +215,57 @@ describe('CTXSWAP frames', () => {
     });
 });
 
+describe('USER frames from another client', () => {
+    it('renders a message this client did not write', () => {
+        // The claim the whole conversation-first model rests on: what you see is
+        // what the server has. A USER frame is only ever "our own echo" while a
+        // send of ours is open; otherwise the student wrote it somewhere else
+        // (the Artemis web client, a second window) and it belongs on screen.
+        const { handler, posted } = makeHandler({ currentSessionId: 7 });
+
+        handler.handleIrisWebSocketMessage(
+            { type: 'MESSAGE', message: { id: 33, sender: 'USER', content: [{ textContent: 'from elsewhere', type: 'text' }] } },
+            7,
+        );
+
+        expect(posted.at(-1)).toMatchObject({
+            type: 'addMessage',
+            sessionId: 7,
+            message: { id: 33, role: 'user', content: 'from elsewhere' },
+        });
+    });
+
+    it('renders it even while a send of ours is open', () => {
+        // A send of ours does NOT make every USER frame ours: the flag is set
+        // before file collection and stays set through the POST and its
+        // reconciliation, and another client can write throughout. Suppressing
+        // by timing loses those permanently, because nothing re-delivers the
+        // transcript when the send settles. Deduplication against our own
+        // optimistic bubble belongs in the webview, which knows what it drew.
+        const { handler, posted, state } = makeHandler({ currentSessionId: 7 });
+        state.beginSend();
+
+        handler.handleIrisWebSocketMessage(
+            { type: 'MESSAGE', message: { id: 33, sender: 'USER', content: [{ textContent: 'from elsewhere', type: 'text' }] } },
+            7,
+        );
+
+        expect(posted.at(-1)).toMatchObject({ type: 'addMessage', message: { id: 33, role: 'user' } });
+    });
+
+    it('never finalizes the run, whoever wrote it', () => {
+        const { handler, runs } = makeHandler({ currentSessionId: 7 });
+        runs.beginGeneration();
+
+        handler.handleIrisWebSocketMessage(
+            { type: 'MESSAGE', message: { id: 33, sender: 'USER', content: [{ textContent: 'from elsewhere', type: 'text' }] } },
+            7,
+        );
+
+        expect(runs.waiting).toBe(true);
+    });
+});
+
 describe('host state ingestion (Task 6 step 7)', () => {
     it('an assistant frame makes the host conversation non-empty', () => {
         const { handler, state } = makeHandler({ currentSessionId: 7 });
@@ -226,15 +277,16 @@ describe('host state ingestion (Task 6 step 7)', () => {
     });
 
     it('a USER frame from another client makes the host conversation non-empty', () => {
-        // It is not rendered (the echo would duplicate the local bubble), but it
-        // IS content, and contentState is the ownership predicate.
-        const { handler, state, posted } = makeHandler({ currentSessionId: 7 });
+        // The state half of it; the rendering half is pinned in "USER frames
+        // from another client" above. The title used to promise "from another
+        // client" while the assertion required it NOT to be rendered, which is
+        // the contradiction that hid the loss.
+        const { handler, state } = makeHandler({ currentSessionId: 7 });
         handler.handleIrisWebSocketMessage(
             { type: 'MESSAGE', message: { id: 13, sender: 'USER', content: [{ textContent: 'hi', type: 'text' }] } },
             7,
         );
         expect(state.contentState()).toBe('content');
-        expect(posted.filter((p) => p.type === 'addMessage')).toHaveLength(0);
     });
 
     it('a bodiless persisted answer still counts as content', () => {

@@ -212,11 +212,19 @@ const IDLE_STREAMING: StreamingState = {
  */
 function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessage[] {
     if (message.id === undefined) { return [...messages, message]; }
-    const idx = messages.findIndex((m) => m.id === message.id);
-    if (idx === -1) { return [...messages, message]; }
-    const next = [...messages];
-    next[idx] = { ...next[idx], ...message, localId: next[idx].localId };
-    return next;
+    const byId = messages.findIndex((m) => m.id === message.id);
+    if (byId !== -1) {
+        const next = [...messages];
+        next[byId] = { ...next[byId], ...message, localId: next[byId].localId };
+        return next;
+    }
+    // Anything else is a message this list does not have yet, including the
+    // server's echo of a prompt we drew optimistically when that echo beats our
+    // own POST response. It is appended, and `confirmSentMessage` resolves the
+    // two into one once the response names the id. Matching on the TEXT instead
+    // would fold another client's identical message into our bubble and delete
+    // it: identical text says nothing about identity.
+    return [...messages, message];
 }
 
 export const useChatStore = create<ChatState>()(
@@ -365,13 +373,27 @@ export const useChatStore = create<ChatState>()(
             },
 
             confirmSentMessage: (localId, id) => {
-                set((s) => ({
-                    messages: s.messages.map((m) =>
-                        m.localId === localId && m.role === 'user'
-                            ? { ...m, id, status: 'sent' as const }
-                            : m,
-                    ),
-                }), false, 'confirmSentMessage');
+                set((s) => {
+                    // The echo may already be here (it can outrun the POST
+                    // response). Then this bubble and that row are the SAME
+                    // message, proven by the id rather than guessed from the
+                    // text, so the optimistic one goes and the server one stays.
+                    const bubble = s.messages.findIndex((m) => m.localId === localId && m.role === 'user');
+                    const echo = s.messages.findIndex((m) => m.id === id);
+                    if (bubble !== -1 && echo !== -1 && echo !== bubble) {
+                        const messages = s.messages
+                            .map((m, i) => (i === echo ? { ...m, status: 'sent' as const } : m))
+                            .filter((_, i) => i !== bubble);
+                        return { messages };
+                    }
+                    return {
+                        messages: s.messages.map((m) =>
+                            m.localId === localId && m.role === 'user'
+                                ? { ...m, id, status: 'sent' as const }
+                                : m,
+                        ),
+                    };
+                }, false, 'confirmSentMessage');
             },
 
             setOpenSessionError: (message) => {

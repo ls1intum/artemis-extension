@@ -90,6 +90,78 @@ describe('useChatStore', () => {
 		expect(result.current.messages[0].content).toBe('First message');
 	});
 
+	it('confirmSentMessage coalesces the bubble with the echo that beat it', () => {
+		// The server's echo can arrive before our POST answers. Both rows are the
+		// same message, and only the server id says so; matching on the text
+		// would fold a DIFFERENT client's identical message into ours and lose
+		// it. So the echo simply appends, and confirmation resolves the identity.
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'local-1', role: 'user', content: 'hi', status: 'sending' }));
+			result.current.addMessage(makeMessage({ localId: undefined, id: 33, role: 'user', content: 'hi' }));
+			result.current.confirmSentMessage('local-1', 33);
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messages[0]).toMatchObject({ id: 33, status: 'sent' });
+	});
+
+	it('confirmSentMessage stamps the bubble when it wins the race, so the later echo merges', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'local-1', role: 'user', content: 'hi', status: 'sending' }));
+			result.current.confirmSentMessage('local-1', 33);
+			result.current.addMessage(makeMessage({ localId: undefined, id: 33, role: 'user', content: 'hi' }));
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messages[0]).toMatchObject({ id: 33, localId: 'local-1', status: 'sent' });
+	});
+
+	it('survives a repeated confirmation of the same message', () => {
+		// Once the bubble carries the id, it IS the row the coalescing looks for.
+		// Without the identity check the second call would treat it as a
+		// duplicate of itself and delete the only copy.
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'local-1', role: 'user', content: 'hi', status: 'sending' }));
+			result.current.confirmSentMessage('local-1', 33);
+			result.current.confirmSentMessage('local-1', 33);
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messages[0]).toMatchObject({ id: 33, status: 'sent' });
+	});
+
+	it('keeps a foreign message whose text happens to match ours', () => {
+		// The case a content-based fold would destroy: another client sends the
+		// same word while our own send is open. Two messages exist on the
+		// server, so two must survive here.
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'local-1', role: 'user', content: 'hi', status: 'sending' }));
+			result.current.addMessage(makeMessage({ localId: undefined, id: 33, role: 'user', content: 'hi' }));
+			result.current.confirmSentMessage('local-1', 34);
+		});
+
+		expect(result.current.messages.map(m => m.id)).toEqual([34, 33]);
+	});
+
+	it('addMessage appends a user message written elsewhere', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'local-1', role: 'user', content: 'hi', status: 'sending' }));
+			result.current.addMessage(makeMessage({ localId: undefined, id: 33, role: 'user', content: 'from the browser' }));
+		});
+
+		expect(result.current.messages.map(m => m.content)).toEqual(['hi', 'from the browser']);
+	});
+
 	it('addMessage accumulates multiple messages in order', () => {
 		const { result } = renderHook(() => useChatStore());
 
