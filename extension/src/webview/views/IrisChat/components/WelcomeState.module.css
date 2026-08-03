@@ -25,6 +25,8 @@
     color: var(--vscode-foreground);
     opacity: 0.8;
     margin-bottom: 8px;
+    object-fit: contain;
+    filter: var(--theme-iris-logo-shadow);
 }
 
 .title {
