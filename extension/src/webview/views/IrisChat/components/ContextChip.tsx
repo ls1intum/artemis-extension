@@ -8,15 +8,17 @@ import type { ContentState, ConversationTopic } from '@webview/views/IrisChat/ty
 import styles from './ContextChip.module.css';
 
 /**
- * What the remove icon promises, per content state. The click is always the
- * same one; what it costs is not, so the wording is not either.
+ * What the remove icon promises. `resolveTopic` stages in both `empty` and
+ * `content`, so the click costs the same in both and may not be described
+ * differently; on a conversation with messages the server simply records the
+ * change with a CTXSWAP marker.
  *
- * `unknown` is a refusal in `resolveTopic`, so the button is disabled and its
- * name says why rather than promising an action it will not perform.
+ * `unknown` is a refusal, so the button is disabled and its name says why
+ * rather than promising an action it will not perform.
  */
 const REMOVE_LABEL: Record<ContentState, string> = {
     empty: 'Remove topic',
-    content: 'Switch to the course chat',
+    content: 'Remove topic',
     unknown: 'Loading the conversation',
 };
 
@@ -52,13 +54,11 @@ interface ContextChipProps {
  * instead, in the same place and still opening the picker, and borrows the
  * pill's background only on hover.
  *
- * The remove icon is always present on a topic pill, and only its wording
- * moves with `contentState` (see {@link REMOVE_LABEL}). It used to be hidden
- * once the conversation had content, on the grounds that the click navigates
- * there rather than removing anything. That was too careful: nothing is
- * destroyed (the conversation survives on the server and in the history), and
- * the same navigation is one click away in the picker either way. A slot that
- * never empties also keeps the pill from changing width mid-conversation.
+ * The remove icon is always present on a topic pill. It used to be hidden once
+ * the conversation had content, back when the click navigated away instead of
+ * removing anything; it stages in every state now, so the icon means one thing
+ * throughout. A slot that never empties also keeps the pill from changing
+ * width mid-conversation, which is what the conditional padding got wrong.
  */
 export function ContextChip({
     context,

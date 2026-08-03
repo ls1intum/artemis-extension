@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 import type { IrisChatMode } from '@shared/types/apiResponses';
 import type { ServerContext, SessionDetail } from '@shared/types/serverContext';
-import { sameContext, summaryOfDetail } from '@shared/types/serverContext';
+import { sameContext } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
 import { ApiError } from '@extension/domain';
@@ -22,7 +22,6 @@ import { resolveTopic } from './topicResolution';
  * | course switch acquisition| navigationGeneration + requested courseId                     |
  * | new-conversation POST    | navigationGeneration + requested courseId                     |
  * | history / picker open    | navigationGeneration + requested sessionId                    |
- * | index revalidation GET   | navigationGeneration + requested sessionId (ONE attempt)      |
  * | overview refresh         | requested courseId + overviewSeq (single-flight, latest wins) |
  * | reconnect detail         | full GuardTuple (it is a load like any other)                 |
  * | send response            | { sessionId, contextRevision } captured before the POST       |
@@ -217,7 +216,10 @@ export class IrisConversationService {
             const detail = await this._api.getCurrentChat('PROGRAMMING_EXERCISE_CHAT', workspace.exerciseId, workspace.courseId);
             if (!this._install(detail, captured, isCurrent)) { return; }
             // A course session came back: it is empty by construction
-            // (findOrCreateEmptyCourseSession), so staging cannot rehome content.
+            // (findOrCreateEmptyCourseSession). The `empty` check still guards
+            // it, because this staging is automatic rather than asked for, and
+            // silently retopicking a conversation the student has written in is
+            // not the same as them picking a topic.
             if (!sameContext(detail.context, target) && this.state.contentState() === 'empty') {
                 this.state.stagePending(target);
             }
@@ -308,64 +310,24 @@ export class IrisConversationService {
         courseHint: number | undefined,
         isCurrent: () => boolean,
     ): Promise<TopicChangeOutcome> {
-        // Cut 4: at most TWO passes, and the second one cannot probe again.
-        // `revalidated` is set once a probe has come back with a different
-        // context; the index has been corrected by then, so the re-resolution
-        // can only produce `create-and-stage` (or a no-op if the correction
-        // happened to satisfy the target). There is no candidate walk.
-        let revalidated = false;
-        for (;;) {
-            const decision = resolveTopic(this._resolutionInput(target));
-            switch (decision.kind) {
-                case 'noop': return { kind: 'noop' };
-                case 'refuse': return { kind: 'rejected', reason: decision.reason };
-                case 'clear-pending': this.state.clearPending(); this._emit(); return { kind: 'unstaged' };
-                case 'stage': this.state.stagePending(decision.target); this._emit(); return { kind: 'staged' };
-                case 'acquire': return await this._acquireForTarget(decision.target, courseHint, isCurrent);
-                case 'create-and-stage':
-                    return await this._createAndStage(decision.target, courseHint, isCurrent);
-                case 'open': {
-                    // A second `open` can only mean the index still points at
-                    // something after we already probed once. Refuse to probe
-                    // again and create instead; this is what bounds the loop now
-                    // that there is no exclusion set.
-                    if (revalidated) { return await this._createAndStage(target, courseHint, isCurrent); }
-                    const courseId = this.state.snapshot().courseId;
-                    if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
-                    const probe = await this._probeIn(courseId, decision.sessionId, isCurrent);
-                    if (probe.kind === 'stale') { return { kind: 'stale' }; }
-                    // 403/5xx/network: the conversation may still exist, so the row
-                    // stays and we report rather than silently creating a duplicate.
-                    // Without this branch the union is not exhausted and the file
-                    // does not type-check.
-                    if (probe.kind === 'failed') { return { kind: 'rejected', reason: 'failed' }; }
-                    // 400/404: `_probeIn` already forgot the row, so a fresh
-                    // conversation is the only remaining outcome.
-                    if (probe.kind === 'gone') { revalidated = true; continue; }
-                    if (!sameContext(probe.detail.context, decision.target)) {
-                        // The index was a hypothesis and it was wrong: another
-                        // client repointed this session. Do NOT adopt what came
-                        // back; that would hand the student a conversation about
-                        // a different exercise. Record the truth we just learned
-                        // and start a fresh conversation instead of hunting for
-                        // an older candidate (cut 4). Visible state is untouched,
-                        // so contentState is still `content`.
-                        this.state.updateSummary(summaryOfDetail(probe.detail));
-                        revalidated = true;
-                        continue;
-                    }
-                    if (!this._install(probe.detail, probe.guard, isCurrent)) { return { kind: 'stale' }; }
-                    return { kind: 'opened', sessionId: decision.sessionId };
-                }
-            }
+        // One pass. A topic change stays in the open conversation, so there is
+        // no candidate to probe and nothing to revalidate: the earlier draft's
+        // two-pass loop existed only to check a session the index had guessed at
+        // before switching to it, and it no longer switches.
+        const decision = resolveTopic(this._resolutionInput(target, courseHint));
+        switch (decision.kind) {
+            case 'noop': return { kind: 'noop' };
+            case 'refuse': return { kind: 'rejected', reason: decision.reason };
+            case 'clear-pending': this.state.clearPending(); this._emit(); return { kind: 'unstaged' };
+            case 'stage': this.state.stagePending(decision.target); this._emit(); return { kind: 'staged' };
+            case 'acquire': return await this._acquireForTarget(decision.target, courseHint, isCurrent);
         }
     }
 
     /**
-     * Reads a conversation WITHOUT touching visible state. This is what makes
-     * revalidation safe: a mismatch, a 404 or a network failure leaves the open
-     * conversation exactly as it was. Takes the ENCLOSING navigation's token; it
-     * never opens one of its own.
+     * Reads a conversation WITHOUT touching visible state, so a mismatch, a 404
+     * or a network failure leaves the open conversation exactly as it was.
+     * Takes the ENCLOSING navigation's token; it never opens one of its own.
      */
     private async _probeIn(courseId: number, sessionId: number, isCurrent: () => boolean): Promise<ProbeResult> {
         // Reserved before the request so the caller installs with a guard that
@@ -427,44 +389,16 @@ export class IrisConversationService {
         return { kind: 'opened', sessionId: detail.sessionId };
     }
 
-    /**
-     * Fresh conversation for `target`. Extracted because cut 4 gave it a second
-     * caller: a revalidation that came back with a different context creates
-     * instead of walking to the next candidate.
-     */
-    private async _createAndStage(
-        target: ServerContext,
-        courseHint: number | undefined,
-        isCurrent: () => boolean,
-    ): Promise<TopicChangeOutcome> {
-        const courseId = this.state.snapshot().courseId ?? courseHint;
-        if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
-        const captured = this.state.beginLoad();
-        let fresh: SessionDetail;
-        try {
-            fresh = await this._api.createCourseSession(courseId);
-        } catch (error) {
-            // Same reasoning as `newConversation`: the dispatcher acts on an
-            // outcome, so a 500 here must not reject the returned promise.
-            logger.warn('Iris create-and-stage failed', LogCategory.IRIS_CHAT, error);
-            return { kind: 'rejected', reason: 'failed' };
-        }
-        if (!this._install(fresh, captured, isCurrent)) { return { kind: 'stale' }; }
-        if (!sameContext(target, fresh.context)) { this.state.stagePending(target); }
-        this._emit();
-        return { kind: 'opened', sessionId: fresh.sessionId };
-    }
-
-    private _resolutionInput(target: ServerContext): TopicResolutionInput {
+    private _resolutionInput(target: ServerContext, targetCourseId?: number): TopicResolutionInput {
         const snapshot = this.state.snapshot();
         return {
             target,
+            targetCourseId,
             courseId: snapshot.courseId,
             currentSessionId: snapshot.currentSessionId,
             committedContext: snapshot.committedContext,
             pendingContext: snapshot.pendingContext,
             contentState: this.state.contentState(),
-            findSessionFor: (t) => this.state.findSessionFor(t),
         };
     }
 
@@ -524,8 +458,7 @@ export class IrisConversationService {
         // Keyed by course. A global single-flight would let a switch to course 43
         // JOIN the outstanding course-42 request, whose response is then correctly
         // discarded by the course check below, so course 43 never gets an
-        // overview at all: its history stays empty and the positive lookup misses
-        // conversations that exist, creating duplicates.
+        // overview at all and its history stays permanently empty.
         if (this._overviewInFlight?.courseId === courseId) { return this._overviewInFlight.promise; }
         const seq = this.state.nextOverviewSeq();
         // `_overviewInFlight` is ONE slot, so a switch to another course

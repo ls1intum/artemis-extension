@@ -125,8 +125,10 @@ export class SendCoordinator {
             const messageId = typeof persisted?.id === 'number' ? persisted.id : undefined;
             // Record the persisted message in STATE, not only in the webview.
             // Without this the conversation still reports `empty` once the
-            // optimistic flag clears, the picker stages onto it, and the next
-            // send rehomes a conversation the student has written in.
+            // optimistic flag clears, and everything keyed on that is wrong at
+            // once: the header's message count, the union that protects
+            // in-flight arrivals, and the marker handling that decides whether a
+            // staging is still live.
             // Only into the conversation we actually sent to. Without this check
             // a navigation that committed while the POST was open would have the
             // OLD conversation's message written into the NEW one's transcript.
@@ -210,12 +212,15 @@ export class SendCoordinator {
             // context-revision guard exists to stop, reintroduced inside the
             // recovery path.
             const guard = state.beginLoad();
+            // A divergent staging is deliberately LEFT alone here. It used to be
+            // dropped whenever content existed, because a retry would then have
+            // rehomed that content; staging onto a conversation with content is
+            // the ordinary case now, so dropping it would only undo the topic
+            // the student picked and never sent. When the send did land,
+            // `installDetail` clears the staging by itself: the detail comes
+            // back already carrying it.
             const detail = await this._api.getChatSessionById(courseId, captured.sessionId);
-            if (state.installDetail(detail, guard)) {
-                // A divergent staging cannot survive content, regardless of whose
-                // content it is: a retry would rehome it.
-                if (state.contentState() === 'content') { state.clearPending(); }
-            }
+            state.installDetail(detail, guard);
         } catch {
             // Reconciliation itself failed. Surface it, do not retry. But the
             // lock, the bubble and the composer must still end in a defined

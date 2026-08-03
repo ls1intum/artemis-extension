@@ -705,6 +705,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const courseId = target.mode === 'COURSE_CHAT'
             ? target.entityId
             : courseHint ?? await resolveCourseIdForExercise(target.entityId, this._contextStore, this._artemisApiService);
+        // An exercise whose course we could not determine is refused rather than
+        // staged. The cross-course check compares the target's course with the
+        // open conversation's, so an unknown one is not "probably fine": it is
+        // the exact input that makes the check say nothing. With no conversation
+        // open the acquisition would have answered `no-course` anyway.
+        if (courseId === undefined) { return { kind: 'rejected', reason: 'no-course' }; }
         return await this._conversation.resolveTopicChange(target, courseId);
     }
 
@@ -1155,20 +1161,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const conversation = this._conversationForNavigation('selectTopic');
         if (!conversation) { return; }
         const outcome = await conversation.resolveTopicChange(target);
-        // Only `opened` moved the transcript, and replacing everything the
-        // student was reading is the one result that has to be explained.
-        // `staged`, `unstaged` and `noop` left it where it was.
-        if (outcome.kind === 'opened') {
-            this._postMessageSafe({
-                type: ExtensionMsg.ShowChatNotice,
-                text: 'Switched to a different conversation.',
-            });
-            return;
-        }
+        // No notice on success, in any shape. A topic change stays in the open
+        // conversation, so there is no transcript replacement to explain, and
+        // the one remaining `opened` is the cold start, where the pick acquired
+        // the FIRST conversation: nothing was on screen to be replaced either.
+        //
         // A `rejected` outcome is the service saying it did NOT do what was
-        // asked (the create threw, the target is in another course, the
-        // conversation is still loading). Dropping it leaves the chip on the
-        // old topic with no explanation at all.
+        // asked (the cold-start acquisition threw, the target is in another
+        // course, the conversation is still loading). Dropping it leaves the
+        // chip on the old topic with no explanation at all.
         if (outcome.kind === 'rejected') {
             logger.info(`selectTopic rejected: ${outcome.reason}`, LogCategory.IRIS_CHAT);
             this._answerFailedNavigation(

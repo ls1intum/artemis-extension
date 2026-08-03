@@ -12,12 +12,8 @@ const input = (over = {}) => ({
     committedContext: COURSE42,
     pendingContext: undefined as { ctx: typeof EX5 } | undefined,
     contentState: 'empty' as 'unknown' | 'empty' | 'content',
-    findSessionFor: () => undefined as number | undefined,
     ...over,
 });
-
-// Cut 4: there is no `alreadyTried` set. `resolveTopic` takes one argument and
-// the caller revalidates the single hit it returns.
 
 describe('resolveTopic', () => {
     it('is a no-op when the target is already the effective topic', () => {
@@ -49,23 +45,44 @@ describe('resolveTopic', () => {
         expect(resolveTopic(input())).toEqual({ kind: 'stage', target: EX5 });
     });
 
-    it('opens the target conversation when one is known and this one has content', () => {
-        const decision = resolveTopic(input({ contentState: 'content', findSessionFor: () => 9 }));
-        expect(decision).toEqual({ kind: 'open', sessionId: 9, target: EX5 });
+    it('stages onto a conversation WITH content too, exactly as the web client does', () => {
+        // Artemis' own client stages unconditionally
+        // (`context-selection.component.ts` -> `stagePendingContext`), and the
+        // server commits the change on the next send with a CTXSWAP marker. The
+        // transcript therefore records the switch instead of hiding it, so there
+        // is nothing left for a second conversation to protect.
+        expect(resolveTopic(input({ contentState: 'content' }))).toEqual({ kind: 'stage', target: EX5 });
     });
 
-    it('creates a new conversation when the target is unknown and this one has content', () => {
-        const decision = resolveTopic(input({ contentState: 'content' }));
-        expect(decision).toEqual({ kind: 'create-and-stage', target: EX5 });
-    });
-
-    it('never rehomes a conversation with content, even for the course topic', () => {
-        const decision = resolveTopic(input({ target: COURSE42, committedContext: EX5, contentState: 'content', findSessionFor: () => 3 }));
-        expect(decision).toEqual({ kind: 'open', sessionId: 3, target: COURSE42 });
+    it('stages the course topic onto a conversation with content as well', () => {
+        // The chip's remove icon takes this path. It must not navigate either.
+        const decision = resolveTopic(input({ target: COURSE42, committedContext: EX5, contentState: 'content' }));
+        expect(decision).toEqual({ kind: 'stage', target: COURSE42 });
     });
 
     it('refuses a cross-course target', () => {
         const decision = resolveTopic(input({ target: { mode: 'COURSE_CHAT' as const, entityId: 99 } }));
         expect(decision).toEqual({ kind: 'refuse', reason: 'cross-course' });
+    });
+
+    it('refuses an EXERCISE from another course, which its id alone cannot reveal', () => {
+        // "Ask Iris about this exercise" from a dashboard row in course 43 while
+        // a course-42 conversation is open. The entity id says nothing about the
+        // course, so without the caller's hint this staged silently and the next
+        // send carried a context the conversation cannot hold.
+        const decision = resolveTopic(input({ targetCourseId: 43 }));
+        expect(decision).toEqual({ kind: 'refuse', reason: 'cross-course' });
+    });
+
+    it('accepts an exercise whose course is the open one', () => {
+        expect(resolveTopic(input({ targetCourseId: 42 }))).toEqual({ kind: 'stage', target: EX5 });
+    });
+
+    it('accepts a hint when no conversation is open, so the cold start still works', () => {
+        const decision = resolveTopic(input({
+            currentSessionId: undefined, courseId: undefined, contentState: 'unknown',
+            committedContext: undefined, targetCourseId: 43,
+        }));
+        expect(decision).toEqual({ kind: 'acquire', target: EX5 });
     });
 });

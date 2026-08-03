@@ -553,9 +553,9 @@ export class ArtemisApiService {
     private _toSessionDetail(raw: unknown, courseId: number): SessionDetail {
         const session = parseApiObject<IrisChatSession>('IrisChatSession', raw, [{ key: 'id', type: 'number' }]);
         // `mode` and `entityId` are guaranteed on a chat session. Defaulting them
-        // would INFER a committed context, which invariant 3 forbids: the extension
-        // would then believe the conversation is about the course, stage another
-        // topic onto it, and rehome it. A malformed response is a bug, not a course
+        // would INFER a committed context, which invariant 3 forbids: the chip
+        // would name a topic the server never reported, and the picker would
+        // read a change as a no-op. A malformed response is a bug, not a course
         // chat, so it is rejected here where it is still cheap.
         if (typeof session.mode !== 'string' || typeof session.entityId !== 'number') {
             throw new MalformedResponseError(`Iris chat session ${session.id} has no mode/entityId`, 200);

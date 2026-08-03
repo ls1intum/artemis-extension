@@ -10,20 +10,19 @@ import { extractErrorMessage } from '@extension/utils';
 import type { CommandContext, CommandMap } from './types';
 
 /**
- * What the student is told after an Ask-Iris click. The result may be a
- * DIFFERENT conversation (a topic that cannot be staged onto a conversation
- * with content opens a new one), so the message has to say so; silently
- * replacing the transcript is the one outcome the old command could not
- * distinguish. Returns `undefined` when there is nothing worth saying.
+ * What the student is told after an Ask-Iris click. Every successful outcome
+ * says the same thing, because a topic change stays in the open conversation:
+ * `opened` survives only for the cold start, where the click acquired the FIRST
+ * conversation and there was nothing on screen to replace. Returns `undefined`
+ * when there is nothing worth saying.
  */
 export function askIrisOutcomeMessage(outcome: TopicChangeOutcome, title: string): string | undefined {
     switch (outcome.kind) {
         case 'staged':
         case 'noop':
         case 'unstaged':
-            return `Iris is now looking at ${title}.`;
         case 'opened':
-            return `Iris is now looking at ${title}, in a different conversation.`;
+            return `Iris is now looking at ${title}.`;
         case 'stale':
             return undefined;
         case 'rejected':

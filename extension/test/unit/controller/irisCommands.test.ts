@@ -42,10 +42,13 @@ suite('askIrisOutcomeMessage', () => {
         assert.strictEqual(askIrisOutcomeMessage({ kind: 'staged' }, 'BFS'), 'Iris is now looking at BFS.');
     });
 
-    test('an opened conversation says so, because the transcript was replaced', () => {
+    test('an acquired conversation says the same thing: nothing was replaced', () => {
+        // `opened` survives for the cold start only, where the click acquired
+        // the FIRST conversation. Announcing "a different conversation" there
+        // names an event the student never saw.
         assert.strictEqual(
             askIrisOutcomeMessage({ kind: 'opened', sessionId: 12 }, 'BFS'),
-            'Iris is now looking at BFS, in a different conversation.',
+            'Iris is now looking at BFS.',
         );
     });
 
@@ -85,7 +88,9 @@ suite('Ask Iris commands', () => {
         }]);
     });
 
-    test('Ask-Iris on a conversation with content says it opened another one', async () => {
+    test('Ask-Iris never claims a conversation change, not even when it acquired one', async () => {
+        // `opened` is reachable from this path only on a cold start, where the
+        // click acquired the first conversation and nothing was replaced.
         h = buildHarness({ kind: 'opened', sessionId: 12 });
 
         await h.module.getHandlers()[WebviewCmd.AskIrisAboutExercise]({
@@ -94,7 +99,7 @@ suite('Ask Iris commands', () => {
             payload: { exerciseId: 5, exerciseTitle: 'BFS', courseId: 42 },
         });
 
-        assert.match(String(h.info.lastCall.args[0]), /different conversation/);
+        assert.strictEqual(String(h.info.lastCall.args[0]), 'Iris is now looking at BFS.');
     });
 
     test('Ask-Iris is rejected while a send is in flight', async () => {

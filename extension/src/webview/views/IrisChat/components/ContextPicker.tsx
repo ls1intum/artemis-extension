@@ -12,9 +12,6 @@ import type { ContentState, ContextItem, ConversationTopic } from '@webview/view
 
 import styles from './ContextPicker.module.css';
 
-/** Stated once at the top of the topic picker while the conversation has content. */
-const TOPIC_CHANGE_HINT = 'Selecting may open a different conversation.';
-
 interface ContextPickerProps {
     onClose?: () => void;
     exercises: ContextItem[];
@@ -58,9 +55,10 @@ export function ContextPicker({
     // The chip shows `pending ?? committed`, and so does the checkmark: the
     // two must never disagree about what the topic currently is.
     const selected = pendingContext ?? committedContext;
-    // 'unknown' means we do not know whether the pick would stage in place or
-    // navigate, and a picker that cannot state its own consequence must not
-    // be usable. An in-flight send owns the conversation until it resolves.
+    // A pick always stages into the OPEN conversation, so there is no
+    // consequence to warn about. 'unknown' is still disabled: without the
+    // transcript we cannot tell a real change from a no-op. An in-flight send
+    // owns the conversation until it resolves.
     const entriesDisabled = contentState === 'unknown' || sendInFlight;
 
     const q = searchQuery.trim().toLowerCase();
@@ -91,10 +89,6 @@ export function ContextPicker({
             aria-modal="true"
             onKeyDown={handleKeyDown}
         >
-            {contentState === 'content' && (
-                <div className={styles.hint}>{TOPIC_CHANGE_HINT}</div>
-            )}
-
             <div className={styles.searchWrapper}>
                 <Search size={14} className={styles.searchIcon} />
                 <input

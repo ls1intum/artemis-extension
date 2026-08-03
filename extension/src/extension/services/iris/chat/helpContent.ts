@@ -15,7 +15,7 @@ The topic is what your next message is about, shown above the input: as a chip w
 - Iris can see the course information
 - Ask general questions about the course and its concepts
 
-Use the **+** button beside it to choose a topic, or the small **x** on the chip to talk about the course instead. On an empty conversation the topic simply changes in place. Once the conversation has messages, choosing a different topic opens the conversation that belongs to it, or starts a new one, so what you have already written stays where it was written. The **x** follows the same rule, which is why it reads "Switch to the course chat" there.
+Use the **+** button beside it to choose a topic, or the small **x** on the chip to talk about the course instead. The topic always changes in the conversation you are in; it never moves you to another one. Once the conversation has messages, the change is written into the transcript as a divider, so you can always see which messages belong to which topic. To start a clean conversation instead, use the **+** in the header.
 
 ## Switching conversations
 - The **course name** in the header opens your course list. Switching course opens that course's conversation.

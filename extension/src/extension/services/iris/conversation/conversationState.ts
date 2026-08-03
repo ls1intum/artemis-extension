@@ -7,8 +7,9 @@ import { isContextSwap } from '@extension/services/iris/context/contextMarkers';
 
 /**
  * `unknown` is NOT `empty`. It holds while no detail for the current session is
- * installed. Controls that could rehome a conversation (the picker, the chip's
- * remove icon, the Ask-Iris commands) stay disabled while it holds.
+ * installed. The topic controls (the picker, the chip's remove icon, the
+ * Ask-Iris commands) stay disabled while it holds: without the transcript we
+ * cannot tell a real change from a no-op.
  */
 export type ContentState = 'unknown' | 'empty' | 'content';
 
@@ -48,7 +49,7 @@ interface ConversationSnapshot {
     knownInvisible: SessionSummary[];
 }
 
-type SwapOutcome = 'pending-satisfied' | 'pending-dropped' | 'no-pending';
+type SwapOutcome = 'pending-satisfied' | 'pending-dropped' | 'pending-kept' | 'no-pending';
 
 export class ConversationState {
     private _courseId: number | undefined;
@@ -195,9 +196,8 @@ export class ConversationState {
         this._currentSessionId = detail.sessionId;
         // THROUGH setCourse, not a direct assignment. Assigning `_courseId`
         // changes the course while `_courseSessions` and `_knownInvisible`
-        // still hold the previous course's sessions, so
-        // `findSessionFor` can hand back a session id from the course we just
-        // left: a 404, or worse, a duplicate conversation.
+        // still hold the previous course's sessions, so the history would offer
+        // rows from the course we just left.
         this.setCourse(detail.courseId);
         // MONOTONIC UNION by server message id (cut 6). A load reads a snapshot
         // taken at request time, so a message that arrived AFTER the request
@@ -208,9 +208,10 @@ export class ConversationState {
         //
         // The cost, accepted: a message the server deleted survives locally
         // until a reload or a restart. That error only ever makes a conversation
-        // look MORE full than it is, so the ownership predicate errs towards
-        // creating a duplicate rather than rehoming. PR 2, which deletes
-        // superseded proactive messages, owns the sharper semantics.
+        // look MORE full than it is, and the only decision left keyed on `empty`
+        // is the automatic staging on acquisition, which then simply does not
+        // happen. PR 2, which deletes superseded proactive messages, owns the
+        // sharper semantics.
         //
         // Spread, not replace: a locally known frame may be partial (a resend
         // that only attaches activities), and the response may carry fields it
@@ -227,13 +228,29 @@ export class ConversationState {
             if (!detail.messages.some((sm) => sm.id === id)) { merged.push(m); }
         }
         this._detail = { ...detail, messages: merged };
+        const previouslyCommitted = this._committed;
         this._committed = detail.context;
         this._lastInstalledTicket = captured.loadTicket;
         this._optimisticBubble = false;
 
-        if (this._pending && (this._pending.sessionId !== detail.sessionId || sameContext(this._pending.ctx, detail.context))) {
+        // Three ways a staging dies on an install: it belongs to another
+        // conversation, the detail already carries it (the send landed and the
+        // server committed it), or the detail reveals a context we never
+        // committed. The last one is a repoint by someone else, discovered by a
+        // read rather than by a marker, and it has to have the same effect as
+        // the marker would: our staging predates it and now contradicts it.
+        // `previouslyCommitted` is undefined on an acquisition, where
+        // `beginNavigation` has just cleared it and there is nothing to compare.
+        const movedUnderUs = previouslyCommitted !== undefined && !sameContext(previouslyCommitted, detail.context);
+        if (this._pending && (this._pending.sessionId !== detail.sessionId || sameContext(this._pending.ctx, detail.context) || movedUnderUs)) {
             this._pending = undefined;
         }
+        // A repoint learned from a READ is the same event as one learned from a
+        // marker, so it must invalidate the same guards. Without this bump a
+        // send whose response is still outstanding passes the revision check in
+        // `_commitWriteBack` and writes the context it sent over the newer truth
+        // we just installed.
+        if (movedUnderUs) { this._contextRevision++; }
         this._rememberFromDetail(detail);
         return true;
     }
@@ -267,9 +284,9 @@ export class ConversationState {
      * Records a message that arrived AFTER the detail load: the persisted user
      * message from a send response, an assistant or ARTIFACT frame, and the
      * CTXSWAP marker. Without this, `contentState()` reports `empty` for a
-     * conversation the student has already written in, the picker stages onto
-     * it, and the next send rehomes it. That is the ownership rule defeated by
-     * an omission rather than by a decision.
+     * conversation the student has already written in, and the message count,
+     * the in-flight union and the marker handling all read a transcript that is
+     * missing its newest rows.
      *
      * Deduplicated by server id, because the same message reaches us twice: once
      * in the POST response and once as a websocket frame.
@@ -311,9 +328,9 @@ export class ConversationState {
             this._knownInvisible.delete(summary.sessionId);
         }
         // The open conversation's row comes from the detail, in the SAME
-        // collection that both the history and `findSessionFor` read. Applying
-        // this only at render time would let `findSessionFor` hand back a
-        // session under a topic it no longer holds.
+        // collection the history reads. Applying this only at render time would
+        // leave the stored row claiming a topic the conversation no longer
+        // holds.
         if (this._detail && this._detail.sessionId === this._currentSessionId) {
             const fromOverview = summaries.find((s) => s.sessionId === this._detail!.sessionId);
             this.updateSummary({
@@ -338,9 +355,9 @@ export class ConversationState {
      * ENTERS the session when it is not in the overview, and UPDATES it when it
      * already is, so a cached summary can never contradict authoritative state.
      * Entering (not merely updating) is what makes every acquisition path -
-     * start, history open, new conversation, course switch, revalidation -
-     * remember a proactive-only conversation the USER-only overview hides. Only
-     * updating an existing entry loses exactly those conversations.
+     * start, history open, new conversation, course switch - remember a
+     * proactive-only conversation the USER-only overview hides. Only updating an
+     * existing entry loses exactly those conversations.
      */
     private _rememberFromDetail(detail: SessionDetail): void {
         this.updateSummary(summaryOfDetail(detail));
@@ -397,20 +414,26 @@ export class ConversationState {
      * in flight is invalidated: a frame is pushed at mutation time and is
      * therefore always newer than anything already on the wire.
      *
-     * `markerMessage` is the persisted CTXSWAP row and MUST be appended. It is
-     * what makes the conversation non-empty, which is the whole reason a
-     * divergent pending has to die here and can never be restored.
+     * `markerMessage` is the persisted CTXSWAP row and MUST be appended: it is
+     * what makes the switch visible in the transcript.
+     *
+     * A divergent staging dies here, EXCEPT when the marker only repeats the
+     * context we already committed: that one is our own send's marker arriving
+     * after the write-back applied it, and it may not outrank a pick made since.
      */
     public applyContextSwap(swap: ContextSwap, markerMessage: IrisChatMessage): SwapOutcome {
         const next: ServerContext = swap.context
             // `removed` carries no entity fields, so derive the course context.
             ?? { mode: 'COURSE_CHAT', entityId: this._courseId ?? 0 };
+        // A marker for the context we ALREADY hold changes nothing about the
+        // topic. It is our own send's marker arriving after the write-back
+        // already applied it, and by then the student may have staged something
+        // newer. See the pending handling at the end.
+        const confirmsWhatWeHold = this._committed !== undefined && sameContext(this._committed, next);
         this._committed = next;
         this._contextRevision++;
         // The detail and the cached summary must move with it, or the history
-        // row and the positive lookup keep claiming the old topic while the chip
-        // shows the new one, and `findSessionFor` answers with a session that no
-        // longer holds what was asked for.
+        // row keeps claiming the old topic while the chip shows the new one.
         if (this._detail) { this._detail = { ...this._detail, context: next }; }
         // The marker's own timestamp, not the stale detail's: this IS the most
         // recent activity on the conversation, and the history sorts on it.
@@ -429,8 +452,15 @@ export class ConversationState {
             this._pending = undefined;
             return 'pending-satisfied';
         }
-        // Always dropped. The marker is itself a persisted message, so the
-        // conversation has content now; a surviving staging would rehome it.
+        // A marker that only confirms what we already committed carries no
+        // instruction, so it cannot outrank a staging formed after it. Dropping
+        // here would silently undo the student's newer pick AND tell them the
+        // topic was changed elsewhere, which it was not.
+        if (confirmsWhatWeHold) { return 'pending-kept'; }
+        // Otherwise the topic was just set by someone else (another client, or
+        // Artemis repointing after a build result). Our staging was formed
+        // before that and now contradicts it, so it is intent the student would
+        // have to re-express deliberately.
         this._pending = undefined;
         return 'pending-dropped';
     }
@@ -442,8 +472,8 @@ export class ConversationState {
      * nothing moved since the send captured it.
      *
      * Mirrors `applyContextSwap`: the detail and the cached summary must move
-     * with it, or the history row and the positive lookup keep claiming the
-     * old topic while the chip shows the new one, and the next
+     * with it, or the history row keeps claiming the old topic while the chip
+     * shows the new one, and the next
      * `refreshOverview` re-derives the open row from the stale detail and
      * re-stamps the old topic. The window this closes is exactly the one
      * before the server's own CTXSWAP frame arrives, which is precisely when
@@ -485,25 +515,9 @@ export class ConversationState {
         return this._detail.messages.length > 0 ? 'content' : 'empty';
     }
 
-    /** Display value only. NEVER the ownership predicate: it hides markers. */
+    /** Display value only. NEVER a content predicate: it hides markers. */
     public displayMessageCount(): number {
         return (this._detail?.messages ?? []).filter((m: IrisChatMessage) => !isContextSwap(m)).length;
-    }
-
-    // ---- lookup -------------------------------------------------------
-
-    /**
-     * Positive-only index over the overview plus the invisible cache. A hit is a
-     * HYPOTHESIS: the caller revalidates it ONCE against the detail GET, because
-     * both sources go stale when another client repoints a session. There is no
-     * exclusion set: cut 4 replaced the retry loop with "revalidate the newest
-     * hit, and on a mismatch create a fresh conversation".
-     */
-    public findSessionFor(target: ServerContext): number | undefined {
-        const candidates = [...this._courseSessions, ...this._knownInvisible.values()]
-            .filter((s) => s.courseId === this._courseId && sameContext(s.context, target))
-            .sort((a, b) => b.lastActivity - a.lastActivity || b.sessionId - a.sessionId);
-        return candidates[0]?.sessionId;
     }
 
     public snapshot(): ConversationSnapshot {

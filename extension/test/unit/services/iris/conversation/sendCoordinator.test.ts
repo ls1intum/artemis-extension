@@ -191,16 +191,13 @@ suite('SendCoordinator', () => {
         // exactly for the window before the server's own CTXSWAP frame
         // arrives, which is precisely when the socket is down. Leaving the
         // detail and the cached summary on the old topic would show the chip
-        // pointing at EX5 while history and the positive lookup still claim
-        // COURSE42, and the next "Ask Iris about exercise 5" would then
-        // create a duplicate conversation instead of finding this one.
+        // pointing at EX5 while the history row still claims COURSE42.
         const c = coordinatorWith({ committed: COURSE42, pending: EX5 });
         const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         c.api.resolveSend({ id: 11 });
         await sent;
         assert.deepStrictEqual(c.state.snapshot().detail?.context, EX5);
         assert.deepStrictEqual(c.state.snapshot().knownInvisible.find((s) => s.sessionId === 1)?.context, EX5);
-        assert.strictEqual(c.state.findSessionFor(EX5), 1);
     });
 
     test('a self CTXSWAP arriving before the response leaves the context alone', async () => {
@@ -402,17 +399,40 @@ suite('SendCoordinator', () => {
         assert.deepStrictEqual(c.state.snapshot().committedContext, EX7);
     });
 
-    test('a divergent pending dies once ANY content exists, whoever wrote it', async () => {
+    test('a repoint discovered by a READ invalidates the write-back, like a marker does', async () => {
+        // Another client repoints the session while our POST is open, and a
+        // reconciliation (not a CTXSWAP frame) is what tells us. The delayed
+        // success response must NOT then commit the context it sent: the server
+        // has newer truth. `applyContextSwap` bumps the revision for exactly
+        // this; a read that discovers the same thing has to bump it too.
+        const c = coordinatorWith({ committed: COURSE42, pending: EX5 });
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
+        await tick();
+
+        c.state.installDetail(
+            { sessionId: 1, courseId: 42, context: EX7, lastActivity: 1000, messages: [{ id: 99, sender: 'USER' }] },
+            c.state.beginLoad(),
+        );
+        c.api.resolveSend({ id: 11 });
+        await sent;
+
+        assert.deepStrictEqual(c.state.snapshot().committedContext, EX7);
+    });
+
+    test('a divergent pending SURVIVES content the send never became', async () => {
+        // Another client wrote a message; ours never arrived. The staging must
+        // stay: the student picked that topic and has not sent anything yet, so
+        // dropping it would silently undo their pick. Staging onto a
+        // conversation with content is the normal case now, and the retry
+        // commits it with a CTXSWAP marker exactly as a first send would.
         const c = coordinatorWith({ committed: COURSE42, pending: EX5 });
         const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();
         c.api.rejectSend(new Error('socket hang up'));
         await tick();
-        // Another client wrote a message; ours never arrived. A retry would
-        // rehome THEIR content, so the staging cannot survive.
         c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: COURSE42, lastActivity: 1000, messages: [{ id: 99, sender: 'USER' }] });
         await sent;
-        assert.strictEqual(c.state.snapshot().pendingContext, undefined);
+        assert.deepStrictEqual(c.state.snapshot().pendingContext?.ctx, EX5);
     });
 
     test('a failed reconciliation releases the lock, clears the bubble and bumps sendSeq', async () => {

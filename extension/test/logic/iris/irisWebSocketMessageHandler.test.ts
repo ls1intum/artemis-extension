@@ -75,6 +75,7 @@ describe('IrisWebSocketMessageHandler: USER frames never finalize a run', () => 
 // ---------------------------------------------------------------------------
 
 const EX5 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 5 };
+const EX7 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 7 };
 
 function makeHandler(opts: { currentSessionId?: number; courseId?: number; irisSessionId?: number } = {}) {
     const runs = new IrisRunStateMachine();
@@ -188,6 +189,29 @@ describe('CTXSWAP frames', () => {
         const { handler, state } = makeHandler({ currentSessionId: 7, courseId: 42 });
         handler.handleIrisWebSocketMessage(ctxswapFrame(undefined, 'removed'), 7);
         expect(state.snapshot().committedContext).toEqual({ mode: 'COURSE_CHAT', entityId: 42 });
+    });
+
+    it('tells the student when a foreign swap discarded their staging', () => {
+        const { handler, state, posted } = makeHandler({ currentSessionId: 7, courseId: 42 });
+        state.stagePending(EX7);
+
+        handler.handleIrisWebSocketMessage(ctxswapFrame(EX5), 7);
+
+        expect(posted.some((m) => 'text' in m && String(m.text).includes('changed elsewhere'))).toBe(true);
+    });
+
+    it('says nothing when the swap only repeats the context we already committed', () => {
+        // Our own send's marker, arriving after the write-back applied it. The
+        // staging made since survives, so there is nothing to report and a
+        // notice would name an event that did not happen.
+        const { handler, state, posted } = makeHandler({ currentSessionId: 7, courseId: 42 });
+        state.commitContext(EX5);
+        state.stagePending(EX7);
+
+        handler.handleIrisWebSocketMessage(ctxswapFrame(EX5), 7);
+
+        expect(state.snapshot().pendingContext?.ctx).toEqual(EX7);
+        expect(posted.some((m) => 'text' in m && String(m.text).includes('changed elsewhere'))).toBe(false);
     });
 });
 

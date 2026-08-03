@@ -151,6 +151,21 @@ suite('ChatWebviewProvider: Ask Iris', () => {
         assert.deepStrictEqual(h.api.getCurrentChat.firstCall.args, ['PROGRAMMING_EXERCISE_CHAT', 5, 42]);
     });
 
+    test('Ask-Iris refuses an exercise whose course cannot be resolved', async () => {
+        // With a conversation OPEN. Neither the payload nor the store nor the
+        // API can say which course exercise 404 belongs to, so the cross-course
+        // check has nothing to compare against and would wave it through. A
+        // topic whose course is unknown may not be staged.
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
+        await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' }, 42);
+        const callsBefore = h.api.getCurrentChat.callCount;
+
+        const outcome = await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 404, name: 'Ghost' });
+
+        assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'no-course' });
+        assert.strictEqual(h.api.getCurrentChat.callCount, callsBefore);
+    });
+
     test('Ask-Iris is rejected while a send is in flight', async () => {
         const conversation = (h.provider as unknown as { _conversation: { state: { beginSend(): void } } })._conversation;
         conversation.state.beginSend();
@@ -406,13 +421,18 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         }]);
     });
 
-    test('a topic pick that opened another conversation posts exactly one notice', async () => {
+    test('a topic pick posts no notice even when it acquired a conversation', async () => {
+        // `opened` survives here for one case only: the cold start, where the
+        // pick acquires the first conversation. Nothing was on screen to be
+        // replaced, so announcing a switch would describe an event the student
+        // never saw. A topic change on an OPEN conversation cannot reach this
+        // branch at all any more; it always stages.
         fake.topicOutcome = { kind: 'opened', sessionId: 12 };
 
         dispatch(h.provider, 'selectTopic', { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7 });
         await settle();
 
-        assert.deepStrictEqual(noticesFrom(postSpy), ['Switched to a different conversation.']);
+        assert.deepStrictEqual(noticesFrom(postSpy), []);
     });
 
     test('a topic pick that only staged posts none: the transcript did not move', async () => {

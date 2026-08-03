@@ -65,9 +65,9 @@ describe('ConversationState learns about messages received after the load', () =
     beforeEach(() => { state = new ConversationState(); state.setCourse(42); install(state, detail()); });
 
     it('an empty conversation that receives a user message is no longer empty', () => {
-        // Without this the picker stages onto a conversation the student has
-        // already written in, and the next send rehomes it. That is the
-        // ownership rule defeated by an omission.
+        // Without this the state reports a conversation the student has already
+        // written in as empty, and the message count, the in-flight union and
+        // the marker handling all read a transcript missing its newest rows.
         expect(state.contentState()).toBe('empty');
         state.upsertMessage({ id: 11, sender: 'USER' });
         expect(state.contentState()).toBe('content');
@@ -197,16 +197,55 @@ describe('ConversationState pending', () => {
         expect(state.snapshot().pendingContext).toBeUndefined();
     });
 
-    it('always drops a divergent pending on a swap', () => {
-        // The marker is itself a persisted message, so the conversation has
-        // content the moment it lands. A surviving staging would let the next
-        // send rehome it (invariant 4). There is deliberately no "still empty"
-        // branch and no undo for this case.
+    it('drops a divergent pending on a swap that actually changes the topic', () => {
+        // Somebody else just set the topic. Our staging was formed before that
+        // and now contradicts it, so it dies and the student is told. There is
+        // deliberately no undo. The exception is a marker that merely repeats
+        // the committed context; that case is covered separately below.
         state.stagePending(EX5);
         const outcome = state.applyContextSwap({ transition: 'added', context: EX7 }, swapMessage(20, { transition: 'added' }));
         expect(outcome).toBe('pending-dropped');
         expect(state.snapshot().pendingContext).toBeUndefined();
         expect(state.contentState()).toBe('content');
+    });
+
+    it('keeps a staging when the marker only repeats the context we already committed', () => {
+        // Our own send committed EX5 locally via the write-back; the server's
+        // CTXSWAP for it arrives afterwards. By then the student has picked
+        // again. That late marker announces nothing new, so it must not discard
+        // the newer pick, and must not claim "the topic was changed elsewhere".
+        install(state, detail({ sessionId: 1, context: COURSE42 }));
+        state.commitContext(EX5);
+        state.stagePending(EX7);
+
+        const outcome = state.applyContextSwap({ transition: 'changed', context: EX5 }, swapMessage(20, { transition: 'changed' }));
+
+        expect(outcome).toBe('pending-kept');
+        expect(state.snapshot().pendingContext?.ctx).toEqual(EX7);
+    });
+
+    it('drops a staging when an installed detail reveals a context we never committed', () => {
+        // A reconciliation after an unknown send outcome, with another client
+        // having repointed the session meanwhile. The detail is authoritative:
+        // the topic moved under us, so a staging formed before that is the same
+        // conflicting intent `applyContextSwap` drops.
+        install(state, detail({ sessionId: 1, context: COURSE42 }));
+        state.stagePending(EX5);
+
+        state.installDetail(detail({ sessionId: 1, context: EX7 }), state.beginLoad());
+
+        expect(state.snapshot().pendingContext).toBeUndefined();
+    });
+
+    it('keeps a staging when the detail confirms the context we already had', () => {
+        // The counterpart, and the ordinary case: the send never landed, the
+        // topic did not move, and the student's pick has to survive for a retry.
+        install(state, detail({ sessionId: 1, context: COURSE42 }));
+        state.stagePending(EX5);
+
+        state.installDetail(detail({ sessionId: 1, context: COURSE42, messages: [{ id: 99, sender: 'USER' }] }), state.beginLoad());
+
+        expect(state.snapshot().pendingContext?.ctx).toEqual(EX5);
     });
 
     it('derives the course context from a removed marker', () => {
@@ -216,19 +255,22 @@ describe('ConversationState pending', () => {
     });
 });
 
+/**
+ * The topic a stored row claims for a session, read the way production reads
+ * it: the presenter merges both collections into the history. There is no
+ * lookup by context any more, so the index is asserted where it is consumed.
+ */
+const storedContext = (state: ConversationState, sessionId: number) =>
+    [...state.snapshot().courseSessions, ...state.snapshot().knownInvisible]
+        .find((s) => s.sessionId === sessionId)?.context;
+
 describe('ConversationState knownInvisible', () => {
     let state: ConversationState;
     beforeEach(() => { state = new ConversationState(); state.setCourse(42); });
 
-    it('finds a target that exists only in knownInvisible', () => {
+    it('remembers a session the overview does not list', () => {
         state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 });
-        expect(state.findSessionFor(EX5)).toBe(9);
-    });
-
-    it('prefers the newest match across both sources', () => {
-        state.setOverview([{ sessionId: 1, courseId: 42, context: EX5, lastActivity: 100 }]);
-        state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX5, lastActivity: 200 });
-        expect(state.findSessionFor(EX5)).toBe(9);
+        expect(storedContext(state, 9)).toEqual(EX5);
     });
 
     it('drops an entry once the overview lists it', () => {
@@ -240,8 +282,7 @@ describe('ConversationState knownInvisible', () => {
     it('updates a remembered entry when a newer detail contradicts it', () => {
         state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 });
         install(state, detail({ sessionId: 9, context: EX7 }));
-        expect(state.findSessionFor(EX5)).toBeUndefined();
-        expect(state.findSessionFor(EX7)).toBe(9);
+        expect(storedContext(state, 9)).toEqual(EX7);
     });
 
     it('ENTERS a session the overview does not list, on any acquisition path', () => {
@@ -250,7 +291,6 @@ describe('ConversationState knownInvisible', () => {
         // an entry here nothing can ever reopen it again.
         install(state, detail({ sessionId: 9, context: EX5, messages: [{ id: 1, sender: 'LLM' }] }));
         expect(state.snapshot().knownInvisible.map((e) => e.sessionId)).toEqual([9]);
-        expect(state.findSessionFor(EX5)).toBe(9);
     });
 
     it('does not enter a session the overview already lists', () => {
@@ -322,7 +362,7 @@ describe('ConversationState knownInvisible', () => {
         install(state, { sessionId: 20, courseId: 43, context: { mode: 'COURSE_CHAT', entityId: 43 }, lastActivity: 1, messages: [] });
         expect(state.snapshot().courseSessions).toHaveLength(0);
         expect(state.snapshot().knownInvisible).toHaveLength(1);   // only session 20
-        expect(state.findSessionFor(EX5)).toBeUndefined();
+        expect(storedContext(state, 9)).toBeUndefined();
     });
 
     it('keeps the transcript when the SAME session is re-acquired', () => {
@@ -336,13 +376,12 @@ describe('ConversationState knownInvisible', () => {
     it('an overview response cannot contradict the OPEN conversation', () => {
         // Cut 7 replaces the general request-scoped overlay with one narrow
         // rule: the current conversation's row is derived from the loaded
-        // detail, in the canonical collection that BOTH the history and
-        // findSessionFor read. A late overview may still be stale about other
-        // conversations; it may never be stale about the one on screen.
+        // detail, in the canonical collection the history reads. A late overview
+        // may still be stale about other conversations; it may never be stale
+        // about the one on screen.
         install(state, detail({ sessionId: 9, context: EX7 }));
         state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }]);
-        expect(state.findSessionFor(EX7)).toBe(9);
-        expect(state.findSessionFor(EX5)).toBeUndefined();
+        expect(storedContext(state, 9)).toEqual(EX7);
     });
 
     it('lets the overview correct a conversation that is NOT open', () => {
@@ -351,7 +390,6 @@ describe('ConversationState knownInvisible', () => {
         install(state, detail({ sessionId: 1 }));
         state.rememberInvisible({ sessionId: 9, courseId: 42, context: EX7, lastActivity: 200 });
         state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 300 }]);
-        expect(state.findSessionFor(EX5)).toBe(9);
-        expect(state.findSessionFor(EX7)).toBeUndefined();
+        expect(storedContext(state, 9)).toEqual(EX5);
     });
 });

@@ -198,12 +198,10 @@ suite('IrisConversationService transcript delivery', () => {
         assert.deepStrictEqual(delivered, [{ sessionId: 1, mode: 'load', count: 1 }]);
     });
 
-    test('a topic pick that opens another conversation delivers ITS transcript', async () => {
+    test('a topic pick delivers no transcript, because it never leaves the conversation', async () => {
         const service = await started();
         const before = service.delivered.length;
 
-        // The open conversation is empty, so a course-chat pick stages in place
-        // and must NOT deliver anything; only an install does.
         await service.resolveTopicChange(COURSE42);
 
         assert.strictEqual(service.delivered.length, before, 'staging moves no transcript');
@@ -267,35 +265,21 @@ suite('IrisConversationService', () => {
         assert.deepStrictEqual(service.state.effectiveContext(), EX7);
     });
 
-    test('a hit whose GET returns a different context creates a fresh conversation', async () => {
-        // The user picked E7; session 9 was repointed to E5 by another client.
-        // Adopting E5 would hand them a conversation they did not ask for, so we
-        // record what session 9 actually holds and start a new one. Cut 4: we do
-        // NOT walk to the next candidate.
+    test('a topic pick on a conversation WITH content stages too, and issues no request', async () => {
+        // The rule the whole resolution now rests on, and the one Artemis' own
+        // client follows: the conversation is never left. An existing session
+        // for the target is deliberately NOT looked for, hence no detail GET
+        // and no create, even though the overview offers a perfect candidate.
         const service = await startedWithContent();
         service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
-        const change = service.resolveTopicChange(EX7);
-        assert.strictEqual(service.api.deferred.at(-1)?.call, 'detail:42:9');
-        service.api.deferred.at(-1)!.resolve(detail(9, EX5, [{ id: 1, sender: 'USER' }]));
-        await tick();
-        assert.strictEqual(service.api.deferred.at(-1)?.call, 'create:42');
-        service.api.deferred.at(-1)!.resolve(detail(12, COURSE42));
-        await change;
-        assert.strictEqual(service.state.snapshot().currentSessionId, 12);
-        assert.deepStrictEqual(service.state.snapshot().pendingContext?.ctx, EX7);
-        // The index learned the truth, so the next resolution does not re-probe 9.
-        assert.strictEqual(service.state.findSessionFor(EX7), undefined);
-        assert.strictEqual(service.state.findSessionFor(EX5), 9);
-    });
+        const before = service.api.deferred.length;
 
-    test('the visible conversation is untouched while a revalidation probe is open', async () => {
-        // The probe must not mutate anything: a mismatch, a 403 or a dropped
-        // connection has to leave the student looking at what they were reading.
-        const service = await startedWithContent();
-        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
-        void service.resolveTopicChange(EX7);
+        await service.resolveTopicChange(EX7);
+
+        assert.strictEqual(service.api.deferred.length, before, 'no request may be issued');
         assert.strictEqual(service.state.snapshot().currentSessionId, 1);
-        assert.strictEqual(service.state.contentState(), 'content');
+        assert.deepStrictEqual(service.state.snapshot().pendingContext?.ctx, EX7);
+        assert.strictEqual(service.state.contentState(), 'content', 'the transcript stays');
     });
 
     test('a delayed earlier detail load never overwrites a newer one', async () => {
@@ -422,34 +406,17 @@ suite('IrisConversationService', () => {
         assert.strictEqual(service.api.outstanding('overview:42').length, 1);
     });
 
-    test('a 404 on an indexed hit forgets the row and creates, without a second probe', async () => {
-        // The `gone` branch of the revalidation. It routes through the same
-        // `revalidated` flag as a context mismatch, so there is exactly one
-        // detail GET and then a create.
-        const service = await startedWithContent();
-        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
-        const change = service.resolveTopicChange(EX7);
-        service.api.rejectCall('detail:42:9', new ApiError('gone', 404));
-        await tick();
-        assert.strictEqual(service.api.deferred.filter((d) => d.call.startsWith('detail:')).length, 1);
-        assert.strictEqual(service.api.deferred.at(-1)?.call, 'create:42');
-        service.api.deferred.at(-1)!.resolve(detail(12, COURSE42));
-        await change;
-        assert.strictEqual(service.state.snapshot().currentSessionId, 12);
-        assert.deepStrictEqual(service.state.snapshot().pendingContext?.ctx, EX7);
-        // Session 9 was forgotten, so it can no longer answer a lookup.
-        assert.strictEqual(service.state.findSessionFor(EX7), undefined);
-    });
-
     test('a navigateTo racing a resolveTopicChange leaves exactly one winner', async () => {
+        // The topic change no longer issues a request, but it still takes a
+        // navigation token, so it is still the LAST intent. The history open it
+        // raced must not install on top of the staging.
         const service = await startedWithContent();
         const nav = service.navigateTo({ courseId: 42, sessionId: 3 });
-        const topic = service.resolveTopicChange(EX7);
-        // The topic change requested last, so it wins whichever answers first.
+        await service.resolveTopicChange(EX7);
         service.api.resolveCall('detail:42:3', detail(3, COURSE42, [{ id: 1, sender: 'USER' }]));
-        service.api.resolveCall('create:42', detail(12, COURSE42));
-        await Promise.all([nav, topic]);
-        assert.strictEqual(service.state.snapshot().currentSessionId, 12);
+        await nav;
+        assert.strictEqual(service.state.snapshot().currentSessionId, 1);
+        assert.deepStrictEqual(service.state.snapshot().pendingContext?.ctx, EX7);
     });
 
     test('a deferred reload runs once the send settles, and coalesces', async () => {
@@ -551,13 +518,16 @@ suite('IrisConversationService', () => {
         assert.strictEqual(service.state.snapshot().currentSessionId, 9);
     });
 
-    test('resolveTopicChange reports failed rather than rejecting on a create 500', async () => {
+    test('resolveTopicChange reports failed rather than rejecting when the acquisition 500s', async () => {
         // The dispatcher acts on a TopicChangeOutcome, not an exception: Task 14
         // writes `const outcome = await resolveTopicChange(...)`, so a server 500
-        // from the create call must resolve to a rejected outcome, not throw.
-        const service = await startedWithContent();
-        const change = service.resolveTopicChange(EX7);
-        service.api.rejectCall('create:42', new ApiError('boom', 500));
+        // must resolve to a rejected outcome, not throw. With no conversation
+        // open this is the only branch of the path that still issues a request.
+        const { api, rejectCall } = makeApi();
+        const service = new IrisConversationService(api as never, deps().deps);
+        const change = service.resolveTopicChange(EX7, 42);
+        await tick();
+        rejectCall('current:PROGRAMMING_EXERCISE_CHAT:7:42', new ApiError('boom', 500));
         const outcome = await change;
         assert.deepStrictEqual(outcome, { kind: 'rejected', reason: 'failed' });
     });
@@ -594,14 +564,11 @@ suite('subscription reconciliation', () => {
         c.api.resolveCall('detail:42:1', { sessionId: 1, courseId: 42, context: EX5, lastActivity: 1000, messages: [] });
         await done;
         assert.deepStrictEqual(c.service.state.snapshot().committedContext, EX5);
-        // The adoption has to reach the INDEX as well, not only the chip. A
-        // cached summary left on the abandoned topic makes `findSessionFor`
-        // answer a later pick with a conversation that no longer holds what was
-        // asked for, which is the duplicate-conversation bug in miniature.
-        // Without these two lines this test is fully subsumed by the delayed
-        // first subscription case above.
-        assert.strictEqual(c.service.state.findSessionFor(EX5), 1);
-        assert.strictEqual(c.service.state.findSessionFor(COURSE42), undefined);
+        // The adoption has to reach the stored summary as well, not only the
+        // chip, or the history row keeps naming the abandoned topic. Without
+        // this line the test is fully subsumed by the delayed first
+        // subscription case above.
+        assert.deepStrictEqual(c.service.state.snapshot().knownInvisible.find((s) => s.sessionId === 1)?.context, EX5);
     });
 
     test('is discarded when a CTXSWAP arrived while it was in flight', async () => {

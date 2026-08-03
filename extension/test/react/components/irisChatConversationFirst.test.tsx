@@ -64,25 +64,15 @@ describe('ContextChip', () => {
         expect(onRemove).toHaveBeenCalledTimes(1);
     });
 
-    it('still acts on the click once the conversation has content', async () => {
-        // The wording changes with the state; the wiring must not. Without this
-        // the whole control could be inert and every naming test stay green.
+    it('keeps the icon, and the same promise, once the conversation has content', async () => {
+        // `resolveTopic` stages in BOTH states, so the click means the same
+        // thing in both and the wording may not differ. The icon staying is
+        // also what keeps the chip from changing width mid-conversation.
         const onRemove = vi.fn();
         render(<ContextChip context={EX5} contentState="content" onRemove={onRemove} onOpenPicker={vi.fn()} />);
 
-        await userEvent.click(screen.getByRole('button', { name: 'Switch to the course chat' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Remove topic' }));
         expect(onRemove).toHaveBeenCalledTimes(1);
-    });
-
-    it('keeps the icon once the conversation has content, and names the navigation instead', () => {
-        // The icon stays: nothing is destroyed by the click (the conversation
-        // survives on the server and in the history), and a slot that never
-        // empties is what keeps the chip from changing width mid-conversation.
-        // What changes is the promise, because `resolveTopic` returns `open` or
-        // `create-and-stage` here, not a removal.
-        render(<ContextChip context={EX5} contentState="content" onRemove={vi.fn()} onOpenPicker={vi.fn()} />);
-        expect(screen.getByRole('button', { name: 'Switch to the course chat' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Remove topic' })).toBeNull();
     });
 
     it('disables the icon while the conversation is still loading', async () => {
@@ -160,7 +150,6 @@ describe('ContextChip', () => {
             />,
         );
         expect(screen.queryByRole('button', { name: 'Remove topic' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Switch to the course chat' })).toBeNull();
     });
 
     it('falls back to the generic course label when the host knows no title', () => {
@@ -202,15 +191,14 @@ describe('IrisChatView names the course chat on the composer', () => {
 });
 
 describe('ContextPicker (topic picker)', () => {
-    it('warns once that the selection may open another conversation', () => {
-        render(<ContextPicker {...pickerProps()} />);
-        expect(screen.getByText(/may open a different conversation/)).toBeInTheDocument();
-    });
-
-    it('shows no such warning while the conversation is empty', () => {
-        // Empty means the pick stages in place, so there is nothing to warn about.
-        render(<ContextPicker {...pickerProps({ contentState: 'empty' })} />);
-        expect(screen.queryByText(/may open a different conversation/)).toBeNull();
+    it('promises no conversation change, in either content state', () => {
+        // A pick always stages into the OPEN conversation now, so a warning
+        // about opening another one describes something that cannot happen.
+        for (const contentState of ['content', 'empty'] as const) {
+            const { unmount } = render(<ContextPicker {...pickerProps({ contentState })} />);
+            expect(screen.queryByText(/different conversation/)).toBeNull();
+            unmount();
+        }
     });
 
     it('disables every picker entry while the content state is unknown', () => {
@@ -894,13 +882,16 @@ describe('IrisChatView navigation notice', () => {
         contentState: 'content' as const,
     };
 
-    it('renders the notice the host posts after a topic pick opened another conversation', async () => {
+    it('renders whatever notice the host posts', async () => {
+        // Deliberately not tied to one wording: the host owns the text, and
+        // which events produce one is pinned on the host side. This asserts the
+        // channel, which is what the webview is responsible for.
         render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
         dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
 
-        dispatchExtensionMessage({ type: 'showChatNotice', text: 'Switched to a different conversation.' });
+        dispatchExtensionMessage({ type: 'showChatNotice', text: 'Started a new conversation.' });
 
-        expect(await screen.findByText('Switched to a different conversation.')).toBeInTheDocument();
+        expect(await screen.findByText('Started a new conversation.')).toBeInTheDocument();
     });
 
     it('survives a snapshot that navigates nowhere, e.g. the overview refresh that follows', async () => {
