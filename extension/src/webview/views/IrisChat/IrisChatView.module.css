@@ -25,6 +25,8 @@
 
 .irisIcon {
     flex-shrink: 0;
+    object-fit: contain;
+    filter: var(--theme-iris-logo-shadow);
 }
 
 .title {
@@ -264,6 +266,8 @@
 
 .loadingLogo {
     opacity: 0.8;
+    object-fit: contain;
+    filter: var(--theme-iris-logo-shadow);
 }
 
 .loadingSpinner {
