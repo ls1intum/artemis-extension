@@ -816,6 +816,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             context={topic}
                             contentState={store.contentState}
                             canChangeTopic={canChangeTopic}
+                            courseTitle={store.courseTitle}
                             onOpenPicker={(e) => openPicker(e.currentTarget as HTMLElement)}
                             onRemove={() => {
                                 // Dropping the topic IS selecting the course

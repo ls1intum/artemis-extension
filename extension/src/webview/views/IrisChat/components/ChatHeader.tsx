@@ -26,8 +26,13 @@ interface ChatHeaderProps {
 /**
  * One row, two lines. Line 1 is the course and is the only clickable label,
  * so a click never lands on a target the label did not name. The topic is
- * deliberately absent here: it lives on the composer chip, so each fact
- * appears exactly once.
+ * deliberately absent here: it lives on the composer chip.
+ *
+ * The course title does appear twice, here and on the composer whenever the
+ * topic IS the course. The two answer different questions (which course am I
+ * in, versus what is the next message about), so the composer's copy carries
+ * an aria-label that keeps the two buttons apart for anyone navigating by
+ * accessible name.
  */
 export function ChatHeader({
     courseTitle,

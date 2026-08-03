@@ -215,7 +215,8 @@
     text-align: center;
 }
 
-/* The topic chip and the picker's opener, directly above the composer. */
+/* The picker's opener and the topic, directly above the composer. The topic is
+   a chip for an exercise and plain text for a course chat; see ContextChip. */
 .topicRow {
     position: relative;
     display: flex;

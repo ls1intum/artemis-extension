@@ -15,6 +15,54 @@
     line-height: 18px;
 }
 
+/* Same vocabulary as the topic picker's rows: File for an exercise, BookOpen
+   for the course. Muted, because the title is what has to be read. */
+.icon {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+/* A course chat is not a topic, so it is not a pill. Same position, same
+   padding and same metrics as .chip, but no fill until hover.
+
+   The border is declared transparent rather than added on hover: introducing
+   one on hover would grow the box by a pixel and nudge the row. */
+.courseText {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 2px 10px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--vscode-foreground);
+    font-size: 12px;
+    font-family: inherit;
+    line-height: 18px;
+    opacity: 0.75;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.courseText:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--vscode-charts-blue) 12%, transparent);
+    border-color: color-mix(in srgb, var(--vscode-charts-blue) 25%, transparent);
+    opacity: 1;
+}
+
+.courseText:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.courseLabel {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .label {
     max-width: 220px;
     padding: 0;

@@ -5,7 +5,7 @@ export const IRIS_CHAT_HELP_MARKDOWN = `
 Iris chat shows one conversation, and it lives on Artemis. Everything you see here is what the server has: open the same conversation in the Artemis web client and it is the same messages.
 
 ## Topic
-The topic is what your next message is about, shown as a chip above the input.
+The topic is what your next message is about, shown above the input: as a chip when it is an exercise, and as plain text naming the course when it is not.
 
 **Exercise topic:**
 - Iris can see the exercise description, the test cases and your code
@@ -15,7 +15,7 @@ The topic is what your next message is about, shown as a chip above the input.
 - Iris can see the course information
 - Ask general questions about the course and its concepts
 
-Use the **+** button beside the chip to choose a topic, or the small **x** on the chip to drop it and talk about the course instead. On an empty conversation the topic simply changes in place. Once the conversation has messages, choosing a different topic opens the conversation that belongs to it, or starts a new one, so what you have already written stays where it was written.
+Use the **+** button beside it to choose a topic, or the small **x** on the chip to talk about the course instead. On an empty conversation the topic simply changes in place. Once the conversation has messages, choosing a different topic opens the conversation that belongs to it, or starts a new one, so what you have already written stays where it was written. The **x** follows the same rule, which is why it reads "Switch to the course chat" there.
 
 ## Switching conversations
 - The **course name** in the header opens your course list. Switching course opens that course's conversation.

@@ -54,17 +54,57 @@ const pickerProps = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('ContextChip', () => {
-    it('shows the chip remove icon while the conversation is empty', () => {
-        render(<ContextChip context={EX5} contentState="empty" onRemove={vi.fn()} onOpenPicker={vi.fn()} />);
-        expect(screen.getByRole('button', { name: 'Remove topic' })).toBeInTheDocument();
+    it('calls the icon a removal while the conversation is empty, and acts on the click', async () => {
+        // Empty means `resolveTopic` stages in place: the topic drops, nothing
+        // is loaded, nothing is requested. That IS a removal.
+        const onRemove = vi.fn();
+        render(<ContextChip context={EX5} contentState="empty" onRemove={onRemove} onOpenPicker={vi.fn()} />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Remove topic' }));
+        expect(onRemove).toHaveBeenCalledTimes(1);
     });
 
-    it('hides the chip remove icon once the conversation has content', () => {
-        // With content, removing the topic necessarily means leaving for another
-        // conversation, and a small remove icon must not silently replace the whole
-        // transcript. The picker's "Course chat" entry carries that action instead.
+    it('still acts on the click once the conversation has content', async () => {
+        // The wording changes with the state; the wiring must not. Without this
+        // the whole control could be inert and every naming test stay green.
+        const onRemove = vi.fn();
+        render(<ContextChip context={EX5} contentState="content" onRemove={onRemove} onOpenPicker={vi.fn()} />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Switch to the course chat' }));
+        expect(onRemove).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the icon once the conversation has content, and names the navigation instead', () => {
+        // The icon stays: nothing is destroyed by the click (the conversation
+        // survives on the server and in the history), and a slot that never
+        // empties is what keeps the chip from changing width mid-conversation.
+        // What changes is the promise, because `resolveTopic` returns `open` or
+        // `create-and-stage` here, not a removal.
         render(<ContextChip context={EX5} contentState="content" onRemove={vi.fn()} onOpenPicker={vi.fn()} />);
+        expect(screen.getByRole('button', { name: 'Switch to the course chat' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Remove topic' })).toBeNull();
+    });
+
+    it('disables the icon while the conversation is still loading', async () => {
+        // `resolveTopic` refuses on `unknown`, so the click is swallowed. A
+        // control that does nothing has to look like it.
+        const onRemove = vi.fn();
+        render(<ContextChip context={EX5} contentState="unknown" onRemove={onRemove} onOpenPicker={vi.fn()} />);
+
+        const button = screen.getByRole('button', { name: 'Loading the conversation' });
+        expect(button).toBeDisabled();
+        await userEvent.click(button);
+        expect(onRemove).not.toHaveBeenCalled();
+    });
+
+    it('marks an exercise topic with the same icon the picker uses', () => {
+        // Asserted on Lucide's own class, not on a test id: the claim is that
+        // this is the File icon, the one the picker's exercise rows carry, and
+        // a marker would survive swapping it for any other glyph.
+        const { container } = render(
+            <ContextChip context={EX5} contentState="content" onRemove={vi.fn()} onOpenPicker={vi.fn()} />,
+        );
+        expect(container.querySelector('.lucide-file')).not.toBeNull();
     });
 
     it('names a nameless topic by its entity, never the literal word "Topic"', () => {
@@ -82,11 +122,82 @@ describe('ContextChip', () => {
         expect(screen.getByRole('button', { name: 'Exercise 5' })).toBeInTheDocument();
     });
 
-    it('renders no chip when the topic is the course', () => {
-        const { container } = render(
+    it('renders the course chat as clickable text rather than nothing at all', async () => {
+        // Not a pill: a course chat is the absence of a topic, and a pill would
+        // claim the same standing as a chosen exercise. Text still answers the
+        // question the row exists to answer.
+        const onOpenPicker = vi.fn();
+        render(
+            <ContextChip
+                context={COURSE42}
+                contentState="empty"
+                courseTitle="Iris Conversation Test"
+                onRemove={vi.fn()}
+                onOpenPicker={onOpenPicker}
+            />,
+        );
+
+        // The visible text is the course title, but the accessible name must not
+        // be: the header's course button already carries that exact name and
+        // goes somewhere else entirely.
+        expect(screen.getByText('Iris Conversation Test')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Iris Conversation Test' })).toBeNull();
+
+        const text = screen.getByRole('button', { name: /Change topic.*Iris Conversation Test/ });
+        await userEvent.click(text);
+        expect(onOpenPicker).toHaveBeenCalled();
+    });
+
+    it('offers nothing to remove on a course chat', () => {
+        // There is no topic to take away, so neither wording may appear.
+        render(
+            <ContextChip
+                context={COURSE42}
+                contentState="empty"
+                courseTitle="Iris Conversation Test"
+                onRemove={vi.fn()}
+                onOpenPicker={vi.fn()}
+            />,
+        );
+        expect(screen.queryByRole('button', { name: 'Remove topic' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Switch to the course chat' })).toBeNull();
+    });
+
+    it('falls back to the generic course label when the host knows no title', () => {
+        render(
             <ContextChip context={COURSE42} contentState="empty" onRemove={vi.fn()} onOpenPicker={vi.fn()} />,
         );
-        expect(container).toBeEmptyDOMElement();
+        expect(screen.getByText('Course chat')).toBeInTheDocument();
+    });
+});
+
+describe('IrisChatView names the course chat on the composer', () => {
+    it('passes the real course title down, not the generic fallback', async () => {
+        // Pins the prop, not just the component: without the wiring in
+        // IrisChatView the chip silently degrades to the literal words
+        // "Course chat" and every component test above still passes.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: {
+                exercises: [],
+                courses: [{ id: 42, title: 'Introduction to Computer Science' }],
+                courseId: 42,
+                courseTitle: 'Introduction to Computer Science',
+                currentSessionId: 900,
+                conversationTitle: 'General questions',
+                displayMessageCount: 2,
+                contentState: 'content' as const,
+                committedContext: { mode: 'COURSE_CHAT', entityId: 42 },
+            },
+        });
+
+        expect(
+            await screen.findByRole('button', {
+                name: 'Change topic, currently the whole course: Introduction to Computer Science',
+            }),
+        ).toBeInTheDocument();
+        expect(screen.queryByText('Course chat')).toBeNull();
     });
 });
 
