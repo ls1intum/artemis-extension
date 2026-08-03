@@ -286,17 +286,29 @@ export class IrisConversationService {
         // the dispatcher gating of spec 7.3 entirely.
         if (this.state.sendInFlight) { this._reloadWhenSendSettles = true; return; }
         const { currentSessionId, courseId } = this.state.snapshot();
-        // The escape hatch drops EVERYTHING local, which is the whole point of
-        // the command. `setOverview([])` alone leaves knownInvisible in place,
-        // so a wedged client stays wedged.
-        this.state.resetCachesForReload();
         if (currentSessionId === undefined || courseId === undefined) {
+            this.state.resetCachesForReload();
             await this.start(this._deps.getWorkspaceExercise());
             return;
         }
         await this._navigate(async (isCurrent) => {
             const captured = this.state.beginLoad();
+            // AFTER the read, never before. The escape hatch still drops
+            // everything local, which is its whole point (`setOverview([])`
+            // alone leaves knownInvisible in place, so a wedged client stays
+            // wedged). But a reload that FAILS must cost nothing: this is also
+            // the path a Retry takes on a transient outage, and clearing first
+            // left the student with an empty history and no way to refill it,
+            // the refill being the thing that had just failed.
             const detail = await this._api.getChatSessionById(courseId, currentSessionId);
+            // BOTH guards before touching anything. Clearing on the way in cost
+            // the student their history whenever the re-read failed; clearing
+            // after the read but before the guards let a stale reload wipe the
+            // caches of the navigation that had won. Nothing awaits between
+            // here and the install, so a check that passes now still holds
+            // there.
+            if (!isCurrent() || !this.state.accepts(captured)) { return; }
+            this.state.resetCachesForReload();
             if (!this._install(detail, captured, isCurrent)) { return; }
             void this.refreshOverview();
         });

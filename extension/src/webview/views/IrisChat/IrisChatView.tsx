@@ -329,6 +329,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         if (!failed || failed.role !== 'user' || failed.status !== 'error') {
             return;
         }
+        // Unreachable Iris: resending would only fail the same way, and a
+        // reload is the ONLY thing that re-runs the availability check. So this
+        // one button does both, in order. The text is remembered rather than
+        // sent, and the effect below sends it once the banner clears.
+        if (useChatStore.getState().unavailableMessage !== null) {
+            resendWhenReachable.current = {
+                localId,
+                text: failed.content,
+                sessionId: useChatStore.getState().currentSessionId,
+            };
+            handleRetryChatLoad();
+            return;
+        }
         // Remove the failed entry first so handleSendMessage's optimistic
         // add doesn't briefly produce two copies. Zustand+React batch the
         // two state updates in the same event tick, so there is no visible
@@ -377,6 +390,43 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const handleRetryChatLoad = () => {
         postCommand(vscodeApi, 'reloadChatSession');
     };
+
+    /**
+     * The message a Retry deferred until the chat is reachable again. Held in a
+     * ref, not in state: it must not trigger a render of its own, and it is
+     * read exactly once by the effect below.
+     *
+     * It carries the TEXT and the conversation, not just the localId. A
+     * successful reload delivers the server transcript before it clears the
+     * banner, and that transcript replaces the message array, taking the unsent
+     * local bubble with it: by the time the effect runs there is nothing left
+     * to look up.
+     */
+    const resendWhenReachable = useRef<{ localId: string; text: string; sessionId: number | null } | null>(null);
+    useEffect(() => {
+        if (store.unavailableMessage !== null) { return; }
+        const pending = resendWhenReachable.current;
+        if (pending === null) { return; }
+        resendWhenReachable.current = null;
+        // The banner also clears on a NAVIGATION. Cancel when the move is
+        // already visible here.
+        //
+        // The host hides the banner BEFORE it publishes the new snapshot, so
+        // this can still run while the webview reports the old conversation.
+        // The send is then addressed to that same conversation, because
+        // `handleSendMessage` reads the session from the very snapshot this
+        // check just compared: the two cannot disagree. The host refuses it by
+        // origin (`conversation-changed`) once it has moved on, which is the
+        // rejection that exists for exactly this.
+        if (store.currentSessionId !== pending.sessionId) { return; }
+        // The bubble may or may not have survived the reload; drop it if it did,
+        // so the resend does not leave a duplicate behind.
+        store.removeMessage(pending.localId);
+        handleSendMessage(pending.text);
+        // Deliberately keyed on the banner alone. `handleSendMessage` is
+        // recreated every render, so listing it would re-run this on every
+        // render instead of on the transition that matters.
+    }, [store.unavailableMessage]);
 
     // Popover open/close helpers. The two popovers are mutually exclusive.
     // Opening one always closes the other. Closing restores focus to
@@ -462,12 +512,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 // disabled exercise; the banner already states this.
                 return true;
             case 'iris-unavailable':
-                // Disabled while the unavailable banner is shown — the
-                // banner's own Retry button is the right affordance to
-                // reload the chat. Once that succeeds (banner clears), the
-                // inline Retry on the failed message becomes active again
-                // so the user can resend their original text.
-                return store.unavailableMessage !== null;
+                // Never disabled. This button IS the reload while the banner is
+                // up: it reloads first and sends afterwards (see `handleRetry`).
+                // Two Retry buttons at once, one of them dead, is a puzzle
+                // rather than an affordance.
+                return false;
             case 'no-ai':
                 return store.isNoAiDetected;
             case 'no-context':
@@ -531,6 +580,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     }
 
     const showUnavailableBanner = store.unavailableMessage !== null && store.disabledMessage === null;
+    /**
+     * A failed message whose own Retry covers the reload as well. ONLY the
+     * transient reason qualifies: an `iris-disabled` or `no-ai` bubble keeps a
+     * Retry that stays disabled, and hiding the banner's for its sake would
+     * leave the student with no enabled way back at all.
+     */
+    const hasRetryableMessage = store.messages.some(
+        (m) => m.role === 'user' && m.status === 'error' && m.errorReason === 'iris-unavailable',
+    );
 
     // Compute disabled placeholder for input. Order matters: real
     // unavailability ('no context', '.noai', explicit disabled, transient
@@ -715,12 +773,20 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 <div className={styles.unavailableBanner} role="alert">
                     <Info size={16} />
                     <span>{store.unavailableMessage}</span>
-                    <button
-                        className={styles.retryButton}
-                        onClick={handleRetryChatLoad}
-                    >
-                        Retry
-                    </button>
+                    {/* Only when nothing else offers one. A failed message's own
+                        Retry reloads too, and two of them at once, pointing at
+                        the same reload, is what made the greyed-out one look
+                        broken. Without any failed message this is the only way
+                        back: a websocket reconnect repairs the subscription but
+                        never re-runs the availability check. */}
+                    {!hasRetryableMessage && (
+                        <button
+                            className={styles.retryButton}
+                            onClick={handleRetryChatLoad}
+                        >
+                            Retry
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -745,10 +811,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* Message list with hydration loader. Hierarchy: availability
-                banner state (disabled/unavailable already render their own
-                banner above and gate everything else) > loader (pending
-                hydration) > populated/welcome list. */}
+            {/* Message list with hydration loader. Hierarchy: disabled (nothing
+                to show) > loader (pending hydration) > populated/welcome list.
+                `unavailable` deliberately does NOT gate the list: it is the
+                transient state, offered with a Retry, and the messages are
+                still here. Blanking them threw away what the student was
+                reading because the server hiccupped, while the header went on
+                counting them. Only a course with Iris switched off genuinely
+                has no conversation behind the banner. */}
             <div className={styles.messagesSection}>
                 {isColdStart ? (
                     <div className={styles.coldStart}>
@@ -765,7 +835,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             onClose={closePopovers}
                         />
                     </div>
-                ) : (store.disabledMessage || store.unavailableMessage) ? null
+                ) : store.disabledMessage ? null
                 : messagesLoading ? (
                     <div className={styles.loadingState} aria-busy="true" aria-live="polite">
                         {irisLogoUri && (

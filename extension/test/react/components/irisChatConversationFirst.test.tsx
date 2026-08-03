@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -157,6 +157,212 @@ describe('ContextChip', () => {
             <ContextChip context={COURSE42} contentState="empty" onRemove={vi.fn()} onOpenPicker={vi.fn()} />,
         );
         expect(screen.getByText('Course chat')).toBeInTheDocument();
+    });
+});
+
+describe('IrisChatView offers exactly one Retry', () => {
+    const withConversation = {
+        exercises: [],
+        courses: [{ id: 42, title: 'Introduction to Computer Science' }],
+        courseId: 42,
+        courseTitle: 'Introduction to Computer Science',
+        currentSessionId: 900,
+        conversationTitle: 'BFS loop',
+        displayMessageCount: 1,
+        contentState: 'content' as const,
+    };
+
+    /** Brings the view into "Iris is unreachable and my message did not go out". */
+    const failedUnderBanner = (api: ReturnType<typeof createMockVsCodeApi>) => {
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withConversation });
+        act(() => {
+            useChatStore.getState().addMessage({
+                localId: 'local-1', role: 'user', content: 'hallo123', timestamp: 1, status: 'sending',
+            });
+            useChatStore.getState().markMessageFailed('local-1', 'Iris is temporarily unavailable.', 'iris-unavailable');
+        });
+        dispatchExtensionMessage({ type: 'showUnavailableState', message: 'Iris is temporarily unavailable. Retry to reload.' });
+    };
+
+    it('shows the message its own Retry and no second one in the banner', async () => {
+        // Two Retry buttons at once, one of them dead, is a puzzle rather than
+        // an affordance. The failed message carries the text, so its button is
+        // the one that survives, and it takes over the reload as well.
+        const api = createMockVsCodeApi();
+        failedUnderBanner(api);
+
+        expect(await screen.findByText(/temporarily unavailable\. Retry to reload/)).toBeInTheDocument();
+        // The two carry different accessible names, so counting one name would
+        // have missed the other entirely. Count every Retry there is.
+        const retries = screen.getAllByRole('button').filter(b => /retry/i.test(b.textContent ?? ''));
+        expect(retries).toHaveLength(1);
+        expect(retries[0]).toHaveAccessibleName('Retry sending this message');
+        expect(retries[0]).toBeEnabled();
+    });
+
+    it('keeps the banner Retry when the only failed message cannot reload', async () => {
+        // An `iris-disabled` bubble keeps a Retry that stays disabled. Hiding
+        // the banner's for its sake would leave no enabled way back at all.
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withConversation });
+        act(() => {
+            useChatStore.getState().addMessage({
+                localId: 'local-1', role: 'user', content: 'hallo123', timestamp: 1, status: 'sending',
+            });
+            useChatStore.getState().markMessageFailed('local-1', 'Iris is disabled here.', 'iris-disabled');
+        });
+        dispatchExtensionMessage({ type: 'showUnavailableState', message: 'Iris is temporarily unavailable. Retry to reload.' });
+
+        expect(await screen.findByRole('button', { name: 'Retry' })).toBeEnabled();
+    });
+
+    it('keeps the banner Retry when there is no failed message to carry one', async () => {
+        // Without it there would be no way back at all: only a reload re-runs
+        // the availability check.
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withConversation });
+        dispatchExtensionMessage({ type: 'showUnavailableState', message: 'Iris is temporarily unavailable. Retry to reload.' });
+
+        expect(await screen.findByRole('button', { name: 'Retry' })).toBeEnabled();
+    });
+
+    it('reloads first and sends nothing yet', async () => {
+        // Resending into a dead connection would only fail again. The reload is
+        // the only thing that re-runs the availability check.
+        const api = createMockVsCodeApi();
+        failedUnderBanner(api);
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Retry sending this message' }));
+
+        const commands = getPostMessageCalls(api).map(c => (c[0] as { command?: string }).command);
+        expect(commands).toContain('reloadChatSession');
+        expect(commands).not.toContain('sendMessage');
+    });
+
+    it('sends the message once the reload has cleared the banner', async () => {
+        // The event order is the PRODUCTION one and it is load-bearing: a
+        // successful reload delivers the server transcript BEFORE it clears the
+        // banner, and that transcript replaces the message array, taking the
+        // unsent local bubble with it. Remembering only its localId would leave
+        // nothing to look up, and the resend would be silently dropped.
+        const api = createMockVsCodeApi();
+        failedUnderBanner(api);
+        await userEvent.click(await screen.findByRole('button', { name: 'Retry sending this message' }));
+
+        dispatchExtensionMessage({
+            type: 'loadMessages',
+            sessionId: 900,
+            messages: [{ id: 7, role: 'assistant', content: 'from the server', timestamp: 2 }],
+        });
+        dispatchExtensionMessage({ type: 'hideUnavailableState' });
+
+        await waitFor(() => {
+            const sends = getPostMessageCalls(api)
+                .map(c => c[0] as { command?: string; payload?: { text?: string } })
+                .filter(c => c.command === 'sendMessage');
+            expect(sends).toHaveLength(1);
+            expect(sends[0].payload?.text).toBe('hallo123');
+        });
+    });
+
+    it('abandons the resend when the reload landed in another conversation', async () => {
+        // The banner also clears on a navigation. Sending the remembered text
+        // into whatever is open now would put the student's words in a
+        // conversation they were never writing in.
+        const api = createMockVsCodeApi();
+        failedUnderBanner(api);
+        await userEvent.click(await screen.findByRole('button', { name: 'Retry sending this message' }));
+
+        // PRODUCTION ORDER: the host hides the banner and only then publishes
+        // the new snapshot, so at the moment the effect runs the webview still
+        // reports the old conversation. A send may therefore go out, and it is
+        // addressed to THAT conversation, because the send reads the session
+        // from the same snapshot the cancellation check compared. The host
+        // refuses it by origin. What must never happen is a send carrying the
+        // conversation the student never wrote in.
+        dispatchExtensionMessage({ type: 'hideUnavailableState' });
+        dispatchExtensionMessage({ type: 'updateIrisState', state: { ...withConversation, currentSessionId: 901 } });
+
+        // Flushed, not `waitFor`ed: waiting for an ABSENCE passes on the first
+        // tick, before the effect under test could have done anything at all.
+        await act(async () => { await Promise.resolve(); });
+
+        const sends = getPostMessageCalls(api)
+            .map(c => c[0] as { command?: string; payload?: { sessionId?: number } })
+            .filter(c => c.command === 'sendMessage');
+        for (const send of sends) {
+            expect(send.payload?.sessionId).toBe(900);
+        }
+    });
+
+    it('cancels outright when the move is already visible', async () => {
+        // The other order, which a slower navigation produces. Here there is
+        // nothing to address the send to any more, so none is posted at all.
+        const api = createMockVsCodeApi();
+        failedUnderBanner(api);
+        await userEvent.click(await screen.findByRole('button', { name: 'Retry sending this message' }));
+
+        dispatchExtensionMessage({ type: 'updateIrisState', state: { ...withConversation, currentSessionId: 901 } });
+        dispatchExtensionMessage({ type: 'hideUnavailableState' });
+        await act(async () => { await Promise.resolve(); });
+
+        const sends = getPostMessageCalls(api)
+            .map(c => c[0] as { command?: string })
+            .filter(c => c.command === 'sendMessage');
+        expect(sends).toHaveLength(0);
+    });
+});
+
+describe('IrisChatView when Iris is temporarily unavailable', () => {
+    const withTranscript = {
+        exercises: [],
+        courses: [{ id: 42, title: 'Introduction to Computer Science' }],
+        courseId: 42,
+        courseTitle: 'Introduction to Computer Science',
+        currentSessionId: 900,
+        conversationTitle: 'BFS loop',
+        displayMessageCount: 2,
+        contentState: 'content' as const,
+    };
+
+    it('keeps the transcript on screen behind the banner', async () => {
+        // `unavailable` is the TRANSIENT state, offered with a Retry. Blanking
+        // the list throws away what the student was reading because the server
+        // hiccupped, and the messages are still in the store: the header goes on
+        // counting them. Every other failure path in this model leaves the open
+        // conversation exactly as it was.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withTranscript });
+        dispatchExtensionMessage({
+            type: 'addMessage',
+            sessionId: 900,
+            message: { id: 1, role: 'user', content: 'still readable', timestamp: 1 },
+        });
+
+        dispatchExtensionMessage({ type: 'showUnavailableState', message: 'Iris is temporarily unavailable. Retry to reload.' });
+
+        expect(await screen.findByText(/temporarily unavailable/)).toBeInTheDocument();
+        expect(screen.getByText('still readable')).toBeInTheDocument();
+    });
+
+    it('still blanks it when Iris is switched OFF, where there is nothing to show', async () => {
+        // The counterpart, and why the two cannot share a branch: a disabled
+        // course has no conversation at all.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withTranscript });
+        dispatchExtensionMessage({
+            type: 'addMessage',
+            sessionId: 900,
+            message: { id: 1, role: 'user', content: 'still readable', timestamp: 1 },
+        });
+
+        dispatchExtensionMessage({ type: 'showDisabledState', message: 'Iris chat is not enabled for this course.' });
+
+        expect(await screen.findByText(/not enabled for this course/)).toBeInTheDocument();
+        expect(screen.queryByText('still readable')).toBeNull();
     });
 });
 

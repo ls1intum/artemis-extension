@@ -457,6 +457,54 @@ suite('IrisConversationService', () => {
         assert.deepStrictEqual(service.state.snapshot().pendingContext?.ctx, EX7);
     });
 
+    test('a failed reload keeps the history it already had', async () => {
+        // The caches used to be dropped BEFORE the re-read, which is right for
+        // the escape-hatch command (a wedged client must be able to start over)
+        // and wrong for everything else: a transient outage then costs the
+        // student the whole conversation list, and the reload that would refill
+        // it is exactly the thing that just failed.
+        const service = await startedWithContent();
+        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
+
+        const reloading = service.reload();
+        service.api.rejectCall('detail:42:1', new ApiError('down', 503));
+        await reloading.catch(() => undefined);
+
+        assert.strictEqual(service.state.snapshot().courseSessions.length, 1, 'the history survives');
+    });
+
+    test('a reload superseded by a navigation clears nothing', async () => {
+        // The reset used to run as soon as the GET answered, before either guard
+        // was checked, so a stale reload wiped the caches of the navigation that
+        // had won. That is precisely what the navigation token exists to stop.
+        const service = await startedWithContent();
+        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
+
+        const reloading = service.reload();
+        const nav = service.navigateTo({ courseId: 42, sessionId: 3 });
+        service.api.resolveCall('detail:42:3', detail(3, EX5, [{ id: 1, sender: 'USER' }]));
+        service.api.resolveCall('detail:42:1', detail(1, EX5, [{ id: 1, sender: 'USER' }]));
+        await Promise.all([reloading, nav]);
+
+        assert.strictEqual(service.state.snapshot().courseSessions.length, 1, 'the winner keeps its history');
+    });
+
+    test('a successful reload still drops every local cache', async () => {
+        // The escape hatch's whole purpose. Dropping AFTER the read keeps it.
+        const service = await startedWithContent();
+        service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
+
+        const reloading = service.reload();
+        service.api.resolveCall('detail:42:1', detail(1, EX5, [{ id: 1, sender: 'USER' }]));
+        await reloading;
+
+        assert.strictEqual(
+            service.state.snapshot().courseSessions.filter((s) => s.sessionId === 9).length,
+            0,
+            'the stale row is gone',
+        );
+    });
+
     test('a deferred reload runs once the send settles, and coalesces', async () => {
         const service = await started();
         service.state.beginSend();
