@@ -8,6 +8,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Iris streaming:** Iris answers now stream in as they are generated instead of appearing all at once, and the chat shows which tools Iris used during a run, replacing the progress display that stopped working with Artemis 9.6.
 - **Iris chat redesign:** The chat sidebar now separates the context (which exercise or course you are asking about) from the conversation thread, adding a context picker, course-wide conversation history, and a roomier message layout.
+- **Iris chat follows Artemis' conversations:** One conversation at a time, exactly the one the server has. Changing the topic now stays in that conversation and is written into the transcript as a divider instead of opening a second one; the `+` in the header starts a fresh conversation. Messages you write in the Artemis web client show up here as they arrive, and a course whose instructor has switched Iris off can be opened and says so.
 - **WebSocket status bar:** Removed the `artemis.showWebSocketStatusBar` setting. The connection indicator now appears automatically only when there is a problem; enable `artemis.developerMode` to keep it always visible with full diagnostics on hover. When the connection drops, students now see a plain-language explanation (no "WS" jargon) instead of a technical label.
 - **Server URL change:** Removed the manual "Clear Credentials" prompts that appeared when the Artemis server URL changed. Changing the server while logged in now logs you out automatically and returns you to the login view (a session is not valid across servers); the logout command remains for clearing credentials on demand.
 
@@ -15,6 +16,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Exercise description header:** Tightened the spacing under the "Exercise Description" heading and added a divider line, so the description starts directly below the title instead of after a large gap.
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
+- **Brief connection problems:** A short outage no longer hides the conversation you were reading or empties your conversation history, and a message that could not be sent keeps its text behind a single Retry that reconnects and then sends it.
 
 ### Internal
 
