@@ -546,10 +546,46 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // `messagesHydrated` is: before it, "nothing is open" and "we have not
     // been told yet" are indistinguishable, and guessing the former flashes
     // the course chooser at every student who does have a conversation.
+    //
+    // `detectionState === 'settled'` is load-bearing, not defensive: workspace
+    // detection is asynchronous, and the very first snapshot can say "nothing
+    // is open" while detection is still running. Offering the course chooser
+    // at that moment tells the student to pick one by hand while the
+    // extension is still working out which exercise their folder is.
     const isColdStart = store.hasReceivedInitialIrisState
+        && store.detectionState === 'settled'
         && store.courseId === null
         && store.currentSessionId === null
         && store.workspaceExerciseId === null;
+
+    // Detection could not reach the server. That is not "no exercise here",
+    // and the student must not be asked to pick a course as if it were.
+    //
+    // `courseId === null` is load-bearing, not defensive: entering a course
+    // whose Iris is disabled deliberately sets `courseId` and leaves
+    // `currentSessionId` null (#375). Without this clause, a failed
+    // background detection would cover that course's own banner with a
+    // startup-outage screen.
+    const detectionUnavailable = store.hasReceivedInitialIrisState
+        && store.detectionState === 'unavailable'
+        && store.courseId === null
+        && store.currentSessionId === null;
+
+    // Nothing open and no answer yet. Distinct from both of the above, and it
+    // has to suppress the ordinary shell: the header falls back to "Choose a
+    // course" (`ChatHeader`) and the composer to "Choose a course to start
+    // chatting" (below), so merely dropping a spinner into the message area
+    // would still tell the student to pick a course while detection is
+    // mid-flight.
+    const startupPending = store.hasReceivedInitialIrisState
+        && store.detectionState === 'unsettled'
+        && store.courseId === null
+        && store.currentSessionId === null;
+
+    // The header, the topic row and the composer's own "choose a course"
+    // wording all assume the ordinary "nothing open" shell. Both the waiting
+    // and the outage states get their own message-area branch instead.
+    const suppressOrdinaryShell = startupPending || detectionUnavailable;
 
     // The cold start renders the course list as the whole screen, so it must
     // fetch on its own: there is no picker for the student to open first.
@@ -562,6 +598,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // `requestCoursesIfEmpty` is deliberately absent from the deps: it is a
         // new function on every render and reads the store, not the closure.
     }, [isColdStart]);
+
+    const handleRetryStartupDetection = () => {
+        postCommand(vscodeApi, 'retryStartupDetection');
+    };
 
     const selectTopic = (mode: string, entityId: number, name?: string) => {
         postCommand(vscodeApi, 'selectTopic', { mode, entityId, name });
@@ -602,6 +642,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // "Choose a course" would send the student back to the picker they just
         // used, past a banner that already gives the real reason.
         disabledPlaceholder = 'Iris chat is not available here';
+    } else if (startupPending) {
+        // Not "Choose a course": detection has not answered yet, so there may
+        // be nothing to choose from at all.
+        disabledPlaceholder = 'Looking for your Artemis exercise…';
+    } else if (detectionUnavailable) {
+        disabledPlaceholder = 'Could not reach the Artemis server. Retry above.';
     } else if (!hasConversation) {
         disabledPlaceholder = 'Choose a course to start chatting';
     } else if (store.isNoAiDetected) {
@@ -692,8 +738,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
             {/* Header: course line + conversation line. The popovers are
                 anchored to this section (position: relative) so they render
-                directly beneath the header. */}
-            {!isColdStart && (
+                directly beneath the header. Suppressed on the cold start (no
+                course to name) AND while detection is pending/unavailable
+                (the header falls back to "Choose a course", which is not
+                true yet, or not true at all, in either of those states). */}
+            {!isColdStart && !suppressOrdinaryShell && (
             <div className={styles.contextSection}>
                 <ChatHeader
                     courseTitle={store.courseTitle}
@@ -835,9 +884,43 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             onClose={closePopovers}
                         />
                     </div>
+                ) : startupPending ? (
+                    // Nothing open, and detection has not answered yet.
+                    // Reuses the hydration loader's shape (below), with its
+                    // own copy: "Loading conversation…" would claim one is
+                    // open, and there may turn out to be none at all.
+                    <div className={styles.loadingState} role="status" aria-busy="true" aria-live="polite">
+                        {irisLogoUri && (
+                            <img
+                                src={irisLogoUri}
+                                alt=""
+                                width="48"
+                                height="48"
+                                className={styles.loadingLogo}
+                            />
+                        )}
+                        <span>Looking for your Artemis exercise…</span>
+                        <span className={styles.loadingSpinner} aria-hidden="true" />
+                    </div>
+                ) : detectionUnavailable ? (
+                    // Detection could not reach the server. Reuses the cold
+                    // start's layout (a short explanation plus one action),
+                    // but the action re-runs detection rather than opening
+                    // the course chooser: there may be no course to choose.
+                    <div className={styles.coldStart}>
+                        <p className={styles.coldStartText}>
+                            Could not reach the Artemis server to detect your workspace.
+                        </p>
+                        <button
+                            className={styles.retryButton}
+                            onClick={handleRetryStartupDetection}
+                        >
+                            Retry
+                        </button>
+                    </div>
                 ) : store.disabledMessage ? null
                 : messagesLoading ? (
-                    <div className={styles.loadingState} aria-busy="true" aria-live="polite">
+                    <div className={styles.loadingState} role="status" aria-busy="true" aria-live="polite">
                         {irisLogoUri && (
                             <img
                                 src={irisLogoUri}
@@ -885,8 +968,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
                 {/* The topic lives here, on the composer, not in the header:
                     it is what the next message is about, so it belongs beside
-                    the thing that writes that message. */}
-                {!isColdStart && (
+                    the thing that writes that message. Suppressed for the same
+                    reason the header is: with no course open yet (or not
+                    genuinely, in the pending/unavailable states) there is
+                    nothing for it to name. */}
+                {!isColdStart && !suppressOrdinaryShell && (
                     <div className={styles.topicRow}>
                         <button
                             className={styles.topicButton}

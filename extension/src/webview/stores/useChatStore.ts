@@ -29,6 +29,7 @@ type WireIrisState = ExtMsg<'updateIrisState'>['state'];
 type ConversationTopic = NonNullable<WireIrisState['committedContext']>;
 type ContentState = NonNullable<WireIrisState['contentState']>;
 type ConversationSummary = NonNullable<WireIrisState['conversations']>[number];
+type DetectionUiState = WireIrisState['detectionState'];
 
 interface ChatState {
     /**
@@ -37,6 +38,16 @@ interface ChatState {
      * frame stays on the loader instead of flashing the welcome state.
      */
     hasReceivedInitialIrisState: boolean;
+    /**
+     * Workspace detection's own progress, mirrored from the wire. Lets the
+     * cold-start view tell "detection has not answered yet" and "detection
+     * could not reach the server" apart from "there is genuinely nothing
+     * open" (`courseId`/`currentSessionId`/`workspaceExerciseId` all null).
+     * Defaults to `'settled'`: a test double that never sends the field
+     * (every fixture predating this one) must keep behaving like a snapshot
+     * that has already resolved, not like a permanently-pending detection.
+     */
+    detectionState: DetectionUiState;
     exercises: ContextItem[];
     courses: ContextItem[];
 
@@ -232,6 +243,7 @@ export const useChatStore = create<ChatState>()(
         (set) => ({
             // Initial state
             hasReceivedInitialIrisState: false,
+            detectionState: 'settled',
             exercises: [],
             courses: [],
             courseId: null,
@@ -271,6 +283,12 @@ export const useChatStore = create<ChatState>()(
                     exercises: state.exercises,
                     courses: state.courses,
                     hasReceivedInitialIrisState: true,
+                    // The wire type marks this required (the presenter always
+                    // fills it), but a fixture/test double predating this
+                    // field omits it, and the fallback keeps those behaving
+                    // like an already-settled snapshot rather than a
+                    // permanently-pending detection.
+                    detectionState: state.detectionState ?? 'settled',
                     courseId: state.courseId ?? null,
                     courseTitle: state.courseTitle ?? null,
                     currentSessionId: state.currentSessionId ?? null,

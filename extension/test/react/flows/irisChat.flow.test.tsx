@@ -66,6 +66,9 @@ describe('Iris Chat Flow', () => {
 			currentSessionId: null,
 			conversationTitle: null,
 			workspaceExerciseId: null,
+			// 'settled': these flows are about the ordinary steady state, not
+			// about workspace detection's own progress.
+			detectionState: 'settled',
 			exercises: [],
 			courses: [],
 			messages: [],

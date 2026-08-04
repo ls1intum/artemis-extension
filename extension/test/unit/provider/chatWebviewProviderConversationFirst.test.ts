@@ -549,6 +549,40 @@ suite('ChatWebviewProvider: reload Iris chat', () => {
 });
 
 /**
+ * Task 8: the startup-unavailable banner's own Retry. It must re-run
+ * workspace DETECTION through the coordinator, never the conversation reload
+ * (`reloadIrisChat`) that `ReloadChatSession` uses: on this path there may be
+ * no workspace exercise at all, so a reload would start whatever happens to
+ * be left over, or nothing.
+ */
+suite('ChatWebviewProvider: retryStartupDetection', () => {
+    let h: Harness;
+
+    setup(() => { h = buildHarness(); });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    test('retryStartupDetection re-runs detection and does not reload the conversation', async () => {
+        const retry = sinon.spy();
+        h.provider.attachStartupDetection({
+            onDetectionSettled: new vscode.EventEmitter<DetectionOutcome>().event,
+            retry,
+        });
+        // Assert on the reload ENTRY POINT, not on an API call it would make:
+        // with no open session `reloadIrisChat()` returns early and touches
+        // no stub, so a wrongly routed command would slip past an
+        // API-level assertion.
+        const reload = h.sandbox.spy(h.provider, 'reloadIrisChat');
+
+        dispatch(h.provider, 'retryStartupDetection');
+        await settle();
+
+        assert.strictEqual(retry.calledOnce, true);
+        assert.strictEqual(reload.called, false,
+            'startup retry must not take the conversation-reload path');
+    });
+});
+
+/**
  * The dispatcher cut-over. A recording double stands in for the conversation
  * service so each test can assert WHICH navigation the host performed, and so
  * the host's own gating can be told apart from the service's internal one

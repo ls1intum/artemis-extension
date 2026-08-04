@@ -102,8 +102,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      */
     private readonly _startupCoordinator: ChatStartupCoordinator;
     /**
-     * The coordinator's latest published detection state. Task 8 puts the
-     * value on the wire; this field is what that getter will read from.
+     * The coordinator's latest published detection state, read by the
+     * presenter's `_getDetectionState` getter and put on the wire in every
+     * `updateIrisState` snapshot.
      */
     private _detectionState: DetectionUiState = 'unsettled';
     /**
@@ -221,6 +222,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // capturing it by value here would capture `undefined` forever.
             // Same reasoning as the `_websocketMessageHandler` getter below.
             () => this._conversation,
+            // A getter, not a value: `_detectionState` is mutated in place by
+            // `publishDetectionState` below (`ChatStartupCoordinator`'s only
+            // way to report progress), so capturing it by value here would
+            // freeze the snapshot at whatever it was when the presenter was
+            // constructed (always `'unsettled'`).
+            () => this._detectionState,
         );
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -654,10 +661,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
-     * The coordinator's latest published detection state. Nothing calls
-     * `publishDetectionState` yet (Task 7 starts that), so this reads
-     * `'unsettled'` until then. Task 8 puts the value on the wire; this
-     * getter is what it will read from.
+     * The coordinator's latest published detection state, also what the
+     * presenter puts on the wire in every `updateIrisState` snapshot.
      */
     public get detectionState(): DetectionUiState {
         return this._detectionState;
@@ -976,6 +981,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     void this.reloadIrisChat().catch((err: unknown) => {
                         logger.error('Retry reload failed', LogCategory.IRIS_CHAT, err);
                     });
+                    break;
+                case WebviewCmd.RetryStartupDetection:
+                    // The startup-unavailable banner's Retry. Routes to the
+                    // coordinator's own `retry()`, which re-runs DETECTION,
+                    // NOT `reloadIrisChat()`: on this path there may be no
+                    // workspace exercise at all yet, so a conversation reload
+                    // would start whatever happens to be left over, or nothing.
+                    this._startupCoordinator.retry();
                     break;
                 case WebviewCmd.MessageFeedback: {
                     const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(message);

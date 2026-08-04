@@ -24,6 +24,10 @@ export function createIrisInitPayload(
             navigationInFlight: false,
             conversations: [],
             workspaceExerciseId: undefined,
+            // This fixture's default shape already has a course and an open
+            // session, i.e. not a cold start: 'settled' is simply the value
+            // that state would carry once detection has long since resolved.
+            detectionState: 'settled',
             ...overrides,
         },
     };

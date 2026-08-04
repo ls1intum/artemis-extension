@@ -56,11 +56,22 @@ function fakeConversation(over: {
     } as unknown as IrisConversationService;
 }
 
+type DetectionUiState = ExtMsg<'updateIrisState'>['state']['detectionState'];
+
 interface Harness {
     contextStore: ContextStore;
     postSpy: sinon.SinonSpy;
     sandbox: sinon.SinonSandbox;
-    build: (getConversation: () => IrisConversationService | undefined) => ChatViewStatePresenter;
+    /**
+     * `getDetectionState` defaults to `'settled'`: none of the pre-existing
+     * tests in this file care about it, and `'settled'` is the value that
+     * keeps their conversation-shaped assertions unaffected by an unrelated
+     * field.
+     */
+    build: (
+        getConversation: () => IrisConversationService | undefined,
+        getDetectionState?: () => DetectionUiState,
+    ) => ChatViewStatePresenter;
     latestState: () => ExtMsg<'updateIrisState'>['state'];
 }
 
@@ -74,7 +85,8 @@ function buildHarness(): Harness {
         contextStore,
         postSpy,
         sandbox,
-        build: (getConversation) => new ChatViewStatePresenter(contextStore, postSpy as never, getConversation),
+        build: (getConversation, getDetectionState = () => 'settled') =>
+            new ChatViewStatePresenter(contextStore, postSpy as never, getConversation, getDetectionState),
         latestState: () => posted[posted.length - 1].state,
     };
 }
@@ -301,5 +313,17 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         const state = h.latestState();
 
         assert.strictEqual(state.workspaceExerciseId, 12);
+    });
+
+    // Task 8: the coordinator's live detection state has to reach the wire.
+    // The React tests inject snapshots directly and bypass this bridge
+    // entirely, so only a host-side test can catch a presenter that hard-codes
+    // the value instead of reading it from the getter.
+    test('the snapshot carries the current detection state', () => {
+        const presenter = h.build(() => undefined, () => 'unavailable');
+
+        presenter.postSnapshot();
+
+        assert.strictEqual(h.latestState().detectionState, 'unavailable');
     });
 });

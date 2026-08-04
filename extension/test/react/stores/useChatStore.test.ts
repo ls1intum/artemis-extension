@@ -30,6 +30,11 @@ const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = 
 	navigationInFlight: false,
 	conversations: [],
 	workspaceExerciseId: undefined,
+	// This suite pins the store's OWN mirroring behaviour, not the
+	// derived cold-start gating IrisChatView computes from it, so no test
+	// here cares which value this carries: 'settled' keeps it out of the
+	// way.
+	detectionState: 'settled',
 	...overrides,
 });
 
@@ -788,6 +793,19 @@ describe('useChatStore', () => {
 
 				useChatStore.getState().setIrisState(makeIrisState());
 				expect(useChatStore.getState().workspaceExerciseId).toBeNull();
+			});
+
+			it('setIrisState mirrors detectionState, defaulting to settled when the wire omits it', () => {
+				// Unlike the fields above, 'settled' is not the wire's own
+				// absent value (the real presenter always sends a real one):
+				// it is what keeps a test double that predates this field
+				// behaving like an already-resolved snapshot, not a
+				// permanently pending detection.
+				useChatStore.getState().setIrisState(makeIrisState({ detectionState: 'unavailable' }));
+				expect(useChatStore.getState().detectionState).toBe('unavailable');
+
+				useChatStore.getState().setIrisState({ ...makeIrisState(), detectionState: undefined as never });
+				expect(useChatStore.getState().detectionState).toBe('settled');
 			});
 		});
 
