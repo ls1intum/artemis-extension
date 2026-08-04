@@ -75,6 +75,9 @@ function makeWebviewStub(): vscode.WebviewView {
         options: {} as vscode.WebviewOptions,
         html: '',
         onDidReceiveMessage: () => ({ dispose: () => undefined }),
+        // Needed once anything reaches the `ready` handshake: `_markReady`
+        // flushes the pending queue straight through `webview.postMessage`.
+        postMessage: () => Promise.resolve(true),
         asWebviewUri: (u: vscode.Uri) => u,
         cspSource: 'https://example',
     } as unknown as vscode.Webview;
@@ -98,9 +101,20 @@ async function resolveView(h: Harness): Promise<void> {
     await Promise.resolve();
 }
 
+/** Simulates the webview's own `ready` handshake message, white-box: the test
+ *  webview stub never wires a real `onDidReceiveMessage` listener, so nothing
+ *  drives `_onReady` (and therefore `_sendInitData`) on its own. This is the
+ *  one signal that flushes the queued messages and runs init data — the path
+ *  a rehydrated transcript actually travels on a re-resolve. */
+function sendReady(provider: ChatWebviewProvider): void {
+    (provider as unknown as { _handleMessage: (m: unknown) => void })._handleMessage({ type: 'ready' });
+}
+
 /** Spies on the coordinator's admission entry point, white-box: nothing on the
- *  public surface observes admission directly, since Task 5 does not cut the
- *  cold start over yet. */
+ *  public surface observes admission directly. `admitExplicitIntent` only
+ *  cancels the startup latch (and clears a dead-Retry banner when one was
+ *  showing), so a navigation that never reaches an unavailable outage screen
+ *  leaves no externally visible trace of having admitted at all. */
 function spyOnAdmission(h: Harness): sinon.SinonSpy {
     const coordinator = (h.provider as unknown as {
         _startupCoordinator: { admitExplicitIntent: (r: string) => void };
@@ -493,6 +507,84 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
 
         assert.strictEqual(h.api.getCurrentChat.callCount, 2,
             'a re-resolved view must get another shot at the exercise it already knows about');
+        detection.dispose();
+    });
+
+    test('re-resolving the view with an installed conversation republishes its transcript once ready', async () => {
+        // FINDING 1: `_acquireConversation` is a ONE-SHOT behind the startup
+        // latch (see `after a failed acquisition...` above for the failed-
+        // attempt half of that). `_deliverTranscript` is the ONLY producer of
+        // `loadMessages` (chatWebviewProvider.ts, its own doc comment), and
+        // the only place that currently calls it is `IrisConversationService`'s
+        // own `_install`/`onSubscriptionActive`, both reached only through an
+        // ACQUISITION or a reconnect. A re-resolve of an already-installed
+        // conversation triggers neither, so nothing on THAT path re-delivers
+        // the transcript. `_refreshAvailability` (unconditional on every
+        // resolve, see the sibling suite above) is not a substitute: it only
+        // ever posts a banner, never `loadMessages`.
+        //
+        // The republish lives in `_sendInitData`, reached only through the
+        // webview's own `ready` handshake (`_onReady`), never from
+        // `resolveWebviewView` directly: `_postMessageSafe` queues everything
+        // until `ready` arrives and flushes the WHOLE queue before
+        // `_onReady` runs, so anything posted synchronously inside
+        // `resolveWebviewView` would reach the real webview BEFORE the
+        // `updateIrisState` that names the session, and the webview's own
+        // guard (keyed on the session `updateIrisState` sets) would silently
+        // drop it. Hence `sendReady` below, not a second `resolveView` alone.
+        //
+        // Concretely: the student is in an exercise workspace, the chat
+        // auto-acquires a conversation, they switch the sidebar to Explorer
+        // and back. VS Code disposes and re-resolves the view (no
+        // `retainContextWhenHidden`, extension.ts), the fresh webview boots
+        // and signals `ready`. Without the republish it gets
+        // `currentSessionId` in its `updateIrisState` but no `loadMessages`
+        // ever, so its `loadedSessionId` never matches and the loading
+        // spinner never clears.
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.resolves(detail({
+            sessionId: 1,
+            courseId: 9,
+            messages: [{ id: 100, role: 'user', content: 'hi', sentAt: '2026-01-01T00:00:00Z' }] as never,
+        }));
+        // The acquisition fires an unawaited `refreshOverview()` of its own
+        // (conversationService.ts); without this the stub's default answer
+        // (undefined) reaches `setOverview` and `postSnapshot` throws on the
+        // republish, unrelated to what this test is actually pinning down.
+        h.api.listChatSessionsForCourse.resolves([]);
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.callCount, 1, 'the conversation is installed once');
+        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+
+        // The panel is collapsed and reopened: a fresh `WebviewView`, a fresh
+        // resolve, and the fresh webview's own `ready` signal. No new
+        // detection event and no new acquisition attempt (the latch is
+        // already consumed) — this is the "already installed" case, distinct
+        // from the failed-acquisition test above.
+        await resolveView(h);
+        sendReady(h.provider);
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.callCount, 1,
+            'the one-shot latch must stay one-shot: this is a REPUBLISH, not a second acquisition');
+        const posted = postSpy.getCalls().map(c => c.args[0] as { type?: string; sessionId?: number });
+        const loads = posted.filter(m => m?.type === 'loadMessages');
+        assert.strictEqual(loads.length, 1,
+            'a re-resolved view with an already-installed conversation must get its transcript republished, or the fresh webview spins forever');
+        assert.strictEqual(loads[0]?.sessionId, 1);
+        // The ordering invariant `_install` itself relies on (see its own
+        // "AFTER the emit, never before it" comment): the snapshot that names
+        // the session must reach the webview before the transcript for it, or
+        // the webview's session guard drops the transcript on the floor.
+        const snapshotIndex = posted.findIndex(m => m?.type === 'updateIrisState');
+        const loadIndex = posted.findIndex(m => m?.type === 'loadMessages');
+        assert.ok(snapshotIndex >= 0 && snapshotIndex < loadIndex,
+            'updateIrisState must be posted before loadMessages, or the webview\'s session guard drops the republish');
         detection.dispose();
     });
 });
@@ -1212,12 +1304,12 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
 });
 
 /**
- * Task 5: admission. The coordinator is constructed and wired into the
- * synchronous navigation gate, but `resolveWebviewView` still starts the
- * conversation the old way (see the shim in the constructor), so none of
- * this is observable yet. What these tests pin down is WHEN admission
- * happens relative to a navigation: at the gate, not on success, and never
- * for a command the gate refused outright.
+ * Admission. The startup coordinator sits behind the synchronous navigation
+ * gate: every explicit navigation admits its intent (cancelling the startup
+ * latch) before it does anything else, so an automatic cold start can never
+ * fire underneath a student who has already moved. What these tests pin down
+ * is WHEN admission happens relative to a navigation: at the gate, not on
+ * success, and never for a command the gate refused outright.
  */
 suite('ChatWebviewProvider: startup admission', () => {
     let h: Harness;

@@ -631,15 +631,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
      * which can fail identically forever (e.g. an archived-courses lookup
      * that keeps throwing on every attempt), so it cannot be the only way
      * off that screen when the student's courses are already sitting in the
-     * store from an earlier dashboard fetch. Reuses the exact mechanism the
-     * ordinary cold start already uses to reach the picker: the same
-     * `requestCoursesIfEmpty` fetch-if-needed call and the same inline
-     * `CoursePicker` render, gated by `showCourseChooser` above, rather than
-     * a second picker or a second fetch path.
+     * store from an earlier dashboard fetch. Only flips the flag:
+     * `showCourseChooser` becoming true is what the `coldStartFetched` effect
+     * above already watches, so THAT is the one fetch-if-needed call, the
+     * same one the ordinary cold start reaches it through. Calling
+     * `requestCoursesIfEmpty` here too would fire it twice for one click.
      */
     const handleChooseCourseFromOutage = () => {
         setOutageChooserRequested(true);
-        requestCoursesIfEmpty();
     };
 
     const selectTopic = (mode: string, entityId: number, name?: string) => {

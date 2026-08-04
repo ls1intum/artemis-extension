@@ -626,6 +626,20 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
+        // A conversation already installed (the webview was disposed and
+        // recreated while one was open — no `retainContextWhenHidden`, so
+        // collapsing and reopening the sidebar does exactly this) gets no
+        // other chance at its transcript: `_acquireConversation` is one-shot
+        // behind the startup latch, and the install that originally called
+        // `_deliverTranscript` addressed a webview instance that is gone.
+        // Kept immediately after the snapshot above, with no `await` between
+        // them: the webview's own guard keys an incoming transcript on the
+        // session the snapshot just named, so it has to follow it, never
+        // overtake it. `'load'` (not `'merge'`) on purpose — it is also the
+        // only mode that sets `loadedSessionId`, which is what clears the
+        // loader in the first place; `'merge'` never touches it.
+        const detail = this._conversation?.state.snapshot().detail;
+        if (detail) { this._deliverTranscript(detail, 'load'); }
         await this._populateAvailableContexts();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);

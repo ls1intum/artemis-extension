@@ -1148,6 +1148,13 @@ describe('IrisChatView waits for workspace detection before offering the course 
         // words "choose a course", so a text-based query is not precise
         // enough here.
         expect(screen.queryByRole('dialog', { name: 'Select course' })).toBeNull();
+        // The ordinary header must stay suppressed too: it falls back to a
+        // "Choose a course" button whenever no course is open, which is not
+        // true yet while detection is still unavailable. Exact string, not a
+        // pattern: "Choose a course instead" (the outage screen's own escape
+        // hatch) must NOT satisfy this query, so a text-based match would
+        // hide a regression here behind that other button's presence.
+        expect(screen.queryByRole('button', { name: 'Choose a course' })).toBeNull();
         // Same composer surface, same trap: without its own branch, the
         // `!hasConversation` fallback would say "Choose a course to start
         // chatting" here too, which is simply false while the server cannot
