@@ -1117,6 +1117,13 @@ describe('IrisChatView waits for workspace detection before offering the course 
         // frame.
         expect(await screen.findByText(/looking for your artemis exercise/i)).toBeInTheDocument();
         expect(screen.queryByText(/choose a course/i)).toBeNull();
+        // The composer is a second surface with its own "choose a course"
+        // fallback (IrisChatView.tsx, the `!hasConversation` placeholder
+        // branch): a spinner in the message area is not enough if the input
+        // right below it still tells the student to pick a course.
+        const input = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
+        expect(input.placeholder).toMatch(/looking for your artemis exercise/i);
+        expect(input.placeholder).not.toMatch(/choose a course/i);
 
         dispatchExtensionMessage({
             type: 'updateIrisState',
@@ -1134,13 +1141,46 @@ describe('IrisChatView waits for workspace detection before offering the course 
             state: { ...nothingOpen, detectionState: 'unavailable' },
         });
 
-        const retryButton = await screen.findByRole('button', { name: /retry/i });
-        expect(screen.queryByText(/choose a course/i)).toBeNull();
+        const retryButton = await screen.findByRole('button', { name: /^retry$/i });
+        // The chooser ITSELF (the picker dialog) must not be showing — the
+        // outage screen also carries a "Choose a course instead" escape
+        // hatch (see the dedicated test below), whose own label contains the
+        // words "choose a course", so a text-based query is not precise
+        // enough here.
+        expect(screen.queryByRole('dialog', { name: 'Select course' })).toBeNull();
+        // Same composer surface, same trap: without its own branch, the
+        // `!hasConversation` fallback would say "Choose a course to start
+        // chatting" here too, which is simply false while the server cannot
+        // even be reached.
+        const input = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
+        expect(input.placeholder).toMatch(/could not reach the artemis server/i);
+        expect(input.placeholder).not.toMatch(/choose a course/i);
         await userEvent.click(retryButton);
 
         expect(
             getPostMessageCalls(api).some(([m]) => (m as { command?: string }).command === 'retryStartupDetection'),
         ).toBe(true);
+    });
+
+    it('the outage screen offers a second way to the course chooser, so Retry is not the only way out', async () => {
+        // Detection can fail identically on every retry (e.g. an
+        // archived-courses lookup that keeps throwing), which would strand a
+        // student behind the outage screen forever even though their courses
+        // are already sitting in the store from an earlier dashboard fetch.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...nothingOpen, detectionState: 'unavailable' },
+        });
+
+        const chooseInstead = await screen.findByRole('button', { name: /choose a course instead/i });
+        // Retry is still there, unchanged: this is a second way out, not a
+        // replacement for it.
+        expect(screen.getByRole('button', { name: /^retry$/i })).toBeInTheDocument();
+
+        await userEvent.click(chooseInstead);
+
+        expect(await screen.findByText(/choose a course/i)).toBeInTheDocument();
     });
 
     it('a disabled course keeps its banner when detection fails behind it', async () => {

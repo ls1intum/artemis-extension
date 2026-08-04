@@ -42,6 +42,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const [pickerOpen, setPickerOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [coursePickerOpen, setCoursePickerOpen] = useState(false);
+    /**
+     * The student asked to see the course list anyway, from the startup-
+     * outage screen. Detection may never come back (it can fail identically
+     * on every retry, e.g. an archived-courses lookup that keeps throwing),
+     * so Retry cannot be the ONLY way off that screen: without this, a
+     * student whose courses are already sitting in the store from an earlier
+     * dashboard fetch would be stuck behind an outage banner forever. Reset
+     * is not needed: once a course is picked, `courseId` stops being null and
+     * `detectionUnavailable` (which this flag only matters under) goes false
+     * on its own.
+     */
+    const [outageChooserRequested, setOutageChooserRequested] = useState(false);
     // True while the host is reading the dashboard course list. A fresh
     // installation tracks nothing, so an empty list is only meaningful once
     // that fetch has finished; without this the picker says "No courses
@@ -585,22 +597,49 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // The header, the topic row and the composer's own "choose a course"
     // wording all assume the ordinary "nothing open" shell. Both the waiting
     // and the outage states get their own message-area branch instead.
+    // `outageChooserRequested` deliberately does NOT enter this: the header
+    // stays suppressed even once the student has bypassed the outage screen,
+    // for the same reason it is suppressed on the ordinary cold start (there
+    // is no course to put in it yet).
     const suppressOrdinaryShell = startupPending || detectionUnavailable;
+
+    // The cold-start chooser itself, and the ONE other path allowed to reach
+    // it: a student who bypassed a startup outage that will not clear on its
+    // own. Both render the identical inline picker below; this is not a
+    // second chooser, it is the same one reached from a second precondition.
+    const showCourseChooser = isColdStart || (detectionUnavailable && outageChooserRequested);
 
     // The cold start renders the course list as the whole screen, so it must
     // fetch on its own: there is no picker for the student to open first.
     const coldStartFetched = useRef(false);
     useEffect(() => {
-        if (!isColdStart || coldStartFetched.current) { return; }
+        if (!showCourseChooser || coldStartFetched.current) { return; }
         coldStartFetched.current = true;
         requestCoursesIfEmpty();
-        // Only the cold start can trigger it, and the ref makes it once-only.
-        // `requestCoursesIfEmpty` is deliberately absent from the deps: it is a
-        // new function on every render and reads the store, not the closure.
-    }, [isColdStart]);
+        // Reached from either precondition can trigger it, and the ref makes
+        // it once-only. `requestCoursesIfEmpty` is deliberately absent from
+        // the deps: it is a new function on every render and reads the
+        // store, not the closure.
+    }, [showCourseChooser]);
 
     const handleRetryStartupDetection = () => {
         postCommand(vscodeApi, 'retryStartupDetection');
+    };
+
+    /**
+     * The startup-outage screen's second action. Retry re-runs detection,
+     * which can fail identically forever (e.g. an archived-courses lookup
+     * that keeps throwing on every attempt), so it cannot be the only way
+     * off that screen when the student's courses are already sitting in the
+     * store from an earlier dashboard fetch. Reuses the exact mechanism the
+     * ordinary cold start already uses to reach the picker: the same
+     * `requestCoursesIfEmpty` fetch-if-needed call and the same inline
+     * `CoursePicker` render, gated by `showCourseChooser` above, rather than
+     * a second picker or a second fetch path.
+     */
+    const handleChooseCourseFromOutage = () => {
+        setOutageChooserRequested(true);
+        requestCoursesIfEmpty();
     };
 
     const selectTopic = (mode: string, entityId: number, name?: string) => {
@@ -642,6 +681,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // "Choose a course" would send the student back to the picker they just
         // used, past a banner that already gives the real reason.
         disabledPlaceholder = 'Iris chat is not available here';
+    } else if (showCourseChooser) {
+        // Ahead of `detectionUnavailable` on purpose: once the student has
+        // bypassed the outage screen (`outageChooserRequested`), the message
+        // area is showing the course picker, not the outage explanation, and
+        // the composer must agree with what is actually on screen.
+        disabledPlaceholder = 'Choose a course to start chatting';
     } else if (startupPending) {
         // Not "Choose a course": detection has not answered yet, so there may
         // be nothing to choose from at all.
@@ -869,7 +914,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 counting them. Only a course with Iris switched off genuinely
                 has no conversation behind the banner. */}
             <div className={styles.messagesSection}>
-                {isColdStart ? (
+                {showCourseChooser ? (
                     <div className={styles.coldStart}>
                         <p className={styles.coldStartText}>
                             No Artemis workspace detected. Choose a course to get started.
@@ -904,9 +949,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     </div>
                 ) : detectionUnavailable ? (
                     // Detection could not reach the server. Reuses the cold
-                    // start's layout (a short explanation plus one action),
-                    // but the action re-runs detection rather than opening
-                    // the course chooser: there may be no course to choose.
+                    // start's layout (a short explanation plus an action),
+                    // but the primary action re-runs detection rather than
+                    // opening the course chooser directly: there may be no
+                    // course to choose. A SECOND action escapes this screen
+                    // even when detection cannot: the same failure (e.g. an
+                    // archived-courses lookup that keeps throwing) can repeat
+                    // on every retry, and the student's courses may already
+                    // be sitting in the store from an earlier dashboard
+                    // fetch. Without it, Retry would be the only way out and
+                    // this screen would be a dead end.
                     <div className={styles.coldStart}>
                         <p className={styles.coldStartText}>
                             Could not reach the Artemis server to detect your workspace.
@@ -916,6 +968,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             onClick={handleRetryStartupDetection}
                         >
                             Retry
+                        </button>
+                        <button
+                            className={styles.disclaimerLink}
+                            onClick={handleChooseCourseFromOutage}
+                        >
+                            Choose a course instead
                         </button>
                     </div>
                 ) : store.disabledMessage ? null

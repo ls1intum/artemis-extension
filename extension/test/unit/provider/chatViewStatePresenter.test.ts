@@ -320,10 +320,22 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
     // entirely, so only a host-side test can catch a presenter that hard-codes
     // the value instead of reading it from the getter.
     test('the snapshot carries the current detection state', () => {
-        const presenter = h.build(() => undefined, () => 'unavailable');
+        // A single snapshot cannot tell "reads the getter every call" apart
+        // from "reads it once and caches it": both answer the same value on
+        // the first post. The getter's return value changes between the two
+        // `postSnapshot()` calls below specifically to rule out caching — a
+        // presenter that memoized the first read (e.g. `this._cached ??=
+        // this._getDetectionState()`) would still pass a single-snapshot
+        // version of this test but would freeze the wire at `'unavailable'`
+        // forever in production, and the course chooser would never appear.
+        let detectionState: 'unsettled' | 'settled' | 'unavailable' = 'unavailable';
+        const presenter = h.build(() => undefined, () => detectionState);
 
         presenter.postSnapshot();
-
         assert.strictEqual(h.latestState().detectionState, 'unavailable');
+
+        detectionState = 'settled';
+        presenter.postSnapshot();
+        assert.strictEqual(h.latestState().detectionState, 'settled');
     });
 });
