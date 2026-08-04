@@ -14,6 +14,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
+- **Opening an exercise for the first time:** The chat now waits for the workspace to be recognised instead of racing it, so an exercise you have never chatted about before opens its conversation instead of leaving you on the course list. A course or topic you pick yourself is no longer overridden a moment later, and a chat that cannot reach the server says so and offers a retry rather than pretending the folder has no exercise.
 - **Exercise description header:** Tightened the spacing under the "Exercise Description" heading and added a divider line, so the description starts directly below the title instead of after a large gap.
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
 - **Brief connection problems:** A short outage no longer hides the conversation you were reading or empties your conversation history, and a message that could not be sent keeps its text behind a single Retry that reconnects and then sends it.
