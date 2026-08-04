@@ -75,9 +75,6 @@ export class IrisCommandModule {
                 return;
             }
 
-            logger.info('Focusing Iris chat view...', LogCategory.IRIS_CHAT);
-            await vscode.commands.executeCommand('iris.chatView.focus');
-
             const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
             const title = exerciseTitle || `Exercise ${exerciseId}`;
 
@@ -88,6 +85,15 @@ export class IrisCommandModule {
                 logger.warn('WARNING: Chat provider is unavailable or does not support topic selection', LogCategory.IRIS_CHAT);
                 return;
             }
+            // Before the focus, not after: focusing resolves the webview, and a
+            // resolved view is what lets the startup coordinator acquire the
+            // workspace conversation. Announcing our destination afterwards
+            // would be too late.
+            chatProvider.admitExplicitIntent('askIrisAbout');
+
+            logger.info('Focusing Iris chat view...', LogCategory.IRIS_CHAT);
+            await vscode.commands.executeCommand('iris.chatView.focus');
+
             // The payload's courseId travels WITH the target: on a fresh window
             // no conversation is open, so the service has no course of its own
             // and would answer `no-course` if this were dropped here.
@@ -114,13 +120,19 @@ export class IrisCommandModule {
                 return;
             }
 
-            await vscode.commands.executeCommand('iris.chatView.focus');
-
             const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
             if (!chatProvider || typeof chatProvider.askIrisAbout !== 'function') {
                 logger.warn('Iris chat provider is unavailable or does not support topic selection.', LogCategory.IRIS_CHAT);
                 return;
             }
+            // Before the focus, not after: focusing resolves the webview, and a
+            // resolved view is what lets the startup coordinator acquire the
+            // workspace conversation. Announcing our destination afterwards
+            // would be too late.
+            chatProvider.admitExplicitIntent('askIrisAbout');
+
+            await vscode.commands.executeCommand('iris.chatView.focus');
+
             const title = courseTitle || `Course ${courseId}`;
             // A course chat IS the course, so the hint is the entity itself.
             const outcome = await chatProvider.askIrisAbout(
