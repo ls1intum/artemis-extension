@@ -67,6 +67,16 @@ function buildHarness(): Harness {
     return { provider, contextStore, api, exerciseEvents, sandbox };
 }
 
+/** Spies on the coordinator's admission entry point, white-box: nothing on the
+ *  public surface observes admission directly, since Task 5 does not cut the
+ *  cold start over yet. */
+function spyOnAdmission(h: Harness): sinon.SinonSpy {
+    const coordinator = (h.provider as unknown as {
+        _startupCoordinator: { admitExplicitIntent: (r: string) => void };
+    })._startupCoordinator;
+    return sinon.spy(coordinator, 'admitExplicitIntent');
+}
+
 function detail(over: Partial<SessionDetail> = {}): SessionDetail {
     return {
         sessionId: 1,
@@ -1026,5 +1036,91 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
         // acquisition then turned into a real server session while the webview
         // was telling the student there was nothing to talk about.
         assert.strictEqual(h.api.getCurrentChat.callCount, 0);
+    });
+});
+
+/**
+ * Task 5: admission. The coordinator is constructed and wired into the
+ * synchronous navigation gate, but `resolveWebviewView` still starts the
+ * conversation the old way (see the shim in the constructor), so none of
+ * this is observable yet. What these tests pin down is WHEN admission
+ * happens relative to a navigation: at the gate, not on success, and never
+ * for a command the gate refused outright.
+ */
+suite('ChatWebviewProvider: startup admission', () => {
+    let h: Harness;
+
+    // A `teardown` hook, not a call at the end of each test body: mocha runs
+    // it even when the test's own assertions throw, so a sandbox stub (e.g.
+    // on `vscode.commands.registerCommand`) never leaks into the next test.
+    setup(() => { h = buildHarness(); });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    const NAVIGATIONS: Array<{ reason: string; run: (p: ChatWebviewProvider) => Promise<void> }> = [
+        {
+            reason: 'selectTopic',
+            run: p => (p as never as { _handleSelectTopic: (t: unknown) => Promise<void> })
+                ._handleSelectTopic({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }),
+        },
+        {
+            reason: 'openConversation',
+            run: p => (p as never as {
+                _handleOpenConversation: (params: { courseId: number; sessionId: number }) => Promise<void>;
+            })._handleOpenConversation({ courseId: 42, sessionId: 7 }),
+        },
+        {
+            reason: 'switchCourse',
+            run: p => (p as never as { _handleSwitchCourse: (id: number) => Promise<void> })
+                ._handleSwitchCourse(42),
+        },
+        {
+            reason: 'newConversation',
+            run: p => (p as never as { _handleNewConversation: () => Promise<void> })
+                ._handleNewConversation(),
+        },
+    ];
+
+    for (const nav of NAVIGATIONS) {
+        test(`${nav.reason} admits its intent even when the navigation then fails`, async () => {
+            // Every one of the four either ends in an API call or refuses for a
+            // reason internal to the service (e.g. no course yet on a cold
+            // start): failing the calls that DO happen, on every handler,
+            // proves admission happened at admission and not on success.
+            h.api.getCurrentChat.rejects(new ApiError('nope', 500));
+            h.api.getChatSessionById.rejects(new ApiError('nope', 500));
+            h.api.createCourseSession.rejects(new ApiError('nope', 500));
+            const admit = spyOnAdmission(h);
+
+            await nav.run(h.provider);
+
+            assert.strictEqual(admit.calledOnce, true, `${nav.reason} did not admit`);
+            assert.strictEqual(admit.firstCall.args[0], nav.reason);
+        });
+    }
+
+    const NON_NAVIGATIONS = ['refreshCourses', 'reconnectWebSocket'] as const;
+
+    for (const command of NON_NAVIGATIONS) {
+        test(`${command} does NOT admit an intent`, async () => {
+            const admit = spyOnAdmission(h);
+
+            dispatch(h.provider, command);
+            await settle();
+
+            assert.strictEqual(admit.called, false,
+                'it names no destination, so it is not a navigation the cold start must yield to');
+        });
+    }
+
+    test('a navigation refused because a send is in flight does NOT admit', async () => {
+        const fake = injectFakeConversation(h.provider);
+        fake.sendInFlight = true;
+        const admit = spyOnAdmission(h);
+
+        await (h.provider as never as { _handleSwitchCourse: (id: number) => Promise<void> })
+            ._handleSwitchCourse(42);
+
+        assert.strictEqual(admit.called, false,
+            'a refused command never reached the conversation, so it named no destination');
     });
 });

@@ -26,6 +26,8 @@ import { IrisConversationService } from '@extension/services/iris/conversation/c
 import { toWireMessages } from '@extension/services/iris/conversation/messageFormatting';
 import { SEND_REJECTION_MESSAGES, SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
+import type { DetectionUiState } from '@extension/services/iris/startup/chatStartupCoordinator';
+import { ChatStartupCoordinator } from '@extension/services/iris/startup/chatStartupCoordinator';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
@@ -91,6 +93,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _conversation: IrisConversationService | undefined;
     /** The send path. Built next to `_conversation`. */
     private _sendCoordinator: SendCoordinator | undefined;
+    /**
+     * The single owner of the automatic cold start. Built in the constructor
+     * with a shim `start` that just calls `_startConversation()`, so
+     * constructing it here changes nothing observable; `resolveWebviewView`
+     * still starts the conversation itself until Task 7 cuts it over.
+     */
+    private readonly _startupCoordinator: ChatStartupCoordinator;
+    /**
+     * The coordinator's latest published detection state. Nothing reads or
+     * writes it yet: Task 7 starts calling `onViewResolved`/`onDetectionSettled`,
+     * and Task 8 puts it on the wire.
+     */
+    private _detectionState: DetectionUiState = 'unsettled';
+    /**
+     * The workspace-detection handle (from `wireWorkspaceDetection`), wired by
+     * Task 8. Until then there is nothing for the startup Retry to re-run.
+     */
+    private _detectionHandle: { retry(): void } | undefined;
     /** Generation opened by the most recent send, for the reconnect marker. */
     private _lastSendGeneration: number | undefined;
     /** Last conversation announced to the webview, so a navigation can be told
@@ -269,6 +289,23 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 }),
             );
         }
+
+        // Constructed unconditionally (not gated on `_conversation` existing)
+        // so the field stays non-optional: `_conversationForNavigation` never
+        // reaches `admitExplicitIntent` when `_conversation` is undefined, and
+        // the shim `start` below already no-ops in that case too.
+        this._startupCoordinator = new ChatStartupCoordinator({
+            // Shim only. `_acquireConversation` does not exist until Task 7,
+            // which is also what starts calling `onViewResolved` and
+            // `onDetectionSettled`; until then this just runs today's start,
+            // unchanged.
+            start: () => this._startConversation(),
+            publishDetectionState: (state) => {
+                this._detectionState = state;
+                this._viewStatePresenter.postSnapshot();
+            },
+            retryDetection: () => this._detectionHandle?.retry(),
+        });
 
         this._disposables.push(
             this._fileMonitorService.onDidUpdateFiles(update => {
@@ -616,6 +653,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
+     * The coordinator's latest published detection state. Nothing calls
+     * `publishDetectionState` yet (Task 7 starts that), so this reads
+     * `'unsettled'` until then. Task 8 puts the value on the wire; this
+     * getter is what it will read from.
+     */
+    public get detectionState(): DetectionUiState {
+        return this._detectionState;
+    }
+
+    /**
      * Access the WebSocket message handler for wiring up received-message events.
      */
     public get websocketMessageHandler(): IrisWebSocketMessageHandler {
@@ -678,6 +725,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public clearWorkspaceExercise(): void {
         this._contextStore.clearWorkspaceFlag();
         this._viewStatePresenter.postSnapshot();
+    }
+
+    /** See `StartupLatch`. Called before anything that can resolve the view. */
+    public admitExplicitIntent(reason: string): void {
+        this._startupCoordinator.admitExplicitIntent(reason);
     }
 
     // ── Conversation-first entry points for the commands ───────────────
@@ -1138,6 +1190,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._answerFailedNavigation(command, 'Wait for Iris to finish answering before switching.');
             return undefined;
         }
+        // Admitted: the student named a destination. Whether the navigation then
+        // succeeds is irrelevant to the cold start, which must not overrule them.
+        // Placed after the refusals on purpose: a command that never reached the
+        // conversation named nothing.
+        this._startupCoordinator.admitExplicitIntent(command);
         return conversation;
     }
 

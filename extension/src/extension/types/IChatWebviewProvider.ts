@@ -21,4 +21,10 @@ export interface IChatWebviewProvider {
      * course of its own; see `ChatWebviewProvider.askIrisAbout`.
      */
     askIrisAbout(target: ServerContext, courseHint?: number): Promise<TopicChangeOutcome>;
+    /**
+     * Cancels the automatic cold start: the student has explicitly navigated
+     * somewhere, so a late background detection must not pull them back out.
+     * See `ChatStartupCoordinator.admitExplicitIntent`.
+     */
+    admitExplicitIntent(reason: string): void;
 }
