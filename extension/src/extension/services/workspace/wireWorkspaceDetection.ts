@@ -4,6 +4,7 @@ import type { ArtemisApiService } from '@extension/api';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 
+import type { DetectionOutcome } from './detectionOutcome';
 import { detectAndRegisterWorkspaceExercise } from './workspaceDetectionService';
 
 export interface WorkspaceRegisterInput {
@@ -28,9 +29,12 @@ interface WorkspaceDetectionDeps {
     sink: WorkspaceDetectionSink;
 }
 
-export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Disposable {
+export function wireWorkspaceDetection(
+    deps: WorkspaceDetectionDeps,
+): vscode.Disposable & { onDetectionSettled: vscode.Event<DetectionOutcome>; retry(): void } {
     let generation = 0;
     let disposed = false;
+    const settled = new vscode.EventEmitter<DetectionOutcome>();
 
     const runDetection = async (): Promise<void> => {
         const token = ++generation;
@@ -48,9 +52,13 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
                 deps.sink.clearWorkspaceExercise();
             },
         };
-        await detectAndRegisterWorkspaceExercise(
+        const outcome = await detectAndRegisterWorkspaceExercise(
             deps.api, callbacks, deps.registry, deps.courseDataCache,
         );
+        if (disposed || token !== generation) {
+            return;
+        }
+        settled.fire(outcome);
     };
 
     void runDetection();
@@ -58,10 +66,13 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
     const coursesSub = deps.courseDataCache.onCoursesLoaded(() => void runDetection());
 
     return {
+        onDetectionSettled: settled.event,
+        retry: () => void runDetection(),
         dispose: () => {
             disposed = true;
             folderSub.dispose();
             coursesSub.dispose();
+            settled.dispose();
         },
     };
 }
