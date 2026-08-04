@@ -38,6 +38,7 @@ import {
     NoAiDetectionService,
     toExerciseSource,
 } from '@extension/services/workspace';
+import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
 
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -94,21 +95,21 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /** The send path. Built next to `_conversation`. */
     private _sendCoordinator: SendCoordinator | undefined;
     /**
-     * The single owner of the automatic cold start. Built in the constructor
-     * with a shim `start` that just calls `_startConversation()`, so
-     * constructing it here changes nothing observable; `resolveWebviewView`
-     * still starts the conversation itself until Task 7 cuts it over.
+     * The single owner of the automatic cold start. `resolveWebviewView` only
+     * reports that the view exists (`onViewResolved`); `attachStartupDetection`
+     * feeds it workspace-detection outcomes. The coordinator itself decides
+     * when both have arrived and calls `_acquireConversation` exactly once.
      */
     private readonly _startupCoordinator: ChatStartupCoordinator;
     /**
-     * The coordinator's latest published detection state. Nothing reads or
-     * writes it yet: Task 7 starts calling `onViewResolved`/`onDetectionSettled`,
-     * and Task 8 puts it on the wire.
+     * The coordinator's latest published detection state. Task 8 puts the
+     * value on the wire; this field is what that getter will read from.
      */
     private _detectionState: DetectionUiState = 'unsettled';
     /**
      * The workspace-detection handle (from `wireWorkspaceDetection`), wired by
-     * Task 8. Until then there is nothing for the startup Retry to re-run.
+     * `attachStartupDetection` at activation. Until then there is nothing for
+     * the startup Retry to re-run.
      */
     private _detectionHandle: { retry(): void } | undefined;
     /** Generation opened by the most recent send, for the reconnect marker. */
@@ -293,13 +294,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // Constructed unconditionally (not gated on `_conversation` existing)
         // so the field stays non-optional: `_conversationForNavigation` never
         // reaches `admitExplicitIntent` when `_conversation` is undefined, and
-        // the shim `start` below already no-ops in that case too.
+        // `_acquireConversation` below already no-ops in that case too.
         this._startupCoordinator = new ChatStartupCoordinator({
-            // Shim only. `_acquireConversation` does not exist until Task 7,
-            // which is also what starts calling `onViewResolved` and
-            // `onDetectionSettled`; until then this just runs today's start,
-            // unchanged.
-            start: () => this._startConversation(),
+            start: (workspace) => this._acquireConversation(workspace),
             publishDetectionState: (state) => {
                 this._detectionState = state;
                 this._viewStatePresenter.postSnapshot();
@@ -537,28 +534,34 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
         this._viewDisposables.push(configListener);
 
-        void this._startConversation().catch((error: unknown) => {
-            logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
-        });
+        // The coordinator owns the one-shot cold start now: it fires
+        // `_acquireConversation` only once the view AND workspace detection
+        // have both settled, in whichever order they arrive.
+        this._startupCoordinator.onViewResolved();
+        // Independent of the one-shot acquisition: a recreated webview needs
+        // the disabled banner re-evaluated even when the conversation is
+        // unchanged and the startup latch has long been consumed.
+        void this._refreshAvailability();
 
         // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
     }
 
     /**
      * The conversation-first acquisition. One call gives the id, the topic, the
-     * title and the transcript; without a detected workspace exercise it makes
-     * no request at all and the webview shows the cold-start course chooser.
+     * title and the transcript. Called exactly once, by the startup
+     * coordinator, once the view has resolved and workspace detection has
+     * matched an exercise.
      *
      * The availability check afterwards is not a duplicate of the one
      * `_onConversationChanged` runs: re-opening the view re-installs the SAME
      * conversation, so that hook's id guard early-returns and nothing would
      * ever ask whether Iris is enabled here.
      */
-    private async _startConversation(): Promise<void> {
+    private async _acquireConversation(workspace: { exerciseId: number; courseId: number }): Promise<void> {
         const conversation = this._conversation;
         if (!conversation) { return; }
         try {
-            await conversation.start(this._workspaceForStart());
+            await conversation.start(workspace);
         } catch (error: unknown) {
             // A failed acquisition leaves no session and therefore no
             // transcript, so the loader would spin forever. The banner's Retry
@@ -595,14 +598,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         void this._refreshAvailability().catch((error: unknown) => {
             logger.error('Iris availability re-check failed', LogCategory.IRIS_CHAT, error);
         });
-    }
-
-    /** The detected workspace exercise, in the shape `start` expects. */
-    private _workspaceForStart(): { exerciseId: number; courseId: number } | undefined {
-        const exercise = this._contextStore.getWorkspaceExercise();
-        return exercise?.courseId === undefined
-            ? undefined
-            : { exerciseId: exercise.id, courseId: exercise.courseId };
     }
 
     // ── Rendering ──────────────────────────────────────────────────────
@@ -730,6 +725,21 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     /** See `StartupLatch`. Called before anything that can resolve the view. */
     public admitExplicitIntent(reason: string): void {
         this._startupCoordinator.admitExplicitIntent(reason);
+    }
+
+    /**
+     * Feeds the coordinator workspace-detection outcomes, and gives it the
+     * Retry the startup-unavailable banner offers. Called once, at
+     * activation, with the handle `wireWorkspaceDetection` returns.
+     */
+    public attachStartupDetection(handle: {
+        onDetectionSettled: vscode.Event<DetectionOutcome>;
+        retry(): void;
+    }): void {
+        this._detectionHandle = handle;
+        this._disposables.push(handle.onDetectionSettled(
+            outcome => this._startupCoordinator.onDetectionSettled(outcome),
+        ));
     }
 
     // ── Conversation-first entry points for the commands ───────────────

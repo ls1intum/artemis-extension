@@ -9,6 +9,7 @@ import { ApiError } from '@extension/domain/errors';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 interface Harness {
@@ -65,6 +66,36 @@ function buildHarness(): Harness {
     provider.onDidChangeExerciseContext(({ exerciseId }) => exerciseEvents.push(exerciseId));
 
     return { provider, contextStore, api, exerciseEvents, sandbox };
+}
+
+/** A minimal `vscode.WebviewView` double, just enough for `resolveWebviewView`
+ *  to run without touching a real webview. */
+function makeWebviewStub(): vscode.WebviewView {
+    const webview = {
+        options: {} as vscode.WebviewOptions,
+        html: '',
+        onDidReceiveMessage: () => ({ dispose: () => undefined }),
+        asWebviewUri: (u: vscode.Uri) => u,
+        cspSource: 'https://example',
+    } as unknown as vscode.Webview;
+    return {
+        webview,
+        onDidDispose: () => ({ dispose: () => undefined }),
+        onDidChangeVisibility: () => ({ dispose: () => undefined }),
+        visible: false,
+        show: () => undefined,
+        title: '',
+        description: '',
+        badge: undefined,
+        viewType: 'irisChat',
+    } as unknown as vscode.WebviewView;
+}
+
+/** Resolves the webview view, the trigger that reports `onViewResolved` to
+ *  the startup coordinator and re-runs the availability check. */
+async function resolveView(h: Harness): Promise<void> {
+    h.provider.resolveWebviewView(makeWebviewStub(), {} as never, {} as never);
+    await Promise.resolve();
 }
 
 /** Spies on the coordinator's admission entry point, white-box: nothing on the
@@ -301,8 +332,6 @@ suite('ChatWebviewProvider: availability is checked without a send', () => {
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
-    const startConversation = () => (h.provider as unknown as { _startConversation: () => Promise<void> })._startConversation();
-
     test('a conversation landing in a course with Iris disabled posts the banner before any send', async () => {
         h.api.getCurrentChat.resolves(detail({
             sessionId: 1, courseId: 42, context: { mode: 'COURSE_CHAT', entityId: 42 },
@@ -318,19 +347,29 @@ suite('ChatWebviewProvider: availability is checked without a send', () => {
 
     test('re-opening the view re-asks even though the conversation did not change', async () => {
         // `_onConversationChanged` guards on the session id, so a re-install of
-        // the SAME conversation posts no banner through that path at all.
-        h.provider.registerWorkspaceExercise({
-            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
-        });
+        // the SAME conversation posts no banner through that path at all: the
+        // re-check now comes from `resolveWebviewView` itself
+        // (`_refreshAvailability`, unconditional), independent of the
+        // coordinator's one-shot `_acquireConversation`. Rewritten for the
+        // Task 7 cutover: acquisition no longer happens directly off a
+        // registered workspace exercise, so this drives it through a
+        // detection outcome instead, the way the real activation path does.
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42 }));
-        await startConversation();
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 5, courseId: 42 });
+        await settle();
 
         postSpy.resetHistory();
         check.resetHistory();
-        await startConversation();
+        await resolveView(h);
+        await settle();
 
         assert.strictEqual(check.callCount, 1);
         assert.strictEqual(posted(postSpy, 'showDisabledState').length, 1);
+        detection.dispose();
     });
 
     test('an answer that outlived its conversation is not published', async () => {
@@ -356,6 +395,75 @@ suite('ChatWebviewProvider: availability is checked without a send', () => {
         await settle();
 
         assert.strictEqual(posted(postSpy, 'showDisabledState').length, 0);
+    });
+});
+
+/**
+ * Task 7: the cutover. `resolveWebviewView` no longer acquires a conversation
+ * by itself; the coordinator does it once both the view and workspace
+ * detection have settled, in either order.
+ */
+suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => {
+    let h: Harness;
+
+    setup(() => { h = buildHarness(); });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    test('resolving the view does not acquire a conversation on its own', async () => {
+        // Both lines are load-bearing. Without a registered workspace exercise
+        // `_workspaceForStart()` (the old code path) answers undefined and
+        // `start(undefined)` deliberately issues no request, so the assertion
+        // would hold BEFORE the cutover too and prove nothing.
+        h.provider.registerWorkspaceExercise({
+            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+        });
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42 }));
+
+        await resolveView(h);
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.called, false,
+            'the coordinator owns the cold start now, not resolveWebviewView');
+    });
+
+    test('an exercise detected after the view resolved acquires the conversation', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 9 }));
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.strictEqual(h.api.getCurrentChat.calledOnce, true);
+        detection.dispose();
+    });
+
+    test('a rejecting start still surfaces the unreachable banner, so the workspace-known Retry works', async () => {
+        // Carried over from Task 4's review: the coordinator consumes the
+        // startup latch BEFORE calling `start()`, and calls it as `void` with
+        // no rejection handling of its own. That is only safe because
+        // `_acquireConversation` catches the failure itself and shows the
+        // "Iris could not be reached" banner, whose Retry reloads the
+        // now-known conversation. Without this test that recovery path is
+        // unverified: a broken `_acquireConversation` catch would silently
+        // drop both the detected workspace exercise AND any banner.
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.rejects(new Error('network down'));
+        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        const unavailable = postSpy.getCalls()
+            .map(c => c.args[0] as { type?: string; message?: string })
+            .find(m => m?.type === 'showUnavailableState');
+        assert.ok(unavailable, 'a rejecting start must still show the unavailable banner');
+        assert.match(String(unavailable?.message), /retry/i);
+        detection.dispose();
     });
 });
 

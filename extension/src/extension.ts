@@ -152,12 +152,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
 
-	context.subscriptions.push(wireWorkspaceDetection({
+	const workspaceDetection = wireWorkspaceDetection({
 		api: artemisApiService,
 		registry: exerciseRegistry,
 		courseDataCache,
 		sink: buildChatProviderSink(chatWebviewProvider),
-	}));
+	});
+	context.subscriptions.push(workspaceDetection);
+	chatWebviewProvider.attachStartupDetection(workspaceDetection);
 
 	context.subscriptions.push(telemetryManager);
 	context.subscriptions.push(artemisWebsocketService);
