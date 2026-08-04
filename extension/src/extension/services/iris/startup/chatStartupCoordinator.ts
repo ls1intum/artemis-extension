@@ -5,6 +5,12 @@ import { StartupLatch } from './startupLatch';
 export type DetectionUiState = 'unsettled' | 'settled' | 'unavailable';
 
 export interface ChatStartupDeps {
+    /**
+     * Acquire the conversation for `workspace`. Resolves on success. Rejects
+     * on failure, AFTER having already shown whatever banner the failure
+     * needs — the coordinator's only reaction to a rejection is re-arming its
+     * latch, never a banner of its own.
+     */
     start(workspace: { exerciseId: number; courseId: number }): Promise<void>;
     publishDetectionState(state: DetectionUiState): void;
     retryDetection(): void;
@@ -82,6 +88,16 @@ export class ChatStartupCoordinator {
         void this._deps.start({
             exerciseId: this._outcome.exerciseId,
             courseId: this._outcome.courseId,
+        }).catch(() => {
+            // The attempt itself failed (a transient network error, not a
+            // decision) — `start` has already shown whatever banner that
+            // needs. Re-arm rather than leave the latch spent: without this,
+            // a single failed acquisition strands the student on the
+            // cold-start chooser for good, since nothing else ever gets
+            // another shot at the latch. This does NOT resurrect a latch an
+            // explicit student intent already cancelled; `reArmAfterFailedStart`
+            // only moves `consumed` -> `eligible`.
+            this._latch.reArmAfterFailedStart();
         });
     }
 }

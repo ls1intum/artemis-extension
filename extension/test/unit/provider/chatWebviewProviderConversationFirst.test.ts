@@ -465,6 +465,36 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         assert.match(String(unavailable?.message), /retry/i);
         detection.dispose();
     });
+
+    test('after a failed acquisition, re-resolving the view acquires again', async () => {
+        // The regression this fix round exists for: `resolveWebviewView` runs
+        // again whenever VS Code disposes and recreates the webview (the
+        // panel has no `retainContextWhenHidden`), which happens simply from
+        // collapsing and reopening the sidebar view. Without the latch coming
+        // back after a failed attempt, the student who hit one transient
+        // error is stuck on the cold-start chooser for good, with no banner
+        // and no automatic retry — only `artemis.resetIrisChat` recovers.
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.onFirstCall().rejects(new Error('network down'));
+        h.api.getCurrentChat.onSecondCall().resolves(detail({ sessionId: 1, courseId: 9 }));
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.callCount, 1, 'the first, failing attempt was made');
+
+        // The panel is collapsed and reopened: a fresh `WebviewView`, a fresh
+        // resolve, no new detection event (the workspace exercise did not
+        // change).
+        await resolveView(h);
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.callCount, 2,
+            'a re-resolved view must get another shot at the exercise it already knows about');
+        detection.dispose();
+    });
 });
 
 suite('ChatWebviewProvider: reload Iris chat', () => {

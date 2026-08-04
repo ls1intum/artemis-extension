@@ -548,9 +548,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     /**
      * The conversation-first acquisition. One call gives the id, the topic, the
-     * title and the transcript. Called exactly once, by the startup
-     * coordinator, once the view has resolved and workspace detection has
-     * matched an exercise.
+     * title and the transcript. Called by the startup coordinator, once the
+     * view has resolved and workspace detection has matched an exercise; a
+     * rejection re-arms the coordinator's latch (see `ChatStartupDeps.start`),
+     * so this can run again after a transient failure.
      *
      * The availability check afterwards is not a duplicate of the one
      * `_onConversationChanged` runs: re-opening the view re-installs the SAME
@@ -565,13 +566,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         } catch (error: unknown) {
             // A failed acquisition leaves no session and therefore no
             // transcript, so the loader would spin forever. The banner's Retry
-            // routes back through reloadIrisChat.
+            // routes back through reloadIrisChat. Re-thrown (rather than
+            // swallowed) so the coordinator learns the attempt failed and can
+            // re-arm its latch: without that, a single transient 500 leaves
+            // the student stuck on the cold-start chooser forever, since the
+            // latch was already consumed before this call and nothing else
+            // ever gets another shot at it.
             logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
                 type: ExtensionMsg.ShowUnavailableState,
                 message: 'Iris could not be reached. Retry to reload the conversation.',
             });
-            return;
+            throw error;
         }
         await this._refreshAvailability();
     }

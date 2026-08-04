@@ -27,4 +27,18 @@ export class StartupLatch {
         this._state = 'consumed';
         return true;
     }
+
+    /**
+     * Undoes a single `consume()`, but ONLY from `consumed`. Exists for one
+     * caller: the automatic start attempt itself failed (a transient network
+     * error, not a decision), so the permission it spent is given back
+     * rather than burned for good. A `cancelled` latch never moves: an
+     * explicit student intent still wins permanently, even when the
+     * automatic attempt that raced it goes on to fail.
+     */
+    public reArmAfterFailedStart(): void {
+        if (this._state !== 'consumed') { return; }
+        this._state = 'eligible';
+        logger.info('Automatic chat startup re-armed after a failed attempt', LogCategory.IRIS_CHAT);
+    }
 }
