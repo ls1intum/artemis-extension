@@ -17,11 +17,23 @@ suite('StartupLatch', () => {
         assert.strictEqual(latch.state, 'cancelled');
     });
 
-    test('cancelling after consumption does not resurrect anything', () => {
+    test('cancelling after consumption records the intent, and a later re-arm cannot undo it', () => {
+        // The old behaviour here was `cancel()` no-opping on a `consumed`
+        // latch, on the premise that `consumed` was terminal. It stopped
+        // being terminal the moment `reArmAfterFailedStart` existed: an
+        // intent arriving while the automatic attempt is still in flight
+        // (a real HTTP round trip, easily pending for hundreds of
+        // milliseconds) must still be recorded, or a later failure of that
+        // very attempt hands the automatic path a second chance the student
+        // had already refused.
         const latch = new StartupLatch();
         latch.consume();
+
         latch.cancel('selectTopic');
-        assert.strictEqual(latch.state, 'consumed');
+        assert.strictEqual(latch.state, 'cancelled', 'an intent arriving mid-flight must still be recorded');
+
+        latch.reArmAfterFailedStart();
+        assert.strictEqual(latch.state, 'cancelled', 'a later re-arm must not revive it');
         assert.strictEqual(latch.consume(), false);
     });
 

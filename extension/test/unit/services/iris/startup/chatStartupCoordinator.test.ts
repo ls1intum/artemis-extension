@@ -123,13 +123,10 @@ suite('ChatStartupCoordinator', () => {
     });
 
     test('a rejecting start does not resurrect a latch an explicit intent later cancelled', async () => {
-        // `cancel()` only ever acts on an `eligible` latch (by design: an
-        // intent arriving while the automatic attempt is still in flight is
-        // moot, since that attempt already has permission). So the
-        // cancellation that matters here can only land AFTER the re-arm has
-        // already put the latch back into play — which is exactly the window
-        // this fix opens up, and exactly where "the explicit intent still
-        // wins, permanently" has to keep holding.
+        // A DIFFERENT window than the interleaving test below: here the
+        // intent arrives AFTER the re-arm has already put the latch back
+        // into play (not while the first attempt is still in flight), and
+        // it still has to win permanently.
         const start = sinon.stub();
         start.onFirstCall().rejects(new Error('network down'));
         const publishDetectionState = sinon.spy();
@@ -153,6 +150,45 @@ suite('ChatStartupCoordinator', () => {
 
         assert.strictEqual(start.callCount, 1,
             'a cancelled latch must never restart, no matter how it got there');
+    });
+
+    test('an explicit intent admitted WHILE the attempt is still pending is not resurrected by a later re-arm', async () => {
+        // The real interleaving: `start()` is a genuine HTTP round trip, so
+        // it stays pending for hundreds of milliseconds — plenty of time for
+        // the student to click "Ask Iris about" or switch a topic. Before
+        // `cancel()` could record an intent on a `consumed` latch, this
+        // window silently dropped it: `cancel()` no-opped (state was
+        // `consumed`, not `eligible`), the attempt then failed and re-armed
+        // the latch as if nothing had happened, and a later settle started
+        // automatically anyway — exactly the automatic cold start the
+        // student's own navigation was supposed to rule out for good.
+        let rejectStart: (error: unknown) => void = () => undefined;
+        const start = sinon.stub().returns(new Promise((_resolve, reject) => { rejectStart = reject; }));
+        const publishDetectionState = sinon.spy();
+        const retryDetection = sinon.spy();
+        const coordinator = new ChatStartupCoordinator({ start, publishDetectionState, retryDetection });
+
+        coordinator.onViewResolved();
+        coordinator.onDetectionSettled(MATCH);
+        assert.strictEqual(start.callCount, 1, 'the automatic attempt began, and its promise is still pending');
+
+        // The student explicitly navigates away WHILE the attempt is
+        // in flight — no response has arrived yet.
+        coordinator.admitExplicitIntent('askIrisAbout');
+
+        // The in-flight attempt now fails: the same transient error this
+        // whole fix targets.
+        rejectStart(new Error('network down'));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        // A later trigger (a folder change, or the view re-resolving after
+        // VS Code disposed and recreated the webview) must not restart:
+        // the intent from mid-flight still has to win, permanently.
+        coordinator.onDetectionSettled(MATCH);
+
+        assert.strictEqual(start.callCount, 1,
+            'an intent admitted mid-flight must survive the in-flight attempt failing');
     });
 
     test('an admitted intent clears a startup-unavailable banner', () => {

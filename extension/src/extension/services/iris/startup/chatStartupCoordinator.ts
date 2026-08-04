@@ -43,6 +43,15 @@ export class ChatStartupCoordinator {
     }
 
     public admitExplicitIntent(reason: string): void {
+        // `wasEligible` still means exactly what it always did, even though
+        // `cancel()` now also acts on a `consumed` latch (an attempt in
+        // flight): `_uiStateFor` only ever publishes `unavailable` to the UI
+        // while the latch IS eligible (an `unavailable` outcome never
+        // consumes it — see `_maybeStart`'s early return below), so a
+        // `consumed` latch can never be carrying a live `unavailable` banner
+        // to clear here. Reading `wasEligible` before `cancel()` therefore
+        // still answers the only question that matters: was a dead-Retry
+        // banner actually on screen for this outcome.
         const wasEligible = this._latch.state === 'eligible';
         this._latch.cancel(reason);
         // The student is on their way somewhere. A startup-unavailable banner
