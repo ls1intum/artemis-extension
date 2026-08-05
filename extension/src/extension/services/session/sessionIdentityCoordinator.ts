@@ -39,6 +39,16 @@ export interface SessionResetTargets {
 }
 
 /**
+ * The read-only slice a report needs: which account, which server, which
+ * generation. Narrow on purpose, so a diagnostics path cannot also transition
+ * the session it is describing.
+ */
+export interface SessionIdentityReader {
+    readonly state: SessionState;
+    readonly epoch: number;
+}
+
+/**
  * What the coordinator needs to answer "who is this" on its own. Narrow on
  * purpose: it must not depend on any webview being open.
  */

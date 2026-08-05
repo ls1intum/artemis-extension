@@ -8,7 +8,6 @@ import { ArtemisApiService } from '@extension/api';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { IrisAvailabilityService } from '@extension/services/iris/chat/irisAvailabilityService';
 import { IrisWebSocketMessageHandler } from '@extension/services/iris/chat/irisWebSocketMessageHandler';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -25,7 +24,6 @@ import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 interface Harness {
     provider: ChatWebviewProvider;
-    contextStore: ContextStore;
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
     postSpy: sinon.SinonSpy;
     publishSpy: sinon.SinonSpy;
@@ -59,7 +57,6 @@ function buildHarness(): Harness {
     sandbox.stub(vscode.window, 'showWarningMessage');
 
     const mockContext = new MockExtensionContext();
-    const contextStore = new ContextStore(mockContext);
     const api = sinon.createStubInstance(ArtemisApiService);
     // BOTH services, so `_conversation` is actually constructed: the recovery
     // path does not exist without it.
@@ -80,6 +77,7 @@ function buildHarness(): Harness {
         courseTitle: () => undefined,
         exerciseTitle: () => undefined,
     };
+    const sessionIdentity = { state: { kind: 'anonymous', serverKey: 'https://artemis.test' }, epoch: 0 };
 
     const provider = new ChatWebviewProvider(
         vscode.Uri.file('/tmp'),
@@ -90,15 +88,15 @@ function buildHarness(): Harness {
         registry as never,
         courseCatalog as never,
         undefined,
-        contextStore,
         new WorkspaceExerciseTracker(),
         { getAccessTimestamp: () => undefined } as never,
+        sessionIdentity as never,
     );
 
     const postSpy = sandbox.spy(provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
     const publishSpy = sandbox.spy(internals(provider)._websocketMessageHandler, 'publishCurrentRunUi');
 
-    return { provider, contextStore, api, postSpy, publishSpy, sandbox };
+    return { provider, api, postSpy, publishSpy, sandbox };
 }
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));

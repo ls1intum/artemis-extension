@@ -1,46 +1,27 @@
 import type { ArtemisApiService } from '@extension/api';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
-import type { ContextStore } from './contextStore';
-
 /**
- * Resolves the course an exercise belongs to, walking:
- *   1. contextStore.getExerciseById(...).courseId
- *   2. api.getExerciseDetails(...).exercise.course.id (registers the exercise
- *      back into the store on success)
+ * Resolves the course an exercise belongs to:
+ *   1. the catalog's authoritative entities (dashboard, full course entries)
+ *   2. `api.getExerciseDetails(...).exercise.course.id`
  *
- * Returns undefined if both fail. Keyed on the exercise id (spec 10): every
- * caller knows an exercise, not a selected context, and this is the only code
- * that can find a course for an exercise the store has never seen, which is
- * exactly the fresh-window case.
+ * There is no write-back. The previous first branch read a persisted map
+ * keyed by bare numeric id with no server identity, which is exactly how an
+ * "Ask Iris about this exercise" click navigated into a course from another
+ * Artemis instance.
  */
 export async function resolveCourseIdForExercise(
     exerciseId: number,
-    contextStore: ContextStore,
+    catalog: CourseCatalog,
     api: ArtemisApiService | undefined,
 ): Promise<number | undefined> {
-    const tracked = contextStore.getExerciseById(exerciseId);
-    if (tracked?.courseId) {
-        return tracked.courseId;
-    }
-    if (!api) {
-        return undefined;
-    }
+    const known = catalog.authoritativeCourseIdFor(exerciseId);
+    if (known !== undefined) { return known; }
+    if (!api) { return undefined; }
     try {
-        const details = await api.getExerciseDetails(exerciseId);
-        const resolved = details?.exercise?.course?.id;
-        if (resolved) {
-            contextStore.registerExercise({
-                id: exerciseId,
-                // The details response is the better title (it is the server's
-                // own), but a tracked row may already carry one and the input
-                // requires a definite string.
-                title: details.exercise?.title ?? tracked?.title ?? `Exercise ${exerciseId}`,
-                shortName: details.exercise?.shortName ?? tracked?.shortName,
-                courseId: resolved,
-            });
-        }
-        return resolved;
+        return (await api.getExerciseDetails(exerciseId))?.exercise?.course?.id;
     } catch (error) {
         logger.warn('Failed to resolve course from exercise details:', LogCategory.IRIS_CHAT, error);
         return undefined;

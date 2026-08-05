@@ -38,6 +38,8 @@ interface FakeCatalog {
     courseTitle: sinon.SinonStub;
     exerciseTitle: sinon.SinonStub;
     upsertSupplemental: sinon.SinonStub;
+    /** Backed by `exercises`, the same array a test seeds through `projection()`. */
+    authoritativeCourseIdFor(exerciseId: number): number | undefined;
 }
 
 /**
@@ -76,7 +78,9 @@ function buildHarness(): Harness {
         courseTitle: sandbox.stub().returns(undefined),
         exerciseTitle: sandbox.stub().returns(undefined),
         upsertSupplemental: sandbox.stub(),
+        authoritativeCourseIdFor(exerciseId: number) { return this.exercises.find(e => e.id === exerciseId)?.courseId; },
     };
+    const sessionIdentity = { state: { kind: 'anonymous', serverKey: 'https://artemis.test' }, epoch: 0 };
 
     const provider = new ChatWebviewProvider(
         vscode.Uri.file('/tmp'),
@@ -87,9 +91,9 @@ function buildHarness(): Harness {
         registry as never,
         courseCatalog as never,
         undefined,
-        contextStore,
         workspaceTracker,
         { getAccessTimestamp: () => undefined } as never,
+        sessionIdentity as never,
     );
 
     const exerciseEvents: number[] = [];
@@ -236,7 +240,10 @@ suite('ChatWebviewProvider: Ask Iris', () => {
     });
 
     test('Ask-Iris resolves the course when the payload omits it', async () => {
-        h.contextStore.registerExercise({ id: 5, title: 'BFS', courseId: 42 });
+        // The catalog is the ONLY source now: a bare numeric exercise id keyed
+        // into a store with no server identity is exactly the defect this
+        // migration removes (issue #376).
+        h.courseCatalog.exercises.push({ id: 5, courseId: 42, title: 'BFS', pickable: true });
         h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
 
         await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' });
@@ -319,7 +326,7 @@ suite('ChatWebviewProvider: Ask Iris', () => {
     });
 
     test('Ask-Iris refuses an exercise whose course cannot be resolved', async () => {
-        // With a conversation OPEN. Neither the payload nor the store nor the
+        // With a conversation OPEN. Neither the payload nor the catalog nor the
         // API can say which course exercise 404 belongs to, so the cross-course
         // check has nothing to compare against and would wave it through. A
         // topic whose course is unknown may not be staged.

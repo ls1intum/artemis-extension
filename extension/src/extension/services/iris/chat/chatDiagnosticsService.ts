@@ -1,16 +1,28 @@
 import type { ServerContext } from '@shared/types/serverContext';
 
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
+import type { SessionIdentityReader } from '@extension/services/session/sessionIdentityCoordinator';
+import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 
 function describeContext(context: ServerContext | undefined): string {
     return context ? `${context.mode}/${context.entityId}${context.name ? ` (${context.name})` : ''}` : 'none';
 }
 
+function describeSession(session: SessionIdentityReader): string {
+    const { state } = session;
+    const identity = state.kind === 'authenticated'
+        ? `authenticated ${state.principal} on ${state.serverKey}`
+        : `${state.kind} on ${state.serverKey}`;
+    return `${identity}, epoch ${session.epoch}`;
+}
+
 export class ChatDiagnosticsService {
     constructor(
-        private readonly _contextStore: ContextStore,
+        private readonly _catalog: CourseCatalog | undefined,
+        private readonly _workspaceTracker: WorkspaceExerciseTracker,
+        private readonly _session: SessionIdentityReader,
         private readonly _exerciseRegistry: ExerciseRegistry,
         /**
          * A GETTER, not a value: the conversation service is built after this
@@ -21,42 +33,50 @@ export class ChatDiagnosticsService {
     ) { }
 
     public generateDiagnosticsReport(): string {
-        const snapshot = this._contextStore.snapshot();
+        const projection = this._catalog?.projection() ?? { courses: [], exercises: [] };
         let report = '='.repeat(80) + '\n';
         report += '🐛 IRIS CHAT DIAGNOSTICS\n';
         report += 'Generated at: ' + new Date().toISOString() + '\n';
         report += '='.repeat(80) + '\n\n';
 
+        // Diagnostics is where a support request starts: which account,
+        // which server, which generation is the first question.
+        report += `🔑 SESSION: ${describeSession(this._session)}\n\n`;
+
         report += this._conversationSection();
 
-        report += `💻 EXERCISES (${snapshot.exercises.length}):\n`;
-        if (snapshot.exercises.length > 0) {
-            snapshot.exercises.forEach((exercise, idx) => {
-                report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}${exercise.isWorkspace ? ' ⭐' : ''}\n`;
+        const workspaceExercise = this._workspaceTracker.current;
+        report += '💻 WORKSPACE EXERCISE:\n';
+        if (workspaceExercise) {
+            report += `  [${workspaceExercise.id}] ${workspaceExercise.title}\n`;
+            report += `     Short Name: ${workspaceExercise.shortName ?? '—'}\n`;
+            report += `     Course ID: ${workspaceExercise.courseId}\n`;
+        } else {
+            report += '  No workspace exercise tracked\n';
+        }
+
+        report += `\n💻 EXERCISES (${projection.exercises.length}) - live catalog\n`;
+        if (projection.exercises.length > 0) {
+            projection.exercises.forEach((exercise, idx) => {
+                report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}\n`;
                 report += `     Short Name: ${exercise.shortName ?? '—'}\n`;
-                report += `     Course ID: ${exercise.courseId ?? '—'}\n`;
+                report += `     Course ID: ${exercise.courseId}\n`;
                 if (exercise.releaseDate) {
                     report += `     Release: ${exercise.releaseDate}\n`;
                 }
                 if (exercise.dueDate) {
                     report += `     Due: ${exercise.dueDate}\n`;
                 }
-                if (exercise.lastViewed) {
-                    report += `     Last Viewed: ${new Date(exercise.lastViewed).toISOString()}\n`;
-                }
             });
         } else {
             report += '  No exercises tracked\n';
         }
 
-        report += `\n📚 COURSES (${snapshot.courses.length}):\n`;
-        if (snapshot.courses.length > 0) {
-            snapshot.courses.forEach((course, idx) => {
+        report += `\n📚 COURSES (${projection.courses.length}) - live catalog\n`;
+        if (projection.courses.length > 0) {
+            projection.courses.forEach((course, idx) => {
                 report += `  ${idx + 1}. [${course.id}] ${course.title}\n`;
                 report += `     Short Name: ${course.shortName ?? '—'}\n`;
-                if (course.lastViewed) {
-                    report += `     Last Viewed: ${new Date(course.lastViewed).toISOString()}\n`;
-                }
             });
         } else {
             report += '  No courses tracked\n';

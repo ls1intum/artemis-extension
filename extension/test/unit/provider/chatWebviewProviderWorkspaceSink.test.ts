@@ -3,7 +3,6 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import * as detectionModule from '@extension/services/workspace/workspaceDetectionService';
 import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -24,8 +23,8 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         courseTitle: () => undefined,
         exerciseTitle: () => undefined,
     };
-    const contextStore = new ContextStore(mockContext);
     const workspaceTracker = new WorkspaceExerciseTracker();
+    const sessionIdentity = { state: { kind: 'anonymous', serverKey: 'https://artemis.test' }, epoch: 0 };
     const provider = new ChatWebviewProvider(
         vscode.Uri.file('/tmp'),
         mockContext as unknown as vscode.ExtensionContext,
@@ -35,9 +34,9 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         registry as never,
         courseCatalog as never,
         undefined,
-        contextStore,
         workspaceTracker,
         { getAccessTimestamp: () => undefined } as never,
+        sessionIdentity as never,
     );
     return { provider, sandbox, mockContext };
 }

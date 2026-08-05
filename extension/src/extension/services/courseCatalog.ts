@@ -304,6 +304,30 @@ export class CourseCatalog implements vscode.Disposable {
         return this.projection().exercises.find(e => e.id === exerciseId)?.title;
     }
 
+    /**
+     * The course an exercise belongs to, ACCORDING TO THE SERVER'S OWN dashboard
+     * or a full course entry. Deliberately blind to partial records: a partial is
+     * display data, and an exercise-to-course mapping is navigation data.
+     */
+    public authoritativeCourseIdFor(exerciseId: number): number | undefined {
+        for (const entry of this._dashboard ?? []) {
+            const hit = this._courseIdIfEntryHasExercise(entry, exerciseId);
+            if (hit !== undefined) { return hit; }
+        }
+        for (const record of this._supplemental.values()) {
+            if (record.kind !== 'course') { continue; }
+            const hit = this._courseIdIfEntryHasExercise(record.entry, exerciseId);
+            if (hit !== undefined) { return hit; }
+        }
+        return undefined;
+    }
+
+    private _courseIdIfEntryHasExercise(entry: CourseDashboardEntry, exerciseId: number): number | undefined {
+        const id = courseIdOf(entry);
+        if (id === undefined) { return undefined; }
+        return getEntryExercises(entry).some(e => e.id === exerciseId) ? id : undefined;
+    }
+
     /** Compatibility with the cache this replaces: `clear()` keeps the epoch. */
     public clear(): void {
         this.resetTo(this._epoch);

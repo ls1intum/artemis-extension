@@ -12,7 +12,6 @@ import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
     ChatDiagnosticsService,
-    ContextStore,
     IRIS_CHAT_HELP_MARKDOWN,
     IrisAvailabilityService,
     IrisWebSocketMessageHandler,
@@ -30,6 +29,7 @@ import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iri
 import type { DetectionUiState } from '@extension/services/iris/startup/chatStartupCoordinator';
 import { ChatStartupCoordinator } from '@extension/services/iris/startup/chatStartupCoordinator';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SessionIdentityReader } from '@extension/services/session/sessionIdentityCoordinator';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
@@ -81,7 +81,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public static readonly viewType = 'iris.chatView';
 
     // ── Instance properties ────────────────────────────────────────────
-    private readonly _contextStore: ContextStore;
     private readonly _workspaceTracker: WorkspaceExerciseTracker;
     private readonly _viewStatePresenter: ChatViewStatePresenter;
     private _fileMonitorService: FileMonitorService;
@@ -186,7 +185,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _courseCatalog: CourseCatalog | undefined,
         private readonly _telemetryManager: ITelemetryManager | undefined,
-        contextStore: ContextStore,
         workspaceTracker: WorkspaceExerciseTracker,
         /**
          * The picker's course order. The one store that already scopes recency
@@ -194,6 +192,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
          * introduced for the chat.
          */
         private readonly _courseAccess: CourseAccessStorageService,
+        /** Diagnostics' first question: which account, which server, which generation. */
+        private readonly _sessionIdentity: SessionIdentityReader,
     ) {
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -201,7 +201,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidAttemptIrisChatSend);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
-        this._contextStore = contextStore;
         this._workspaceTracker = workspaceTracker;
         // Struggle detection follows the WORKSPACE, never the chat topic: the
         // detector observes the code that is open, and `workspaceDetectionService`
@@ -244,14 +243,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._fileMonitorService);
 
         this._chatDiagnosticsService = new ChatDiagnosticsService(
-            this._contextStore,
+            this._courseCatalog,
+            this._workspaceTracker,
+            this._sessionIdentity,
             this._exerciseRegistry,
             // A getter for the same reason as the presenter's: `_conversation`
             // is assigned further down in this constructor.
             () => this._conversation,
         );
         this._availability = new IrisAvailabilityService(
-            this._contextStore,
+            this._courseCatalog,
             this._artemisApiService,
             (msg) => this._postMessageSafe(msg),
         );
@@ -821,7 +822,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
         const courseId = target.mode === 'COURSE_CHAT'
             ? target.entityId
-            : courseHint ?? await resolveCourseIdForExercise(target.entityId, this._contextStore, this._artemisApiService);
+            : courseHint ?? (this._courseCatalog
+                ? await resolveCourseIdForExercise(target.entityId, this._courseCatalog, this._artemisApiService)
+                : undefined);
         // An exercise whose course we could not determine is refused rather than
         // staged. The cross-course check compares the target's course with the
         // open conversation's, so an unknown one is not "probably fine": it is

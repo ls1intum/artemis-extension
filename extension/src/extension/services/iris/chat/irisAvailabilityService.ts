@@ -3,7 +3,7 @@ import { ExtensionMsg } from '@shared/messageContracts';
 
 import type { ArtemisApiService } from '@extension/api';
 import { MalformedResponseError } from '@extension/domain/errors';
-import type { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ApiError, type IrisSettingsResponse } from '@extension/types';
@@ -65,7 +65,7 @@ export class IrisAvailabilityService {
     private _lastAvailability: LastAvailability = { kind: 'unknown' };
 
     constructor(
-        private readonly _contextStore: ContextStore,
+        private readonly _catalog: CourseCatalog | undefined,
         private readonly _artemisApiService: ArtemisApiService | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
     ) { }
@@ -155,7 +155,9 @@ export class IrisAvailabilityService {
             let resolvedCourseId: number | undefined;
             try {
                 resolvedCourseId = context.courseId
-                    ?? await resolveCourseIdForExercise(context.id, this._contextStore, this._artemisApiService);
+                    ?? (this._catalog
+                        ? await resolveCourseIdForExercise(context.id, this._catalog, this._artemisApiService)
+                        : undefined);
             } catch (error: unknown) {
                 logger.error('Course resolution failed for exercise context:', LogCategory.IRIS_CHAT, error);
                 return { kind: 'unavailable', reason: `Could not resolve course: ${describeError(error)}` };

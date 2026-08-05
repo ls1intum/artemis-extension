@@ -5,29 +5,42 @@ import { ExtensionMsg } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api';
 import { ApiError, MalformedResponseError } from '@extension/domain/errors';
+import { CourseCatalog } from '@extension/services/courseCatalog';
 import type { AvailabilityContext } from '@extension/services/iris/chat/irisAvailabilityService';
 import { IrisAvailabilityService } from '@extension/services/iris/chat/irisAvailabilityService';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
-import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
+import type { CourseDashboardEntry } from '@extension/types';
+
+/** Seeds the catalog's authoritative (dashboard-shaped) layer through its
+ *  real public surface, the same one `authoritativeCourseIdFor` reads. */
+function injectCourseWithExercise(catalog: CourseCatalog, courseId: number, exerciseId: number): void {
+    const entry: CourseDashboardEntry = {
+        course: {
+            id: courseId,
+            title: `Course ${courseId}`,
+            exercises: [{ id: exerciseId, title: 'Test Exercise', studentParticipations: [{ id: 1, repositoryUri: 'https://example.test/repo.git' }] }],
+        },
+    };
+    catalog.injectEntry(entry);
+}
 
 suite('IrisAvailabilityService Test Suite', () => {
     let service: IrisAvailabilityService;
-    let contextStore: ContextStore;
+    let catalog: CourseCatalog;
     let mockApiService: sinon.SinonStubbedInstance<ArtemisApiService>;
     let postMessageSpy: sinon.SinonSpy;
 
     const courseContext: AvailabilityContext = { type: 'course', id: 101, title: 'Test Course' };
 
     setup(() => {
-        contextStore = new ContextStore(new MockExtensionContext());
-
         mockApiService = sinon.createStubInstance(ArtemisApiService);
         // Mock Iris profile check (required for all Iris settings checks)
         mockApiService.getProfileInfo.resolves({ activeProfiles: [], activeModuleFeatures: ['iris'] });
         mockApiService.isIrisProfileActive.returns(true);
 
+        catalog = new CourseCatalog(mockApiService as never);
+
         postMessageSpy = sinon.spy();
-        service = new IrisAvailabilityService(contextStore, mockApiService as never, postMessageSpy);
+        service = new IrisAvailabilityService(catalog, mockApiService as never, postMessageSpy);
     });
 
     teardown(() => {
@@ -36,7 +49,7 @@ suite('IrisAvailabilityService Test Suite', () => {
 
     suite('Iris Settings Check', () => {
         test('classifies as unavailable when API service is not available', async () => {
-            const serviceWithoutApi = new IrisAvailabilityService(contextStore, undefined, postMessageSpy);
+            const serviceWithoutApi = new IrisAvailabilityService(catalog, undefined, postMessageSpy);
 
             const result = await serviceWithoutApi.checkAndLoadIrisSettings(courseContext);
             assert.strictEqual(result.kind, 'unavailable');
@@ -95,11 +108,7 @@ suite('IrisAvailabilityService Test Suite', () => {
         test('resolves courseId from tracked exercise', async () => {
             const context: AvailabilityContext = { type: 'exercise', id: 123, title: 'Test Exercise' };
 
-            contextStore.registerExercise({
-                id: 123,
-                title: 'Test Exercise',
-                courseId: 101
-            });
+            injectCourseWithExercise(catalog, 101, 123);
 
             mockApiService.getIrisCourseChatSettings.resolves({
                 settings: { enabled: true }
