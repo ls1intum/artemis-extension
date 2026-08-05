@@ -410,7 +410,7 @@ export async function findWorkspaceCourseInArchive(
 }
 
 /**
- * Detect workspace exercise with registry population fallback, then register it in a ContextStore.
+ * Detect workspace exercise with registry population fallback, then register it via callbacks.
  * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
  */
 interface WorkspaceRegistrationCallbacks {

@@ -8,7 +8,6 @@ import { AuthManager } from '@extension/services/auth';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { normalizeServerUrl } from '@extension/services/session/identityKeys';
 import { SessionIdentityCoordinator } from '@extension/services/session/sessionIdentityCoordinator';
@@ -161,8 +160,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const contextStore = new ContextStore(context);
-	context.subscriptions.push(contextStore);
+	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
+	// data — an unbounded, unscoped list of every course and exercise this
+	// installation ever saw — sitting in globalState forever.
+	void context.globalState.update('iris.contextStore', undefined);
 
 	const workspaceTracker = new WorkspaceExerciseTracker();
 	context.subscriptions.push(workspaceTracker);

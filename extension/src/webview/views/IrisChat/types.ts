@@ -61,7 +61,7 @@ export interface ContextItem extends ExerciseRef {
     isWorkspace?: boolean;
     releaseDate?: string;
     dueDate?: string;
-    lastViewed?: number;   // for compareCoursesForPicker; from TrackedCourse/TrackedExercise
+    lastViewed?: number;   // for compareCoursesForPicker
 }
 
 // Referenced file info

@@ -716,9 +716,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * The course the open conversation is in, for anything outside the chat
      * that has to name one (the Iris health check).
      *
-     * Read from the conversation rather than mirrored into `ContextStore`:
-     * the conversation IS the course now, and a second copy could only ever
-     * be the one that is wrong. The mirror this replaces was written on the
+     * Read from the conversation rather than a mirrored store: the
+     * conversation IS the course now, and a second copy could only ever be
+     * the one that is wrong. The mirror this replaces was written on the
      * course-picker path alone, so on the normal path (a workspace exercise,
      * acquired by `start`) the health check answered "select a course first"
      * about a chat that was plainly showing one.

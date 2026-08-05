@@ -7,7 +7,6 @@ import type { SessionDetail } from '@shared/types/serverContext';
 import { ArtemisApiService } from '@extension/api';
 import { ApiError } from '@extension/domain/errors';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { StartOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
@@ -15,7 +14,6 @@ import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 interface Harness {
     provider: ChatWebviewProvider;
-    contextStore: ContextStore;
     workspaceTracker: WorkspaceExerciseTracker;
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
     exerciseEvents: number[];
@@ -55,7 +53,6 @@ function buildHarness(): Harness {
     sandbox.stub(vscode.window, 'showWarningMessage');
 
     const mockContext = new MockExtensionContext();
-    const contextStore = new ContextStore(mockContext);
     const workspaceTracker = new WorkspaceExerciseTracker();
     const api = sinon.createStubInstance(ArtemisApiService);
     const websocket = {
@@ -99,7 +96,7 @@ function buildHarness(): Harness {
     const exerciseEvents: number[] = [];
     provider.onDidChangeExerciseContext(({ exerciseId }) => exerciseEvents.push(exerciseId));
 
-    return { provider, contextStore, workspaceTracker, api, exerciseEvents, sandbox, courseCatalog };
+    return { provider, workspaceTracker, api, exerciseEvents, sandbox, courseCatalog };
 }
 
 /** A minimal `vscode.WebviewView` double, just enough for `resolveWebviewView`
@@ -172,15 +169,6 @@ suite('ChatWebviewProvider: struggle decoupling', () => {
 
     setup(() => { h = buildHarness(); });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
-
-    test('registering a non-workspace exercise does not retarget struggle detection', () => {
-        // The provider used to fire _onDidChangeExerciseContext whenever the
-        // active chat context became an exercise, pointing the detector at an
-        // exercise whose code is not open. Only the WORKSPACE flag retargets it.
-        h.contextStore.registerExercise({ id: 7, title: 'Topic only', courseId: 42 });
-
-        assert.deepStrictEqual(h.exerciseEvents, []);
-    });
 
     test('a workspace detection change does retarget it', () => {
         h.provider.registerWorkspaceExercise({
@@ -1206,8 +1194,6 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         // The contracts are gone, so a stale webview build posting one of the
         // old names must fall through to the utility handler and be logged,
         // never acted on.
-        const before = h.contextStore.snapshot();
-
         dispatch(h.provider, 'createNewSession' as never);
         dispatch(h.provider, 'switchSession' as never, { sessionId: 'local-1' });
         dispatch(h.provider, 'openArtemisSession' as never, { courseId: 42, artemisSessionId: 5 });
@@ -1216,7 +1202,6 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         await settle();
 
         assert.strictEqual(h.api.getCurrentChat.callCount, 0, 'no acquisition may be triggered');
-        assert.deepStrictEqual(h.contextStore.snapshot(), before);
     });
 });
 
