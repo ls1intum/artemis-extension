@@ -393,7 +393,88 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.called(stubs.render);
         sinon.assert.called(stubs.backgroundRenderProblemStatement);
         sinon.assert.calledOnce(ws.connect);
-        sinon.assert.calledWith(stubs.exerciseOpeningService.handleExerciseOpened, exerciseData, 7);
+        sinon.assert.calledWith(stubs.exerciseOpeningService.handleExerciseOpened, exerciseData, 7, 0);
+    });
+
+    // Same contract as `CommandContext.sessionEpoch`: captured before the
+    // await, never after. Read after the fetch and an identity change during
+    // it would hand the previous session's exercise the new session's
+    // generation, which is the one write the catalog's guard cannot reject.
+    test('openExerciseDetails: stamps the catalog write with the epoch from before the fetch', async () => {
+        const exerciseData: ExerciseDetailsResponse = {
+            exercise: { id: 7, title: 'Ex' } as ExerciseDetailsResponse['exercise'],
+        } as ExerciseDetailsResponse;
+
+        const catalog = {
+            fetch: sandbox.stub().resolves(),
+            upsertSupplemental: sandbox.stub(),
+            currentEpoch: 3,
+        };
+        fetchAndEnrichStub.callsFake(async () => {
+            // The identity changes while the exercise request is open.
+            catalog.currentEpoch = 4;
+            return exerciseData;
+        });
+
+        const { deps, stubs } = buildDeps({
+            appStateManager: {
+                showLogin: sandbox.stub(),
+                showDashboard: sandbox.stub(),
+                showCourseList: sandbox.stub(),
+                showCourseDetail: sandbox.stub(),
+                showExerciseDetail: sandbox.stub(),
+                showAiConfig: sandbox.stub(),
+                showServiceStatus: sandbox.stub(),
+                showStruggleDetection: sandbox.stub(),
+                showRecommendedExtensions: sandbox.stub(),
+                showGitCredentials: sandbox.stub(),
+                seedAuthenticatedSession: sandbox.stub(),
+                injectCourseEntry: sandbox.stub(),
+                currentState: 'exercise-detail',
+                currentExerciseData: exerciseData,
+                coursesData: undefined,
+                archivedCoursesData: undefined,
+                userInfo: undefined,
+                archiveCheckComplete: true,
+            },
+            courseCatalog: catalog,
+        });
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openExerciseDetails(7);
+
+        sinon.assert.calledWith(stubs.exerciseOpeningService.handleExerciseOpened, exerciseData, 7, 3);
+    });
+
+    test('navigateToStartPage: stamps the workspace course with the epoch from before the resolve', async () => {
+        const catalog = {
+            fetch: sandbox.stub().resolves(),
+            upsertSupplemental: sandbox.stub(),
+            currentEpoch: 8,
+        };
+        const { deps, stubs } = buildDeps({
+            courseCatalog: catalog,
+            startPageResolver: {
+                resolve: sandbox.stub().callsFake(async () => {
+                    // The identity changes while the dashboard request is open.
+                    catalog.currentEpoch = 9;
+                    return {
+                        type: 'workspace-course',
+                        courseId: 3,
+                        allCourses: [{ course: { id: 3, title: 'Algorithms' } }],
+                    };
+                }),
+            },
+        });
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.navigateToStartPage({ username: 'dan', serverUrl: 'https://x/' });
+
+        sinon.assert.calledOnce(stubs.courseCatalog.upsertSupplemental);
+        assert.strictEqual(
+            stubs.courseCatalog.upsertSupplemental.firstCall.args[1], 8,
+            'the courses were fetched by the previous session, so they carry its generation',
+        );
     });
 
     test('openExerciseDetails: surfaces error message when API throws', async () => {
@@ -487,12 +568,14 @@ suite('WebviewNavigationFacade', () => {
 
     test('showCourseDetail: stores state, writes the catalog, renders', () => {
         const { deps, stubs } = buildDeps({
-            courseCatalog: { fetch: sandbox.stub(), upsertSupplemental: sandbox.stub(), currentEpoch: 5 },
+            // Deliberately different from the epoch passed in below: the
+            // caller's captured value wins, and a live read here would not.
+            courseCatalog: { fetch: sandbox.stub(), upsertSupplemental: sandbox.stub(), currentEpoch: 99 },
         });
         const facade = new WebviewNavigationFacade(deps);
         const courseData = { course: { id: 9, title: 'Algorithms' } } as Parameters<WebviewNavigationFacade['showCourseDetail']>[0];
 
-        facade.showCourseDetail(courseData);
+        facade.showCourseDetail(courseData, 5);
 
         sinon.assert.calledWith(stubs.appStateManager.showCourseDetail, courseData);
         sinon.assert.calledWith(
@@ -509,7 +592,7 @@ suite('WebviewNavigationFacade', () => {
         const facade = new WebviewNavigationFacade(deps);
         const courseData = { course: { id: 9, title: 'Algorithms' } } as Parameters<WebviewNavigationFacade['showCourseDetail']>[0];
 
-        assert.doesNotThrow(() => facade.showCourseDetail(courseData));
+        assert.doesNotThrow(() => facade.showCourseDetail(courseData, 0));
         sinon.assert.called(stubs.render);
     });
 

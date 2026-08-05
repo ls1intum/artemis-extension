@@ -44,6 +44,12 @@ export class NavigationCommandModule {
     private handleViewCourseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const { courseId } = getPayload<WebCmd<'viewCourseDetails'>>(message);
+            // BEFORE the fetch below, per `CommandContext.sessionEpoch`. A
+            // logout, a 401 or a server change can land while that request is
+            // open, and reading the epoch afterwards would stamp this server's
+            // course with the NEW session's generation, which is exactly the
+            // write the guard exists to reject.
+            const epoch = this.context.sessionEpoch();
             const cached = this.context.appStateManager.coursesData
                 ?.courses
                 ?.find(e => e.course?.id === courseId);
@@ -61,17 +67,17 @@ export class NavigationCommandModule {
                 return;
             }
 
-            await this.processCourseDetails(detail);
+            await this.processCourseDetails(detail, epoch);
         } catch (error: unknown) {
             logger.viewError('View course details error:', error);
             vscode.window.showErrorMessage('Error viewing course details');
         }
     };
 
-    private async processCourseDetails(detail: CourseDetailData): Promise<void> {
+    /** `epoch` is captured by the caller, before the fetch it may have issued. */
+    private async processCourseDetails(detail: CourseDetailData, epoch: number): Promise<void> {
         const course = detail.course;
         const courseId = course.id;
-        const epoch = this.context.sessionEpoch();
 
         this.context.appStateManager.showCourseDetail(detail);
         this.context.courseAccessStorage?.onCourseAccessed(courseId);

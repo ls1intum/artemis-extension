@@ -24,7 +24,6 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const storage = new FakeCourseAccess();
         const svc = new ExerciseOpeningService(
             undefined,
-            () => 0,
             undefined as unknown as TelemetryManager,
             storage as unknown as CourseAccessStorageService,
         );
@@ -38,7 +37,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
             },
         } as unknown as ExerciseDetailsResponse;
 
-        svc.handleExerciseOpened(exerciseData, 101);
+        svc.handleExerciseOpened(exerciseData, 101, 0);
         assert.deepStrictEqual(storage.recorded, [42]);
     });
 
@@ -46,7 +45,6 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const storage = new FakeCourseAccess();
         const svc = new ExerciseOpeningService(
             undefined,
-            () => 0,
             undefined as unknown as TelemetryManager,
             storage as unknown as CourseAccessStorageService,
         );
@@ -60,14 +58,13 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
             },
         } as unknown as ExerciseDetailsResponse;
 
-        svc.handleExerciseOpened(exerciseData, 102);
+        svc.handleExerciseOpened(exerciseData, 102, 0);
         assert.deepStrictEqual(storage.recorded, []);
     });
 
     test('works without storage service (optional param)', () => {
         const svc = new ExerciseOpeningService(
             undefined,
-            () => 0,
             undefined as unknown as TelemetryManager,
             undefined,
         );
@@ -82,16 +79,15 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         } as unknown as ExerciseDetailsResponse;
 
         // Should not throw when storage is undefined
-        assert.doesNotThrow(() => svc.handleExerciseOpened(exerciseData, 103));
+        assert.doesNotThrow(() => svc.handleExerciseOpened(exerciseData, 103, 0));
     });
 });
 
 suite('ExerciseOpeningService → CourseCatalog write', () => {
-    test('records the opened exercise as a partial-exercise, stamped with the session epoch', () => {
+    test('records the opened exercise as a partial-exercise, stamped with the epoch it was given', () => {
         const catalog = new FakeCatalog();
         const svc = new ExerciseOpeningService(
             catalog as unknown as CourseCatalog,
-            () => 7,
             undefined as unknown as TelemetryManager,
             undefined,
         );
@@ -107,7 +103,7 @@ suite('ExerciseOpeningService → CourseCatalog write', () => {
             },
         } as unknown as ExerciseDetailsResponse;
 
-        svc.handleExerciseOpened(exerciseData, 101);
+        svc.handleExerciseOpened(exerciseData, 101, 7);
 
         assert.strictEqual(catalog.calls.length, 1);
         assert.deepStrictEqual(catalog.calls[0], {
@@ -133,7 +129,6 @@ suite('ExerciseOpeningService → CourseCatalog write', () => {
         const catalog = new FakeCatalog();
         const svc = new ExerciseOpeningService(
             catalog as unknown as CourseCatalog,
-            () => 0,
             undefined as unknown as TelemetryManager,
             undefined,
         );
@@ -147,7 +142,7 @@ suite('ExerciseOpeningService → CourseCatalog write', () => {
             },
         } as unknown as ExerciseDetailsResponse;
 
-        svc.handleExerciseOpened(exerciseData, 102);
+        svc.handleExerciseOpened(exerciseData, 102, 0);
 
         assert.strictEqual(catalog.calls.length, 0);
     });

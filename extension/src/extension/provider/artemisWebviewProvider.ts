@@ -145,7 +145,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // 5. Exercise opening side-effects (catalog, telemetry).
         this._exerciseOpeningService = new ExerciseOpeningService(
             this._courseCatalog,
-            () => this._courseCatalog?.currentEpoch ?? 0,
             this._telemetryManager,
             this._courseAccessStorage,
         );

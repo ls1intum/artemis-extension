@@ -87,6 +87,40 @@ suite('handleViewCourseDetails resolver', () => {
         assert.strictEqual(epoch, 9, 'the epoch must come from context.sessionEpoch(), not a hardcoded value');
     });
 
+    // `CommandContext.sessionEpoch`'s contract: captured BEFORE any await the
+    // caller issues. Read after the fetch instead, and a logout, a 401 or a
+    // server-URL change landing while the detail request is open would stamp
+    // server A's course with the NEW session's generation, so the catalog's
+    // guard waves it through and it renders in the Iris picker.
+    test('stamps the viewed course with the epoch from before the fetch', async () => {
+        const upsertSupplemental = sandbox.stub();
+        let epoch = 4;
+        const getCourseForDashboard = sandbox.stub().callsFake(async () => {
+            // The identity changes while the request is open.
+            epoch = 5;
+            return { course: { id: 99, title: 'fetched' } };
+        });
+        const ctx = buildContext({
+            coursesData: { courses: [] },
+            getCourseForDashboard,
+            courseCatalog: { upsertSupplemental },
+            sessionEpoch: () => epoch,
+        });
+        const mod = new NavigationCommandModule(ctx);
+
+        await mod.getHandlers().viewCourseDetails({
+            type: 'command',
+            command: 'viewCourseDetails',
+            payload: { courseId: 99 },
+        } satisfies WebCmd<'viewCourseDetails'>);
+
+        assert.strictEqual(upsertSupplemental.callCount, 1);
+        assert.strictEqual(
+            upsertSupplemental.firstCall.args[1], 4,
+            'the write belongs to the session that asked for it, not the one that answered',
+        );
+    });
+
     test('falls back to getCourseForDashboard on cache miss', async () => {
         const showCourseDetail = sandbox.stub();
         const getCourseForDashboard = sandbox.stub().resolves({ course: { id: 99, title: 'fetched' } });

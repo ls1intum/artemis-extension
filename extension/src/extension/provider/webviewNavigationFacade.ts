@@ -69,6 +69,11 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     constructor(private readonly deps: WebviewNavigationFacadeDeps) { }
 
     public async openExerciseDetails(exerciseId: number): Promise<void> {
+        // Captured before the fetch below, not after it: the supplemental
+        // write at the end of this method carries it, and reading it there
+        // would stamp an identity change that happened mid-fetch onto data
+        // this session never asked for.
+        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
         // Split fetch failures (user-facing I/O errors) from state-transition
         // failures (programmer errors that violate the navigation invariant):
         // only the fetch is caught and user-reported; invariant breaks propagate.
@@ -99,7 +104,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         // Handle post-open side effects (registry, telemetry, chat notify).
         const exerciseData = this.deps.appStateManager.currentExerciseData;
         if (exerciseData?.exercise) {
-            this.deps.exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId);
+            this.deps.exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId, epoch);
         }
     }
 
@@ -151,6 +156,10 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
+        // Everything `resolve()` returns was fetched under THIS session, so
+        // the epoch that guards writing it back has to be read before the
+        // request, not after the answer.
+        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
         const result = await this.deps.startPageResolver.resolve();
 
         switch (result.type) {
@@ -183,7 +192,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
                 const detail = toCourseDetailData(entry?.course);
                 if (detail) {
                     this.deps.courseAccessStorage.onCourseAccessed(result.courseId);
-                    this.showCourseDetail(detail);
+                    this.showCourseDetail(detail, epoch);
                     return;
                 }
                 logger.viewError(`workspace-course start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
@@ -274,7 +283,13 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.render();
     }
 
-    public showCourseDetail(courseData: CourseDetailData): void {
+    /**
+     * `epoch` is a parameter rather than a live read, and required rather than
+     * defaulted: the only caller reaches this after awaiting the fetch that
+     * produced `courseData`, so the generation that data belongs to is the
+     * caller's to remember.
+     */
+    public showCourseDetail(courseData: CourseDetailData, epoch: number): void {
         this.deps.appStateManager.showCourseDetail(courseData);
 
         // Since Task 5 the registry is rebuilt destructively from the catalog
@@ -282,7 +297,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         // could be dropped by the next one with nothing to restore it. Write
         // the catalog instead; `courseData.course` already matches
         // `CourseDashboardCourse`'s shape.
-        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
         this.deps.courseCatalog?.upsertSupplemental({ kind: 'course', entry: { course: courseData.course } }, epoch);
 
         this.deps.render();
