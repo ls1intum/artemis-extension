@@ -459,19 +459,20 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setPickerOpen(true);
     };
 
-    // Only when there is nothing to show: `status: 'loading'` hides the list,
-    // so refreshing an already-populated picker would blank it under the
-    // student's cursor.
-    const requestCoursesIfEmpty = () => {
-        if (useChatStore.getState().courses.length > 0) { return; }
+    // Opening the picker IS the question "what is there now". The guard that
+    // used to sit here asked only when the list was empty, which, with a
+    // persisted list, meant never. The previous list stays rendered until the
+    // answer arrives, so the concern that guard named is still covered; only
+    // an empty list shows the loading state.
+    const requestCourses = () => {
         coursesRequested.current = true;
-        setCoursesLoading(true);
+        if (useChatStore.getState().courses.length === 0) { setCoursesLoading(true); }
         postCommand(vscodeApi, 'refreshCourses');
     };
 
     const openCoursePicker = (opener: HTMLElement) => {
         openerRef.current = opener;
-        requestCoursesIfEmpty();
+        requestCourses();
         setPickerOpen(false);
         setHistoryOpen(false);
         // Symmetric with `openHistory`: without this, a send-path error from
@@ -615,11 +616,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     useEffect(() => {
         if (!showCourseChooser || coldStartFetched.current) { return; }
         coldStartFetched.current = true;
-        requestCoursesIfEmpty();
+        requestCourses();
         // Reached from either precondition can trigger it, and the ref makes
-        // it once-only. `requestCoursesIfEmpty` is deliberately absent from
-        // the deps: it is a new function on every render and reads the
-        // store, not the closure.
+        // it once-only. `requestCourses` is deliberately absent from the
+        // deps: it is a new function on every render and reads the store,
+        // not the closure.
     }, [showCourseChooser]);
 
     const handleRetryStartupDetection = () => {
@@ -635,7 +636,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
      * `showCourseChooser` becoming true is what the `coldStartFetched` effect
      * above already watches, so THAT is the one fetch-if-needed call, the
      * same one the ordinary cold start reaches it through. Calling
-     * `requestCoursesIfEmpty` here too would fire it twice for one click.
+     * `requestCourses` here too would fire it twice for one click.
      */
     const handleChooseCourseFromOutage = () => {
         setOutageChooserRequested(true);

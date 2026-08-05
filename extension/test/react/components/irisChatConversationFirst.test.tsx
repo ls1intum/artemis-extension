@@ -1259,6 +1259,31 @@ describe('IrisChatView course refresh', () => {
 
         expect(await screen.findByTestId('course-entry-42')).toBeInTheDocument();
     });
+
+    it('asks the host for courses every time the picker opens, and keeps the current list rendered meanwhile', async () => {
+        const api = createMockVsCodeApi();
+        const activeState = {
+            exercises: [],
+            courses: [{ id: 1, title: 'Existing' }],
+            courseId: 1,
+            courseTitle: 'Existing',
+            currentSessionId: 900,
+            conversationTitle: 'BFS loop',
+            displayMessageCount: 1,
+            contentState: 'content' as const,
+        };
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        await screen.findByRole('button', { name: /Existing/ });
+
+        await userEvent.click(screen.getByRole('button', { name: /Existing/ }));
+
+        expect(getPostMessageCalls(api).some(([m]) => (m as { command?: string }).command === 'refreshCourses')).toBe(true);
+        // The previous list stays rendered while the answer is in flight:
+        // the actual row, not a loading skeleton.
+        expect(screen.getByTestId('course-entry-1')).toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'Select course' })).toHaveAttribute('aria-busy', 'false');
+    });
 });
 
 describe('IrisChatView navigation notice', () => {
