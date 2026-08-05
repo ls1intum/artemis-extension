@@ -510,6 +510,104 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         detection.dispose();
     });
 
+    /**
+     * A course whose instructor switched Iris off answers the cold-start
+     * acquisition with the same 403 `iris.course_disabled` that `switchCourse`
+     * already handles. Before this fix `start` let it propagate and
+     * `_acquireConversation` treated it like any other failure: the student
+     * got the "could not be reached" banner and a Retry that could only ever
+     * repeat the identical 403.
+     */
+    test('a disabled course at cold start shows the disabled banner, not the unreachable one', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        const posted = postSpy.getCalls().map(c => c.args[0] as { type?: string });
+        assert.ok(posted.some(m => m?.type === 'showDisabledState'),
+            'a switched-off course must show the disabled banner');
+        assert.ok(!posted.some(m => m?.type === 'showUnavailableState'),
+            'a definitive answer is not a reachability problem, and must not offer a Retry that can never succeed');
+        detection.dispose();
+    });
+
+    test('a disabled course at cold start still enters the course, so the header names it', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot(): { courseId?: number; currentSessionId?: number } } };
+        })._conversation;
+        const snapshot = conversation.state.snapshot();
+        assert.strictEqual(snapshot.courseId, 9, 'the header must name the course, not fall back to "Choose a course"');
+        assert.strictEqual(snapshot.currentSessionId, undefined, 'entered with no conversation, since Iris is off there');
+        detection.dispose();
+    });
+
+    test('a disabled course at cold start does not re-arm the startup latch', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.callCount, 1, 'the disabled answer was received once');
+
+        // A later settled `matched` outcome (a fresh detection cycle, exactly
+        // what re-arming exists to serve for a TRANSIENT failure) must not
+        // trigger a second acquisition attempt: the disabled answer is
+        // definitive, and retrying it would only repeat the same 403 forever.
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.callCount, 1,
+            'a disabled course must not re-arm the startup latch');
+        detection.dispose();
+    });
+
+    test('a different cold-start failure (500) still shows the unreachable banner and still re-arms', async () => {
+        // The regression guard for the fix above: only the exact 403
+        // `iris.course_disabled` answer may skip the unreachable banner and
+        // the re-arm. Everything else keeps today's behaviour.
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.onFirstCall().rejects(new ApiError('Request failed', 500, 'Internal Server Error'));
+        h.api.getCurrentChat.onSecondCall().resolves(detail({ sessionId: 1, courseId: 9 }));
+        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        const posted = postSpy.getCalls().map(c => c.args[0] as { type?: string });
+        assert.ok(posted.some(m => m?.type === 'showUnavailableState'),
+            'a transient failure must still show the unavailable banner');
+        assert.ok(!posted.some(m => m?.type === 'showDisabledState'),
+            'a 500 is not a settings refusal and must not be reported as one');
+        assert.strictEqual(h.api.getCurrentChat.callCount, 1, 'the first, failing attempt was made');
+
+        // Re-resolving the view (the same recovery the panel-collapse test
+        // above exercises) must get another shot, proving the latch re-armed.
+        await resolveView(h);
+        await settle();
+
+        assert.strictEqual(h.api.getCurrentChat.callCount, 2,
+            'a non-disabled failure must still re-arm the latch');
+        detection.dispose();
+    });
+
     test('re-resolving the view with an installed conversation republishes its transcript once ready', async () => {
         // FINDING 1: `_acquireConversation` is a ONE-SHOT behind the startup
         // latch (see `after a failed acquisition...` above for the failed-

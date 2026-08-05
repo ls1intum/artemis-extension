@@ -21,7 +21,7 @@ import { historyResolvesRun } from '@extension/services/iris/chat/historyResolut
 import type { AvailabilityContext } from '@extension/services/iris/chat/irisAvailabilityService';
 import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
 import { collectUncommittedFiles } from '@extension/services/iris/conversation/collectUncommittedFiles';
-import type { CourseSwitchOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { CourseSwitchOutcome, StartOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { toWireMessages } from '@extension/services/iris/conversation/messageFormatting';
 import { SEND_REJECTION_MESSAGES, SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
@@ -568,8 +568,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _acquireConversation(workspace: { exerciseId: number; courseId: number }): Promise<void> {
         const conversation = this._conversation;
         if (!conversation) { return; }
+        let outcome: StartOutcome;
         try {
-            await conversation.start(workspace);
+            outcome = await conversation.start(workspace);
         } catch (error: unknown) {
             // A failed acquisition leaves no session and therefore no
             // transcript, so the loader would spin forever. The banner's Retry
@@ -585,6 +586,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 message: 'Iris could not be reached. Retry to reload the conversation.',
             });
             throw error;
+        }
+        // A course whose instructor switched Iris off is a destination, not a
+        // failure (see `IrisConversationService.start`): NOT re-thrown, or the
+        // coordinator would re-arm its latch for an answer that will never
+        // change, and Retry would repeat the same 403 forever. Same banner
+        // `_handleSwitchCourse` shows for the identical case reached by a
+        // course switch instead of a cold start.
+        if (outcome.kind === 'disabled') {
+            this._announceCourseDisabled(workspace.courseId);
+            return;
         }
         await this._refreshAvailability();
     }

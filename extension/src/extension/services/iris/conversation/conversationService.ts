@@ -94,6 +94,18 @@ export type CourseSwitchOutcome =
     | { kind: 'stale' }
     | { kind: 'rejected'; reason: 'send-in-flight' | 'failed' };
 
+/**
+ * What the cold start did. `disabled` still landed us in the course, same as
+ * `CourseSwitchOutcome`'s kind above; it is a definitive answer, not a
+ * failure, so `start` reports it instead of throwing. Every OTHER problem
+ * (network, 5xx, ...) still throws: those are transient and the caller's
+ * retry has to keep working.
+ */
+export type StartOutcome =
+    | { kind: 'ok' }
+    | { kind: 'disabled' }
+    | { kind: 'stale' };
+
 type ProbeResult =
     | { kind: 'ok'; detail: SessionDetail; guard: GuardTuple }
     /** 400/404: the row is wrong and has been forgotten. */
@@ -229,13 +241,29 @@ export class IrisConversationService {
      * request; the webview shows the cold-start course chooser (spec 5.7). The
      * dashboard course-list request is a different request and is unaffected.
      */
-    public async start(workspace: { exerciseId: number; courseId: number } | undefined): Promise<void> {
-        if (!workspace) { return; }
+    public async start(workspace: { exerciseId: number; courseId: number } | undefined): Promise<StartOutcome> {
+        if (!workspace) { return { kind: 'ok' }; }
         const target: ServerContext = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: workspace.exerciseId };
-        await this._navigate(async (isCurrent) => {
+        return await this._navigate(async (isCurrent) => {
             const captured = this.state.beginLoad();
-            const detail = await this._api.getCurrentChat('PROGRAMMING_EXERCISE_CHAT', workspace.exerciseId, workspace.courseId);
-            if (!this._install(detail, captured, isCurrent)) { return; }
+            let detail: SessionDetail;
+            try {
+                detail = await this._api.getCurrentChat('PROGRAMMING_EXERCISE_CHAT', workspace.exerciseId, workspace.courseId);
+            } catch (error) {
+                // A cold start into a course whose Iris is off is the same
+                // destination as a switch into one (see `switchCourse`): land
+                // there, so the banner has a course to label and the caller
+                // does not treat a definitive refusal as a reachability
+                // problem worth retrying forever.
+                if (isIrisCourseDisabled(error)) {
+                    logger.info(`Iris is switched off in course ${workspace.courseId}; entering it anyway`, LogCategory.IRIS_CHAT);
+                    return this._enterCourseWithoutConversation(workspace.courseId, isCurrent)
+                        ? { kind: 'disabled' } as const
+                        : { kind: 'stale' } as const;
+                }
+                throw error;
+            }
+            if (!this._install(detail, captured, isCurrent)) { return { kind: 'ok' } as const; }
             // A course session came back: it is empty by construction
             // (findOrCreateEmptyCourseSession). The `empty` check still guards
             // it, because this staging is automatic rather than asked for, and
@@ -246,6 +274,7 @@ export class IrisConversationService {
             }
             void this.refreshOverview();
             this._emit();
+            return { kind: 'ok' } as const;
         });
     }
 
