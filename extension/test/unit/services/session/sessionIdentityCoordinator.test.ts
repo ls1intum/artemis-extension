@@ -134,10 +134,16 @@ suite('SessionIdentityCoordinator', () => {
     // otherwise reinstate the previous identity on the previous server.
     test('a resolution superseded while it was open publishes nothing', async () => {
         let release: (user: { id: number }) => void = () => undefined;
+        let notifyCalled: () => void = () => undefined;
+        const called = new Promise<void>(resolve => { notifyCalled = resolve; });
         const coordinator = new SessionIdentityCoordinator(deps({
-            getCurrentUser: () => new Promise(resolve => { release = resolve; }),
+            getCurrentUser: () => {
+                notifyCalled();
+                return new Promise(resolve => { release = resolve; });
+            },
         }));
         const pending = coordinator.resolvePrincipal();
+        await called;   // getCurrentUser is now genuinely in flight
         coordinator.setAnonymous('https://a.example');
         release({ id: 1 });
         await pending;
