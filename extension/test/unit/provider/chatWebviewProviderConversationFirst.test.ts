@@ -8,7 +8,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ApiError } from '@extension/domain/errors';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
-import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { StartOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -796,6 +796,18 @@ interface FakeConversation {
     switchCourseError?: unknown;
     switchOutcome: { kind: string; sessionId?: number; reason?: string };
     navigateError?: unknown;
+    /** `_acquireConversation`'s outcome from `conversation.start(workspace)`. */
+    startOutcome: StartOutcome;
+    /**
+     * The course `state.snapshot()` reports as current. Settable independently
+     * of `startOutcome` so a test can reproduce the exact case
+     * `_acquireConversation`'s `landedHere` guard exists for: `start()`
+     * resolves `ok` (its `_install` returned false, so the outcome is a lie
+     * about WHERE we landed) while a superseding navigation has already moved
+     * the conversation into a different course. Defaults to 42, the value
+     * every other test in this file already relies on implicitly.
+     */
+    snapshotCourseId: number;
 }
 
 function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation {
@@ -806,6 +818,8 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         newOutcome: { kind: 'opened', sessionId: 9 },
         switchOutcome: { kind: 'opened', sessionId: 5 },
         navigateThrows: false,
+        startOutcome: { kind: 'ok' },
+        snapshotCourseId: 42,
     };
     (provider as unknown as { _conversation: unknown })._conversation = {
         // The full surface the presenter reads: the provider posts a snapshot
@@ -813,12 +827,16 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         // postSnapshot throw rather than fail an assertion.
         state: {
             get sendInFlight() { return fake.sendInFlight; },
-            snapshot: () => ({ currentSessionId: 1, courseId: 42, courseSessions: [], knownInvisible: [] }),
+            snapshot: () => ({ currentSessionId: 1, courseId: fake.snapshotCourseId, courseSessions: [], knownInvisible: [] }),
             displayMessageCount: () => 0,
             contentState: () => 'content',
             effectiveContext: () => undefined,
         },
         navigationInFlight: false,
+        start: async (workspace: unknown) => {
+            fake.calls.push({ name: 'start', args: workspace });
+            return fake.startOutcome;
+        },
         resolveTopicChange: async (target: unknown) => {
             fake.calls.push({ name: 'resolveTopicChange', args: target });
             return fake.topicOutcome;
@@ -1585,6 +1603,58 @@ suite('ChatWebviewProvider: naming what the chat enters, in the catalog', () => 
         await settle();
 
         sinon.assert.calledOnce(h.courseCatalog.upsertSupplemental);
+        detection.dispose();
+    });
+
+    /**
+     * The crux case `landedHere` exists for (conversationService.ts:266): one
+     * `_install` path returns false (a superseding navigation won the race)
+     * while `start()` still resolves `{ kind: 'ok' }` regardless, because
+     * `ok` there means only "no error was thrown", never "we are now in the
+     * requested course". `injectFakeConversation`'s `start` reports whatever
+     * `startOutcome` says and `state.snapshot().courseId` is independently
+     * settable, so this pins the guard down directly rather than through the
+     * outcome kind alone. Paired with the sibling test below (identical
+     * setup, matching course id) so a broken guard that always skips the
+     * write cannot pass this test by accident.
+     */
+    test('a start reporting ok does not record the requested course when a superseding switch already moved elsewhere', async () => {
+        const fake = injectFakeConversation(h.provider);
+        fake.startOutcome = { kind: 'ok' };
+        fake.snapshotCourseId = 99;
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        assert.strictEqual(fake.calls.some(c => c.name === 'start'), true, 'the acquisition must actually have run');
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+        detection.dispose();
+    });
+
+    test('a start reporting ok that actually landed in the requested course does record it', async () => {
+        const fake = injectFakeConversation(h.provider);
+        fake.startOutcome = { kind: 'ok' };
+        fake.snapshotCourseId = 9;
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+        h.courseCatalog.currentEpoch = 5;
+
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-course', id: 9, title: 'Algorithms' },
+            5,
+        );
         detection.dispose();
     });
 
