@@ -7,6 +7,7 @@ import type { ServerContext, SessionDetail } from '@shared/types/serverContext';
 import { ArtemisApiService } from '@extension/api';
 import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
 import { isIrisCourseDisabled } from '@extension/domain/errors';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
@@ -34,9 +35,7 @@ import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
     FileMonitorService,
-    getEntryExercises,
     NoAiDetectionService,
-    toExerciseSource,
 } from '@extension/services/workspace';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import type { WorkspaceExercise, WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
@@ -189,6 +188,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _telemetryManager: ITelemetryManager | undefined,
         contextStore: ContextStore,
         workspaceTracker: WorkspaceExerciseTracker,
+        /**
+         * The picker's course order. The one store that already scopes recency
+         * per server and per principal, so no second recency store has to be
+         * introduced for the chat.
+         */
+        private readonly _courseAccess: CourseAccessStorageService,
     ) {
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -219,7 +224,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             })
         );
         this._viewStatePresenter = new ChatViewStatePresenter(
-            this._contextStore,
+            this._courseCatalog,
+            this._workspaceTracker,
+            this._courseAccess,
             (msg) => this._postMessageSafe(msg),
             // A getter, not a value: `_conversation` is assigned further down
             // in this same constructor (and is `undefined` until then), so
@@ -680,6 +687,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const detail = this._conversation?.state.snapshot().detail;
         if (detail) { this._deliverTranscript(detail, 'load'); }
         await this._populateAvailableContexts();
+        // The snapshot above was posted against whatever the catalog held
+        // before the fetch, which on a cold webview is nothing. The per-entity
+        // repaints this replaces (`_registerCourse` and `_registerExercise`
+        // each ended in a snapshot) are gone, so without this the picker stays
+        // empty until some unrelated event happens to post again.
+        this._viewStatePresenter.postSnapshot();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
 
@@ -885,33 +898,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
-     * Registers a course for the pickers. Deliberately does NOT select it:
-     * selecting would mean opening a conversation behind the student's back,
-     * and the cold-start screen would then be telling them there is nothing to
-     * talk about while one exists.
-     */
-    private _registerCourse(input: { id: number; title: string; shortName?: string; source?: 'workspace-detected' | 'user-selected' | 'system-default' }): void {
-        this._contextStore.registerCourse(input);
-        this._viewStatePresenter.postSnapshot();
-    }
-
-    /** See {@link _registerCourse}. */
-    private _registerExercise(input: {
-        id: number;
-        title: string;
-        shortName?: string;
-        courseId?: number;
-        releaseDate?: string;
-        dueDate?: string;
-        repositoryUri?: string;
-        source?: 'workspace-detected' | 'user-selected' | 'system-default';
-        isWorkspace?: boolean;
-    }): void {
-        this._contextStore.registerExercise(input);
-        this._viewStatePresenter.postSnapshot();
-    }
-
-    /**
      * What the Iris availability check runs against: where the chat IS, which is
      * usually the open conversation and otherwise the course alone (a course
      * with Iris switched off is entered without one). Never a stored selection:
@@ -926,11 +912,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         if (courseId === undefined) { return null; }
         const topic = conversation.state.effectiveContext();
         if (topic?.mode === 'PROGRAMMING_EXERCISE_CHAT') {
-            const tracked = this._contextStore.getExerciseById(topic.entityId);
             return {
                 type: 'exercise',
                 id: topic.entityId,
-                title: topic.name ?? tracked?.title ?? `Exercise ${topic.entityId}`,
+                title: topic.name ?? this._courseCatalog?.exerciseTitle(topic.entityId) ?? `Exercise ${topic.entityId}`,
                 courseId,
             };
         }
@@ -939,7 +924,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return {
             type: 'course',
             id: courseId,
-            title: this._contextStore.getCourseTitle(courseId) ?? `Course ${courseId}`,
+            title: this._courseCatalog?.courseTitle(courseId) ?? `Course ${courseId}`,
             courseId,
         };
     }
@@ -986,10 +971,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     void this._handleNewConversation();
                     break;
                 case WebviewCmd.RefreshCourses:
-                    // A fresh installation tracks no courses at all, so the
-                    // course picker has nothing to list until the dashboard
-                    // has been read once.
-                    void this._populateAvailableContexts()
+                    // Forced: opening the picker is the gesture that means
+                    // "show me what is there now", and a cached dashboard
+                    // would answer it with whatever was true at startup.
+                    void this._populateAvailableContexts({ force: true })
                         .then(() => this._viewStatePresenter.postSnapshot())
                         .catch((err: unknown) => {
                             logger.error('Error refreshing courses', LogCategory.IRIS_CHAT, err);
@@ -1182,50 +1167,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
 
     /**
-     * Populates the chat context selector with all available courses and exercises.
-     * Uses the shared CourseCatalog to avoid duplicate API calls. The sidebar
-     * and chat share the same cached data.
+     * Reads the live dashboard. `force` is the caller's decision: reopening the
+     * chat must not re-hit the network, but opening the picker is the gesture
+     * that means "show me what is there now".
      */
-    private async _populateAvailableContexts(): Promise<void> {
+    private async _populateAvailableContexts(options?: { force?: boolean }): Promise<void> {
         if (!this._courseCatalog) { return; }
-        try {
-            const data = await this._courseCatalog.fetch();
-            const courses = data?.courses;
-            if (!courses || !Array.isArray(courses)) { return; }
-
-            for (const entry of courses) {
-                const course = entry.course;
-                if (!course?.id || !course.title) { continue; }
-
-                this._registerCourse({
-                    id: course.id,
-                    title: course.title,
-                    shortName: course.shortName,
-                    source: 'system-default',
-                });
-
-                for (const exercise of getEntryExercises(entry)) {
-                    const source = toExerciseSource(exercise, course.id);
-                    if (!source || !source.studentParticipations?.length) {
-                        continue;
-                    }
-                    // Do not set isWorkspace here; workspaceDetectionService owns that flag.
-                    // Note: dates are read from the raw exercise because ExerciseSource
-                    // intentionally omits them (kept narrow for workspace-detection use).
-                    this._registerExercise({
-                        id: source.id,
-                        title: source.title,
-                        shortName: source.shortName,
-                        courseId: course.id,
-                        releaseDate: exercise.releaseDate ?? exercise.startDate,
-                        dueDate: exercise.dueDate,
-                        source: 'system-default',
-                    });
-                }
-            }
-        } catch (error) {
-            logger.debug('Failed to populate available contexts', LogCategory.IRIS_CHAT, error);
-        }
+        await this._courseCatalog.fetch(options);
     }
 
     private _handleOpenHelpPopup(): void {
@@ -1395,7 +1343,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             if (outcome.kind === 'opened') {
                 this._postMessageSafe({
                     type: ExtensionMsg.ShowChatNotice,
-                    text: `Switched to ${this._contextStore.getCourseTitle(courseId) ?? 'another course'}.`,
+                    text: `Switched to ${this._courseCatalog?.courseTitle(courseId) ?? 'another course'}.`,
                 });
             }
             return outcome;
@@ -1424,7 +1372,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._availability.postAvailability({ kind: 'disabled' }, {
             type: 'course',
             id: courseId,
-            title: this._contextStore.getCourseTitle(courseId) ?? `Course ${courseId}`,
+            title: this._courseCatalog?.courseTitle(courseId) ?? `Course ${courseId}`,
         });
     }
 

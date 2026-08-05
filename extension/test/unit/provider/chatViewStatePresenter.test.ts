@@ -4,31 +4,68 @@ import * as sinon from 'sinon';
 import type { ExtMsg } from '@shared/messageContracts';
 
 import { ChatViewStatePresenter } from '@extension/provider/chatViewStatePresenter';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CatalogCourse, CatalogExercise, CatalogProjection, CourseCatalog } from '@extension/services/courseCatalog';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
-import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 
 /**
  * The presenter projects the open conversation onto `updateIrisState`: the
- * tracked exercises and courses from `ContextStore`, and every
- * conversation-first field from `IrisConversationService.state`.
- * `IrisConversationService` itself needs a real `ArtemisApiService` and
- * transport deps to construct, so these tests use a minimal fake that
- * only implements the exact members the presenter reads.
+ * pickable exercises and courses from the live `CourseCatalog`, the folder's
+ * exercise from `WorkspaceExerciseTracker`, and every conversation-first field
+ * from `IrisConversationService.state`. `IrisConversationService` itself needs
+ * a real `ArtemisApiService` and transport deps to construct, so these tests
+ * use a minimal fake that only implements the exact members the presenter
+ * reads.
  *
  * Contexts are supplied BOTH ways on purpose. `listChatSessionsForCourse` is
  * the only producer that fills `name` (from the overview's `entityName`);
  * every detail load builds `{ mode, entityId }` and nothing else, so a fixture
  * that always supplies a name tests a shape the host never sends.
  */
+
+/**
+ * A minimal `CourseCatalog` double. Only the three read methods the presenter
+ * calls exist, and the two title lookups answer from the same arrays
+ * `projection()` returns, exactly as the real catalog derives them.
+ */
+class FakeCatalog {
+    public courses: CatalogCourse[] = [];
+    public exercises: CatalogExercise[] = [];
+
+    public projection(): CatalogProjection {
+        return { courses: this.courses, exercises: this.exercises };
+    }
+
+    public courseTitle(courseId: number): string | undefined {
+        return this.courses.find(c => c.id === courseId)?.title;
+    }
+
+    public exerciseTitle(exerciseId: number): string | undefined {
+        return this.exercises.find(e => e.id === exerciseId)?.title;
+    }
+}
+
+/** Only `getAccessTimestamp` is read by the presenter. */
+class FakeCourseAccess {
+    public timestamps: Record<number, number> = {};
+
+    public getAccessTimestamp(courseId: number): number | undefined {
+        return this.timestamps[courseId];
+    }
+}
+
+type ContextLike = { mode: string; entityId: number; name?: string };
+type RowLike = { sessionId: number; courseId: number; context: ContextLike; title?: string; lastActivity: number };
+
 function fakeConversation(over: {
     courseId?: number;
     currentSessionId?: number;
     detailTitle?: string;
-    committedContext?: { mode: string; entityId: number; name?: string };
-    pendingCtx?: { mode: string; entityId: number; name?: string };
-    courseSessions?: Array<{ sessionId: number; courseId: number; context: { mode: string; entityId: number; name?: string }; title?: string; lastActivity: number }>;
-    knownInvisible?: Array<{ sessionId: number; courseId: number; context: { mode: string; entityId: number; name?: string }; title?: string; lastActivity: number }>;
+    committedContext?: ContextLike;
+    pendingCtx?: ContextLike;
+    courseSessions?: RowLike[];
+    knownInvisible?: RowLike[];
     displayMessageCount?: number;
     contentState?: 'unknown' | 'empty' | 'content';
     sendInFlight?: boolean;
@@ -56,10 +93,56 @@ function fakeConversation(over: {
     } as unknown as IrisConversationService;
 }
 
+/**
+ * The same double, but read LAZILY: every field is looked up on each
+ * `postSnapshot()`, so a test can build the presenter once in `setup` and then
+ * state its scenario field by field.
+ */
+interface MutableConversation {
+    courseId: number | undefined;
+    currentSessionId: number | undefined;
+    committed: ContextLike | undefined;
+    pending: ContextLike | undefined;
+    courseSessions: RowLike[];
+    knownInvisible: RowLike[];
+}
+
+function mutableConversation(): { mut: MutableConversation; service: IrisConversationService } {
+    const mut: MutableConversation = {
+        courseId: undefined,
+        currentSessionId: undefined,
+        committed: undefined,
+        pending: undefined,
+        courseSessions: [],
+        knownInvisible: [],
+    };
+    const service = {
+        state: {
+            snapshot: () => ({
+                courseId: mut.courseId,
+                currentSessionId: mut.currentSessionId,
+                detail: undefined,
+                committedContext: mut.committed,
+                pendingContext: mut.pending === undefined ? undefined : { ctx: mut.pending, sessionId: mut.currentSessionId ?? 0, baseRevision: 0 },
+                courseSessions: mut.courseSessions,
+                knownInvisible: mut.knownInvisible,
+            }),
+            displayMessageCount: () => 0,
+            contentState: () => 'unknown',
+            sendInFlight: false,
+            effectiveContext: () => mut.pending ?? mut.committed,
+        },
+        navigationInFlight: false,
+    } as unknown as IrisConversationService;
+    return { mut, service };
+}
+
 type DetectionUiState = ExtMsg<'updateIrisState'>['state']['detectionState'];
 
 interface Harness {
-    contextStore: ContextStore;
+    catalog: FakeCatalog;
+    tracker: WorkspaceExerciseTracker;
+    access: FakeCourseAccess;
     postSpy: sinon.SinonSpy;
     sandbox: sinon.SinonSandbox;
     /**
@@ -77,16 +160,27 @@ interface Harness {
 
 function buildHarness(): Harness {
     const sandbox = sinon.createSandbox();
-    const contextStore = new ContextStore(new MockExtensionContext());
+    const catalog = new FakeCatalog();
+    const tracker = new WorkspaceExerciseTracker();
+    const access = new FakeCourseAccess();
     const posted: ExtMsg<'updateIrisState'>[] = [];
     const postSpy = sandbox.spy((msg: unknown) => posted.push(msg as ExtMsg<'updateIrisState'>));
 
     return {
-        contextStore,
+        catalog,
+        tracker,
+        access,
         postSpy,
         sandbox,
         build: (getConversation, getDetectionState = () => 'settled') =>
-            new ChatViewStatePresenter(contextStore, postSpy as never, getConversation, getDetectionState),
+            new ChatViewStatePresenter(
+                catalog as unknown as CourseCatalog,
+                tracker,
+                access as unknown as CourseAccessStorageService,
+                postSpy as never,
+                getConversation,
+                getDetectionState,
+            ),
         latestState: () => posted[posted.length - 1].state,
     };
 }
@@ -99,17 +193,18 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
     });
 
     teardown(() => {
+        h.tracker.dispose();
         h.sandbox.restore();
     });
 
     test('conversation getter returning undefined still emits every field, at its empty value', () => {
-        h.contextStore.registerCourse({ id: 5, title: 'Algorithms' });
+        h.catalog.courses = [{ id: 5, title: 'Algorithms' }];
         const presenter = h.build(() => undefined);
 
         presenter.postSnapshot();
         const state = h.latestState();
 
-        assert.strictEqual(state.courses.length, 1, 'the tracked courses must still populate');
+        assert.strictEqual(state.courses.length, 1, 'the catalog courses must still populate');
         assert.strictEqual(state.courseId, undefined);
         assert.strictEqual(state.courseTitle, undefined);
         assert.strictEqual(state.currentSessionId, undefined);
@@ -123,7 +218,7 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
     });
 
     test('conversation getter returning a live service populates every new field from its state', () => {
-        h.contextStore.registerCourse({ id: 5, title: 'Algorithms' });
+        h.catalog.courses = [{ id: 5, title: 'Algorithms' }];
         const conversation = fakeConversation({
             courseId: 5,
             currentSessionId: 42,
@@ -144,10 +239,10 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         const state = h.latestState();
 
         assert.strictEqual(state.courseId, 5);
-        // Resolved against the tracked-course repository: ConversationSnapshot
-        // carries only the id, never a display title, and this field is
-        // OPTIONAL-shaped enough that losing its source blanks the header's
-        // course line with no compile error anywhere.
+        // Resolved against the catalog: ConversationSnapshot carries only the
+        // id, never a display title, and this field is OPTIONAL-shaped enough
+        // that losing its source blanks the header's course line with no
+        // compile error anywhere.
         assert.strictEqual(state.courseTitle, 'Algorithms');
         assert.strictEqual(state.currentSessionId, 42);
         assert.strictEqual(state.conversationTitle, 'Recursion help');
@@ -162,12 +257,12 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(state.conversations?.[0].entityName, 'Sorting');
     });
 
-    // The store hides past-deadline exercises. The presenter is the only thing
-    // that knows what the conversation is about, so it has to pass the topic in
-    // or the chip names an exercise the picker refuses to list.
-    test('the conversation topic travels into the snapshot, so an overdue topic stays listed', () => {
+    // The presenter hides past-deadline exercises. It is also the only thing
+    // that knows what the conversation is about, so the topic has to survive
+    // that filter or the chip names an exercise the picker refuses to list.
+    test('the conversation topic survives the past-deadline filter, so an overdue topic stays listed', () => {
         const past = '2020-01-01T00:00:00.000Z';
-        h.contextStore.registerExercise({ id: 12, title: 'Sorting', dueDate: past } as never);
+        h.catalog.exercises = [{ id: 12, courseId: 5, title: 'Sorting', dueDate: past, pickable: true }];
 
         const withoutTopic = h.build(() => undefined);
         withoutTopic.postSnapshot();
@@ -186,7 +281,7 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
 
     test('a STAGED topic keeps its exercise listed too, so the checkmark has somewhere to land', () => {
         const past = '2020-01-01T00:00:00.000Z';
-        h.contextStore.registerExercise({ id: 12, title: 'Sorting', dueDate: past } as never);
+        h.catalog.exercises = [{ id: 12, courseId: 5, title: 'Sorting', dueDate: past, pickable: true }];
 
         const presenter = h.build(() => fakeConversation({
             courseId: 5,
@@ -202,8 +297,8 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
     // THE SHAPE THE HOST ACTUALLY PRODUCES. `_toSessionDetail` builds
     // `context: { mode, entityId }` and never sets `name`, so on every load
     // path the committed and pending contexts reach the webview nameless.
-    test('a nameless committed topic is named from the tracked exercise', () => {
-        h.contextStore.registerExercise({ id: 12, title: 'Sorting', courseId: 5 } as never);
+    test('a nameless committed topic is named from the catalog', () => {
+        h.catalog.exercises = [{ id: 12, courseId: 5, title: 'Sorting', pickable: true }];
         const presenter = h.build(() => fakeConversation({
             courseId: 5,
             currentSessionId: 42,
@@ -217,7 +312,7 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
     });
 
     test('a nameless STAGED topic is named too, so the chip does not change label on commit', () => {
-        h.contextStore.registerExercise({ id: 12, title: 'Sorting', courseId: 5 } as never);
+        h.catalog.exercises = [{ id: 12, courseId: 5, title: 'Sorting', pickable: true }];
         const presenter = h.build(() => fakeConversation({
             courseId: 5,
             currentSessionId: 42,
@@ -231,7 +326,7 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
     });
 
     test('a nameless history row is named too, so the open conversation is not labelled a course chat', () => {
-        h.contextStore.registerExercise({ id: 12, title: 'Sorting', courseId: 5 } as never);
+        h.catalog.exercises = [{ id: 12, courseId: 5, title: 'Sorting', pickable: true }];
         const presenter = h.build(() => fakeConversation({
             courseId: 5,
             currentSessionId: 42,
@@ -247,9 +342,9 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(h.latestState().conversations?.[0].entityName, 'Sorting');
     });
 
-    test('an untracked entity keeps no name, leaving the webview to name it by mode', () => {
-        // Lectures are never tracked, and an exercise id would collide with a
-        // lecture id, so the host must not guess here.
+    test('an entity the catalog does not know keeps no name, leaving the webview to name it by mode', () => {
+        // Lectures are never in the catalog, and an exercise id would collide
+        // with a lecture id, so the host must not guess here.
         const presenter = h.build(() => fakeConversation({
             courseId: 5,
             currentSessionId: 42,
@@ -305,8 +400,8 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(h.latestState().conversations?.[0].title, 'Fresh');
     });
 
-    test('workspaceExerciseId is sourced from ContextStore, independent of the conversation getter', () => {
-        h.contextStore.registerExercise({ id: 12, title: 'Sorting', isWorkspace: true } as never);
+    test('workspaceExerciseId is sourced from the workspace tracker, independent of the conversation getter', () => {
+        h.tracker.set({ id: 12, title: 'Sorting', courseId: 5 });
         const presenter = h.build(() => undefined);
 
         presenter.postSnapshot();
@@ -323,7 +418,7 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         // A single snapshot cannot tell "reads the getter every call" apart
         // from "reads it once and caches it": both answer the same value on
         // the first post. The getter's return value changes between the two
-        // `postSnapshot()` calls below specifically to rule out caching — a
+        // `postSnapshot()` calls below specifically to rule out caching - a
         // presenter that memoized the first read (e.g. `this._cached ??=
         // this._getDetectionState()`) would still pass a single-snapshot
         // version of this test but would freeze the wire at `'unavailable'`
@@ -337,5 +432,113 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         detectionState = 'settled';
         presenter.postSnapshot();
         assert.strictEqual(h.latestState().detectionState, 'settled');
+    });
+});
+
+suite('ChatViewStatePresenter: the catalog projection (Task 9)', () => {
+    let h: Harness;
+    let catalog: FakeCatalog;
+    let tracker: WorkspaceExerciseTracker;
+    let access: FakeCourseAccess;
+    let conversation: MutableConversation;
+    let presenter: ChatViewStatePresenter;
+    let lastState: () => ExtMsg<'updateIrisState'>['state'];
+
+    setup(() => {
+        h = buildHarness();
+        catalog = h.catalog;
+        tracker = h.tracker;
+        access = h.access;
+        const live = mutableConversation();
+        conversation = live.mut;
+        presenter = h.build(() => live.service);
+        lastState = h.latestState;
+    });
+
+    teardown(() => {
+        h.tracker.dispose();
+        h.sandbox.restore();
+    });
+
+    test('a past-deadline exercise is hidden', () => {
+        catalog.exercises = [{ id: 1, courseId: 9, title: 'Old', dueDate: '2000-01-01T00:00:00Z', pickable: true }];
+        presenter.postSnapshot();
+        assert.deepStrictEqual(lastState().exercises, []);
+    });
+
+    test('a past-deadline exercise stays when it is the workspace one', () => {
+        catalog.exercises = [{ id: 1, courseId: 9, title: 'Old', dueDate: '2000-01-01T00:00:00Z', pickable: true }];
+        tracker.set({ id: 1, title: 'Old', courseId: 9 });
+        presenter.postSnapshot();
+        assert.deepStrictEqual(lastState().exercises.map(e => e.id), [1]);
+        // The id alone cannot tell the two ways of arriving here apart: the
+        // always-offerable fallback would push a tracker-shaped row for the
+        // very same id. Only the CATALOG row carries the due date, so this is
+        // what proves the filter let it through rather than the fallback
+        // re-adding it.
+        assert.strictEqual(lastState().exercises[0]?.dueDate, '2000-01-01T00:00:00Z');
+    });
+
+    test('a past-deadline exercise stays when it is the current topic', () => {
+        catalog.exercises = [{ id: 1, courseId: 9, title: 'Old', dueDate: '2000-01-01T00:00:00Z', pickable: true }];
+        conversation.committed = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 1 };
+        presenter.postSnapshot();
+        assert.deepStrictEqual(lastState().exercises.map(e => e.id), [1]);
+    });
+
+    test('an exercise with no participation is not offered', () => {
+        catalog.exercises = [{ id: 1, courseId: 9, title: 'No participation', pickable: false }];
+        presenter.postSnapshot();
+        assert.deepStrictEqual(lastState().exercises, []);
+    });
+
+    test('the workspace exercise is offered even when the catalog has no entity for it', () => {
+        catalog.exercises = [];
+        tracker.set({ id: 42, title: 'Archived exercise', courseId: 9 });
+        presenter.postSnapshot();
+        assert.deepStrictEqual(lastState().exercises.map(e => e.id), [42]);
+    });
+
+    test('a course carries its access timestamp for the picker order', () => {
+        catalog.courses = [{ id: 9, title: 'C' }];
+        access.timestamps[9] = 1234;
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().courses[0]?.lastViewed, 1234);
+    });
+
+    test('a server-supplied name wins over the catalog', () => {
+        catalog.exercises = [{ id: 1, courseId: 9, title: 'Catalog name', pickable: true }];
+        conversation.committed = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 1, name: 'Marker name' };
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().committedContext?.name, 'Marker name');
+    });
+
+    test('an overview row names the topic when the detail load could not', () => {
+        conversation.committed = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 1 };
+        conversation.currentSessionId = 5;
+        conversation.courseSessions = [{ sessionId: 5, courseId: 9, context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 1, name: 'From overview' }, lastActivity: 0 }];
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().committedContext?.name, 'From overview');
+    });
+
+    test('an overview row for another topic in the same session names nothing', () => {
+        conversation.committed = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 2 };
+        conversation.currentSessionId = 5;
+        conversation.courseSessions = [{ sessionId: 5, courseId: 9, context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 1, name: 'Old topic' }, lastActivity: 0 }];
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().committedContext?.name, undefined);
+    });
+
+    test('an open conversation in an unnamed course reads Course 9, not nothing', () => {
+        conversation.courseId = 9;
+        catalog.courses = [];
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().courseTitle, 'Course 9');
+    });
+
+    test('a cold start has no course title', () => {
+        conversation.courseId = undefined;
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().courseTitle, undefined);
     });
 });

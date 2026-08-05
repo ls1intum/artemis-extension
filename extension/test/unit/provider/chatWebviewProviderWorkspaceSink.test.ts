@@ -20,6 +20,9 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
     const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
+        projection: () => ({ courses: [], exercises: [] }),
+        courseTitle: () => undefined,
+        exerciseTitle: () => undefined,
     };
     const contextStore = new ContextStore(mockContext);
     const workspaceTracker = new WorkspaceExerciseTracker();
@@ -34,6 +37,7 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         undefined,
         contextStore,
         workspaceTracker,
+        { getAccessTimestamp: () => undefined } as never,
     );
     return { provider, sandbox, mockContext };
 }
@@ -63,6 +67,25 @@ suite('ChatWebviewProvider workspace sink', () => {
         provider.registerWorkspaceExercise(input);
 
         assert.ok(set.calledOnceWith(input));
+    });
+
+    test('the detected exercise reaches the wire, so the picker can badge it', () => {
+        // The picker derives its "Workspace" badge from `workspaceExerciseId`
+        // alone (`ContextPicker.tsx`). Between Tasks 7 and 9 the presenter
+        // still read the persisted store, which no longer received workspace
+        // writes, so the field was permanently undefined and the badge dark.
+        const posted: Array<{ type?: string; state?: { workspaceExerciseId?: number } }> = [];
+        sandbox.stub(
+            provider as unknown as { _postMessageSafe: (m: unknown) => void },
+            '_postMessageSafe',
+        ).callsFake((m: unknown) => { posted.push(m as { type?: string }); });
+
+        provider.registerWorkspaceExercise({ id: 77, title: 'BFS', courseId: 9 });
+        (provider as unknown as { _viewStatePresenter: { postSnapshot(): void } })
+            ._viewStatePresenter.postSnapshot();
+
+        const state = posted.filter(m => m?.type === 'updateIrisState').at(-1)?.state;
+        assert.strictEqual(state?.workspaceExerciseId, 77);
     });
 
     test('clearWorkspaceExercise calls the tracker clear then postSnapshot', () => {

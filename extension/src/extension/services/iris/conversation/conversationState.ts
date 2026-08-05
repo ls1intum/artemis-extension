@@ -51,6 +51,22 @@ interface ConversationSnapshot {
 
 type SwapOutcome = 'pending-satisfied' | 'pending-dropped' | 'pending-kept' | 'no-pending';
 
+/**
+ * Only the overview endpoint returns `entityName`; every DETAIL load builds
+ * its context from mode and entityId alone. Merging a detail-derived summary
+ * over an overview row would therefore discard the name, and the row the
+ * student just clicked would lose the very label they clicked.
+ *
+ * Kept only when the incoming context names the SAME topic. A CTXSWAP
+ * changes the topic without changing the conversation, and it must not
+ * inherit the previous exercise's name.
+ */
+function keepKnownName(previous: ServerContext | undefined, next: ServerContext): ServerContext {
+    if (next.name !== undefined) { return next; }
+    if (!previous?.name || !sameContext(previous, next)) { return next; }
+    return { ...next, name: previous.name };
+}
+
 export class ConversationState {
     private _courseId: number | undefined;
     private _currentSessionId: number | undefined;
@@ -388,17 +404,20 @@ export class ConversationState {
      * would disagree about the same conversation.
      */
     public updateSummary(summary: SessionSummary): void {
-        const index = this._courseSessions.findIndex((s) => s.sessionId === summary.sessionId);
+        const previous = this._courseSessions.find((s) => s.sessionId === summary.sessionId)
+            ?? this._knownInvisible.get(summary.sessionId);
+        const merged: SessionSummary = { ...summary, context: keepKnownName(previous?.context, summary.context) };
+        const index = this._courseSessions.findIndex((s) => s.sessionId === merged.sessionId);
         if (index >= 0) {
             this._courseSessions = [
                 ...this._courseSessions.slice(0, index),
-                { ...this._courseSessions[index], ...summary },
+                { ...this._courseSessions[index], ...merged },
                 ...this._courseSessions.slice(index + 1),
             ];
-            this._knownInvisible.delete(summary.sessionId);
+            this._knownInvisible.delete(merged.sessionId);
             return;
         }
-        this.rememberInvisible({ ...this._knownInvisible.get(summary.sessionId), ...summary });
+        this.rememberInvisible({ ...this._knownInvisible.get(merged.sessionId), ...merged });
     }
 
     /** Title changes are a summary lifecycle event, like context changes. */

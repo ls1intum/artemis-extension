@@ -170,7 +170,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
 		noAiDetectionService, exerciseRegistry, courseCatalog, telemetryManager,
-		contextStore, workspaceTracker,
+		contextStore, workspaceTracker, courseAccessStorage,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);

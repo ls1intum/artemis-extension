@@ -76,6 +76,9 @@ function buildHarness(): Harness {
     const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
+        projection: () => ({ courses: [], exercises: [] }),
+        courseTitle: () => undefined,
+        exerciseTitle: () => undefined,
     };
 
     const provider = new ChatWebviewProvider(
@@ -89,6 +92,7 @@ function buildHarness(): Harness {
         undefined,
         contextStore,
         new WorkspaceExerciseTracker(),
+        { getAccessTimestamp: () => undefined } as never,
     );
 
     const postSpy = sandbox.spy(provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');

@@ -393,3 +393,29 @@ describe('ConversationState knownInvisible', () => {
         expect(storedContext(state, 9)).toEqual(EX5);
     });
 });
+
+/**
+ * Only the overview endpoint returns `entityName`. Every detail load builds its
+ * context from mode and entityId alone, so a summary derived from one must not
+ * be allowed to erase a name the overview already gave the same topic.
+ */
+const namedContext = (entityId: number, name?: string) =>
+    ({ mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId, name });
+
+describe('ConversationState summary names', () => {
+    let state: ConversationState;
+    beforeEach(() => { state = new ConversationState(); state.setCourse(9); });
+
+    it('a detail install does not erase a name the overview already gave the topic', () => {
+        state.updateSummary({ sessionId: 1, courseId: 9, lastActivity: 10, context: namedContext(4, 'Sorting') });
+        // A detail load knows the topic but not its name.
+        state.updateSummary({ sessionId: 1, courseId: 9, lastActivity: 20, context: namedContext(4) });
+        expect(state.snapshot().knownInvisible[0]?.context.name).toBe('Sorting');
+    });
+
+    it('a topic change does not inherit the previous topic\'s name', () => {
+        state.updateSummary({ sessionId: 1, courseId: 9, lastActivity: 10, context: namedContext(4, 'Sorting') });
+        state.updateSummary({ sessionId: 1, courseId: 9, lastActivity: 20, context: namedContext(5) });
+        expect(state.snapshot().knownInvisible[0]?.context.name).toBeUndefined();
+    });
+});

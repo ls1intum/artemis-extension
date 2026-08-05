@@ -20,7 +20,24 @@ interface Harness {
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
     exerciseEvents: number[];
     sandbox: sinon.SinonSandbox;
-    courseCatalog: { currentEpoch: number; courseTitle: sinon.SinonStub; upsertSupplemental: sinon.SinonStub };
+    courseCatalog: FakeCatalog;
+}
+
+/**
+ * The chat's picker source. Only the members the provider and its presenter
+ * read exist, and `projection()` answers from mutable arrays a test can fill,
+ * which is how a dashboard fetch is simulated without an HTTP layer.
+ */
+interface FakeCatalog {
+    onCoursesLoaded: vscode.Event<unknown>;
+    fetch: sinon.SinonStub;
+    currentEpoch: number;
+    courses: Array<{ id: number; title: string }>;
+    exercises: Array<{ id: number; courseId: number; title: string; pickable: boolean }>;
+    projection(): { courses: FakeCatalog['courses']; exercises: FakeCatalog['exercises'] };
+    courseTitle: sinon.SinonStub;
+    exerciseTitle: sinon.SinonStub;
+    upsertSupplemental: sinon.SinonStub;
 }
 
 /**
@@ -49,11 +66,15 @@ function buildHarness(): Harness {
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseCatalog = {
+    const courseCatalog: FakeCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
-        fetch: async () => undefined,
+        fetch: sandbox.stub().resolves(undefined),
         currentEpoch: 0,
+        courses: [],
+        exercises: [],
+        projection() { return { courses: this.courses, exercises: this.exercises }; },
         courseTitle: sandbox.stub().returns(undefined),
+        exerciseTitle: sandbox.stub().returns(undefined),
         upsertSupplemental: sandbox.stub(),
     };
 
@@ -68,6 +89,7 @@ function buildHarness(): Harness {
         undefined,
         contextStore,
         workspaceTracker,
+        { getAccessTimestamp: () => undefined } as never,
     );
 
     const exerciseEvents: number[] = [];
@@ -1153,16 +1175,19 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         assert.deepStrictEqual(openErrorsFrom(postSpy), []);
     });
 
-    test('refreshCourses reads the dashboard into the store and re-posts the snapshot', async () => {
+    test('refreshCourses reads the dashboard into the catalog and re-posts the snapshot', async () => {
         const populate = h.sandbox.stub(
-            h.provider as unknown as { _populateAvailableContexts: () => Promise<void> },
+            h.provider as unknown as { _populateAvailableContexts: (o?: { force?: boolean }) => Promise<void> },
             '_populateAvailableContexts',
-        ).callsFake(async () => { h.contextStore.registerCourse({ id: 42, title: 'Algorithms' }); });
+        ).callsFake(async () => { h.courseCatalog.courses = [{ id: 42, title: 'Algorithms' }]; });
 
         dispatch(h.provider, 'refreshCourses');
         await settle();
 
         assert.strictEqual(populate.callCount, 1);
+        // Opening the picker is the gesture that means "what is there NOW", so
+        // a cached dashboard is not an answer to it.
+        assert.deepStrictEqual(populate.firstCall.args, [{ force: true }]);
         const states = postSpy.getCalls()
             .map(c => c.args[0] as { type?: string; state?: { courses: unknown[] } })
             .filter(m => m?.type === 'updateIrisState');
@@ -1412,14 +1437,18 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
         assert.strictEqual(h.api.listChatSessionsForCourse.callCount, 0);
     });
 
-    test('registering courses does not open a conversation behind the cold start', async () => {
-        (h.provider as unknown as { _courseCatalog: unknown })._courseCatalog = {
-            fetch: async () => ({ courses: [{ course: { id: 42, title: 'Algorithms' } }] }),
-        };
+    test('reading the dashboard does not open a conversation behind the cold start', async () => {
+        h.courseCatalog.fetch.callsFake(async () => {
+            h.courseCatalog.courses = [{ id: 42, title: 'Algorithms' }];
+            return undefined;
+        });
 
-        await (h.provider as unknown as { _populateAvailableContexts: () => Promise<void> })._populateAvailableContexts();
+        await (h.provider as unknown as { _sendInitData: () => Promise<void> })._sendInitData();
 
-        assert.strictEqual(h.contextStore.snapshot().courses.length, 1, 'the picker still gets its list');
+        const states = postSpy.getCalls()
+            .map(c => c.args[0] as { type?: string; state?: { courses: unknown[] } })
+            .filter(m => m?.type === 'updateIrisState');
+        assert.strictEqual(states.at(-1)?.state?.courses.length, 1, 'the picker still gets its list');
         // Auto-select is what used to select a context, which the old
         // acquisition then turned into a real server session while the webview
         // was telling the student there was nothing to talk about.
