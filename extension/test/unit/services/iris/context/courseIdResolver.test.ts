@@ -28,7 +28,7 @@ function fakeCatalog(options: { exercises: Array<{ id: number; courseId: number;
             studentParticipations: ex.pickable ? [{ id: 1, repositoryUri: 'https://example.test/repo.git' }] : [],
         });
     }
-    for (const entry of byCourse.values()) { catalog.injectEntry(entry); }
+    for (const entry of byCourse.values()) { catalog.injectEntry(entry, catalog.currentEpoch); }
     return catalog;
 }
 

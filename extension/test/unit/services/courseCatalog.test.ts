@@ -210,8 +210,8 @@ suite('CourseCatalog', () => {
         const catalog = new CourseCatalog({} as ArtemisApiService);
         let fireCount = 0;
         catalog.onCoursesLoaded(() => { fireCount++; });
-        catalog.injectEntry(entry(9, 'Archived'));
-        catalog.injectEntry(entry(9, 'Archived'));
+        catalog.injectEntry(entry(9, 'Archived'), catalog.currentEpoch);
+        catalog.injectEntry(entry(9, 'Archived'), catalog.currentEpoch);
         assert.strictEqual(fireCount, 1);
     });
 
@@ -221,8 +221,26 @@ suite('CourseCatalog', () => {
         await catalog.fetch();
         let fireCount = 0;
         catalog.onCoursesLoaded(() => { fireCount++; });
-        catalog.injectEntry(entry(1, 'C'));
+        catalog.injectEntry(entry(1, 'C'), catalog.currentEpoch);
         assert.strictEqual(fireCount, 0);
+    });
+
+    // The whole point of the parameter. An `injectEntry` that read
+    // `this._epoch` would compare the epoch to itself, so the archived course
+    // the previous account's search found would land in the new session and
+    // fire the event that rebuilds the registry and feeds the Iris picker.
+    test('injectEntry with an epoch from a previous session is rejected', () => {
+        const catalog = new CourseCatalog({} as ArtemisApiService);
+        const stale = catalog.currentEpoch;
+        catalog.resetTo(stale + 1);
+        let fireCount = 0;
+        catalog.onCoursesLoaded(() => { fireCount++; });
+
+        catalog.injectEntry(entry(9, 'Archived'), stale);
+
+        assert.strictEqual(fireCount, 0, 'a rejected write must not announce anything');
+        assert.deepStrictEqual(catalog.projection().courses, []);
+        assert.strictEqual(catalog.get(), undefined);
     });
 
     // With an unscoped `finally`, the older request's cleanup would erase the

@@ -24,7 +24,17 @@ import type {
     WebviewNavigationFacadeDeps,
 } from '@extension/provider/webviewNavigationFacade';
 import { WebviewNavigationFacade } from '@extension/provider/webviewNavigationFacade';
+// The defining module, not the `@extension/services/workspace` barrel the
+// facade imports from: a re-export is a non-configurable getter, and it
+// forwards to this module's export at call time, so this is the seam sinon
+// can actually replace.
+import * as detectionModule from '@extension/services/workspace/workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '@extension/types';
+
+/** Lets the background archive chain in `showDashboard` run to completion. */
+function flushBackgroundWork(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
 
 suite('WebviewNavigationFacade', () => {
     let sandbox: sinon.SinonSandbox;
@@ -465,6 +475,35 @@ suite('WebviewNavigationFacade', () => {
         assert.strictEqual(
             stubs.courseCatalog.upsertSupplemental.firstCall.args[1], 8,
             'the courses were fetched by the previous session, so they carry its generation',
+        );
+    });
+
+    // The archive search issues one detail request per archived course, so it
+    // is the producer most likely to still be open when the identity changes.
+    // Reading the epoch in `injectEntry` itself would compare it to itself and
+    // let the previous account's course into the new session.
+    test('showDashboard: injects the archived course with the epoch from before the search', async () => {
+        const catalog = {
+            fetch: sandbox.stub().resolves(),
+            upsertSupplemental: sandbox.stub(),
+            currentEpoch: 2,
+        };
+        sandbox.stub(detectionModule, 'findWorkspaceCourseInArchive').callsFake(async () => {
+            // The student logs out (or the server URL changes) while the
+            // per-course archive probes are still running.
+            catalog.currentEpoch = 3;
+            return { course: { id: 77, title: 'Archived' } };
+        });
+        const { deps, stubs } = buildDeps({ courseCatalog: catalog });
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.showDashboard({ username: 'dan', serverUrl: 'https://x/' });
+        await flushBackgroundWork();
+
+        sinon.assert.calledOnce(stubs.appStateManager.injectCourseEntry);
+        assert.strictEqual(
+            stubs.appStateManager.injectCourseEntry.firstCall.args[1], 2,
+            'the archived course belongs to the session that searched for it',
         );
     });
 

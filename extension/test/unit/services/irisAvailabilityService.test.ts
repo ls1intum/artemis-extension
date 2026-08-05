@@ -20,7 +20,7 @@ function injectCourseWithExercise(catalog: CourseCatalog, courseId: number, exer
             exercises: [{ id: exerciseId, title: 'Test Exercise', studentParticipations: [{ id: 1, repositoryUri: 'https://example.test/repo.git' }] }],
         },
     };
-    catalog.injectEntry(entry);
+    catalog.injectEntry(entry, catalog.currentEpoch);
 }
 
 suite('IrisAvailabilityService Test Suite', () => {

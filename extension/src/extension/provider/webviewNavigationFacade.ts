@@ -121,6 +121,12 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public async showDashboard(userInfo: UserInfo): Promise<void> {
+        // Captured before anything is awaited, because the archive search below
+        // is the longest-running producer in the extension: it issues one
+        // detail request per archived course, and a logout, a 401 or a
+        // server-URL change during it must not let the old server's course
+        // into the new session.
+        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
         // Set state immediately so concurrent logic sees 'dashboard' during fetch
         this.deps.appStateManager.showDashboard(userInfo);
 
@@ -140,7 +146,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
             this.deps.artemisApi, this.deps.appStateManager.coursesData?.courses || []
         ).then(archivedEntry => {
             if (archivedEntry) {
-                this.deps.appStateManager.injectCourseEntry(archivedEntry);
+                this.deps.appStateManager.injectCourseEntry(archivedEntry, epoch);
             }
         }).catch((err: unknown) => {
             logger.error('Failed to check archived courses for dashboard', LogCategory.VIEW, err);

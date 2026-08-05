@@ -178,8 +178,9 @@ export class AppStateManager {
         this._setCurrentState('course-detail');
     }
 
-    public injectCourseEntry(entry: CourseDashboardEntry): void {
-        this._courseCatalog?.injectEntry(entry);
+    /** `epoch` is the caller's, captured before the search that found `entry`. */
+    public injectCourseEntry(entry: CourseDashboardEntry, epoch: number): void {
+        this._courseCatalog?.injectEntry(entry, epoch);
     }
 
     public setArchivedCourses(courses: ArchivedCourse[]): void {

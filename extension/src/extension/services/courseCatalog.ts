@@ -185,8 +185,17 @@ export class CourseCatalog implements vscode.Disposable {
         return merged;
     }
 
-    /** Compatibility entry point for the sidebar's archived-course injection. */
-    public injectEntry(entry: CourseDashboardEntry): void {
+    /**
+     * The sidebar's archived-course injection.
+     *
+     * `epoch` is a required parameter and NOT a read of `this._epoch`. Reading
+     * it here would compare the epoch to itself, so `upsertSupplemental`'s
+     * guard could never reject anything and the only caller, an archive search
+     * spanning several sequential per-course requests, could hand the previous
+     * account's course to the new session. The generation the entry belongs to
+     * is the producer's to remember, from before its first await.
+     */
+    public injectEntry(entry: CourseDashboardEntry, epoch: number): void {
         const id = courseIdOf(entry);
         if (id === undefined) { return; }
         // The same no-op the cache this replaces performed: a course already
@@ -194,7 +203,7 @@ export class CourseCatalog implements vscode.Disposable {
         // that drives the registry rebuild and workspace detection.
         if (this._dashboard?.some(e => courseIdOf(e) === id)) { return; }
         if (this._supplemental.get(`c:${id}`)?.kind === 'course') { return; }
-        this.upsertSupplemental({ kind: 'course', entry }, this._epoch);
+        this.upsertSupplemental({ kind: 'course', entry }, epoch);
     }
 
     public upsertSupplemental(record: SupplementalRecord, epoch: number): void {
