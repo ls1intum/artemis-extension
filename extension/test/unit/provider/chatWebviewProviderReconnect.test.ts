@@ -72,7 +72,7 @@ function buildHarness(): Harness {
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
+    const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
     };
@@ -84,7 +84,7 @@ function buildHarness(): Harness {
         websocket as never,
         noAi as never,
         registry as never,
-        courseDataCache as never,
+        courseCatalog as never,
         undefined,
         contextStore,
     );

@@ -6,7 +6,7 @@ import { getCommand } from '@shared/messageContracts';
 import { ArtemisApiService } from '@extension/api';
 import { AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -51,7 +51,7 @@ export class WebViewMessageHandler {
         exerciseRegistry: ExerciseRegistry,
         providerRegistry: IProviderRegistry,
         websocketService?: ArtemisWebsocketService,
-        courseDataCache?: CourseDataCache,
+        courseCatalog?: CourseCatalog,
         courseAccessStorage?: CourseAccessStorageService,
         recordingHandlers: CommandMap = {},
     ) {
@@ -67,7 +67,7 @@ export class WebViewMessageHandler {
             extensionContext,
             exerciseRegistry,
             providerRegistry,
-            courseDataCache,
+            courseCatalog,
             courseAccessStorage,
         };
 

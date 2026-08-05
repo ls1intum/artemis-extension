@@ -3,7 +3,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry, type ExerciseRegistryEntry } from '@extension/services/exerciseRegistry';
 import { logger } from '@extension/services/loggingService';
 import type { CourseDashboardCourse, CourseDashboardEntry, ExerciseDetail } from '@extension/types';
@@ -436,7 +436,7 @@ export async function detectWorkspaceExerciseForRepository(
     artemisApiService: ArtemisApiService | undefined,
     callbacks: WorkspaceRegistrationCallbacks,
     registry: ExerciseRegistry,
-    courseDataCache?: CourseDataCache,
+    courseCatalog?: CourseCatalog,
 ): Promise<DetectionOutcome> {
     let exercises = registry.getAllExercises();
     let reachable = true;
@@ -446,7 +446,7 @@ export async function detectWorkspaceExerciseForRepository(
     if (exercises.length === 0) {
         logger.irisChat('Registry empty, fetching courses to populate exercises...');
         try {
-            const dashboardData = await courseDataCache?.fetch();
+            const dashboardData = await courseCatalog?.fetch();
             if (!dashboardData) {
                 // _doFetch swallows its error and returns undefined, so this
                 // is the only signal the cache gives us. An empty `courses`
@@ -531,7 +531,7 @@ export async function detectAndRegisterWorkspaceExercise(
     artemisApiService: ArtemisApiService | undefined,
     callbacks: WorkspaceRegistrationCallbacks,
     exerciseRegistry: ExerciseRegistry,
-    courseDataCache?: CourseDataCache,
+    courseCatalog?: CourseCatalog,
     // Injected so the no-remote branch is testable. `getWorkspaceRepositoryUrl`
     // is called module-locally, so sinon cannot intercept it through the module
     // object; a default parameter is the smallest honest seam.
@@ -549,7 +549,7 @@ export async function detectAndRegisterWorkspaceExercise(
             return { kind: 'no-match' };
         }
         return await detectWorkspaceExerciseForRepository(
-            repositoryUrl, artemisApiService, callbacks, exerciseRegistry, courseDataCache,
+            repositoryUrl, artemisApiService, callbacks, exerciseRegistry, courseCatalog,
         );
     } catch (error) {
         // `noImplicitReturns` makes this mandatory, and the conservative answer

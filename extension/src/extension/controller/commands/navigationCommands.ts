@@ -190,8 +190,8 @@ export class NavigationCommandModule {
 
     private handleReloadCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            if (this.context.courseDataCache) {
-                await this.context.courseDataCache.fetch({ force: true });
+            if (this.context.courseCatalog) {
+                await this.context.courseCatalog.fetch({ force: true });
             }
             this.context.appStateManager.showCourseList();
             this.context.actionHandler.sendInitData();

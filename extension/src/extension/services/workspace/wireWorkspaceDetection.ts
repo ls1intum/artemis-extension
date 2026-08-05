@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 
 import type { DetectionOutcome } from './detectionOutcome';
@@ -25,7 +25,7 @@ export interface WorkspaceDetectionSink {
 interface WorkspaceDetectionDeps {
     api: ArtemisApiService | undefined;
     registry: ExerciseRegistry;
-    courseDataCache: CourseDataCache;
+    courseCatalog: CourseCatalog;
     sink: WorkspaceDetectionSink;
 }
 
@@ -53,7 +53,7 @@ export function wireWorkspaceDetection(
             },
         };
         const outcome = await detectAndRegisterWorkspaceExercise(
-            deps.api, callbacks, deps.registry, deps.courseDataCache,
+            deps.api, callbacks, deps.registry, deps.courseCatalog,
         );
         if (disposed || token !== generation) {
             return;
@@ -63,7 +63,7 @@ export function wireWorkspaceDetection(
 
     void runDetection();
     const folderSub = vscode.workspace.onDidChangeWorkspaceFolders(() => void runDetection());
-    const coursesSub = deps.courseDataCache.onCoursesLoaded(() => void runDetection());
+    const coursesSub = deps.courseCatalog.onCoursesLoaded(() => void runDetection());
 
     return {
         onDetectionSettled: settled.event,

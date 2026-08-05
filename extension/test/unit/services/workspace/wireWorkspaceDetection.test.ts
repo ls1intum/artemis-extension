@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
     buildChatProviderSink,
@@ -30,7 +30,7 @@ suite('wireWorkspaceDetection', () => {
     let detectStub: sinon.SinonStub;
     let folderEmitter: vscode.EventEmitter<vscode.WorkspaceFoldersChangeEvent>;
     let coursesEmitter: vscode.EventEmitter<unknown>;
-    let courseDataCache: CourseDataCache;
+    let courseCatalog: CourseCatalog;
     let registry: ExerciseRegistry;
 
     setup(() => {
@@ -39,7 +39,7 @@ suite('wireWorkspaceDetection', () => {
         folderEmitter = new vscode.EventEmitter<vscode.WorkspaceFoldersChangeEvent>();
         coursesEmitter = new vscode.EventEmitter<unknown>();
         sandbox.stub(vscode.workspace, 'onDidChangeWorkspaceFolders').callsFake(listener => folderEmitter.event(listener));
-        courseDataCache = { onCoursesLoaded: coursesEmitter.event } as unknown as CourseDataCache;
+        courseCatalog = { onCoursesLoaded: coursesEmitter.event } as unknown as CourseCatalog;
         registry = {} as ExerciseRegistry;
     });
 
@@ -51,7 +51,7 @@ suite('wireWorkspaceDetection', () => {
 
     test('initial detection runs once at wiring time', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();
         assert.strictEqual(detectStub.callCount, 1);
         disposable.dispose();
@@ -59,7 +59,7 @@ suite('wireWorkspaceDetection', () => {
 
     test('onDidChangeWorkspaceFolders event triggers re-detection', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();
         detectStub.resetHistory();
         folderEmitter.fire({ added: [], removed: [] });
@@ -68,9 +68,9 @@ suite('wireWorkspaceDetection', () => {
         disposable.dispose();
     });
 
-    test('courseDataCache.onCoursesLoaded event triggers re-detection', async () => {
+    test('courseCatalog.onCoursesLoaded event triggers re-detection', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();
         detectStub.resetHistory();
         coursesEmitter.fire(undefined);
@@ -93,7 +93,7 @@ suite('wireWorkspaceDetection', () => {
             else {await new Promise<void>(r => { resolveB = r; });}
         });
 
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();          // schedule detection A
         folderEmitter.fire({ added: [], removed: [] });
         await Promise.resolve();          // schedule detection B (A still pending)
@@ -129,7 +129,7 @@ suite('wireWorkspaceDetection', () => {
             else {await new Promise<void>(r => { resolveB = r; });}
         });
 
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();
         folderEmitter.fire({ added: [], removed: [] });
         await Promise.resolve();
@@ -156,7 +156,7 @@ suite('wireWorkspaceDetection', () => {
             await new Promise<void>(r => { resolve = r; });
         });
 
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();          // detection in flight
         disposable.dispose();
 
@@ -171,7 +171,7 @@ suite('wireWorkspaceDetection', () => {
 
     test('dispose unsubscribes both event listeners: later folder/courses events do not re-trigger detection', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();
         disposable.dispose();
         detectStub.resetHistory();
@@ -186,7 +186,7 @@ suite('wireWorkspaceDetection', () => {
         detectStub.callsFake(async (_api: unknown, cb: { clearStaleWorkspaceContext: () => void }) => {
             cb.clearStaleWorkspaceContext();
         });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink });
         await Promise.resolve();
         assert.strictEqual(sink._clear.callCount, 1);
         assert.strictEqual(sink._register.callCount, 0);
@@ -198,7 +198,7 @@ suite('wireWorkspaceDetection', () => {
         const seen: unknown[] = [];
 
         const handle = wireWorkspaceDetection({
-            api: undefined, registry, courseDataCache, sink: makeSinkSpy(),
+            api: undefined, registry, courseCatalog, sink: makeSinkSpy(),
         });
         handle.onDetectionSettled(outcome => seen.push(outcome));
         await Promise.resolve();
@@ -222,7 +222,7 @@ suite('wireWorkspaceDetection', () => {
         detectStub.onSecondCall().resolves({ kind: 'no-match' });
 
         const handle = wireWorkspaceDetection({
-            api: undefined, registry, courseDataCache, sink: makeSinkSpy(),
+            api: undefined, registry, courseCatalog, sink: makeSinkSpy(),
         });
         const seen: unknown[] = [];
         handle.onDetectionSettled(outcome => seen.push(outcome));

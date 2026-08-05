@@ -45,7 +45,7 @@ function buildHarness(): Harness {
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
+    const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
     };
@@ -57,7 +57,7 @@ function buildHarness(): Harness {
         websocket as never,
         noAi as never,
         registry as never,
-        courseDataCache as never,
+        courseCatalog as never,
         undefined,
         contextStore,
     );
@@ -1387,7 +1387,7 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
     });
 
     test('registering courses does not open a conversation behind the cold start', async () => {
-        (h.provider as unknown as { _courseDataCache: unknown })._courseDataCache = {
+        (h.provider as unknown as { _courseCatalog: unknown })._courseCatalog = {
             fetch: async () => ({ courses: [{ course: { id: 42, title: 'Algorithms' } }] }),
         };
 

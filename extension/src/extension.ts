@@ -5,7 +5,7 @@ import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
 import { AuthManager } from '@extension/services/auth';
-import { CourseDataCache } from '@extension/services/courseDataCache';
+import { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -104,11 +104,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	const courseDataCache = new CourseDataCache(artemisApiService);
-	context.subscriptions.push(courseDataCache);
+	const courseCatalog = new CourseCatalog(artemisApiService);
+	context.subscriptions.push(courseCatalog);
 	const providerRegistry = createProviderRegistry();
 
-	context.subscriptions.push(courseDataCache.onCoursesLoaded(data => {
+	context.subscriptions.push(courseCatalog.onCoursesLoaded(data => {
 		const courses = data.courses;
 		if (courses && Array.isArray(courses)) {
 			for (const entry of courses) {
@@ -128,7 +128,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		buildErrorCodeLensProvider,
 		telemetryManager,
 		updateAuthContext,
-		courseDataCache,
+		courseCatalog,
 	});
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
@@ -139,7 +139,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
-		noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager,
+		noAiDetectionService, exerciseRegistry, courseCatalog, telemetryManager,
 		contextStore,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
@@ -155,7 +155,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const workspaceDetection = wireWorkspaceDetection({
 		api: artemisApiService,
 		registry: exerciseRegistry,
-		courseDataCache,
+		courseCatalog,
 		sink: buildChatProviderSink(chatWebviewProvider),
 	});
 	context.subscriptions.push(workspaceDetection);

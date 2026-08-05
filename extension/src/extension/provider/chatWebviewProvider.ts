@@ -7,7 +7,7 @@ import type { ServerContext, SessionDetail } from '@shared/types/serverContext';
 import { ArtemisApiService } from '@extension/api';
 import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
 import { isIrisCourseDisabled } from '@extension/domain/errors';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
     ChatDiagnosticsService,
@@ -183,7 +183,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _courseDataCache: CourseDataCache | undefined,
+        private readonly _courseCatalog: CourseCatalog | undefined,
         private readonly _telemetryManager: ITelemetryManager | undefined,
         contextStore: ContextStore,
     ) {
@@ -1168,13 +1168,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     /**
      * Populates the chat context selector with all available courses and exercises.
-     * Uses the shared CourseDataCache to avoid duplicate API calls — the sidebar
+     * Uses the shared CourseCatalog to avoid duplicate API calls. The sidebar
      * and chat share the same cached data.
      */
     private async _populateAvailableContexts(): Promise<void> {
-        if (!this._courseDataCache) { return; }
+        if (!this._courseCatalog) { return; }
         try {
-            const data = await this._courseDataCache.fetch();
+            const data = await this._courseCatalog.fetch();
             const courses = data?.courses;
             if (!courses || !Array.isArray(courses)) { return; }
 

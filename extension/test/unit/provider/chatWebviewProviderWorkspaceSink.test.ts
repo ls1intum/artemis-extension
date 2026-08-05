@@ -16,7 +16,7 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
+    const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
     };
@@ -28,7 +28,7 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         undefined,
         noAi as never,
         registry as never,
-        courseDataCache as never,
+        courseCatalog as never,
         undefined,
         contextStore,
     );

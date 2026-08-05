@@ -80,7 +80,7 @@ suite('WebviewNavigationFacade', () => {
         startPageResolver: {
             resolve: sinon.SinonStub;
         };
-        courseDataCache: {
+        courseCatalog: {
             fetch: sinon.SinonStub;
         };
         postMessage: sinon.SinonStub;
@@ -138,7 +138,7 @@ suite('WebviewNavigationFacade', () => {
             startPageResolver: overrides.startPageResolver ?? {
                 resolve: sandbox.stub().resolves({ type: 'dashboard' }),
             },
-            courseDataCache: overrides.courseDataCache ?? {
+            courseCatalog: overrides.courseCatalog ?? {
                 fetch: sandbox.stub().resolves(),
             },
             postMessage: overrides.postMessage ?? sandbox.stub(),
@@ -157,7 +157,7 @@ suite('WebviewNavigationFacade', () => {
             fullscreenPanelManager: stubs.fullscreenPanelManager,
             exerciseOpeningService: stubs.exerciseOpeningService,
             startPageResolver: stubs.startPageResolver,
-            courseDataCache: stubs.courseDataCache,
+            courseCatalog: stubs.courseCatalog,
             postMessage: stubs.postMessage,
             render: stubs.render,
             sendInitData: stubs.sendInitData,
@@ -405,21 +405,21 @@ suite('WebviewNavigationFacade', () => {
 
     // ── showCourseList ─────────────────────────────────────────────
 
-    test('showCourseList: with courseDataCache, fetches and renders', async () => {
+    test('showCourseList: with courseCatalog, fetches and renders', async () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
 
         await facade.showCourseList();
 
-        sinon.assert.calledOnce(stubs.courseDataCache.fetch);
+        sinon.assert.calledOnce(stubs.courseCatalog.fetch);
         sinon.assert.calledOnce(stubs.appStateManager.showCourseList);
         sinon.assert.called(stubs.render);
     });
 
-    test('showCourseList: tolerates missing courseDataCache', async () => {
+    test('showCourseList: tolerates missing courseCatalog', async () => {
         const { deps, stubs } = buildDeps();
-        // Replicate the optional-dep scenario: remove courseDataCache after build.
-        (deps as { courseDataCache?: unknown }).courseDataCache = undefined;
+        // Replicate the optional-dep scenario: remove courseCatalog after build.
+        (deps as { courseCatalog?: unknown }).courseCatalog = undefined;
         const facade = new WebviewNavigationFacade(deps);
 
         await facade.showCourseList();

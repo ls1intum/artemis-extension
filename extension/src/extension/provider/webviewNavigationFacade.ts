@@ -8,7 +8,7 @@ import type { AppStateManager, UserInfo } from '@extension/controller/appStateMa
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import type { WebViewActionHandler } from '@extension/controller/types';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type {
@@ -47,7 +47,7 @@ export interface WebviewNavigationFacadeDeps {
     fullscreenPanelManager: FullscreenPanelManager;
     exerciseOpeningService: ExerciseOpeningService;
     startPageResolver: StartPageResolver;
-    courseDataCache?: CourseDataCache;
+    courseCatalog?: CourseCatalog;
     postMessage: (msg: ExtensionToWebviewMessage) => void;
     render: () => void;
     sendInitData: () => void;
@@ -106,8 +106,8 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     public async showCourseList(): Promise<void> {
         try {
             // Ensure courses are in the cache before navigating
-            if (this.deps.courseDataCache) {
-                await this.deps.courseDataCache.fetch();
+            if (this.deps.courseCatalog) {
+                await this.deps.courseCatalog.fetch();
             }
             this.deps.appStateManager.showCourseList();
             this.deps.render();
@@ -123,7 +123,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
 
         // Fetch courses into the shared cache (swallow error - dashboard renders with empty state)
         try {
-            await this.deps.courseDataCache?.fetch();
+            await this.deps.courseCatalog?.fetch();
         } catch (error) {
             logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
         }

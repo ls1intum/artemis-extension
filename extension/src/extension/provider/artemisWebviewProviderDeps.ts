@@ -2,7 +2,7 @@ import type * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
 import type { AuthManager } from '@extension/services/auth';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -21,5 +21,5 @@ export interface ArtemisWebviewProviderDeps {
     buildErrorCodeLensProvider: BuildErrorCodeLensProvider;
     telemetryManager: ITelemetryManager;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
-    courseDataCache?: CourseDataCache;
+    courseCatalog?: CourseCatalog;
 }
