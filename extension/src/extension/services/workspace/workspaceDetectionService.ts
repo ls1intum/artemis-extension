@@ -443,8 +443,12 @@ export async function detectWorkspaceExerciseForRepository(
     let exercises = registry.getAllExercises();
     let reachable = true;
 
-    // If registry is empty, populate it from the shared course cache (or API as fallback).
-    // The cache deduplicates concurrent fetches so this is cheap if data is already loaded.
+    // If the registry is empty, ask the catalog to load. Detection deliberately
+    // does NOT write the registry itself: since Task 5 the registry is an index
+    // rebuilt from the catalog projection by the `onCoursesLoaded` subscription
+    // in `extension.ts`, and `EventEmitter.fire` is synchronous, so a successful
+    // fetch has already rebuilt it by the time it resolves. A write here would
+    // be a second source of truth, and one the epoch guard never sees.
     if (exercises.length === 0) {
         logger.irisChat('Registry empty, fetching courses to populate exercises...');
         try {
@@ -454,10 +458,6 @@ export async function detectWorkspaceExerciseForRepository(
                 // is the only signal the cache gives us. An empty `courses`
                 // array is a truthy response and stays reachable.
                 reachable = false;
-            } else {
-                for (const courseData of dashboardData.courses ?? []) {
-                    registry.registerFromCourseData(courseData);
-                }
             }
             exercises = registry.getAllExercises();
             logger.irisChat(`Registry populated with ${exercises.length} exercises`);
@@ -493,8 +493,14 @@ export async function detectWorkspaceExerciseForRepository(
             // exercise the student is actually working in disappears from the
             // picker on the next refresh, and the archive probe never runs
             // again because the registry still matches the folder.
+            //
+            // The catalog is the ONLY write. A direct `registerFromCourseData`
+            // here would put the archived course into the registry even when
+            // the line above just rejected it as belonging to another session,
+            // undoing the identity reset that had already cleared it. When the
+            // write is accepted, the rebuild has already run synchronously by
+            // the time `upsertSupplemental` returns.
             courseCatalog?.upsertSupplemental({ kind: 'course', entry: archive.entry }, epoch);
-            registry.registerFromCourseData(archive.entry);
             detected = findExerciseByRepositoryUrl(repositoryUrl, registry.getAllExercises());
         }
     }
