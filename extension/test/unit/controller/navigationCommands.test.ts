@@ -6,6 +6,7 @@ import type { WebCmd } from '@shared/messageContracts';
 
 import { NavigationCommandModule } from '@extension/controller/commands/navigationCommands';
 import type { CommandContext } from '@extension/controller/commands/types';
+import * as exerciseDataLoader from '@extension/controller/exerciseDataLoader';
 
 suite('handleViewCourseDetails resolver', () => {
     let sandbox: sinon.SinonSandbox;
@@ -25,6 +26,7 @@ suite('handleViewCourseDetails resolver', () => {
         getCourseForDashboard?: sinon.SinonStub;
         showCourseDetail?: sinon.SinonStub;
         courseCatalog?: { upsertSupplemental: sinon.SinonStub };
+        courseAccessStorage?: { onCourseAccessed: sinon.SinonStub };
         sessionEpoch?: () => number;
     }): CommandContext {
         return {
@@ -37,7 +39,7 @@ suite('handleViewCourseDetails resolver', () => {
                     ?? sandbox.stub().resolves({ course: undefined }),
             },
             actionHandler: { render: sandbox.stub() },
-            courseAccessStorage: { onCourseAccessed: sandbox.stub() },
+            courseAccessStorage: overrides.courseAccessStorage ?? { onCourseAccessed: sandbox.stub() },
             providerRegistry: { getChatWebviewProvider: () => undefined },
             courseCatalog: overrides.courseCatalog ?? { upsertSupplemental: sandbox.stub() },
             sessionEpoch: overrides.sessionEpoch ?? (() => 0),
@@ -120,6 +122,34 @@ suite('handleViewCourseDetails resolver', () => {
         );
     });
 
+    // The recency store is persisted per account and resolves its scope at
+    // write time, so it needs the same pre-fetch epoch the catalog write uses.
+    // Otherwise the previous server's course lands in the new student's history
+    // and stays there across restarts.
+    test('stamps the recency write with the epoch from before the fetch', async () => {
+        const onCourseAccessed = sandbox.stub();
+        let epoch = 4;
+        const getCourseForDashboard = sandbox.stub().callsFake(async () => {
+            epoch = 5;
+            return { course: { id: 99, title: 'fetched' } };
+        });
+        const ctx = buildContext({
+            coursesData: { courses: [] },
+            getCourseForDashboard,
+            courseAccessStorage: { onCourseAccessed },
+            sessionEpoch: () => epoch,
+        });
+        const mod = new NavigationCommandModule(ctx);
+
+        await mod.getHandlers().viewCourseDetails({
+            type: 'command',
+            command: 'viewCourseDetails',
+            payload: { courseId: 99 },
+        } satisfies WebCmd<'viewCourseDetails'>);
+
+        sinon.assert.calledOnceWithExactly(onCourseAccessed, 99, 4);
+    });
+
     test('falls back to getCourseForDashboard on cache miss', async () => {
         const showCourseDetail = sandbox.stub();
         const getCourseForDashboard = sandbox.stub().resolves({ course: { id: 99, title: 'fetched' } });
@@ -182,5 +212,52 @@ suite('handleViewCourseDetails resolver', () => {
         assert.strictEqual(showCourseDetail.callCount, 0, 'showCourseDetail must not be called');
         assert.strictEqual(showErrorMessage.callCount, 1, 'error toast must be shown');
         sinon.assert.calledWith(showErrorMessage, 'Error viewing course details');
+    });
+});
+
+suite('handleViewArchivedCourse', () => {
+    let sandbox: sinon.SinonSandbox;
+    let fetchArchived: sinon.SinonStub;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as never);
+        sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+        fetchArchived = sandbox.stub(exerciseDataLoader, 'fetchArchivedCourseDetail');
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    // This branch had no epoch at all: it awaited the archived-course detail
+    // and then recorded a course id chosen before that await, under whichever
+    // account the session had become. The recency store is persisted, so the
+    // wrong entry outlived the window.
+    test('stamps the recency write with the epoch from before the fetch', async () => {
+        const onCourseAccessed = sandbox.stub();
+        let epoch = 2;
+        fetchArchived.callsFake(async () => {
+            // The identity changes while the archived detail request is open.
+            epoch = 3;
+            return { course: { id: 55, title: 'Archived' } };
+        });
+        const ctx = {
+            appStateManager: { showCourseDetail: sandbox.stub() },
+            artemisApi: {},
+            actionHandler: { render: sandbox.stub() },
+            courseAccessStorage: { onCourseAccessed },
+            courseCatalog: { upsertSupplemental: sandbox.stub() },
+            sessionEpoch: () => epoch,
+        } as unknown as CommandContext;
+        const mod = new NavigationCommandModule(ctx);
+
+        await mod.getHandlers().viewArchivedCourse({
+            type: 'command',
+            command: 'viewArchivedCourse',
+            payload: { courseId: 55 },
+        } satisfies WebCmd<'viewArchivedCourse'>);
+
+        sinon.assert.calledOnceWithExactly(onCourseAccessed, 55, 2);
     });
 });

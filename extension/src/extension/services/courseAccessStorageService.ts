@@ -28,9 +28,29 @@ export class CourseAccessStorageService {
     constructor(
         private readonly _globalState: vscode.Memento,
         private readonly _getScope: () => CourseAccessScope | null,
+        /**
+         * The generation the scope above belongs to. The same source the
+         * catalog writes compare against, so a navigation's two writes are
+         * gated on one value and cannot disagree.
+         */
+        private readonly _currentEpoch: () => number,
     ) {}
 
-    public onCourseAccessed(courseId: number): void {
+    /**
+     * Records that this course was opened.
+     *
+     * `capturedEpoch` is the caller's, read BEFORE the request that produced
+     * the course. The scope is resolved at write time, so without it a session
+     * change during that request would file the previous identity's course
+     * under the new account's key. That key is persisted in `globalState`, so
+     * unlike the in-memory state this survives a restart. Required rather than
+     * optional: a call site that may forget it is a call site that will.
+     */
+    public onCourseAccessed(courseId: number, capturedEpoch: number): void {
+        if (capturedEpoch !== this._currentEpoch()) {
+            logger.info('Dropping a recent-course write from another session', LogCategory.VIEW);
+            return;
+        }
         if (!Number.isFinite(courseId) || courseId <= 0) { return; }
         const scopeKey = this._currentScopeKey();
         if (!scopeKey) { return; }

@@ -195,7 +195,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
                 const detail = toCourseDetailData(entry?.course);
                 if (detail) {
-                    this.deps.courseAccessStorage.onCourseAccessed(result.courseId);
+                    this.deps.courseAccessStorage.onCourseAccessed(result.courseId, epoch);
                     this.showCourseDetail(detail, epoch);
                     return;
                 }

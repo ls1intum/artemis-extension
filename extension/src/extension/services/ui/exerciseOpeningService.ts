@@ -46,7 +46,9 @@ export class ExerciseOpeningService {
                 repositoryUri: participation?.repositoryUri,
                 participationId: typeof participation?.id === 'number' ? participation.id : undefined,
             }, epoch);
-            this._courseAccessStorage?.onCourseAccessed(courseId);
+            // The same captured epoch as the catalog write above, so the two
+            // either both land or both do not.
+            this._courseAccessStorage?.onCourseAccessed(courseId, epoch);
         }
 
         // Start telemetry session

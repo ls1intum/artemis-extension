@@ -8,7 +8,8 @@ import type { ExerciseDetailsResponse } from '@extension/types';
 
 class FakeCourseAccess {
     public readonly recorded: number[] = [];
-    onCourseAccessed(id: number): void { this.recorded.push(id); }
+    public readonly epochs: number[] = [];
+    onCourseAccessed(id: number, epoch: number): void { this.recorded.push(id); this.epochs.push(epoch); }
     getLastAccessedCourses(): number[] { return this.recorded.slice().reverse(); }
 }
 
@@ -60,6 +61,33 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
 
         svc.handleExerciseOpened(exerciseData, 102, 0);
         assert.deepStrictEqual(storage.recorded, []);
+    });
+
+    // The recency store is persisted per account, and its scope is resolved at
+    // write time. It has to be gated on the SAME captured epoch as the catalog
+    // write next to it, or the two disagree about which session this is.
+    test('the recency write carries the same captured epoch as the catalog write', () => {
+        const storage = new FakeCourseAccess();
+        const catalog = new FakeCatalog();
+        const svc = new ExerciseOpeningService(
+            catalog as unknown as CourseCatalog,
+            undefined as unknown as TelemetryManager,
+            storage as unknown as CourseAccessStorageService,
+        );
+
+        const exerciseData: ExerciseDetailsResponse = {
+            exercise: {
+                id: 104,
+                title: 'Ex 4',
+                course: { id: 42 },
+                studentParticipations: [],
+            },
+        } as unknown as ExerciseDetailsResponse;
+
+        svc.handleExerciseOpened(exerciseData, 104, 6);
+
+        assert.deepStrictEqual(storage.epochs, [6]);
+        assert.strictEqual(catalog.calls[0]?.epoch, 6);
     });
 
     test('works without storage service (optional param)', () => {

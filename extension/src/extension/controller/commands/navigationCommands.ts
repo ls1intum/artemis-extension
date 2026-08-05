@@ -80,7 +80,11 @@ export class NavigationCommandModule {
         const courseId = course.id;
 
         this.context.appStateManager.showCourseDetail(detail);
-        this.context.courseAccessStorage?.onCourseAccessed(courseId);
+        // Gated on the caller's epoch, like the catalog write below: the scope
+        // this recency entry is filed under is resolved at write time, so a
+        // session change during the fetch would put this course into the new
+        // account's persisted history.
+        this.context.courseAccessStorage?.onCourseAccessed(courseId, epoch);
 
         // Writes the catalog's supplemental layer rather than the registry
         // directly: the registry is rebuilt from the catalog projection now
@@ -240,12 +244,16 @@ export class NavigationCommandModule {
 
     private handleViewArchivedCourse = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { courseId } = getPayload<WebCmd<'viewArchivedCourse'>>(message);
+        // Before the fetch, per `CommandContext.sessionEpoch`. The course id
+        // was chosen by THIS session; recording it after an identity change
+        // would file it under the next account's recency key.
+        const epoch = this.context.sessionEpoch();
         try {
             vscode.window.showInformationMessage('Loading archived course details...');
 
             const courseData = await fetchArchivedCourseDetail(this.context.artemisApi, courseId);
             this.context.appStateManager.showCourseDetail(courseData);
-            this.context.courseAccessStorage?.onCourseAccessed(courseId);
+            this.context.courseAccessStorage?.onCourseAccessed(courseId, epoch);
             this.context.actionHandler.render();
         } catch (error: unknown) {
             logger.viewError('View archived course error:', error);

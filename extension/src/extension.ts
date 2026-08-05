@@ -73,10 +73,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		getCurrentUser: () => artemisApiService.getCurrentUser(),
 	});
 	context.subscriptions.push(sessionIdentity);
-	const courseAccessStorage = new CourseAccessStorageService(
-		context.globalState,
-		() => sessionIdentity.accessScope(),
-	);
 
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
@@ -133,6 +129,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const courseCatalog = new CourseCatalog(artemisApiService);
 	context.subscriptions.push(courseCatalog);
+
+	// Constructed AFTER the catalog, and reading the catalog's epoch rather
+	// than `sessionIdentity.epoch`: every call site captures its epoch from the
+	// catalog, and the coordinator can bump its own generation before `attach`
+	// installs the first one here, which would make every recency write look
+	// stale. One source, shared with the catalog writes these calls sit next to.
+	const courseAccessStorage = new CourseAccessStorageService(
+		context.globalState,
+		() => sessionIdentity.accessScope(),
+		() => courseCatalog.currentEpoch,
+	);
+
 	const providerRegistry = createProviderRegistry();
 
 	context.subscriptions.push(courseCatalog.onCoursesLoaded(() => {

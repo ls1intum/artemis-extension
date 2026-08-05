@@ -476,6 +476,9 @@ suite('WebviewNavigationFacade', () => {
             stubs.courseCatalog.upsertSupplemental.firstCall.args[1], 8,
             'the courses were fetched by the previous session, so they carry its generation',
         );
+        // The persisted recency history is gated on the same value, so the two
+        // writes cannot disagree about which account this navigation belongs to.
+        sinon.assert.calledOnceWithExactly(stubs.courseAccessStorage.onCourseAccessed, 3, 8);
     });
 
     // The archive search issues one detail request per archived course, so it

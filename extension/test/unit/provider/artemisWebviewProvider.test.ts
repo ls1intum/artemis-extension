@@ -145,7 +145,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             buildErrorCodeLensProvider: mockCodeLens,
             telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
-            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null),
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
         });
     });
 
@@ -211,7 +211,7 @@ suite('Panel hide/show state persistence', () => {
             buildErrorCodeLensProvider: mockCodeLens,
             telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
-            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null),
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
         });
 
         spyWebview = new SpyWebview();
