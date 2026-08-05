@@ -204,7 +204,7 @@ interface ExtensionMsgPayloads {
      */
     updateIrisState: {
         state: {
-            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean; releaseDate?: string; dueDate?: string; lastViewed?: number }>;
+            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; releaseDate?: string; dueDate?: string }>;
             courses: Array<{ id: number; title: string; shortName?: string; lastViewed?: number }>;
             courseId: number | undefined;
             courseTitle: string | undefined;
