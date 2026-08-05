@@ -142,10 +142,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
 
-        // 5. Exercise opening side-effects (registry, telemetry, chat).
+        // 5. Exercise opening side-effects (catalog, telemetry).
         this._exerciseOpeningService = new ExerciseOpeningService(
-            this._exerciseRegistry,
-            this._providerRegistry,
+            this._courseCatalog,
+            () => this._courseCatalog?.currentEpoch ?? 0,
             this._telemetryManager,
             this._courseAccessStorage,
         );

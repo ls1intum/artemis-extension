@@ -277,23 +277,13 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     public showCourseDetail(courseData: CourseDetailData): void {
         this.deps.appStateManager.showCourseDetail(courseData);
 
-        // Populate exercise registry with repository URLs for workspace matching
-        const registry = this.deps.exerciseRegistry;
-        const courseName = courseData?.course?.title || 'Unknown Course';
-        logger.info(`Loading course: ${courseName}`, LogCategory.VIEW);
-
-        registry.registerFromCourseData(courseData);
-
-        // Log what was registered
-        const allExercises = registry.getAllExercises();
-        logger.info(`Registry now contains ${allExercises.length} exercises total`, LogCategory.VIEW);
-        if (allExercises.length > 0) {
-            logger.debug('Exercises in registry:', LogCategory.VIEW);
-            allExercises.forEach(ex => {
-                logger.debug(`   - ${ex.id}: ${ex.title}`, LogCategory.VIEW);
-                logger.debug(`     Repository: ${ex.repositoryUri}`, LogCategory.VIEW);
-            });
-        }
+        // Since Task 5 the registry is rebuilt destructively from the catalog
+        // projection on every catalog write, so a direct registry write here
+        // could be dropped by the next one with nothing to restore it. Write
+        // the catalog instead; `courseData.course` already matches
+        // `CourseDashboardCourse`'s shape.
+        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
+        this.deps.courseCatalog?.upsertSupplemental({ kind: 'course', entry: { course: courseData.course } }, epoch);
 
         this.deps.render();
     }

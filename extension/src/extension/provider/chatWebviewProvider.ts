@@ -570,6 +570,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _acquireConversation(workspace: { exerciseId: number; courseId: number }): Promise<void> {
         const conversation = this._conversation;
         if (!conversation) { return; }
+        // Captured BEFORE the navigation. See `_rememberCourseName`: reading
+        // either after the await would risk crossing a session identity that
+        // changed while this was in flight.
+        const epoch = this._courseCatalog?.currentEpoch ?? 0;
+        const knownTitle = this._courseCatalog?.courseTitle(workspace.courseId);
         let outcome: StartOutcome;
         try {
             outcome = await conversation.start(workspace);
@@ -589,6 +594,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             });
             throw error;
         }
+        // The captured epoch stops a write crossing an identity. This stops
+        // one crossing a NAVIGATION inside the same identity: a superseding
+        // switch can leave the chat in another course entirely, and naming
+        // this one then records a course the student never entered.
+        const landedHere = outcome.kind !== 'stale'
+            && conversation.state.snapshot().courseId === workspace.courseId;
+        if (landedHere) {
+            this._rememberCourseName(workspace.courseId, knownTitle, epoch);
+        }
         // A course whose instructor switched Iris off is a destination, not a
         // failure (see `IrisConversationService.start`): NOT re-thrown, or the
         // coordinator would re-arm its latch for an answer that will never
@@ -600,6 +614,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             return;
         }
         await this._refreshAvailability();
+    }
+
+    /**
+     * The course the chat is IN keeps its display name across a dashboard
+     * refresh that no longer lists it. This is what the catalog's
+     * `partial-course` record is for: it gives a course id a name and is
+     * never offered as a pickable course. Without it the header falls back to
+     * `Course 42` the moment the student's enrolment ends mid-conversation.
+     */
+    private _rememberCourseName(courseId: number, title: string | undefined, epoch: number): void {
+        if (title === undefined) { return; }
+        this._courseCatalog?.upsertSupplemental({ kind: 'partial-course', id: courseId, title }, epoch);
     }
 
     /**
@@ -707,35 +733,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      */
     public isNoAiEnabled(): boolean {
         return this._noAiDetectionService.isNoAiEnabled;
-    }
-
-    public updateDetectedExercise(
-        exerciseTitle: string,
-        exerciseId: number,
-        releaseDate?: string,
-        dueDate?: string,
-        shortName?: string,
-        courseId?: number,
-    ): void {
-        // Do not set isWorkspace here; workspaceDetectionService owns that flag.
-        this._registerExercise({
-            id: exerciseId,
-            title: exerciseTitle,
-            shortName,
-            courseId,
-            releaseDate,
-            dueDate,
-            source: 'system-default',
-        });
-    }
-
-    public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
-        this._registerCourse({
-            id: courseId,
-            title: courseTitle,
-            shortName,
-            source: 'system-default',
-        });
     }
 
     // ── Workspace detection sink ──────────────────────────────────────
@@ -1325,6 +1322,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleOpenConversation(params: { courseId: number; sessionId: number }): Promise<void> {
         const conversation = this._conversationForNavigation('openConversation');
         if (!conversation) { return; }
+        // `navigateTo` may cross courses, and `setCourse` clears the summaries
+        // the row came from, so the name has to leave conversation state
+        // before the navigation starts. The `openConversation` command carries
+        // only ids. Programming exercises only, deliberately: a `LECTURE_CHAT`
+        // `entityId` would collide with an exercise id and hand back a wrong
+        // title with full confidence.
+        const snapshot = conversation.state.snapshot();
+        const row = snapshot.courseSessions
+            .concat(snapshot.knownInvisible)
+            .find(s => s.sessionId === params.sessionId);
+        if (row?.context.mode === 'PROGRAMMING_EXERCISE_CHAT' && row.context.name) {
+            this._courseCatalog?.upsertSupplemental({
+                kind: 'partial-exercise',
+                id: row.context.entityId,
+                courseId: row.courseId,
+                title: row.context.name,
+            }, this._courseCatalog?.currentEpoch ?? 0);
+        }
         try {
             // No notice: this navigation is exactly what the student asked for,
             // so there is nothing to explain.
@@ -1341,6 +1356,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleSwitchCourse(courseId: number): Promise<void> {
         const conversation = this._conversationForNavigation('switchCourse');
         if (!conversation) { return; }
+        // Captured BEFORE the navigation; see `_rememberCourseName`.
+        const epoch = this._courseCatalog?.currentEpoch ?? 0;
+        const knownTitle = this._courseCatalog?.courseTitle(courseId);
         try {
             // A course whose Iris is switched off is a destination, not a
             // failure: the service lands there with no conversation, INSIDE the
@@ -1349,6 +1367,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // answered inline, in the picker that is still open to hold it.
             const outcome = await conversation.switchCourse(courseId);
             if (outcome.kind === 'disabled') { this._announceCourseDisabled(courseId); }
+            // Only where we actually landed in the course. `stale` means a
+            // newer navigation won and `rejected` means we never went.
+            if (outcome.kind === 'opened' || outcome.kind === 'disabled') {
+                this._rememberCourseName(courseId, knownTitle, epoch);
+            }
         } catch (error: unknown) {
             logger.error('switchCourse failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({

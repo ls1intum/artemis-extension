@@ -20,6 +20,7 @@ interface Harness {
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
     exerciseEvents: number[];
     sandbox: sinon.SinonSandbox;
+    courseCatalog: { currentEpoch: number; courseTitle: sinon.SinonStub; upsertSupplemental: sinon.SinonStub };
 }
 
 /**
@@ -51,6 +52,9 @@ function buildHarness(): Harness {
     const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
+        currentEpoch: 0,
+        courseTitle: sandbox.stub().returns(undefined),
+        upsertSupplemental: sandbox.stub(),
     };
 
     const provider = new ChatWebviewProvider(
@@ -69,7 +73,7 @@ function buildHarness(): Harness {
     const exerciseEvents: number[] = [];
     provider.onDidChangeExerciseContext(({ exerciseId }) => exerciseEvents.push(exerciseId));
 
-    return { provider, contextStore, workspaceTracker, api, exerciseEvents, sandbox };
+    return { provider, contextStore, workspaceTracker, api, exerciseEvents, sandbox, courseCatalog };
 }
 
 /** A minimal `vscode.WebviewView` double, just enough for `resolveWebviewView`
@@ -1488,5 +1492,169 @@ suite('ChatWebviewProvider: startup admission', () => {
 
         assert.strictEqual(admit.called, false,
             'a refused command never reached the conversation, so it named no destination');
+    });
+});
+
+/**
+ * Task 8, Step 5b: the chat records what it knows of the course/exercise it
+ * just entered into the catalog's supplemental layer, so a header can keep
+ * naming a course or exercise the dashboard later drops. This suite pins the
+ * three call sites down directly, white-box, since the catalog write is a
+ * side effect with no other externally observable trace.
+ */
+suite('ChatWebviewProvider: naming what the chat enters, in the catalog', () => {
+    let h: Harness;
+
+    setup(() => { h = buildHarness(); });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    test('switchCourse records the course name once it lands', async () => {
+        const fake = injectFakeConversation(h.provider);
+        fake.switchOutcome = { kind: 'opened', sessionId: 5 };
+        h.courseCatalog.courseTitle.withArgs(43).returns('Algorithms');
+        h.courseCatalog.currentEpoch = 6;
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-course', id: 43, title: 'Algorithms' },
+            6,
+        );
+    });
+
+    test('switchCourse into a disabled course still records the name: the move happened', async () => {
+        injectFakeConversation(h.provider).switchOutcome = { kind: 'disabled' };
+        h.courseCatalog.courseTitle.withArgs(43).returns('Algorithms');
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.calledOnce(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('switchCourse records nothing when the course has no known title', async () => {
+        injectFakeConversation(h.provider).switchOutcome = { kind: 'opened', sessionId: 5 };
+        // courseTitle's default stub answer is undefined.
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('a stale switch records nothing: a newer navigation may have moved elsewhere', async () => {
+        injectFakeConversation(h.provider).switchOutcome = { kind: 'stale' };
+        h.courseCatalog.courseTitle.withArgs(43).returns('Algorithms');
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('a cold-start acquisition records the course name once it lands', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 9 }));
+        h.api.listChatSessionsForCourse.resolves([]);
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+        h.courseCatalog.currentEpoch = 2;
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-course', id: 9, title: 'Algorithms' },
+            2,
+        );
+        detection.dispose();
+    });
+
+    test('a cold start into a disabled course still records the name it landed in', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        sinon.assert.calledOnce(h.courseCatalog.upsertSupplemental);
+        detection.dispose();
+    });
+
+    test('openConversation records the exercise a history row names, before navigating', async () => {
+        const fake = injectFakeConversation(h.provider);
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot: () => unknown } };
+        })._conversation;
+        conversation.state.snapshot = () => ({
+            currentSessionId: 1,
+            courseId: 42,
+            courseSessions: [{
+                sessionId: 7, courseId: 42,
+                context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' },
+            }],
+            knownInvisible: [],
+        });
+        h.courseCatalog.currentEpoch = 4;
+
+        dispatch(h.provider, 'openConversation', { courseId: 42, sessionId: 7 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-exercise', id: 5, courseId: 42, title: 'BFS' },
+            4,
+        );
+        assert.deepStrictEqual(fake.calls, [{ name: 'navigateTo', args: { courseId: 42, sessionId: 7 } }],
+            'the write must happen before navigateTo, synchronously, so it cannot cross an epoch');
+    });
+
+    test('openConversation does not name a lecture history row: entityId collides with an exercise id', async () => {
+        injectFakeConversation(h.provider);
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot: () => unknown } };
+        })._conversation;
+        conversation.state.snapshot = () => ({
+            currentSessionId: 1,
+            courseId: 42,
+            courseSessions: [{
+                sessionId: 7, courseId: 42,
+                context: { mode: 'LECTURE_CHAT', entityId: 5, name: 'Lecture 1' },
+            }],
+            knownInvisible: [],
+        });
+
+        dispatch(h.provider, 'openConversation', { courseId: 42, sessionId: 7 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('openConversation records nothing for a row with no name', async () => {
+        injectFakeConversation(h.provider);
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot: () => unknown } };
+        })._conversation;
+        conversation.state.snapshot = () => ({
+            currentSessionId: 1,
+            courseId: 42,
+            courseSessions: [],
+            knownInvisible: [{
+                sessionId: 7, courseId: 42,
+                context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 },
+            }],
+        });
+
+        dispatch(h.provider, 'openConversation', { courseId: 42, sessionId: 7 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
     });
 });

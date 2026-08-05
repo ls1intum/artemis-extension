@@ -111,6 +111,19 @@ suite('CourseCatalog', () => {
         assert.strictEqual(catalog.projection().courses[0]?.title, 'Real title');
     });
 
+    test('a partial course keeps naming its course after the dashboard drops it', async () => {
+        const api = { getCoursesForDashboard: sandbox.stub() } as unknown as ArtemisApiService;
+        (api.getCoursesForDashboard as sinon.SinonStub)
+            .onFirstCall().resolves({ courses: [entry(1, 'Real name')] })
+            .onSecondCall().resolves({ courses: [] });
+        const catalog = new CourseCatalog(api);
+        await catalog.fetch();
+        catalog.upsertSupplemental({ kind: 'partial-course', id: 1, title: 'Real name' }, 0);
+        await catalog.fetch({ force: true });
+        assert.deepStrictEqual(catalog.projection().courses, [], 'still not pickable');
+        assert.strictEqual(catalog.courseTitle(1), 'Real name');
+    });
+
     test('a partial course is not pickable but can still name a course', () => {
         const catalog = new CourseCatalog({} as ArtemisApiService);
         catalog.upsertSupplemental({ kind: 'partial-course', id: 5, title: 'Named' }, 0);

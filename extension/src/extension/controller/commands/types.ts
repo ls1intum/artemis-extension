@@ -29,4 +29,11 @@ export interface CommandContext {
     providerRegistry: IProviderRegistry;
     courseCatalog?: CourseCatalog;
     courseAccessStorage?: CourseAccessStorageService;
+    /**
+     * The catalog's current epoch, read live on every call. A supplemental
+     * write built against a stale epoch is rejected by
+     * `CourseCatalog.upsertSupplemental`, so callers capture this BEFORE any
+     * await they issue, never after.
+     */
+    sessionEpoch: () => number;
 }

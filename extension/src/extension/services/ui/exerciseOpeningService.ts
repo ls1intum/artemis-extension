@@ -1,24 +1,22 @@
 import * as vscode from 'vscode';
 
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { logger } from '@extension/services/loggingService';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
-import type { IProviderRegistry } from './providerRegistry';
-
 export class ExerciseOpeningService {
     constructor(
-        private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _providerRegistry: IProviderRegistry,
+        private readonly _courseCatalog: CourseCatalog | undefined,
+        private readonly _sessionEpoch: () => number,
         private _telemetryManager?: ITelemetryManager,
         private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 
     /**
-     * Handle post-open side effects after an exercise is opened:
-     * registry registration, telemetry session start, chat provider notification.
+     * Handle post-open side effects after an exercise is opened: record it in
+     * the catalog's supplemental layer (Task 5's registry rebuild picks it up
+     * from there) and start the telemetry session.
      */
     public handleExerciseOpened(exerciseData: ExerciseDetailsResponse, exerciseId: number): void {
         const exercise = exerciseData.exercise;
@@ -26,23 +24,24 @@ export class ExerciseOpeningService {
 
         const exerciseTitle = exercise.title || 'Untitled';
         const exerciseIdFromData = exercise.id || exerciseId;
-
-        // Register in exercise registry
-        const participations = exercise.studentParticipations || [];
-        if (participations.length > 0 && participations[0]?.repositoryUri) {
-            this._exerciseRegistry.registerExercise(
-                exerciseIdFromData,
-                exerciseTitle,
-                participations[0].repositoryUri,
-                exercise.shortName || '',
-                exercise.course?.id,
-                typeof participations[0].id === 'number' ? participations[0].id : undefined,
-            );
-            logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
-        }
-
         const courseId = exercise.course?.id;
+
+        // An exercise with no course id cannot be placed; a `courseId: 0` row
+        // would be a made-up fact of exactly the kind this catalog exists to
+        // remove.
         if (typeof courseId === 'number') {
+            const participation = exercise.studentParticipations?.[0];
+            this._courseCatalog?.upsertSupplemental({
+                kind: 'partial-exercise',
+                id: exerciseIdFromData,
+                courseId,
+                title: exerciseTitle,
+                shortName: exercise.shortName,
+                releaseDate: exercise.releaseDate ?? exercise.startDate,
+                dueDate: exercise.dueDate,
+                repositoryUri: participation?.repositoryUri,
+                participationId: typeof participation?.id === 'number' ? participation.id : undefined,
+            }, this._sessionEpoch());
             this._courseAccessStorage?.onCourseAccessed(courseId);
         }
 
@@ -51,14 +50,5 @@ export class ExerciseOpeningService {
             exerciseIdFromData,
             vscode.workspace.workspaceFolders?.[0]?.uri,
         );
-
-        // Notify chat provider
-        const chatProvider = this._providerRegistry.getChatWebviewProvider();
-        if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-            const releaseDate = exercise.releaseDate || exercise.startDate;
-            const dueDate = exercise.dueDate;
-            const shortName = exercise.shortName;
-            chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName || '', exercise.course?.id);
-        }
     }
 }

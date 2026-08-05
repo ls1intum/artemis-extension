@@ -6,15 +6,6 @@ import type { TopicChangeOutcome } from '@extension/services/iris/conversation/c
  * Minimal interface for ChatWebviewProvider, consumed by ProviderRegistry for dependency inversion.
  */
 export interface IChatWebviewProvider {
-    updateDetectedExercise(
-        exerciseTitle: string,
-        exerciseId: number,
-        releaseDate?: string,
-        dueDate?: string,
-        shortName?: string,
-        courseId?: number,
-    ): void;
-    updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void;
     /**
      * Points the open conversation at `target`, acquiring one when none is
      * open. `courseHint` travels with the target because a cold start has no

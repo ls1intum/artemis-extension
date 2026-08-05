@@ -82,6 +82,8 @@ suite('WebviewNavigationFacade', () => {
         };
         courseCatalog: {
             fetch: sinon.SinonStub;
+            upsertSupplemental: sinon.SinonStub;
+            currentEpoch: number;
         };
         postMessage: sinon.SinonStub;
         render: sinon.SinonStub;
@@ -140,6 +142,8 @@ suite('WebviewNavigationFacade', () => {
             },
             courseCatalog: overrides.courseCatalog ?? {
                 fetch: sandbox.stub().resolves(),
+                upsertSupplemental: sandbox.stub(),
+                currentEpoch: 0,
             },
             postMessage: overrides.postMessage ?? sandbox.stub(),
             render: overrides.render ?? sandbox.stub(),
@@ -481,15 +485,31 @@ suite('WebviewNavigationFacade', () => {
 
     // ── showCourseDetail ───────────────────────────────────────────
 
-    test('showCourseDetail: stores state, registers exercises, renders', () => {
-        const { deps, stubs } = buildDeps();
+    test('showCourseDetail: stores state, writes the catalog, renders', () => {
+        const { deps, stubs } = buildDeps({
+            courseCatalog: { fetch: sandbox.stub(), upsertSupplemental: sandbox.stub(), currentEpoch: 5 },
+        });
         const facade = new WebviewNavigationFacade(deps);
         const courseData = { course: { id: 9, title: 'Algorithms' } } as Parameters<WebviewNavigationFacade['showCourseDetail']>[0];
 
         facade.showCourseDetail(courseData);
 
         sinon.assert.calledWith(stubs.appStateManager.showCourseDetail, courseData);
-        sinon.assert.calledWith(stubs.exerciseRegistry.registerFromCourseData, courseData);
+        sinon.assert.calledWith(
+            stubs.courseCatalog.upsertSupplemental,
+            sinon.match({ kind: 'course', entry: { course: courseData.course } }),
+            5,
+        );
+        sinon.assert.called(stubs.render);
+    });
+
+    test('showCourseDetail: tolerates a missing courseCatalog', () => {
+        const { deps, stubs } = buildDeps();
+        (deps as { courseCatalog?: unknown }).courseCatalog = undefined;
+        const facade = new WebviewNavigationFacade(deps);
+        const courseData = { course: { id: 9, title: 'Algorithms' } } as Parameters<WebviewNavigationFacade['showCourseDetail']>[0];
+
+        assert.doesNotThrow(() => facade.showCourseDetail(courseData));
         sinon.assert.called(stubs.render);
     });
 

@@ -78,8 +78,9 @@ export class IrisCommandModule {
             const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
             const title = exerciseTitle || `Exercise ${exerciseId}`;
 
-            // Note: We don't call updateDetectedExercise here because it can trigger
-            // autoSelectContext() which might select the wrong exercise based on priority.
+            // Note: We deliberately do not register this exercise as detected
+            // here, since doing so could trigger autoSelectContext() and
+            // select the wrong exercise based on priority.
 
             if (!chatProvider || typeof chatProvider.askIrisAbout !== 'function') {
                 logger.warn('WARNING: Chat provider is unavailable or does not support topic selection', LogCategory.IRIS_CHAT);

@@ -24,6 +24,8 @@ suite('handleViewCourseDetails resolver', () => {
         coursesData?: { courses: Array<{ course: { id: number; title?: string } }> };
         getCourseForDashboard?: sinon.SinonStub;
         showCourseDetail?: sinon.SinonStub;
+        courseCatalog?: { upsertSupplemental: sinon.SinonStub };
+        sessionEpoch?: () => number;
     }): CommandContext {
         return {
             appStateManager: {
@@ -38,6 +40,8 @@ suite('handleViewCourseDetails resolver', () => {
             courseAccessStorage: { onCourseAccessed: sandbox.stub() },
             providerRegistry: { getChatWebviewProvider: () => undefined },
             exerciseRegistry: { registerFromCourseData: sandbox.stub() },
+            courseCatalog: overrides.courseCatalog ?? { upsertSupplemental: sandbox.stub() },
+            sessionEpoch: overrides.sessionEpoch ?? (() => 0),
         } as unknown as CommandContext;
     }
 
@@ -59,6 +63,28 @@ suite('handleViewCourseDetails resolver', () => {
 
         assert.strictEqual(getCourseForDashboard.callCount, 0, 'API must not be called on cache hit');
         assert.strictEqual(showCourseDetail.callCount, 1, 'showCourseDetail must be called on cache hit');
+    });
+
+    test('records the viewed course in the catalog, stamped with the session epoch', async () => {
+        const upsertSupplemental = sandbox.stub();
+        const ctx = buildContext({
+            coursesData: { courses: [{ course: { id: 7, title: 'cached' } }] },
+            courseCatalog: { upsertSupplemental },
+            sessionEpoch: () => 9,
+        });
+        const mod = new NavigationCommandModule(ctx);
+
+        await mod.getHandlers().viewCourseDetails({
+            type: 'command',
+            command: 'viewCourseDetails',
+            payload: { courseId: 7 },
+        } satisfies WebCmd<'viewCourseDetails'>);
+
+        assert.strictEqual(upsertSupplemental.callCount, 1);
+        const [record, epoch] = upsertSupplemental.firstCall.args as [{ kind: string; entry: { course: { id: number } } }, number];
+        assert.strictEqual(record.kind, 'course');
+        assert.strictEqual(record.entry.course.id, 7);
+        assert.strictEqual(epoch, 9, 'the epoch must come from context.sessionEpoch(), not a hardcoded value');
     });
 
     test('falls back to getCourseForDashboard on cache miss', async () => {

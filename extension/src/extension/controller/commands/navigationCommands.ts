@@ -71,48 +71,19 @@ export class NavigationCommandModule {
     private async processCourseDetails(detail: CourseDetailData): Promise<void> {
         const course = detail.course;
         const courseId = course.id;
+        const epoch = this.context.sessionEpoch();
 
         this.context.appStateManager.showCourseDetail(detail);
         this.context.courseAccessStorage?.onCourseAccessed(courseId);
 
-        const registry = this.context.exerciseRegistry;
-        registry.registerFromCourseData({
-            course: {
-                id: courseId,
-                title: course.title,
-                exercises: course.exercises,
-            },
-        });
-
-        const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
-        const courseTitle = course.title;
-        const shortName = course.shortName;
-        if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
-            chatProvider.updateDetectedCourse(courseTitle, courseId, shortName);
-            logger.view('📚 [Course Detection] Notified chat about course:', courseTitle);
-        }
-
-        if (course.exercises && chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-            for (const exercise of course.exercises) {
-                if (
-                    exercise &&
-                    Array.isArray(exercise.studentParticipations) &&
-                    exercise.studentParticipations.length > 0 &&
-                    typeof exercise.id === 'number' &&
-                    typeof exercise.title === 'string'
-                ) {
-                    chatProvider.updateDetectedExercise(
-                        exercise.title,
-                        exercise.id,
-                        exercise.releaseDate ?? exercise.startDate,
-                        exercise.dueDate,
-                        exercise.shortName,
-                        courseId,
-                    );
-                    logger.view(`📚 [Course Exercises] Updated exercise from course: ${exercise.title} (ID: ${exercise.id})`);
-                }
-            }
-        }
+        // Writes the catalog's supplemental layer rather than the registry
+        // directly: the registry is rebuilt from the catalog projection now
+        // (Task 5), so a direct registry write would be data the next catalog
+        // event silently discards.
+        this.context.courseCatalog?.upsertSupplemental({
+            kind: 'course',
+            entry: { course: { id: courseId, title: course.title, shortName: course.shortName, exercises: course.exercises } },
+        }, epoch);
 
         this.context.actionHandler.render();
     }

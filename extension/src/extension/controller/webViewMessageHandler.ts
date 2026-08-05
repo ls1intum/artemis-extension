@@ -69,6 +69,7 @@ export class WebViewMessageHandler {
             providerRegistry,
             courseCatalog,
             courseAccessStorage,
+            sessionEpoch: () => courseCatalog?.currentEpoch ?? 0,
         };
 
         this.repositoryStatusModule = new RepositoryStatusCommands(context);

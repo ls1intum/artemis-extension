@@ -436,6 +436,10 @@ export async function detectWorkspaceExerciseForRepository(
     registry: ExerciseRegistry,
     courseCatalog?: CourseCatalog,
 ): Promise<DetectionOutcome> {
+    // Captured once, at the top: a write built from a later read could cross
+    // a session boundary that opened while this function was awaiting the
+    // server.
+    const epoch = courseCatalog?.currentEpoch ?? 0;
     let exercises = registry.getAllExercises();
     let reachable = true;
 
@@ -484,6 +488,12 @@ export async function detectWorkspaceExerciseForRepository(
             reachable = false;
         }
         if (archive.entry) {
+            // The dashboard will never carry an archived course, and a forced
+            // refresh replaces the dashboard layer wholesale. Without this the
+            // exercise the student is actually working in disappears from the
+            // picker on the next refresh, and the archive probe never runs
+            // again because the registry still matches the folder.
+            courseCatalog?.upsertSupplemental({ kind: 'course', entry: archive.entry }, epoch);
             registry.registerFromCourseData(archive.entry);
             detected = findExerciseByRepositoryUrl(repositoryUrl, registry.getAllExercises());
         }

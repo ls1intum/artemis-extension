@@ -1,9 +1,12 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
     type DetectedExercise,
     detectWorkspaceExercise,
+    detectWorkspaceExerciseForRepository,
     type ExerciseSource,
     findExerciseByRepositoryUrl,
     getEntryExercises,
@@ -362,6 +365,61 @@ suite('WorkspaceDetectionService', () => {
         });
     });
 
+});
+
+suite('detectWorkspaceExerciseForRepository: archive path records the catalog', () => {
+    let sandbox: sinon.SinonSandbox;
+    let callbacks: { registerExercise: sinon.SinonStub; clearStaleWorkspaceContext: sinon.SinonStub };
+    let registry: ExerciseRegistry;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        callbacks = {
+            registerExercise: sandbox.stub(),
+            clearStaleWorkspaceContext: sandbox.stub(),
+        };
+        registry = new ExerciseRegistry();
+    });
+
+    teardown(() => { sandbox.restore(); });
+
+    /**
+     * An archived course whose one exercise matches `url`, as
+     * `getCourseForDashboard` returns it. The participation carries the
+     * repository URI, not just the bare exercise field: that is the only
+     * shape `ExerciseRegistry.registerFromCourseData` actually registers.
+     */
+    function archivedEntryMatching(url: string): CourseDashboardEntry {
+        return {
+            course: {
+                id: 77,
+                title: 'Archived Course',
+                exercises: [{
+                    id: 5,
+                    title: 'Archived Exercise',
+                    repositoryUri: url,
+                    studentParticipations: [{ id: 1, repositoryUri: url }],
+                }],
+            },
+        };
+    }
+
+    test('an archived course found for the workspace is recorded in the catalog', async () => {
+        const catalog = { fetch: sandbox.stub().resolves({ courses: [] }), upsertSupplemental: sandbox.stub(), currentEpoch: 3 };
+        const api = {
+            getArchivedCourses: sandbox.stub().resolves([{ id: 77 }]),
+            getCourseForDashboard: sandbox.stub().resolves(archivedEntryMatching('https://git/ws')),
+        };
+
+        const outcome = await detectWorkspaceExerciseForRepository(
+            'https://git/ws', api as never, callbacks, registry, catalog as never,
+        );
+
+        assert.strictEqual(outcome.kind, 'matched');
+        assert.strictEqual(catalog.upsertSupplemental.callCount, 1);
+        assert.strictEqual(catalog.upsertSupplemental.firstCall.args[0].kind, 'course');
+        assert.strictEqual(catalog.upsertSupplemental.firstCall.args[1], 3, 'the epoch must be the catalog\'s current one');
+    });
 });
 
 suite('getEntryExercises', () => {
