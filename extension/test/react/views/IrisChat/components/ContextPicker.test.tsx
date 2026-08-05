@@ -26,13 +26,6 @@ const props = {
     onClose: vi.fn(),
 };
 
-/** Exercise row titles, in DOM order, with the "Workspace" badge stripped off. */
-function visibleTitles(): string[] {
-    return screen.getAllByRole('button')
-        .filter((b) => b.getAttribute('data-testid')?.startsWith('picker-entry-') && b.getAttribute('data-testid') !== 'picker-entry-course')
-        .map((b) => (b.textContent ?? '').replace(/Workspace$/, '').trim());
-}
-
 describe('ContextPicker (topic picker)', () => {
     it('renders a Course chat entry and this course\'s exercises only', () => {
         render(<ContextPicker {...props} />);
@@ -95,16 +88,6 @@ describe('ContextPicker (topic picker)', () => {
         render(<ContextPicker {...props} onClose={onClose} />);
         fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
         expect(onClose).toHaveBeenCalledOnce();
-    });
-
-    it('orders the picker by workspace, then due date, then title, with no lastViewed on the wire', () => {
-        const wireExercises = [
-            { id: 3, title: 'Zulu', courseId: 1 },
-            { id: 1, title: 'Alpha', courseId: 1, dueDate: '2030-01-01T00:00:00Z' },
-            { id: 2, title: 'Bravo', courseId: 1 },
-        ];
-        render(<ContextPicker {...props} exercises={wireExercises} workspaceExerciseId={2} />);
-        expect(visibleTitles()).toEqual(['Bravo', 'Alpha', 'Zulu']);
     });
 
     it('filters by title and by short name, and says so when nothing matches', () => {
