@@ -173,6 +173,51 @@ suite('SessionIdentityCoordinator', () => {
         assert.strictEqual(coordinator.state.kind, 'resolving');
     });
 
+    // The thrower behind the server-URL listener's `anonymous` fallback:
+    // `hasAuthToken` reads SecretStorage, which can reject. HERE staying
+    // `resolving` is correct, because a later login calls `resolvePrincipal`
+    // again; the listener has no such retry, which is why its catch publishes
+    // `anonymous` instead. The two tests below are that asymmetry, pinned.
+    test('a token read failure stays resolving and settles nothing', async () => {
+        const seen: string[] = [];
+        const coordinator = new SessionIdentityCoordinator(deps({
+            hasAuthToken: async () => { throw new Error('keychain unavailable'); },
+        }));
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        coordinator.onDidChangeSession(state => seen.push(state.kind));
+        await coordinator.resolvePrincipal();
+        assert.strictEqual(coordinator.state.kind, 'resolving');
+        // `resolvePrincipal` opens with `beginResolving`, so the previous
+        // identity's data is dropped either way. What a failed READ must not do
+        // is settle: anonymous here would log out a student whose token is
+        // probably still there.
+        assert.deepStrictEqual(seen, ['resolving']);
+    });
+
+    test('an anonymous session on a new server is terminal but leavable', async () => {
+        let token = false;
+        const coordinator = new SessionIdentityCoordinator(deps({
+            serverKey: () => 'https://b.example',
+            hasAuthToken: async () => token,
+        }));
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+
+        // What the server-URL listener does: reset first, then settle. The
+        // settle is the part its catch used to skip, leaving `resolving`.
+        coordinator.beginResolving('https://b.example');
+        coordinator.setAnonymous('https://b.example');
+        assert.deepStrictEqual(coordinator.state, { kind: 'anonymous', serverKey: 'https://b.example' });
+        assert.strictEqual(coordinator.accessScope(), null);
+
+        // The login that follows the server change lifts it out again, which is
+        // what makes `anonymous` a safe answer to publish on a failure.
+        token = true;
+        await coordinator.resolvePrincipal();
+        assert.deepStrictEqual(coordinator.state, {
+            kind: 'authenticated', serverKey: 'https://b.example', principal: 'id:1',
+        });
+    });
+
     test('a user the key cannot name leaves the session resolving', async () => {
         const coordinator = new SessionIdentityCoordinator(deps({
             getCurrentUser: async () => ({}),

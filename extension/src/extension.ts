@@ -323,6 +323,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');
 			} catch (error) {
 				logger.error('Failed to clear credentials after server URL change', LogCategory.AUTH, error);
+				// `anonymous`, not the `resolving` this catch would otherwise
+				// leave behind. `resolvePrincipal` may stay `resolving` on a
+				// failed token read because a later login retries it; nothing
+				// retries THIS listener, so a throw (SecretStorage can reject,
+				// e.g. an unavailable keychain) would park the session with no
+				// access scope and, once detection is session-scoped, no
+				// detection either. A server change never intends to preserve
+				// authentication, so anonymous is both true and terminal.
+				sessionIdentity.setAnonymous(serverKey);
 			}
 		}));
 	}
