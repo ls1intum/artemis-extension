@@ -44,6 +44,14 @@ export function wireWorkspaceDetection(
 
     const runDetection = async (): Promise<void> => {
         const token = ++generation;
+        if (disposed) {
+            // Torn down before this deferred (or event-triggered) run even
+            // started. Every other exit path below routes through `stale()`,
+            // which checks `disposed` too; the resolving and anonymous
+            // branches return before ever reaching it, so they need the same
+            // check up front to honour disposal uniformly.
+            return;
+        }
         const epoch = deps.session.epoch;
         const kind = deps.session.state.kind;
         if (kind === 'resolving') {

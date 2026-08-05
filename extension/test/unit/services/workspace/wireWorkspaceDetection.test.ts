@@ -292,6 +292,20 @@ suite('wireWorkspaceDetection', () => {
         handle.dispose();
     });
 
+    test('disposing before the deferred anonymous run fires leaves the sink and outcomes untouched', async () => {
+        const { session } = makeSession('anonymous');
+        const outcomes: DetectionOutcome[] = [];
+        const sink = makeSinkSpy();
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink, session });
+        handle.onDetectionSettled(o => outcomes.push(o));
+        // Torn down before the queued microtask even runs.
+        handle.dispose();
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.strictEqual(sink._clear.callCount, 0);
+        assert.deepStrictEqual(outcomes, []);
+    });
+
     test('an outcome from a previous epoch is discarded', async () => {
         const { session } = makeSession('authenticated');
         let settleDetection: (o: DetectionOutcome) => void = () => undefined;
