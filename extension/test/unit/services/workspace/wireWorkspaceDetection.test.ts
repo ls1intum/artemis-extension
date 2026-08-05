@@ -192,6 +192,52 @@ suite('wireWorkspaceDetection', () => {
         assert.strictEqual(sink._register.callCount, 0);
         disposable.dispose();
     });
+
+    test('publishes every settled outcome, including the one from activation', async () => {
+        detectStub.resolves({ kind: 'matched', exerciseId: 42, courseId: 9 });
+        const seen: unknown[] = [];
+
+        const handle = wireWorkspaceDetection({
+            api: undefined, registry, courseDataCache, sink: makeSinkSpy(),
+        });
+        handle.onDetectionSettled(outcome => seen.push(outcome));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        detectStub.resolves({ kind: 'no-match' });
+        handle.retry();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.deepStrictEqual(seen, [
+            { kind: 'matched', exerciseId: 42, courseId: 9 },
+            { kind: 'no-match' },
+        ]);
+        handle.dispose();
+    });
+
+    test('a superseded run cannot emit its late result', async () => {
+        let resolveFirst: (o: unknown) => void = () => undefined;
+        detectStub.onFirstCall().returns(new Promise(res => { resolveFirst = res; }));
+        detectStub.onSecondCall().resolves({ kind: 'no-match' });
+
+        const handle = wireWorkspaceDetection({
+            api: undefined, registry, courseDataCache, sink: makeSinkSpy(),
+        });
+        const seen: unknown[] = [];
+        handle.onDetectionSettled(outcome => seen.push(outcome));
+
+        handle.retry();
+        await Promise.resolve();
+        await Promise.resolve();
+        resolveFirst({ kind: 'matched', exerciseId: 1, courseId: 2 });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.deepStrictEqual(seen, [{ kind: 'no-match' }],
+            'the superseded activation run must not emit after a newer one settled');
+        handle.dispose();
+    });
 });
 
 suite('buildChatProviderSink', () => {

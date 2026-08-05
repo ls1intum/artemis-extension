@@ -230,6 +230,17 @@ interface ExtensionMsgPayloads {
             /** The detected workspace exercise, when any. Comes from
              *  workspace detection, not from `IrisConversationService`. */
             workspaceExerciseId: number | undefined;
+            /**
+             * Workspace detection's own progress, independent of whether it
+             * found anything. `'unsettled'` means detection has not answered
+             * yet: the webview must not treat "nothing open" as "no exercise
+             * here" while that is still true, or a student is told to pick a
+             * course while the extension is still working it out.
+             * `'unavailable'` means detection could not reach the server at
+             * all, which is not an answer either. Sourced from
+             * `ChatStartupCoordinator`'s `DetectionUiState`.
+             */
+            detectionState: 'unsettled' | 'settled' | 'unavailable';
         };
         showDiagnostics?: boolean;
     };

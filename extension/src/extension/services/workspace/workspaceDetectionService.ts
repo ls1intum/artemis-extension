@@ -6,8 +6,9 @@ import type { ArtemisApiService } from '@extension/api';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry, type ExerciseRegistryEntry } from '@extension/services/exerciseRegistry';
 import { logger } from '@extension/services/loggingService';
-import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
+import type { CourseDashboardCourse, CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 
+import type { DetectionOutcome } from './detectionOutcome';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 
 const execFileAsync = promisify(execFile);
@@ -331,8 +332,55 @@ export async function detectWorkspaceForRepoUris(
 }
 
 /**
- * Searches archived courses for one whose exercises match the current workspace git remote.
+ * Result of searching the archived courses for a repository match.
+ *
+ * `reachable` is false when any per-course detail request threw, which means
+ * an absent `entry` is not proof of "no match" - the course that would have
+ * matched may be the one that could not be read.
+ */
+export interface ArchiveSearchResult {
+    entry?: CourseDashboardEntry;
+    reachable: boolean;
+}
+
+/**
+ * Searches the given archived courses for one whose exercises match `repositoryUrl`.
  * Fetches archived course details one at a time (sequential) to avoid loading all at once.
+ * A per-course failure does not abort the search - the remaining courses are still tried -
+ * but it does mark the result unreachable, since the failed course could have been the match.
+ */
+export async function searchArchivedCoursesForRepository(
+    artemisApi: ArtemisApiService,
+    repositoryUrl: string,
+    archivedCourses: CourseDashboardCourse[]
+): Promise<ArchiveSearchResult> {
+    let reachable = true;
+
+    for (const course of archivedCourses) {
+        if (course.id === undefined) {
+            continue;
+        }
+        try {
+            const entry = await artemisApi.getCourseForDashboard(course.id);
+            const exercises: ExerciseSource[] = getEntryExercises(entry)
+                .map(ex => toExerciseSource(ex, entry.course?.id))
+                .filter((s): s is ExerciseSource => s !== null);
+
+            if (findExerciseByRepositoryUrl(repositoryUrl, exercises)) {
+                logger.irisChat(`Found workspace match in archived course: ${entry.course?.title}`);
+                return { entry, reachable };
+            }
+        } catch (error) {
+            reachable = false;
+            logger.irisChatWarn(`Failed to load archived course ${course.id}`, error);
+        }
+    }
+
+    return { reachable };
+}
+
+/**
+ * Searches archived courses for one whose exercises match the current workspace git remote.
  * @returns The matching CourseDashboardEntry, or null if not found / already in active courses.
  */
 export async function findWorkspaceCourseInArchive(
@@ -355,30 +403,10 @@ export async function findWorkspaceCourseInArchive(
         return null; // Already matched in active courses
     }
 
-    // Fetch lightweight archived course list
-    const archivedCourses = await artemisApi.getArchivedCourses();
-
-    // Check each archived course sequentially until we find a match
-    for (const course of archivedCourses) {
-        if (course.id === undefined) {
-            continue;
-        }
-        try {
-            const entry = await artemisApi.getCourseForDashboard(course.id);
-            const exercises: ExerciseSource[] = getEntryExercises(entry)
-                .map(ex => toExerciseSource(ex, entry.course?.id))
-                .filter((s): s is ExerciseSource => s !== null);
-
-            if (findExerciseByRepositoryUrl(repositoryUrl, exercises)) {
-                logger.irisChat(`Found workspace match in archived course: ${entry.course?.title}`);
-                return entry;
-            }
-        } catch {
-            // Skip courses that fail to load
-        }
-    }
-
-    return null;
+    const result = await searchArchivedCoursesForRepository(
+        artemisApi, repositoryUrl, await artemisApi.getArchivedCourses(),
+    );
+    return result.entry ?? null;
 }
 
 /**
@@ -398,78 +426,135 @@ interface WorkspaceRegistrationCallbacks {
     clearStaleWorkspaceContext: () => void;
 }
 
+/**
+ * Detects and registers the workspace exercise for a known repository URL.
+ * The URL is a parameter (not re-read from git) so every branch below is
+ * reachable from a test without a real repository on disk.
+ */
+export async function detectWorkspaceExerciseForRepository(
+    repositoryUrl: string,
+    artemisApiService: ArtemisApiService | undefined,
+    callbacks: WorkspaceRegistrationCallbacks,
+    registry: ExerciseRegistry,
+    courseDataCache?: CourseDataCache,
+): Promise<DetectionOutcome> {
+    let exercises = registry.getAllExercises();
+    let reachable = true;
+
+    // If registry is empty, populate it from the shared course cache (or API as fallback).
+    // The cache deduplicates concurrent fetches so this is cheap if data is already loaded.
+    if (exercises.length === 0) {
+        logger.irisChat('Registry empty, fetching courses to populate exercises...');
+        try {
+            const dashboardData = await courseDataCache?.fetch();
+            if (!dashboardData) {
+                // _doFetch swallows its error and returns undefined, so this
+                // is the only signal the cache gives us. An empty `courses`
+                // array is a truthy response and stays reachable.
+                reachable = false;
+            } else {
+                for (const courseData of dashboardData.courses ?? []) {
+                    registry.registerFromCourseData(courseData);
+                }
+            }
+            exercises = registry.getAllExercises();
+            logger.irisChat(`Registry populated with ${exercises.length} exercises`);
+        } catch (error) {
+            reachable = false;
+            logger.irisChatWarn('Failed to fetch courses for registry population', error);
+        }
+    }
+
+    // findExerciseByRepositoryUrl, not detectWorkspaceExercise: the latter
+    // re-reads the git remote and would undo the whole point of the split.
+    let detected = findExerciseByRepositoryUrl(repositoryUrl, exercises);
+
+    // Fallback: search archived courses if no match in active courses
+    if (!detected && artemisApiService) {
+        logger.irisChat('No match in active courses, checking archived courses...');
+        let archivedCourses: CourseDashboardCourse[] = [];
+        try {
+            archivedCourses = await artemisApiService.getArchivedCourses();
+        } catch (error) {
+            reachable = false;
+            logger.irisChatWarn('Failed to list archived courses', error);
+        }
+        const archive = await searchArchivedCoursesForRepository(
+            artemisApiService, repositoryUrl, archivedCourses,
+        );
+        if (!archive.reachable) {
+            reachable = false;
+        }
+        if (archive.entry) {
+            registry.registerFromCourseData(archive.entry);
+            detected = findExerciseByRepositoryUrl(repositoryUrl, registry.getAllExercises());
+        }
+    }
+
+    if (!detected) {
+        if (!reachable) {
+            logger.irisChat('Workspace detection could not reach the server');
+            return { kind: 'unavailable' };
+        }
+        logger.irisChat('No exercise matches the workspace remote');
+        callbacks.clearStaleWorkspaceContext();
+        return { kind: 'no-match' };
+    }
+
+    if (detected.courseId === undefined) {
+        // Not registered at all. Flagging it as the workspace exercise would
+        // set `workspaceExerciseId`, and `isColdStart` requires that to be
+        // null: the student would get the ordinary chat shell with an empty
+        // "Choose a course" header instead of the cold-start chooser, for an
+        // exercise that can never be opened anyway.
+        logger.irisChat(`Workspace exercise ${detected.id} has no course; not usable`);
+        callbacks.clearStaleWorkspaceContext();
+        return { kind: 'no-match' };
+    }
+
+    logger.irisChat(`Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
+
+    const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
+    callbacks.registerExercise({
+        id: detected.id,
+        title: `${baseTitle} (Workspace)`,
+        shortName: detected.shortName,
+        courseId: detected.courseId,
+        repositoryUri: detected.repositoryUri,
+        source: 'workspace-detected',
+        isWorkspace: true,
+    });
+    return { kind: 'matched', exerciseId: detected.id, courseId: detected.courseId };
+}
+
 export async function detectAndRegisterWorkspaceExercise(
     artemisApiService: ArtemisApiService | undefined,
     callbacks: WorkspaceRegistrationCallbacks,
     exerciseRegistry: ExerciseRegistry,
     courseDataCache?: CourseDataCache,
-): Promise<void> {
-
+    // Injected so the no-remote branch is testable. `getWorkspaceRepositoryUrl`
+    // is called module-locally, so sinon cannot intercept it through the module
+    // object; a default parameter is the smallest honest seam.
+    resolveRepositoryUrl: () => Promise<string | null> = getWorkspaceRepositoryUrl,
+): Promise<DetectionOutcome> {
     try {
-        const registry = exerciseRegistry;
-        let exercises = registry.getAllExercises();
-
-        // If registry is empty, populate it from the shared course cache (or API as fallback).
-        // The cache deduplicates concurrent fetches so this is cheap if data is already loaded.
-        if (exercises.length === 0) {
-            logger.irisChat('Registry empty, fetching courses to populate exercises...');
-            try {
-                const dashboardData = await courseDataCache?.fetch();
-                const courses = dashboardData?.courses;
-
-                if (courses && Array.isArray(courses) && courses.length > 0) {
-                    for (const courseData of courses) {
-                        registry.registerFromCourseData(courseData);
-                    }
-                }
-                exercises = registry.getAllExercises();
-                logger.irisChat(`Registry populated with ${exercises.length} exercises`);
-            } catch (error) {
-                logger.irisChatWarn('Failed to fetch courses for registry population', error);
-            }
-        }
-
-        let detected = await detectWorkspaceExercise(exercises);
-
-        // Fallback: search archived courses if no match in active courses
-        if (!detected && artemisApiService) {
-            logger.irisChat('No match in active courses, checking archived courses...');
-            try {
-                const archivedEntry = await findWorkspaceCourseInArchive(artemisApiService, []);
-                if (archivedEntry) {
-                    registry.registerFromCourseData(archivedEntry);
-                    exercises = registry.getAllExercises();
-                    detected = await detectWorkspaceExercise(exercises);
-                }
-            } catch (error) {
-                logger.irisChatWarn('Failed to fetch archived courses for workspace detection', error);
-            }
-        }
-
-        if (detected) {
-            logger.irisChat(`Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
-        } else {
-            logger.irisChat('No workspace exercise detected matching current git remote');
-        }
-
-        if (!detected) {
+        const repositoryUrl = await resolveRepositoryUrl();
+        if (!repositoryUrl) {
+            // Conclusive and server-independent: this folder is not an Artemis
+            // exercise checkout. It must stay `no-match` even when the dashboard
+            // is also unreachable, or every non-exercise window would offer a
+            // Retry for a server that has nothing to do with the answer.
+            logger.irisChat('No git remote in the workspace; not an exercise folder');
             callbacks.clearStaleWorkspaceContext();
-            return;
+            return { kind: 'no-match' };
         }
-
-        const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
-        const displayTitle = `${baseTitle} (Workspace)`;
-
-        callbacks.registerExercise({
-            id: detected.id,
-            title: displayTitle,
-            shortName: detected.shortName,
-            courseId: detected.courseId,
-            repositoryUri: detected.repositoryUri,
-            source: 'workspace-detected',
-            isWorkspace: true,
-        });
-    } catch {
-        // Not a git repository or command failed - ignore silently
+        return await detectWorkspaceExerciseForRepository(
+            repositoryUrl, artemisApiService, callbacks, exerciseRegistry, courseDataCache,
+        );
+    } catch (error) {
+        // `noImplicitReturns` makes this mandatory, and the conservative answer
+        // is the right one: an unexpected failure is not evidence of absence.
+        logger.irisChatWarn('Workspace detection failed unexpectedly', error);
+        return { kind: 'unavailable' };
     }
 }

@@ -21,11 +21,13 @@ import { historyResolvesRun } from '@extension/services/iris/chat/historyResolut
 import type { AvailabilityContext } from '@extension/services/iris/chat/irisAvailabilityService';
 import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
 import { collectUncommittedFiles } from '@extension/services/iris/conversation/collectUncommittedFiles';
-import type { CourseSwitchOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { CourseSwitchOutcome, StartOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { toWireMessages } from '@extension/services/iris/conversation/messageFormatting';
 import { SEND_REJECTION_MESSAGES, SendCoordinator } from '@extension/services/iris/conversation/sendCoordinator';
 import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
+import type { DetectionUiState } from '@extension/services/iris/startup/chatStartupCoordinator';
+import { ChatStartupCoordinator } from '@extension/services/iris/startup/chatStartupCoordinator';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
@@ -36,6 +38,7 @@ import {
     NoAiDetectionService,
     toExerciseSource,
 } from '@extension/services/workspace';
+import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
 
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -91,6 +94,25 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _conversation: IrisConversationService | undefined;
     /** The send path. Built next to `_conversation`. */
     private _sendCoordinator: SendCoordinator | undefined;
+    /**
+     * The single owner of the automatic cold start. `resolveWebviewView` only
+     * reports that the view exists (`onViewResolved`); `attachStartupDetection`
+     * feeds it workspace-detection outcomes. The coordinator itself decides
+     * when both have arrived and calls `_acquireConversation` exactly once.
+     */
+    private readonly _startupCoordinator: ChatStartupCoordinator;
+    /**
+     * The coordinator's latest published detection state, read by the
+     * presenter's `_getDetectionState` getter and put on the wire in every
+     * `updateIrisState` snapshot.
+     */
+    private _detectionState: DetectionUiState = 'unsettled';
+    /**
+     * The workspace-detection handle (from `wireWorkspaceDetection`), wired by
+     * `attachStartupDetection` at activation. Until then there is nothing for
+     * the startup Retry to re-run.
+     */
+    private _detectionHandle: { retry(): void } | undefined;
     /** Generation opened by the most recent send, for the reconnect marker. */
     private _lastSendGeneration: number | undefined;
     /** Last conversation announced to the webview, so a navigation can be told
@@ -200,6 +222,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // capturing it by value here would capture `undefined` forever.
             // Same reasoning as the `_websocketMessageHandler` getter below.
             () => this._conversation,
+            // A getter, not a value: `_detectionState` is mutated in place by
+            // `publishDetectionState` below (`ChatStartupCoordinator`'s only
+            // way to report progress), so capturing it by value here would
+            // freeze the snapshot at whatever it was when the presenter was
+            // constructed (always `'unsettled'`).
+            () => this._detectionState,
         );
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -269,6 +297,19 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 }),
             );
         }
+
+        // Constructed unconditionally (not gated on `_conversation` existing)
+        // so the field stays non-optional: `_conversationForNavigation` never
+        // reaches `admitExplicitIntent` when `_conversation` is undefined, and
+        // `_acquireConversation` below already no-ops in that case too.
+        this._startupCoordinator = new ChatStartupCoordinator({
+            start: (workspace) => this._acquireConversation(workspace),
+            publishDetectionState: (state) => {
+                this._detectionState = state;
+                this._viewStatePresenter.postSnapshot();
+            },
+            retryDetection: () => this._detectionHandle?.retry(),
+        });
 
         this._disposables.push(
             this._fileMonitorService.onDidUpdateFiles(update => {
@@ -500,37 +541,60 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
         this._viewDisposables.push(configListener);
 
-        void this._startConversation().catch((error: unknown) => {
-            logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
-        });
+        // The coordinator owns the one-shot cold start now: it fires
+        // `_acquireConversation` only once the view AND workspace detection
+        // have both settled, in whichever order they arrive.
+        this._startupCoordinator.onViewResolved();
+        // Independent of the one-shot acquisition: a recreated webview needs
+        // the disabled banner re-evaluated even when the conversation is
+        // unchanged and the startup latch has long been consumed.
+        void this._refreshAvailability();
 
         // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
     }
 
     /**
      * The conversation-first acquisition. One call gives the id, the topic, the
-     * title and the transcript; without a detected workspace exercise it makes
-     * no request at all and the webview shows the cold-start course chooser.
+     * title and the transcript. Called by the startup coordinator, once the
+     * view has resolved and workspace detection has matched an exercise; a
+     * rejection re-arms the coordinator's latch (see `ChatStartupDeps.start`),
+     * so this can run again after a transient failure.
      *
      * The availability check afterwards is not a duplicate of the one
      * `_onConversationChanged` runs: re-opening the view re-installs the SAME
      * conversation, so that hook's id guard early-returns and nothing would
      * ever ask whether Iris is enabled here.
      */
-    private async _startConversation(): Promise<void> {
+    private async _acquireConversation(workspace: { exerciseId: number; courseId: number }): Promise<void> {
         const conversation = this._conversation;
         if (!conversation) { return; }
+        let outcome: StartOutcome;
         try {
-            await conversation.start(this._workspaceForStart());
+            outcome = await conversation.start(workspace);
         } catch (error: unknown) {
             // A failed acquisition leaves no session and therefore no
             // transcript, so the loader would spin forever. The banner's Retry
-            // routes back through reloadIrisChat.
+            // routes back through reloadIrisChat. Re-thrown (rather than
+            // swallowed) so the coordinator learns the attempt failed and can
+            // re-arm its latch: without that, a single transient 500 leaves
+            // the student stuck on the cold-start chooser forever, since the
+            // latch was already consumed before this call and nothing else
+            // ever gets another shot at it.
             logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
                 type: ExtensionMsg.ShowUnavailableState,
                 message: 'Iris could not be reached. Retry to reload the conversation.',
             });
+            throw error;
+        }
+        // A course whose instructor switched Iris off is a destination, not a
+        // failure (see `IrisConversationService.start`): NOT re-thrown, or the
+        // coordinator would re-arm its latch for an answer that will never
+        // change, and Retry would repeat the same 403 forever. Same banner
+        // `_handleSwitchCourse` shows for the identical case reached by a
+        // course switch instead of a cold start.
+        if (outcome.kind === 'disabled') {
+            this._announceCourseDisabled(workspace.courseId);
             return;
         }
         await this._refreshAvailability();
@@ -560,14 +624,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
-    /** The detected workspace exercise, in the shape `start` expects. */
-    private _workspaceForStart(): { exerciseId: number; courseId: number } | undefined {
-        const exercise = this._contextStore.getWorkspaceExercise();
-        return exercise?.courseId === undefined
-            ? undefined
-            : { exerciseId: exercise.id, courseId: exercise.courseId };
-    }
-
     // ── Rendering ──────────────────────────────────────────────────────
 
     public render(): void {
@@ -581,6 +637,20 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
+        // A conversation already installed (the webview was disposed and
+        // recreated while one was open — no `retainContextWhenHidden`, so
+        // collapsing and reopening the sidebar does exactly this) gets no
+        // other chance at its transcript: `_acquireConversation` is one-shot
+        // behind the startup latch, and the install that originally called
+        // `_deliverTranscript` addressed a webview instance that is gone.
+        // Kept immediately after the snapshot above, with no `await` between
+        // them: the webview's own guard keys an incoming transcript on the
+        // session the snapshot just named, so it has to follow it, never
+        // overtake it. `'load'` (not `'merge'`) on purpose — it is also the
+        // only mode that sets `loadedSessionId`, which is what clears the
+        // loader in the first place; `'merge'` never touches it.
+        const detail = this._conversation?.state.snapshot().detail;
+        if (detail) { this._deliverTranscript(detail, 'load'); }
         await this._populateAvailableContexts();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
@@ -613,6 +683,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      */
     public get currentCourseId(): number | undefined {
         return this._conversation?.state.snapshot().courseId;
+    }
+
+    /**
+     * The coordinator's latest published detection state, also what the
+     * presenter puts on the wire in every `updateIrisState` snapshot.
+     */
+    public get detectionState(): DetectionUiState {
+        return this._detectionState;
     }
 
     /**
@@ -678,6 +756,26 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public clearWorkspaceExercise(): void {
         this._contextStore.clearWorkspaceFlag();
         this._viewStatePresenter.postSnapshot();
+    }
+
+    /** See `StartupLatch`. Called before anything that can resolve the view. */
+    public admitExplicitIntent(reason: string): void {
+        this._startupCoordinator.admitExplicitIntent(reason);
+    }
+
+    /**
+     * Feeds the coordinator workspace-detection outcomes, and gives it the
+     * Retry the startup-unavailable banner offers. Called once, at
+     * activation, with the handle `wireWorkspaceDetection` returns.
+     */
+    public attachStartupDetection(handle: {
+        onDetectionSettled: vscode.Event<DetectionOutcome>;
+        retry(): void;
+    }): void {
+        this._detectionHandle = handle;
+        this._disposables.push(handle.onDetectionSettled(
+            outcome => this._startupCoordinator.onDetectionSettled(outcome),
+        ));
     }
 
     // ── Conversation-first entry points for the commands ───────────────
@@ -909,6 +1007,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                         logger.error('Retry reload failed', LogCategory.IRIS_CHAT, err);
                     });
                     break;
+                case WebviewCmd.RetryStartupDetection:
+                    // The startup-unavailable banner's Retry. Routes to the
+                    // coordinator's own `retry()`, which re-runs DETECTION,
+                    // NOT `reloadIrisChat()`: on this path there may be no
+                    // workspace exercise at all yet, so a conversation reload
+                    // would start whatever happens to be left over, or nothing.
+                    this._startupCoordinator.retry();
+                    break;
                 case WebviewCmd.MessageFeedback: {
                     const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(message);
                     void this._handleMessageFeedback({
@@ -1138,6 +1244,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._answerFailedNavigation(command, 'Wait for Iris to finish answering before switching.');
             return undefined;
         }
+        // Admitted: the student named a destination. Whether the navigation then
+        // succeeds is irrelevant to the cold start, which must not overrule them.
+        // Placed after the refusals on purpose: a command that never reached the
+        // conversation named nothing.
+        this._startupCoordinator.admitExplicitIntent(command);
         return conversation;
     }
 

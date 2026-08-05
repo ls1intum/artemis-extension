@@ -97,6 +97,15 @@ export const WebviewCmd = {
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
     OpenHelpPopup: 'openHelpPopup',
+    /**
+     * The startup-unavailable banner's Retry: re-runs workspace DETECTION,
+     * not a conversation reload. `ReloadChatSession` (above) is the
+     * unavailable-conversation banner's Retry and reads the OPEN
+     * conversation; on this path there may be no workspace exercise at all
+     * yet, so a reload would start whatever happens to be left over, or
+     * nothing.
+     */
+    RetryStartupDetection: 'retryStartupDetection',
 
     // Dev tools
     FreshSsrPreview: 'freshSsrPreview',
@@ -208,6 +217,7 @@ interface WebviewCmdPayloads {
     openFile: { filePath: string };
     openDiagnostics: undefined;
     openHelpPopup: undefined;
+    retryStartupDetection: undefined;
 
     // Dev tools
     freshSsrPreview: { darkMode: boolean };

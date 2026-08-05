@@ -6,6 +6,7 @@ import type { ServerContext } from '@shared/types/serverContext';
 
 import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
+import type { DetectionUiState } from '@extension/services/iris/startup/chatStartupCoordinator';
 
 type IrisViewState = ExtMsg<'updateIrisState'>['state'];
 type ConversationSnapshot = ReturnType<IrisConversationService['state']['snapshot']>;
@@ -23,7 +24,7 @@ const NO_CONVERSATION = {
     sendInFlight: false,
     navigationInFlight: false,
     conversations: [],
-} as const satisfies Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId'>;
+} as const satisfies Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId' | 'detectionState'>;
 
 export class ChatViewStatePresenter {
     constructor(
@@ -38,6 +39,13 @@ export class ChatViewStatePresenter {
          * getter in `chatWebviewProvider.ts`.
          */
         private readonly _getConversation: () => IrisConversationService | undefined,
+        /**
+         * The startup coordinator's latest published detection state. A
+         * getter, not a value, for the same reason `_getConversation` is: the
+         * coordinator is constructed after the presenter, so a plain value
+         * here would capture whatever it was at construction time forever.
+         */
+        private readonly _getDetectionState: () => DetectionUiState,
     ) {}
 
     public postSnapshot(): void {
@@ -53,6 +61,7 @@ export class ChatViewStatePresenter {
                 exercises: snapshot.exercises,
                 courses: snapshot.courses,
                 workspaceExerciseId: this._contextStore.getWorkspaceExerciseId(),
+                detectionState: this._getDetectionState(),
                 ...this._serializeConversation(),
             },
             showDiagnostics,
@@ -131,7 +140,7 @@ export class ChatViewStatePresenter {
      * carries `courseId`), so it is resolved against the tracked-course
      * repository, which is where a display name for a course lives.
      */
-    private _serializeConversation(): Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId'> {
+    private _serializeConversation(): Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId' | 'detectionState'> {
         const conversation = this._getConversation();
         if (!conversation) { return NO_CONVERSATION; }
         const snapshot = conversation.state.snapshot();

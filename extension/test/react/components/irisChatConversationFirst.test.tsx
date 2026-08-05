@@ -1085,6 +1085,147 @@ describe('IrisChatView cold start', () => {
     });
 });
 
+/**
+ * Task 8: `isColdStart` used to fire the instant a snapshot said "nothing is
+ * open", which is exactly when workspace detection is still running. These
+ * pin the two states that keep the chooser from appearing prematurely (or at
+ * all, when the server cannot be reached), plus the guard that stops a failed
+ * background detection from covering an unrelated course's own banner.
+ */
+describe('IrisChatView waits for workspace detection before offering the course list', () => {
+    const nothingOpen = {
+        exercises: [],
+        courses: [],
+        contentState: 'unknown' as const,
+        courseId: undefined,
+        currentSessionId: undefined,
+        workspaceExerciseId: undefined,
+    };
+
+    it('the course chooser waits for detection to settle', async () => {
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...nothingOpen, detectionState: 'unsettled' },
+        });
+
+        // Awaited, not a synchronous query: `dispatchExtensionMessage` fires a
+        // DOM event outside of React's own event handling, so the state
+        // update is not guaranteed to have flushed by the next line. The
+        // waiting copy is this state's own signature, and finding it also
+        // proves the assertion below is not just reading the pre-dispatch
+        // frame.
+        expect(await screen.findByText(/looking for your artemis exercise/i)).toBeInTheDocument();
+        expect(screen.queryByText(/choose a course/i)).toBeNull();
+        // The composer is a second surface with its own "choose a course"
+        // fallback (IrisChatView.tsx, the `!hasConversation` placeholder
+        // branch): a spinner in the message area is not enough if the input
+        // right below it still tells the student to pick a course.
+        const input = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
+        expect(input.placeholder).toMatch(/looking for your artemis exercise/i);
+        expect(input.placeholder).not.toMatch(/choose a course/i);
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...nothingOpen, detectionState: 'settled' },
+        });
+
+        expect(await screen.findByText(/choose a course/i)).toBeInTheDocument();
+    });
+
+    it('an unreachable server offers a retry instead of the chooser', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...nothingOpen, detectionState: 'unavailable' },
+        });
+
+        const retryButton = await screen.findByRole('button', { name: /^retry$/i });
+        // The chooser ITSELF (the picker dialog) must not be showing — the
+        // outage screen also carries a "Choose a course instead" escape
+        // hatch (see the dedicated test below), whose own label contains the
+        // words "choose a course", so a text-based query is not precise
+        // enough here.
+        expect(screen.queryByRole('dialog', { name: 'Select course' })).toBeNull();
+        // The ordinary header must stay suppressed too: it falls back to a
+        // "Choose a course" button whenever no course is open, which is not
+        // true yet while detection is still unavailable. Exact string, not a
+        // pattern: "Choose a course instead" (the outage screen's own escape
+        // hatch) must NOT satisfy this query, so a text-based match would
+        // hide a regression here behind that other button's presence.
+        expect(screen.queryByRole('button', { name: 'Choose a course' })).toBeNull();
+        // Same composer surface, same trap: without its own branch, the
+        // `!hasConversation` fallback would say "Choose a course to start
+        // chatting" here too, which is simply false while the server cannot
+        // even be reached.
+        const input = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
+        expect(input.placeholder).toMatch(/could not reach the artemis server/i);
+        expect(input.placeholder).not.toMatch(/choose a course/i);
+        await userEvent.click(retryButton);
+
+        expect(
+            getPostMessageCalls(api).some(([m]) => (m as { command?: string }).command === 'retryStartupDetection'),
+        ).toBe(true);
+    });
+
+    it('the outage screen offers a second way to the course chooser, so Retry is not the only way out', async () => {
+        // Detection can fail identically on every retry (e.g. an
+        // archived-courses lookup that keeps throwing), which would strand a
+        // student behind the outage screen forever even though their courses
+        // are already sitting in the store from an earlier dashboard fetch.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...nothingOpen, detectionState: 'unavailable' },
+        });
+
+        const chooseInstead = await screen.findByRole('button', { name: /choose a course instead/i });
+        // Retry is still there, unchanged: this is a second way out, not a
+        // replacement for it.
+        expect(screen.getByRole('button', { name: /^retry$/i })).toBeInTheDocument();
+
+        await userEvent.click(chooseInstead);
+
+        expect(await screen.findByText(/choose a course/i)).toBeInTheDocument();
+    });
+
+    it('a disabled course keeps its banner when detection fails behind it', async () => {
+        // The banner comes from `showDisabledState`, not from the view-state
+        // snapshot: a snapshot with a course and no session sets no
+        // `disabledMessage` at all, so establishing it first is what makes
+        // this test about the interaction rather than about an empty screen.
+        render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+        dispatchExtensionMessage({
+            type: 'showDisabledState',
+            message: 'Iris chat is not enabled for this course.',
+        });
+        // courseId set, no session: exactly what entering an Iris-disabled
+        // course produces (#375). `unavailable` then arrives from a
+        // background detection that has nothing to do with that course.
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: {
+                exercises: [],
+                courses: [{ id: 42, title: 'Iris Disabled Course' }],
+                courseId: 42,
+                courseTitle: 'Iris Disabled Course',
+                currentSessionId: undefined,
+                contentState: 'unknown' as const,
+                detectionState: 'unavailable',
+            },
+        });
+
+        // Awaited first, so the second snapshot's re-render has genuinely
+        // flushed before the retry-button check below: `dispatchExtensionMessage`
+        // fires a DOM event outside of React's own event handling, and a
+        // synchronous query here would otherwise risk reading the frame from
+        // before that snapshot landed, passing regardless of what it rendered.
+        expect(await screen.findByText(/not enabled for this course/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+    });
+});
+
 describe('IrisChatView course refresh', () => {
     const coldStartState = {
         exercises: [],

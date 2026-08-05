@@ -217,6 +217,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
                     { sessionId: 42, courseId: 5, mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 12, entityName: 'Sorting', title: 'Recursion help', lastActivity: 1_700_000_000_000 },
                 ],
                 workspaceExerciseId: 12,
+                detectionState: 'settled',
             },
         } satisfies ExtMsg<'updateIrisState'>;
 

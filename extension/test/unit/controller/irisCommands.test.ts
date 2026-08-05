@@ -14,11 +14,16 @@ interface Harness {
     asked: Array<{ target: ServerContext; courseHint?: number }>;
     info: sinon.SinonStub;
     sandbox: sinon.SinonSandbox;
+    executeCommandStub: sinon.SinonStub;
+    chatProvider: {
+        askIrisAbout: (target: ServerContext, courseHint?: number) => Promise<TopicChangeOutcome>;
+        admitExplicitIntent: (reason: string) => void;
+    };
 }
 
 function buildHarness(outcome: TopicChangeOutcome): Harness {
     const sandbox = sinon.createSandbox();
-    sandbox.stub(vscode.commands, 'executeCommand').resolves();
+    const executeCommandStub = sandbox.stub(vscode.commands, 'executeCommand').resolves();
     sandbox.stub(vscode.window, 'showWarningMessage');
     sandbox.stub(vscode.window, 'showErrorMessage');
     const info = sandbox.stub(vscode.window, 'showInformationMessage');
@@ -29,12 +34,13 @@ function buildHarness(outcome: TopicChangeOutcome): Harness {
             asked.push({ target, courseHint });
             return outcome;
         },
+        admitExplicitIntent: sandbox.stub(),
     };
     const context = {
         providerRegistry: { getChatWebviewProvider: () => chatProvider },
     } as unknown as CommandContext;
 
-    return { module: new IrisCommandModule(context), asked, info, sandbox };
+    return { module: new IrisCommandModule(context), asked, info, sandbox, executeCommandStub, chatProvider };
 }
 
 suite('askIrisOutcomeMessage', () => {
@@ -128,4 +134,48 @@ suite('Ask Iris commands', () => {
             courseHint: 42,
         }]);
     });
+
+    const ORDERING_VARIANTS: Array<{ name: string; invoke: (harness: Harness) => Promise<void> }> = [
+        {
+            name: 'exercise',
+            invoke: (harness) => harness.module.getHandlers()[WebviewCmd.AskIrisAboutExercise]({
+                type: 'command',
+                command: WebviewCmd.AskIrisAboutExercise,
+                payload: { exerciseId: 5, exerciseTitle: 'BFS', courseId: 9 },
+            }),
+        },
+        {
+            name: 'course',
+            invoke: (harness) => harness.module.getHandlers()[WebviewCmd.AskIrisAboutCourse]({
+                type: 'command',
+                command: WebviewCmd.AskIrisAboutCourse,
+                payload: { courseId: 9, courseTitle: 'Algorithms' },
+            }),
+        },
+    ];
+
+    for (const variant of ORDERING_VARIANTS) {
+        test(`Ask Iris about a ${variant.name} admits before the chat view is focused`, async () => {
+            h = buildHarness({ kind: 'staged' });
+
+            const order: string[] = [];
+            // Extend the executeCommand stub this harness already installs
+            // rather than adding a second one on the same method.
+            h.executeCommandStub.callsFake(async (id: string) => {
+                if (id === 'iris.chatView.focus') { order.push('focus'); }
+                return undefined;
+            });
+            h.chatProvider.admitExplicitIntent = () => order.push('admit');
+            const originalAskIrisAbout = h.chatProvider.askIrisAbout;
+            h.chatProvider.askIrisAbout = async (target: ServerContext, courseHint?: number) => {
+                order.push('ask');
+                return originalAskIrisAbout(target, courseHint);
+            };
+
+            await variant.invoke(h);
+
+            assert.deepStrictEqual(order, ['admit', 'focus', 'ask'],
+                'focusing resolves the view, so the latch must already be cancelled');
+        });
+    }
 });

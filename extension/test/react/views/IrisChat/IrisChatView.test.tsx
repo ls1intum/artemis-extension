@@ -52,6 +52,12 @@ describe('IrisChatView', () => {
 			currentSessionId: null,
 			conversationTitle: null,
 			workspaceExerciseId: null,
+			// 'settled': most of this suite's tests are about the ordinary
+			// steady state (open conversation, or the legitimate "nothing to
+			// do" cold start), not about workspace detection's own progress.
+			// Tests that DO care about the pending/unavailable states set
+			// this explicitly.
+			detectionState: 'settled',
 			exercises: [],
 			courses: [],
 			messages: [],
