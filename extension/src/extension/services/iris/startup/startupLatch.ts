@@ -1,6 +1,6 @@
 import { LogCategory, logger } from '@extension/services/loggingService';
 
-export type LatchState = 'eligible' | 'consumed' | 'cancelled';
+type LatchState = 'eligible' | 'consumed' | 'cancelled';
 
 /**
  * Permission for the chat to acquire a conversation on its own, exactly once.

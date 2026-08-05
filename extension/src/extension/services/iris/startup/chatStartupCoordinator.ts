@@ -4,7 +4,7 @@ import { StartupLatch } from './startupLatch';
 
 export type DetectionUiState = 'unsettled' | 'settled' | 'unavailable';
 
-export interface ChatStartupDeps {
+interface ChatStartupDeps {
     /**
      * Acquire the conversation for `workspace`. Resolves on success. Rejects
      * on failure, AFTER having already shown whatever banner the failure
