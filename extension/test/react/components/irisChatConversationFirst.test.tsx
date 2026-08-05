@@ -1246,6 +1246,25 @@ describe('IrisChatView course refresh', () => {
         expect(screen.queryByText('No courses found')).toBeNull();
     });
 
+    // The cold-start effect asks unconditionally now, rather than only when
+    // the list happens to be empty. This is the case that distinguishes the
+    // two: the very first snapshot that flips the cold start on already
+    // carries courses, left over from an earlier dashboard fetch. Skipping the
+    // refresh there is exactly how a course deleted on the server survives in
+    // the chooser, which is the defect this branch exists to remove.
+    it('still asks the host for courses when the cold start opens with a list already in hand', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+
+        dispatchExtensionMessage({
+            type: 'updateIrisState',
+            state: { ...coldStartState, courses: [{ id: 42, title: 'Stale but present' }] },
+        });
+
+        await screen.findByText(/No Artemis workspace detected/);
+        expect(getPostMessageCalls(api).some(([m]) => (m as { command?: string }).command === 'refreshCourses')).toBe(true);
+    });
+
     it('lists the courses once the host answers with a snapshot', async () => {
         const api = createMockVsCodeApi();
         render(<IrisChatView vscodeApi={api} />);

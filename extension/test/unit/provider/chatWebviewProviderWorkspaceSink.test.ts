@@ -7,7 +7,12 @@ import * as detectionModule from '@extension/services/workspace/workspaceDetecti
 import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
-function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonSandbox; mockContext: MockExtensionContext } {
+function buildProvider(): {
+    provider: ChatWebviewProvider;
+    sandbox: sinon.SinonSandbox;
+    mockContext: MockExtensionContext;
+    coursesLoaded: vscode.EventEmitter<unknown>;
+} {
     const sandbox = sinon.createSandbox();
     sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => undefined });
     const mockContext = new MockExtensionContext();
@@ -16,8 +21,10 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
+    // Kept, not inlined: a test has to be able to fire it.
+    const coursesLoaded = new vscode.EventEmitter<unknown>();
     const courseCatalog = {
-        onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
+        onCoursesLoaded: coursesLoaded.event,
         fetch: async () => undefined,
         projection: () => ({ courses: [], exercises: [] }),
         courseTitle: () => undefined,
@@ -38,22 +45,25 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         { getAccessTimestamp: () => undefined } as never,
         sessionIdentity as never,
     );
-    return { provider, sandbox, mockContext };
+    return { provider, sandbox, mockContext, coursesLoaded };
 }
 
 suite('ChatWebviewProvider workspace sink', () => {
     let provider: ChatWebviewProvider;
     let sandbox: sinon.SinonSandbox;
+    let coursesLoaded: vscode.EventEmitter<unknown>;
 
     setup(() => {
         const built = buildProvider();
         provider = built.provider;
         sandbox = built.sandbox;
+        coursesLoaded = built.coursesLoaded;
     });
 
     teardown(() => {
         provider.dispose();
         sandbox.restore();
+        coursesLoaded.dispose();
     });
 
     test('registerWorkspaceExercise sets the exercise on the workspace tracker', () => {
@@ -85,6 +95,23 @@ suite('ChatWebviewProvider workspace sink', () => {
 
         const state = posted.filter(m => m?.type === 'updateIrisState').at(-1)?.state;
         assert.strictEqual(state?.workspaceExerciseId, 77);
+    });
+
+    // A supplemental write (entering a course, opening an exercise) has to
+    // repaint the picker by itself. It used to reach the webview only because
+    // `ChatStartupCoordinator.onDetectionSettled` republishes the detection
+    // state unconditionally, so the repaint rode on a workspace detection: a
+    // git-remote read and possibly an archived-course probe for what is a
+    // redraw, and nothing at all while the session is still resolving.
+    test('a catalog write repaints the chat on its own', () => {
+        const postSnapshot = sandbox.stub(
+            (provider as unknown as { _viewStatePresenter: { postSnapshot(): void } })._viewStatePresenter,
+            'postSnapshot',
+        );
+
+        coursesLoaded.fire(undefined);
+
+        assert.strictEqual(postSnapshot.callCount, 1);
     });
 
     test('clearWorkspaceExercise calls the tracker clear then postSnapshot', () => {

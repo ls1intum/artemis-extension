@@ -19,7 +19,6 @@ import type { ResultDTO } from '@extension/domain';
 import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
-import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
@@ -66,7 +65,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _extensionContext: vscode.ExtensionContext;
     private readonly _authManager: AuthManager;
     private readonly _artemisApi: ArtemisApiService;
-    private readonly _exerciseRegistry: ExerciseRegistry;
     private readonly _providerRegistry: IProviderRegistry;
     private readonly _courseCatalog?: CourseCatalog;
     private _appStateManager: AppStateManager;
@@ -116,7 +114,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._extensionContext = deps.extensionContext;
         this._authManager = deps.authManager;
         this._artemisApi = deps.artemisApi;
-        this._exerciseRegistry = deps.exerciseRegistry;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
         this._telemetryManager = deps.telemetryManager;
@@ -176,7 +173,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             appStateManager: this._appStateManager,
             artemisApi: this._artemisApi,
             websocketService: this._websocketService,
-            exerciseRegistry: this._exerciseRegistry,
             courseAccessStorage: this._courseAccessStorage,
             fullscreenPanelManager: this._fullscreenPanelManager,
             exerciseOpeningService: this._exerciseOpeningService,
@@ -196,7 +192,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._appStateManager,
             this._navigationFacade,
             this._extensionContext,
-            this._exerciseRegistry,
             this._providerRegistry,
             this._websocketService,
             this._courseCatalog,

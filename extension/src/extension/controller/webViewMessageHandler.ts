@@ -7,7 +7,6 @@ import { ArtemisApiService } from '@extension/api';
 import { AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
-import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
@@ -48,7 +47,6 @@ export class WebViewMessageHandler {
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
         extensionContext: vscode.ExtensionContext,
-        exerciseRegistry: ExerciseRegistry,
         providerRegistry: IProviderRegistry,
         websocketService?: ArtemisWebsocketService,
         courseCatalog?: CourseCatalog,
@@ -65,7 +63,6 @@ export class WebViewMessageHandler {
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
             getWebsocketService: () => this._websocketService,
             extensionContext,
-            exerciseRegistry,
             providerRegistry,
             courseCatalog,
             courseAccessStorage,

@@ -147,7 +147,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
-		exerciseRegistry,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,

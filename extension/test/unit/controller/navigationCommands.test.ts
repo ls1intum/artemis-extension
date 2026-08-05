@@ -39,7 +39,6 @@ suite('handleViewCourseDetails resolver', () => {
             actionHandler: { render: sandbox.stub() },
             courseAccessStorage: { onCourseAccessed: sandbox.stub() },
             providerRegistry: { getChatWebviewProvider: () => undefined },
-            exerciseRegistry: { registerFromCourseData: sandbox.stub() },
             courseCatalog: overrides.courseCatalog ?? { upsertSupplemental: sandbox.stub() },
             sessionEpoch: overrides.sessionEpoch ?? (() => 0),
         } as unknown as CommandContext;

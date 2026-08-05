@@ -9,7 +9,6 @@ import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDat
 import type { WebViewActionHandler } from '@extension/controller/types';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
-import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type {
     ExerciseOpeningService,
@@ -42,7 +41,6 @@ export interface WebviewNavigationFacadeDeps {
     appStateManager: AppStateManager;
     artemisApi: ArtemisApiService;
     websocketService: ArtemisWebsocketService;
-    exerciseRegistry: ExerciseRegistry;
     courseAccessStorage: CourseAccessStorageService;
     fullscreenPanelManager: FullscreenPanelManager;
     exerciseOpeningService: ExerciseOpeningService;

@@ -62,10 +62,6 @@ suite('WebviewNavigationFacade', () => {
             isConnected: sinon.SinonStub;
             connect: sinon.SinonStub;
         };
-        exerciseRegistry: {
-            registerFromCourseData: sinon.SinonStub;
-            getAllExercises: sinon.SinonStub;
-        };
         courseAccessStorage: {
             onCourseAccessed: sinon.SinonStub;
         };
@@ -122,10 +118,6 @@ suite('WebviewNavigationFacade', () => {
                 isConnected: sandbox.stub().returns(true),
                 connect: sandbox.stub().resolves(),
             },
-            exerciseRegistry: overrides.exerciseRegistry ?? {
-                registerFromCourseData: sandbox.stub(),
-                getAllExercises: sandbox.stub().returns([]),
-            },
             courseAccessStorage: overrides.courseAccessStorage ?? {
                 onCourseAccessed: sandbox.stub(),
             },
@@ -156,7 +148,6 @@ suite('WebviewNavigationFacade', () => {
             appStateManager: stubs.appStateManager,
             artemisApi: stubs.artemisApi,
             websocketService: stubs.websocketService,
-            exerciseRegistry: stubs.exerciseRegistry,
             courseAccessStorage: stubs.courseAccessStorage,
             fullscreenPanelManager: stubs.fullscreenPanelManager,
             exerciseOpeningService: stubs.exerciseOpeningService,

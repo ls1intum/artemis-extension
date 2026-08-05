@@ -239,6 +239,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // constructed (always `'unsettled'`).
             () => this._detectionState,
         );
+        if (this._courseCatalog) {
+            // The picker's lists come from the catalog, so a catalog write has
+            // to repaint the chat directly. It used to ride on workspace
+            // detection republishing the detection state, which costs a
+            // git-remote read and an archived-course probe for a repaint, and
+            // does not happen at all while the session is still resolving.
+            this._disposables.push(
+                this._courseCatalog.onCoursesLoaded(() => this._viewStatePresenter.postSnapshot()),
+            );
+        }
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
 

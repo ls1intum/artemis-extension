@@ -8,7 +8,6 @@ import type { WebViewActionHandler } from '@extension/controller/types';
 import type { AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
-import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 
@@ -25,7 +24,6 @@ export interface CommandContext {
     getWebsocketService?: () => ArtemisWebsocketService | undefined;
     recheckRepoStatus?: () => Promise<void>;
     extensionContext: vscode.ExtensionContext;
-    exerciseRegistry: ExerciseRegistry;
     providerRegistry: IProviderRegistry;
     courseCatalog?: CourseCatalog;
     courseAccessStorage?: CourseAccessStorageService;
