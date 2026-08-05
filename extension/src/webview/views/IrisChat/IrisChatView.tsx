@@ -692,7 +692,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // be nothing to choose from at all.
         disabledPlaceholder = 'Looking for your Artemis exercise…';
     } else if (detectionUnavailable) {
-        disabledPlaceholder = 'Could not reach the Artemis server. Retry above.';
+        // Not "the server": this screen also covers a failure to read the
+        // stored credential, which is local. See the message-area copy below.
+        disabledPlaceholder = 'Detecting your Artemis exercise failed. Retry above.';
     } else if (!hasConversation) {
         disabledPlaceholder = 'Choose a course to start chatting';
     } else if (store.isNoAiDetected) {
@@ -961,7 +963,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     // this screen would be a dead end.
                     <div className={styles.coldStart}>
                         <p className={styles.coldStartText}>
-                            Could not reach the Artemis server to detect your workspace.
+                            {/*
+                              * Names the failure, not its cause. Three things
+                              * reach this screen: a dashboard or archive lookup
+                              * that threw, an identity lookup the server could
+                              * not answer, and a stored credential the keychain
+                              * could not read. The last one is local, so
+                              * blaming the server was simply wrong there. What
+                              * the wording must still keep is the difference
+                              * from a `no-match`: this says the attempt failed,
+                              * never that this folder is not an exercise.
+                              */}
+                            Detecting your Artemis exercise failed. This is usually temporary.
                         </p>
                         <button
                             className={styles.retryButton}

@@ -125,9 +125,15 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
      * detection would never run.
      */
     public async resolvePrincipal(): Promise<void> {
-        // A fresh, externally requested lookup gets the full retry budget back.
-        // Only the automatic re-attempts below reuse the budget they inherit.
-        this._retriesUsed = 0;
+        // Deliberately does NOT refill the retry budget. The budget belongs to
+        // an unresolved-identity EPISODE, not to a call: it is refilled when
+        // the identity actually settles (see `_transition`). Refilling here
+        // would treat the chat's Retry exactly like an unattended activation,
+        // so a click against a server that is still down would replace the
+        // outage screen, and with it the Retry and the course chooser, with an
+        // un-actionable spinner for the whole length of the budget. A student
+        // who clicked is watching, and can click again; they should get an
+        // answer, not another round of silent waiting.
         this._cancelPendingRetry();
         await this._attemptResolve();
     }
@@ -253,6 +259,12 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
         // for the state but still a newer intent, and an in-flight principal
         // lookup has to lose to it.
         this._attempt++;
+        if (next.kind !== 'resolving') {
+            // The identity question just got an answer, so the NEXT episode of
+            // not having one starts patient again. This is the only refill:
+            // starting a lookup does not earn one (see `resolvePrincipal`).
+            this._retriesUsed = 0;
+        }
         if (sameSession(this._state, next)) { return; }
         this._state = next;
         this._epoch++;

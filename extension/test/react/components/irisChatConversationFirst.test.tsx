@@ -1157,10 +1157,10 @@ describe('IrisChatView waits for workspace detection before offering the course 
         expect(screen.queryByRole('button', { name: 'Choose a course' })).toBeNull();
         // Same composer surface, same trap: without its own branch, the
         // `!hasConversation` fallback would say "Choose a course to start
-        // chatting" here too, which is simply false while the server cannot
-        // even be reached.
+        // chatting" here too, which is simply false while detection has not
+        // been able to answer.
         const input = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
-        expect(input.placeholder).toMatch(/could not reach the artemis server/i);
+        expect(input.placeholder).toMatch(/detecting your artemis exercise failed/i);
         expect(input.placeholder).not.toMatch(/choose a course/i);
         await userEvent.click(retryButton);
 

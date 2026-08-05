@@ -357,23 +357,64 @@ suite('SessionIdentityCoordinator', () => {
             assert.strictEqual(calls, 1);
         });
 
-        test('an explicit resolve gets the full retry budget back', async () => {
+        // The escape hatch must not disappear behind a spinner on every click.
+        // `ChatStartupCoordinator.retry()` publishes `unsettled` before it
+        // re-resolves, so anything the coordinator does not answer promptly is
+        // time the student spends with no Retry and no course chooser on
+        // screen. A refilled budget would cost them the whole schedule, per
+        // click, against a server that is still down.
+        test('a retry after a stall answers promptly instead of spending a new budget', async () => {
+            let stalls = 0;
             let calls = 0;
             const coordinator = new SessionIdentityCoordinator(deps({
                 getCurrentUser: async () => { calls++; throw new Error('ETIMEDOUT'); },
+            }));
+            coordinator.onDidStallResolution(() => { stalls++; });
+            await coordinator.resolvePrincipal();
+            await runPendingRetry();
+            await runPendingRetry();
+            await runPendingRetry();
+            assert.strictEqual(stalls, 1);
+            assert.strictEqual(calls, 4);
+
+            // What the chat's Retry reaches. No timer is advanced afterwards:
+            // the second announcement has to be there already.
+            await coordinator.resolvePrincipal();
+
+            assert.strictEqual(calls, 5, 'the click makes a real request');
+            assert.strictEqual(stalls, 2, 'and its failure is announced at once, not a budget later');
+            coordinator.dispose();
+        });
+
+        test('a settled identity refills the budget for the next episode', async () => {
+            let calls = 0;
+            let failing = true;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => {
+                    calls++;
+                    if (failing) { throw new Error('ETIMEDOUT'); }
+                    return { id: 7 };
+                },
             }));
             await coordinator.resolvePrincipal();
             await runPendingRetry();
             await runPendingRetry();
             await runPendingRetry();
-            assert.strictEqual(calls, 4);
+            assert.strictEqual(calls, 4, 'the budget is spent');
 
-            // What the chat's Retry reaches. Without the budget reset it would
-            // be a button that does exactly one request and then goes dead.
+            // The retry that works. Settling is what earns patience back.
+            failing = false;
+            await coordinator.resolvePrincipal();
+            assert.strictEqual(coordinator.state.kind, 'authenticated');
+
+            failing = true;
+            calls = 0;
             await coordinator.resolvePrincipal();
             await runPendingRetry();
+            await runPendingRetry();
+            await runPendingRetry();
 
-            assert.strictEqual(calls, 6, 'the retry must re-arm the automatic re-attempts too');
+            assert.strictEqual(calls, 4, 'a fresh episode is patient again');
             coordinator.dispose();
         });
     });
