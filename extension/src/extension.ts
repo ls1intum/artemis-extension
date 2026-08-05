@@ -192,6 +192,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	sessionIdentity.attach({
 		resetConversation: () => chatWebviewProvider.resetForSessionChange(),
+		endTelemetrySession: () => telemetryManager.endExerciseSession(),
 		clearWorkspaceTracker: () => workspaceTracker.clear(),
 		clearCatalog: () => courseCatalog.resetTo(sessionIdentity.epoch),
 		resetRegistry: () => exerciseRegistry.reset(),

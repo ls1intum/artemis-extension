@@ -29,6 +29,18 @@ export type SessionState =
 export interface SessionResetTargets {
     /** Leave the Iris websocket subscription and drop the open conversation. */
     resetConversation(): void;
+    /**
+     * Close the struggle detector's exercise session.
+     *
+     * Its own target rather than a line inside `clearWorkspaceTracker`: the
+     * tracker's clear event is deliberately ignored by the telemetry bridge
+     * (a clear announces no new exercise), so nothing else would ever end the
+     * session, and `startExerciseSession` is a no-op when the next identity's
+     * exercise happens to carry the same numeric id. A session spanning two
+     * accounts is corrupt research data, so this is a first-class step in the
+     * inventory rather than a side effect of forgetting the folder's exercise.
+     */
+    endTelemetrySession(): void;
     clearWorkspaceTracker(): void;
     /** Clears the catalog AND installs the new epoch on it. */
     clearCatalog(): void;
@@ -272,11 +284,14 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
         const targets = this._targets;
         if (targets) {
             // Order matters: the conversation lets go of its websocket
-            // subscription before anything it points at disappears, and the
-            // registry is rebuilt from a catalog that has already been
-            // cleared. The startup latch is re-armed LAST, so the fresh cold
-            // start it permits sees an empty world rather than half of one.
+            // subscription before anything it points at disappears, the
+            // detector's session is closed while the exercise it belongs to is
+            // still known, and the registry is rebuilt from a catalog that has
+            // already been cleared. The startup latch is re-armed LAST, so the
+            // fresh cold start it permits sees an empty world rather than half
+            // of one.
             targets.resetConversation();
+            targets.endTelemetrySession();
             targets.clearWorkspaceTracker();
             targets.clearCatalog();
             targets.resetRegistry();

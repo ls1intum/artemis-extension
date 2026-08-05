@@ -17,6 +17,7 @@ function deps(overrides: Partial<SessionIdentityDeps> = {}): SessionIdentityDeps
 function recordingTargets(log: string[]): SessionResetTargets {
     return {
         resetConversation: () => log.push('conversation'),
+        endTelemetrySession: () => log.push('telemetry'),
         clearWorkspaceTracker: () => log.push('workspace'),
         clearCatalog: () => log.push('catalog'),
         resetRegistry: () => log.push('registry'),
@@ -53,8 +54,25 @@ suite('SessionIdentityCoordinator', () => {
         coordinator.attach(recordingTargets(log));
         coordinator.setAuthenticated('https://a.example', 'id:1');
         assert.deepStrictEqual(log, [
-            'conversation', 'workspace', 'catalog', 'registry', 'snapshot', 'startup',
+            'conversation', 'telemetry', 'workspace', 'catalog', 'registry', 'snapshot', 'startup',
         ]);
+    });
+
+    // Nothing else ends it: the tracker's clear event is deliberately ignored
+    // by the telemetry bridge, so without this the detector keeps recording the
+    // previous account's session across the identity boundary.
+    test('an identity change ends the detector session before the tracker is cleared', () => {
+        const log: string[] = [];
+        const coordinator = new SessionIdentityCoordinator(deps());
+        coordinator.attach(recordingTargets(log));
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        log.length = 0;
+
+        coordinator.setAuthenticated('https://a.example', 'id:2');
+
+        assert.ok(log.includes('telemetry'), 'the exercise session must be ended on every identity change');
+        assert.ok(log.indexOf('telemetry') < log.indexOf('workspace'),
+            'the session is closed while the exercise it belongs to is still known');
     });
 
     test('a second principal on the same server is a transition', () => {
