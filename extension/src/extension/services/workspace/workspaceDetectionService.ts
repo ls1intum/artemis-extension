@@ -418,10 +418,8 @@ interface WorkspaceRegistrationCallbacks {
         id: number;
         title: string;
         shortName?: string;
-        courseId?: number;
+        courseId: number;
         repositoryUri?: string;
-        source: 'workspace-detected';
-        isWorkspace: true;
     }) => void;
     clearStaleWorkspaceContext: () => void;
 }
@@ -514,15 +512,12 @@ export async function detectWorkspaceExerciseForRepository(
 
     logger.irisChat(`Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
 
-    const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
     callbacks.registerExercise({
         id: detected.id,
-        title: `${baseTitle} (Workspace)`,
+        title: detected.title,
         shortName: detected.shortName,
         courseId: detected.courseId,
         repositoryUri: detected.repositoryUri,
-        source: 'workspace-detected',
-        isWorkspace: true,
     });
     return { kind: 'matched', exerciseId: detected.id, courseId: detected.courseId };
 }

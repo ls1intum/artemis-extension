@@ -121,11 +121,11 @@ suite('wireWorkspaceDetection', () => {
 
         // A finishes late; its callback must be a no-op.
         capturedCallbacks[0].registerExercise({
-            id: 1, title: 'Stale', source: 'workspace-detected', isWorkspace: true,
+            id: 1, title: 'Stale', courseId: 9,
         });
         // B finishes normally.
         capturedCallbacks[1].registerExercise({
-            id: 2, title: 'Fresh', source: 'workspace-detected', isWorkspace: true,
+            id: 2, title: 'Fresh', courseId: 9,
         });
 
         resolveA(); resolveB();
@@ -185,7 +185,7 @@ suite('wireWorkspaceDetection', () => {
         await Promise.resolve();          // detection in flight
         disposable.dispose();
 
-        captured.registerExercise({ id: 1, title: 'X', source: 'workspace-detected', isWorkspace: true });
+        captured.registerExercise({ id: 1, title: 'X', courseId: 9 });
         captured.clearStaleWorkspaceContext();
         resolve();
         await Promise.resolve();
@@ -345,7 +345,7 @@ suite('buildChatProviderSink', () => {
             clearWorkspaceExercise: sinon.spy(),
         };
         const sink = buildChatProviderSink(provider);
-        const input = { id: 1, title: 'X', source: 'workspace-detected' as const, isWorkspace: true as const };
+        const input = { id: 1, title: 'X', courseId: 9 };
         sink.registerWorkspaceExercise(input);
         assert.ok((provider.registerWorkspaceExercise as sinon.SinonSpy).calledOnceWith(input));
     });

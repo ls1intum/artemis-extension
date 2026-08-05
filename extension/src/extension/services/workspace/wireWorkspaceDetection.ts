@@ -12,10 +12,8 @@ export interface WorkspaceRegisterInput {
     id: number;
     title: string;
     shortName?: string;
-    courseId?: number;
+    courseId: number;
     repositoryUri?: string;
-    source: 'workspace-detected';
-    isWorkspace: true;
 }
 
 export interface WorkspaceDetectionSink {

@@ -10,6 +10,7 @@ import { IrisAvailabilityService } from '@extension/services/iris/chat/irisAvail
 import { IrisWebSocketMessageHandler } from '@extension/services/iris/chat/irisWebSocketMessageHandler';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 /**
@@ -87,6 +88,7 @@ function buildHarness(): Harness {
         courseCatalog as never,
         undefined,
         contextStore,
+        new WorkspaceExerciseTracker(),
     );
 
     const postSpy = sandbox.spy(provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');

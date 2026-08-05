@@ -39,6 +39,7 @@ import {
     toExerciseSource,
 } from '@extension/services/workspace';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
+import type { WorkspaceExercise, WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
 
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -82,6 +83,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     // ── Instance properties ────────────────────────────────────────────
     private readonly _contextStore: ContextStore;
+    private readonly _workspaceTracker: WorkspaceExerciseTracker;
     private readonly _viewStatePresenter: ChatViewStatePresenter;
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisWebSocketSessionClient;
@@ -186,6 +188,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _courseCatalog: CourseCatalog | undefined,
         private readonly _telemetryManager: ITelemetryManager | undefined,
         contextStore: ContextStore,
+        workspaceTracker: WorkspaceExerciseTracker,
     ) {
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -194,13 +197,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = contextStore;
+        this._workspaceTracker = workspaceTracker;
         // Struggle detection follows the WORKSPACE, never the chat topic: the
         // detector observes the code that is open, and `workspaceDetectionService`
         // derives that from the folder's git remote. A topic change points the
         // chat at an exercise whose code is usually not open at all, so it must
         // not retarget the detector.
         this._disposables.push(
-            this._contextStore.onDidChangeWorkspaceExercise((current) => {
+            this._workspaceTracker.onDidChange((current) => {
                 // A clear announces nothing: there is no exercise to start a
                 // session for, and the id stays remembered so the NEXT
                 // workspace exercise can still report what it replaced.
@@ -377,7 +381,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 errorMessage: SEND_REJECTION_MESSAGES[reason],
             }),
             reportError: (message) => this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message }),
-            getWorkspaceExerciseId: () => this._contextStore.getWorkspaceExerciseId(),
+            getWorkspaceExerciseId: () => this._workspaceTracker.exerciseId,
         });
     }
 
@@ -388,10 +392,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             subscribeToSession: (sessionId) => client.subscribeToSession(sessionId),
             leaveSession: () => client.leaveSession(),
             getWorkspaceExercise: () => {
-                const exercise = this._contextStore.getWorkspaceExercise();
-                return exercise?.courseId === undefined
-                    ? undefined
-                    : { exerciseId: exercise.id, courseId: exercise.courseId };
+                const exercise = this._workspaceTracker.current;
+                return exercise === undefined ? undefined : { exerciseId: exercise.id, courseId: exercise.courseId };
             },
             deliverTranscript: (detail, mode) => this._deliverTranscript(detail, mode),
         });
@@ -741,20 +743,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // the sink because it owns the presenter that has to repost the snapshot
     // when the workspace exercise changes.
 
-    public registerWorkspaceExercise(input: {
-        id: number;
-        title: string;
-        shortName?: string;
-        courseId?: number;
-        repositoryUri?: string;
-        source: 'workspace-detected';
-        isWorkspace: true;
-    }): void {
-        this._registerExercise(input);
+    public registerWorkspaceExercise(input: WorkspaceExercise): void {
+        this._workspaceTracker.set(input);
     }
 
     public clearWorkspaceExercise(): void {
-        this._contextStore.clearWorkspaceFlag();
+        this._workspaceTracker.clear();
         this._viewStatePresenter.postSnapshot();
     }
 

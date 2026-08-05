@@ -20,6 +20,7 @@ import {
     buildChatProviderSink,
     wireWorkspaceDetection,
 } from '@extension/services/workspace/wireWorkspaceDetection';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import {
     authenticateFromEnvironment,
     detectPlatformCapabilities,
@@ -163,10 +164,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	const contextStore = new ContextStore(context);
 	context.subscriptions.push(contextStore);
 
+	const workspaceTracker = new WorkspaceExerciseTracker();
+	context.subscriptions.push(workspaceTracker);
+
 	const chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
 		noAiDetectionService, exerciseRegistry, courseCatalog, telemetryManager,
-		contextStore,
+		contextStore, workspaceTracker,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
@@ -180,7 +184,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	sessionIdentity.attach({
 		resetConversation: () => chatWebviewProvider.resetForSessionChange(),
-		clearWorkspaceTracker: () => chatWebviewProvider.clearWorkspaceExercise(),
+		clearWorkspaceTracker: () => workspaceTracker.clear(),
 		clearCatalog: () => courseCatalog.resetTo(sessionIdentity.epoch),
 		resetRegistry: () => exerciseRegistry.reset(),
 		publishEmptyChatSnapshot: () => chatWebviewProvider.publishSnapshot(),
@@ -273,7 +277,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		chatWebviewProvider,
 		capabilities,
 		exerciseRegistry,
-		contextStore,
+		workspaceTracker,
 	});
 
 	// Configuration listener for the Artemis server URL.

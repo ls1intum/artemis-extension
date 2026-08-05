@@ -10,11 +10,13 @@ import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 interface Harness {
     provider: ChatWebviewProvider;
     contextStore: ContextStore;
+    workspaceTracker: WorkspaceExerciseTracker;
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
     exerciseEvents: number[];
     sandbox: sinon.SinonSandbox;
@@ -34,6 +36,7 @@ function buildHarness(): Harness {
 
     const mockContext = new MockExtensionContext();
     const contextStore = new ContextStore(mockContext);
+    const workspaceTracker = new WorkspaceExerciseTracker();
     const api = sinon.createStubInstance(ArtemisApiService);
     const websocket = {
         onDidChangeConnectionState: new vscode.EventEmitter<{ connected: boolean }>().event,
@@ -60,12 +63,13 @@ function buildHarness(): Harness {
         courseCatalog as never,
         undefined,
         contextStore,
+        workspaceTracker,
     );
 
     const exerciseEvents: number[] = [];
     provider.onDidChangeExerciseContext(({ exerciseId }) => exerciseEvents.push(exerciseId));
 
-    return { provider, contextStore, api, exerciseEvents, sandbox };
+    return { provider, contextStore, workspaceTracker, api, exerciseEvents, sandbox };
 }
 
 /** A minimal `vscode.WebviewView` double, just enough for `resolveWebviewView`
@@ -150,7 +154,7 @@ suite('ChatWebviewProvider: struggle decoupling', () => {
 
     test('a workspace detection change does retarget it', () => {
         h.provider.registerWorkspaceExercise({
-            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 5, title: 'BFS', courseId: 42,
         });
 
         assert.deepStrictEqual(h.exerciseEvents, [5]);
@@ -161,11 +165,11 @@ suite('ChatWebviewProvider: struggle decoupling', () => {
         h.provider.onDidChangeExerciseContext(({ previousExerciseId }) => previous.push(previousExerciseId));
 
         h.provider.registerWorkspaceExercise({
-            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 5, title: 'BFS', courseId: 42,
         });
-        h.contextStore.clearWorkspaceFlag();
+        h.workspaceTracker.clear();
         h.provider.registerWorkspaceExercise({
-            id: 6, title: 'DFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 6, title: 'DFS', courseId: 42,
         });
 
         assert.deepStrictEqual(h.exerciseEvents, [5, 6]);
@@ -429,7 +433,7 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         // `start(undefined)` deliberately issues no request, so the assertion
         // would hold BEFORE the cutover too and prove nothing.
         h.provider.registerWorkspaceExercise({
-            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 5, title: 'BFS', courseId: 42,
         });
         h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42 }));
 

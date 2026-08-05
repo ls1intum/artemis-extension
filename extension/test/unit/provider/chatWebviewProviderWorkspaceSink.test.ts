@@ -5,6 +5,7 @@ import * as sinon from 'sinon';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
 import * as detectionModule from '@extension/services/workspace/workspaceDetectionService';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonSandbox; mockContext: MockExtensionContext } {
@@ -21,6 +22,7 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         fetch: async () => undefined,
     };
     const contextStore = new ContextStore(mockContext);
+    const workspaceTracker = new WorkspaceExerciseTracker();
     const provider = new ChatWebviewProvider(
         vscode.Uri.file('/tmp'),
         mockContext as unknown as vscode.ExtensionContext,
@@ -31,6 +33,7 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         courseCatalog as never,
         undefined,
         contextStore,
+        workspaceTracker,
     );
     return { provider, sandbox, mockContext };
 }
@@ -50,35 +53,31 @@ suite('ChatWebviewProvider workspace sink', () => {
         sandbox.restore();
     });
 
-    test('registerWorkspaceExercise registers the exercise and re-posts the snapshot', () => {
+    test('registerWorkspaceExercise sets the exercise on the workspace tracker', () => {
         const internals = provider as unknown as {
-            _contextStore: { registerExercise: sinon.SinonStub };
-            _viewStatePresenter: { postSnapshot: sinon.SinonStub };
+            _workspaceTracker: { set: sinon.SinonStub };
         };
-        const register = sandbox.stub(internals._contextStore, 'registerExercise');
-        const post = sandbox.stub(internals._viewStatePresenter, 'postSnapshot');
-        const input = { id: 1, title: 'X', source: 'workspace-detected' as const, isWorkspace: true as const };
+        const set = sandbox.stub(internals._workspaceTracker, 'set');
+        const input = { id: 1, title: 'X', courseId: 9 };
 
         provider.registerWorkspaceExercise(input);
 
-        assert.ok(register.calledOnceWith(input));
-        assert.ok(post.calledOnce, 'postSnapshot should fire');
-        assert.ok(register.calledBefore(post), 'the store must be updated before the snapshot is posted');
+        assert.ok(set.calledOnceWith(input));
     });
 
-    test('clearWorkspaceExercise calls clearWorkspaceFlag then postSnapshot', () => {
+    test('clearWorkspaceExercise calls the tracker clear then postSnapshot', () => {
         const internals = provider as unknown as {
-            _contextStore: { clearWorkspaceFlag: sinon.SinonStub };
+            _workspaceTracker: { clear: sinon.SinonStub };
             _viewStatePresenter: { postSnapshot: sinon.SinonStub };
         };
-        const b = sandbox.stub(internals._contextStore, 'clearWorkspaceFlag');
+        const b = sandbox.stub(internals._workspaceTracker, 'clear');
         const c = sandbox.stub(internals._viewStatePresenter, 'postSnapshot');
 
         provider.clearWorkspaceExercise();
 
-        assert.ok(b.calledOnce, 'clearWorkspaceFlag should fire');
+        assert.ok(b.calledOnce, 'the tracker clear() should fire');
         assert.ok(c.calledOnce, 'postSnapshot should fire');
-        assert.ok(b.calledBefore(c), 'clearFlag must run before postSnapshot');
+        assert.ok(b.calledBefore(c), 'clear must run before postSnapshot');
     });
 });
 
