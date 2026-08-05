@@ -1,0 +1,177 @@
+import * as assert from 'assert';
+
+import { ApiError } from '@extension/domain/errors';
+import type { SessionIdentityDeps, SessionResetTargets } from '@extension/services/session/sessionIdentityCoordinator';
+import { SessionIdentityCoordinator } from '@extension/services/session/sessionIdentityCoordinator';
+
+function deps(overrides: Partial<SessionIdentityDeps> = {}): SessionIdentityDeps {
+    return {
+        serverKey: () => 'https://a.example',
+        hasAuthToken: async () => true,
+        getCurrentUser: async () => ({ id: 1, login: 'ab12cde' }),
+        ...overrides,
+    };
+}
+
+function recordingTargets(log: string[]): SessionResetTargets {
+    return {
+        resetConversation: () => log.push('conversation'),
+        clearWorkspaceTracker: () => log.push('workspace'),
+        clearCatalog: () => log.push('catalog'),
+        resetRegistry: () => log.push('registry'),
+        publishEmptyChatSnapshot: () => log.push('snapshot'),
+        rearmStartup: () => log.push('startup'),
+    };
+}
+
+suite('SessionIdentityCoordinator', () => {
+    test('starts resolving and bumps the epoch on a real transition', () => {
+        const coordinator = new SessionIdentityCoordinator(deps());
+        assert.strictEqual(coordinator.state.kind, 'resolving');
+        const before = coordinator.epoch;
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        assert.strictEqual(coordinator.state.kind, 'authenticated');
+        assert.ok(coordinator.epoch > before);
+    });
+
+    test('emitting the same identity twice resets nothing', () => {
+        const log: string[] = [];
+        const coordinator = new SessionIdentityCoordinator(deps());
+        coordinator.attach(recordingTargets(log));
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        const epoch = coordinator.epoch;
+        log.length = 0;
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        assert.deepStrictEqual(log, []);
+        assert.strictEqual(coordinator.epoch, epoch);
+    });
+
+    test('resets in the documented order, startup last', () => {
+        const log: string[] = [];
+        const coordinator = new SessionIdentityCoordinator(deps());
+        coordinator.attach(recordingTargets(log));
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        assert.deepStrictEqual(log, [
+            'conversation', 'workspace', 'catalog', 'registry', 'snapshot', 'startup',
+        ]);
+    });
+
+    test('a second principal on the same server is a transition', () => {
+        const coordinator = new SessionIdentityCoordinator(deps());
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        const epoch = coordinator.epoch;
+        coordinator.setAuthenticated('https://a.example', 'id:2');
+        assert.ok(coordinator.epoch > epoch);
+    });
+
+    test('a server change while anonymous is a transition', () => {
+        const log: string[] = [];
+        const coordinator = new SessionIdentityCoordinator(deps());
+        coordinator.setAnonymous('https://a.example');
+        coordinator.attach(recordingTargets(log));
+        coordinator.beginResolving('https://b.example');
+        assert.ok(log.includes('catalog'));
+        assert.strictEqual(coordinator.state.kind, 'resolving');
+    });
+
+    test('an access scope exists only while authenticated', () => {
+        const coordinator = new SessionIdentityCoordinator(deps());
+        assert.strictEqual(coordinator.accessScope(), null);
+        coordinator.setAnonymous('https://a.example');
+        assert.strictEqual(coordinator.accessScope(), null);
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        assert.deepStrictEqual(coordinator.accessScope(), { serverKey: 'https://a.example', principal: 'id:1' });
+    });
+
+    test('the event carries the state that was just installed', () => {
+        const coordinator = new SessionIdentityCoordinator(deps());
+        const seen: string[] = [];
+        coordinator.onDidChangeSession(state => seen.push(state.kind));
+        coordinator.setAuthenticated('https://a.example', 'id:1');
+        coordinator.setAnonymous('https://a.example');
+        assert.deepStrictEqual(seen, ['authenticated', 'anonymous']);
+    });
+
+    // ── principal resolution, the coordinator's own job ──────────────
+
+    test('resolves the principal without waiting for any webview', async () => {
+        const coordinator = new SessionIdentityCoordinator(deps());
+        await coordinator.resolvePrincipal();
+        assert.deepStrictEqual(coordinator.state, {
+            kind: 'authenticated', serverKey: 'https://a.example', principal: 'id:1',
+        });
+    });
+
+    test('no token is anonymous, and the user is never asked for', async () => {
+        let asked = 0;
+        const coordinator = new SessionIdentityCoordinator(deps({
+            hasAuthToken: async () => false,
+            getCurrentUser: async () => { asked++; return { id: 1 }; },
+        }));
+        await coordinator.resolvePrincipal();
+        assert.strictEqual(coordinator.state.kind, 'anonymous');
+        assert.strictEqual(asked, 0);
+    });
+
+    test('a 401 is anonymous', async () => {
+        const coordinator = new SessionIdentityCoordinator(deps({
+            getCurrentUser: async () => { throw new ApiError('nope', 401); },
+        }));
+        await coordinator.resolvePrincipal();
+        assert.strictEqual(coordinator.state.kind, 'anonymous');
+    });
+
+    test('a transient failure stays resolving and does not log the student out', async () => {
+        const coordinator = new SessionIdentityCoordinator(deps({
+            getCurrentUser: async () => { throw new Error('ETIMEDOUT'); },
+        }));
+        await coordinator.resolvePrincipal();
+        assert.strictEqual(coordinator.state.kind, 'resolving');
+    });
+
+    // The defect this token exists for: a logout, a 401 or a server change
+    // lands while `getCurrentUser` is still open, and the stale answer would
+    // otherwise reinstate the previous identity on the previous server.
+    test('a resolution superseded while it was open publishes nothing', async () => {
+        let release: (user: { id: number }) => void = () => undefined;
+        const coordinator = new SessionIdentityCoordinator(deps({
+            getCurrentUser: () => new Promise(resolve => { release = resolve; }),
+        }));
+        const pending = coordinator.resolvePrincipal();
+        coordinator.setAnonymous('https://a.example');
+        release({ id: 1 });
+        await pending;
+        assert.strictEqual(coordinator.state.kind, 'anonymous');
+    });
+
+    // The load-bearing one for the token's PLACEMENT. `beginResolving` with an
+    // unchanged state is a no-op for the state but still a newer intent, so it
+    // only invalidates the open lookup if `_attempt++` runs BEFORE the
+    // equality early-return. The `setAnonymous` test above would pass either
+    // way, because that is a real transition.
+    test('a repeated resolve invalidates the one already open', async () => {
+        let release: (user: { id: number }) => void = () => undefined;
+        let call = 0;
+        const coordinator = new SessionIdentityCoordinator(deps({
+            getCurrentUser: () => {
+                call++;
+                return call === 1
+                    ? new Promise(resolve => { release = resolve; })
+                    : new Promise(() => undefined);   // the second never answers
+            },
+        }));
+        const first = coordinator.resolvePrincipal();
+        void coordinator.resolvePrincipal();
+        release({ id: 1 });
+        await first;
+        assert.strictEqual(coordinator.state.kind, 'resolving');
+    });
+
+    test('a user the key cannot name leaves the session resolving', async () => {
+        const coordinator = new SessionIdentityCoordinator(deps({
+            getCurrentUser: async () => ({}),
+        }));
+        await coordinator.resolvePrincipal();
+        assert.strictEqual(coordinator.state.kind, 'resolving');
+    });
+});
