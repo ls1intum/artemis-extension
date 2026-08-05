@@ -19,6 +19,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
 - **Brief connection problems:** A short outage no longer hides the conversation you were reading or empties your conversation history, and a message that could not be sent keeps its text behind a single Retry that reconnects and then sends it.
 - **Iris logo:** The mascot now has a subtle shadow, so on light themes it no longer sits on the surface as a flat block, and it keeps its proportions instead of being squashed into a square.
+- **Courses and exercises now come from Artemis, every time:** The chat used to keep its own list and only ever add to it, so a course you were removed from, or one that was deleted, kept being offered and then failed with "please try again" when you picked it. The list is read from the server now, and opening the course picker asks for it again. Signing in as someone else, or pointing the extension at a different Artemis, no longer leaves anything from the previous session behind, and "Ask Iris about this exercise" can no longer land you in a course that belongs to a different Artemis server.
 
 ### Internal
 
