@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { SessionState } from '@extension/services/session/sessionIdentityCoordinator';
 
 import type { DetectionOutcome } from './detectionOutcome';
 import { detectAndRegisterWorkspaceExercise } from './workspaceDetectionService';
@@ -27,6 +28,11 @@ interface WorkspaceDetectionDeps {
     registry: ExerciseRegistry;
     courseCatalog: CourseCatalog;
     sink: WorkspaceDetectionSink;
+    session: {
+        readonly state: SessionState;
+        readonly epoch: number;
+        onDidChangeSession: vscode.Event<SessionState>;
+    };
 }
 
 export function wireWorkspaceDetection(
@@ -38,15 +44,32 @@ export function wireWorkspaceDetection(
 
     const runDetection = async (): Promise<void> => {
         const token = ++generation;
+        const epoch = deps.session.epoch;
+        const kind = deps.session.state.kind;
+        if (kind === 'resolving') {
+            // Not an answer and not a failure. Publishing anything here would
+            // either tell the student this folder has no exercise or offer a
+            // Retry for a question nobody has asked yet.
+            return;
+        }
+        if (kind === 'anonymous') {
+            // Settled, and server-independent: with no account there is
+            // nothing to match against. The chooser is the right screen; the
+            // Retry banner for a 401 dashboard fetch was not.
+            deps.sink.clearWorkspaceExercise();
+            settled.fire({ kind: 'no-match' });
+            return;
+        }
+        const stale = () => disposed || token !== generation || epoch !== deps.session.epoch;
         const callbacks = {
             registerExercise: (input: WorkspaceRegisterInput) => {
-                if (disposed || token !== generation) {
+                if (stale()) {
                     return;
                 }
                 deps.sink.registerWorkspaceExercise(input);
             },
             clearStaleWorkspaceContext: () => {
-                if (disposed || token !== generation) {
+                if (stale()) {
                     return;
                 }
                 deps.sink.clearWorkspaceExercise();
@@ -55,15 +78,21 @@ export function wireWorkspaceDetection(
         const outcome = await detectAndRegisterWorkspaceExercise(
             deps.api, callbacks, deps.registry, deps.courseCatalog,
         );
-        if (disposed || token !== generation) {
+        if (stale()) {
             return;
         }
         settled.fire(outcome);
     };
 
-    void runDetection();
+    // Deferred, not `void runDetection()`. The anonymous branch answers
+    // without awaiting anything, and a synchronous answer arrives before the
+    // caller holds the event to hear it. One microtask is enough:
+    // `attachStartupDetection` subscribes in the same synchronous activation
+    // block.
+    queueMicrotask(() => void runDetection());
     const folderSub = vscode.workspace.onDidChangeWorkspaceFolders(() => void runDetection());
     const coursesSub = deps.courseCatalog.onCoursesLoaded(() => void runDetection());
+    const sessionSub = deps.session.onDidChangeSession(() => void runDetection());
 
     return {
         onDetectionSettled: settled.event,
@@ -72,6 +101,7 @@ export function wireWorkspaceDetection(
             disposed = true;
             folderSub.dispose();
             coursesSub.dispose();
+            sessionSub.dispose();
             settled.dispose();
         },
     };

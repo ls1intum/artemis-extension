@@ -192,6 +192,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		registry: exerciseRegistry,
 		courseCatalog,
 		sink: buildChatProviderSink(chatWebviewProvider),
+		session: sessionIdentity,
 	});
 	context.subscriptions.push(workspaceDetection);
 	chatWebviewProvider.attachStartupDetection(workspaceDetection);
