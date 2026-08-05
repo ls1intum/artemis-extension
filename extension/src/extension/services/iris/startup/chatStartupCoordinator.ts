@@ -25,7 +25,7 @@ interface ChatStartupDeps {
  * could land on the course chooser and stay there forever.
  */
 export class ChatStartupCoordinator {
-    private readonly _latch = new StartupLatch();
+    private _latch = new StartupLatch();
     private _viewResolved = false;
     private _outcome: DetectionOutcome | undefined;
 
@@ -40,6 +40,20 @@ export class ChatStartupCoordinator {
         this._outcome = outcome;
         this._deps.publishDetectionState(this._uiStateFor(outcome));
         this._maybeStart();
+    }
+
+    /**
+     * A new authenticated session gets a fresh cold start. The latch is scoped
+     * to an IDENTITY, not to the activation: otherwise user A consumes it, user
+     * B logs in on the same window, and the chat never auto-starts for B.
+     * `_outcome` goes too, because a `matched` from the previous identity names
+     * an exercise that no longer belongs to anyone here. `_viewResolved` stays:
+     * the webview did not go away.
+     */
+    public resetForNewSession(): void {
+        this._latch = new StartupLatch();
+        this._outcome = undefined;
+        this._deps.publishDetectionState('unsettled');
     }
 
     public admitExplicitIntent(reason: string): void {

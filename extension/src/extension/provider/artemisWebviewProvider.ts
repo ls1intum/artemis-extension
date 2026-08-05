@@ -17,12 +17,11 @@ import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import type { ResultDTO } from '@extension/domain';
 import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
-import { type CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import { normalizePrincipal, normalizeServerUrl } from '@extension/services/session/identityKeys';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { SubmissionPayload } from '@extension/services/telemetry/recording/types';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -131,11 +130,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._appStateManager.setCourseCatalog(this._courseCatalog);
         }
 
-        // 2. CourseAccessStorage — its scope callback resolves on the provider.
-        this._courseAccessStorage = new CourseAccessStorageService(
-            this._extensionContext.globalState,
-            () => this._currentCourseAccessScope(),
-        );
+        // 2. CourseAccessStorage: built by activation, where the session
+        //    coordinator that keys its scope lives.
+        this._courseAccessStorage = deps.courseAccessStorage;
 
         // 3. SSR render service.
         this._renderService = new ProblemStatementRenderService(this._artemisApi);
@@ -436,21 +433,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     // ── Private: Helpers ───────────────────────────────────────────────
-
-    /**
-     * Scope key for `CourseAccessStorageService`. Stays on the provider because
-     * the storage service is constructed in this ctor with this getter as a
-     * callback - moving it to the facade would create a cycle.
-     */
-    private _currentCourseAccessScope(): CourseAccessScope | null {
-        const info = this._appStateManager.userInfo;
-        if (!info) { return null; }
-        const serverKey = normalizeServerUrl(info.serverUrl || resolveServerUrl());
-        if (!serverKey) { return null; }
-        const principal = normalizePrincipal({ id: info.user?.id, login: info.username || info.user?.login });
-        if (!principal) { return null; }
-        return { serverKey, principal };
-    }
 
     /**
      * Called for every WebSocket newResult event. Delegates the decision

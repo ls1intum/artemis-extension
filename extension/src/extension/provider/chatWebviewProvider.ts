@@ -758,6 +758,30 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._viewStatePresenter.postSnapshot();
     }
 
+    /**
+     * The session coordinator's reset hooks. Three narrow methods rather than
+     * an auth subscription in here: the coordinator owns the ORDER, and a
+     * component that interprets auth events on its own is how the order stops
+     * being knowable.
+     */
+    public resetForSessionChange(): void {
+        this._conversation?.resetForSessionChange();
+        this._availability.resetAvailability();
+        this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
+        this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
+        this._resetRunsAndMarker();
+        this._lastAnnouncedSessionId = undefined;
+        this._lastWorkspaceExerciseId = undefined;
+    }
+
+    public publishSnapshot(): void {
+        this._viewStatePresenter.postSnapshot();
+    }
+
+    public resetStartupForNewSession(): void {
+        this._startupCoordinator.resetForNewSession();
+    }
+
     /** See `StartupLatch`. Called before anything that can resolve the view. */
     public admitExplicitIntent(reason: string): void {
         this._startupCoordinator.admitExplicitIntent(reason);

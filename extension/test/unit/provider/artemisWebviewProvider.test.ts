@@ -6,6 +6,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
+import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
@@ -146,6 +147,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             buildErrorCodeLensProvider: mockCodeLens,
             telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null),
         });
     });
 
@@ -212,6 +214,7 @@ suite('Panel hide/show state persistence', () => {
             buildErrorCodeLensProvider: mockCodeLens,
             telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null),
         });
 
         spyWebview = new SpyWebview();

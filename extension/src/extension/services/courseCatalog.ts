@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api';
 import type { CourseDashboardEntry, CourseDashboardResponse, ExerciseDetail } from '@extension/types';
 
+import type { ExerciseRegistryEntry } from './exerciseRegistry';
 import { LogCategory, logger } from './loggingService';
 import { getEntryExercises } from './workspace';
 
@@ -52,6 +53,16 @@ export type SupplementalRecord =
         repositoryUri?: string;
         participationId?: number;
     };
+
+/** The registry indexes repositories, so an exercise without one is not one. */
+export function toRegistryEntries(projection: CatalogProjection): ExerciseRegistryEntry[] {
+    return projection.exercises
+        .filter((e): e is CatalogExercise & { repositoryUri: string } => typeof e.repositoryUri === 'string')
+        .map(e => ({
+            id: e.id, title: e.title, shortName: e.shortName,
+            courseId: e.courseId, repositoryUri: e.repositoryUri, participationId: e.participationId,
+        }));
+}
 
 function courseIdOf(entry: CourseDashboardEntry): number | undefined {
     const nested = entry.course?.id;

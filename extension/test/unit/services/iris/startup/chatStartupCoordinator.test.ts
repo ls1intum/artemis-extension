@@ -201,4 +201,46 @@ suite('ChatStartupCoordinator', () => {
         assert.strictEqual(publishDetectionState.lastCall.args[0], 'settled',
             'the student navigated away; the dead Retry must not stay behind it');
     });
+
+    test('a new session re-arms the latch and clears the previous outcome', () => {
+        const { coordinator, start, publishDetectionState } = makeCoordinator();
+        coordinator.onViewResolved();
+        coordinator.onDetectionSettled(MATCH);
+        assert.strictEqual(start.callCount, 1);
+
+        coordinator.resetForNewSession();
+        assert.strictEqual(start.callCount, 1, 'a reset alone starts nothing');
+        assert.strictEqual(publishDetectionState.lastCall.args[0], 'unsettled');
+
+        // The PREVIOUS identity's outcome is gone, so only a fresh one can start.
+        coordinator.onDetectionSettled({ kind: 'matched', exerciseId: 7, courseId: 8 });
+        assert.strictEqual(start.callCount, 2);
+        assert.deepStrictEqual(start.secondCall.args[0], { exerciseId: 7, courseId: 8 });
+    });
+
+    test('a view re-resolved after a session change does not start the previous identity\'s exercise', () => {
+        // The webview is disposed and recreated whenever the panel is collapsed
+        // and reopened, so `onViewResolved` really does arrive again after a
+        // login. With the old `matched` still on the coordinator it would name
+        // an exercise that belongs to the account that just left.
+        const { coordinator, start } = makeCoordinator();
+        coordinator.onViewResolved();
+        coordinator.onDetectionSettled(MATCH);
+        assert.strictEqual(start.callCount, 1);
+
+        coordinator.resetForNewSession();
+        coordinator.onViewResolved();
+        assert.strictEqual(start.callCount, 1,
+            'only a detection run under the NEW identity may start anything');
+    });
+
+    test('intent admitted before a session change does not survive it', () => {
+        const { coordinator, start } = makeCoordinator();
+        coordinator.onViewResolved();
+        coordinator.admitExplicitIntent('switchCourse');
+        coordinator.resetForNewSession();
+        coordinator.onDetectionSettled(MATCH);
+        assert.strictEqual(start.callCount, 1,
+            'the new identity gets its own cold start; the old one\'s intent is not theirs');
+    });
 });

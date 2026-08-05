@@ -174,6 +174,22 @@ export class ConversationState {
         // from ever producing a FALSE EMPTY, so it and its tests stay.
     }
 
+    /**
+     * An identity boundary. Unlike a reload this drops the conversation itself:
+     * a session id, a transcript and a course from the previous account name
+     * nothing here. `beginNavigation(undefined)` does most of it (it bumps the
+     * navigation generation, so every request already in flight is refused when
+     * it lands), and `setCourse(undefined)` drops the course-scoped indexes.
+     */
+    public resetForSessionChange(): void {
+        this.beginNavigation(undefined);
+        this.setCourse(undefined);
+        // A POST that outlives the identity change will fail on the server
+        // anyway; leaving the flag set would lock every navigation forever.
+        this._sendInFlight = false;
+        this._optimisticBubble = false;
+    }
+
     /** Drops a session from both index sources after a 400/404 open. */
     public forgetSession(sessionId: number): void {
         this._courseSessions = this._courseSessions.filter((s) => s.sessionId !== sessionId);
