@@ -176,6 +176,13 @@ export class CourseCatalog implements vscode.Disposable {
 
     /** Compatibility entry point for the sidebar's archived-course injection. */
     public injectEntry(entry: CourseDashboardEntry): void {
+        const id = courseIdOf(entry);
+        if (id === undefined) { return; }
+        // The same no-op the cache this replaces performed: a course already
+        // recorded is not injected again, and above all does not refire the event
+        // that drives the registry rebuild and workspace detection.
+        if (this._dashboard?.some(e => courseIdOf(e) === id)) { return; }
+        if (this._supplemental.get(`c:${id}`)?.kind === 'course') { return; }
         this.upsertSupplemental({ kind: 'course', entry }, this._epoch);
     }
 
@@ -286,7 +293,7 @@ export class CourseCatalog implements vscode.Disposable {
         return this.projection().exercises.find(e => e.id === exerciseId)?.title;
     }
 
-    /** Compatibility with `CourseDataCache.clear()`; keeps the epoch. */
+    /** Compatibility with the cache this replaces: `clear()` keeps the epoch. */
     public clear(): void {
         this.resetTo(this._epoch);
     }

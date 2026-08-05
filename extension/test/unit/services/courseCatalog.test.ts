@@ -24,6 +24,7 @@ function fakeApi(): {
     api: ArtemisApiService;
     resolve: (index: number, r: CourseDashboardResponse) => void;
     reject: (index: number, error: Error) => void;
+    callCount: () => number;
 } {
     const pending: Array<{ resolve: (r: CourseDashboardResponse) => void; reject: (e: Error) => void }> = [];
     const api = {
@@ -35,6 +36,7 @@ function fakeApi(): {
         api,
         resolve: (index, r) => pending[index]?.resolve(r),
         reject: (index, error) => pending[index]?.reject(error),
+        callCount: () => pending.length,
     };
 }
 
@@ -189,5 +191,40 @@ suite('CourseCatalog', () => {
         catalog.resetTo(1);
         assert.deepStrictEqual(catalog.projection().courses, []);
         assert.strictEqual(catalog.get(), undefined);
+    });
+
+    test('a second injectEntry for the same course fires onCoursesLoaded only once', () => {
+        const catalog = new CourseCatalog({} as ArtemisApiService);
+        let fireCount = 0;
+        catalog.onCoursesLoaded(() => { fireCount++; });
+        catalog.injectEntry(entry(9, 'Archived'));
+        catalog.injectEntry(entry(9, 'Archived'));
+        assert.strictEqual(fireCount, 1);
+    });
+
+    test('a course already in the dashboard layer is not injected', async () => {
+        const api = { getCoursesForDashboard: sandbox.stub().resolves({ courses: [entry(1, 'C')] }) } as unknown as ArtemisApiService;
+        const catalog = new CourseCatalog(api);
+        await catalog.fetch();
+        let fireCount = 0;
+        catalog.onCoursesLoaded(() => { fireCount++; });
+        catalog.injectEntry(entry(1, 'C'));
+        assert.strictEqual(fireCount, 0);
+    });
+
+    // With an unscoped `finally`, the older request's cleanup would erase the
+    // newer request's still-pending handle, and this third caller would open a
+    // redundant request instead of joining it.
+    test('a caller arriving after an older request settles joins the still-pending newer request', async () => {
+        const { api, resolve, callCount } = fakeApi();
+        const catalog = new CourseCatalog(api);
+        const plain = catalog.fetch();                  // request 0
+        const forced = catalog.fetch({ force: true });  // request 1
+        resolve(0, { courses: [] });                     // the OLDER one settles first
+        await plain;
+        void catalog.fetch();                            // must JOIN request 1
+        resolve(1, { courses: [entry(1, 'C')] });
+        await forced;
+        assert.strictEqual(callCount(), 2);
     });
 });
