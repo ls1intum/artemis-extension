@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 
 import { ApiError } from '@extension/domain/errors';
 import type { SessionIdentityDeps, SessionResetTargets } from '@extension/services/session/sessionIdentityCoordinator';
@@ -127,6 +128,10 @@ suite('SessionIdentityCoordinator', () => {
         }));
         await coordinator.resolvePrincipal();
         assert.strictEqual(coordinator.state.kind, 'resolving');
+        // Disposal, not decoration: the transient branch leaves an automatic
+        // re-attempt armed, and a timer surviving this test would fire during
+        // a later one.
+        coordinator.dispose();
     });
 
     // The defect this token exists for: a logout, a 401 or a server change
@@ -192,6 +197,7 @@ suite('SessionIdentityCoordinator', () => {
         // is settle: anonymous here would log out a student whose token is
         // probably still there.
         assert.deepStrictEqual(seen, ['resolving']);
+        coordinator.dispose();
     });
 
     test('an anonymous session on a new server is terminal but leavable', async () => {
@@ -224,5 +230,151 @@ suite('SessionIdentityCoordinator', () => {
         }));
         await coordinator.resolvePrincipal();
         assert.strictEqual(coordinator.state.kind, 'resolving');
+        coordinator.dispose();
+    });
+
+    // ── recovery from a transient failure ────────────────────────────
+    //
+    // Staying `resolving` is right (a credential is still held), but on its
+    // own it is a dead end: nothing else in the shipped wiring re-attempts the
+    // lookup for an already-logged-in student, so one failed request at
+    // activation used to cost the whole window. Two escapes, both here: a
+    // bounded automatic re-attempt, and an announcement when those run out so
+    // a UI can offer the student a Retry.
+
+    suite('recovery', () => {
+        let clock: sinon.SinonFakeTimers;
+
+        setup(() => {
+            clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        });
+
+        teardown(() => {
+            clock.restore();
+        });
+
+        /** Drains the retry the transient branch just armed, then its lookup. */
+        async function runPendingRetry(): Promise<void> {
+            await clock.nextAsync();
+            // `_attemptResolve` awaits `hasAuthToken` and `getCurrentUser`, so
+            // its outcome lands two microtask turns after the timer fires.
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+        }
+
+        test('a transient failure recovers on its own once the server answers again', async () => {
+            let calls = 0;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => {
+                    calls++;
+                    if (calls === 1) { throw new Error('ETIMEDOUT'); }
+                    return { id: 7 };
+                },
+            }));
+            await coordinator.resolvePrincipal();
+            assert.strictEqual(coordinator.state.kind, 'resolving');
+
+            await runPendingRetry();
+
+            assert.deepStrictEqual(coordinator.state, {
+                kind: 'authenticated', serverKey: 'https://a.example', principal: 'id:7',
+            });
+            coordinator.dispose();
+        });
+
+        test('nothing is announced while an automatic re-attempt is still pending', async () => {
+            let stalls = 0;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => { throw new Error('ETIMEDOUT'); },
+            }));
+            coordinator.onDidStallResolution(() => { stalls++; });
+            await coordinator.resolvePrincipal();
+            assert.strictEqual(stalls, 0, 'a retry is armed; the session is not stuck yet');
+            coordinator.dispose();
+        });
+
+        test('the session announces that it is stuck once the retries run out', async () => {
+            let stalls = 0;
+            let calls = 0;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => { calls++; throw new Error('ETIMEDOUT'); },
+            }));
+            coordinator.onDidStallResolution(() => { stalls++; });
+            await coordinator.resolvePrincipal();
+            await runPendingRetry();
+            await runPendingRetry();
+            await runPendingRetry();
+
+            assert.strictEqual(stalls, 1, 'the student must be told exactly once that this is stuck');
+            assert.strictEqual(calls, 4, 'the first attempt plus a bounded three');
+            assert.strictEqual(coordinator.state.kind, 'resolving', 'a held credential is still not a logout');
+            coordinator.dispose();
+        });
+
+        test('an unnameable user announces immediately, without burning retries', async () => {
+            let stalls = 0;
+            let calls = 0;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => { calls++; return {}; },
+            }));
+            coordinator.onDidStallResolution(() => { stalls++; });
+            await coordinator.resolvePrincipal();
+
+            assert.strictEqual(stalls, 1);
+            assert.strictEqual(calls, 1, 'the same request would return the same unnameable user');
+            coordinator.dispose();
+        });
+
+        test('a login that lands first cancels the pending re-attempt', async () => {
+            let calls = 0;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => { calls++; throw new Error('ETIMEDOUT'); },
+            }));
+            await coordinator.resolvePrincipal();
+            assert.strictEqual(calls, 1);
+
+            coordinator.setAuthenticated('https://a.example', 'id:9');
+            await runPendingRetry();
+
+            assert.strictEqual(calls, 1, 'the timer must lose to the newer identity');
+            assert.deepStrictEqual(coordinator.state, {
+                kind: 'authenticated', serverKey: 'https://a.example', principal: 'id:9',
+            });
+            coordinator.dispose();
+        });
+
+        test('disposing cancels the pending re-attempt', async () => {
+            let calls = 0;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => { calls++; throw new Error('ETIMEDOUT'); },
+            }));
+            await coordinator.resolvePrincipal();
+            coordinator.dispose();
+
+            await runPendingRetry();
+
+            assert.strictEqual(calls, 1);
+        });
+
+        test('an explicit resolve gets the full retry budget back', async () => {
+            let calls = 0;
+            const coordinator = new SessionIdentityCoordinator(deps({
+                getCurrentUser: async () => { calls++; throw new Error('ETIMEDOUT'); },
+            }));
+            await coordinator.resolvePrincipal();
+            await runPendingRetry();
+            await runPendingRetry();
+            await runPendingRetry();
+            assert.strictEqual(calls, 4);
+
+            // What the chat's Retry reaches. Without the budget reset it would
+            // be a button that does exactly one request and then goes dead.
+            await coordinator.resolvePrincipal();
+            await runPendingRetry();
+
+            assert.strictEqual(calls, 6, 'the retry must re-arm the automatic re-attempts too');
+            coordinator.dispose();
+        });
     });
 });

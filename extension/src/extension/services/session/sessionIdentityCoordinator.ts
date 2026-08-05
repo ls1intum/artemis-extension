@@ -59,6 +59,14 @@ export interface SessionIdentityDeps {
     getCurrentUser(): Promise<{ id?: number; login?: string }>;
 }
 
+/**
+ * How long to wait before each automatic re-attempt of a principal lookup that
+ * failed for a reason a retry can plausibly fix. Short enough that a network
+ * blip at activation heals before the student notices, bounded so a server
+ * that is genuinely down is not hammered and the session does not spin forever.
+ */
+const RESOLVE_RETRY_DELAYS_MS = [2_000, 6_000, 15_000];
+
 function sameSession(a: SessionState, b: SessionState): boolean {
     if (a.kind !== b.kind || a.serverKey !== b.serverKey) { return false; }
     return a.kind !== 'authenticated' || a.principal === (b as typeof a).principal;
@@ -81,9 +89,27 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
      * an open `getCurrentUser` must not be undone by its late answer.
      */
     private _attempt = 0;
+    /** How many automatic re-attempts the current lookup has already spent. */
+    private _retriesUsed = 0;
+    private _retryTimer: ReturnType<typeof setTimeout> | undefined;
+    private _disposed = false;
 
     private readonly _onDidChangeSession = new vscode.EventEmitter<SessionState>();
     public readonly onDidChangeSession = this._onDidChangeSession.event;
+
+    /**
+     * Identity resolution gave up while still `resolving`, and no automatic
+     * re-attempt is pending.
+     *
+     * Deliberately NOT a fourth `SessionState`: the session really is still
+     * resolving (a credential is held, nobody has been logged out), and giving
+     * `resolving` a second meaning would make every consumer of the state
+     * machine reason about two things at once. This is a separate signal for
+     * the one consumer that needs it, so a UI stuck behind an unresolved
+     * identity can say so and offer a way out instead of spinning forever.
+     */
+    private readonly _onDidStallResolution = new vscode.EventEmitter<void>();
+    public readonly onDidStallResolution = this._onDidStallResolution.event;
 
     constructor(private readonly _deps: SessionIdentityDeps) {
         this._state = { kind: 'resolving', serverKey: _deps.serverKey() };
@@ -99,6 +125,14 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
      * detection would never run.
      */
     public async resolvePrincipal(): Promise<void> {
+        // A fresh, externally requested lookup gets the full retry budget back.
+        // Only the automatic re-attempts below reuse the budget they inherit.
+        this._retriesUsed = 0;
+        this._cancelPendingRetry();
+        await this._attemptResolve();
+    }
+
+    private async _attemptResolve(): Promise<void> {
         const serverKey = this._deps.serverKey();
         this.beginResolving(serverKey);
         const attempt = this._attempt;
@@ -110,6 +144,7 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
             // Reading the stored token failed. That is not evidence of
             // absence, and clearing anything on it would be destructive.
             logger.warn('Could not read the stored token; session stays resolving', LogCategory.AUTH, error);
+            this._stall(attempt, true);
             return;
         }
         if (attempt !== this._attempt) { return; }
@@ -129,6 +164,7 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
                 return;
             }
             logger.warn('Could not verify the session principal; staying resolving', LogCategory.AUTH, error);
+            this._stall(attempt, true);
             return;
         }
         if (attempt !== this._attempt) { return; }
@@ -137,11 +173,48 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
         if (!principal) {
             // Authenticated but unnameable. Everything scoped per account is
             // keyed on this string, so claiming a session we cannot key would
-            // put one student's data under another's key.
+            // put one student's data under another's key. Repeating the same
+            // request would return the same unnameable user, so this stalls
+            // immediately rather than retrying.
             logger.warn('Authenticated user has neither an id nor a login; session stays resolving', LogCategory.AUTH);
+            this._stall(attempt, false);
             return;
         }
         this.setAuthenticated(serverKey, principal);
+    }
+
+    /**
+     * The lookup ended without an identity. Schedules the next automatic
+     * re-attempt if the failure is one a retry can fix and the budget allows,
+     * and otherwise announces that the session is stuck so a UI waiting on it
+     * can offer the student a way out.
+     */
+    private _stall(attempt: number, retryable: boolean): void {
+        // A newer intent has already superseded this lookup, so its outcome is
+        // not the session's outcome and must neither retry nor announce.
+        if (this._disposed || attempt !== this._attempt) { return; }
+        const delay = retryable ? RESOLVE_RETRY_DELAYS_MS[this._retriesUsed] : undefined;
+        if (delay === undefined) {
+            this._onDidStallResolution.fire();
+            return;
+        }
+        this._retriesUsed++;
+        this._retryTimer = setTimeout(() => {
+            this._retryTimer = undefined;
+            // Anything that happened in the meantime (a login, a logout, a
+            // server change, an explicit retry) is newer than this timer.
+            // Disposal needs no check of its own: `dispose` clears the timer,
+            // so a disposed coordinator never reaches this callback.
+            if (attempt !== this._attempt) { return; }
+            void this._attemptResolve();
+        }, delay);
+    }
+
+    private _cancelPendingRetry(): void {
+        if (this._retryTimer !== undefined) {
+            clearTimeout(this._retryTimer);
+            this._retryTimer = undefined;
+        }
     }
 
     /**
@@ -202,6 +275,9 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
     }
 
     public dispose(): void {
+        this._disposed = true;
+        this._cancelPendingRetry();
         this._onDidChangeSession.dispose();
+        this._onDidStallResolution.dispose();
     }
 }

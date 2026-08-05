@@ -29,13 +29,21 @@ function makeSinkSpy(): WorkspaceDetectionSink & {
 
 function makeSession(kind: SessionState['kind']) {
     const emitter = new vscode.EventEmitter<SessionState>();
+    const stallEmitter = new vscode.EventEmitter<void>();
     const state = (kind === 'authenticated'
         ? { kind, serverKey: 's', principal: 'id:1' }
         : { kind, serverKey: 's' }) as SessionState;
+    const resolvePrincipal = sinon.stub<[], Promise<void>>().resolves();
     // `epoch` is a plain mutable field so a test can move it under an open
     // detection, which is exactly what an identity change does.
-    const session = { state, epoch: 1, onDidChangeSession: emitter.event };
-    return { session, emitter };
+    const session = {
+        state,
+        epoch: 1,
+        onDidChangeSession: emitter.event,
+        onDidStallResolution: stallEmitter.event,
+        resolvePrincipal,
+    };
+    return { session, emitter, stallEmitter, resolvePrincipal };
 }
 
 suite('wireWorkspaceDetection', () => {
@@ -323,6 +331,66 @@ suite('wireWorkspaceDetection', () => {
         await Promise.resolve();
         assert.deepStrictEqual(outcomes, [], 'an answer for the previous account is not an answer');
         handle.dispose();
+    });
+
+    // The startup dead end this pair exists for: a transient `getCurrentUser`
+    // failure leaves the session `resolving`, the branch above publishes
+    // nothing, and the chat used to sit on its startup spinner for the rest of
+    // the window with no Retry anywhere.
+    test('a stalled identity resolution settles unavailable', async () => {
+        const { session, stallEmitter } = makeSession('resolving');
+        const outcomes: DetectionOutcome[] = [];
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        handle.onDetectionSettled(o => outcomes.push(o));
+        await Promise.resolve();
+        assert.deepStrictEqual(outcomes, [], 'a resolving session answers nothing on its own');
+
+        stallEmitter.fire();
+
+        assert.deepStrictEqual(outcomes, [{ kind: 'unavailable' }]);
+        handle.dispose();
+        stallEmitter.dispose();
+    });
+
+    test('the retry re-runs the identity lookup while the session is still resolving', async () => {
+        const { session, resolvePrincipal } = makeSession('resolving');
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        await Promise.resolve();
+
+        handle.retry();
+        await Promise.resolve();
+
+        assert.strictEqual(resolvePrincipal.callCount, 1, 'the Retry must repeat what actually failed');
+        assert.strictEqual(detectStub.callCount, 0, 'detection cannot answer without an identity');
+        handle.dispose();
+    });
+
+    test('the retry runs detection, not the identity lookup, once the session is authenticated', async () => {
+        const { session, resolvePrincipal } = makeSession('authenticated');
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        await Promise.resolve();
+        detectStub.resetHistory();
+
+        handle.retry();
+        await Promise.resolve();
+
+        assert.strictEqual(resolvePrincipal.callCount, 0);
+        assert.strictEqual(detectStub.callCount, 1);
+        handle.dispose();
+    });
+
+    test('a stall that arrives after the session settled publishes nothing', async () => {
+        const { session, stallEmitter } = makeSession('anonymous');
+        const outcomes: DetectionOutcome[] = [];
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        await Promise.resolve();
+        handle.onDetectionSettled(o => outcomes.push(o));
+
+        stallEmitter.fire();
+
+        assert.deepStrictEqual(outcomes, [], 'a settled session already has its answer');
+        handle.dispose();
+        stallEmitter.dispose();
     });
 
     test('a session change re-runs detection', async () => {
