@@ -22,6 +22,7 @@ import type { CourseDataCache } from '@extension/services/courseDataCache';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
+import { normalizePrincipal, normalizeServerUrl } from '@extension/services/session/identityKeys';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { SubmissionPayload } from '@extension/services/telemetry/recording/types';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -444,12 +445,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _currentCourseAccessScope(): CourseAccessScope | null {
         const info = this._appStateManager.userInfo;
         if (!info) { return null; }
-        const serverUrl = info.serverUrl || resolveServerUrl();
-        if (!serverUrl) { return null; }
-        return {
-            serverUrl,
-            principal: { id: info.user?.id, login: info.username || info.user?.login },
-        };
+        const serverKey = normalizeServerUrl(info.serverUrl || resolveServerUrl());
+        if (!serverKey) { return null; }
+        const principal = normalizePrincipal({ id: info.user?.id, login: info.username || info.user?.login });
+        if (!principal) { return null; }
+        return { serverKey, principal };
     }
 
     /**

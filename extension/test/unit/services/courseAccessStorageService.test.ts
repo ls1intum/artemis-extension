@@ -20,7 +20,7 @@ suite('CourseAccessStorageService', () => {
 
     setup(() => {
         memento = new MockMemento();
-        scope = { serverUrl: 'https://artemis.example.com', principal: { id: 42 } };
+        scope = { serverKey: 'https://artemis.example.com', principal: 'id:42' };
         service = new CourseAccessStorageService(memento, () => scope);
     });
 
@@ -78,61 +78,35 @@ suite('CourseAccessStorageService', () => {
         assert.deepStrictEqual(recent, [5, 4, 3]);
     });
 
-    test('scope isolation: different serverUrl uses different bucket', async () => {
-        let activeScope: CourseAccessScope = { serverUrl: 'https://a.example.com', principal: { id: 1 } };
+    test('scope isolation: different serverKey uses different bucket', async () => {
+        let activeScope: CourseAccessScope = { serverKey: 'https://a.example.com', principal: 'id:1' };
         const svc = new CourseAccessStorageService(memento, () => activeScope);
         svc.onCourseAccessed(10);
         await waitFor(5);
-        activeScope = { serverUrl: 'https://b.example.com', principal: { id: 1 } };
+        activeScope = { serverKey: 'https://b.example.com', principal: 'id:1' };
         assert.deepStrictEqual(svc.getLastAccessedCourses(), []);
         svc.onCourseAccessed(20);
         await waitFor(5);
         assert.deepStrictEqual(svc.getLastAccessedCourses(), [20]);
-        activeScope = { serverUrl: 'https://a.example.com', principal: { id: 1 } };
+        activeScope = { serverKey: 'https://a.example.com', principal: 'id:1' };
         assert.deepStrictEqual(svc.getLastAccessedCourses(), [10]);
     });
 
-    test('scope isolation: different userId uses different bucket', async () => {
-        let active: CourseAccessScope = { serverUrl: 'https://artemis.example.com', principal: { id: 1 } };
+    test('scope isolation: different principal uses different bucket', async () => {
+        let active: CourseAccessScope = { serverKey: 'https://artemis.example.com', principal: 'id:1' };
         const svc = new CourseAccessStorageService(memento, () => active);
         svc.onCourseAccessed(100);
         await waitFor(5);
-        active = { serverUrl: 'https://artemis.example.com', principal: { id: 2 } };
+        active = { serverKey: 'https://artemis.example.com', principal: 'id:2' };
         assert.deepStrictEqual(svc.getLastAccessedCourses(), []);
     });
 
-    test('no scope available → write is no-op, read is empty', async () => {
+    test('no scope available: write is no-op, read is empty', async () => {
         const svc = new CourseAccessStorageService(memento, () => null);
         svc.onCourseAccessed(999);
         await waitFor(5);
         assert.strictEqual(memento.keys().length, 0);
         assert.deepStrictEqual(svc.getLastAccessedCourses(), []);
-    });
-
-    test('serverUrl normalization: case, trailing slash, default port map to same bucket', async () => {
-        let active: CourseAccessScope = { serverUrl: 'https://Artemis.Example.com/', principal: { id: 1 } };
-        const writer = new CourseAccessStorageService(memento, () => active);
-        writer.onCourseAccessed(42);
-        await waitFor(5);
-
-        // Read back via differently-spelled but equivalent URLs
-        for (const variant of ['https://artemis.example.com', 'https://artemis.example.com:443']) {
-            active = { serverUrl: variant, principal: { id: 1 } };
-            assert.deepStrictEqual(writer.getLastAccessedCourses(), [42], `variant "${variant}" should hit the same bucket`);
-        }
-    });
-
-    test('principal normalization: login lowercase and id/login buckets are distinct', async () => {
-        let active: CourseAccessScope = { serverUrl: 'https://a.example.com', principal: { login: 'LIAM' } };
-        const writer = new CourseAccessStorageService(memento, () => active);
-        writer.onCourseAccessed(1);
-        await waitFor(5);
-
-        active = { serverUrl: 'https://a.example.com', principal: { login: 'liam' } };
-        assert.deepStrictEqual(writer.getLastAccessedCourses(), [1], 'login case should not matter');
-
-        active = { serverUrl: 'https://a.example.com', principal: { id: 7, login: 'liam' } };
-        assert.deepStrictEqual(writer.getLastAccessedCourses(), [], 'id-principal is a different bucket from login-principal');
     });
 
     test('invalid input is ignored', async () => {
@@ -146,7 +120,7 @@ suite('CourseAccessStorageService', () => {
 
     test('fresh read is immediate (shadow is synchronous)', () => {
         service.onCourseAccessed(555);
-        // Do NOT await — the shadow should already contain the value
+        // Do NOT await: the shadow should already contain the value
         assert.deepStrictEqual(service.getLastAccessedCourses(), [555]);
     });
 
@@ -165,5 +139,22 @@ suite('CourseAccessStorageService', () => {
         svc.onCourseAccessed(2);
         await waitFor(10);
         assert.deepStrictEqual(svc.getLastAccessedCourses(), [2, 1]);
+    });
+
+    test('getAccessTimestamp returns the recorded time for a stored course', async () => {
+        const before = Date.now();
+        service.onCourseAccessed(42);
+        await waitFor(5);
+        const ts = service.getAccessTimestamp(42);
+        assert.ok(ts !== undefined && ts >= before, 'timestamp should be recorded and recent');
+    });
+
+    test('getAccessTimestamp returns undefined for a course outside the stored window', () => {
+        assert.strictEqual(service.getAccessTimestamp(9999), undefined);
+    });
+
+    test('getAccessTimestamp returns undefined when no scope is available', () => {
+        const svc = new CourseAccessStorageService(memento, () => null);
+        assert.strictEqual(svc.getAccessTimestamp(1), undefined);
     });
 });
