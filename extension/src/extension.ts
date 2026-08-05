@@ -161,8 +161,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
-	// data — an unbounded, unscoped list of every course and exercise this
-	// installation ever saw — sitting in globalState forever.
+	// data, an unbounded, unscoped list of every course and exercise this
+	// installation ever saw, sitting in globalState forever.
 	void context.globalState.update('iris.contextStore', undefined);
 
 	const workspaceTracker = new WorkspaceExerciseTracker();
