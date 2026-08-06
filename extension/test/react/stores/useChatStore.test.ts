@@ -752,6 +752,138 @@ describe('useChatStore', () => {
 		});
 	});
 
+	describe('pendingEcho', () => {
+		it('holds the server echo while the optimistic bubble is still waiting for its id', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+
+			// The server pushes our own prompt to every client, including us.
+			store.addMessage({ id: 55, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			const users = useChatStore.getState().messages.filter((m) => m.role === 'user');
+			expect(users).toHaveLength(1);
+			expect(users[0].localId).toBe('local-1');
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(55);
+			expect(useChatStore.getState().pendingEcho?.localId).toBe('local-1');
+		});
+
+		it('appends an echo when no send is in flight', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'from the web client', timestamp: 2 }, 7);
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(true);
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('does not treat a failed bubble left on screen as a send in flight', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'error' }, 7);
+
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(true);
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('discards the held echo when the POST names the same message', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 55, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			useChatStore.getState().confirmSentMessage('local-1', 55);
+
+			const users = useChatStore.getState().messages.filter((m) => m.role === 'user');
+			expect(users).toHaveLength(1);
+			expect(users[0].id).toBe(55);
+			expect(users[0].status).toBe('sent');
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('renders the held echo when the POST names a different message', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			// Same text, another client. Only the id can tell them apart.
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			useChatStore.getState().confirmSentMessage('local-1', 55);
+
+			const users = useChatStore.getState().messages.filter((m) => m.role === 'user');
+			expect(users.map((m) => m.id).sort()).toEqual([55, 91]);
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('renders the held echo when the owning send fails', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			useChatStore.getState().markMessageFailed('local-1', 'nope', 'iris-unavailable');
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(true);
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('keeps holding when a signal names a bubble that does not own the echo', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			// A rejection for an older send that has long since left the screen, and a
+			// confirmation for one too. Neither says anything about local-1's echo.
+			useChatStore.getState().markMessageFailed('local-0', 'stale', 'iris-unavailable');
+			useChatStore.getState().confirmSentMessage('local-0', 42);
+
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
+			expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(false);
+		});
+
+		it('keeps holding when an unrelated error bubble is removed', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'failed-earlier', role: 'user', content: 'old', timestamp: 0, status: 'error' }, 7);
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			// Retrying an older failed send removes its bubble first (IrisChatView.tsx:341).
+			useChatStore.getState().removeMessage('failed-earlier');
+
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
+		});
+
+		it('renders the held echo when the owning bubble itself is removed', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			useChatStore.getState().removeMessage('local-1');
+
+			expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(true);
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('appends a second echo instead of replacing the held one', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo-a', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.addMessage({ id: 92, localId: 'echo-b', role: 'user', content: 'also hi', timestamp: 3 }, 7);
+
+			// One slot. The second echo cannot be the one we are waiting on as well,
+			// and confirmSentMessage folds it by id if it turns out to be ours.
+			expect(useChatStore.getState().messages.some((m) => m.id === 92)).toBe(true);
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
+		});
+	});
+
 	// The store mirrors ONE server conversation. These tests pin that surface
 	// in isolation, driven directly through setIrisState and the actions.
 	describe('conversation mirror', () => {

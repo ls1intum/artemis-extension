@@ -112,6 +112,18 @@ interface ChatState {
     // Messages
     messages: ChatMessage[];
     /**
+     * The server's echo of a prompt we drew optimistically, held back until
+     * the POST names an id and settles whose message it is. Matching on text
+     * instead would fold another client's identical message into our bubble
+     * and delete it, so identity has to come from the id, which only the POST
+     * response can supply.
+     *
+     * `localId` names the bubble this echo is waiting on. A signal about any
+     * other bubble (a stale rejection, a later send) says nothing about this
+     * echo and must leave it held.
+     */
+    pendingEcho: { message: ChatMessage; sessionId: number; localId: string } | null;
+    /**
      * The conversation whose transcript is currently in `messages`. `null`
      * until the first transcript arrives; the webview shows the loader until
      * this matches the open conversation.
@@ -198,6 +210,7 @@ interface ChatState {
     removeMessage: (localId: string) => void;
     /** Stamps a still-pending optimistic user bubble with its server id and `status: 'sent'`. No-op if no such bubble exists. */
     confirmSentMessage: (localId: string, id: number) => void;
+    flushPendingEcho: () => void;
     setOpenSessionError: (message: string | null) => void;
 
     // Streaming actions
@@ -246,6 +259,22 @@ function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessa
     return [...messages, message];
 }
 
+/**
+ * The one optimistic user bubble waiting for its id, if there is exactly one.
+ * An error bubble is not waiting for anything, so it does not count.
+ */
+function soleSendingBubble(messages: ChatMessage[]): ChatMessage | undefined {
+    const pending = messages.filter(
+        (m) => m.role === 'user' && m.id === undefined && m.status === 'sending',
+    );
+    return pending.length === 1 ? pending[0] : undefined;
+}
+
+/** The held echo is waiting on exactly this bubble. */
+function ownsPendingEcho(state: ChatState, localId: string): boolean {
+    return state.pendingEcho?.localId === localId;
+}
+
 export const useChatStore = create<ChatState>()(
     devtools(
         (set) => ({
@@ -271,6 +300,7 @@ export const useChatStore = create<ChatState>()(
             composerText: '',
             openSessionError: null,
             messages: [],
+            pendingEcho: null,
             loadedSessionId: null,
             streaming: IDLE_STREAMING,
             liveDraft: null,
@@ -335,8 +365,20 @@ export const useChatStore = create<ChatState>()(
             },
 
             addMessage: (message, sessionId) => {
-                if (sessionId !== undefined && sessionId !== useChatStore.getState().currentSessionId) { return; }
-                set((state) => ({ messages: upsertMessage(state.messages, message) }), false, 'addMessage');
+                const state = useChatStore.getState();
+                if (sessionId !== undefined && sessionId !== state.currentSessionId) { return; }
+                const owner = message.role === 'user' && message.id !== undefined && state.pendingEcho === null
+                    ? soleSendingBubble(state.messages)
+                    : undefined;
+                if (owner && state.currentSessionId !== null) {
+                    set(
+                        { pendingEcho: { message, sessionId: state.currentSessionId, localId: owner.localId } },
+                        false,
+                        'holdEcho',
+                    );
+                    return;
+                }
+                set((s) => ({ messages: upsertMessage(s.messages, message) }), false, 'addMessage');
             },
 
             applyRunUi: (projection) => {
@@ -379,6 +421,13 @@ export const useChatStore = create<ChatState>()(
             },
 
             markMessageFailed: (localId, errorMessage, errorReason) => {
+                // This send is over and will never name an id, so whatever it
+                // was holding belongs to somebody else and must be shown. Only
+                // for the owning bubble: a stale rejection for another send
+                // says nothing, exactly as the guard below already treats it.
+                if (ownsPendingEcho(useChatStore.getState(), localId)) {
+                    useChatStore.getState().flushPendingEcho();
+                }
                 const current = useChatStore.getState().messages;
                 const target = current.find((m) => m.localId === localId);
                 if (!target || target.role !== 'user' || target.status !== 'sending') {
@@ -395,12 +444,45 @@ export const useChatStore = create<ChatState>()(
             },
 
             removeMessage: (localId) => {
+                // Only when the bubble that was waiting is the one going away.
+                // A retry removes the PREVIOUS failed bubble first
+                // (IrisChatView.tsx:341), which must not release anything.
+                if (ownsPendingEcho(useChatStore.getState(), localId)) {
+                    useChatStore.getState().flushPendingEcho();
+                }
                 set((state) => ({
                     messages: state.messages.filter((m) => m.localId !== localId),
                 }), false, 'removeMessage');
             },
 
+            flushPendingEcho: () => {
+                const held = useChatStore.getState().pendingEcho;
+                if (!held) { return; }
+                set((s) => ({
+                    // Only into the conversation it was captured in. A held
+                    // echo whose conversation has been left is already part of
+                    // the transcript the server hands over on the way back, so
+                    // dropping it there loses nothing.
+                    messages: held.sessionId === s.currentSessionId
+                        ? upsertMessage(s.messages, held.message)
+                        : s.messages,
+                    pendingEcho: null,
+                }), false, 'flushPendingEcho');
+            },
+
             confirmSentMessage: (localId, id) => {
+                const store = useChatStore.getState();
+                if (ownsPendingEcho(store, localId)) {
+                    // The id settles whose message it is. Equal means the
+                    // bubble and the echo are one message and the echo is
+                    // redundant; different means it was somebody else's and
+                    // has been waiting to be shown.
+                    if (store.pendingEcho?.message.id === id) {
+                        set({ pendingEcho: null }, false, 'discardEcho');
+                    } else {
+                        store.flushPendingEcho();
+                    }
+                }
                 set((s) => {
                     // The echo may already be here (it can outrun the POST
                     // response). Then this bubble and that row are the SAME
