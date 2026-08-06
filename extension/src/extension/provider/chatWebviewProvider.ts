@@ -7,11 +7,11 @@ import type { ServerContext, SessionDetail } from '@shared/types/serverContext';
 import { ArtemisApiService } from '@extension/api';
 import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
 import { isIrisCourseDisabled } from '@extension/domain/errors';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
     ChatDiagnosticsService,
-    ContextStore,
     IRIS_CHAT_HELP_MARKDOWN,
     IrisAvailabilityService,
     IrisWebSocketMessageHandler,
@@ -29,16 +29,16 @@ import { createRunLifecycle, IrisRunStateMachine } from '@extension/services/iri
 import type { DetectionUiState } from '@extension/services/iris/startup/chatStartupCoordinator';
 import { ChatStartupCoordinator } from '@extension/services/iris/startup/chatStartupCoordinator';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SessionIdentityReader } from '@extension/services/session/sessionIdentityCoordinator';
 import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
     FileMonitorService,
-    getEntryExercises,
     NoAiDetectionService,
-    toExerciseSource,
 } from '@extension/services/workspace';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
+import type { WorkspaceExercise, WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
 
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -81,7 +81,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public static readonly viewType = 'iris.chatView';
 
     // ── Instance properties ────────────────────────────────────────────
-    private readonly _contextStore: ContextStore;
+    private readonly _workspaceTracker: WorkspaceExerciseTracker;
     private readonly _viewStatePresenter: ChatViewStatePresenter;
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisWebSocketSessionClient;
@@ -183,9 +183,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _courseDataCache: CourseDataCache | undefined,
+        private readonly _courseCatalog: CourseCatalog | undefined,
         private readonly _telemetryManager: ITelemetryManager | undefined,
-        contextStore: ContextStore,
+        workspaceTracker: WorkspaceExerciseTracker,
+        /**
+         * The picker's course order. The one store that already scopes recency
+         * per server and per principal, so no second recency store has to be
+         * introduced for the chat.
+         */
+        private readonly _courseAccess: CourseAccessStorageService,
+        /** Diagnostics' first question: which account, which server, which generation. */
+        private readonly _sessionIdentity: SessionIdentityReader,
     ) {
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -193,14 +201,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidAttemptIrisChatSend);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
-        this._contextStore = contextStore;
+        this._workspaceTracker = workspaceTracker;
         // Struggle detection follows the WORKSPACE, never the chat topic: the
         // detector observes the code that is open, and `workspaceDetectionService`
         // derives that from the folder's git remote. A topic change points the
         // chat at an exercise whose code is usually not open at all, so it must
         // not retarget the detector.
         this._disposables.push(
-            this._contextStore.onDidChangeWorkspaceExercise((current) => {
+            this._workspaceTracker.onDidChange((current) => {
                 // A clear announces nothing: there is no exercise to start a
                 // session for, and the id stays remembered so the NEXT
                 // workspace exercise can still report what it replaced.
@@ -215,7 +223,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             })
         );
         this._viewStatePresenter = new ChatViewStatePresenter(
-            this._contextStore,
+            this._courseCatalog,
+            this._workspaceTracker,
+            this._courseAccess,
             (msg) => this._postMessageSafe(msg),
             // A getter, not a value: `_conversation` is assigned further down
             // in this same constructor (and is `undefined` until then), so
@@ -229,18 +239,30 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // constructed (always `'unsettled'`).
             () => this._detectionState,
         );
+        if (this._courseCatalog) {
+            // The picker's lists come from the catalog, so a catalog write has
+            // to repaint the chat directly. It used to ride on workspace
+            // detection republishing the detection state, which costs a
+            // git-remote read and an archived-course probe for a repaint, and
+            // does not happen at all while the session is still resolving.
+            this._disposables.push(
+                this._courseCatalog.onCoursesLoaded(() => this._viewStatePresenter.postSnapshot()),
+            );
+        }
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
 
         this._chatDiagnosticsService = new ChatDiagnosticsService(
-            this._contextStore,
+            this._courseCatalog,
+            this._workspaceTracker,
+            this._sessionIdentity,
             this._exerciseRegistry,
             // A getter for the same reason as the presenter's: `_conversation`
             // is assigned further down in this constructor.
             () => this._conversation,
         );
         this._availability = new IrisAvailabilityService(
-            this._contextStore,
+            this._courseCatalog,
             this._artemisApiService,
             (msg) => this._postMessageSafe(msg),
         );
@@ -377,7 +399,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 errorMessage: SEND_REJECTION_MESSAGES[reason],
             }),
             reportError: (message) => this._postMessageSafe({ type: ExtensionMsg.OpenSessionError, message }),
-            getWorkspaceExerciseId: () => this._contextStore.getWorkspaceExerciseId(),
+            getWorkspaceExerciseId: () => this._workspaceTracker.exerciseId,
         });
     }
 
@@ -388,10 +410,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             subscribeToSession: (sessionId) => client.subscribeToSession(sessionId),
             leaveSession: () => client.leaveSession(),
             getWorkspaceExercise: () => {
-                const exercise = this._contextStore.getWorkspaceExercise();
-                return exercise?.courseId === undefined
-                    ? undefined
-                    : { exerciseId: exercise.id, courseId: exercise.courseId };
+                const exercise = this._workspaceTracker.current;
+                return exercise === undefined ? undefined : { exerciseId: exercise.id, courseId: exercise.courseId };
             },
             deliverTranscript: (detail, mode) => this._deliverTranscript(detail, mode),
         });
@@ -568,6 +588,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _acquireConversation(workspace: { exerciseId: number; courseId: number }): Promise<void> {
         const conversation = this._conversation;
         if (!conversation) { return; }
+        // Captured BEFORE the navigation. See `_rememberCourseName`: reading
+        // either after the await would risk crossing a session identity that
+        // changed while this was in flight.
+        const epoch = this._courseCatalog?.currentEpoch ?? 0;
+        const knownTitle = this._courseCatalog?.courseTitle(workspace.courseId);
         let outcome: StartOutcome;
         try {
             outcome = await conversation.start(workspace);
@@ -587,6 +612,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             });
             throw error;
         }
+        // The captured epoch stops a write crossing an identity. This stops
+        // one crossing a NAVIGATION inside the same identity: a superseding
+        // switch can leave the chat in another course entirely, and naming
+        // this one then records a course the student never entered.
+        const landedHere = outcome.kind !== 'stale'
+            && conversation.state.snapshot().courseId === workspace.courseId;
+        if (landedHere) {
+            this._rememberCourseName(workspace.courseId, knownTitle, epoch);
+        }
         // A course whose instructor switched Iris off is a destination, not a
         // failure (see `IrisConversationService.start`): NOT re-thrown, or the
         // coordinator would re-arm its latch for an answer that will never
@@ -598,6 +632,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             return;
         }
         await this._refreshAvailability();
+    }
+
+    /**
+     * The course the chat is IN keeps its display name across a dashboard
+     * refresh that no longer lists it. This is what the catalog's
+     * `partial-course` record is for: it gives a course id a name and is
+     * never offered as a pickable course. Without it the header falls back to
+     * `Course 42` the moment the student's enrolment ends mid-conversation.
+     */
+    private _rememberCourseName(courseId: number, title: string | undefined, epoch: number): void {
+        if (title === undefined) { return; }
+        this._courseCatalog?.upsertSupplemental({ kind: 'partial-course', id: courseId, title }, epoch);
     }
 
     /**
@@ -652,6 +698,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const detail = this._conversation?.state.snapshot().detail;
         if (detail) { this._deliverTranscript(detail, 'load'); }
         await this._populateAvailableContexts();
+        // The snapshot above was posted against whatever the catalog held
+        // before the fetch, which on a cold webview is nothing. The per-entity
+        // repaints this replaces (`_registerCourse` and `_registerExercise`
+        // each ended in a snapshot) are gone, so without this the picker stays
+        // empty until some unrelated event happens to post again.
+        this._viewStatePresenter.postSnapshot();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
 
@@ -674,9 +726,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * The course the open conversation is in, for anything outside the chat
      * that has to name one (the Iris health check).
      *
-     * Read from the conversation rather than mirrored into `ContextStore`:
-     * the conversation IS the course now, and a second copy could only ever
-     * be the one that is wrong. The mirror this replaces was written on the
+     * Read from the conversation rather than a mirrored store: the
+     * conversation IS the course now, and a second copy could only ever be
+     * the one that is wrong. The mirror this replaces was written on the
      * course-picker path alone, so on the normal path (a workspace exercise,
      * acquired by `start`) the health check answered "select a course first"
      * about a chat that was plainly showing one.
@@ -707,55 +759,42 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return this._noAiDetectionService.isNoAiEnabled;
     }
 
-    public updateDetectedExercise(
-        exerciseTitle: string,
-        exerciseId: number,
-        releaseDate?: string,
-        dueDate?: string,
-        shortName?: string,
-        courseId?: number,
-    ): void {
-        // Do not set isWorkspace here; workspaceDetectionService owns that flag.
-        this._registerExercise({
-            id: exerciseId,
-            title: exerciseTitle,
-            shortName,
-            courseId,
-            releaseDate,
-            dueDate,
-            source: 'system-default',
-        });
-    }
-
-    public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
-        this._registerCourse({
-            id: courseId,
-            title: courseTitle,
-            shortName,
-            source: 'system-default',
-        });
-    }
-
     // ── Workspace detection sink ──────────────────────────────────────
     // Called by wireWorkspaceDetection at activation. The provider implements
     // the sink because it owns the presenter that has to repost the snapshot
     // when the workspace exercise changes.
 
-    public registerWorkspaceExercise(input: {
-        id: number;
-        title: string;
-        shortName?: string;
-        courseId?: number;
-        repositoryUri?: string;
-        source: 'workspace-detected';
-        isWorkspace: true;
-    }): void {
-        this._registerExercise(input);
+    public registerWorkspaceExercise(input: WorkspaceExercise): void {
+        this._workspaceTracker.set(input);
     }
 
     public clearWorkspaceExercise(): void {
-        this._contextStore.clearWorkspaceFlag();
+        this._workspaceTracker.clear();
         this._viewStatePresenter.postSnapshot();
+    }
+
+    /**
+     * The session coordinator's reset hooks. Three narrow methods rather than
+     * an auth subscription in here: the coordinator owns the ORDER, and a
+     * component that interprets auth events on its own is how the order stops
+     * being knowable.
+     */
+    public resetForSessionChange(): void {
+        this._conversation?.resetForSessionChange();
+        this._availability.resetAvailability();
+        this._postMessageSafe({ type: ExtensionMsg.HideDisabledState });
+        this._postMessageSafe({ type: ExtensionMsg.HideUnavailableState });
+        this._resetRunsAndMarker();
+        this._lastAnnouncedSessionId = undefined;
+        this._lastWorkspaceExerciseId = undefined;
+    }
+
+    public publishSnapshot(): void {
+        this._viewStatePresenter.postSnapshot();
+    }
+
+    public resetStartupForNewSession(): void {
+        this._startupCoordinator.resetForNewSession();
     }
 
     /** See `StartupLatch`. Called before anything that can resolve the view. */
@@ -793,7 +832,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
         const courseId = target.mode === 'COURSE_CHAT'
             ? target.entityId
-            : courseHint ?? await resolveCourseIdForExercise(target.entityId, this._contextStore, this._artemisApiService);
+            : courseHint ?? (this._courseCatalog
+                ? await resolveCourseIdForExercise(target.entityId, this._courseCatalog, this._artemisApiService)
+                : undefined);
         // An exercise whose course we could not determine is refused rather than
         // staged. The cross-course check compares the target's course with the
         // open conversation's, so an unknown one is not "probably fine": it is
@@ -870,33 +911,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
-     * Registers a course for the pickers. Deliberately does NOT select it:
-     * selecting would mean opening a conversation behind the student's back,
-     * and the cold-start screen would then be telling them there is nothing to
-     * talk about while one exists.
-     */
-    private _registerCourse(input: { id: number; title: string; shortName?: string; source?: 'workspace-detected' | 'user-selected' | 'system-default' }): void {
-        this._contextStore.registerCourse(input);
-        this._viewStatePresenter.postSnapshot();
-    }
-
-    /** See {@link _registerCourse}. */
-    private _registerExercise(input: {
-        id: number;
-        title: string;
-        shortName?: string;
-        courseId?: number;
-        releaseDate?: string;
-        dueDate?: string;
-        repositoryUri?: string;
-        source?: 'workspace-detected' | 'user-selected' | 'system-default';
-        isWorkspace?: boolean;
-    }): void {
-        this._contextStore.registerExercise(input);
-        this._viewStatePresenter.postSnapshot();
-    }
-
-    /**
      * What the Iris availability check runs against: where the chat IS, which is
      * usually the open conversation and otherwise the course alone (a course
      * with Iris switched off is entered without one). Never a stored selection:
@@ -911,11 +925,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         if (courseId === undefined) { return null; }
         const topic = conversation.state.effectiveContext();
         if (topic?.mode === 'PROGRAMMING_EXERCISE_CHAT') {
-            const tracked = this._contextStore.getExerciseById(topic.entityId);
             return {
                 type: 'exercise',
                 id: topic.entityId,
-                title: topic.name ?? tracked?.title ?? `Exercise ${topic.entityId}`,
+                title: topic.name ?? this._courseCatalog?.exerciseTitle(topic.entityId) ?? `Exercise ${topic.entityId}`,
                 courseId,
             };
         }
@@ -924,7 +937,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return {
             type: 'course',
             id: courseId,
-            title: this._contextStore.getCourseTitle(courseId) ?? `Course ${courseId}`,
+            title: this._courseCatalog?.courseTitle(courseId) ?? `Course ${courseId}`,
             courseId,
         };
     }
@@ -971,14 +984,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     void this._handleNewConversation();
                     break;
                 case WebviewCmd.RefreshCourses:
-                    // A fresh installation tracks no courses at all, so the
-                    // course picker has nothing to list until the dashboard
-                    // has been read once.
-                    void this._populateAvailableContexts()
-                        .then(() => this._viewStatePresenter.postSnapshot())
+                    // Forced: opening the picker is the gesture that means
+                    // "show me what is there now", and a cached dashboard
+                    // would answer it with whatever was true at startup.
+                    // Both arms mark the snapshot as this refresh's answer, so
+                    // the picker's wait ends on the request it made and on no
+                    // other snapshot. A failure is an answer too.
+                    void this._populateAvailableContexts({ force: true })
+                        .then(() => this._viewStatePresenter.postSnapshot({ answersCourseRefresh: true }))
                         .catch((err: unknown) => {
                             logger.error('Error refreshing courses', LogCategory.IRIS_CHAT, err);
-                            this._viewStatePresenter.postSnapshot();
+                            this._viewStatePresenter.postSnapshot({ answersCourseRefresh: true });
                         });
                     break;
                 case WebviewCmd.OpenDiagnostics:
@@ -1167,50 +1183,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
 
     /**
-     * Populates the chat context selector with all available courses and exercises.
-     * Uses the shared CourseDataCache to avoid duplicate API calls — the sidebar
-     * and chat share the same cached data.
+     * Reads the live dashboard. `force` is the caller's decision: reopening the
+     * chat must not re-hit the network, but opening the picker is the gesture
+     * that means "show me what is there now".
      */
-    private async _populateAvailableContexts(): Promise<void> {
-        if (!this._courseDataCache) { return; }
-        try {
-            const data = await this._courseDataCache.fetch();
-            const courses = data?.courses;
-            if (!courses || !Array.isArray(courses)) { return; }
-
-            for (const entry of courses) {
-                const course = entry.course;
-                if (!course?.id || !course.title) { continue; }
-
-                this._registerCourse({
-                    id: course.id,
-                    title: course.title,
-                    shortName: course.shortName,
-                    source: 'system-default',
-                });
-
-                for (const exercise of getEntryExercises(entry)) {
-                    const source = toExerciseSource(exercise, course.id);
-                    if (!source || !source.studentParticipations?.length) {
-                        continue;
-                    }
-                    // Do not set isWorkspace here; workspaceDetectionService owns that flag.
-                    // Note: dates are read from the raw exercise because ExerciseSource
-                    // intentionally omits them (kept narrow for workspace-detection use).
-                    this._registerExercise({
-                        id: source.id,
-                        title: source.title,
-                        shortName: source.shortName,
-                        courseId: course.id,
-                        releaseDate: exercise.releaseDate ?? exercise.startDate,
-                        dueDate: exercise.dueDate,
-                        source: 'system-default',
-                    });
-                }
-            }
-        } catch (error) {
-            logger.debug('Failed to populate available contexts', LogCategory.IRIS_CHAT, error);
-        }
+    private async _populateAvailableContexts(options?: { force?: boolean }): Promise<void> {
+        if (!this._courseCatalog) { return; }
+        await this._courseCatalog.fetch(options);
     }
 
     private _handleOpenHelpPopup(): void {
@@ -1307,6 +1286,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleOpenConversation(params: { courseId: number; sessionId: number }): Promise<void> {
         const conversation = this._conversationForNavigation('openConversation');
         if (!conversation) { return; }
+        // `navigateTo` may cross courses, and `setCourse` clears the summaries
+        // the row came from, so the name has to leave conversation state
+        // before the navigation starts. The `openConversation` command carries
+        // only ids. Programming exercises only, deliberately: a `LECTURE_CHAT`
+        // `entityId` would collide with an exercise id and hand back a wrong
+        // title with full confidence.
+        const snapshot = conversation.state.snapshot();
+        const row = snapshot.courseSessions
+            .concat(snapshot.knownInvisible)
+            .find(s => s.sessionId === params.sessionId);
+        if (row?.context.mode === 'PROGRAMMING_EXERCISE_CHAT' && row.context.name) {
+            this._courseCatalog?.upsertSupplemental({
+                kind: 'partial-exercise',
+                id: row.context.entityId,
+                courseId: row.courseId,
+                title: row.context.name,
+            }, this._courseCatalog?.currentEpoch ?? 0);
+        }
         try {
             // No notice: this navigation is exactly what the student asked for,
             // so there is nothing to explain.
@@ -1323,6 +1320,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleSwitchCourse(courseId: number): Promise<void> {
         const conversation = this._conversationForNavigation('switchCourse');
         if (!conversation) { return; }
+        // Captured BEFORE the navigation; see `_rememberCourseName`.
+        const epoch = this._courseCatalog?.currentEpoch ?? 0;
+        const knownTitle = this._courseCatalog?.courseTitle(courseId);
         try {
             // A course whose Iris is switched off is a destination, not a
             // failure: the service lands there with no conversation, INSIDE the
@@ -1331,6 +1331,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // answered inline, in the picker that is still open to hold it.
             const outcome = await conversation.switchCourse(courseId);
             if (outcome.kind === 'disabled') { this._announceCourseDisabled(courseId); }
+            // Only where we actually landed in the course. `stale` means a
+            // newer navigation won and `rejected` means we never went.
+            if (outcome.kind === 'opened' || outcome.kind === 'disabled') {
+                this._rememberCourseName(courseId, knownTitle, epoch);
+            }
         } catch (error: unknown) {
             logger.error('switchCourse failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
@@ -1354,7 +1359,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             if (outcome.kind === 'opened') {
                 this._postMessageSafe({
                     type: ExtensionMsg.ShowChatNotice,
-                    text: `Switched to ${this._contextStore.getCourseTitle(courseId) ?? 'another course'}.`,
+                    text: `Switched to ${this._courseCatalog?.courseTitle(courseId) ?? 'another course'}.`,
                 });
             }
             return outcome;
@@ -1383,7 +1388,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._availability.postAvailability({ kind: 'disabled' }, {
             type: 'course',
             id: courseId,
-            title: this._contextStore.getCourseTitle(courseId) ?? `Course ${courseId}`,
+            title: this._courseCatalog?.courseTitle(courseId) ?? `Course ${courseId}`,
         });
     }
 

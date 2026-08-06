@@ -33,6 +33,7 @@ export class NoopTelemetryManager implements ITelemetryManager {
     // Never registers a WebSocket message handler → no build results are processed.
     public setWebsocketService(_websocketService: ArtemisWebsocketService): void { /* no-op */ }
     public startExerciseSession(_exerciseId: number, _exerciseRoot?: vscode.Uri): void { /* no-op */ }
+    public endExerciseSession(): void { /* no-op */ }
     public getStruggleContext(): StruggleContext {
         return { isStruggling: false, eq: 0, eqConfidence: 'insufficient', recommendedAction: 'none' };
     }

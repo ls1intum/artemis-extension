@@ -7,7 +7,7 @@ export function createIrisInitPayload(
         type: 'updateIrisState',
         state: {
             exercises: [
-                { id: 10, title: 'Recent Exercise', shortName: 'RE', courseId: 1, isWorkspace: false },
+                { id: 10, title: 'Recent Exercise', shortName: 'RE', courseId: 1 },
             ],
             courses: [
                 { id: 1, title: 'Test Course', shortName: 'TC' },
@@ -28,6 +28,7 @@ export function createIrisInitPayload(
             // session, i.e. not a cold start: 'settled' is simply the value
             // that state would carry once detection has long since resolved.
             detectionState: 'settled',
+            coursesUnavailable: false,
             ...overrides,
         },
     };

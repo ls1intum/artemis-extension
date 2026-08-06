@@ -204,7 +204,7 @@ interface ExtensionMsgPayloads {
      */
     updateIrisState: {
         state: {
-            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean; releaseDate?: string; dueDate?: string; lastViewed?: number }>;
+            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; releaseDate?: string; dueDate?: string }>;
             courses: Array<{ id: number; title: string; shortName?: string; lastViewed?: number }>;
             courseId: number | undefined;
             courseTitle: string | undefined;
@@ -241,8 +241,24 @@ interface ExtensionMsgPayloads {
              * `ChatStartupCoordinator`'s `DetectionUiState`.
              */
             detectionState: 'unsettled' | 'settled' | 'unavailable';
+            /**
+             * The newest dashboard request could not reach the server. An
+             * empty `courses` alone cannot say whether the student has no
+             * courses or whether nobody could be asked, and only one of those
+             * two is a statement about their enrolment.
+             */
+            coursesUnavailable: boolean;
         };
         showDiagnostics?: boolean;
+        /**
+         * This snapshot is the answer to the webview's `refreshCourses`. The
+         * host posts snapshots for many reasons, and one arriving while a
+         * refresh is open is not a reply to it: without this marker the picker
+         * ends its wait on an unrelated snapshot and renders whatever the
+         * catalog held at the time, which on a cold start is "No courses
+         * found" while the real request is still in flight.
+         */
+        answersCourseRefresh?: boolean;
     };
     addMessage: {
         /**

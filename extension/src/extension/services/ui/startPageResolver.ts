@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import {
     collectExerciseSources,
     type DetectedExercise,
@@ -25,7 +25,7 @@ type StartPageResult =
 export class StartPageResolver {
     constructor(
         private readonly _artemisApi: ArtemisApiService,
-        private readonly _courseDataCache?: CourseDataCache,
+        private readonly _courseCatalog?: CourseCatalog,
     ) {}
 
     /**
@@ -101,8 +101,8 @@ export class StartPageResolver {
     }
 
     private async _fetchCourses(): Promise<CourseDashboardResponse> {
-        if (this._courseDataCache) {
-            const cached = await this._courseDataCache.fetch();
+        if (this._courseCatalog) {
+            const cached = await this._courseCatalog.fetch();
             if (cached) { return cached; }
         }
         // Cache unavailable or returned undefined — should not happen in production

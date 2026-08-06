@@ -35,6 +35,7 @@ const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = 
 	// here cares which value this carries: 'settled' keeps it out of the
 	// way.
 	detectionState: 'settled',
+	coursesUnavailable: false,
 	...overrides,
 });
 

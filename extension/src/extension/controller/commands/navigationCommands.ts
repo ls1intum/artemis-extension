@@ -44,6 +44,12 @@ export class NavigationCommandModule {
     private handleViewCourseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const { courseId } = getPayload<WebCmd<'viewCourseDetails'>>(message);
+            // BEFORE the fetch below, per `CommandContext.sessionEpoch`. A
+            // logout, a 401 or a server change can land while that request is
+            // open, and reading the epoch afterwards would stamp this server's
+            // course with the NEW session's generation, which is exactly the
+            // write the guard exists to reject.
+            const epoch = this.context.sessionEpoch();
             const cached = this.context.appStateManager.coursesData
                 ?.courses
                 ?.find(e => e.course?.id === courseId);
@@ -61,58 +67,33 @@ export class NavigationCommandModule {
                 return;
             }
 
-            await this.processCourseDetails(detail);
+            await this.processCourseDetails(detail, epoch);
         } catch (error: unknown) {
             logger.viewError('View course details error:', error);
             vscode.window.showErrorMessage('Error viewing course details');
         }
     };
 
-    private async processCourseDetails(detail: CourseDetailData): Promise<void> {
+    /** `epoch` is captured by the caller, before the fetch it may have issued. */
+    private async processCourseDetails(detail: CourseDetailData, epoch: number): Promise<void> {
         const course = detail.course;
         const courseId = course.id;
 
         this.context.appStateManager.showCourseDetail(detail);
-        this.context.courseAccessStorage?.onCourseAccessed(courseId);
+        // Gated on the caller's epoch, like the catalog write below: the scope
+        // this recency entry is filed under is resolved at write time, so a
+        // session change during the fetch would put this course into the new
+        // account's persisted history.
+        this.context.courseAccessStorage?.onCourseAccessed(courseId, epoch);
 
-        const registry = this.context.exerciseRegistry;
-        registry.registerFromCourseData({
-            course: {
-                id: courseId,
-                title: course.title,
-                exercises: course.exercises,
-            },
-        });
-
-        const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
-        const courseTitle = course.title;
-        const shortName = course.shortName;
-        if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
-            chatProvider.updateDetectedCourse(courseTitle, courseId, shortName);
-            logger.view('📚 [Course Detection] Notified chat about course:', courseTitle);
-        }
-
-        if (course.exercises && chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-            for (const exercise of course.exercises) {
-                if (
-                    exercise &&
-                    Array.isArray(exercise.studentParticipations) &&
-                    exercise.studentParticipations.length > 0 &&
-                    typeof exercise.id === 'number' &&
-                    typeof exercise.title === 'string'
-                ) {
-                    chatProvider.updateDetectedExercise(
-                        exercise.title,
-                        exercise.id,
-                        exercise.releaseDate ?? exercise.startDate,
-                        exercise.dueDate,
-                        exercise.shortName,
-                        courseId,
-                    );
-                    logger.view(`📚 [Course Exercises] Updated exercise from course: ${exercise.title} (ID: ${exercise.id})`);
-                }
-            }
-        }
+        // Writes the catalog's supplemental layer rather than the registry
+        // directly: the registry is rebuilt from the catalog projection now
+        // (Task 5), so a direct registry write would be data the next catalog
+        // event silently discards.
+        this.context.courseCatalog?.upsertSupplemental({
+            kind: 'course',
+            entry: { course: { id: courseId, title: course.title, shortName: course.shortName, exercises: course.exercises } },
+        }, epoch);
 
         this.context.actionHandler.render();
     }
@@ -190,8 +171,8 @@ export class NavigationCommandModule {
 
     private handleReloadCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            if (this.context.courseDataCache) {
-                await this.context.courseDataCache.fetch({ force: true });
+            if (this.context.courseCatalog) {
+                await this.context.courseCatalog.fetch({ force: true });
             }
             this.context.appStateManager.showCourseList();
             this.context.actionHandler.sendInitData();
@@ -263,12 +244,16 @@ export class NavigationCommandModule {
 
     private handleViewArchivedCourse = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { courseId } = getPayload<WebCmd<'viewArchivedCourse'>>(message);
+        // Before the fetch, per `CommandContext.sessionEpoch`. The course id
+        // was chosen by THIS session; recording it after an identity change
+        // would file it under the next account's recency key.
+        const epoch = this.context.sessionEpoch();
         try {
             vscode.window.showInformationMessage('Loading archived course details...');
 
             const courseData = await fetchArchivedCourseDetail(this.context.artemisApi, courseId);
             this.context.appStateManager.showCourseDetail(courseData);
-            this.context.courseAccessStorage?.onCourseAccessed(courseId);
+            this.context.courseAccessStorage?.onCourseAccessed(courseId, epoch);
             this.context.actionHandler.render();
         } catch (error: unknown) {
             logger.viewError('View archived course error:', error);

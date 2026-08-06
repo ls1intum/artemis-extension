@@ -3,7 +3,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry, type ExerciseRegistryEntry } from '@extension/services/exerciseRegistry';
 import { logger } from '@extension/services/loggingService';
 import type { CourseDashboardCourse, CourseDashboardEntry, ExerciseDetail } from '@extension/types';
@@ -410,7 +410,7 @@ export async function findWorkspaceCourseInArchive(
 }
 
 /**
- * Detect workspace exercise with registry population fallback, then register it in a ContextStore.
+ * Detect workspace exercise with registry population fallback, then register it via callbacks.
  * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
  */
 interface WorkspaceRegistrationCallbacks {
@@ -418,10 +418,8 @@ interface WorkspaceRegistrationCallbacks {
         id: number;
         title: string;
         shortName?: string;
-        courseId?: number;
+        courseId: number;
         repositoryUri?: string;
-        source: 'workspace-detected';
-        isWorkspace: true;
     }) => void;
     clearStaleWorkspaceContext: () => void;
 }
@@ -436,26 +434,30 @@ export async function detectWorkspaceExerciseForRepository(
     artemisApiService: ArtemisApiService | undefined,
     callbacks: WorkspaceRegistrationCallbacks,
     registry: ExerciseRegistry,
-    courseDataCache?: CourseDataCache,
+    courseCatalog?: CourseCatalog,
 ): Promise<DetectionOutcome> {
+    // Captured once, at the top: a write built from a later read could cross
+    // a session boundary that opened while this function was awaiting the
+    // server.
+    const epoch = courseCatalog?.currentEpoch ?? 0;
     let exercises = registry.getAllExercises();
     let reachable = true;
 
-    // If registry is empty, populate it from the shared course cache (or API as fallback).
-    // The cache deduplicates concurrent fetches so this is cheap if data is already loaded.
+    // If the registry is empty, ask the catalog to load. Detection deliberately
+    // does NOT write the registry itself: since Task 5 the registry is an index
+    // rebuilt from the catalog projection by the `onCoursesLoaded` subscription
+    // in `extension.ts`, and `EventEmitter.fire` is synchronous, so a successful
+    // fetch has already rebuilt it by the time it resolves. A write here would
+    // be a second source of truth, and one the epoch guard never sees.
     if (exercises.length === 0) {
         logger.irisChat('Registry empty, fetching courses to populate exercises...');
         try {
-            const dashboardData = await courseDataCache?.fetch();
+            const dashboardData = await courseCatalog?.fetch();
             if (!dashboardData) {
                 // _doFetch swallows its error and returns undefined, so this
                 // is the only signal the cache gives us. An empty `courses`
                 // array is a truthy response and stays reachable.
                 reachable = false;
-            } else {
-                for (const courseData of dashboardData.courses ?? []) {
-                    registry.registerFromCourseData(courseData);
-                }
             }
             exercises = registry.getAllExercises();
             logger.irisChat(`Registry populated with ${exercises.length} exercises`);
@@ -486,7 +488,19 @@ export async function detectWorkspaceExerciseForRepository(
             reachable = false;
         }
         if (archive.entry) {
-            registry.registerFromCourseData(archive.entry);
+            // The dashboard will never carry an archived course, and a forced
+            // refresh replaces the dashboard layer wholesale. Without this the
+            // exercise the student is actually working in disappears from the
+            // picker on the next refresh, and the archive probe never runs
+            // again because the registry still matches the folder.
+            //
+            // The catalog is the ONLY write. A direct `registerFromCourseData`
+            // here would put the archived course into the registry even when
+            // the line above just rejected it as belonging to another session,
+            // undoing the identity reset that had already cleared it. When the
+            // write is accepted, the rebuild has already run synchronously by
+            // the time `upsertSupplemental` returns.
+            courseCatalog?.upsertSupplemental({ kind: 'course', entry: archive.entry }, epoch);
             detected = findExerciseByRepositoryUrl(repositoryUrl, registry.getAllExercises());
         }
     }
@@ -514,15 +528,12 @@ export async function detectWorkspaceExerciseForRepository(
 
     logger.irisChat(`Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
 
-    const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
     callbacks.registerExercise({
         id: detected.id,
-        title: `${baseTitle} (Workspace)`,
+        title: detected.title,
         shortName: detected.shortName,
         courseId: detected.courseId,
         repositoryUri: detected.repositoryUri,
-        source: 'workspace-detected',
-        isWorkspace: true,
     });
     return { kind: 'matched', exerciseId: detected.id, courseId: detected.courseId };
 }
@@ -531,7 +542,7 @@ export async function detectAndRegisterWorkspaceExercise(
     artemisApiService: ArtemisApiService | undefined,
     callbacks: WorkspaceRegistrationCallbacks,
     exerciseRegistry: ExerciseRegistry,
-    courseDataCache?: CourseDataCache,
+    courseCatalog?: CourseCatalog,
     // Injected so the no-remote branch is testable. `getWorkspaceRepositoryUrl`
     // is called module-locally, so sinon cannot intercept it through the module
     // object; a default parameter is the smallest honest seam.
@@ -549,7 +560,7 @@ export async function detectAndRegisterWorkspaceExercise(
             return { kind: 'no-match' };
         }
         return await detectWorkspaceExerciseForRepository(
-            repositoryUrl, artemisApiService, callbacks, exerciseRegistry, courseDataCache,
+            repositoryUrl, artemisApiService, callbacks, exerciseRegistry, courseCatalog,
         );
     } catch (error) {
         // `noImplicitReturns` makes this mandatory, and the conservative answer

@@ -343,6 +343,13 @@ export class IrisConversationService {
         });
     }
 
+    /** See `ConversationState.resetForSessionChange`. Leaves the socket first. */
+    public resetForSessionChange(): void {
+        this._deps.leaveSession();
+        this.state.resetForSessionChange();
+        this.notifyChanged();
+    }
+
     /** Called by SendCoordinator's finally, so a deferred reload is not lost. */
     public runDeferredReload(): void {
         if (!this._reloadWhenSendSettles) { return; }

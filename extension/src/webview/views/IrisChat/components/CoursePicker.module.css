@@ -76,6 +76,39 @@
     color: var(--vscode-descriptionForeground);
 }
 
+/* Sits above rows that are still pickable, so it stays out of their way:
+   no vertical padding block of its own, and the warning tokens the chat's
+   own outage banner uses, so the same failure reads the same in both places. */
+.staleNotice {
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 12px;
+    background: var(--vscode-inputValidation-warningBackground);
+    color: var(--vscode-inputValidation-warningForeground);
+    border-bottom: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+
+.errorText {
+    margin: 0 0 10px;
+}
+
+/* Same tokens as the chat's own retry (IrisChatView.module.css): the two
+   surfaces report the same outage and must not look like different features. */
+.retryButton {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.15s;
+}
+
+.retryButton:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
 .skeleton {
     display: flex;
     flex-direction: column;

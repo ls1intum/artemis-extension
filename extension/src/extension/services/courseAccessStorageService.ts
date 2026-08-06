@@ -1,15 +1,17 @@
 import type * as vscode from 'vscode';
 
+import { buildCourseAccessKey } from '@extension/services/session/identityKeys';
+
 import { LogCategory, logger } from './loggingService';
 
+/** Already-normalized identity. Normalization happens once, in the coordinator. */
 export interface CourseAccessScope {
-    serverUrl: string;
-    principal: { id?: number; login?: string };
+    serverKey: string;
+    principal: string;
 }
 
 export type CourseAccessMap = Record<number, number>;
 
-const STORAGE_KEY_PREFIX = 'dashboard.courseAccess';
 export const COURSE_ACCESS_STORAGE_LIMIT = 20;
 export const COURSE_ACCESS_DISPLAY_LIMIT = 3;
 
@@ -26,9 +28,29 @@ export class CourseAccessStorageService {
     constructor(
         private readonly _globalState: vscode.Memento,
         private readonly _getScope: () => CourseAccessScope | null,
+        /**
+         * The generation the scope above belongs to. The same source the
+         * catalog writes compare against, so a navigation's two writes are
+         * gated on one value and cannot disagree.
+         */
+        private readonly _currentEpoch: () => number,
     ) {}
 
-    public onCourseAccessed(courseId: number): void {
+    /**
+     * Records that this course was opened.
+     *
+     * `capturedEpoch` is the caller's, read BEFORE the request that produced
+     * the course. The scope is resolved at write time, so without it a session
+     * change during that request would file the previous identity's course
+     * under the new account's key. That key is persisted in `globalState`, so
+     * unlike the in-memory state this survives a restart. Required rather than
+     * optional: a call site that may forget it is a call site that will.
+     */
+    public onCourseAccessed(courseId: number, capturedEpoch: number): void {
+        if (capturedEpoch !== this._currentEpoch()) {
+            logger.info('Dropping a recent-course write from another session', LogCategory.VIEW);
+            return;
+        }
         if (!Number.isFinite(courseId) || courseId <= 0) { return; }
         const scopeKey = this._currentScopeKey();
         if (!scopeKey) { return; }
@@ -70,10 +92,21 @@ export class CourseAccessStorageService {
             .map(([id]) => Number(id));
     }
 
+    /**
+     * When this course was last opened, for the chat picker's course order.
+     * `undefined` for a course outside the stored window, which sorts it after
+     * every remembered one: the same rule the Artemis client uses.
+     */
+    public getAccessTimestamp(courseId: number): number | undefined {
+        const scopeKey = this._currentScopeKey();
+        if (!scopeKey) { return undefined; }
+        return this._getShadow(scopeKey)[courseId];
+    }
+
     private _currentScopeKey(): string | null {
         const scope = this._getScope();
         if (!scope) { return null; }
-        return buildScopeKey(scope);
+        return buildCourseAccessKey(scope.serverKey, scope.principal);
     }
 
     private _getShadow(scopeKey: string): CourseAccessMap {
@@ -88,33 +121,4 @@ export class CourseAccessStorageService {
         this._shadow.set(scopeKey, copy);
         return copy;
     }
-}
-
-function buildScopeKey(scope: CourseAccessScope): string | null {
-    const server = normalizeServerUrl(scope.serverUrl);
-    if (!server) { return null; }
-    const principal = normalizePrincipal(scope.principal);
-    if (!principal) { return null; }
-    return `${STORAGE_KEY_PREFIX}::${server}::${principal}`;
-}
-
-function normalizeServerUrl(raw: string): string | null {
-    if (!raw || typeof raw !== 'string') { return null; }
-    try {
-        const url = new URL(raw.trim());
-        const protocol = url.protocol.toLowerCase();
-        const host = url.hostname.toLowerCase();
-        const defaultPort = protocol === 'https:' ? '443' : protocol === 'http:' ? '80' : '';
-        const port = url.port && url.port !== defaultPort ? `:${url.port}` : '';
-        const path = url.pathname.replace(/\/+$/, '');
-        return `${protocol}//${host}${port}${path}`;
-    } catch {
-        return null;
-    }
-}
-
-function normalizePrincipal(p: { id?: number; login?: string }): string | null {
-    if (typeof p.id === 'number' && Number.isFinite(p.id)) { return `id:${p.id}`; }
-    if (typeof p.login === 'string' && p.login.trim()) { return `login:${p.login.trim().toLowerCase()}`; }
-    return null;
 }

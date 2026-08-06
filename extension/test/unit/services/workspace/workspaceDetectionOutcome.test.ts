@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
     detectAndRegisterWorkspaceExercise,
@@ -29,7 +29,7 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
     test('an unreachable dashboard reports unavailable and does not clear the workspace', async () => {
         const clearStaleWorkspaceContext = sinon.spy();
         const fetch = sinon.stub().resolves(undefined);
-        const cache = { fetch } as unknown as CourseDataCache;
+        const cache = { fetch } as unknown as CourseCatalog;
 
         const outcome = await detectAndRegisterWorkspaceExercise(
             undefined,
@@ -48,7 +48,7 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
     test('a student with zero courses is a no-match, not an outage', async () => {
         const clearStaleWorkspaceContext = sinon.spy();
         const fetch = sinon.stub().resolves({ courses: [] });
-        const cache = { fetch } as unknown as CourseDataCache;
+        const cache = { fetch } as unknown as CourseCatalog;
 
         const outcome = await detectAndRegisterWorkspaceExercise(
             undefined,
@@ -92,7 +92,7 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
     test('an exercise with no course is not made the workspace exercise', async () => {
         const registerExercise = sinon.spy();
         const clearStaleWorkspaceContext = sinon.spy();
-        const cache = { fetch: async () => ({ courses: [] }) } as unknown as CourseDataCache;
+        const cache = { fetch: async () => ({ courses: [] }) } as unknown as CourseCatalog;
         // The orphan is already in the registry and matches REPO_URL, so the
         // core reaches the courseId branch deterministically.
         const registry = {
@@ -116,7 +116,7 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
 
     test('a folder with no git remote is a no-match even when the server is down', async () => {
         const clearStaleWorkspaceContext = sinon.spy();
-        const cache = { fetch: async () => undefined } as unknown as CourseDataCache;
+        const cache = { fetch: async () => undefined } as unknown as CourseCatalog;
 
         const outcome = await detectAndRegisterWorkspaceExercise(
             undefined,

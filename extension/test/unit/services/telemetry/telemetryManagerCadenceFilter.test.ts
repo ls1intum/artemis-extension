@@ -330,3 +330,48 @@ suite('TelemetryManager.dispose() — idempotent', () => {
         assert.doesNotThrow(() => tm.dispose());
     });
 });
+
+suite('TelemetryManager: exercise session across an identity change', () => {
+    let sandbox: sinon.SinonSandbox;
+    let tm: TelemetryManager;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns({
+            show: sandbox.stub(), hide: sandbox.stub(), dispose: sandbox.stub(),
+            text: '', tooltip: undefined, backgroundColor: undefined, command: undefined,
+        } as unknown as vscode.StatusBarItem);
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+        tm = new TelemetryManager();
+    });
+
+    teardown(() => {
+        tm.dispose();
+        sandbox.restore();
+    });
+
+    // `startExerciseSession` is deliberately a no-op for the id it is already
+    // tracking, so if the identity reset does not end the session, the next
+    // account working on an exercise with the same numeric id silently
+    // continues the previous account's session. That is corrupt research data.
+    test('ending the session lets the same exercise id start a fresh one', () => {
+        tm.startExerciseSession(77);
+        tm.onNewResult({
+            id: 1,
+            participation: { id: 5001 },
+            submission: { buildFailed: true },
+            successful: false,
+        });
+        assert.ok(tm.getEqEngineState().snapshots.length > 0, 'the first account produced data');
+
+        // What the identity reset now does, then the new account's workspace
+        // detection landing on an exercise with the same id.
+        tm.endExerciseSession();
+        tm.startExerciseSession(77);
+
+        assert.strictEqual(
+            tm.getEqEngineState().snapshots.length, 0,
+            'the new account must not inherit the previous one\'s session',
+        );
+    });
+});

@@ -7,17 +7,37 @@ import type { SessionDetail } from '@shared/types/serverContext';
 import { ArtemisApiService } from '@extension/api';
 import { ApiError } from '@extension/domain/errors';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
-import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { StartOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 interface Harness {
     provider: ChatWebviewProvider;
-    contextStore: ContextStore;
+    workspaceTracker: WorkspaceExerciseTracker;
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
     exerciseEvents: number[];
     sandbox: sinon.SinonSandbox;
+    courseCatalog: FakeCatalog;
+}
+
+/**
+ * The chat's picker source. Only the members the provider and its presenter
+ * read exist, and `projection()` answers from mutable arrays a test can fill,
+ * which is how a dashboard fetch is simulated without an HTTP layer.
+ */
+interface FakeCatalog {
+    onCoursesLoaded: vscode.Event<unknown>;
+    fetch: sinon.SinonStub;
+    currentEpoch: number;
+    courses: Array<{ id: number; title: string }>;
+    exercises: Array<{ id: number; courseId: number; title: string; pickable: boolean }>;
+    projection(): { courses: FakeCatalog['courses']; exercises: FakeCatalog['exercises'] };
+    courseTitle: sinon.SinonStub;
+    exerciseTitle: sinon.SinonStub;
+    upsertSupplemental: sinon.SinonStub;
+    /** Backed by `exercises`, the same array a test seeds through `projection()`. */
+    authoritativeCourseIdFor(exerciseId: number): number | undefined;
 }
 
 /**
@@ -33,7 +53,7 @@ function buildHarness(): Harness {
     sandbox.stub(vscode.window, 'showWarningMessage');
 
     const mockContext = new MockExtensionContext();
-    const contextStore = new ContextStore(mockContext);
+    const workspaceTracker = new WorkspaceExerciseTracker();
     const api = sinon.createStubInstance(ArtemisApiService);
     const websocket = {
         onDidChangeConnectionState: new vscode.EventEmitter<{ connected: boolean }>().event,
@@ -45,10 +65,19 @@ function buildHarness(): Harness {
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
+    const courseCatalog: FakeCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
-        fetch: async () => undefined,
+        fetch: sandbox.stub().resolves(undefined),
+        currentEpoch: 0,
+        courses: [],
+        exercises: [],
+        projection() { return { courses: this.courses, exercises: this.exercises }; },
+        courseTitle: sandbox.stub().returns(undefined),
+        exerciseTitle: sandbox.stub().returns(undefined),
+        upsertSupplemental: sandbox.stub(),
+        authoritativeCourseIdFor(exerciseId: number) { return this.exercises.find(e => e.id === exerciseId)?.courseId; },
     };
+    const sessionIdentity = { state: { kind: 'anonymous', serverKey: 'https://artemis.test' }, epoch: 0 };
 
     const provider = new ChatWebviewProvider(
         vscode.Uri.file('/tmp'),
@@ -57,15 +86,17 @@ function buildHarness(): Harness {
         websocket as never,
         noAi as never,
         registry as never,
-        courseDataCache as never,
+        courseCatalog as never,
         undefined,
-        contextStore,
+        workspaceTracker,
+        { getAccessTimestamp: () => undefined } as never,
+        sessionIdentity as never,
     );
 
     const exerciseEvents: number[] = [];
     provider.onDidChangeExerciseContext(({ exerciseId }) => exerciseEvents.push(exerciseId));
 
-    return { provider, contextStore, api, exerciseEvents, sandbox };
+    return { provider, workspaceTracker, api, exerciseEvents, sandbox, courseCatalog };
 }
 
 /** A minimal `vscode.WebviewView` double, just enough for `resolveWebviewView`
@@ -139,18 +170,9 @@ suite('ChatWebviewProvider: struggle decoupling', () => {
     setup(() => { h = buildHarness(); });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
-    test('registering a non-workspace exercise does not retarget struggle detection', () => {
-        // The provider used to fire _onDidChangeExerciseContext whenever the
-        // active chat context became an exercise, pointing the detector at an
-        // exercise whose code is not open. Only the WORKSPACE flag retargets it.
-        h.contextStore.registerExercise({ id: 7, title: 'Topic only', courseId: 42 });
-
-        assert.deepStrictEqual(h.exerciseEvents, []);
-    });
-
     test('a workspace detection change does retarget it', () => {
         h.provider.registerWorkspaceExercise({
-            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 5, title: 'BFS', courseId: 42,
         });
 
         assert.deepStrictEqual(h.exerciseEvents, [5]);
@@ -161,11 +183,11 @@ suite('ChatWebviewProvider: struggle decoupling', () => {
         h.provider.onDidChangeExerciseContext(({ previousExerciseId }) => previous.push(previousExerciseId));
 
         h.provider.registerWorkspaceExercise({
-            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 5, title: 'BFS', courseId: 42,
         });
-        h.contextStore.clearWorkspaceFlag();
+        h.workspaceTracker.clear();
         h.provider.registerWorkspaceExercise({
-            id: 6, title: 'DFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 6, title: 'DFS', courseId: 42,
         });
 
         assert.deepStrictEqual(h.exerciseEvents, [5, 6]);
@@ -206,7 +228,10 @@ suite('ChatWebviewProvider: Ask Iris', () => {
     });
 
     test('Ask-Iris resolves the course when the payload omits it', async () => {
-        h.contextStore.registerExercise({ id: 5, title: 'BFS', courseId: 42 });
+        // The catalog is the ONLY source now: a bare numeric exercise id keyed
+        // into a store with no server identity is exactly the defect this
+        // migration removes (issue #376).
+        h.courseCatalog.exercises.push({ id: 5, courseId: 42, title: 'BFS', pickable: true });
         h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
 
         await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' });
@@ -289,7 +314,7 @@ suite('ChatWebviewProvider: Ask Iris', () => {
     });
 
     test('Ask-Iris refuses an exercise whose course cannot be resolved', async () => {
-        // With a conversation OPEN. Neither the payload nor the store nor the
+        // With a conversation OPEN. Neither the payload nor the catalog nor the
         // API can say which course exercise 404 belongs to, so the cross-course
         // check has nothing to compare against and would wave it through. A
         // topic whose course is unknown may not be staged.
@@ -429,7 +454,7 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         // `start(undefined)` deliberately issues no request, so the assertion
         // would hold BEFORE the cutover too and prove nothing.
         h.provider.registerWorkspaceExercise({
-            id: 5, title: 'BFS', courseId: 42, source: 'workspace-detected', isWorkspace: true,
+            id: 5, title: 'BFS', courseId: 42,
         });
         h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42 }));
 
@@ -788,6 +813,18 @@ interface FakeConversation {
     switchCourseError?: unknown;
     switchOutcome: { kind: string; sessionId?: number; reason?: string };
     navigateError?: unknown;
+    /** `_acquireConversation`'s outcome from `conversation.start(workspace)`. */
+    startOutcome: StartOutcome;
+    /**
+     * The course `state.snapshot()` reports as current. Settable independently
+     * of `startOutcome` so a test can reproduce the exact case
+     * `_acquireConversation`'s `landedHere` guard exists for: `start()`
+     * resolves `ok` (its `_install` returned false, so the outcome is a lie
+     * about WHERE we landed) while a superseding navigation has already moved
+     * the conversation into a different course. Defaults to 42, the value
+     * every other test in this file already relies on implicitly.
+     */
+    snapshotCourseId: number;
 }
 
 function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation {
@@ -798,6 +835,8 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         newOutcome: { kind: 'opened', sessionId: 9 },
         switchOutcome: { kind: 'opened', sessionId: 5 },
         navigateThrows: false,
+        startOutcome: { kind: 'ok' },
+        snapshotCourseId: 42,
     };
     (provider as unknown as { _conversation: unknown })._conversation = {
         // The full surface the presenter reads: the provider posts a snapshot
@@ -805,12 +844,16 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
         // postSnapshot throw rather than fail an assertion.
         state: {
             get sendInFlight() { return fake.sendInFlight; },
-            snapshot: () => ({ currentSessionId: 1, courseId: 42, courseSessions: [], knownInvisible: [] }),
+            snapshot: () => ({ currentSessionId: 1, courseId: fake.snapshotCourseId, courseSessions: [], knownInvisible: [] }),
             displayMessageCount: () => 0,
             contentState: () => 'content',
             effectiveContext: () => undefined,
         },
         navigationInFlight: false,
+        start: async (workspace: unknown) => {
+            fake.calls.push({ name: 'start', args: workspace });
+            return fake.startOutcome;
+        },
         resolveTopicChange: async (target: unknown) => {
             fake.calls.push({ name: 'resolveTopicChange', args: target });
             return fake.topicOutcome;
@@ -1127,16 +1170,19 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         assert.deepStrictEqual(openErrorsFrom(postSpy), []);
     });
 
-    test('refreshCourses reads the dashboard into the store and re-posts the snapshot', async () => {
+    test('refreshCourses reads the dashboard into the catalog and re-posts the snapshot', async () => {
         const populate = h.sandbox.stub(
-            h.provider as unknown as { _populateAvailableContexts: () => Promise<void> },
+            h.provider as unknown as { _populateAvailableContexts: (o?: { force?: boolean }) => Promise<void> },
             '_populateAvailableContexts',
-        ).callsFake(async () => { h.contextStore.registerCourse({ id: 42, title: 'Algorithms' }); });
+        ).callsFake(async () => { h.courseCatalog.courses = [{ id: 42, title: 'Algorithms' }]; });
 
         dispatch(h.provider, 'refreshCourses');
         await settle();
 
         assert.strictEqual(populate.callCount, 1);
+        // Opening the picker is the gesture that means "what is there NOW", so
+        // a cached dashboard is not an answer to it.
+        assert.deepStrictEqual(populate.firstCall.args, [{ force: true }]);
         const states = postSpy.getCalls()
             .map(c => c.args[0] as { type?: string; state?: { courses: unknown[] } })
             .filter(m => m?.type === 'updateIrisState');
@@ -1148,8 +1194,6 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         // The contracts are gone, so a stale webview build posting one of the
         // old names must fall through to the utility handler and be logged,
         // never acted on.
-        const before = h.contextStore.snapshot();
-
         dispatch(h.provider, 'createNewSession' as never);
         dispatch(h.provider, 'switchSession' as never, { sessionId: 'local-1' });
         dispatch(h.provider, 'openArtemisSession' as never, { courseId: 42, artemisSessionId: 5 });
@@ -1158,7 +1202,6 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         await settle();
 
         assert.strictEqual(h.api.getCurrentChat.callCount, 0, 'no acquisition may be triggered');
-        assert.deepStrictEqual(h.contextStore.snapshot(), before);
     });
 });
 
@@ -1386,14 +1429,18 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
         assert.strictEqual(h.api.listChatSessionsForCourse.callCount, 0);
     });
 
-    test('registering courses does not open a conversation behind the cold start', async () => {
-        (h.provider as unknown as { _courseDataCache: unknown })._courseDataCache = {
-            fetch: async () => ({ courses: [{ course: { id: 42, title: 'Algorithms' } }] }),
-        };
+    test('reading the dashboard does not open a conversation behind the cold start', async () => {
+        h.courseCatalog.fetch.callsFake(async () => {
+            h.courseCatalog.courses = [{ id: 42, title: 'Algorithms' }];
+            return undefined;
+        });
 
-        await (h.provider as unknown as { _populateAvailableContexts: () => Promise<void> })._populateAvailableContexts();
+        await (h.provider as unknown as { _sendInitData: () => Promise<void> })._sendInitData();
 
-        assert.strictEqual(h.contextStore.snapshot().courses.length, 1, 'the picker still gets its list');
+        const states = postSpy.getCalls()
+            .map(c => c.args[0] as { type?: string; state?: { courses: unknown[] } })
+            .filter(m => m?.type === 'updateIrisState');
+        assert.strictEqual(states.at(-1)?.state?.courses.length, 1, 'the picker still gets its list');
         // Auto-select is what used to select a context, which the old
         // acquisition then turned into a real server session while the webview
         // was telling the student there was nothing to talk about.
@@ -1484,5 +1531,221 @@ suite('ChatWebviewProvider: startup admission', () => {
 
         assert.strictEqual(admit.called, false,
             'a refused command never reached the conversation, so it named no destination');
+    });
+});
+
+/**
+ * Task 8, Step 5b: the chat records what it knows of the course/exercise it
+ * just entered into the catalog's supplemental layer, so a header can keep
+ * naming a course or exercise the dashboard later drops. This suite pins the
+ * three call sites down directly, white-box, since the catalog write is a
+ * side effect with no other externally observable trace.
+ */
+suite('ChatWebviewProvider: naming what the chat enters, in the catalog', () => {
+    let h: Harness;
+
+    setup(() => { h = buildHarness(); });
+    teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
+
+    test('switchCourse records the course name once it lands', async () => {
+        const fake = injectFakeConversation(h.provider);
+        fake.switchOutcome = { kind: 'opened', sessionId: 5 };
+        h.courseCatalog.courseTitle.withArgs(43).returns('Algorithms');
+        h.courseCatalog.currentEpoch = 6;
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-course', id: 43, title: 'Algorithms' },
+            6,
+        );
+    });
+
+    test('switchCourse into a disabled course still records the name: the move happened', async () => {
+        injectFakeConversation(h.provider).switchOutcome = { kind: 'disabled' };
+        h.courseCatalog.courseTitle.withArgs(43).returns('Algorithms');
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.calledOnce(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('switchCourse records nothing when the course has no known title', async () => {
+        injectFakeConversation(h.provider).switchOutcome = { kind: 'opened', sessionId: 5 };
+        // courseTitle's default stub answer is undefined.
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('a stale switch records nothing: a newer navigation may have moved elsewhere', async () => {
+        injectFakeConversation(h.provider).switchOutcome = { kind: 'stale' };
+        h.courseCatalog.courseTitle.withArgs(43).returns('Algorithms');
+
+        dispatch(h.provider, 'switchCourse', { courseId: 43 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('a cold-start acquisition records the course name once it lands', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 9 }));
+        h.api.listChatSessionsForCourse.resolves([]);
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+        h.courseCatalog.currentEpoch = 2;
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-course', id: 9, title: 'Algorithms' },
+            2,
+        );
+        detection.dispose();
+    });
+
+    test('a cold start into a disabled course still records the name it landed in', async () => {
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+        h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        sinon.assert.calledOnce(h.courseCatalog.upsertSupplemental);
+        detection.dispose();
+    });
+
+    /**
+     * The crux case `landedHere` exists for (conversationService.ts:266): one
+     * `_install` path returns false (a superseding navigation won the race)
+     * while `start()` still resolves `{ kind: 'ok' }` regardless, because
+     * `ok` there means only "no error was thrown", never "we are now in the
+     * requested course". `injectFakeConversation`'s `start` reports whatever
+     * `startOutcome` says and `state.snapshot().courseId` is independently
+     * settable, so this pins the guard down directly rather than through the
+     * outcome kind alone. Paired with the sibling test below (identical
+     * setup, matching course id) so a broken guard that always skips the
+     * write cannot pass this test by accident.
+     */
+    test('a start reporting ok does not record the requested course when a superseding switch already moved elsewhere', async () => {
+        const fake = injectFakeConversation(h.provider);
+        fake.startOutcome = { kind: 'ok' };
+        fake.snapshotCourseId = 99;
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        assert.strictEqual(fake.calls.some(c => c.name === 'start'), true, 'the acquisition must actually have run');
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+        detection.dispose();
+    });
+
+    test('a start reporting ok that actually landed in the requested course does record it', async () => {
+        const fake = injectFakeConversation(h.provider);
+        fake.startOutcome = { kind: 'ok' };
+        fake.snapshotCourseId = 9;
+        h.courseCatalog.courseTitle.withArgs(9).returns('Algorithms');
+        h.courseCatalog.currentEpoch = 5;
+
+        const detection = new vscode.EventEmitter<DetectionOutcome>();
+        h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
+
+        await resolveView(h);
+        detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-course', id: 9, title: 'Algorithms' },
+            5,
+        );
+        detection.dispose();
+    });
+
+    test('openConversation records the exercise a history row names, before navigating', async () => {
+        const fake = injectFakeConversation(h.provider);
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot: () => unknown } };
+        })._conversation;
+        conversation.state.snapshot = () => ({
+            currentSessionId: 1,
+            courseId: 42,
+            courseSessions: [{
+                sessionId: 7, courseId: 42,
+                context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, name: 'BFS' },
+            }],
+            knownInvisible: [],
+        });
+        h.courseCatalog.currentEpoch = 4;
+
+        dispatch(h.provider, 'openConversation', { courseId: 42, sessionId: 7 });
+        await settle();
+
+        sinon.assert.calledOnceWithExactly(
+            h.courseCatalog.upsertSupplemental,
+            { kind: 'partial-exercise', id: 5, courseId: 42, title: 'BFS' },
+            4,
+        );
+        assert.deepStrictEqual(fake.calls, [{ name: 'navigateTo', args: { courseId: 42, sessionId: 7 } }],
+            'the write must happen before navigateTo, synchronously, so it cannot cross an epoch');
+    });
+
+    test('openConversation does not name a lecture history row: entityId collides with an exercise id', async () => {
+        injectFakeConversation(h.provider);
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot: () => unknown } };
+        })._conversation;
+        conversation.state.snapshot = () => ({
+            currentSessionId: 1,
+            courseId: 42,
+            courseSessions: [{
+                sessionId: 7, courseId: 42,
+                context: { mode: 'LECTURE_CHAT', entityId: 5, name: 'Lecture 1' },
+            }],
+            knownInvisible: [],
+        });
+
+        dispatch(h.provider, 'openConversation', { courseId: 42, sessionId: 7 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
+    });
+
+    test('openConversation records nothing for a row with no name', async () => {
+        injectFakeConversation(h.provider);
+        const conversation = (h.provider as unknown as {
+            _conversation: { state: { snapshot: () => unknown } };
+        })._conversation;
+        conversation.state.snapshot = () => ({
+            currentSessionId: 1,
+            courseId: 42,
+            courseSessions: [],
+            knownInvisible: [{
+                sessionId: 7, courseId: 42,
+                context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 },
+            }],
+        });
+
+        dispatch(h.provider, 'openConversation', { courseId: 42, sessionId: 7 });
+        await settle();
+
+        sinon.assert.notCalled(h.courseCatalog.upsertSupplemental);
     });
 });

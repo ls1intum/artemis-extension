@@ -120,12 +120,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
-                // The host answers a refresh with exactly one snapshot, so the
-                // next one after the request ends the wait. Keyed on the
-                // request being ANSWERED rather than on the list being
-                // non-empty: a student whose dashboard genuinely has no courses
-                // must reach "No courses found", not a permanent skeleton.
-                if (coursesRequested.current) {
+                // Keyed on the request being ANSWERED rather than on the list
+                // being non-empty: a student whose dashboard genuinely has no
+                // courses must reach "No courses found", not a permanent
+                // skeleton. `answersCourseRefresh` is what makes it THIS
+                // request's answer: cold start posts snapshots of its own
+                // while the forced fetch is open, and one of those ending the
+                // wait reports an empty list the host has not asked about yet.
+                if (coursesRequested.current && msg.answersCourseRefresh) {
                     coursesRequested.current = false;
                     setCoursesLoading(false);
                 }
@@ -459,19 +461,29 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setPickerOpen(true);
     };
 
-    // Only when there is nothing to show: `status: 'loading'` hides the list,
-    // so refreshing an already-populated picker would blank it under the
-    // student's cursor.
-    const requestCoursesIfEmpty = () => {
-        if (useChatStore.getState().courses.length > 0) { return; }
+    // Opening the picker IS the question "what is there now". The guard that
+    // used to sit here asked only when the list was empty, which, with a
+    // persisted list, meant never. The previous list stays rendered until the
+    // answer arrives, so the concern that guard named is still covered; only
+    // an empty list shows the loading state.
+    const requestCourses = () => {
         coursesRequested.current = true;
-        setCoursesLoading(true);
+        if (useChatStore.getState().courses.length === 0) { setCoursesLoading(true); }
         postCommand(vscodeApi, 'refreshCourses');
     };
 
+    // The same outage reads differently depending on what survived it. With
+    // no rows the failure is all there is to show; with rows, they stay
+    // pickable but unconfirmed, and saying so is what keeps this picker from
+    // presenting exactly the stale course list it was built to stop showing.
+    const coursePickerStatus = coursesLoading
+        ? 'loading'
+        : !store.coursesUnavailable ? 'ready'
+            : store.courses.length === 0 ? 'error' : 'stale';
+
     const openCoursePicker = (opener: HTMLElement) => {
         openerRef.current = opener;
-        requestCoursesIfEmpty();
+        requestCourses();
         setPickerOpen(false);
         setHistoryOpen(false);
         // Symmetric with `openHistory`: without this, a send-path error from
@@ -615,11 +627,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     useEffect(() => {
         if (!showCourseChooser || coldStartFetched.current) { return; }
         coldStartFetched.current = true;
-        requestCoursesIfEmpty();
+        requestCourses();
         // Reached from either precondition can trigger it, and the ref makes
-        // it once-only. `requestCoursesIfEmpty` is deliberately absent from
-        // the deps: it is a new function on every render and reads the
-        // store, not the closure.
+        // it once-only. `requestCourses` is deliberately absent from the
+        // deps: it is a new function on every render and reads the store,
+        // not the closure.
     }, [showCourseChooser]);
 
     const handleRetryStartupDetection = () => {
@@ -635,7 +647,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
      * `showCourseChooser` becoming true is what the `coldStartFetched` effect
      * above already watches, so THAT is the one fetch-if-needed call, the
      * same one the ordinary cold start reaches it through. Calling
-     * `requestCoursesIfEmpty` here too would fire it twice for one click.
+     * `requestCourses` here too would fire it twice for one click.
      */
     const handleChooseCourseFromOutage = () => {
         setOutageChooserRequested(true);
@@ -691,7 +703,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // be nothing to choose from at all.
         disabledPlaceholder = 'Looking for your Artemis exercise…';
     } else if (detectionUnavailable) {
-        disabledPlaceholder = 'Could not reach the Artemis server. Retry above.';
+        // Not "the server": this screen also covers a failure to read the
+        // stored credential, which is local. See the message-area copy below.
+        disabledPlaceholder = 'Detecting your Artemis exercise failed. Retry above.';
     } else if (!hasConversation) {
         disabledPlaceholder = 'Choose a course to start chatting';
     } else if (store.isNoAiDetected) {
@@ -802,8 +816,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <CoursePicker
                         courses={store.courses}
                         currentCourseId={store.courseId}
-                        status={coursesLoading ? 'loading' : 'ready'}
+                        status={coursePickerStatus}
                         openError={store.openSessionError}
+                        onRetry={requestCourses}
                         onSelect={(courseId) => {
                             // Deliberately does NOT close: a course switch that
                             // fails posts `openSessionError`, which needs a
@@ -915,15 +930,22 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             <div className={styles.messagesSection}>
                 {showCourseChooser ? (
                     <div className={styles.coldStart}>
+                        {/* The invitation is dropped when the picker below has
+                            nothing to offer: with the course list unreachable
+                            there is no course to choose, and the message it
+                            shows instead is the actionable one. */}
                         <p className={styles.coldStartText}>
-                            No Artemis workspace detected. Choose a course to get started.
+                            {coursePickerStatus === 'error'
+                                ? 'No Artemis workspace detected.'
+                                : 'No Artemis workspace detected. Choose a course to get started.'}
                         </p>
                         <CoursePicker
                             variant="inline"
                             courses={store.courses}
                             currentCourseId={store.courseId}
-                            status={coursesLoading ? 'loading' : 'ready'}
+                            status={coursePickerStatus}
                             openError={store.openSessionError}
+                            onRetry={requestCourses}
                             onSelect={(courseId) => postCommand(vscodeApi, 'switchCourse', { courseId })}
                             onClose={closePopovers}
                         />
@@ -960,7 +982,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     // this screen would be a dead end.
                     <div className={styles.coldStart}>
                         <p className={styles.coldStartText}>
-                            Could not reach the Artemis server to detect your workspace.
+                            {/*
+                              * Names the failure, not its cause. Three things
+                              * reach this screen: a dashboard or archive lookup
+                              * that threw, an identity lookup the server could
+                              * not answer, and a stored credential the keychain
+                              * could not read. The last one is local, so
+                              * blaming the server was simply wrong there. What
+                              * the wording must still keep is the difference
+                              * from a `no-match`: this says the attempt failed,
+                              * never that this folder is not an exercise.
+                              */}
+                            Detecting your Artemis exercise failed. This is usually temporary.
                         </p>
                         <button
                             className={styles.retryButton}

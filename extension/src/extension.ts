@@ -5,10 +5,12 @@ import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
 import { AuthManager } from '@extension/services/auth';
-import { CourseDataCache } from '@extension/services/courseDataCache';
+import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { normalizeServerUrl } from '@extension/services/session/identityKeys';
+import { SessionIdentityCoordinator } from '@extension/services/session/sessionIdentityCoordinator';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
@@ -17,6 +19,7 @@ import {
     buildChatProviderSink,
     wireWorkspaceDetection,
 } from '@extension/services/workspace/wireWorkspaceDetection';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import {
     authenticateFromEnvironment,
     detectPlatformCapabilities,
@@ -61,6 +64,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	// view-resolution attempt — including Theia's layout-restore — finds a
 	// registered provider with the correct environment already in place.
 	const artemisApiService = new ArtemisApiService(authManager);
+
+	// `serverKey` is a FUNCTION: the configured URL can change at runtime, and a
+	// value captured here would key every later session to the startup server.
+	const sessionIdentity = new SessionIdentityCoordinator({
+		serverKey: () => normalizeServerUrl(resolveServerUrl()) ?? resolveServerUrl(),
+		hasAuthToken: () => authManager.hasAuthToken(),
+		getCurrentUser: () => artemisApiService.getCurrentUser(),
+	});
+	context.subscriptions.push(sessionIdentity);
+
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const exerciseRegistry = new ExerciseRegistry();
@@ -76,6 +89,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	const updateAuthContext = async (isAuthenticated: boolean) => {
+		if (isAuthenticated) {
+			// A login just succeeded; find out who it was.
+			void sessionIdentity.resolvePrincipal();
+		} else {
+			// The ONLY signal on the startup-401 path: AuthFlowHandler clears the
+			// credentials and calls this updater without touching anything else.
+			// It also bumps the attempt token, so a principal lookup still open
+			// right now cannot undo it.
+			sessionIdentity.setAnonymous(normalizeServerUrl(resolveServerUrl()) ?? resolveServerUrl());
+		}
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
@@ -104,17 +127,27 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	const courseDataCache = new CourseDataCache(artemisApiService);
-	context.subscriptions.push(courseDataCache);
+	const courseCatalog = new CourseCatalog(artemisApiService);
+	context.subscriptions.push(courseCatalog);
+
+	// Constructed AFTER the catalog, and reading the catalog's epoch rather
+	// than `sessionIdentity.epoch`: every call site captures its epoch from the
+	// catalog, and the coordinator can bump its own generation before `attach`
+	// installs the first one here, which would make every recency write look
+	// stale. One source, shared with the catalog writes these calls sit next to.
+	const courseAccessStorage = new CourseAccessStorageService(
+		context.globalState,
+		() => sessionIdentity.accessScope(),
+		() => courseCatalog.currentEpoch,
+	);
+
 	const providerRegistry = createProviderRegistry();
 
-	context.subscriptions.push(courseDataCache.onCoursesLoaded(data => {
-		const courses = data.courses;
-		if (courses && Array.isArray(courses)) {
-			for (const entry of courses) {
-				exerciseRegistry.registerFromCourseData(entry);
-			}
-		}
+	context.subscriptions.push(courseCatalog.onCoursesLoaded(() => {
+		// The registry is an INDEX over the catalog now. Rebuilding rather than
+		// adding is what makes a deleted exercise stop answering repository
+		// matches; `registerFromCourseData` could only ever grow it.
+		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
 
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
@@ -122,25 +155,30 @@ export async function activate(context: vscode.ExtensionContext) {
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
-		exerciseRegistry,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
 		telemetryManager,
 		updateAuthContext,
-		courseDataCache,
+		courseAccessStorage,
+		courseCatalog,
 	});
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const contextStore = new ContextStore(context);
-	context.subscriptions.push(contextStore);
+	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
+	// data, an unbounded, unscoped list of every course and exercise this
+	// installation ever saw, sitting in globalState forever.
+	void context.globalState.update('iris.contextStore', undefined);
+
+	const workspaceTracker = new WorkspaceExerciseTracker();
+	context.subscriptions.push(workspaceTracker);
 
 	const chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
-		noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager,
-		contextStore,
+		noAiDetectionService, exerciseRegistry, courseCatalog, telemetryManager,
+		workspaceTracker, courseAccessStorage, sessionIdentity,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
@@ -152,11 +190,22 @@ export async function activate(context: vscode.ExtensionContext) {
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
 
+	sessionIdentity.attach({
+		resetConversation: () => chatWebviewProvider.resetForSessionChange(),
+		endTelemetrySession: () => telemetryManager.endExerciseSession(),
+		clearWorkspaceTracker: () => workspaceTracker.clear(),
+		clearCatalog: () => courseCatalog.resetTo(sessionIdentity.epoch),
+		resetRegistry: () => exerciseRegistry.reset(),
+		publishEmptyChatSnapshot: () => chatWebviewProvider.publishSnapshot(),
+		rearmStartup: () => chatWebviewProvider.resetStartupForNewSession(),
+	});
+
 	const workspaceDetection = wireWorkspaceDetection({
 		api: artemisApiService,
 		registry: exerciseRegistry,
-		courseDataCache,
+		courseCatalog,
 		sink: buildChatProviderSink(chatWebviewProvider),
+		session: sessionIdentity,
 	});
 	context.subscriptions.push(workspaceDetection);
 	chatWebviewProvider.attachStartupDetection(workspaceDetection);
@@ -205,6 +254,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		};
 	}
 
+	// Establishes the identity independently of any webview. `AuthFlowHandler`
+	// only runs when the Artemis SIDEBAR resolves, and a student who works in
+	// the Iris chat alone never resolves it.
+	void sessionIdentity.resolvePrincipal();
+
 	// Initial auth state — checks both memory (Theia) and SecretStorage (VS Code)
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
@@ -232,7 +286,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		chatWebviewProvider,
 		capabilities,
 		exerciseRegistry,
-		contextStore,
+		workspaceTracker,
 	});
 
 	// Configuration listener for the Artemis server URL.
@@ -260,8 +314,20 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			lastServerUrl = newServerUrl;
+			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
+			// Before the credential check on purpose. The old code only acted when
+			// a token existed, so changing the server while logged out left every
+			// in-memory component holding the previous server's courses.
+			//
+			// Deliberately NOT `resolvePrincipal()`: the stored token is global
+			// rather than per server, so a lookup started here would read the OLD
+			// server's token and ask the NEW server who it belongs to. A server
+			// change never intends to preserve authentication, so it publishes
+			// anonymous and lets the login flow resolve the principal afterwards.
+			sessionIdentity.beginResolving(serverKey);
 			try {
 				if (!(await authManager.hasAuthToken())) {
+					sessionIdentity.setAnonymous(serverKey);
 					return;
 				}
 				logger.info('Artemis server URL changed; clearing credentials stored for the previous server', LogCategory.CONFIG);
@@ -271,6 +337,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');
 			} catch (error) {
 				logger.error('Failed to clear credentials after server URL change', LogCategory.AUTH, error);
+				// `anonymous`, not the `resolving` this catch would otherwise
+				// leave behind. `resolvePrincipal` may stay `resolving` on a
+				// failed token read because a later login retries it; nothing
+				// retries THIS listener, so a throw (SecretStorage can reject,
+				// e.g. an unavailable keychain) would park the session with no
+				// access scope and, once detection is session-scoped, no
+				// detection either. A server change never intends to preserve
+				// authentication, so anonymous is both true and terminal.
+				sessionIdentity.setAnonymous(serverKey);
 			}
 		}));
 	}

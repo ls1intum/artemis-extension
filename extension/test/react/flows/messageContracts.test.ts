@@ -218,6 +218,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
                 ],
                 workspaceExerciseId: 12,
                 detectionState: 'settled',
+                coursesUnavailable: false,
             },
         } satisfies ExtMsg<'updateIrisState'>;
 
