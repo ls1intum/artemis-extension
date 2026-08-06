@@ -1455,11 +1455,12 @@ describe('IrisChatView transcript keying', () => {
         expect(send?.payload?.sessionId).toBe(900);
     });
 
-    it('holds the server echo of our own send instead of rendering it a second time (issue #380)', async () => {
+    it('never shows the student their own message twice, even when the echo beats the response (issue #380)', async () => {
         // The real path: the server's echo of our own prompt arrives as an
         // addMessage wire frame (irisWebSocketMessageHandler.ts's
         // _renderForeignUserMessage), which IrisChatView routes through
-        // applyCommit, not through the store's addMessage.
+        // applyCommit, not through the store's addMessage. The POST response
+        // that names the message follows later as confirmSentMessage.
         const api = createMockVsCodeApi();
         render(<IrisChatView vscodeApi={api} />);
         dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
@@ -1469,13 +1470,32 @@ describe('IrisChatView transcript keying', () => {
         await userEvent.type(screen.getByRole('textbox'), 'hello{Enter}');
         await screen.findByText('hello');
 
+        const localId = getPostMessageCalls(api)
+            .map(([m]) => m as { command?: string; payload?: { localId?: string } })
+            .find(m => m.command === 'sendMessage')?.payload?.localId as string;
+
+        // The websocket echo wins the race.
         dispatchExtensionMessage({
             type: 'addMessage',
             sessionId: 900,
             message: { id: 91, role: 'user', content: 'hello', timestamp: 2 },
         });
 
-        await waitFor(() => expect(useChatStore.getState().pendingEcho?.message.id).toBe(91));
+        // This is the window the student sees. It must not contain two.
+        // Waited, not asserted bare: the store update from the dispatched
+        // event above lands outside React's `act`, so an immediate query can
+        // observe the DOM before the echo has actually rendered, letting a
+        // real duplicate slip past an unwaited assertion.
+        await waitFor(() => expect(screen.getAllByText('hello')).toHaveLength(1));
+
+        // The POST response arrives after, naming the message.
+        dispatchExtensionMessage({
+            type: 'confirmSentMessage',
+            sessionId: 900,
+            localId,
+            id: 91,
+        });
+
         expect(screen.getAllByText('hello')).toHaveLength(1);
     });
 
