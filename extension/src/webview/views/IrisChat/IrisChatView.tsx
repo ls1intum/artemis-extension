@@ -930,8 +930,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             <div className={styles.messagesSection}>
                 {showCourseChooser ? (
                     <div className={styles.coldStart}>
+                        {/* The invitation is dropped when the picker below has
+                            nothing to offer: with the course list unreachable
+                            there is no course to choose, and the message it
+                            shows instead is the actionable one. */}
                         <p className={styles.coldStartText}>
-                            No Artemis workspace detected. Choose a course to get started.
+                            {coursePickerStatus === 'error'
+                                ? 'No Artemis workspace detected.'
+                                : 'No Artemis workspace detected. Choose a course to get started.'}
                         </p>
                         <CoursePicker
                             variant="inline"

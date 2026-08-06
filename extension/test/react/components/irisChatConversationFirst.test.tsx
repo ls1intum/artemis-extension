@@ -1577,6 +1577,9 @@ describe('IrisChatView actions that used to read the old model', () => {
         // host could not ask, so it must not be made.
         expect(await screen.findByText(/Could not load your courses/)).toBeInTheDocument();
         expect(screen.queryByText('No courses found')).toBeNull();
+        // Nor may the line above it hand out an instruction that cannot be
+        // followed: there is no course to choose in this state.
+        expect(screen.queryByText(/Choose a course to get started/)).toBeNull();
     });
 
     it('retrying from the unreachable state asks the host again', async () => {
@@ -1635,5 +1638,6 @@ describe('IrisChatView actions that used to read the old model', () => {
 
         expect(await screen.findByText('No courses found')).toBeInTheDocument();
         expect(screen.queryByText(/Could not load your courses/)).toBeNull();
+        expect(screen.getByText(/Choose a course to get started/)).toBeInTheDocument();
     });
 });
