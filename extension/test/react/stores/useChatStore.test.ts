@@ -814,7 +814,7 @@ describe('useChatStore', () => {
 			useChatStore.getState().confirmSentMessage('local-1', 55);
 
 			const users = useChatStore.getState().messages.filter((m) => m.role === 'user');
-			expect(users.map((m) => m.id).sort()).toEqual([55, 91]);
+			expect(users.map((m) => m.id).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([55, 91]);
 			expect(useChatStore.getState().pendingEcho).toBeNull();
 		});
 
@@ -880,6 +880,74 @@ describe('useChatStore', () => {
 			// One slot. The second echo cannot be the one we are waiting on as well,
 			// and confirmSentMessage folds it by id if it turns out to be ours.
 			expect(useChatStore.getState().messages.some((m) => m.id === 92)).toBe(true);
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
+		});
+
+		it('holds the server echo when it arrives through applyCommit, the real production path', () => {
+			// IrisChatView routes every addMessage wire frame (including the
+			// server's echo of our own prompt) through applyCommit, never
+			// through the store's addMessage (IrisChatView.tsx:140-160). The
+			// store's own addMessage is only ever called for the optimistic
+			// bubble (IrisChatView.tsx:320), which never carries a server id,
+			// so a hold that lives only in addMessage can never fire in
+			// production. A user echo carries no run-UI projection
+			// (irisWebSocketMessageHandler.ts's _renderForeignUserMessage
+			// sends none), which is the shape asserted here.
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+
+			store.applyCommit(
+				{ id: 55, localId: 'echo', role: 'user', content: 'hi', timestamp: 2, status: 'sent' },
+				undefined,
+				7,
+			);
+
+			const users = useChatStore.getState().messages.filter((m) => m.role === 'user');
+			expect(users).toHaveLength(1);
+			expect(users[0].localId).toBe('local-1');
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(55);
+			expect(useChatStore.getState().pendingEcho?.localId).toBe('local-1');
+		});
+
+		it('does not hold a commit that carries a run-UI projection, even if it looks like an echo', () => {
+			// The hold is scoped to the projection-less case on purpose: a
+			// commit with a projection attached must keep applying it
+			// atomically, which is applyCommit's entire reason to exist.
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+
+			store.applyCommit(
+				{ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2, status: 'sent' },
+				{ sessionId: 7, revision: 1, draft: null, activities: [], waiting: false, runState: null },
+				7,
+			);
+
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+			expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(true);
+			expect(useChatStore.getState().lastRunUiRevision).toBe(1);
+		});
+
+		it('does not release the buffer when markMessageFailed does not actually mark a bubble failed', () => {
+			// The bubble the echo is waiting on can leave the list some other
+			// way (e.g. applyLoadedMessages replacing the transcript wholesale
+			// during reconnect reconciliation) without going through
+			// removeMessage's owner-bound release. A later, stale
+			// markMessageFailed for that localId must not release the buffer
+			// either: the buffer is supposed to honour the exact same
+			// staleness rule the function's own guard already enforces.
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			expect(useChatStore.getState().pendingEcho?.localId).toBe('local-1');
+
+			store.applyLoadedMessages(7, []);
+
+			const returnValue = useChatStore.getState().markMessageFailed('local-1', 'stale', 'iris-unavailable');
+
+			expect(returnValue).toBe(false);
 			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
 		});
 	});

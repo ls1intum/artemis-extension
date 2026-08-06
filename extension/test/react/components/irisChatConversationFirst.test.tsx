@@ -1454,6 +1454,30 @@ describe('IrisChatView transcript keying', () => {
             .find(m => m.command === 'sendMessage');
         expect(send?.payload?.sessionId).toBe(900);
     });
+
+    it('holds the server echo of our own send instead of rendering it a second time (issue #380)', async () => {
+        // The real path: the server's echo of our own prompt arrives as an
+        // addMessage wire frame (irisWebSocketMessageHandler.ts's
+        // _renderForeignUserMessage), which IrisChatView routes through
+        // applyCommit, not through the store's addMessage.
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage(transcript(900, 'first'));
+        await screen.findByText('first');
+
+        await userEvent.type(screen.getByRole('textbox'), 'hello{Enter}');
+        await screen.findByText('hello');
+
+        dispatchExtensionMessage({
+            type: 'addMessage',
+            sessionId: 900,
+            message: { id: 91, role: 'user', content: 'hello', timestamp: 2 },
+        });
+
+        await waitFor(() => expect(useChatStore.getState().pendingEcho?.message.id).toBe(91));
+        expect(screen.getAllByText('hello')).toHaveLength(1);
+    });
 });
 
 describe('IrisChatView actions that used to read the old model', () => {

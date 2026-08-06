@@ -275,6 +275,22 @@ function ownsPendingEcho(state: ChatState, localId: string): boolean {
     return state.pendingEcho?.localId === localId;
 }
 
+/**
+ * The bubble `message` should be held against instead of being upserted
+ * straight away, if any: a user message that already carries a server id,
+ * while exactly one optimistic bubble is still waiting for one and nothing
+ * is held yet. Shared by both entry points our own echo can arrive through:
+ * the store's `addMessage` (called directly by tests, and for the
+ * optimistic bubble itself) and `applyCommit` (the real path a wire
+ * `addMessage` frame is routed through, IrisChatView.tsx:140-160).
+ */
+function echoOwner(state: ChatState, message: ChatMessage): ChatMessage | undefined {
+    if (message.role !== 'user' || message.id === undefined || state.pendingEcho !== null) {
+        return undefined;
+    }
+    return soleSendingBubble(state.messages);
+}
+
 export const useChatStore = create<ChatState>()(
     devtools(
         (set) => ({
@@ -367,9 +383,7 @@ export const useChatStore = create<ChatState>()(
             addMessage: (message, sessionId) => {
                 const state = useChatStore.getState();
                 if (sessionId !== undefined && sessionId !== state.currentSessionId) { return; }
-                const owner = message.role === 'user' && message.id !== undefined && state.pendingEcho === null
-                    ? soleSendingBubble(state.messages)
-                    : undefined;
+                const owner = echoOwner(state, message);
                 if (owner && state.currentSessionId !== null) {
                     set(
                         { pendingEcho: { message, sessionId: state.currentSessionId, localId: owner.localId } },
@@ -400,6 +414,28 @@ export const useChatStore = create<ChatState>()(
                 const currentSessionId = useChatStore.getState().currentSessionId;
                 if (messageSessionId !== currentSessionId) { return; }
 
+                // The real path our own echo arrives on: IrisChatView routes
+                // every addMessage wire frame through applyCommit, never
+                // through the store's addMessage. A user echo never carries a
+                // projection (irisWebSocketMessageHandler.ts's
+                // _renderForeignUserMessage sends none), and a commit that
+                // DOES carry one must keep applying it atomically, which is
+                // this action's entire purpose, so the hold is scoped to the
+                // projection-less case only. This capture is non-terminal: it
+                // only ever adds to the buffer, never releases it.
+                if (projection === undefined) {
+                    const state = useChatStore.getState();
+                    const owner = echoOwner(state, message);
+                    if (owner && state.currentSessionId !== null) {
+                        set(
+                            { pendingEcho: { message, sessionId: state.currentSessionId, localId: owner.localId } },
+                            false,
+                            'holdEcho',
+                        );
+                        return;
+                    }
+                }
+
                 // One set() so the message and its run state can never be
                 // observed apart, and the draft is never cleared first.
                 set((s) => {
@@ -421,17 +457,22 @@ export const useChatStore = create<ChatState>()(
             },
 
             markMessageFailed: (localId, errorMessage, errorReason) => {
-                // This send is over and will never name an id, so whatever it
-                // was holding belongs to somebody else and must be shown. Only
-                // for the owning bubble: a stale rejection for another send
-                // says nothing, exactly as the guard below already treats it.
-                if (ownsPendingEcho(useChatStore.getState(), localId)) {
-                    useChatStore.getState().flushPendingEcho();
-                }
                 const current = useChatStore.getState().messages;
                 const target = current.find((m) => m.localId === localId);
                 if (!target || target.role !== 'user' || target.status !== 'sending') {
                     return false;
+                }
+                // Only past this point does the send actually get marked
+                // failed. It is over and will never name an id, so if it was
+                // the bubble the held echo was waiting on, whatever the echo
+                // is belongs to somebody else and must be shown now. Placed
+                // AFTER the guard above rather than before it: a call that
+                // does not actually mark anything failed (the bubble already
+                // left some other way, or was never a pending user send) must
+                // not release the buffer either, the same staleness rule the
+                // guard just enforced for the mark-failed itself.
+                if (ownsPendingEcho(useChatStore.getState(), localId)) {
+                    useChatStore.getState().flushPendingEcho();
                 }
                 set((state) => ({
                     messages: state.messages.map((m) =>
@@ -476,7 +517,11 @@ export const useChatStore = create<ChatState>()(
                     // The id settles whose message it is. Equal means the
                     // bubble and the echo are one message and the echo is
                     // redundant; different means it was somebody else's and
-                    // has been waiting to be shown.
+                    // has been waiting to be shown. Discarding it here rather
+                    // than flushing it means the coalescing below keeps the
+                    // LOCAL row as the survivor, where the old echo-in-messages
+                    // coalescing (the branch just below, for the case the echo
+                    // beat this call without a hold) kept the SERVER row instead.
                     if (store.pendingEcho?.message.id === id) {
                         set({ pendingEcho: null }, false, 'discardEcho');
                     } else {
