@@ -365,6 +365,12 @@ export const useChatStore = create<ChatState>()(
                         && (state.courseId ?? null) === previous.courseId
                         ? previous.notice
                         : null,
+                    // A held echo belongs to the conversation it was captured
+                    // in. Carrying it across would show one conversation's
+                    // message in another.
+                    pendingEcho: previous.pendingEcho?.sessionId === (state.currentSessionId ?? null)
+                        ? previous.pendingEcho
+                        : null,
                 }), false, 'setIrisState');
             },
 
@@ -372,6 +378,9 @@ export const useChatStore = create<ChatState>()(
                 set({
                     messages,
                     loadedSessionId: sessionId,
+                    // The server's own transcript replaces everything we were
+                    // holding, and it already contains whatever the echo was.
+                    pendingEcho: null,
                 }, false, 'applyLoadedMessages');
             },
 

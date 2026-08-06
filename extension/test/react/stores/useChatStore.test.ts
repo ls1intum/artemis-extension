@@ -929,14 +929,12 @@ describe('useChatStore', () => {
 			expect(useChatStore.getState().lastRunUiRevision).toBe(1);
 		});
 
-		it('does not release the buffer when markMessageFailed does not actually mark a bubble failed', () => {
-			// The bubble the echo is waiting on can leave the list some other
-			// way (e.g. applyLoadedMessages replacing the transcript wholesale
-			// during reconnect reconciliation) without going through
-			// removeMessage's owner-bound release. A later, stale
-			// markMessageFailed for that localId must not release the buffer
-			// either: the buffer is supposed to honour the exact same
-			// staleness rule the function's own guard already enforces.
+		it('a stale markMessageFailed after applyLoadedMessages already cleared the buffer stays inert', () => {
+			// applyLoadedMessages now clears the buffer itself (see the
+			// "drops a held echo when the transcript is replaced" test), so
+			// by the time this stale markMessageFailed runs there is nothing
+			// left to release. It must still report no match and must not
+			// resurrect or otherwise touch a buffer that is already empty.
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
@@ -944,10 +942,65 @@ describe('useChatStore', () => {
 			expect(useChatStore.getState().pendingEcho?.localId).toBe('local-1');
 
 			store.applyLoadedMessages(7, []);
+			expect(useChatStore.getState().pendingEcho).toBeNull();
 
 			const returnValue = useChatStore.getState().markMessageFailed('local-1', 'stale', 'iris-unavailable');
 
 			expect(returnValue).toBe(false);
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('drops a held echo when the transcript is replaced', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			// A reload hands over the server's transcript, which already contains it:
+			// the host records every websocket message before rendering it
+			// (irisWebSocketMessageHandler.ts:101).
+			useChatStore.getState().applyLoadedMessages(7, [
+				{ id: 91, localId: 'server', role: 'user', content: 'hi', timestamp: 2 },
+			]);
+
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+			expect(useChatStore.getState().messages.filter((m) => m.id === 91)).toHaveLength(1);
+		});
+
+		it('drops a held echo when the open conversation changes', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			store.setIrisState(makeIrisState({ currentSessionId: 8 }));
+
+			expect(useChatStore.getState().pendingEcho).toBeNull();
+		});
+
+		it('keeps a held echo across a snapshot for the same conversation', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			// Snapshots arrive for many reasons while a send is in flight.
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
+		});
+
+		it('does not release a held echo on a reconnect merge', () => {
+			const store = useChatStore.getState();
+			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
+			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
+			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+
+			// Reconciliation, not proof that this POST settled.
+			useChatStore.getState().mergeLoadedMessages(7, [
+				{ id: 91, localId: 'server', role: 'user', content: 'hi', timestamp: 2 },
+			]);
+
 			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
 		});
 	});
