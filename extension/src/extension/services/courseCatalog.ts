@@ -124,6 +124,14 @@ export class CourseCatalog implements vscode.Disposable {
      */
     private _requestSeq = 0;
     private _inflight: Promise<CourseDashboardResponse | undefined> | undefined;
+
+    /**
+     * The newest dashboard request failed. Read by the picker so an empty
+     * list can say "could not ask" instead of "you have no courses": the two
+     * are indistinguishable from the list alone, and the wrong one of them is
+     * a lie about the student's enrolment.
+     */
+    private _lastFetchFailed = false;
     private _epoch = 0;
 
     private readonly _onCoursesLoaded = new vscode.EventEmitter<CourseDashboardResponse>();
@@ -148,6 +156,11 @@ export class CourseCatalog implements vscode.Disposable {
         return { ...this._dashboardExtras, courses: [...dashboard, ...extras] };
     }
 
+    /** Whether the newest dashboard request failed to reach the server. */
+    public get coursesUnavailable(): boolean {
+        return this._lastFetchFailed;
+    }
+
     public async fetch(options?: { force?: boolean }): Promise<CourseDashboardResponse | undefined> {
         if (this._dashboard && !options?.force) { return this.get(); }
         if (this._inflight && !options?.force) { return this._inflight; }
@@ -170,12 +183,17 @@ export class CourseCatalog implements vscode.Disposable {
             data = await this._api.getCoursesForDashboard();
         } catch (error) {
             logger.error('CourseCatalog: failed to fetch courses', LogCategory.GENERAL, error);
+            // Only the newest request speaks for the current state. A
+            // superseded request's failure must not label a list that a newer
+            // request has already filled.
+            if (token === this._requestSeq && epoch === this._epoch) { this._lastFetchFailed = true; }
             return undefined;
         }
         if (token !== this._requestSeq || epoch !== this._epoch) {
             logger.info('CourseCatalog: discarding a superseded dashboard response', LogCategory.GENERAL);
             return this.get();
         }
+        this._lastFetchFailed = false;
         const { courses, ...extras } = data;
         this._dashboard = courses ?? [];
         this._dashboardExtras = extras;
@@ -348,6 +366,12 @@ export class CourseCatalog implements vscode.Disposable {
         this._dashboardExtras = undefined;
         this._supplemental.clear();
         this._inflight = undefined;
+        this._lastFetchFailed = false;
+        // Orphaning in-flight results is this method's contract, and the epoch
+        // alone cannot deliver it: `clear()` resets to the SAME epoch, which
+        // leaves an open request matching on both counts, free to install a
+        // pre-reset dashboard afterwards. The request generation closes that.
+        this._requestSeq++;
         this._epoch = epoch;
     }
 

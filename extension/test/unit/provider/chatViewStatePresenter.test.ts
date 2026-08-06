@@ -32,6 +32,7 @@ import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspac
 class FakeCatalog {
     public courses: CatalogCourse[] = [];
     public exercises: CatalogExercise[] = [];
+    public coursesUnavailable = false;
 
     public projection(): CatalogProjection {
         return { courses: this.courses, exercises: this.exercises };
@@ -458,6 +459,19 @@ suite('ChatViewStatePresenter: the catalog projection (Task 9)', () => {
     teardown(() => {
         h.tracker.dispose();
         h.sandbox.restore();
+    });
+
+    test('a failed dashboard fetch reaches the webview, so an empty picker can explain itself', () => {
+        catalog.coursesUnavailable = true;
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().coursesUnavailable, true);
+        assert.deepStrictEqual(lastState().courses, []);
+    });
+
+    test('a reachable server leaves the picker with no failure to report', () => {
+        catalog.courses = [{ id: 7, title: 'Present' }];
+        presenter.postSnapshot();
+        assert.strictEqual(lastState().coursesUnavailable, false);
     });
 
     test('a past-deadline exercise is hidden', () => {

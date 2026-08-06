@@ -83,6 +83,72 @@ suite('CourseCatalog', () => {
         assert.deepStrictEqual(catalog.projection().courses, []);
     });
 
+    test('a failed fetch is remembered, so an empty list can say why it is empty', async () => {
+        const { api, reject } = fakeApi();
+        const catalog = new CourseCatalog(api);
+        assert.strictEqual(catalog.coursesUnavailable, false, 'nothing has failed yet');
+        const run = catalog.fetch();
+        reject(0, new Error('fetch failed'));
+        await run;
+        assert.strictEqual(catalog.coursesUnavailable, true);
+    });
+
+    test('a later success clears the remembered failure', async () => {
+        const { api, resolve, reject } = fakeApi();
+        const catalog = new CourseCatalog(api);
+        const failed = catalog.fetch();
+        reject(0, new Error('fetch failed'));
+        await failed;
+        const retried = catalog.fetch({ force: true });
+        resolve(1, { courses: [entry(1, 'Back')] });
+        await retried;
+        assert.strictEqual(catalog.coursesUnavailable, false);
+    });
+
+    test('a superseded failure does not mark a newer answer unavailable', async () => {
+        const { api, resolve, reject } = fakeApi();
+        const catalog = new CourseCatalog(api);
+        const slow = catalog.fetch({ force: true });   // request 0
+        const fast = catalog.fetch({ force: true });   // request 1
+        resolve(1, { courses: [entry(1, 'Newest')] }); // the newest request answers first
+        await fast;
+        reject(0, new Error('fetch failed'));          // the superseded one fails late
+        await slow;
+        // The failure belongs to a request nobody is waiting on any more. Its
+        // courses are on screen; telling the student they are unavailable
+        // would contradict the list right next to the message.
+        assert.strictEqual(catalog.coursesUnavailable, false);
+    });
+
+    test('a reset orphans an in-flight request, even when the epoch is unchanged', async () => {
+        const { api, resolve, reject } = fakeApi();
+        const catalog = new CourseCatalog(api);
+        const open = catalog.fetch();
+        // `clear()` is `resetTo(this._epoch)`: the epoch guard cannot help here,
+        // so the request generation has to do the orphaning that resetTo's
+        // contract promises.
+        catalog.clear();
+        resolve(0, { courses: [entry(1, 'From before the reset')] });
+        await open;
+        assert.deepStrictEqual(catalog.projection().courses, [], 'a pre-reset answer must not install');
+
+        const second = catalog.fetch({ force: true });
+        catalog.clear();
+        reject(1, new Error('fetch failed'));
+        await second;
+        assert.strictEqual(catalog.coursesUnavailable, false, 'nor may its failure be reported');
+    });
+
+    test('an identity reset forgets the previous session failure', async () => {
+        const { api, reject } = fakeApi();
+        const catalog = new CourseCatalog(api);
+        const run = catalog.fetch();
+        reject(0, new Error('fetch failed'));
+        await run;
+        catalog.resetTo(1);
+        assert.strictEqual(catalog.coursesUnavailable, false);
+    });
+
     test('a supplemental write carrying a stale epoch is rejected', () => {
         const catalog = new CourseCatalog({} as ArtemisApiService);
         catalog.resetTo(4);

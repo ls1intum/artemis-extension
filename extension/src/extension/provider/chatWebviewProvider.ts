@@ -987,11 +987,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     // Forced: opening the picker is the gesture that means
                     // "show me what is there now", and a cached dashboard
                     // would answer it with whatever was true at startup.
+                    // Both arms mark the snapshot as this refresh's answer, so
+                    // the picker's wait ends on the request it made and on no
+                    // other snapshot. A failure is an answer too.
                     void this._populateAvailableContexts({ force: true })
-                        .then(() => this._viewStatePresenter.postSnapshot())
+                        .then(() => this._viewStatePresenter.postSnapshot({ answersCourseRefresh: true }))
                         .catch((err: unknown) => {
                             logger.error('Error refreshing courses', LogCategory.IRIS_CHAT, err);
-                            this._viewStatePresenter.postSnapshot();
+                            this._viewStatePresenter.postSnapshot({ answersCourseRefresh: true });
                         });
                     break;
                 case WebviewCmd.OpenDiagnostics:

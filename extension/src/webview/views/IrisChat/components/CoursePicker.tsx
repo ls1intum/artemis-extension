@@ -18,9 +18,13 @@ interface CoursePickerProps {
     /**
      * 'loading' while the dashboard course list is being fetched. On a fresh
      * installation nothing is tracked yet, so an empty list is only meaningful
-     * once the fetch has finished.
+     * once the fetch has finished. 'error' means the host could not reach the
+     * server and has nothing to show: an empty list then says nothing about
+     * the student's enrolment, so it must not be rendered as if it did.
+     * 'stale' is the same outage with rows still on screen from an earlier
+     * fetch: they stay pickable, above a notice that they are unconfirmed.
      */
-    status?: 'loading' | 'ready';
+    status?: 'loading' | 'ready' | 'error' | 'stale';
     /**
      * 'popover' hangs the list off the header line it belongs to; 'inline'
      * renders it in flow, which is what the cold start needs (there is no
@@ -31,6 +35,8 @@ interface CoursePickerProps {
     openError?: string | null;
     onSelect: (courseId: number) => void;
     onClose: () => void;
+    /** Asks the host for the list again. Reachable from 'error' and 'stale'. */
+    onRetry?: () => void;
 }
 
 /**
@@ -48,6 +54,7 @@ export function CoursePicker({
     openError = null,
     onSelect,
     onClose,
+    onRetry,
 }: CoursePickerProps) {
     const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -66,6 +73,13 @@ export function CoursePicker({
     useEffect(() => {
         const dialog = dialogRef.current;
         if (!dialog) { return; }
+        // Never take focus off a CHILD the student is already on: a refresh
+        // that fails under their hands changes `status`, and the notice's
+        // Retry would otherwise pull focus off the row they were reading. The
+        // dialog holding focus itself is the fallback, not a destination, so
+        // that case still promotes to the first row when the rows arrive.
+        const active = document.activeElement;
+        if (active !== dialog && dialog.contains(active)) { return; }
         (dialog.querySelector<HTMLElement>('button:not(:disabled)') ?? dialog).focus();
     }, [status, sorted.length]);
 
@@ -102,11 +116,42 @@ export function CoursePicker({
                 </div>
             )}
 
+            {/*
+              * Two shapes of the same outage. With no rows the list cannot be
+              * read at all, so the failure IS the content. With rows, they were
+              * fetched earlier in this session and stay pickable, but they are
+              * unconfirmed: a course removed since then would still be listed,
+              * which is the defect this picker's live list exists to prevent.
+              * Saying so beats both hiding the rows and presenting them as current.
+              */}
+            {(status === 'error' || status === 'stale') && (
+                <div
+                    className={status === 'error' ? styles.emptyState : styles.staleNotice}
+                    role="alert"
+                >
+                    <p className={styles.errorText}>
+                        {status === 'error'
+                            ? 'Could not load your courses. This is usually temporary.'
+                            : 'Could not refresh your courses, so this list may be out of date.'}
+                    </p>
+                    {onRetry && (
+                        <button
+                            type="button"
+                            className={styles.retryButton}
+                            aria-label="Retry loading courses"
+                            onClick={onRetry}
+                        >
+                            Retry
+                        </button>
+                    )}
+                </div>
+            )}
+
             {status === 'ready' && sorted.length === 0 && (
                 <div className={styles.emptyState}>No courses found</div>
             )}
 
-            {status === 'ready' && sorted.map((course) => {
+            {(status === 'ready' || status === 'stale') && sorted.map((course) => {
                 const active = course.id === currentCourseId;
                 return (
                     <button

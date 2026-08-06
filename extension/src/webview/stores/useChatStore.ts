@@ -48,6 +48,14 @@ interface ChatState {
      * that has already resolved, not like a permanently-pending detection.
      */
     detectionState: DetectionUiState;
+    /**
+     * The host could not reach the server for the course list. Separates "you
+     * have no courses" from "nobody could be asked", which an empty `courses`
+     * cannot tell apart on its own. Defaults to `false` for the same reason
+     * `detectionState` defaults to settled: a fixture predating the field must
+     * not read as a failure.
+     */
+    coursesUnavailable: boolean;
     exercises: ContextItem[];
     courses: ContextItem[];
 
@@ -244,6 +252,7 @@ export const useChatStore = create<ChatState>()(
             // Initial state
             hasReceivedInitialIrisState: false,
             detectionState: 'settled',
+            coursesUnavailable: false,
             exercises: [],
             courses: [],
             courseId: null,
@@ -289,6 +298,7 @@ export const useChatStore = create<ChatState>()(
                     // like an already-settled snapshot rather than a
                     // permanently-pending detection.
                     detectionState: state.detectionState ?? 'settled',
+                    coursesUnavailable: state.coursesUnavailable ?? false,
                     courseId: state.courseId ?? null,
                     courseTitle: state.courseTitle ?? null,
                     currentSessionId: state.currentSessionId ?? null,

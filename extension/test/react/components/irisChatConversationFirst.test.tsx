@@ -630,6 +630,25 @@ describe('CoursePicker', () => {
         expect(screen.getByText('No courses found')).toBeInTheDocument();
     });
 
+    it('keeps focus on the row the student is on when a refresh fails under their hands', async () => {
+        const courses = [{ id: 42, title: 'Algorithms' }, { id: 43, title: 'Databases' }];
+        const { rerender } = render(
+            <CoursePicker courses={courses} currentCourseId={null} status="ready" onSelect={vi.fn()} onClose={vi.fn()} />,
+        );
+        const second = screen.getByTestId('course-entry-43');
+        second.focus();
+        expect(document.activeElement).toBe(second);
+
+        // The refresh the open picker fired comes back a failure. The list is
+        // unchanged, so the only thing that moves is the notice appearing.
+        rerender(
+            <CoursePicker courses={courses} currentCourseId={null} status="stale" onSelect={vi.fn()} onClose={vi.fn()} onRetry={vi.fn()} />,
+        );
+
+        expect(await screen.findByText(/Could not refresh your courses/)).toBeInTheDocument();
+        expect(document.activeElement).toBe(second);
+    });
+
     it('renders a failed course switch as an inline banner', () => {
         render(
             <CoursePicker
@@ -1274,6 +1293,7 @@ describe('IrisChatView course refresh', () => {
         dispatchExtensionMessage({
             type: 'updateIrisState',
             state: { ...coldStartState, courses: [{ id: 42, title: 'Introduction to Computer Science' }] },
+            answersCourseRefresh: true,
         });
 
         expect(await screen.findByTestId('course-entry-42')).toBeInTheDocument();
@@ -1510,8 +1530,110 @@ describe('IrisChatView actions that used to read the old model', () => {
         dispatchExtensionMessage({
             type: 'updateIrisState',
             state: { ...activeState, courseId: null, currentSessionId: null, courses: [], workspaceExerciseId: null },
+            answersCourseRefresh: true,
         });
 
         expect(await screen.findByText('No courses found')).toBeInTheDocument();
+    });
+
+    it('a snapshot that is not the answer to the refresh does not end the wait', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        const empty = {
+            ...activeState, courseId: null, currentSessionId: null, courses: [],
+            workspaceExerciseId: null, coursesUnavailable: false,
+        };
+        dispatchExtensionMessage({ type: 'updateIrisState', state: empty });
+        await screen.findByText(/No Artemis workspace detected/);
+
+        // Cold start posts snapshots of its own while the picker's forced
+        // fetch is still open. Letting one of those end the wait answers a
+        // question nobody has asked yet, and answers it "you have no courses".
+        await act(async () => {
+            dispatchExtensionMessage({ type: 'updateIrisState', state: empty });
+        });
+        expect(screen.getByRole('dialog', { name: 'Select course' })).toHaveAttribute('aria-busy', 'true');
+        expect(screen.queryByText('No courses found')).toBeNull();
+
+        dispatchExtensionMessage({ type: 'updateIrisState', state: empty, answersCourseRefresh: true });
+        expect(await screen.findByText('No courses found')).toBeInTheDocument();
+    });
+
+    it('an unreachable server says so instead of claiming the student has no courses', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        const unreachable = {
+            ...activeState, courseId: null, currentSessionId: null, courses: [],
+            workspaceExerciseId: null, coursesUnavailable: true,
+        };
+        // Twice, as the empty-dashboard test above: the cold-start view asks
+        // for the list on mount, and the answer to THAT request is what ends
+        // the loading state. The await between them lets the request go out.
+        dispatchExtensionMessage({ type: 'updateIrisState', state: unreachable });
+        await screen.findByText(/No Artemis workspace detected/);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: unreachable, answersCourseRefresh: true });
+
+        // "No courses found" is a statement about the student's enrolment. The
+        // host could not ask, so it must not be made.
+        expect(await screen.findByText(/Could not load your courses/)).toBeInTheDocument();
+        expect(screen.queryByText('No courses found')).toBeNull();
+    });
+
+    it('retrying from the unreachable state asks the host again', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        const unreachable = {
+            ...activeState, courseId: null, currentSessionId: null, courses: [],
+            workspaceExerciseId: null, coursesUnavailable: true,
+        };
+        dispatchExtensionMessage({ type: 'updateIrisState', state: unreachable });
+        await screen.findByText(/No Artemis workspace detected/);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: unreachable, answersCourseRefresh: true });
+        await screen.findByText(/Could not load your courses/);
+
+        const before = getPostMessageCalls(api)
+            .filter(([m]) => (m as { command?: string }).command === 'refreshCourses').length;
+        await userEvent.click(screen.getByRole('button', { name: 'Retry loading courses' }));
+
+        const after = getPostMessageCalls(api)
+            .filter(([m]) => (m as { command?: string }).command === 'refreshCourses').length;
+        expect(after).toBe(before + 1);
+    });
+
+    it('courses already on screen survive a failed refresh, and are not replaced by the failure', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        const withCourses = {
+            ...activeState, courseId: null, currentSessionId: null,
+            courses: [{ id: 7, title: 'Still Pickable' }],
+            workspaceExerciseId: null, coursesUnavailable: true,
+        };
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withCourses });
+        await screen.findByText(/No Artemis workspace detected/);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withCourses, answersCourseRefresh: true });
+
+        // The rows stay pickable, but the student is told they were not
+        // confirmed: these are exactly the rows that can name a course they
+        // were removed from, which is the defect the live catalog exists to
+        // remove. Hiding them would be worse; presenting them as current
+        // would repeat the bug.
+        expect(await screen.findByText('Still Pickable')).toBeInTheDocument();
+        expect(screen.getByText(/Could not refresh your courses/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Retry loading courses' })).toBeEnabled();
+    });
+
+    it('a reachable server that answers with no courses keeps the enrolment wording', async () => {
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        const reachable = {
+            ...activeState, courseId: null, currentSessionId: null, courses: [],
+            workspaceExerciseId: null, coursesUnavailable: false,
+        };
+        dispatchExtensionMessage({ type: 'updateIrisState', state: reachable });
+        await screen.findByText(/No Artemis workspace detected/);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: reachable, answersCourseRefresh: true });
+
+        expect(await screen.findByText('No courses found')).toBeInTheDocument();
+        expect(screen.queryByText(/Could not load your courses/)).toBeNull();
     });
 });

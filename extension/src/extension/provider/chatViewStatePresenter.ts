@@ -26,7 +26,7 @@ const NO_CONVERSATION = {
     sendInFlight: false,
     navigationInFlight: false,
     conversations: [],
-} as const satisfies Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId' | 'detectionState'>;
+} as const satisfies Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId' | 'detectionState' | 'coursesUnavailable'>;
 
 /**
  * What there is to project when no catalog exists at all. The catalog needs an
@@ -70,7 +70,13 @@ export class ChatViewStatePresenter {
         private readonly _getDetectionState: () => DetectionUiState,
     ) {}
 
-    public postSnapshot(): void {
+    /**
+     * `answersCourseRefresh` marks this snapshot as the reply to the webview's
+     * `refreshCourses`. Only the handler for that command may set it: the
+     * picker ends its loading state on it, and any other snapshot doing so
+     * would answer a request that is still open.
+     */
+    public postSnapshot(options?: { answersCourseRefresh?: boolean }): void {
         const projection = this._catalog?.projection() ?? EMPTY_PROJECTION;
         const topicExerciseId = this._topicExerciseId();
         const workspaceExerciseId = this._workspace.exerciseId;
@@ -121,9 +127,13 @@ export class ChatViewStatePresenter {
                 courses,
                 workspaceExerciseId,
                 detectionState: this._getDetectionState(),
+                // Without a catalog there is no server to ask, so there is no
+                // failure to report either: the picker is empty by construction.
+                coursesUnavailable: this._catalog?.coursesUnavailable ?? false,
                 ...this._serializeConversation(),
             },
             showDiagnostics: config.get<boolean>('developerMode', false),
+            answersCourseRefresh: options?.answersCourseRefresh,
         });
     }
 
@@ -222,7 +232,7 @@ export class ChatViewStatePresenter {
      * carries `courseId`), so it is resolved against the catalog, which is
      * where a display name for a course lives.
      */
-    private _serializeConversation(): Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId' | 'detectionState'> {
+    private _serializeConversation(): Omit<IrisViewState, 'exercises' | 'courses' | 'workspaceExerciseId' | 'detectionState' | 'coursesUnavailable'> {
         const conversation = this._getConversation();
         if (!conversation) { return NO_CONVERSATION; }
         const snapshot = conversation.state.snapshot();

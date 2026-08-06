@@ -28,6 +28,7 @@ export function createIrisInitPayload(
             // session, i.e. not a cold start: 'settled' is simply the value
             // that state would carry once detection has long since resolved.
             detectionState: 'settled',
+            coursesUnavailable: false,
             ...overrides,
         },
     };

@@ -120,12 +120,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
                 setIrisState(msg.state);
-                // The host answers a refresh with exactly one snapshot, so the
-                // next one after the request ends the wait. Keyed on the
-                // request being ANSWERED rather than on the list being
-                // non-empty: a student whose dashboard genuinely has no courses
-                // must reach "No courses found", not a permanent skeleton.
-                if (coursesRequested.current) {
+                // Keyed on the request being ANSWERED rather than on the list
+                // being non-empty: a student whose dashboard genuinely has no
+                // courses must reach "No courses found", not a permanent
+                // skeleton. `answersCourseRefresh` is what makes it THIS
+                // request's answer: cold start posts snapshots of its own
+                // while the forced fetch is open, and one of those ending the
+                // wait reports an empty list the host has not asked about yet.
+                if (coursesRequested.current && msg.answersCourseRefresh) {
                     coursesRequested.current = false;
                     setCoursesLoading(false);
                 }
@@ -470,6 +472,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'refreshCourses');
     };
 
+    // The same outage reads differently depending on what survived it. With
+    // no rows the failure is all there is to show; with rows, they stay
+    // pickable but unconfirmed, and saying so is what keeps this picker from
+    // presenting exactly the stale course list it was built to stop showing.
+    const coursePickerStatus = coursesLoading
+        ? 'loading'
+        : !store.coursesUnavailable ? 'ready'
+            : store.courses.length === 0 ? 'error' : 'stale';
+
     const openCoursePicker = (opener: HTMLElement) => {
         openerRef.current = opener;
         requestCourses();
@@ -805,8 +816,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <CoursePicker
                         courses={store.courses}
                         currentCourseId={store.courseId}
-                        status={coursesLoading ? 'loading' : 'ready'}
+                        status={coursePickerStatus}
                         openError={store.openSessionError}
+                        onRetry={requestCourses}
                         onSelect={(courseId) => {
                             // Deliberately does NOT close: a course switch that
                             // fails posts `openSessionError`, which needs a
@@ -925,8 +937,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                             variant="inline"
                             courses={store.courses}
                             currentCourseId={store.courseId}
-                            status={coursesLoading ? 'loading' : 'ready'}
+                            status={coursePickerStatus}
                             openError={store.openSessionError}
+                            onRetry={requestCourses}
                             onSelect={(courseId) => postCommand(vscodeApi, 'switchCourse', { courseId })}
                             onClose={closePopovers}
                         />
