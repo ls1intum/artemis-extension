@@ -929,25 +929,30 @@ describe('useChatStore', () => {
 			expect(useChatStore.getState().lastRunUiRevision).toBe(1);
 		});
 
-		it('a stale markMessageFailed after applyLoadedMessages already cleared the buffer stays inert', () => {
-			// applyLoadedMessages now clears the buffer itself (see the
-			// "drops a held echo when the transcript is replaced" test), so
-			// by the time this stale markMessageFailed runs there is nothing
-			// left to release. It must still report no match and must not
-			// resurrect or otherwise touch a buffer that is already empty.
+		it('does not release the buffer when markMessageFailed does not actually mark a bubble failed', () => {
+			// The bubble the echo is waiting on can leave the messages array
+			// some other way (e.g. a reconnect wholesale-replacing it)
+			// without going through removeMessage's owner-bound release AND
+			// without going through applyLoadedMessages (which now clears the
+			// buffer itself, see the "drops a held echo when the transcript
+			// is replaced" test, so it can no longer stand in for this
+			// scenario). Forced directly via setState to isolate exactly
+			// that: the bubble is gone, the buffer is untouched. A later,
+			// stale markMessageFailed for that localId must not release the
+			// buffer either: the buffer is supposed to honour the exact same
+			// staleness rule the function's own guard already enforces.
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
 			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
 			expect(useChatStore.getState().pendingEcho?.localId).toBe('local-1');
 
-			store.applyLoadedMessages(7, []);
-			expect(useChatStore.getState().pendingEcho).toBeNull();
+			useChatStore.setState({ messages: [] });
 
 			const returnValue = useChatStore.getState().markMessageFailed('local-1', 'stale', 'iris-unavailable');
 
 			expect(returnValue).toBe(false);
-			expect(useChatStore.getState().pendingEcho).toBeNull();
+			expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
 		});
 
 		it('drops a held echo when the transcript is replaced', () => {

@@ -1479,82 +1479,53 @@ describe('IrisChatView transcript keying', () => {
         expect(screen.getAllByText('hello')).toHaveLength(1);
     });
 
-    // @testing-library/react's asyncWrapper (used internally by waitFor,
-    // findBy* and every userEvent call) drains a microtask queue after each
-    // act()-wrapped operation via a Promise that only resolves through
-    // `jest.advanceTimersByTime(0)`, gated on a global `jest` object Vitest
-    // never defines (node_modules/@testing-library/react/dist/pure.js,
-    // jestFakeTimersAreEnabled). Under vi.useFakeTimers() that leaves the
-    // drain's own setTimeout unfired, so the call hangs forever regardless
-    // of the `advanceTimers` option passed to userEvent.setup. This stub is
-    // the documented workaround (vitest-dev/vitest#3184 comment by
-    // xsjcTony) for that cross-library gap; it is local to this test and
-    // restored in the finally block.
-    function installFakeTimersActShim(): () => void {
-        const previous = (globalThis as { jest?: unknown }).jest;
-        (globalThis as { jest?: unknown }).jest = {
-            ...(previous as object ?? {}),
-            advanceTimersByTime: vi.advanceTimersByTime.bind(vi),
-        };
-        return () => {
-            (globalThis as { jest?: unknown }).jest = previous;
-        };
-    }
+    // Both tests below drive the store directly (like the rest of this
+    // describe block's neighbours in useChatStore.test.ts) rather than
+    // through the composer. Their subject is the last-resort TIMER, not the
+    // send path (Task 3 covers that end to end), and driving through
+    // userEvent would additionally require working around a real, documented
+    // incompatibility between @testing-library/react's async helpers and
+    // Vitest fake timers (vitest-dev/vitest#3184: `waitFor`/`findBy*`/every
+    // userEvent call hangs forever under vi.useFakeTimers(), because RTL's
+    // internal drain only advances a global `jest.advanceTimersByTime` that
+    // Vitest never defines). Driving the store directly sidesteps that
+    // entirely, since plain `act()` does not go through that code path.
 
     it('shows a held echo again if the send never settles', async () => {
         vi.useFakeTimers();
-        const restoreJestShim = installFakeTimersActShim();
         try {
-            const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-            const api = createMockVsCodeApi();
-            render(<IrisChatView vscodeApi={api} />);
+            render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
             dispatchExtensionMessage({ type: 'updateIrisState', state: { ...activeState } });
-            dispatchExtensionMessage({
-                type: 'loadMessages',
-                sessionId: activeState.currentSessionId,
-                messages: [],
-            });
-            // The dispatch above lands outside act() (it goes through the
-            // window message listener, not a userEvent/RTL helper), so the
-            // composer's disabled flag has not necessarily re-rendered into
-            // the DOM yet. Typing into it before it actually flips would
-            // silently no-op, which is indistinguishable from a hang once
-            // fake timers are active.
-            await waitFor(() => expect(screen.getByRole('textbox')).not.toBeDisabled());
+            const session = activeState.currentSessionId as number;
+            const store = useChatStore.getState();
 
-            await user.type(screen.getByRole('textbox'), 'hi{Enter}');
-            dispatchExtensionMessage({
-                type: 'addMessage',
-                sessionId: activeState.currentSessionId,
-                message: { id: 91, role: 'user', content: 'hi', timestamp: 2 },
-            });
+            store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, session);
+            store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, session);
             expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
-            // The dispatch above lands outside act() too, so the view's own
-            // last-resort effect (which reads `store.pendingEcho` from the
-            // component's render, not straight off the store) has not
-            // necessarily re-rendered and armed its timer for THIS hold yet.
-            // Flush that render before advancing the clock, or the timer
-            // that fires below may still be the old (unarmed) one.
+            // Flush so the component actually renders with this hold and
+            // arms its own timer for it, rather than the effect never having
+            // mounted at all by the time the clock below is advanced. A
+            // plain synchronous act(() => {}) does not reliably force this
+            // component's pending update through (its state changes arrive
+            // via a Zustand subscription, not a React-owned event, so React
+            // schedules the commit on its normal, non-blocking scheduler);
+            // awaiting an async act() does.
             await act(async () => {});
 
             // Neither a confirmation nor a rejection ever arrives.
-            await act(async () => { vi.advanceTimersByTime(70_000); });
+            act(() => { vi.advanceTimersByTime(70_000); });
 
             expect(useChatStore.getState().pendingEcho).toBeNull();
             expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(true);
         } finally {
-            restoreJestShim();
             vi.useRealTimers();
         }
     });
 
     it('an expired timer does not flush a newer hold', async () => {
         vi.useFakeTimers();
-        const restoreJestShim = installFakeTimersActShim();
         try {
             render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
-            // `makeIrisState` lives in useChatStore.test.ts; this file drives
-            // the store through the wire message the view already handles.
             dispatchExtensionMessage({ type: 'updateIrisState', state: { ...activeState } });
             const session = activeState.currentSessionId as number;
             const store = useChatStore.getState();
@@ -1565,21 +1536,28 @@ describe('IrisChatView transcript keying', () => {
             // arms ITS OWN timer for it, rather than skipping straight to
             // whatever pendingEcho happens to be by the time React next
             // renders (which the two mutations below would otherwise let it
-            // do, defeating the point of this test).
+            // do, defeating the point of this test). A plain synchronous
+            // act(() => {}) does not reliably force this component's pending
+            // update through (its state changes arrive via a Zustand
+            // subscription, not a React-owned event, so React schedules the
+            // commit on its normal, non-blocking scheduler); awaiting an
+            // async act() does.
             await act(async () => {});
             await act(async () => { vi.advanceTimersByTime(64_000); });
 
-            // The first hold settles, a second one is taken, and the first timer
-            // is still a second away from firing.
+            // The first hold settles, a second one is taken, and the first
+            // timer is still a second away from firing. Deliberately no
+            // flush between these store mutations and the advance below:
+            // React's re-render (and the cleanup that would cancel timer A)
+            // is only SCHEDULED by these synchronous store calls, not run
+            // yet, so timer A is still live when the clock crosses t=65s.
             useChatStore.getState().confirmSentMessage('local-1', 91);
             store.addMessage({ localId: 'local-2', role: 'user', content: 'b', timestamp: 3, status: 'sending' }, session);
             store.addMessage({ id: 92, localId: 'echo-b', role: 'user', content: 'b', timestamp: 4 }, session);
-            await act(async () => {});
-            await act(async () => { vi.advanceTimersByTime(2_000); });
+            act(() => { vi.advanceTimersByTime(2_000); });
 
             expect(useChatStore.getState().pendingEcho?.message.id).toBe(92);
         } finally {
-            restoreJestShim();
             vi.useRealTimers();
         }
     });
