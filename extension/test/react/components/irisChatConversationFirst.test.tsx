@@ -1454,6 +1454,133 @@ describe('IrisChatView transcript keying', () => {
             .find(m => m.command === 'sendMessage');
         expect(send?.payload?.sessionId).toBe(900);
     });
+
+    it('never shows the student their own message twice, even when the echo beats the response (issue #380)', async () => {
+        // The real path: the server's echo of our own prompt arrives as an
+        // addMessage wire frame (irisWebSocketMessageHandler.ts's
+        // _renderForeignUserMessage), which IrisChatView routes through
+        // applyCommit, not through the store's addMessage. The POST response
+        // that names the message follows later as confirmSentMessage.
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
+        dispatchExtensionMessage(transcript(900, 'first'));
+        await screen.findByText('first');
+
+        await userEvent.type(screen.getByRole('textbox'), 'hello{Enter}');
+        await screen.findByText('hello');
+
+        const localId = getPostMessageCalls(api)
+            .map(([m]) => m as { command?: string; payload?: { localId?: string } })
+            .find(m => m.command === 'sendMessage')?.payload?.localId as string;
+
+        // The websocket echo wins the race.
+        dispatchExtensionMessage({
+            type: 'addMessage',
+            sessionId: 900,
+            message: { id: 91, role: 'user', content: 'hello', timestamp: 2 },
+        });
+
+        // This is the window the student sees. It must not contain two.
+        // Waited, not asserted bare: the store update from the dispatched
+        // event above lands outside React's `act`, so an immediate query can
+        // observe the DOM before the echo has actually rendered, letting a
+        // real duplicate slip past an unwaited assertion.
+        await waitFor(() => expect(screen.getAllByText('hello')).toHaveLength(1));
+
+        // The POST response arrives after, naming the message.
+        dispatchExtensionMessage({
+            type: 'confirmSentMessage',
+            sessionId: 900,
+            localId,
+            id: 91,
+        });
+
+        expect(screen.getAllByText('hello')).toHaveLength(1);
+    });
+
+    // Both tests below drive the store directly (like the rest of this
+    // describe block's neighbours in useChatStore.test.ts) rather than
+    // through the composer. Their subject is the last-resort TIMER, not the
+    // send path (Task 3 covers that end to end), and driving through
+    // userEvent would additionally require working around a real, documented
+    // incompatibility between @testing-library/react's async helpers and
+    // Vitest fake timers (vitest-dev/vitest#3184: `waitFor`/`findBy*`/every
+    // userEvent call hangs forever under vi.useFakeTimers(), because RTL's
+    // internal drain only advances a global `jest.advanceTimersByTime` that
+    // Vitest never defines). Driving the store directly sidesteps that
+    // entirely, since plain `act()` does not go through that code path.
+
+    it('shows a held echo again if the send never settles', async () => {
+        vi.useFakeTimers();
+        try {
+            render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+            dispatchExtensionMessage({ type: 'updateIrisState', state: { ...activeState } });
+            const session = activeState.currentSessionId as number;
+            const store = useChatStore.getState();
+
+            store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, session);
+            store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, session);
+            expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
+            // Flush so the component actually renders with this hold and
+            // arms its own timer for it, rather than the effect never having
+            // mounted at all by the time the clock below is advanced. A
+            // plain synchronous act(() => {}) does not reliably force this
+            // component's pending update through (its state changes arrive
+            // via a Zustand subscription, not a React-owned event, so React
+            // schedules the commit on its normal, non-blocking scheduler);
+            // awaiting an async act() does.
+            await act(async () => {});
+
+            // Neither a confirmation nor a rejection ever arrives.
+            act(() => { vi.advanceTimersByTime(70_000); });
+
+            expect(useChatStore.getState().pendingEcho).toBeNull();
+            expect(useChatStore.getState().messages.some((m) => m.id === 91)).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('an expired timer does not flush a newer hold', async () => {
+        vi.useFakeTimers();
+        try {
+            render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
+            dispatchExtensionMessage({ type: 'updateIrisState', state: { ...activeState } });
+            const session = activeState.currentSessionId as number;
+            const store = useChatStore.getState();
+
+            store.addMessage({ localId: 'local-1', role: 'user', content: 'a', timestamp: 1, status: 'sending' }, session);
+            store.applyCommit({ id: 91, localId: 'echo-a', role: 'user', content: 'a', timestamp: 2 }, undefined, session);
+            // Flush so the component actually renders with this hold and
+            // arms ITS OWN timer for it, rather than skipping straight to
+            // whatever pendingEcho happens to be by the time React next
+            // renders (which the two mutations below would otherwise let it
+            // do, defeating the point of this test). A plain synchronous
+            // act(() => {}) does not reliably force this component's pending
+            // update through (its state changes arrive via a Zustand
+            // subscription, not a React-owned event, so React schedules the
+            // commit on its normal, non-blocking scheduler); awaiting an
+            // async act() does.
+            await act(async () => {});
+            await act(async () => { vi.advanceTimersByTime(64_000); });
+
+            // The first hold settles, a second one is taken, and the first
+            // timer is still a second away from firing. Deliberately no
+            // flush between these store mutations and the advance below:
+            // React's re-render (and the cleanup that would cancel timer A)
+            // is only SCHEDULED by these synchronous store calls, not run
+            // yet, so timer A is still live when the clock crosses t=65s.
+            useChatStore.getState().confirmSentMessage('local-1', 91);
+            store.addMessage({ localId: 'local-2', role: 'user', content: 'b', timestamp: 3, status: 'sending' }, session);
+            store.applyCommit({ id: 92, localId: 'echo-b', role: 'user', content: 'b', timestamp: 4 }, undefined, session);
+            act(() => { vi.advanceTimersByTime(2_000); });
+
+            expect(useChatStore.getState().pendingEcho?.message.id).toBe(92);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
 
 describe('IrisChatView actions that used to read the old model', () => {

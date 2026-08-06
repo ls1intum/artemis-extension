@@ -111,6 +111,26 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     }, [store.streaming.isStreaming]);
 
+    // Last resort. Deliberately above BOTH request timeouts that can run
+    // before a send settles: the POST (30s, CONFIG.API.REQUEST_TIMEOUT_MS)
+    // and, when that times out, the coordinator's reconciliation GET
+    // (sendCoordinator.ts:204), which has the same budget. A shorter deadline
+    // would race a send that is still legitimately being resolved and put
+    // back the very duplicate this removes.
+    useEffect(() => {
+        const held = store.pendingEcho;
+        if (!held) { return; }
+        const timer = setTimeout(() => {
+            // Only the hold this timer was armed for. A settled hold replaced
+            // by a newer one before React ran the cleanup would otherwise be
+            // flushed by the old timer.
+            if (useChatStore.getState().pendingEcho === held) {
+                useChatStore.getState().flushPendingEcho();
+            }
+        }, 65_000);
+        return () => clearTimeout(timer);
+    }, [store.pendingEcho]);
+
     // Message listener - handles messages from extension
     useExtensionMessage((msg) => {
         // Reads the store directly, not the render-time closure: messages
