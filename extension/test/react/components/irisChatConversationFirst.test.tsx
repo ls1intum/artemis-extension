@@ -1520,7 +1520,7 @@ describe('IrisChatView transcript keying', () => {
             const store = useChatStore.getState();
 
             store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, session);
-            store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, session);
+            store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, session);
             expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
             // Flush so the component actually renders with this hold and
             // arms its own timer for it, rather than the effect never having
@@ -1551,7 +1551,7 @@ describe('IrisChatView transcript keying', () => {
             const store = useChatStore.getState();
 
             store.addMessage({ localId: 'local-1', role: 'user', content: 'a', timestamp: 1, status: 'sending' }, session);
-            store.addMessage({ id: 91, localId: 'echo-a', role: 'user', content: 'a', timestamp: 2 }, session);
+            store.applyCommit({ id: 91, localId: 'echo-a', role: 'user', content: 'a', timestamp: 2 }, undefined, session);
             // Flush so the component actually renders with this hold and
             // arms ITS OWN timer for it, rather than skipping straight to
             // whatever pendingEcho happens to be by the time React next
@@ -1573,7 +1573,7 @@ describe('IrisChatView transcript keying', () => {
             // yet, so timer A is still live when the clock crosses t=65s.
             useChatStore.getState().confirmSentMessage('local-1', 91);
             store.addMessage({ localId: 'local-2', role: 'user', content: 'b', timestamp: 3, status: 'sending' }, session);
-            store.addMessage({ id: 92, localId: 'echo-b', role: 'user', content: 'b', timestamp: 4 }, session);
+            store.applyCommit({ id: 92, localId: 'echo-b', role: 'user', content: 'b', timestamp: 4 }, undefined, session);
             act(() => { vi.advanceTimersByTime(2_000); });
 
             expect(useChatStore.getState().pendingEcho?.message.id).toBe(92);

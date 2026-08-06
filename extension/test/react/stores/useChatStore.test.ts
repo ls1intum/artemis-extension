@@ -758,8 +758,10 @@ describe('useChatStore', () => {
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
 
-			// The server pushes our own prompt to every client, including us.
-			store.addMessage({ id: 55, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			// The server pushes our own prompt to every client, including us,
+			// through applyCommit: the real path a wire addMessage frame is
+			// routed through (IrisChatView.tsx:140-160).
+			store.applyCommit({ id: 55, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			const users = useChatStore.getState().messages.filter((m) => m.role === 'user');
 			expect(users).toHaveLength(1);
@@ -793,7 +795,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 55, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 55, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			useChatStore.getState().confirmSentMessage('local-1', 55);
 
@@ -809,7 +811,7 @@ describe('useChatStore', () => {
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
 			// Same text, another client. Only the id can tell them apart.
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			useChatStore.getState().confirmSentMessage('local-1', 55);
 
@@ -822,7 +824,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			useChatStore.getState().markMessageFailed('local-1', 'nope', 'iris-unavailable');
 
@@ -834,7 +836,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			// A rejection for an older send that has long since left the screen, and a
 			// confirmation for one too. Neither says anything about local-1's echo.
@@ -850,7 +852,7 @@ describe('useChatStore', () => {
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'failed-earlier', role: 'user', content: 'old', timestamp: 0, status: 'error' }, 7);
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			// Retrying an older failed send removes its bubble first (IrisChatView.tsx:341).
 			useChatStore.getState().removeMessage('failed-earlier');
@@ -862,7 +864,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			useChatStore.getState().removeMessage('local-1');
 
@@ -874,8 +876,8 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo-a', role: 'user', content: 'hi', timestamp: 2 }, 7);
-			store.addMessage({ id: 92, localId: 'echo-b', role: 'user', content: 'also hi', timestamp: 3 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo-a', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
+			store.applyCommit({ id: 92, localId: 'echo-b', role: 'user', content: 'also hi', timestamp: 3 }, undefined, 7);
 
 			// One slot. The second echo cannot be the one we are waiting on as well,
 			// and confirmSentMessage folds it by id if it turns out to be ours.
@@ -944,7 +946,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 			expect(useChatStore.getState().pendingEcho?.localId).toBe('local-1');
 
 			useChatStore.setState({ messages: [] });
@@ -959,7 +961,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			// A reload hands over the server's transcript, which already contains it:
 			// the host records every websocket message before rendering it
@@ -976,7 +978,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			store.setIrisState(makeIrisState({ currentSessionId: 8 }));
 
@@ -987,7 +989,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			// Snapshots arrive for many reasons while a send is in flight.
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
@@ -999,7 +1001,7 @@ describe('useChatStore', () => {
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
-			store.addMessage({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, 7);
+			store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, 7);
 
 			// Reconciliation, not proof that this POST settled.
 			useChatStore.getState().mergeLoadedMessages(7, [

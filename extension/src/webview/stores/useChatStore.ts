@@ -208,8 +208,19 @@ interface ChatState {
         errorReason: NonNullable<ChatMessage['errorReason']>,
     ) => boolean;
     removeMessage: (localId: string) => void;
-    /** Stamps a still-pending optimistic user bubble with its server id and `status: 'sent'`. No-op if no such bubble exists. */
+    /**
+     * Stamps a still-pending optimistic user bubble with its server id and
+     * `status: 'sent'`. Before that, discards or flushes `pendingEcho` if it
+     * is held for this `localId`, whether or not a matching bubble is still
+     * in `messages`: a call for a `localId` with no bubble is not a no-op
+     * when a held echo is still waiting on it.
+     */
     confirmSentMessage: (localId: string, id: number) => void;
+    /**
+     * Releases a held `pendingEcho` into `messages` (or drops it if its
+     * conversation has since been left), and clears the slot either way.
+     * A no-op when nothing is held.
+     */
     flushPendingEcho: () => void;
     setOpenSessionError: (message: string | null) => void;
 
@@ -255,7 +266,10 @@ function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessa
     // own POST response. It is appended, and `confirmSentMessage` resolves the
     // two into one once the response names the id. Matching on the TEXT instead
     // would fold another client's identical message into our bubble and delete
-    // it: identical text says nothing about identity.
+    // it: identical text says nothing about identity. In practice `applyCommit`
+    // holds that echo in `pendingEcho` before it ever reaches here (see
+    // `echoOwner`), so this append is the fallback for when no bubble is
+    // waiting to claim it, not the primary path.
     return [...messages, message];
 }
 
@@ -279,10 +293,11 @@ function ownsPendingEcho(state: ChatState, localId: string): boolean {
  * The bubble `message` should be held against instead of being upserted
  * straight away, if any: a user message that already carries a server id,
  * while exactly one optimistic bubble is still waiting for one and nothing
- * is held yet. Shared by both entry points our own echo can arrive through:
- * the store's `addMessage` (called directly by tests, and for the
- * optimistic bubble itself) and `applyCommit` (the real path a wire
- * `addMessage` frame is routed through, IrisChatView.tsx:140-160).
+ * is held yet. Used by `applyCommit`, the real path a wire `addMessage`
+ * frame is routed through (IrisChatView.tsx:140-160) and the only place our
+ * own echo can arrive on. The store's own `addMessage` never calls this: its
+ * only production caller draws the optimistic bubble itself, which never
+ * carries a server id.
  */
 function echoOwner(state: ChatState, message: ChatMessage): ChatMessage | undefined {
     if (message.role !== 'user' || message.id === undefined || state.pendingEcho !== null) {
@@ -392,15 +407,6 @@ export const useChatStore = create<ChatState>()(
             addMessage: (message, sessionId) => {
                 const state = useChatStore.getState();
                 if (sessionId !== undefined && sessionId !== state.currentSessionId) { return; }
-                const owner = echoOwner(state, message);
-                if (owner && state.currentSessionId !== null) {
-                    set(
-                        { pendingEcho: { message, sessionId: state.currentSessionId, localId: owner.localId } },
-                        false,
-                        'holdEcho',
-                    );
-                    return;
-                }
                 set((s) => ({ messages: upsertMessage(s.messages, message) }), false, 'addMessage');
             },
 
@@ -497,6 +503,17 @@ export const useChatStore = create<ChatState>()(
                 // Only when the bubble that was waiting is the one going away.
                 // A retry removes the PREVIOUS failed bubble first
                 // (IrisChatView.tsx:341), which must not release anything.
+                //
+                // Unlike `markMessageFailed`, this releases on `localId`
+                // ownership alone, without first checking the bubble is still
+                // in `messages`. That is safe rather than sloppy: a
+                // `pendingEcho` can only ever be armed for a bubble that WAS
+                // in `messages` at capture time (`echoOwner` reads it off
+                // `state.messages`), and every path that removes a bubble by
+                // some other means already clears `pendingEcho` itself
+                // (`applyLoadedMessages`), so there is no real route left by
+                // which `removeMessage` runs against a `localId` whose bubble
+                // is already gone while the echo is still held.
                 if (ownsPendingEcho(useChatStore.getState(), localId)) {
                     useChatStore.getState().flushPendingEcho();
                 }
