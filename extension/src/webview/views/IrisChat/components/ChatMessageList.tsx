@@ -27,6 +27,13 @@ interface ChatMessageListProps {
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
     isChatDisabled?: boolean;
+    /**
+     * Sending is refused right now. Only reaches the welcome prompts, which
+     * are sends and go inert with the send button.
+     */
+    sendDisabled?: boolean;
+    /** Why sending is blocked, surfaced on the welcome prompts. */
+    sendDisabledLabel?: string;
     /** Invoked when a failed user message's Retry button is clicked. */
     onRetry?: (localId: string) => void;
     /**
@@ -49,6 +56,8 @@ export function ChatMessageList({
     onSendPrompt,
     hasContext,
     isChatDisabled,
+    sendDisabled,
+    sendDisabledLabel,
     onRetry,
     isRetryDisabled,
 }: ChatMessageListProps) {
@@ -73,7 +82,13 @@ export function ChatMessageList({
         <div ref={scrollRef} className={styles.scrollContainer}>
             <div ref={contentRef} className={styles.content}>
                 {showWelcome ? (
-                    <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
+                    <WelcomeState
+                        onSendPrompt={onSendPrompt}
+                        hasContext={hasContext}
+                        isChatDisabled={isChatDisabled}
+                        sendDisabled={sendDisabled}
+                        sendDisabledLabel={sendDisabledLabel}
+                    />
                 ) : (
                     <>
                         {/* Marker rows render in transcript order, so a stored

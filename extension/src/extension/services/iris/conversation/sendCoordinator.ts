@@ -111,6 +111,15 @@ export class SendCoordinator {
         let generation: number | undefined;
         let postStarted = false;
         try {
+            // The webview mirrors `sendInFlight` and gates its composer on it,
+            // but nothing published the ACQUISITION: the only other
+            // notifyChanged is in the finally below, so the flag could travel
+            // exclusively as `false`. Inside the try, after both mutations, for
+            // the same reason the try opens here: a listener that throws
+            // synchronously must not skip the finally and latch the lock
+            // forever. `beginGeneration` is run-lifecycle state and is not part
+            // of the snapshot, so publishing ahead of it is safe.
+            this._conversation.notifyChanged();
             generation = this._deps.runLifecycle.beginGeneration();
             this._deps.resetRunUiAndPublish();
             // Under staging the effective context can be an exercise the

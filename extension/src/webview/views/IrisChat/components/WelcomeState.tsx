@@ -4,6 +4,19 @@ interface WelcomeStateProps {
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
     isChatDisabled?: boolean;
+    /**
+     * Sending is refused right now. These prompt buttons ARE sends, so they
+     * go inert alongside the send button: without this they are the one send
+     * affordance left that reaches the funnel, and the funnel refuses in
+     * silence, with no bubble and no notice to show for the click.
+     */
+    sendDisabled?: boolean;
+    /**
+     * Why sending is blocked. Hung on the container rather than the buttons
+     * because a disabled button swallows the hover that would show it, same
+     * as the send button's wrapper in ChatInput.
+     */
+    sendDisabledLabel?: string;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -12,7 +25,13 @@ const SUGGESTED_PROMPTS = [
     'What are the test cases checking?',
 ];
 
-export function WelcomeState({ onSendPrompt, hasContext, isChatDisabled }: WelcomeStateProps) {
+export function WelcomeState({
+    onSendPrompt,
+    hasContext,
+    isChatDisabled,
+    sendDisabled = false,
+    sendDisabledLabel,
+}: WelcomeStateProps) {
     if (!hasContext) {
         return (
             <div className={styles.container}>
@@ -50,12 +69,16 @@ export function WelcomeState({ onSendPrompt, hasContext, isChatDisabled }: Welco
                 <p className={styles.subtitle}>How can I help you today?</p>
             </div>
 
-            <div className={styles.promptsContainer}>
+            <div
+                className={styles.promptsContainer}
+                title={sendDisabled ? sendDisabledLabel : undefined}
+            >
                 {SUGGESTED_PROMPTS.map((prompt, index) => (
                     <button
                         key={index}
                         className={styles.promptButton}
                         onClick={() => onSendPrompt(prompt)}
+                        disabled={sendDisabled}
                     >
                         {prompt}
                     </button>

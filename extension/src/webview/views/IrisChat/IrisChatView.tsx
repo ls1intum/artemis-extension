@@ -8,7 +8,7 @@ import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import { selectCanChangeTopic, useChatStore } from '@webview/stores/useChatStore';
+import { selectCanChangeTopic, selectSendBlockedReason, useChatStore } from '@webview/stores/useChatStore';
 
 import { ChatHeader } from './components/ChatHeader';
 import { ChatInput } from './components/ChatInput';
@@ -28,6 +28,18 @@ interface IrisChatViewProps {
 
 export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
+    // Sending and composing are different questions. This one answers "would
+    // the host take a send right now", and carries the sentence that explains
+    // a no.
+    //
+    // Declared HERE, above every effect, not next to the other derivations
+    // further down: the deferred-resend effect lists `sendBlocked` in its
+    // dependency array, and a dependency array is evaluated during render. A
+    // `const` declared below that effect would be in its temporal dead zone
+    // and throw a ReferenceError on every render. Keep this declaration ahead
+    // of any effect that reads it.
+    const sendBlockedReason = selectSendBlockedReason(store);
+    const sendBlocked = sendBlockedReason !== undefined;
     const {
         setIrisState, setShowDiagnostics, addMessage,
         applyLoadedMessages,
@@ -320,7 +332,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, setOpenSessionError, mergeLoadedMessages, confirmSentMessage, showNotice]);
 
-    const handleSendMessage = (text: string) => {
+    /**
+     * The single send funnel. Returns whether the send was ACCEPTED, i.e.
+     * whether the command actually went to the host. Callers that own the
+     * student's text (the composer) must keep it on `false`; a refusal here
+     * produces no bubble, so nothing else would be holding it.
+     */
+    const handleSendMessage = (text: string): boolean => {
         const localId = crypto.randomUUID();
         // The conversation the bubble is drawn in travels WITH the send, so the
         // host can refuse it if a navigation completed in between rather than
@@ -330,8 +348,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             // Nothing to address a rejection to. The composer is already
             // disabled in this state, so this is a defensive guard against a
             // programmer error.
-            return;
+            return false;
         }
+
+        // Read LIVE rather than through the render-time closure: this funnel is
+        // reached from event handlers and from an effect, either of which can
+        // run a tick behind the render that produced them. Every caller is
+        // covered here, so this is the guarantee; the disabled button and the
+        // inert Retry are only affordances.
+        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return false; }
 
         // Clear any stale streaming state from the previous request
         resetTransientChatUi();
@@ -356,6 +381,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // rejection so the webview can ignore stale responses after a
         // navigation.
         postCommand(vscodeApi, 'sendMessage', { text, localId, sessionId });
+        return true;
     };
 
     const handleRetry = (localId: string) => {
@@ -376,6 +402,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             handleRetryChatLoad();
             return;
         }
+        // BEFORE the removal, never after: the funnel would refuse the send and
+        // the bubble would already be gone, taking the student's text with it.
+        // `isRetryDisabled` does not make this unreachable, it only narrows the
+        // window: a click can still land between the host taking the lock and
+        // React committing the render that disables the button. This guard is
+        // what closes that window, and the flow tests cover it.
+        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
         // Remove the failed entry first so handleSendMessage's optimistic
         // add doesn't briefly produce two copies. Zustand+React batch the
         // two state updates in the same event tick, so there is no visible
@@ -441,6 +474,21 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         if (store.unavailableMessage !== null) { return; }
         const pending = resendWhenReachable.current;
         if (pending === null) { return; }
+        // The banner can clear while the host still holds its lock: the
+        // provider's availability refresh runs ahead of the reload that was
+        // deferred until the send settles. Keep the pending resend AND its
+        // bubble.
+        //
+        // Read LIVE rather than through the render-time closure `sendBlocked`,
+        // for the same reason `handleSendMessage` and `handleRetry` do: a host
+        // snapshot can land between this render committing and this effect's
+        // passive-effect callback running, and the closure would then still
+        // see the stale, unlocked value. Reading live here means `sendBlocked`
+        // is no longer what gates this effect body, so it looks unused below,
+        // but it is NOT dead: it stays in the dependency array purely as the
+        // trigger that re-runs this effect once the live gate releases. Do not
+        // remove it from the deps just because the body does not read it.
+        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
         resendWhenReachable.current = null;
         // The banner also clears on a NAVIGATION. Cancel when the move is
         // already visible here.
@@ -457,10 +505,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // so the resend does not leave a duplicate behind.
         store.removeMessage(pending.localId);
         handleSendMessage(pending.text);
-        // Deliberately keyed on the banner alone. `handleSendMessage` is
+        // Keyed on the banner and the send gate. `handleSendMessage` is
         // recreated every render, so listing it would re-run this on every
-        // render instead of on the transition that matters.
-    }, [store.unavailableMessage]);
+        // render instead of on the transitions that matter.
+    }, [store.unavailableMessage, sendBlocked]);
 
     // Popover open/close helpers. The two popovers are mutually exclusive.
     // Opening one always closes the other. Closing restores focus to
@@ -550,14 +598,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // render because the message list is short and `messages.map` already
     // walks it; rebuilding a Map would be wasted work.
     const isRetryDisabled = (msg: { errorReason?: ChatMessage['errorReason'] }) => {
+        // A retry IS a send. While the host would refuse one, this is an inert
+        // control rather than an affordance whose only outcome is a rejection
+        // that also wipes the running request's indicator.
+        if (sendBlocked) { return true; }
         switch (msg.errorReason) {
             case 'iris-disabled':
                 // Persistent until the user navigates away from the
                 // disabled exercise; the banner already states this.
                 return true;
             case 'iris-unavailable':
-                // Never disabled. This button IS the reload while the banner is
-                // up: it reloads first and sends afterwards (see `handleRetry`).
+                // Never disabled for its own reason (the gate above still
+                // applies). This button IS the reload while the banner is up:
+                // it reloads first and sends afterwards (see `handleRetry`).
                 // Two Retry buttons at once, one of them dead, is a puzzle
                 // rather than an affordance.
                 return false;
@@ -1055,6 +1108,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         onSendPrompt={handleSendMessage}
                         hasContext={hasConversation}
                         isChatDisabled={isChatDisabled}
+                        sendDisabled={sendBlocked}
+                        sendDisabledLabel={sendBlockedReason}
                         onRetry={handleRetry}
                         isRetryDisabled={isRetryDisabled}
                     />
@@ -1124,10 +1179,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     </div>
                 )}
 
-                {/* Chat input — disabled while we are still hydrating the
-                    message list so a fast user does not race the load and
-                    have their just-sent message swallowed when the server
-                    snapshot arrives. */}
+                {/* Composing and sending are gated separately. The textarea is
+                    disabled only while there is nothing to write into, e.g.
+                    while the transcript is still hydrating, so a fast user
+                    cannot race the load. Sending is refused separately while
+                    the host would reject it. */}
                 <ChatInput
                     onSend={handleSendMessage}
                     value={store.composerText}
@@ -1137,15 +1193,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         || !hasConversation
                         || isChatUnavailable
                         || messagesLoading
-                        || store.streaming.isStreaming
                     }
+                    sendDisabled={sendBlocked}
+                    sendDisabledLabel={sendBlockedReason}
+                    placeholder={sendBlocked ? 'Type your next message…' : undefined}
                     disabledPlaceholder={
                         disabledPlaceholder
-                        ?? (messagesLoading
-                            ? 'Loading conversation…'
-                            : store.streaming.isStreaming
-                                ? 'Iris is responding…'
-                                : undefined)
+                        ?? (messagesLoading ? 'Loading conversation…' : undefined)
                     }
                 />
 

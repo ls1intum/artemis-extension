@@ -80,6 +80,53 @@ describe('WelcomeState', () => {
 		expect(onSendPrompt).toHaveBeenCalledWith('What are the test cases checking?');
 	});
 
+	it('disables the prompt buttons while sending is blocked', () => {
+		// The prompts ARE sends. Left live while the funnel refuses, a click
+		// produces nothing at all: no bubble, no notice, no message.
+		render(
+			<WelcomeState
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+				sendDisabled={true}
+				sendDisabledLabel="Iris is still answering"
+			/>
+		);
+
+		for (const prompt of [
+			'Explain the exercise requirements',
+			'Help me debug my code',
+			'What are the test cases checking?',
+		]) {
+			expect(screen.getByRole('button', { name: prompt })).toBeDisabled();
+		}
+	});
+
+	it('explains the dead prompt buttons on hover while sending is blocked', () => {
+		render(
+			<WelcomeState
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+				sendDisabled={true}
+				sendDisabledLabel="The conversation is still loading"
+			/>
+		);
+
+		expect(screen.getByTitle('The conversation is still loading')).toBeInTheDocument();
+	});
+
+	it('leaves the prompt buttons live when sending is not blocked', () => {
+		render(
+			<WelcomeState
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+				sendDisabledLabel="Iris is still answering"
+			/>
+		);
+
+		expect(screen.getByRole('button', { name: 'Help me debug my code' })).toBeEnabled();
+		expect(screen.queryByTitle('Iris is still answering')).not.toBeInTheDocument();
+	});
+
 	it('does not render prompt buttons when hasContext is false', () => {
 		render(<WelcomeState onSendPrompt={vi.fn()} hasContext={false} />);
 		expect(screen.queryAllByRole('button')).toHaveLength(0);

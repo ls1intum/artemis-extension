@@ -1,5 +1,6 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
@@ -85,6 +86,10 @@ describe('Iris Chat Flow', () => {
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
+			sendInFlight: false,
+			navigationInFlight: false,
+			composerText: '',
+			unavailableMessage: null,
 			// Default flows assume init has happened. The cold-mount flow
 			// test below explicitly opts out to exercise pre-init behavior.
 			hasReceivedInitialIrisState: true,
@@ -566,7 +571,7 @@ describe('Iris Chat Flow', () => {
 			expect(lastPayload.localId).toBe(fresh!.localId);
 		});
 
-		it('ChatInput is disabled while a send is in flight', async () => {
+		it('keeps the composer usable while a send is in flight', async () => {
 			useChatStore.setState({ ...HYDRATED });
 			const user = userEvent.setup();
 			const mockApi = createMockVsCodeApi();
@@ -579,7 +584,14 @@ describe('Iris Chat Flow', () => {
 			await waitFor(() => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			});
-			expect(textarea).toBeDisabled();
+
+			expect(textarea).toBeEnabled();
+			await user.type(textarea, 'Follow-up');
+			expect(useChatStore.getState().composerText).toBe('Follow-up');
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+			// The invitation to keep writing is the whole point of leaving the
+			// textarea enabled, so the wording is part of the contract.
+			expect(textarea).toHaveAttribute('placeholder', 'Type your next message…');
 		});
 
 		it('attempting a second send while one is in flight does not fire a second sendMessage', async () => {
@@ -595,9 +607,9 @@ describe('Iris Chat Flow', () => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			});
 
-			// Typing into the disabled textarea is a no-op; an Enter press
-			// while disabled cannot reach handleSendMessage either. Verify
-			// that the only sendMessage command posted is the first one.
+			// Typing is allowed during a run now, sending is not. The Enter
+			// guard in ChatInput plus the funnel guard in handleSendMessage
+			// are what keep this to one command.
 			await user.click(textarea);
 			await user.keyboard('Second{Enter}');
 
@@ -698,6 +710,442 @@ describe('Iris Chat Flow', () => {
 
 			const retry = screen.getByRole('button', { name: 'Retry sending this message' });
 			expect(retry).toBeDisabled();
+		});
+
+		it('keeps a draft written during the run once the run ends', async () => {
+			useChatStore.setState({ ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await user.type(textarea, 'First send{Enter}');
+			await waitFor(() => {
+				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			});
+
+			// Both transitions travel the real wire, so this exercises the
+			// view's own message path and not just the local startStreaming
+			// that handleSendMessage already did.
+			act(() => {
+				dispatchExtensionMessage({
+					type: 'updateIrisRunUi',
+					projection: {
+						sessionId: OPEN,
+						revision: 1,
+						draft: null,
+						activities: [],
+						waiting: true,
+						runState: 'RUNNING',
+					},
+				});
+			});
+
+			await user.type(textarea, 'Follow-up');
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: 'updateIrisRunUi',
+					projection: {
+						sessionId: OPEN,
+						revision: 2,
+						draft: null,
+						activities: [],
+						waiting: false,
+						runState: 'FINISHED',
+					},
+				});
+			});
+
+			await waitFor(() => {
+				expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+			});
+			expect(textarea).toHaveValue('Follow-up');
+		});
+
+		it('keeps sending blocked while the host still holds the lock', async () => {
+			// `streaming` starts ON so the FINISHED projection below genuinely
+			// turns the run off. Without it the projection would move the run
+			// from off to off and the assertion would prove nothing about the
+			// lock outliving the run.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: true,
+				streaming: { isStreaming: true },
+				composerText: 'Draft',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// The run is over as far as the run UI is concerned...
+			act(() => {
+				dispatchExtensionMessage({
+					type: 'updateIrisRunUi',
+					projection: {
+						sessionId: OPEN,
+						revision: 2,
+						draft: null,
+						activities: [],
+						waiting: false,
+						runState: 'FINISHED',
+					},
+				});
+			});
+			// ...the run really is off, so only the lock is left to block on...
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			// ...but the host has not released its lock yet.
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+		});
+
+		it('keeps sending blocked when the socket drops mid-send', async () => {
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: true,
+				streaming: { isStreaming: true },
+				composerText: 'Draft',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// A disconnect resets the run UI, so isStreaming alone would say
+			// "go ahead" while the host would still reject.
+			act(() => {
+				dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'disconnected' });
+			});
+
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+		});
+
+		it('blocks sending during a conversation switch and says so', async () => {
+			// The combination the host rejects for NAVIGATION, not for the run.
+			useChatStore.setState({
+				...HYDRATED,
+				navigationInFlight: true,
+				sendInFlight: false,
+				streaming: { isStreaming: true },
+				composerText: 'Draft',
+			});
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await user.type(screen.getByRole('textbox', { name: 'Chat input' }), '{Enter}');
+
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(0);
+			expect(useChatStore.getState().composerText).toBe('Draft');
+			expect(screen.getByTitle('The conversation is still loading')).toBeInTheDocument();
+		});
+
+		it('refuses a blocked send at the funnel without disturbing anything', () => {
+			// The welcome prompts are the shortest path to the funnel: they
+			// call handleSendMessage directly (WelcomeState.tsx, via
+			// onSendPrompt), with no composer in between. They are now gated
+			// like Retry, so the lock has to be taken AFTER the render that
+			// drew them live, the same way the Retry race test below reaches
+			// its guard. That stale button is the only way into the funnel
+			// while the gate is shut, which makes this test the coverage of
+			// the funnel guard itself.
+			//
+			// Only the host lock is set, deliberately. `showWelcome` is
+			// `messages.length === 0 && !hasRunSurface` (ChatMessageList.tsx),
+			// so seeding `streaming` here would hide the very buttons this
+			// test clicks. The lock alone blocks the funnel and keeps them on
+			// screen.
+			useChatStore.setState({
+				...HYDRATED,
+				messages: [],
+				sendInFlight: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const prompt = screen.getByRole('button', { name: 'Help me debug my code' });
+			expect(prompt).toBeEnabled();
+
+			// The missing act() is the POINT, exactly as in the Retry race test
+			// below: wrapping it would flush the disabling render, the click
+			// would land on an inert button, and this test would keep passing
+			// while covering nothing at all. The act() warning is expected.
+			useChatStore.setState({ sendInFlight: true });
+			expect(prompt).toBeEnabled();
+
+			fireEvent.click(prompt);
+
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(0);
+			// Without the guard, handleSendMessage would have added an
+			// optimistic bubble and called startStreaming before the host ever
+			// saw the command.
+			expect(useChatStore.getState().messages).toHaveLength(0);
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+		});
+
+		it('makes the welcome prompts inert while a send is in flight', () => {
+			useChatStore.setState({
+				...HYDRATED,
+				messages: [],
+				sendInFlight: true,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const prompt = screen.getByRole('button', { name: 'Help me debug my code' });
+			expect(prompt).toBeDisabled();
+			// The reason travels with the disabling, so a hover explains the
+			// dead control instead of leaving the student guessing.
+			expect(prompt.parentElement).toHaveAttribute('title', 'Iris is still answering');
+		});
+
+		it('keeps the draft when a send click beats the disabling render', () => {
+			// The composer's own guard is only as fresh as the last committed
+			// render. The host can take the lock in between, and the funnel
+			// then refuses from live state. The clear must follow the funnel's
+			// answer, not the click: a refusal produces no bubble, so the
+			// composer is the only thing left holding the student's text.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				navigationInFlight: false,
+				streaming: { isStreaming: false },
+				composerText: 'Draft',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const send = screen.getByRole('button', { name: 'Send message' });
+			expect(send).toBeEnabled();
+
+			// Deliberately unwrapped, see the Retry race test below.
+			useChatStore.setState({ navigationInFlight: true });
+			expect(send).toBeEnabled();
+
+			fireEvent.click(send);
+
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(0);
+			// Clearing regardless of the funnel's answer makes this ''.
+			expect(useChatStore.getState().composerText).toBe('Draft');
+			expect(screen.getByRole('textbox', { name: 'Chat input' })).toHaveValue('Draft');
+		});
+
+		it('makes Retry inert while a send is in flight', async () => {
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: true,
+				streaming: { isStreaming: true },
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorMessage: 'Something went wrong',
+				}],
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.getByRole('button', { name: /retry/i })).toBeDisabled();
+		});
+
+		it('keeps the failed bubble when a Retry click beats the disabling render', () => {
+			// Disabling the button narrows the window, it does not close it. The
+			// host can take the lock between the render that drew an enabled
+			// Retry and the click on it, and `handleRetry` would then remove the
+			// bubble and hand a blocked send to the funnel, which refuses it: the
+			// student's text is gone and nothing was sent. The guard placed above
+			// that removal is the only thing standing between this click and that
+			// outcome, so this test is its only coverage.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				streaming: { isStreaming: false },
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorMessage: 'Something went wrong',
+				}],
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const retry = screen.getByRole('button', { name: /retry/i });
+			expect(retry).toBeEnabled();
+
+			// The host takes the lock. The missing act() is the POINT of this
+			// test, not an oversight: wrapping it would flush the re-render, the
+			// button would come back disabled, the click would do nothing and
+			// this test would silently stop covering anything. Left unwrapped,
+			// React has not committed the disabling render yet, so the button in
+			// the DOM is still the enabled one the student is looking at. That
+			// stale button is the only way to reach `handleRetry` while the gate
+			// is shut, which is why the act() warning this line prints is
+			// expected. Do not "fix" it.
+			useChatStore.setState({ sendInFlight: true });
+			expect(retry).toBeEnabled();
+
+			fireEvent.click(retry);
+
+			const sends = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sends).toHaveLength(0);
+			// The bubble survived, so the text is still retryable once the lock
+			// clears. Without the guard above the removal this is 0.
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().messages[0].content).toBe('Retry me');
+		});
+
+		it('holds a deferred resend until the gate releases, then sends it once', async () => {
+			// The lock must NOT be held yet: Retry is inert while it is, so a
+			// blocked click could never arm the deferred resend in the first
+			// place. The sequence under test is arm first, then get blocked.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				unavailableMessage: 'Iris is temporarily unavailable',
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorReason: 'iris-unavailable' as const,
+					errorMessage: 'Iris is temporarily unavailable',
+				}],
+			});
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Arms resendWhenReachable and asks for a reload.
+			await user.click(screen.getByRole('button', { name: /retry/i }));
+
+			// The banner clears while the host now holds its lock: the
+			// availability refresh runs ahead of the reload that was deferred
+			// until the send settles. Both in one update, because that is the
+			// render the effect has to survive.
+			act(() => {
+				useChatStore.setState({ unavailableMessage: null, sendInFlight: true });
+			});
+
+			const sends = () => (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+
+			// Blocked: nothing sent, and the bubble is still there to retry.
+			expect(sends()).toHaveLength(0);
+			expect(useChatStore.getState().messages).toHaveLength(1);
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+
+			await waitFor(() => { expect(sends()).toHaveLength(1); });
+			expect((sends()[0][0] as { payload: { text: string } }).payload.text).toBe('Retry me');
+		});
+
+		/**
+		 * A stand-in for "a host snapshot lands between this render
+		 * committing and its effect running". React flushes a commit's
+		 * passive effects in tree order, and a PRECEDING sibling's own
+		 * `useEffect` runs strictly before `IrisChatView`'s. Mounted before
+		 * `IrisChatView`, this fires exactly once (guarded by `armed`), right
+		 * when `unavailableMessage` turns null, and mutates the store
+		 * directly, before the resend effect's own body runs in the SAME
+		 * flush.
+		 *
+		 * That is the only way found, with the tools available here, to make
+		 * a render commit with `sendBlocked === false` in its closure while
+		 * `useChatStore.getState().sendInFlight` is already `true` by the
+		 * time the effect body reads it. Every attempt to produce the same
+		 * gap purely through test-level `act()`/`setState` sequencing (two
+		 * sequential `act()` calls, raw `setState` outside `act()`, awaiting
+		 * across micro- and macrotasks) either collapsed both changes into
+		 * one render that saw them together, or let the whole effect
+		 * including the resend run to completion before the second change
+		 * was even applied. A closure read would have passed either of those
+		 * cases too, so they would not have exercised the bug this guards
+		 * against.
+		 */
+		function RaceInjector({ armed }: { armed: { current: boolean } }) {
+			const unavailable = useChatStore((s) => s.unavailableMessage);
+			useEffect(() => {
+				if (armed.current && unavailable === null) {
+					armed.current = false;
+					useChatStore.setState({ sendInFlight: true });
+				}
+			});
+			return null;
+		}
+
+		it('keeps the deferred resend when the lock lands before the effect body runs, not just before its render', async () => {
+			const armed = { current: false };
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				unavailableMessage: 'Iris is temporarily unavailable',
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorReason: 'iris-unavailable' as const,
+					errorMessage: 'Iris is temporarily unavailable',
+				}],
+			});
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<><RaceInjector armed={armed} /><IrisChatView vscodeApi={mockApi} /></>);
+
+			// Arms resendWhenReachable and asks for a reload.
+			await user.click(screen.getByRole('button', { name: /retry/i }));
+
+			const sends = () => (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+
+			// The ONLY state change in this act(): unlike the test above,
+			// `sendInFlight` is untouched here. RaceInjector flips it to
+			// `true` from inside its own effect, part of the SAME
+			// passive-effect flush, strictly before the resend effect's body
+			// runs, so this render's closure captures `sendBlocked === false`
+			// even though the lock is already live by the time that closure
+			// is read.
+			armed.current = true;
+			act(() => {
+				useChatStore.setState({ unavailableMessage: null });
+			});
+
+			// Blocked: nothing sent, and the bubble is still there to retry.
+			// Before the fix this failed right here: the stale closure let
+			// the effect through, it removed the bubble, and the funnel's own
+			// (already-live) guard then refused the send, losing the text for
+			// good.
+			expect(sends()).toHaveLength(0);
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().messages[0].content).toBe('Retry me');
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+
+			await waitFor(() => { expect(sends()).toHaveLength(1); });
+			expect((sends()[0][0] as { payload: { text: string } }).payload.text).toBe('Retry me');
 		});
 	});
 
