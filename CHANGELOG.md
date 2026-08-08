@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-08-08
+
 ### Changed
 
 - **Iris streaming:** Iris answers now stream in as they are generated instead of appearing all at once, and the chat shows which tools Iris used during a run, replacing the progress display that stopped working with Artemis 9.6.
