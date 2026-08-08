@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -893,6 +893,57 @@ describe('Iris Chat Flow', () => {
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			expect(screen.getByRole('button', { name: /retry/i })).toBeDisabled();
+		});
+
+		it('keeps the failed bubble when a Retry click beats the disabling render', () => {
+			// Disabling the button narrows the window, it does not close it. The
+			// host can take the lock between the render that drew an enabled
+			// Retry and the click on it, and `handleRetry` would then remove the
+			// bubble and hand a blocked send to the funnel, which refuses it: the
+			// student's text is gone and nothing was sent. The guard placed above
+			// that removal is the only thing standing between this click and that
+			// outcome, so this test is its only coverage.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				streaming: { isStreaming: false },
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorMessage: 'Something went wrong',
+				}],
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const retry = screen.getByRole('button', { name: /retry/i });
+			expect(retry).toBeEnabled();
+
+			// The host takes the lock. The missing act() is the POINT of this
+			// test, not an oversight: wrapping it would flush the re-render, the
+			// button would come back disabled, the click would do nothing and
+			// this test would silently stop covering anything. Left unwrapped,
+			// React has not committed the disabling render yet, so the button in
+			// the DOM is still the enabled one the student is looking at. That
+			// stale button is the only way to reach `handleRetry` while the gate
+			// is shut, which is why the act() warning this line prints is
+			// expected. Do not "fix" it.
+			useChatStore.setState({ sendInFlight: true });
+			expect(retry).toBeEnabled();
+
+			fireEvent.click(retry);
+
+			const sends = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sends).toHaveLength(0);
+			// The bubble survived, so the text is still retryable once the lock
+			// clears. Without the guard above the removal this is 0.
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().messages[0].content).toBe('Retry me');
 		});
 
 		it('holds a deferred resend until the gate releases, then sends it once', async () => {

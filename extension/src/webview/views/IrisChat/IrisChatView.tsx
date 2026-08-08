@@ -397,8 +397,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
         // BEFORE the removal, never after: the funnel would refuse the send and
         // the bubble would already be gone, taking the student's text with it.
-        // Unreachable through the UI once isRetryDisabled is true; kept as the
-        // structural guarantee for any future caller.
+        // `isRetryDisabled` does not make this unreachable, it only narrows the
+        // window: a click can still land between the host taking the lock and
+        // React committing the render that disables the button. This guard is
+        // what closes that window, and the flow tests cover it.
         if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
         // Remove the failed entry first so handleSendMessage's optimistic
         // add doesn't briefly produce two copies. Zustand+React batch the
