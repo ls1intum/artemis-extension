@@ -519,4 +519,25 @@ suite('SendCoordinator', () => {
         c.api.resolveSend({ id: 11 });
         await sent;
     });
+
+    test('publishes the lock when it is taken, not only when it is released', async () => {
+        const c = coordinatorWith({ committed: COURSE42 });
+        // Record the flag AS EACH EVENT FIRES. Reading the state afterwards
+        // would pass without the notification, because the old code already
+        // sets the field; only the emission is new.
+        const seen: boolean[] = [];
+        c.conversation.onDidChange(() => { seen.push(c.state.sendInFlight); });
+
+        const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
+        await tick();
+
+        assert.ok(
+            seen.includes(true),
+            `no change event carried sendInFlight === true; saw [${seen.join(', ')}]`,
+        );
+
+        c.api.resolveSend({ id: 11 });
+        await sent;
+        assert.strictEqual(c.state.sendInFlight, false, 'the lock must still be released');
+    });
 });
