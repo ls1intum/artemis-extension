@@ -158,6 +158,7 @@ export interface IrisChatSession {
     userId?: number;
     title?: string;
     creationDate?: string;
+    lastActivityDate?: string;
     messages?: IrisChatMessage[];
     [key: string]: unknown;
 }
@@ -176,25 +177,44 @@ export interface IrisChatSessionSummary {
 
 export interface IrisChatMessage {
     id?: number;
+    /**
+     * `USER` | `LLM` | `ARTIFACT` | `CTXSWAP`, as Artemis persists them, and
+     * deliberately widened to `string`: the server may add a sender this
+     * build has never heard of, and a narrowed union would make that a parse
+     * failure rather than a row we render conservatively. `CTXSWAP` rows are
+     * context-change markers, not chat.
+     */
     sender?: string;
     sentAt?: string;
     content?: IrisChatMessageContent[];
+    /** Tool activity persisted with this message; rendered as the trail. */
+    activities?: IrisActivityDTO[];
+    /** `false` marks an intermediate message. Absent or `true` means final. */
+    final?: boolean;
     [key: string]: unknown;
 }
 
 export interface IrisChatMessageContent {
-    textContent?: string;
     type?: string;
+    textContent?: string;
+    /** Present on a `json` content item; the CTXSWAP marker payload lives here. */
+    attributes?: unknown;
     [key: string]: unknown;
 }
 
-export interface IrisStageDTO {
-    name?: string;
-    weight?: number;
-    state?: 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE' | 'SKIPPED' | 'ERROR';
-    message?: string;
-    internal?: boolean;
-    [key: string]: unknown;
+export type IrisRunState = 'RUNNING' | 'FINISHED' | 'FAILED';
+export type IrisActivityState = 'RUNNING' | 'FINISHED' | 'FAILED';
+export type IrisActivityKind = 'TOOL' | 'COMMAND';
+
+/** One tool or command invocation reported by a Pyris run. */
+export interface IrisActivityDTO {
+    id: string;
+    kind: IrisActivityKind;
+    name: string;
+    state: IrisActivityState;
+    detail?: string;
+    result?: string;
+    durationMillis?: number;
 }
 
 export interface IrisSettingsResponse {

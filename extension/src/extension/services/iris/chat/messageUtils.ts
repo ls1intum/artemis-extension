@@ -19,8 +19,11 @@ export function extractIrisMessageContent(content: unknown): string {
             if (item.textContent) {
                 return item.textContent;
             }
-            return item.toString?.() ?? String(item);
-        }).join('\n');
+            // Never `item.toString()`: for a plain object that yields the literal
+            // "[object Object]" in the transcript. An unrecognised part has no
+            // renderable text, so it contributes nothing.
+            return '';
+        }).filter((part) => part.length > 0).join('\n');
     }
     if (typeof content === 'string') {
         return content;

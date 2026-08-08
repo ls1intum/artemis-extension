@@ -15,6 +15,7 @@ import type { TelemetryManager } from './telemetryManager';
 export type ITelemetryManager = Pick<TelemetryManager,
     | 'setWebsocketService'
     | 'startExerciseSession'
+    | 'endExerciseSession'
     | 'getStruggleContext'
     | 'getEqEngineState'
     | 'isEnabled'

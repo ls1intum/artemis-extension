@@ -1,64 +1,76 @@
 import * as vscode from 'vscode';
 
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { logger } from '@extension/services/loggingService';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
-import type { IProviderRegistry } from './providerRegistry';
-
 export class ExerciseOpeningService {
     constructor(
-        private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _providerRegistry: IProviderRegistry,
+        private readonly _courseCatalog: CourseCatalog | undefined,
         private _telemetryManager?: ITelemetryManager,
         private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 
     /**
-     * Handle post-open side effects after an exercise is opened:
-     * registry registration, telemetry session start, chat provider notification.
+     * Handle post-open side effects after an exercise is opened: record it in
+     * the catalog's supplemental layer (Task 5's registry rebuild picks it up
+     * from there), remember the course as recently opened, and start the
+     * telemetry session.
+     *
+     * `epoch` is passed in rather than read live. This runs after the caller
+     * has awaited the exercise fetch, and a live read here would hand the
+     * previous session's exercise the new session's generation, which is the
+     * one write `upsertSupplemental`'s guard cannot then reject.
      */
-    public handleExerciseOpened(exerciseData: ExerciseDetailsResponse, exerciseId: number): void {
+    public handleExerciseOpened(exerciseData: ExerciseDetailsResponse, exerciseId: number, epoch: number): void {
+        // ONE guard, ahead of all three side effects, because they are one
+        // decision: this open either still belongs to the current session or it
+        // does not. The catalog write and the recency write each reject a stale
+        // epoch on their own, but the telemetry start never had a guard, so a
+        // late `openExerciseDetails` completing after an identity change would
+        // start a session for the PREVIOUS account's exercise moments after the
+        // reset ended it. That is the same corrupt cross-account recording the
+        // reset exists to prevent, arriving by a different door.
+        //
+        // With no catalog there is no epoch to compare against, so the check
+        // stands down rather than silently swallowing every open. The two inner
+        // guards stay: they are shared with call sites that do not come through
+        // here, and defence in depth is the point of them.
+        if (epoch !== (this._courseCatalog?.currentEpoch ?? epoch)) { return; }
+
         const exercise = exerciseData.exercise;
         if (!exercise) { return; }
 
         const exerciseTitle = exercise.title || 'Untitled';
         const exerciseIdFromData = exercise.id || exerciseId;
-
-        // Register in exercise registry
-        const participations = exercise.studentParticipations || [];
-        if (participations.length > 0 && participations[0]?.repositoryUri) {
-            this._exerciseRegistry.registerExercise(
-                exerciseIdFromData,
-                exerciseTitle,
-                participations[0].repositoryUri,
-                exercise.shortName || '',
-                exercise.course?.id,
-                typeof participations[0].id === 'number' ? participations[0].id : undefined,
-            );
-            logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
-        }
-
         const courseId = exercise.course?.id;
+
+        // An exercise with no course id cannot be placed; a `courseId: 0` row
+        // would be a made-up fact of exactly the kind this catalog exists to
+        // remove.
         if (typeof courseId === 'number') {
-            this._courseAccessStorage?.onCourseAccessed(courseId);
+            const participation = exercise.studentParticipations?.[0];
+            this._courseCatalog?.upsertSupplemental({
+                kind: 'partial-exercise',
+                id: exerciseIdFromData,
+                courseId,
+                title: exerciseTitle,
+                shortName: exercise.shortName,
+                releaseDate: exercise.releaseDate ?? exercise.startDate,
+                dueDate: exercise.dueDate,
+                repositoryUri: participation?.repositoryUri,
+                participationId: typeof participation?.id === 'number' ? participation.id : undefined,
+            }, epoch);
+            // The same captured epoch as the catalog write above, so the two
+            // either both land or both do not.
+            this._courseAccessStorage?.onCourseAccessed(courseId, epoch);
         }
 
-        // Start telemetry session
+        // Start telemetry session. Reachable only past the epoch check above.
         this._telemetryManager?.startExerciseSession(
             exerciseIdFromData,
             vscode.workspace.workspaceFolders?.[0]?.uri,
         );
-
-        // Notify chat provider
-        const chatProvider = this._providerRegistry.getChatWebviewProvider();
-        if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-            const releaseDate = exercise.releaseDate || exercise.startDate;
-            const dueDate = exercise.dueDate;
-            const shortName = exercise.shortName;
-            chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName || '', exercise.course?.id);
-        }
     }
 }

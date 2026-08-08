@@ -1,13 +1,18 @@
 import * as vscode from 'vscode';
 
-import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
+import type { IrisChatMessage } from '@shared/types/apiResponses';
 
-import { isVisibleIrisStage } from '@extension/services/iris/parseIrisWs';
+import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
+import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
+import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
+import type { IrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
+import { isIrisActivity, isIrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
-import type { IrisChatMessage } from '@extension/types';
+import type { IrisActivityDTO, IrisRunState } from '@extension/types';
 
 import { extractIrisMessageContent } from './messageUtils';
 
@@ -31,77 +36,285 @@ export class IrisWebSocketMessageHandler {
     private readonly _onDidReceiveIrisChatMessage = new vscode.EventEmitter<ReceivedIrisChatMessage>();
     public readonly onDidReceiveIrisChatMessage = this._onDidReceiveIrisChatMessage.event;
 
+    // Run-scoped UI projection. Held here (not just the draft) so a later
+    // PARTIAL cannot erase a known runState/error and so a disconnect reset
+    // can republish a clean projection without inventing a frame.
+    //
+    // NOTE: on disconnect, only the webview store is reset (via
+    // UpdateWebSocketStatus -> resetTransientChatUi in the webview). This
+    // handler-side projection is left untouched here on purpose: the
+    // provider's `_recoverOnResubscribe` clears it (resetRunUiAndPublish)
+    // once the reconciled history proves the run finished, which is the only
+    // moment a stale partial is known to be stale.
+    private _draft: { runId: string; text: string } | null = null;
+    private _activities: IrisActivityDTO[] = [];
+    private _runState: IrisRunState | null = null;
+    private _error: { message?: string } | null = null;
+    private _revision = 0;
+
     constructor(
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
-        private readonly _onSessionTitleUpdate?: (artemisSessionId: number, title: string) => void,
+        private readonly _runs: IrisRunStateMachine,
+        private readonly _getConversation: () => IrisConversationService | undefined,
     ) { }
 
-    public handleIrisWebSocketMessage(data: unknown): void {
-        logger.info(`Received Iris WebSocket message: ${JSON.stringify(data, null, 2)}`, LogCategory.WEBSOCKET);
+    /**
+     * Gates every behaviour that needs a conversation (the source-session
+     * check, the CTXSWAP branch, host-state ingestion) on one being *open*,
+     * not merely constructed: the service exists from activation, but
+     * `ConversationState.currentSessionId` stays `undefined` until `start()`
+     * or a navigation has installed something.
+     */
+    private get _activeConversation(): IrisConversationService | undefined {
+        const conversation = this._getConversation();
+        return conversation?.state.snapshot().currentSessionId !== undefined ? conversation : undefined;
+    }
 
-        // Runtime type guard for the incoming WebSocket payload
-        if (!this._isIrisWebSocketPayload(data)) {
-            logger.info(`Unknown message type or format: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
+    public handleIrisWebSocketMessage(data: unknown, sourceSessionId: number): void {
+        if (!isIrisWebSocketMessage(data) || typeof data.type !== 'string') {
+            logger.info(`Unknown message format: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
             return;
         }
 
-        // Extract sessionTitle if present (sent with both MESSAGE and STATUS payloads)
-        this._handleSessionTitle(data);
-
-        // Handle different message types
-        if (data.type === 'MESSAGE' && data.message) {
-            logger.info('Processing MESSAGE type', LogCategory.WEBSOCKET);
-            // Extract content from the message
-            const msg = data.message;
-            const content = extractIrisMessageContent(msg.content);
-
-            logger.info(`📝 Extracted content length: ${content.length} chars`, LogCategory.WEBSOCKET);
-            logger.info(`👤 Message sender: ${msg.sender}`, LogCategory.WEBSOCKET);
-
-            // Only show assistant messages (user messages were already shown)
-            if (msg.sender !== 'USER' && content) {
-                logger.info('🤖 Sending assistant message to webview (this should hide thinking indicator)', LogCategory.WEBSOCKET);
-                const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
-                this._postMessage({
-                    type: ExtensionMsg.AddMessage,
-                    message: {
-                        id: msg.id,
-                        role: 'assistant',
-                        content: content,
-                        timestamp: sentAtMs ?? Date.now(),
-                        helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null
-                    }
-                });
-
-                // Build the enriched received-message payload for recording.
-                // sessionId is not available in the per-message payload; it is
-                // stored at the subscription level. We omit it here and rely on
-                // the recorder consumer to enrich it if needed in the future.
-                const receivedMsg: ReceivedIrisChatMessage = {
-                    content,
-                    messageId: msg.id !== undefined ? String(msg.id) : undefined,
-                    sentAt: sentAtMs,
-                };
-                this._onDidReceiveIrisChatMessage.fire(receivedMsg);
-                logger.info('Assistant message sent to webview', LogCategory.WEBSOCKET);
-            } else {
-                logger.info('Skipping message (either USER message or no content)', LogCategory.WEBSOCKET);
+        // 1. Source check FIRST: before admission, before run state, before the
+        //    title handler. A frame from the conversation we just left must not
+        //    be able to bind an unknown run as current or rename the live
+        //    session. Skipped only while nothing is open yet, when there is
+        //    no conversation to check the frame against.
+        const conversation = this._activeConversation;
+        if (conversation !== undefined) {
+            const current = conversation.state.snapshot().currentSessionId;
+            if (sourceSessionId !== current) {
+                logger.info(`Dropped frame from session ${sourceSessionId} (current ${String(current)})`, LogCategory.WEBSOCKET);
+                return;
             }
-        } else if (data.type === 'STATUS') {
-            const rawStages = data['stages'];
-            if (Array.isArray(rawStages)) {
-                const visibleStages = (rawStages as unknown[]).filter(isVisibleIrisStage);
-                logger.info(`Iris status update: ${visibleStages.length} visible stage(s)`, LogCategory.WEBSOCKET);
-                this._postMessage({
-                    type: ExtensionMsg.UpdateIrisStages,
-                    stages: visibleStages,
-                });
-            } else {
-                logger.info(`Iris STATUS message without stages array: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
+            // 2. A context-swap marker is not chat and never touches run state.
+            if (data.type === 'MESSAGE' && data.message && isContextSwap(data.message)) {
+                this._handleContextSwap(conversation, data.message);
+                return;
+            }
+            // 3. Anything else carrying a body is CONTENT, whatever we draw.
+            //    Placed here so the USER-echo, bodiless-answer and ARTIFACT
+            //    early returns further down cannot skip it.
+            if (data.type === 'MESSAGE' && data.message) {
+                conversation.state.upsertMessage(data.message);
             }
         }
+
+        // Admission MUST come first: a stale run must not be able to rename the
+        // live session via sessionTitle.
+        if (!this._runs.admit(data)) {
+            logger.info(`Discarded frame from non-current run ${String(data.runId)}`, LogCategory.WEBSOCKET);
+            return;
+        }
+
+        this._handleSessionTitle(data);
+
+        // Mirror run state into the projection ONLY when the machine accepted
+        // the transition. A stale unscoped FINISHED would otherwise produce
+        // waiting:true together with runState:'FINISHED' and wipe the visuals
+        // of the run that is actually still going.
+        if (data.runState && this._runs.applyRunState(data.runId, data.runState)) {
+            this._runState = data.runState;
+            this._error = data.error ?? null;
+            if (data.runState !== 'RUNNING') {
+                this._draft = null;
+                this._activities = [];
+            }
+        }
+
+        switch (data.type) {
+            case 'PARTIAL': this._handlePartial(data); break;
+            case 'STATUS': this._handleStatus(data); break;
+            case 'MESSAGE': this._handleMessage(data); break;
+            default:
+                logger.info(`Unhandled Iris frame type: ${data.type}`, LogCategory.WEBSOCKET);
+                this.publishCurrentRunUi();
+        }
+    }
+
+    private _handlePartial(frame: IrisWebSocketMessage): void {
+        const { runId, partialResult, partialSeq } = frame;
+        if (!runId || typeof partialResult !== 'string' || typeof partialSeq !== 'number') { return; }
+        if (!this._runs.acceptPartial(runId, partialSeq)) { return; }
+        this._draft = { runId, text: partialResult };
+        this.publishCurrentRunUi();
+    }
+
+    private _handleStatus(frame: IrisWebSocketMessage): void {
+        const { runId, activitySeq } = frame;
+        if (runId && typeof activitySeq === 'number' && Array.isArray(frame.activities)) {
+            if (!this._runs.acceptActivities(runId, activitySeq)) { return; }
+            this._activities = frame.activities.filter(isIrisActivity);
+        }
+        this.publishCurrentRunUi();
+    }
+
+    private _handleMessage(frame: IrisWebSocketMessage): void {
+        const msg = frame.message;
+        if (!msg) {
+            // A terminal MESSAGE frame can arrive with no message body. It has
+            // already changed waiting state above, so it must still publish.
+            this.publishCurrentRunUi();
+            return;
+        }
+
+        const content = extractIrisMessageContent(msg.content);
+        if (msg.sender === 'USER') {
+            // Never a run terminator, whoever wrote it: it must not finalize the
+            // current run even if the server ever scopes it to a runId.
+            this.publishCurrentRunUi();
+            this._renderForeignUserMessage(msg, content);
+            return;
+        }
+
+        const intermediate = frame.final === false || msg.final === false;
+        this._runs.finalizeRun(frame.runId, intermediate);
+
+        if (!content) {
+            // Bodiless assistant final answer: finalized above (waiting
+            // cleared), but nothing to render.
+            this.publishCurrentRunUi();
+            return;
+        }
+
+        // A run-ID-less MESSAGE is a resend that attaches memories or activities
+        // to an already-persisted message. It must upsert WITHOUT touching the
+        // current run's draft or feed, which may belong to a different run.
+        const isRunScoped = frame.runId !== undefined;
+        if (isRunScoped) {
+            this._draft = null;
+            if (!intermediate) { this._activities = []; }
+        }
+
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) {
+            // No conversation to attribute this message to. Dropping is
+            // correct: rendering it would attach it to whatever conversation
+            // the student opens next.
+            logger.info('Dropping Iris message: no session to attribute it to', LogCategory.WEBSOCKET);
+            return;
+        }
+
+        const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
+        this._postMessage({
+            type: ExtensionMsg.AddMessage,
+            sessionId,
+            message: {
+                id: msg.id,
+                role: 'assistant',
+                content,
+                timestamp: sentAtMs ?? Date.now(),
+                helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null,
+                activities: Array.isArray(msg.activities) ? msg.activities.filter(isIrisActivity) : undefined,
+                final: intermediate ? false : undefined,
+            },
+            runUi: isRunScoped ? this._buildProjection() : undefined,
+        });
+
+        // Only a run-scoped final answer feeds the recorder path. A run-ID-less
+        // resend is a memory/activity attachment on a message already recorded,
+        // so firing here would double-count it.
+        if (isRunScoped && !intermediate) {
+            this._onDidReceiveIrisChatMessage.fire({
+                content,
+                messageId: msg.id !== undefined ? String(msg.id) : undefined,
+                sentAt: sentAtMs,
+            });
+        }
+    }
+
+    /**
+     * A USER message on this conversation that the webview has not drawn: one
+     * the student wrote SOMEWHERE ELSE (the Artemis web client, a second
+     * window), or the server's echo of our own prompt.
+     *
+     * These used to be dropped wholesale, on the grounds that a USER frame is
+     * only ever our own echo. That quietly broke the promise the whole
+     * conversation-first model rests on: what you see is what the server has.
+     * The host state already recorded it (every MESSAGE frame with a body is
+     * upserted above), so the message reappeared on the next reload, which made
+     * the gap look like a rendering delay rather than a loss.
+     *
+     * Deliberately NOT gated on `sendInFlight`. That flag is set before file
+     * collection and stays set through the POST and its reconciliation, and
+     * another client can write throughout, so suppressing by timing loses those
+     * messages for good: nothing re-delivers the transcript when a send settles.
+     * Telling our own echo apart from a foreign message is the webview's job,
+     * because only it knows what it drew (see `upsertMessage` in the store).
+     */
+    private _renderForeignUserMessage(msg: IrisChatMessage, content: string): void {
+        if (!content) { return; }
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) { return; }
+
+        this._postMessage({
+            type: ExtensionMsg.AddMessage,
+            sessionId,
+            message: {
+                id: msg.id,
+                role: 'user',
+                content,
+                timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+            },
+        });
+    }
+
+    /** The conversation a frame belongs to, or `undefined` when none is open. */
+    private _targetSessionId(): number | undefined {
+        return this._activeConversation?.state.snapshot().currentSessionId;
+    }
+
+    /**
+     * `undefined` when there is nothing to attribute the projection to.
+     * `sessionId` is a required `number` on the projection, so the narrowing
+     * has to happen HERE: "the webview will reject it" is not reachable, tsc
+     * rejects it first.
+     */
+    private _buildProjection(): IrisRunUiProjection | undefined {
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) { return undefined; }
+        return {
+            sessionId,
+            revision: ++this._revision,
+            draft: this._draft,
+            activities: this._activities,
+            waiting: this._runs.waiting,
+            runState: this._runState,
+            error: this._error,
+        };
+    }
+
+    /** Publishes the current projection. */
+    public publishCurrentRunUi(): void {
+        const projection = this._buildProjection();
+        if (!projection) { return; }
+        this._postMessage({ type: ExtensionMsg.UpdateIrisRunUi, projection });
+    }
+
+    /**
+     * Clears the projection (draft/activities/runState/error) but NOT the
+     * machine or the revision, then publishes. Called on beginGeneration so a
+     * new send does not republish the previous run's FAILED/error.
+     */
+    public resetRunUiAndPublish(): void {
+        this._draft = null;
+        this._activities = [];
+        this._runState = null;
+        this._error = null;
+        this.publishCurrentRunUi();
+    }
+
+    /** Clears run state (including the machine) and publishes the empty projection. */
+    public resetRuns(): void {
+        this._runs.reset();
+        this._draft = null;
+        this._activities = [];
+        this._runState = null;
+        this._error = null;
+        this.publishCurrentRunUi();
     }
 
     private _handleSessionTitle(data: Record<string, unknown>): void {
@@ -117,11 +330,57 @@ export class IrisWebSocketMessageHandler {
         }
 
         logger.info(`Session title received: "${sessionTitle}" for session ${artemisSessionId}`, LogCategory.WEBSOCKET);
-        this._onSessionTitleUpdate?.(artemisSessionId, sessionTitle);
+
+        const conversation = this._activeConversation;
+        if (!conversation) { return; }
+        conversation.state.setTitle(sessionTitle);
+        // Without this, a server-side rename lands in host state but never
+        // reaches the webview until some unrelated emit happens to fire: the
+        // presenter repaints only off IrisConversationService.onDidChange,
+        // which fires only from _emit/notifyChanged.
+        conversation.notifyChanged();
     }
 
-    private _isIrisWebSocketPayload(data: unknown): data is Record<string, unknown> & { type: string; message?: IrisChatMessage } {
-        return typeof data === 'object' && data !== null && 'type' in data && typeof (data as { type: unknown }).type === 'string';
+    /**
+     * A context-swap marker is not chat: it never touches run state, and a
+     * malformed one is repaired by reloading rather than guessed at.
+     */
+    private _handleContextSwap(conversation: IrisConversationService, message: IrisChatMessage): void {
+        const swap = parseContextSwap(message);
+        if (!swap) {
+            // Undecodable marker: it is still content on the server, so reload the
+            // detail rather than guess. Never fall through to the chat path.
+            //
+            // `reload` refuses while a send is unresolved and defers itself, which
+            // matters here: the server writes this marker WHILE our own POST is
+            // open, so an ungated reload would navigate mid-send and walk straight
+            // past the dispatcher gating of spec 7.3.
+            void conversation.reload();
+            return;
+        }
+        const outcome = conversation.state.applyContextSwap(swap, message);
+        const sessionId = this._targetSessionId();
+        if (sessionId !== undefined) {
+            this._postMessage({
+                type: ExtensionMsg.AddMessage,
+                sessionId,
+                message: {
+                    id: message.id,
+                    role: 'contextSwap',
+                    content: describeContextSwap(swap),
+                    timestamp: message.sentAt ? new Date(message.sentAt).getTime() : Date.now(),
+                },
+            });
+        }
+        if (outcome === 'pending-dropped') {
+            // Informative only, no undo: the marker itself makes the conversation
+            // non-empty, so the staging could never be restored.
+            this._postMessage({
+                type: ExtensionMsg.ShowChatNotice,
+                text: 'The topic was changed elsewhere. Your staged topic was discarded.',
+            });
+        }
+        conversation.notifyChanged();
     }
 
     public async handleReconnectWebSocket(): Promise<ReconnectResult> {

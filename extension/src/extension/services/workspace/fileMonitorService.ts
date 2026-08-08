@@ -131,8 +131,6 @@ export class FileMonitorService implements vscode.Disposable {
                 return;
             }
 
-            logger.fileMonitor(`Checking git status in: ${workspaceFolder.uri.fsPath}`);
-
             // Use unified workspace file checker with filters and status
             const result = await checkWorkspaceFiles(workspaceFolder, {
                 includeContent: false,
@@ -140,10 +138,9 @@ export class FileMonitorService implements vscode.Disposable {
                 includeStatus: true      // Include status/reason for all files
             });
 
-            logger.fileMonitor(`Changed files from git: ${JSON.stringify(result.files.map(f => f.path))}`);
-
             if (!result.hasChanges) {
-                logger.fileMonitor('No changes detected');
+                // No changes: stay silent. This runs on every poll, so logging the empty result here
+                // just floods the output channel; only log once there is actually something to report.
                 this._onDidUpdateFiles.fire({
                     includedFiles: [],
                     excludedFiles: [],
@@ -152,6 +149,8 @@ export class FileMonitorService implements vscode.Disposable {
                 return;
             }
 
+            logger.fileMonitor(`Checking git status in: ${workspaceFolder.uri.fsPath}`);
+            logger.fileMonitor(`Changed files from git: ${JSON.stringify(result.files.map(f => f.path))}`);
             logger.fileMonitor(`Found ${result.totalCount} changed files (${result.includedCount} will be sent, ${result.excludedCount} excluded)`);
 
             // Separate included and excluded files with reasons

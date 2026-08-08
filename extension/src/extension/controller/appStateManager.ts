@@ -1,6 +1,6 @@
 import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
 
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type {
     CourseDashboardEntry,
     CourseDashboardResponse,
@@ -45,7 +45,7 @@ type NavigationPayload =
 export class AppStateManager {
     private _currentState: AppState = 'login';
     private _userInfo?: UserInfo;
-    private _courseDataCache?: CourseDataCache;
+    private _courseCatalog?: CourseCatalog;
     private _archivedCoursesData?: ArchivedCourse[];
     private _archiveCheckComplete = true;
     private _payload: NavigationPayload = { kind: 'none' };
@@ -58,8 +58,8 @@ export class AppStateManager {
     constructor() { }
 
     /** Inject the shared course data cache. Must be called before any course operations. */
-    public setCourseDataCache(cache: CourseDataCache): void {
-        this._courseDataCache = cache;
+    public setCourseCatalog(cache: CourseCatalog): void {
+        this._courseCatalog = cache;
     }
 
     public set onStateChange(handler: (from: AppState, to: AppState) => void) {
@@ -84,7 +84,7 @@ export class AppStateManager {
     }
 
     get coursesData(): CourseDashboardResponse | undefined {
-        return this._courseDataCache?.get();
+        return this._courseCatalog?.get();
     }
 
     get archivedCoursesData(): ArchivedCourse[] | undefined {
@@ -144,7 +144,7 @@ export class AppStateManager {
     public showLogin(): void {
         this._setCurrentState('login');
         this._userInfo = undefined;
-        this._courseDataCache?.clear();
+        this._courseCatalog?.clear();
         this._archivedCoursesData = undefined;
         this._payload = { kind: 'none' };
         this._recommendedExtensions = undefined;
@@ -178,8 +178,9 @@ export class AppStateManager {
         this._setCurrentState('course-detail');
     }
 
-    public injectCourseEntry(entry: CourseDashboardEntry): void {
-        this._courseDataCache?.injectEntry(entry);
+    /** `epoch` is the caller's, captured before the search that found `entry`. */
+    public injectCourseEntry(entry: CourseDashboardEntry, epoch: number): void {
+        this._courseCatalog?.injectEntry(entry, epoch);
     }
 
     public setArchivedCourses(courses: ArchivedCourse[]): void {

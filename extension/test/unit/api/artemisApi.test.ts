@@ -55,7 +55,7 @@ suite('Artemis API Service Test Suite', () => {
             return {
                 ok: true,
                 status: 200,
-                json: async () => mockUser,
+                text: async () => JSON.stringify(mockUser),
             } as any;
         };
 
@@ -63,6 +63,41 @@ suite('Artemis API Service Test Suite', () => {
         assert.ok(user);
         assert.strictEqual(user.id, 1);
         assert.strictEqual(user.login, 'test');
+    });
+
+    test('treats a 200 account response with an empty body as unauthenticated (401)', async () => {
+        // /api/core/public/account is public: an unauthenticated request gets a 200
+        // with an empty body rather than a 401. getCurrentUser must surface this as a
+        // 401 so startup credential validation clears the stale token.
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '',
+        } as any);
+
+        try {
+            await apiService.getCurrentUser();
+            assert.fail('Should have thrown error');
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual((error as ApiError).status, 401);
+        }
+    });
+
+    test('treats a 200 account response with a whitespace-only body as unauthenticated (401)', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '   \n',
+        } as any);
+
+        try {
+            await apiService.getCurrentUser();
+            assert.fail('Should have thrown error');
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual((error as ApiError).status, 401);
+        }
     });
 
     test('should handle 401 error', async () => {
@@ -96,6 +131,35 @@ suite('Artemis API Service Test Suite', () => {
             assert.ok(error instanceof ApiError);
             assert.strictEqual(error.status, 500);
             assert.ok(error.message.includes('API request failed'));
+        }
+    });
+
+    test("keeps Artemis' machine-readable errorKey on the ApiError", async () => {
+        // Artemis' problem response. `title` is prose for people and may be
+        // reworded any time; `errorKey` is the contract that code may branch on.
+        global.fetch = async () => ({
+            ok: false,
+            status: 403,
+            statusText: 'Forbidden',
+            text: async () => JSON.stringify({
+                title: 'Iris is disabled for course 42',
+                status: 403,
+                errorKey: 'iris.course_disabled',
+                message: 'error.iris.course_disabled',
+            }),
+        } as any);
+
+        try {
+            await apiService.getCurrentUser();
+            assert.fail('Should have thrown error');
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual(error.status, 403);
+            assert.strictEqual(
+                (error as { errorKey?: string }).errorKey,
+                'iris.course_disabled',
+                'the discriminator must survive the parse, not just the prose',
+            );
         }
     });
 
@@ -611,8 +675,6 @@ suite('Artemis API Service Test Suite', () => {
         await apiService.markMessageHelpful(sessionId, messageId, true);
     });
 
-    // isServerUrlChanged moved to AuthManager — tested in authManager.test.ts
-
     test('should fallback to creating VCS token when none exists', async () => {
         const participationId = 9;
         let attempt = 0;
@@ -725,39 +787,137 @@ suite('Artemis API Service Test Suite', () => {
             assert.ok(url.includes('mode=COURSE_CHAT'));
             assert.ok(url.includes(`entityId=${entityId}`));
             assert.strictEqual(options.method, 'POST');
-            return { ok: true, status: 200, json: async () => ({ id: 123 }) } as any;
+            return { ok: true, status: 200, json: async () => ({ id: 123, mode: 'COURSE_CHAT', entityId, creationDate: '2026-07-01T10:00:00Z' }) } as any;
         };
-        const session = await apiService.getCurrentChat('COURSE_CHAT', entityId);
-        assert.strictEqual(session.id, 123);
-    });
-
-    test('should create chat session via unified endpoint', async () => {
-        const entityId = 99;
-        global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes('/api/iris/chat/sessions'));
-            assert.ok(!url.includes('/sessions/current'));
-            assert.ok(url.includes('mode=PROGRAMMING_EXERCISE_CHAT'));
-            assert.ok(url.includes(`entityId=${entityId}`));
-            assert.strictEqual(options.method, 'POST');
-            return { ok: true, status: 200, json: async () => ({ id: 7 }) } as any;
-        };
-        const session = await apiService.createChatSession('PROGRAMMING_EXERCISE_CHAT', entityId);
-        assert.strictEqual(session.id, 7);
+        const detail = await apiService.getCurrentChat('COURSE_CHAT', entityId, 7);
+        assert.strictEqual(detail.sessionId, 123);
     });
 
     test('should list chat sessions for course via overview endpoint', async () => {
         const courseId = 5;
-        const mockSummaries = [
+        const rawSummaries = [
             { id: 1, entityId: 5, mode: 'COURSE_CHAT', creationDate: '2026-05-13T00:00:00Z' },
             { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2026-05-13T01:00:00Z' },
         ];
         global.fetch = async (url: any, options: any) => {
             assert.ok(url.includes(`/api/iris/chat/${courseId}/sessions/overview`));
             assert.ok(!options?.method || options.method === 'GET');
-            return { ok: true, status: 200, json: async () => mockSummaries } as any;
+            return { ok: true, status: 200, json: async () => rawSummaries } as any;
         };
         const summaries = await apiService.listChatSessionsForCourse(courseId);
-        assert.deepStrictEqual(summaries, mockSummaries);
+        assert.strictEqual(summaries.length, 2);
+        assert.strictEqual(summaries[0].sessionId, 1);
+        assert.strictEqual(summaries[0].courseId, courseId);
+        assert.deepStrictEqual(summaries[0].context, { mode: 'COURSE_CHAT', entityId: 5, name: undefined });
+        assert.strictEqual(summaries[1].sessionId, 2);
+    });
+
+    interface Captured { url: string; options: { method?: string; body?: string } }
+
+    /** Serves one canned response per call and records what was sent. */
+    function captureFetch(responses: Array<{ status?: number; json?: unknown }>): Captured[] {
+        const calls: Captured[] = [];
+        let i = 0;
+        global.fetch = (async (url: any, options: any) => {
+            calls.push({ url: String(url), options: options ?? {} });
+            const r = responses[Math.min(i++, responses.length - 1)];
+            const status = r.status ?? 200;
+            return {
+                ok: status < 400,
+                status,
+                text: async () => JSON.stringify(r.json ?? {}),
+                json: async () => r.json ?? {},
+            } as any;
+        }) as typeof global.fetch;
+        return calls;
+    }
+
+    test('createCourseSession posts courseId only', async () => {
+        const calls = captureFetch([{ json: { id: 7, mode: 'COURSE_CHAT', entityId: 42, creationDate: '2026-07-01T10:00:00Z' } }]);
+        const session = await apiService.createCourseSession(42);
+        assert.strictEqual(session.sessionId, 7);
+        assert.strictEqual(session.courseId, 42);
+        assert.strictEqual(calls[0].url, 'https://artemis.example.com/api/iris/chat/sessions?courseId=42');
+        assert.strictEqual(calls[0].options.method, 'POST');
+    });
+
+    test('getCurrentChat parses mode, entityId, title, activity and messages', async () => {
+        captureFetch([{
+            json: {
+                id: 9, mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5, title: 'BFS',
+                creationDate: '2026-07-01T10:00:00Z', lastActivityDate: '2026-07-02T10:00:00Z',
+                messages: [{ id: 1, sender: 'USER', content: [{ textContent: 'hi', type: 'text' }] }],
+            },
+        }]);
+        const detail = await apiService.getCurrentChat('PROGRAMMING_EXERCISE_CHAT', 5, 42);
+        assert.deepStrictEqual(detail.context, { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 });
+        assert.strictEqual(detail.courseId, 42);
+        assert.strictEqual(detail.lastActivity, Date.parse('2026-07-02T10:00:00Z'));
+        assert.strictEqual(detail.messages.length, 1);
+    });
+
+    test('absent messages parse as an empty array', async () => {
+        // @JsonInclude(NON_EMPTY) omits `messages` entirely when the session is empty.
+        captureFetch([{ json: { id: 9, mode: 'COURSE_CHAT', entityId: 42, creationDate: '2026-07-01T10:00:00Z' } }]);
+        const detail = await apiService.getCurrentChat('COURSE_CHAT', 42, 42);
+        assert.deepStrictEqual(detail.messages, []);
+    });
+
+    test('an unknown mode is preserved verbatim and does not throw', async () => {
+        captureFetch([{ json: { id: 9, mode: 'FUTURE_CHAT', entityId: 3, creationDate: '2026-07-01T10:00:00Z' } }]);
+        const detail = await apiService.getChatSessionById(42, 9);
+        assert.strictEqual(detail.context.mode, 'FUTURE_CHAT');
+    });
+
+    test('a session without mode or entityId is REJECTED, not defaulted', async () => {
+        // Defaulting would infer a committed context, which invariant 3 forbids:
+        // the extension would believe this is a course chat, stage another topic
+        // onto it, and rehome it on the next send.
+        captureFetch([{ json: { id: 9, creationDate: '2026-07-01T10:00:00Z' } }]);
+        await assert.rejects(() => apiService.getChatSessionById(42, 9), MalformedResponseError);
+    });
+
+    test('sendChatMessage puts pendingContext in the body', async () => {
+        const calls = captureFetch([{ json: { id: 11 } }]);
+        await apiService.sendChatMessage(9, 'hallo', undefined, { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 });
+        const body = JSON.parse(String(calls[0].options.body));
+        assert.deepStrictEqual(body.pendingContext, { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 });
+        assert.strictEqual(body.messageDifferentiator, undefined);
+    });
+
+    test('the uncommitted-files 400 retry keeps pendingContext', async () => {
+        const calls = captureFetch([{ status: 400 }, { json: { id: 11 } }]);
+        await apiService.sendChatMessage(9, 'hallo', new Map([['A.java', 'class A {}']]), { mode: 'COURSE_CHAT', entityId: 42 });
+        const retryBody = JSON.parse(String(calls[1].options.body));
+        assert.strictEqual(retryBody.uncommittedFiles, undefined);
+        assert.deepStrictEqual(retryBody.pendingContext, { mode: 'COURSE_CHAT', entityId: 42 });
+    });
+
+    test('a 400 without uncommitted files is not retried', async () => {
+        // Otherwise a pendingContext 400 is re-sent identically, twice.
+        const calls = captureFetch([{ status: 400 }]);
+        await assert.rejects(() => apiService.sendChatMessage(9, 'hallo', undefined, { mode: 'COURSE_CHAT', entityId: 42 }));
+        assert.strictEqual(calls.length, 1);
+    });
+
+    test('listChatSessionsForCourse parses title, entityName and lastActivityDate', async () => {
+        captureFetch([{
+            json: [{
+                id: 3, entityId: 5, entityName: 'BFS', title: 'Endlosschleife',
+                creationDate: '2026-07-01T10:00:00Z', lastActivityDate: '2026-07-02T10:00:00Z',
+                mode: 'PROGRAMMING_EXERCISE_CHAT',
+            }],
+        }]);
+        const [summary] = await apiService.listChatSessionsForCourse(42);
+        assert.strictEqual(summary.title, 'Endlosschleife');
+        assert.strictEqual(summary.context.name, 'BFS');
+        assert.strictEqual(summary.lastActivity, Date.parse('2026-07-02T10:00:00Z'));
+    });
+
+    test('a summary without lastActivityDate falls back to creationDate', async () => {
+        captureFetch([{ json: [{ id: 3, entityId: 5, creationDate: '2026-07-01T10:00:00Z', mode: 'COURSE_CHAT' }] }]);
+        const [summary] = await apiService.listChatSessionsForCourse(42);
+        assert.strictEqual(summary.lastActivity, Date.parse('2026-07-01T10:00:00Z'));
     });
 
     test('getCoursesForDashboard: rejects when body is an array (not an object)', async () => {
@@ -791,7 +951,7 @@ suite('Artemis API Service Test Suite', () => {
             json: async () => ({ mode: 'COURSE_CHAT' }),
         } as any);
         await assert.rejects(
-            () => apiService.getCurrentChat('COURSE_CHAT', 1),
+            () => apiService.getCurrentChat('COURSE_CHAT', 1, 42),
             (err: unknown) => err instanceof MalformedResponseError && /missing or non-number field "id"/.test(err.message),
         );
     });

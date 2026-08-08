@@ -2,8 +2,6 @@
  * Webview -> Extension command contracts.
  */
 
-import type { ChatContextType } from '@shared/types/context';
-
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
     Ready: 'ready',
@@ -78,18 +76,36 @@ export const WebviewCmd = {
 
     // Iris Chat
     SendMessage: 'sendMessage',
-    SelectChatContext: 'selectChatContext',
-    SwitchSession: 'switchSession',
-    CreateNewSession: 'createNewSession',
-    SwitchToWorkspaceContext: 'switchToWorkspaceContext',
     ResetChatSessions: 'resetChatSessions',
+    // Conversation-first navigation. There is no `UndoNavigation` (cut 2):
+    // the notice `showChatNotice` reports is actionless.
+    SelectTopic: 'selectTopic',
+    /**
+     * Chat-side course refresh. Deliberately NOT `ReloadCourses`: that one is
+     * registered only in `navigationCommands.ts`, reachable only through
+     * `WebViewMessageHandler` (which only the main panel constructs), and its
+     * handler navigates the main panel to the course list. A sidebar click
+     * must not do that.
+     */
+    RefreshCourses: 'refreshCourses',
+    OpenConversation: 'openConversation',
+    SwitchCourse: 'switchCourse',
+    NewConversation: 'newConversation',
     ReconnectWebSocket: 'reconnectWebSocket',
     ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
-    DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
+    /**
+     * The startup-unavailable banner's Retry: re-runs workspace DETECTION,
+     * not a conversation reload. `ReloadChatSession` (above) is the
+     * unavailable-conversation banner's Retry and reads the OPEN
+     * conversation; on this path there may be no workspace exercise at all
+     * yet, so a reload would start whatever happens to be left over, or
+     * nothing.
+     */
+    RetryStartupDetection: 'retryStartupDetection',
 
     // Dev tools
     FreshSsrPreview: 'freshSsrPreview',
@@ -173,19 +189,35 @@ interface WebviewCmdPayloads {
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat
-    sendMessage: { text: string; localId: string; localSessionId: string };
-    selectChatContext: { context: ChatContextType; itemId: number; itemName: string; itemShortName?: string };
-    switchSession: { sessionId: string };
-    createNewSession: undefined;
-    switchToWorkspaceContext: undefined;
+    /**
+     * `sessionId` names the conversation the optimistic bubble was drawn in,
+     * so the host can fail it against the ORIGIN session rather than whatever
+     * is open when the command is handled.
+     */
+    sendMessage: { text: string; localId: string; sessionId: number };
     resetChatSessions: undefined;
+    /**
+     * Topic-based navigation for the picker, the chip's remove icon and the
+     * Ask-Iris commands. `mode`/`entityId` name the target `ServerContext`;
+     * `name` is a display hint the webview already knows and the host does
+     * not need to re-fetch.
+     */
+    selectTopic: { mode: string; entityId: number; name?: string };
+    /** Id-based navigation for the history popover. Never consults the topic index. */
+    openConversation: { courseId: number; sessionId: number };
+    /** No session id yet, so it acquires first; lands on an empty course conversation. */
+    switchCourse: { courseId: number };
+    /** Asks the host to fetch the dashboard course list into the store and re-post the snapshot. */
+    refreshCourses: undefined;
+    /** Header `+`. No payload: the current course is read host-side. */
+    newConversation: undefined;
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     openFile: { filePath: string };
     openDiagnostics: undefined;
-    debugSessions: undefined;
     openHelpPopup: undefined;
+    retryStartupDetection: undefined;
 
     // Dev tools
     freshSsrPreview: { darkMode: boolean };
@@ -273,8 +305,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SaveGitIdentity,
     WebviewCmd.PerformHealthChecks,
     WebviewCmd.SendMessage,
-    WebviewCmd.SelectChatContext,
-    WebviewCmd.SwitchSession,
     WebviewCmd.MessageFeedback,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
@@ -288,6 +318,10 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.TaskFeedbackClosed,
     WebviewCmd.ProblemStatementScroll,
     WebviewCmd.ProblemStatementSelection,
+    WebviewCmd.SelectTopic,
+    WebviewCmd.OpenConversation,
+    WebviewCmd.SwitchCourse,
+    // NewConversation is deliberately absent: it carries no payload.
 ]);
 
 /** Auto-generated command messages */

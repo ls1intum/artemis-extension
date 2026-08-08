@@ -4,6 +4,31 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-08-08
+
+### Changed
+
+- **Iris streaming:** Iris answers now stream in as they are generated instead of appearing all at once, and the chat shows which tools Iris used during a run, replacing the progress display that stopped working with Artemis 9.6.
+- **Iris chat redesign:** The chat sidebar now separates the context (which exercise or course you are asking about) from the conversation thread, adding a context picker, course-wide conversation history, and a roomier message layout.
+- **Iris chat follows Artemis' conversations:** One conversation at a time, exactly the one the server has. Changing the topic now stays in that conversation and is written into the transcript as a divider instead of opening a second one; the `+` in the header starts a fresh conversation. Messages you write in the Artemis web client show up here as they arrive, and a course whose instructor has switched Iris off can be opened and says so.
+- **WebSocket status bar:** Removed the `artemis.showWebSocketStatusBar` setting. The connection indicator now appears automatically only when there is a problem; enable `artemis.developerMode` to keep it always visible with full diagnostics on hover. When the connection drops, students now see a plain-language explanation (no "WS" jargon) instead of a technical label.
+- **Server URL change:** Removed the manual "Clear Credentials" prompts that appeared when the Artemis server URL changed. Changing the server while logged in now logs you out automatically and returns you to the login view (a session is not valid across servers); the logout command remains for clearing credentials on demand.
+- **While Iris is answering:** You can already type your next message. You send it yourself once the answer is there.
+
+### Fixed
+
+- **Opening an exercise for the first time:** The chat now waits for the workspace to be recognised instead of racing it, so an exercise you have never chatted about before opens its conversation instead of leaving you on the course list. A course or topic you pick yourself is no longer overridden a moment later, and a chat that cannot reach the server says so and offers a retry rather than pretending the folder has no exercise. A course whose instructor has switched Iris off now says that too, instead of offering a retry that could never work.
+- **Exercise description header:** Tightened the spacing under the "Exercise Description" heading and added a divider line, so the description starts directly below the title instead of after a large gap.
+- **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
+- **Brief connection problems:** A short outage no longer hides the conversation you were reading or empties your conversation history, and a message that could not be sent keeps its text behind a single Retry that reconnects and then sends it.
+- **Iris logo:** The mascot now has a subtle shadow, so on light themes it no longer sits on the surface as a flat block, and it keeps its proportions instead of being squashed into a square.
+- **Course and exercise lists:** The chat kept a list of its own that only ever grew, so a deleted course, or one you were removed from, stayed on offer and then failed when you picked it. The lists come from the server now, and nothing from a previous account or Artemis server is left behind when you switch. When the server cannot be reached, the course list says so and offers a retry instead of reporting that you have no courses.
+- **Sending a message:** Your own message no longer appears twice for a moment before collapsing into one.
+
+### Internal
+
+- **Session Recorder Retired From Shipped Builds**: The recorder and its consent flow are now also excluded from the Desktop/Marketplace VSIX (previously Open VSX only); they remain available through a local-only build variant that CI refuses to build.
+
 ## [0.4.8] - 2026-06-24
 
 ### Changed

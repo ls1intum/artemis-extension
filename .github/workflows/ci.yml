@@ -93,12 +93,12 @@ jobs:
           cache: npm
           cache-dependency-path: extension/package-lock.json
       - run: npm ci
-      - run: npm run package
-      - run: npx @vscode/vsce package --no-dependencies
+      - name: Package Desktop VSIX (recorder-free) + verify
+        run: node scripts/package-desktop.js
       - name: Build Open VSX (clean) variant
         run: node esbuild.js --production --variant=openvsx
-      - name: Verify clean bundle excludes recorder/consent
-        run: node scripts/verify-clean-bundle.js
+      - name: Verify Open VSX bundle excludes recorder + struggle
+        run: node scripts/verify-clean-bundle.js --profile=openvsx
 
   viewer-lint:
     name: Viewer lint

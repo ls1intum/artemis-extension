@@ -6,7 +6,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
-import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
@@ -140,12 +140,12 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
-            exerciseRegistry: new ExerciseRegistry(),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,
             telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
         });
     });
 
@@ -206,12 +206,12 @@ suite('Panel hide/show state persistence', () => {
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
-            exerciseRegistry: new ExerciseRegistry(),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,
             telemetryManager: mockTelemetry,
             updateAuthContext: mockUpdateAuth,
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
         });
 
         spyWebview = new SpyWebview();

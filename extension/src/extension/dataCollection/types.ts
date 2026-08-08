@@ -2,9 +2,9 @@ import type * as vscode from 'vscode';
 
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import type { PlatformCapabilities } from '@extension/theia';
 
 /** Everything the full data-collection seam needs to wire consent + recording. */
@@ -16,7 +16,7 @@ export interface DataCollectionDeps {
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
-    contextStore: ContextStore;
+    workspaceTracker: WorkspaceExerciseTracker;
 }
 
 /**

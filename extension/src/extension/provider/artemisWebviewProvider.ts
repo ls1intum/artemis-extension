@@ -17,9 +17,8 @@ import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import type { ResultDTO } from '@extension/domain';
 import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
-import { type CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
-import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
@@ -66,9 +65,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _extensionContext: vscode.ExtensionContext;
     private readonly _authManager: AuthManager;
     private readonly _artemisApi: ArtemisApiService;
-    private readonly _exerciseRegistry: ExerciseRegistry;
     private readonly _providerRegistry: IProviderRegistry;
-    private readonly _courseDataCache?: CourseDataCache;
+    private readonly _courseCatalog?: CourseCatalog;
     private _appStateManager: AppStateManager;
     private _messageHandler: WebViewMessageHandler;
     private _viewInitDataService: ViewInitDataService;
@@ -116,25 +114,22 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._extensionContext = deps.extensionContext;
         this._authManager = deps.authManager;
         this._artemisApi = deps.artemisApi;
-        this._exerciseRegistry = deps.exerciseRegistry;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
         this._telemetryManager = deps.telemetryManager;
         this._authContextUpdater = deps.updateAuthContext;
-        this._courseDataCache = deps.courseDataCache;
+        this._courseCatalog = deps.courseCatalog;
         const buildErrorCodeLensProvider = deps.buildErrorCodeLensProvider;
 
         // 1. AppStateManager — depends on nothing.
         this._appStateManager = new AppStateManager();
-        if (this._courseDataCache) {
-            this._appStateManager.setCourseDataCache(this._courseDataCache);
+        if (this._courseCatalog) {
+            this._appStateManager.setCourseCatalog(this._courseCatalog);
         }
 
-        // 2. CourseAccessStorage — its scope callback resolves on the provider.
-        this._courseAccessStorage = new CourseAccessStorageService(
-            this._extensionContext.globalState,
-            () => this._currentCourseAccessScope(),
-        );
+        // 2. CourseAccessStorage: built by activation, where the session
+        //    coordinator that keys its scope lives.
+        this._courseAccessStorage = deps.courseAccessStorage;
 
         // 3. SSR render service.
         this._renderService = new ProblemStatementRenderService(this._artemisApi);
@@ -144,16 +139,15 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
 
-        // 5. Exercise opening side-effects (registry, telemetry, chat).
+        // 5. Exercise opening side-effects (catalog, telemetry).
         this._exerciseOpeningService = new ExerciseOpeningService(
-            this._exerciseRegistry,
-            this._providerRegistry,
+            this._courseCatalog,
             this._telemetryManager,
             this._courseAccessStorage,
         );
 
         // 6. Start page resolver.
-        this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseDataCache);
+        this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseCatalog);
 
         // 7. Fullscreen panel manager — only stores the getter, safe before _messageHandler exists.
         this._fullscreenPanelManager = new FullscreenPanelManager(
@@ -179,12 +173,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             appStateManager: this._appStateManager,
             artemisApi: this._artemisApi,
             websocketService: this._websocketService,
-            exerciseRegistry: this._exerciseRegistry,
             courseAccessStorage: this._courseAccessStorage,
             fullscreenPanelManager: this._fullscreenPanelManager,
             exerciseOpeningService: this._exerciseOpeningService,
             startPageResolver: this._startPageResolver,
-            courseDataCache: this._courseDataCache,
+            courseCatalog: this._courseCatalog,
             postMessage: (msg) => this._postMessageSafe(msg),
             render: () => this.render(),
             sendInitData: () => this.sendInitData(),
@@ -199,10 +192,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._appStateManager,
             this._navigationFacade,
             this._extensionContext,
-            this._exerciseRegistry,
             this._providerRegistry,
             this._websocketService,
-            this._courseDataCache,
+            this._courseCatalog,
             this._courseAccessStorage,
             createRecordingWebviewHandlers(this._extensionContext.globalStorageUri),
         );
@@ -235,7 +227,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             {
                 onAuthenticated: (userInfo) => this._navigationFacade.navigateToStartPage(userInfo),
                 hideLoadingAndSendServerUrl: () => this._navigationFacade.hideLoadingAndSendServerUrl(),
-                showLogin: () => this._navigationFacade.showLogin(),
             },
         );
 
@@ -297,9 +288,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
             this._postMessageSafe(message);
         });
-
-        // Check if server URL has changed and clear credentials if needed
-        this._authFlowHandler.checkServerUrlChange();
 
         // Check for existing authentication and auto-login if valid
         this._authFlowHandler.checkExistingAuthentication();
@@ -439,22 +427,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     // ── Private: Helpers ───────────────────────────────────────────────
-
-    /**
-     * Scope key for `CourseAccessStorageService`. Stays on the provider because
-     * the storage service is constructed in this ctor with this getter as a
-     * callback - moving it to the facade would create a cycle.
-     */
-    private _currentCourseAccessScope(): CourseAccessScope | null {
-        const info = this._appStateManager.userInfo;
-        if (!info) { return null; }
-        const serverUrl = info.serverUrl || resolveServerUrl();
-        if (!serverUrl) { return null; }
-        return {
-            serverUrl,
-            principal: { id: info.user?.id, login: info.username || info.user?.login },
-        };
-    }
 
     /**
      * Called for every WebSocket newResult event. Delegates the decision

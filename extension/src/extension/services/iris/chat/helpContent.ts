@@ -1,39 +1,38 @@
 export const IRIS_CHAT_HELP_MARKDOWN = `
-# Iris Chat Context Guide
+# Iris Chat Guide
 
-## Context Selection
-Iris Chat operates within a specific **context** - either a course or an exercise. Your context determines what information Iris has access to and what help it can provide.
+## One conversation at a time
+Iris chat shows one conversation, and it lives on Artemis. Everything you see here is what the server has: open the same conversation in the Artemis web client and it is the same messages.
 
-## How Context Works
+## Topic
+The topic is what your next message is about, shown above the input: as a chip when it is an exercise, and as plain text naming the course when it is not.
 
-**Exercise Context:**
-- Iris can see the exercise description, test cases, and your code
-- Get help with the specific requirements
-- Ask about failing tests
-- Request code review and suggestions
+**Exercise topic:**
+- Iris can see the exercise description, the test cases and your code
+- Ask about failing tests, requirements, or your current approach
 
-**Course Context:**
-- Iris can see the overall course information
-- Ask general questions about course topics
-- Get help understanding concepts covered in the course
+**Course chat (no topic):**
+- Iris can see the course information
+- Ask general questions about the course and its concepts
 
-**Workspace Detection:**
-- If you have an Artemis exercise open in your workspace, Iris will automatically detect it
-- You'll see a lock icon indicating this is your workspace exercise
+Use the **+** button beside it to choose a topic, or the small **x** on the chip to talk about the course instead. The topic always changes in the conversation you are in; it never moves you to another one. Once the conversation has messages, the change is written into the transcript as a divider, so you can always see which messages belong to which topic. To start a clean conversation instead, use the **+** in the header.
 
-## Tips for Best Results
+## Switching conversations
+- The **course name** in the header opens your course list. Switching course opens that course's conversation. A course whose instructor has switched Iris off can still be opened; the chat then says so instead of hiding the course.
+- The **history** button lists every conversation in the current course, newest first, with the open one checked. Lecture and text-exercise conversations are listed too and can be continued, even though they cannot be chosen as a topic.
+- The **+** button in the header starts a fresh conversation in the same course, carrying the current topic over.
 
-1. **Be specific:** Ask about particular parts of your code or specific test failures
-2. **Provide context:** Mention which file or function you're working on
-3. **Ask follow-ups:** Iris remembers your conversation, so you can build on previous questions
+## Workspace exercise
+If you have an Artemis exercise open in your workspace, it is detected automatically and marked **Workspace** at the top of the topic list.
 
-## Session Management
-
-- Each context has multiple sessions - like separate conversations
-- Create a new session to start fresh while keeping your old conversations
-- Switch between sessions using the context selector dropdown
-
-## Referenced Files
-
+## Referenced files
 Iris can see files from your workspace (configurable in settings). Check the "Referenced Files" section to see which files Iris has access to for the current message.
+
+## If something looks stale
+**Artemis: Reload Iris Chat** (also in the side menu) drops everything cached locally and re-reads the conversation from the server. Nothing is deleted on Artemis.
+
+## Tips for best results
+1. **Be specific:** ask about particular parts of your code or specific test failures
+2. **Provide context:** mention which file or function you are working on
+3. **Ask follow-ups:** Iris remembers the conversation, so you can build on previous questions
 `.trim();

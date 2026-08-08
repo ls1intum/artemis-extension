@@ -102,6 +102,7 @@ Run from `extension/`:
 
 - **Run Extension** (recommended) - starts watch mode and recompiles on change.
 - **Run Extension (No Watch)** - runs without auto-recompilation.
+- **Run Extension (Recording)** - starts the local-recording watch build (session recorder and consent flow present) for recorder/replay development. Not for release builds.
 - **Extension Tests** - compiles tests, then runs the suite.
 
 ### Debugging
@@ -113,12 +114,13 @@ Run from `extension/`:
 
 ## Build Variants & Deployment
 
-### Two VSIX variants
+### Three build variants
 
-The release builds **two** packages from the same source:
+The release ships **two** packages from the same source, plus a third **local-only** variant for recorder development:
 
-- **Full build** (VS Marketplace) - `vsce package`, the complete feature set.
-- **Clean build** (Open VSX, bundled into EduIDE) - built by `scripts/package-openvsx.js` from a staging directory using `scripts/generate-clean-manifest.js`. The clean variant **excludes** the struggle-detection engine, the recording pipeline, and the data-collection consent flow; their settings (`artemis.struggleDetection.*`, `artemis.dataCollectionConsent`) and commands (`artemis.replaySession`, `artemis.openRecordingsFolder`, `artemis.showStruggleScore`) are removed from its manifest, and `scripts/verify-clean-bundle.js` fails the build if any excluded code reappears in the bundle.
+- **Full build** (VS Marketplace) - built by `scripts/package-desktop.js` from a staging directory using `scripts/generate-clean-manifest.js`. The Desktop VSIX now also **excludes** the session recorder and the data-collection consent flow while keeping the struggle-detection engine; `scripts/verify-clean-bundle.js` fails the build if the recorder reappears in the bundle.
+- **Clean build** (Open VSX, bundled into EduIDE) - built by `scripts/package-openvsx.js` from a staging directory using `scripts/generate-clean-manifest.js`. The clean variant **excludes** the struggle-detection engine, the recording pipeline, and the data-collection consent flow. In its manifest the `artemis.dataCollectionConsent` setting and the `artemis.replaySession` / `artemis.openRecordingsFolder` / `artemis.showStruggleScore` commands are **removed**, while the `artemis.struggleDetection.*` settings are **kept but defaulted to `false`**; `scripts/verify-clean-bundle.js --profile=openvsx` fails the build if any excluded code reappears in the bundle.
+- **Local recording build** (not shipped) - keeps the session recorder and consent flow for local development, via `npm run package:rec` or the "Run Extension (Recording)" launch config. It is refused under CI (`resolveBuildVariant` throws when `GITHUB_ACTIONS === 'true'` or `CI === 'true'`), so it never reaches a release.
 
 ### EduIDE / Theia integration
 
@@ -143,7 +145,7 @@ Releasing is driven by `.github/workflows/release-openvsx.yml` (manual `workflow
 
 ### Marketplace docs are generated
 
-The store listings show the repo-root **`README.md`** (user docs) and **`CHANGELOG.md`**. At package time these are copied into `extension/` (`scripts/sync-marketplace-docs.js` for the full build via `vscode:prepublish`; `package-openvsx.js` copies them into staging for the clean build). `extension/README.md` and `extension/CHANGELOG.md` are therefore **generated and git-ignored** - edit only the repo-root copies.
+The store listings show the repo-root **`README.md`** (user docs) and **`CHANGELOG.md`**. At package time both shipped packagers (`scripts/package-desktop.js`, `scripts/package-openvsx.js`) copy them from the repo root into their staging directory, so the listing matches the release. A plain non-staged `vsce package` (e.g. the `vscode:prepublish` hook used by the local recording build) instead runs `scripts/sync-marketplace-docs.js`, which generates `extension/README.md` and `extension/CHANGELOG.md`. Those `extension/` copies are therefore **generated and git-ignored** - edit only the repo-root copies.
 
 ## Documentation Map
 

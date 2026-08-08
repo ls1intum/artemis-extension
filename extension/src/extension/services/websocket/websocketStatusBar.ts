@@ -11,18 +11,15 @@ import { ArtemisWebsocketService } from './artemisWebsocketService';
  * StatusBar item showing WebSocket connection status.
  *
  * Visibility rules:
- * - When logged out: hidden unless `artemis.showWebSocketStatusBar` is true
- *   (no WebSocket exists, so the default "needs attention on disconnect" rule
- *   would surface a misleading red error indicator)
- * - When logged in:
- *   - ALWAYS shown when disconnected or reconnecting
- *   - Otherwise shown only when `artemis.showWebSocketStatusBar` is true
- *   - After reconnection with setting off: 2s flash then hidden
+ * - developerMode ON: always shown (any state, including connected and while
+ *   logged out) — diagnostics.
+ * - developerMode OFF:
+ *   - shown when disconnected or reconnecting (a problem the user can act on)
+ *   - 2s flash after a successful reconnect, then hidden
+ *   - otherwise hidden (incl. logged out)
  *
- * Auth state is supplied externally via {@link setAuthenticated}; the service
- * does not own auth lifecycle.
- *
- * Click action: always reconnect (reset + connect). No-op while connecting.
+ * Auth state is supplied externally via {@link setAuthenticated}.
+ * Click action: reset + reconnect. No-op while connecting/reconnecting.
  */
 export class WebSocketStatusBarService implements vscode.Disposable {
     private readonly _statusBarItem: vscode.StatusBarItem;
@@ -30,7 +27,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _stateSubscription?: vscode.Disposable;
     private _currentStatus: WebSocketDisplayStatus = 'disconnected';
-    private _showStatusBar = false;
+    private _isDevMode = false;
     private _isAuthenticated = false;
     private _reconnectHideTimeout?: ReturnType<typeof setTimeout>;
 
@@ -56,7 +53,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
         this._disposables.push(
             vscode.workspace.onDidChangeConfiguration(event => {
-                if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_WEBSOCKET_STATUS_BAR_KEY}`)) {
+                if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DEVELOPER_MODE_KEY}`)) {
                     this._updateVisibilitySetting();
                 }
             })
@@ -71,8 +68,8 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
     private _updateVisibilitySetting(): void {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        this._showStatusBar = config.get<boolean>(VSCODE_CONFIG.SHOW_WEBSOCKET_STATUS_BAR_KEY, false);
-        this._applyVisibility();
+        this._isDevMode = config.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
+        this._updateStatusBarItem();
     }
 
     private _refreshStatus(): void {
@@ -82,7 +79,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         if (
             this._currentStatus === 'connected'
             && previousStatus === 'reconnecting'
-            && !this._showStatusBar
+            && !this._isDevMode
         ) {
             if (this._reconnectHideTimeout) {
                 clearTimeout(this._reconnectHideTimeout);
@@ -110,10 +107,8 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     }
 
     private _applyVisibility(): void {
-        // Logged out: there is no WebSocket to surface a state for. Honor the
-        // explicit "always show" setting for diagnostics, otherwise hide.
         if (!this._isAuthenticated) {
-            if (this._showStatusBar) {
+            if (this._isDevMode) {
                 this._statusBarItem.show();
             } else {
                 this._statusBarItem.hide();
@@ -127,7 +122,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
         if (needsAttention) {
             this._statusBarItem.show();
-        } else if (this._showStatusBar) {
+        } else if (this._isDevMode) {
             this._statusBarItem.show();
         } else if (this._reconnectHideTimeout) {
             this._statusBarItem.show();
@@ -139,31 +134,89 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private _updateStatusBarItem(): void {
         this._applyVisibility();
 
+        const attempts = this._websocketService.reconnectAttempts;
+
         switch (this._currentStatus) {
             case 'connected':
-                this._statusBarItem.text = '$(plug) WS Connected';
-                this._statusBarItem.tooltip = 'WebSocket connected. Click to reconnect.';
+                this._statusBarItem.text = this._isDevMode
+                    ? '$(plug) WS Connected'
+                    : '$(plug) Artemis: connected';
                 this._statusBarItem.backgroundColor = undefined;
                 break;
-            case 'reconnecting': {
-                const attempts = this._websocketService.reconnectAttempts;
-                this._statusBarItem.text = `$(sync~spin) Reconnecting (${attempts}/20)...`;
-                this._statusBarItem.tooltip = 'WebSocket reconnecting...';
+            case 'reconnecting':
+                this._statusBarItem.text = this._isDevMode
+                    ? `$(sync~spin) WS Reconnecting (${attempts}/20)...`
+                    : `$(sync~spin) Artemis: reconnecting (${attempts}/20)...`;
                 this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
                 break;
-            }
             case 'connecting':
-                this._statusBarItem.text = '$(sync~spin) WS Connecting...';
-                this._statusBarItem.tooltip = 'WebSocket connecting...';
+                this._statusBarItem.text = this._isDevMode
+                    ? '$(sync~spin) WS Connecting...'
+                    : '$(sync~spin) Artemis: connecting...';
                 this._statusBarItem.backgroundColor = undefined;
                 break;
             case 'disconnected':
             default:
-                this._statusBarItem.text = '$(debug-disconnect) WS Disconnected';
-                this._statusBarItem.tooltip = 'WebSocket disconnected. Click to reconnect.';
+                this._statusBarItem.text = this._isDevMode
+                    ? '$(debug-disconnect) WS Disconnected'
+                    : '$(debug-disconnect) Artemis: offline';
                 this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 break;
         }
+
+        this._statusBarItem.tooltip = this._buildTooltip();
+    }
+
+    private _buildTooltip(): string | vscode.MarkdownString {
+        if (this._isDevMode) {
+            return this._buildDevTooltip();
+        }
+        switch (this._currentStatus) {
+            case 'reconnecting': {
+                const md = new vscode.MarkdownString();
+                const attempts = this._websocketService.reconnectAttempts;
+                md.appendMarkdown(
+                    `**Reconnecting to Artemis... (${attempts}/20)**\n\n`
+                    + `Live updates are paused and will resume automatically.`
+                );
+                return md;
+            }
+            case 'disconnected': {
+                const md = new vscode.MarkdownString();
+                md.appendMarkdown(
+                    `**Connection to Artemis lost**\n\n`
+                    + `Live updates (build results, submission status, Iris) are paused.\n\n`
+                    + `Click to reconnect. If it keeps failing, check your internet connection or sign in again.`
+                );
+                return md;
+            }
+            case 'connecting':
+                return 'Connecting to Artemis...';
+            case 'connected':
+            default:
+                return 'Connected to Artemis. Click to reconnect.';
+        }
+    }
+
+    private _buildDevTooltip(): vscode.MarkdownString {
+        const d = this._websocketService.getDiagnostics();
+        const md = new vscode.MarkdownString();
+        md.appendMarkdown(`## WebSocket (dev)\n\n`);
+        md.appendMarkdown(`**Status:** ${this._currentStatus}\n\n`);
+        md.appendMarkdown(`**Connection:**\n`);
+        md.appendMarkdown(`- clientConnected: ${d.clientConnected}\n`);
+        md.appendMarkdown(`- clientActive: ${d.clientActive}\n`);
+        md.appendMarkdown(`- reconnect: ${d.reconnectAttempts}/${d.maxReconnectAttempts}\n\n`);
+        md.appendMarkdown(`**Subscriptions (${d.subscriptionCount}):**\n`);
+        if (d.subscriptions.length > 0) {
+            d.subscriptions.forEach(s => md.appendMarkdown(`- \`${s}\`\n`));
+        } else {
+            md.appendMarkdown(`- *none*\n`);
+        }
+        md.appendMarkdown(`\n**Session:** \`${d.sessionId}\`\n\n`);
+        md.appendMarkdown(`**Server:** \`${d.serverUrl}\`\n\n`);
+        md.appendMarkdown(`**WebSocket:** \`${d.websocketUrl}\`\n`);
+        return md;
     }
 
     private _clickInFlight = false;

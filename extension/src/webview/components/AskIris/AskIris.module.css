@@ -30,6 +30,7 @@
   height: 40px;
   flex-shrink: 0;
   object-fit: contain;
+  filter: var(--theme-iris-logo-shadow);
 }
 
 .title {

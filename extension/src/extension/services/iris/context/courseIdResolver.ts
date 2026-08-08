@@ -1,50 +1,27 @@
-import type { ActiveContext } from '@shared/types/context';
-
 import type { ArtemisApiService } from '@extension/api';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
-import type { ContextStore } from './contextStore';
-
 /**
- * Resolves the courseId for an ActiveContext, walking:
- *   1. context.courseId (or context.id when type === 'course')
- *   2. contextStore.getExerciseById(...).courseId
- *   3. api.getExerciseDetails(...).exercise.course.id (registers the exercise back into the store on success)
+ * Resolves the course an exercise belongs to:
+ *   1. the catalog's authoritative entities (dashboard, full course entries)
+ *   2. `api.getExerciseDetails(...).exercise.course.id`
  *
- * Returns undefined if all three paths fail. Mirrors the legacy private
- * resolveCourseIdForExercise from chatSessionService.ts so behavior is preserved
- * across both the IrisChatSessionService and sessionSyncUtils call sites.
+ * There is no write-back. The previous first branch read a persisted map
+ * keyed by bare numeric id with no server identity, which is exactly how an
+ * "Ask Iris about this exercise" click navigated into a course from another
+ * Artemis instance.
  */
-export async function resolveCourseIdFromContext(
-    context: ActiveContext,
-    contextStore: ContextStore,
+export async function resolveCourseIdForExercise(
+    exerciseId: number,
+    catalog: CourseCatalog,
     api: ArtemisApiService | undefined,
 ): Promise<number | undefined> {
-    if (context.type === 'course') {
-        return context.id;
-    }
-    if (context.courseId) {
-        return context.courseId;
-    }
-    const tracked = contextStore.getExerciseById(context.id);
-    if (tracked?.courseId) {
-        return tracked.courseId;
-    }
-    if (!api) {
-        return undefined;
-    }
+    const known = catalog.authoritativeCourseIdFor(exerciseId);
+    if (known !== undefined) { return known; }
+    if (!api) { return undefined; }
     try {
-        const details = await api.getExerciseDetails(context.id);
-        const resolved = details?.exercise?.course?.id;
-        if (resolved) {
-            contextStore.registerExercise({
-                id: context.id,
-                title: context.title,
-                shortName: context.shortName,
-                courseId: resolved,
-            });
-        }
-        return resolved;
+        return (await api.getExerciseDetails(exerciseId))?.exercise?.course?.id;
     } catch (error) {
         logger.warn('Failed to resolve course from exercise details:', LogCategory.IRIS_CHAT, error);
         return undefined;

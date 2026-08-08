@@ -109,7 +109,7 @@ export function ProblemStatement({
     };
 
     return (
-        <Container header={<h3>Exercise Description</h3>}>
+        <Container header={<h3 className={styles.heading}>Exercise Description</h3>}>
             {bodyHtml ? (
                 <div
                     ref={setContentEl}

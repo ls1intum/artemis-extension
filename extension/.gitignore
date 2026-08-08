@@ -30,6 +30,8 @@ dist/*.html
 # Test reports (generated per run)
 test/struggle-detection/reports/
 reports/
+# extest writes its JUnit summary to the package root
+test-results.xml
 
 # IDE
 .vscode-test/

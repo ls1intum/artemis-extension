@@ -28,6 +28,7 @@ export default defineConfig({
 	test: {
 		globals: true,
 		environment: 'happy-dom',
+		env: { TZ: 'Europe/Berlin' },
 		setupFiles: ['./test/react/__helpers__/vitest.setup.ts'],
 		include: ['test/react/**/*.test.{ts,tsx}', 'test/logic/**/*.test.{ts,tsx}'],
 		css: true,

@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 
+import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import {
     type DetectedExercise,
     detectWorkspaceExercise,
+    detectWorkspaceExerciseForRepository,
     type ExerciseSource,
     findExerciseByRepositoryUrl,
     getEntryExercises,
@@ -362,6 +366,127 @@ suite('WorkspaceDetectionService', () => {
         });
     });
 
+});
+
+suite('detectWorkspaceExerciseForRepository: archive path records the catalog', () => {
+    let sandbox: sinon.SinonSandbox;
+    let callbacks: { registerExercise: sinon.SinonStub; clearStaleWorkspaceContext: sinon.SinonStub };
+    let registry: ExerciseRegistry;
+    let catalog: CourseCatalog;
+    let upsert: sinon.SinonSpy;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        callbacks = {
+            registerExercise: sandbox.stub(),
+            clearStaleWorkspaceContext: sandbox.stub(),
+        };
+        registry = new ExerciseRegistry();
+        // A REAL catalog, wired to the registry exactly as `extension.ts` wires
+        // it. Detection no longer writes the registry itself, so a stubbed
+        // catalog with no event would leave the registry empty and say nothing
+        // about production. `spy` rather than `stub`: the real write still has
+        // to run for the rebuild to happen.
+        catalog = new CourseCatalog({ getCoursesForDashboard: async () => ({ courses: [] }) } as never);
+        catalog.onCoursesLoaded(() => {
+            registry.replaceAll(toRegistryEntries(catalog.projection()));
+        });
+        upsert = sandbox.spy(catalog, 'upsertSupplemental');
+    });
+
+    teardown(() => { sandbox.restore(); catalog.dispose(); });
+
+    /**
+     * An archived course whose one exercise matches `url`, as
+     * `getCourseForDashboard` returns it. The participation carries the
+     * repository URI, not just the bare exercise field: that is the shape the
+     * catalog projection turns into a registry entry.
+     */
+    function archivedEntryMatching(url: string): CourseDashboardEntry {
+        return {
+            course: {
+                id: 77,
+                title: 'Archived Course',
+                exercises: [{
+                    id: 5,
+                    title: 'Archived Exercise',
+                    repositoryUri: url,
+                    studentParticipations: [{ id: 1, repositoryUri: url }],
+                }],
+            },
+        };
+    }
+
+    test('an archived course found for the workspace is recorded in the catalog', async () => {
+        catalog.resetTo(3);
+        const api = {
+            getArchivedCourses: sandbox.stub().resolves([{ id: 77 }]),
+            getCourseForDashboard: sandbox.stub().resolves(archivedEntryMatching('https://git/ws')),
+        };
+
+        const outcome = await detectWorkspaceExerciseForRepository(
+            'https://git/ws', api as never, callbacks, registry, catalog,
+        );
+
+        assert.strictEqual(outcome.kind, 'matched');
+        assert.strictEqual(upsert.callCount, 1);
+        assert.strictEqual(upsert.firstCall.args[0].kind, 'course');
+        assert.strictEqual(upsert.firstCall.args[1], 3, 'the epoch must be the catalog\'s current one');
+        assert.deepStrictEqual(
+            registry.getAllExercises().map(e => e.id), [5],
+            'the registry is rebuilt from the catalog projection, through the event',
+        );
+    });
+
+    // The identity reset has just emptied the registry. A direct
+    // `registerFromCourseData` next to the rejected catalog write would put the
+    // previous account's archived course straight back into it, and the
+    // staleness check in `wireWorkspaceDetection` only suppresses the sink
+    // publication after this function returns.
+    test('an archived course found under a superseded epoch reaches neither layer', async () => {
+        const api = {
+            getArchivedCourses: sandbox.stub().resolves([{ id: 77 }]),
+            getCourseForDashboard: sandbox.stub().callsFake(async () => {
+                // The student logs out while the archive probe is open.
+                catalog.resetTo(catalog.currentEpoch + 1);
+                return archivedEntryMatching('https://git/ws');
+            }),
+        };
+
+        const outcome = await detectWorkspaceExerciseForRepository(
+            'https://git/ws', api as never, callbacks, registry, catalog,
+        );
+
+        assert.strictEqual(outcome.kind, 'no-match');
+        assert.deepStrictEqual(
+            registry.getAllExercises(), [],
+            'the identity reset had just cleared the registry; nothing may repopulate it',
+        );
+        assert.deepStrictEqual(catalog.projection().courses, []);
+        assert.strictEqual(callbacks.registerExercise.called, false);
+    });
+
+    // The same rule on the other branch. The registry is an index over the
+    // catalog, so what the dashboard fetch produces reaches it through the
+    // `onCoursesLoaded` subscription or not at all.
+    test('the dashboard branch leaves the registry to the catalog event', async () => {
+        const unwired = {
+            fetch: sandbox.stub().resolves({ courses: [archivedEntryMatching('https://git/ws')] }),
+            upsertSupplemental: sandbox.stub(),
+            currentEpoch: 0,
+        };
+
+        const outcome = await detectWorkspaceExerciseForRepository(
+            'https://git/ws', undefined, callbacks, registry, unwired as never,
+        );
+
+        assert.strictEqual(unwired.fetch.calledOnce, true, 'the dashboard branch was never reached');
+        assert.deepStrictEqual(
+            registry.getAllExercises(), [],
+            'detection must not write the registry behind the catalog projection',
+        );
+        assert.strictEqual(outcome.kind, 'no-match');
+    });
 });
 
 suite('getEntryExercises', () => {

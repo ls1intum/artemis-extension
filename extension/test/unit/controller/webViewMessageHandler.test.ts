@@ -96,7 +96,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             mockStateManager,
             actionHandler,
             mockContext,
-            {} as any,  // exerciseRegistry
             {} as any,  // providerRegistry
         );
     });

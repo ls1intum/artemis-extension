@@ -7,6 +7,44 @@ import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
 /**
+ * Queue a message, coalescing repeat snapshots without letting one cross an
+ * event boundary.
+ *
+ * Deduplication gives "latest wins" within a streaming segment, which is what
+ * run-UI snapshots want. But replacing at the ORIGINAL index would move a later
+ * snapshot in front of an event message queued between them, inverting the
+ * commit ordering the Iris chat depends on. So we only coalesce against the
+ * segment following the most recent event message.
+ *
+ * Exported for testing.
+ */
+export function coalescePending(
+    queue: ExtensionToWebviewMessage[],
+    message: ExtensionToWebviewMessage,
+    eventTypes: ReadonlySet<string>,
+): void {
+    if (eventTypes.has(message.type)) {
+        queue.push(message);
+        return;
+    }
+
+    let segmentStart = 0;
+    for (let i = queue.length - 1; i >= 0; i--) {
+        if (eventTypes.has(queue[i].type)) {
+            segmentStart = i + 1;
+            break;
+        }
+    }
+    for (let i = segmentStart; i < queue.length; i++) {
+        if (queue[i].type === message.type) {
+            queue[i] = message;
+            return;
+        }
+    }
+    queue.push(message);
+}
+
+/**
  * Shared base class for webview providers.
  * Encapsulates the ready-signal handshake (queuing messages until the
  * webview's React shell has signalled readiness) and common message
@@ -89,33 +127,32 @@ export abstract class BaseWebviewProvider {
     /** Hard cap on pending messages to prevent unbounded growth. */
     private static readonly MAX_PENDING = 200;
 
-    /** Event-type messages that carry unique data per dispatch and must never be deduplicated. */
+    /**
+     * Event-type messages that carry unique data per dispatch and must never
+     * be deduplicated. `showChatNotice` belongs here: two notices in a row
+     * are two distinct facts about two distinct events, never a replacement
+     * of one another. `updateIrisState` is deliberately NOT listed: it is a
+     * full snapshot, so last-wins (the default coalescing behaviour below)
+     * is correct for it.
+     */
     private static readonly EVENT_TYPES: ReadonlySet<string> = new Set([
         'websocketUpdate',
         'addMessage',
+        'showChatNotice',
     ]);
 
     /**
      * Safely post a message to the webview, queuing it if not ready yet.
-     * Deduplicates by message type (keeps latest) and enforces a hard cap.
-     * Event-type messages are always appended without deduplication.
+     * Coalesces same-type messages (keeps latest), but only within the
+     * segment of the queue after the most recent event-type message — see
+     * `coalescePending`. Event-type messages are always appended without
+     * deduplication. Enforces a hard cap on the queue length.
      */
     protected _postMessageSafe(message: ExtensionToWebviewMessage): void {
         if (this._webviewReady && this._view) {
             this._view.webview.postMessage(message);
         } else {
-            if (BaseWebviewProvider.EVENT_TYPES.has(message.type)) {
-                // Event messages carry unique data — never deduplicate
-                this._pendingMessages.push(message);
-            } else {
-                // Deduplicate: replace existing message with same type
-                const idx = this._pendingMessages.findIndex(m => m.type === message.type);
-                if (idx !== -1) {
-                    this._pendingMessages[idx] = message;
-                } else {
-                    this._pendingMessages.push(message);
-                }
-            }
+            coalescePending(this._pendingMessages, message, BaseWebviewProvider.EVENT_TYPES);
 
             // Safety net: drop oldest if over hard cap
             while (this._pendingMessages.length > BaseWebviewProvider.MAX_PENDING) {

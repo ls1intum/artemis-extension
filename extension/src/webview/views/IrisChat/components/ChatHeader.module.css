@@ -1,0 +1,95 @@
+.header {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Conversation-first layout: one row, two lines. */
+.singleRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+}
+
+.courseButton {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.courseButton:hover:not(:disabled) {
+    text-decoration: underline;
+}
+
+.courseButton:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--vscode-icon-foreground);
+}
+
+.textCol {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.primary {
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.secondary {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chevron {
+    flex-shrink: 0;
+    color: var(--vscode-icon-foreground);
+}
+
+.iconBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+}
+
+.iconBtn:hover:not(:disabled) {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+
+.iconBtn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}

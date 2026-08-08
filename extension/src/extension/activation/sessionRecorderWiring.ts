@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { SessionRecorder } from '@extension/services/telemetry/recording';
 import {
@@ -15,6 +14,7 @@ import {
 } from '@extension/services/telemetry/recording/eventCollectors';
 import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import type { PlatformCapabilities } from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils/constants';
 
@@ -27,7 +27,7 @@ interface RecorderWiringDeps {
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
-    contextStore: ContextStore;
+    workspaceTracker: WorkspaceExerciseTracker;
 }
 
 interface RecorderWiringResult {
@@ -39,7 +39,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     const {
         context, consentService, artemisWebsocketService,
         telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-        capabilities, exerciseRegistry, contextStore,
+        capabilities, exerciseRegistry, workspaceTracker,
     } = deps;
 
     const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry);
@@ -268,7 +268,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // Recording status bar button
     const recordingStatusBar = new RecordingStatusBarServiceImpl(
         sessionRecorder,
-        () => contextStore.getWorkspaceExerciseId(),
+        () => workspaceTracker.exerciseId,
     );
     disposables.push(recordingStatusBar);
 

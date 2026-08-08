@@ -9,7 +9,7 @@ import { executeReplayCommand } from '@extension/services/telemetry/replay';
 
 import type { DataCollectionDeps, DataCollectionHandle } from './types';
 
-/** Webview command handlers for opening/replaying recordings (full build only). */
+/** Webview command handlers for opening/replaying recordings (recording build only). */
 export function createRecordingWebviewHandlers(globalStorageUri: vscode.Uri): CommandMap {
     return {
         openRecordingsFolder: async () => {
@@ -22,7 +22,7 @@ export function createRecordingWebviewHandlers(globalStorageUri: vscode.Uri): Co
     };
 }
 
-/** Wire consent + recorder + recording palette commands. Full build only. */
+/** Wire consent + recorder + recording palette commands. Recording build only. */
 export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHandle {
     const { context } = deps;
     const consentService = new ConsentService();
@@ -44,7 +44,7 @@ export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHand
         chatWebviewProvider: deps.chatWebviewProvider,
         capabilities: deps.capabilities,
         exerciseRegistry: deps.exerciseRegistry,
-        contextStore: deps.contextStore,
+        workspaceTracker: deps.workspaceTracker,
     });
 
     // Prompt after wiring so a consent change immediately reaches the recorder.
