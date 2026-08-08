@@ -66,3 +66,26 @@
 .sendButton:active:not(.sendButtonDisabled) {
     transform: scale(0.95);
 }
+
+/* The button itself is `disabled`, and Chromium does not fire pointer events
+   on disabled form controls, so a title on the button would never show. The
+   wrapper is the hover target instead. */
+.sendWrap {
+    display: flex;
+    flex-shrink: 0;
+}
+
+/* Present for assistive technology, invisible on screen. A disabled button is
+   skipped by tab navigation, so the reason has to hang off the textarea,
+   which IS focusable in exactly this state. */
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

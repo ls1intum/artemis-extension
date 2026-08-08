@@ -153,4 +153,85 @@ describe('ChatInput', () => {
 		const svg = sendButton.querySelector('svg');
 		expect(svg).toBeInTheDocument();
 	});
+
+	it('keeps the textarea editable while only sending is blocked', async () => {
+		render(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={true} />);
+		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+
+		expect(textarea).toBeEnabled();
+		await userEvent.type(textarea, 'Draft');
+		expect(textarea).toHaveValue('Draft');
+	});
+
+	it('disables the send button while sending is blocked, even with text', async () => {
+		render(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={true} />);
+		await userEvent.type(screen.getByRole('textbox', { name: 'Chat input' }), 'Draft');
+
+		expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+	});
+
+	it('does not send on Enter while sending is blocked', async () => {
+		const onSend = vi.fn();
+		render(<ChatInput onSend={onSend} disabled={false} sendDisabled={true} />);
+		await userEvent.type(screen.getByRole('textbox', { name: 'Chat input' }), 'Draft{Enter}');
+
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it('keeps the draft when Enter is pressed while sending is blocked', async () => {
+		render(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={true} />);
+		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+		await userEvent.type(textarea, 'Draft{Enter}');
+
+		expect(textarea).toHaveValue('Draft');
+	});
+
+	it('still disables the textarea when composing is disabled', () => {
+		render(<ChatInput onSend={vi.fn()} disabled={true} sendDisabled={false} />);
+
+		expect(screen.getByRole('textbox', { name: 'Chat input' })).toBeDisabled();
+	});
+
+	it('shows the reason on the send button while only sending is blocked', () => {
+		render(
+			<ChatInput
+				onSend={vi.fn()}
+				disabled={false}
+				sendDisabled={true}
+				sendDisabledLabel="Iris is still answering"
+			/>
+		);
+
+		expect(screen.getByTitle('Iris is still answering')).toBeInTheDocument();
+	});
+
+	it('shows no send reason when composing is disabled too', () => {
+		render(
+			<ChatInput
+				onSend={vi.fn()}
+				disabled={true}
+				sendDisabled={true}
+				sendDisabledLabel="Iris is still answering"
+			/>
+		);
+
+		expect(screen.queryByTitle('Iris is still answering')).not.toBeInTheDocument();
+	});
+
+	it('describes the textarea with the reason while only sending is blocked', () => {
+		const { rerender } = render(
+			<ChatInput
+				onSend={vi.fn()}
+				disabled={false}
+				sendDisabled={true}
+				sendDisabledLabel="Iris is still answering"
+			/>
+		);
+		expect(screen.getByRole('textbox', { name: 'Chat input' }))
+			.toHaveAccessibleDescription('Iris is still answering');
+
+		rerender(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={false} />);
+		expect(screen.getByRole('textbox', { name: 'Chat input' }))
+			.not.toHaveAccessibleDescription();
+	});
 });
