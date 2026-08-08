@@ -1108,6 +1108,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         onSendPrompt={handleSendMessage}
                         hasContext={hasConversation}
                         isChatDisabled={isChatDisabled}
+                        sendDisabled={sendBlocked}
+                        sendDisabledLabel={sendBlockedReason}
                         onRetry={handleRetry}
                         isRetryDisabled={isRetryDisabled}
                     />

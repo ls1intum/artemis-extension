@@ -846,24 +846,40 @@ describe('Iris Chat Flow', () => {
 			expect(screen.getByTitle('The conversation is still loading')).toBeInTheDocument();
 		});
 
-		it('refuses a blocked send at the funnel without disturbing anything', async () => {
+		it('refuses a blocked send at the funnel without disturbing anything', () => {
+			// The welcome prompts are the shortest path to the funnel: they
+			// call handleSendMessage directly (WelcomeState.tsx, via
+			// onSendPrompt), with no composer in between. They are now gated
+			// like Retry, so the lock has to be taken AFTER the render that
+			// drew them live, the same way the Retry race test below reaches
+			// its guard. That stale button is the only way into the funnel
+			// while the gate is shut, which makes this test the coverage of
+			// the funnel guard itself.
+			//
 			// Only the host lock is set, deliberately. `showWelcome` is
-			// `messages.length === 0 && !hasRunSurface` (ChatMessageList.tsx:65-66),
-			// so seeding `streaming` here would hide the very buttons this test
-			// clicks. The lock alone blocks the funnel and keeps them on screen.
+			// `messages.length === 0 && !hasRunSurface` (ChatMessageList.tsx),
+			// so seeding `streaming` here would hide the very buttons this
+			// test clicks. The lock alone blocks the funnel and keeps them on
+			// screen.
 			useChatStore.setState({
 				...HYDRATED,
 				messages: [],
-				sendInFlight: true,
+				sendInFlight: false,
 			});
-			const user = userEvent.setup();
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// The welcome prompts call handleSendMessage directly
-			// (WelcomeState.tsx:58, via onSendPrompt), bypassing the composer,
-			// so a click lands on the funnel guard and nothing else.
-			await user.click(screen.getByRole('button', { name: 'Help me debug my code' }));
+			const prompt = screen.getByRole('button', { name: 'Help me debug my code' });
+			expect(prompt).toBeEnabled();
+
+			// The missing act() is the POINT, exactly as in the Retry race test
+			// below: wrapping it would flush the disabling render, the click
+			// would land on an inert button, and this test would keep passing
+			// while covering nothing at all. The act() warning is expected.
+			useChatStore.setState({ sendInFlight: true });
+			expect(prompt).toBeEnabled();
+
+			fireEvent.click(prompt);
 
 			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
 				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
@@ -874,6 +890,22 @@ describe('Iris Chat Flow', () => {
 			// saw the command.
 			expect(useChatStore.getState().messages).toHaveLength(0);
 			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+		});
+
+		it('makes the welcome prompts inert while a send is in flight', () => {
+			useChatStore.setState({
+				...HYDRATED,
+				messages: [],
+				sendInFlight: true,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const prompt = screen.getByRole('button', { name: 'Help me debug my code' });
+			expect(prompt).toBeDisabled();
+			// The reason travels with the disabling, so a hover explains the
+			// dead control instead of leaving the student guessing.
+			expect(prompt.parentElement).toHaveAttribute('title', 'Iris is still answering');
 		});
 
 		it('keeps the draft when a send click beats the disabling render', () => {
