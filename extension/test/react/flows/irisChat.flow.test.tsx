@@ -876,6 +876,40 @@ describe('Iris Chat Flow', () => {
 			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 		});
 
+		it('keeps the draft when a send click beats the disabling render', () => {
+			// The composer's own guard is only as fresh as the last committed
+			// render. The host can take the lock in between, and the funnel
+			// then refuses from live state. The clear must follow the funnel's
+			// answer, not the click: a refusal produces no bubble, so the
+			// composer is the only thing left holding the student's text.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				navigationInFlight: false,
+				streaming: { isStreaming: false },
+				composerText: 'Draft',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const send = screen.getByRole('button', { name: 'Send message' });
+			expect(send).toBeEnabled();
+
+			// Deliberately unwrapped, see the Retry race test below.
+			useChatStore.setState({ navigationInFlight: true });
+			expect(send).toBeEnabled();
+
+			fireEvent.click(send);
+
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(0);
+			// Clearing regardless of the funnel's answer makes this ''.
+			expect(useChatStore.getState().composerText).toBe('Draft');
+			expect(screen.getByRole('textbox', { name: 'Chat input' })).toHaveValue('Draft');
+		});
+
 		it('makes Retry inert while a send is in flight', async () => {
 			useChatStore.setState({
 				...HYDRATED,

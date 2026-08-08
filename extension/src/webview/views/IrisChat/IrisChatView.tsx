@@ -332,7 +332,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setUnavailableMessage, setNoAiDetected, resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed, setOpenSessionError, mergeLoadedMessages, confirmSentMessage, showNotice]);
 
-    const handleSendMessage = (text: string) => {
+    /**
+     * The single send funnel. Returns whether the send was ACCEPTED, i.e.
+     * whether the command actually went to the host. Callers that own the
+     * student's text (the composer) must keep it on `false`; a refusal here
+     * produces no bubble, so nothing else would be holding it.
+     */
+    const handleSendMessage = (text: string): boolean => {
         const localId = crypto.randomUUID();
         // The conversation the bubble is drawn in travels WITH the send, so the
         // host can refuse it if a navigation completed in between rather than
@@ -342,7 +348,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             // Nothing to address a rejection to. The composer is already
             // disabled in this state, so this is a defensive guard against a
             // programmer error.
-            return;
+            return false;
         }
 
         // Read LIVE rather than through the render-time closure: this funnel is
@@ -350,7 +356,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // run a tick behind the render that produced them. Every caller is
         // covered here, so this is the guarantee; the disabled button and the
         // inert Retry are only affordances.
-        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
+        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return false; }
 
         // Clear any stale streaming state from the previous request
         resetTransientChatUi();
@@ -375,6 +381,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // rejection so the webview can ignore stale responses after a
         // navigation.
         postCommand(vscodeApi, 'sendMessage', { text, localId, sessionId });
+        return true;
     };
 
     const handleRetry = (localId: string) => {

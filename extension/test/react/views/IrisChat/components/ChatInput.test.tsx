@@ -6,31 +6,31 @@ import { ChatInput } from '@webview/views/IrisChat/components/ChatInput';
 
 describe('ChatInput', () => {
 	it('renders a textarea element', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} />);
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 		expect(textarea).toBeInTheDocument();
 	});
 
 	it('renders with default placeholder when not disabled', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} />);
 		const textarea = screen.getByPlaceholderText('Ask Iris anything...');
 		expect(textarea).toBeInTheDocument();
 	});
 
 	it('renders with custom placeholder', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} placeholder="Type here..." />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} placeholder="Type here..." />);
 		expect(screen.getByPlaceholderText('Type here...')).toBeInTheDocument();
 	});
 
 	it('renders disabled placeholder when disabled', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={true} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={true} />);
 		expect(
 			screen.getByPlaceholderText('Select a course or exercise to start chatting')
 		).toBeInTheDocument();
 	});
 
 	it('calls onSend when Enter pressed with content', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -41,7 +41,7 @@ describe('ChatInput', () => {
 	});
 
 	it('does NOT call onSend on Shift+Enter (inserts newline instead)', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -51,7 +51,7 @@ describe('ChatInput', () => {
 	});
 
 	it('clears input after successful send via Enter', async () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
 		await userEvent.type(textarea, 'Hello{Enter}');
@@ -59,8 +59,23 @@ describe('ChatInput', () => {
 		expect(textarea.value).toBe('');
 	});
 
+	it('keeps the draft when the send is refused', async () => {
+		// `canSend` is only as fresh as the last committed render, so an Enter
+		// can still reach a funnel that refuses it from live state. Clearing on
+		// a refusal deletes text that was never sent and that no failed bubble
+		// is carrying either.
+		const onSend = vi.fn(() => false);
+		render(<ChatInput onSend={onSend} disabled={false} />);
+
+		const textarea = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
+		await userEvent.type(textarea, 'Hello{Enter}');
+
+		expect(onSend).toHaveBeenCalledWith('Hello');
+		expect(textarea.value).toBe('Hello');
+	});
+
 	it('does not send empty message on Enter', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -70,7 +85,7 @@ describe('ChatInput', () => {
 	});
 
 	it('does not send whitespace-only message', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -80,13 +95,13 @@ describe('ChatInput', () => {
 	});
 
 	it('send button is disabled when input is empty', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} />);
 		const sendButton = screen.getByRole('button', { name: 'Send message' });
 		expect(sendButton).toBeDisabled();
 	});
 
 	it('send button is enabled when input has content', async () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 		await userEvent.type(textarea, 'Hello');
@@ -96,7 +111,7 @@ describe('ChatInput', () => {
 	});
 
 	it('calls onSend when send button is clicked', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -110,7 +125,7 @@ describe('ChatInput', () => {
 	});
 
 	it('clears input after send button click', async () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' }) as HTMLTextAreaElement;
 		await userEvent.type(textarea, 'Hello');
@@ -121,13 +136,13 @@ describe('ChatInput', () => {
 	});
 
 	it('disables textarea when disabled prop is true', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={true} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={true} />);
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 		expect(textarea).toBeDisabled();
 	});
 
 	it('does not send when disabled, even with Enter', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={true} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -138,7 +153,7 @@ describe('ChatInput', () => {
 	});
 
 	it('trims whitespace before sending', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={false} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -148,14 +163,14 @@ describe('ChatInput', () => {
 	});
 
 	it('renders send button with SVG icon', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} />);
 		const sendButton = screen.getByRole('button', { name: 'Send message' });
 		const svg = sendButton.querySelector('svg');
 		expect(svg).toBeInTheDocument();
 	});
 
 	it('keeps the textarea editable while only sending is blocked', async () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={true} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} sendDisabled={true} />);
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 
 		expect(textarea).toBeEnabled();
@@ -164,14 +179,14 @@ describe('ChatInput', () => {
 	});
 
 	it('disables the send button while sending is blocked, even with text', async () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={true} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} sendDisabled={true} />);
 		await userEvent.type(screen.getByRole('textbox', { name: 'Chat input' }), 'Draft');
 
 		expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
 	});
 
 	it('does not send on Enter while sending is blocked', async () => {
-		const onSend = vi.fn();
+		const onSend = vi.fn(() => true);
 		render(<ChatInput onSend={onSend} disabled={false} sendDisabled={true} />);
 		await userEvent.type(screen.getByRole('textbox', { name: 'Chat input' }), 'Draft{Enter}');
 
@@ -179,7 +194,7 @@ describe('ChatInput', () => {
 	});
 
 	it('keeps the draft when Enter is pressed while sending is blocked', async () => {
-		render(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={true} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={false} sendDisabled={true} />);
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 		await userEvent.type(textarea, 'Draft{Enter}');
 
@@ -187,7 +202,7 @@ describe('ChatInput', () => {
 	});
 
 	it('still disables the textarea when composing is disabled', () => {
-		render(<ChatInput onSend={vi.fn()} disabled={true} sendDisabled={false} />);
+		render(<ChatInput onSend={vi.fn(() => true)} disabled={true} sendDisabled={false} />);
 
 		expect(screen.getByRole('textbox', { name: 'Chat input' })).toBeDisabled();
 	});
@@ -195,7 +210,7 @@ describe('ChatInput', () => {
 	it('shows the reason on the send button while only sending is blocked', () => {
 		render(
 			<ChatInput
-				onSend={vi.fn()}
+				onSend={vi.fn(() => true)}
 				disabled={false}
 				sendDisabled={true}
 				sendDisabledLabel="Iris is still answering"
@@ -208,7 +223,7 @@ describe('ChatInput', () => {
 	it('shows no send reason when composing is disabled too', () => {
 		render(
 			<ChatInput
-				onSend={vi.fn()}
+				onSend={vi.fn(() => true)}
 				disabled={true}
 				sendDisabled={true}
 				sendDisabledLabel="Iris is still answering"
@@ -221,7 +236,7 @@ describe('ChatInput', () => {
 	it('describes the textarea with the reason while only sending is blocked', () => {
 		const { rerender } = render(
 			<ChatInput
-				onSend={vi.fn()}
+				onSend={vi.fn(() => true)}
 				disabled={false}
 				sendDisabled={true}
 				sendDisabledLabel="Iris is still answering"
@@ -230,7 +245,7 @@ describe('ChatInput', () => {
 		expect(screen.getByRole('textbox', { name: 'Chat input' }))
 			.toHaveAccessibleDescription('Iris is still answering');
 
-		rerender(<ChatInput onSend={vi.fn()} disabled={false} sendDisabled={false} />);
+		rerender(<ChatInput onSend={vi.fn(() => true)} disabled={false} sendDisabled={false} />);
 		expect(screen.getByRole('textbox', { name: 'Chat input' }))
 			.not.toHaveAccessibleDescription();
 	});

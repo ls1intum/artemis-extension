@@ -6,7 +6,15 @@ import TextareaAutosize from 'react-textarea-autosize';
 import styles from './ChatInput.module.css';
 
 interface ChatInputProps {
-    onSend: (text: string) => void;
+    /**
+     * Hands the draft to the send funnel. Returns whether the send was
+     * ACCEPTED: the funnel reads live host state, so it can still refuse a
+     * send that this component's last render believed was fine. Strictly
+     * boolean rather than "undefined means fine", because a caller that
+     * forgets to answer must not silently look like an acceptance and take
+     * the student's text with it.
+     */
+    onSend: (text: string) => boolean;
     /**
      * There is nothing to write into: no conversation, Iris switched off,
      * Iris unreachable, transcript not delivered yet. Disables the textarea,
@@ -80,8 +88,16 @@ export function ChatInput({
         // The guard sits AHEAD of the clear on purpose: a blocked Enter must
         // leave the draft exactly where the student left it.
         if (!canSend) { return; }
-        onSend(value.trim());
-        setValue(''); // Clear input immediately (optimistic)
+        // `canSend` is only as fresh as the last committed render. An Enter
+        // that lands in the window between the host taking the lock and React
+        // disabling the button reaches the funnel, which refuses it from live
+        // state. Clearing regardless would delete text that was never sent,
+        // and no bubble would carry it either. So: clear ONLY on acceptance.
+        // Restoring the draft from inside the funnel cannot work instead,
+        // because this line runs after `onSend` returns and would wipe it.
+        if (onSend(value.trim())) {
+            setValue(''); // Clear input immediately (optimistic)
+        }
     };
 
     return (
