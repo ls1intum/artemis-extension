@@ -32,11 +32,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // the host take a send right now", and carries the sentence that explains
     // a no.
     //
-    // Declared HERE, not next to the other derivations further down: Task 4
-    // puts `sendBlocked` in the dependency array of the deferred-resend effect
-    // at :440, and a dependency array is evaluated during render. A `const`
-    // declared below that effect would be in its temporal dead zone and throw
-    // a ReferenceError on every render.
+    // Declared HERE, above every effect, not next to the other derivations
+    // further down: the deferred-resend effect lists `sendBlocked` in its
+    // dependency array, and a dependency array is evaluated during render. A
+    // `const` declared below that effect would be in its temporal dead zone
+    // and throw a ReferenceError on every render. Keep this declaration ahead
+    // of any effect that reads it.
     const sendBlockedReason = selectSendBlockedReason(store);
     const sendBlocked = sendBlockedReason !== undefined;
     const {
@@ -394,6 +395,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             handleRetryChatLoad();
             return;
         }
+        // BEFORE the removal, never after: the funnel would refuse the send and
+        // the bubble would already be gone, taking the student's text with it.
+        // Unreachable through the UI once isRetryDisabled is true; kept as the
+        // structural guarantee for any future caller.
+        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
         // Remove the failed entry first so handleSendMessage's optimistic
         // add doesn't briefly produce two copies. Zustand+React batch the
         // two state updates in the same event tick, so there is no visible
@@ -459,6 +465,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         if (store.unavailableMessage !== null) { return; }
         const pending = resendWhenReachable.current;
         if (pending === null) { return; }
+        // The banner can clear while the host still holds its lock: the
+        // provider's availability refresh runs ahead of the reload that was
+        // deferred until the send settles. Keep the pending resend AND its
+        // bubble; `sendBlocked` is in the dependency list, so the release runs
+        // this again.
+        if (sendBlocked) { return; }
         resendWhenReachable.current = null;
         // The banner also clears on a NAVIGATION. Cancel when the move is
         // already visible here.
@@ -475,10 +487,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // so the resend does not leave a duplicate behind.
         store.removeMessage(pending.localId);
         handleSendMessage(pending.text);
-        // Deliberately keyed on the banner alone. `handleSendMessage` is
+        // Keyed on the banner and the send gate. `handleSendMessage` is
         // recreated every render, so listing it would re-run this on every
-        // render instead of on the transition that matters.
-    }, [store.unavailableMessage]);
+        // render instead of on the transitions that matter.
+    }, [store.unavailableMessage, sendBlocked]);
 
     // Popover open/close helpers. The two popovers are mutually exclusive.
     // Opening one always closes the other. Closing restores focus to
@@ -568,14 +580,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // render because the message list is short and `messages.map` already
     // walks it; rebuilding a Map would be wasted work.
     const isRetryDisabled = (msg: { errorReason?: ChatMessage['errorReason'] }) => {
+        // A retry IS a send. While the host would refuse one, this is an inert
+        // control rather than an affordance whose only outcome is a rejection
+        // that also wipes the running request's indicator.
+        if (sendBlocked) { return true; }
         switch (msg.errorReason) {
             case 'iris-disabled':
                 // Persistent until the user navigates away from the
                 // disabled exercise; the banner already states this.
                 return true;
             case 'iris-unavailable':
-                // Never disabled. This button IS the reload while the banner is
-                // up: it reloads first and sends afterwards (see `handleRetry`).
+                // Never disabled for its own reason (the gate above still
+                // applies). This button IS the reload while the banner is up:
+                // it reloads first and sends afterwards (see `handleRetry`).
                 // Two Retry buttons at once, one of them dead, is a puzzle
                 // rather than an affordance.
                 return false;

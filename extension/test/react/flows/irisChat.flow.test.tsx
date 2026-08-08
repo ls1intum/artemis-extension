@@ -588,6 +588,9 @@ describe('Iris Chat Flow', () => {
 			await user.type(textarea, 'Follow-up');
 			expect(useChatStore.getState().composerText).toBe('Follow-up');
 			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+			// The invitation to keep writing is the whole point of leaving the
+			// textarea enabled, so the wording is part of the contract.
+			expect(textarea).toHaveAttribute('placeholder', 'Type your next message…');
 		});
 
 		it('attempting a second send while one is in flight does not fire a second sendMessage', async () => {
@@ -760,7 +763,16 @@ describe('Iris Chat Flow', () => {
 		});
 
 		it('keeps sending blocked while the host still holds the lock', async () => {
-			useChatStore.setState({ ...HYDRATED, sendInFlight: true, composerText: 'Draft' });
+			// `streaming` starts ON so the FINISHED projection below genuinely
+			// turns the run off. Without it the projection would move the run
+			// from off to off and the assertion would prove nothing about the
+			// lock outliving the run.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: true,
+				streaming: { isStreaming: true },
+				composerText: 'Draft',
+			});
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -778,6 +790,8 @@ describe('Iris Chat Flow', () => {
 					},
 				});
 			});
+			// ...the run really is off, so only the lock is left to block on...
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			// ...but the host has not released its lock yet.
 			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
 
@@ -859,6 +873,73 @@ describe('Iris Chat Flow', () => {
 			// saw the command.
 			expect(useChatStore.getState().messages).toHaveLength(0);
 			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+		});
+
+		it('makes Retry inert while a send is in flight', async () => {
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: true,
+				streaming: { isStreaming: true },
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorMessage: 'Something went wrong',
+				}],
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.getByRole('button', { name: /retry/i })).toBeDisabled();
+		});
+
+		it('holds a deferred resend until the gate releases, then sends it once', async () => {
+			// The lock must NOT be held yet: Retry is inert while it is, so a
+			// blocked click could never arm the deferred resend in the first
+			// place. The sequence under test is arm first, then get blocked.
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				unavailableMessage: 'Iris is temporarily unavailable',
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorReason: 'iris-unavailable' as const,
+					errorMessage: 'Iris is temporarily unavailable',
+				}],
+			});
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Arms resendWhenReachable and asks for a reload.
+			await user.click(screen.getByRole('button', { name: /retry/i }));
+
+			// The banner clears while the host now holds its lock: the
+			// availability refresh runs ahead of the reload that was deferred
+			// until the send settles. Both in one update, because that is the
+			// render the effect has to survive.
+			act(() => {
+				useChatStore.setState({ unavailableMessage: null, sendInFlight: true });
+			});
+
+			const sends = () => (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+
+			// Blocked: nothing sent, and the bubble is still there to retry.
+			expect(sends()).toHaveLength(0);
+			expect(useChatStore.getState().messages).toHaveLength(1);
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+
+			await waitFor(() => { expect(sends()).toHaveLength(1); });
+			expect((sends()[0][0] as { payload: { text: string } }).payload.text).toBe('Retry me');
 		});
 	});
 
