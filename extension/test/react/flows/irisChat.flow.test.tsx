@@ -85,6 +85,10 @@ describe('Iris Chat Flow', () => {
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
+			sendInFlight: false,
+			navigationInFlight: false,
+			composerText: '',
+			unavailableMessage: null,
 			// Default flows assume init has happened. The cold-mount flow
 			// test below explicitly opts out to exercise pre-init behavior.
 			hasReceivedInitialIrisState: true,
@@ -566,7 +570,7 @@ describe('Iris Chat Flow', () => {
 			expect(lastPayload.localId).toBe(fresh!.localId);
 		});
 
-		it('ChatInput is disabled while a send is in flight', async () => {
+		it('keeps the composer usable while a send is in flight', async () => {
 			useChatStore.setState({ ...HYDRATED });
 			const user = userEvent.setup();
 			const mockApi = createMockVsCodeApi();
@@ -579,7 +583,11 @@ describe('Iris Chat Flow', () => {
 			await waitFor(() => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			});
-			expect(textarea).toBeDisabled();
+
+			expect(textarea).toBeEnabled();
+			await user.type(textarea, 'Follow-up');
+			expect(useChatStore.getState().composerText).toBe('Follow-up');
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
 		});
 
 		it('attempting a second send while one is in flight does not fire a second sendMessage', async () => {
@@ -595,9 +603,9 @@ describe('Iris Chat Flow', () => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			});
 
-			// Typing into the disabled textarea is a no-op; an Enter press
-			// while disabled cannot reach handleSendMessage either. Verify
-			// that the only sendMessage command posted is the first one.
+			// Typing is allowed during a run now, sending is not. The Enter
+			// guard in ChatInput plus the funnel guard in handleSendMessage
+			// are what keep this to one command.
 			await user.click(textarea);
 			await user.keyboard('Second{Enter}');
 
@@ -698,6 +706,159 @@ describe('Iris Chat Flow', () => {
 
 			const retry = screen.getByRole('button', { name: 'Retry sending this message' });
 			expect(retry).toBeDisabled();
+		});
+
+		it('keeps a draft written during the run once the run ends', async () => {
+			useChatStore.setState({ ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await user.type(textarea, 'First send{Enter}');
+			await waitFor(() => {
+				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			});
+
+			// Both transitions travel the real wire, so this exercises the
+			// view's own message path and not just the local startStreaming
+			// that handleSendMessage already did.
+			act(() => {
+				dispatchExtensionMessage({
+					type: 'updateIrisRunUi',
+					projection: {
+						sessionId: OPEN,
+						revision: 1,
+						draft: null,
+						activities: [],
+						waiting: true,
+						runState: 'RUNNING',
+					},
+				});
+			});
+
+			await user.type(textarea, 'Follow-up');
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: 'updateIrisRunUi',
+					projection: {
+						sessionId: OPEN,
+						revision: 2,
+						draft: null,
+						activities: [],
+						waiting: false,
+						runState: 'FINISHED',
+					},
+				});
+			});
+
+			await waitFor(() => {
+				expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+			});
+			expect(textarea).toHaveValue('Follow-up');
+		});
+
+		it('keeps sending blocked while the host still holds the lock', async () => {
+			useChatStore.setState({ ...HYDRATED, sendInFlight: true, composerText: 'Draft' });
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// The run is over as far as the run UI is concerned...
+			act(() => {
+				dispatchExtensionMessage({
+					type: 'updateIrisRunUi',
+					projection: {
+						sessionId: OPEN,
+						revision: 2,
+						draft: null,
+						activities: [],
+						waiting: false,
+						runState: 'FINISHED',
+					},
+				});
+			});
+			// ...but the host has not released its lock yet.
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+		});
+
+		it('keeps sending blocked when the socket drops mid-send', async () => {
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: true,
+				streaming: { isStreaming: true },
+				composerText: 'Draft',
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// A disconnect resets the run UI, so isStreaming alone would say
+			// "go ahead" while the host would still reject.
+			act(() => {
+				dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'disconnected' });
+			});
+
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+			expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+		});
+
+		it('blocks sending during a conversation switch and says so', async () => {
+			// The combination the host rejects for NAVIGATION, not for the run.
+			useChatStore.setState({
+				...HYDRATED,
+				navigationInFlight: true,
+				sendInFlight: false,
+				streaming: { isStreaming: true },
+				composerText: 'Draft',
+			});
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			await user.type(screen.getByRole('textbox', { name: 'Chat input' }), '{Enter}');
+
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(0);
+			expect(useChatStore.getState().composerText).toBe('Draft');
+			expect(screen.getByTitle('The conversation is still loading')).toBeInTheDocument();
+		});
+
+		it('refuses a blocked send at the funnel without disturbing anything', async () => {
+			// Only the host lock is set, deliberately. `showWelcome` is
+			// `messages.length === 0 && !hasRunSurface` (ChatMessageList.tsx:65-66),
+			// so seeding `streaming` here would hide the very buttons this test
+			// clicks. The lock alone blocks the funnel and keeps them on screen.
+			useChatStore.setState({
+				...HYDRATED,
+				messages: [],
+				sendInFlight: true,
+			});
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// The welcome prompts call handleSendMessage directly
+			// (WelcomeState.tsx:58, via onSendPrompt), bypassing the composer,
+			// so a click lands on the funnel guard and nothing else.
+			await user.click(screen.getByRole('button', { name: 'Help me debug my code' }));
+
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(0);
+			// Without the guard, handleSendMessage would have added an
+			// optimistic bubble and called startStreaming before the host ever
+			// saw the command.
+			expect(useChatStore.getState().messages).toHaveLength(0);
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 		});
 	});
 

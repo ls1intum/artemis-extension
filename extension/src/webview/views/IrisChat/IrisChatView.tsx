@@ -8,7 +8,7 @@ import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import { selectCanChangeTopic, useChatStore } from '@webview/stores/useChatStore';
+import { selectCanChangeTopic, selectSendBlockedReason, useChatStore } from '@webview/stores/useChatStore';
 
 import { ChatHeader } from './components/ChatHeader';
 import { ChatInput } from './components/ChatInput';
@@ -28,6 +28,17 @@ interface IrisChatViewProps {
 
 export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
+    // Sending and composing are different questions. This one answers "would
+    // the host take a send right now", and carries the sentence that explains
+    // a no.
+    //
+    // Declared HERE, not next to the other derivations further down: Task 4
+    // puts `sendBlocked` in the dependency array of the deferred-resend effect
+    // at :440, and a dependency array is evaluated during render. A `const`
+    // declared below that effect would be in its temporal dead zone and throw
+    // a ReferenceError on every render.
+    const sendBlockedReason = selectSendBlockedReason(store);
+    const sendBlocked = sendBlockedReason !== undefined;
     const {
         setIrisState, setShowDiagnostics, addMessage,
         applyLoadedMessages,
@@ -332,6 +343,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             // programmer error.
             return;
         }
+
+        // Read LIVE rather than through the render-time closure: this funnel is
+        // reached from event handlers and from an effect, either of which can
+        // run a tick behind the render that produced them. Every caller is
+        // covered here, so this is the guarantee; the disabled button and the
+        // inert Retry are only affordances.
+        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
 
         // Clear any stale streaming state from the previous request
         resetTransientChatUi();
@@ -1124,10 +1142,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     </div>
                 )}
 
-                {/* Chat input — disabled while we are still hydrating the
-                    message list so a fast user does not race the load and
-                    have their just-sent message swallowed when the server
-                    snapshot arrives. */}
+                {/* Composing and sending are gated separately. The textarea is
+                    disabled only while there is nothing to write into, e.g.
+                    while the transcript is still hydrating, so a fast user
+                    cannot race the load. Sending is refused separately while
+                    the host would reject it. */}
                 <ChatInput
                     onSend={handleSendMessage}
                     value={store.composerText}
@@ -1137,15 +1156,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         || !hasConversation
                         || isChatUnavailable
                         || messagesLoading
-                        || store.streaming.isStreaming
                     }
+                    sendDisabled={sendBlocked}
+                    sendDisabledLabel={sendBlockedReason}
+                    placeholder={sendBlocked ? 'Type your next message…' : undefined}
                     disabledPlaceholder={
                         disabledPlaceholder
-                        ?? (messagesLoading
-                            ? 'Loading conversation…'
-                            : store.streaming.isStreaming
-                                ? 'Iris is responding…'
-                                : undefined)
+                        ?? (messagesLoading ? 'Loading conversation…' : undefined)
                     }
                 />
 

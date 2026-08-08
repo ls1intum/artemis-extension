@@ -674,3 +674,25 @@ export function selectCanChangeTopic(
 ): boolean {
     return state.contentState !== 'unknown' && !state.sendInFlight && !state.navigationInFlight;
 }
+
+/**
+ * Why a send would be refused right now, or `undefined` when it would go
+ * through. Gate and label are ONE derivation so the greyed-out button and the
+ * sentence explaining it can never disagree.
+ *
+ * The order is the host's own rejection order (`sendCoordinator.ts:80-81`), so
+ * whenever the host would refuse, the student reads the cause the host would
+ * have named. Local `streaming` ranks LAST: it has no host counterpart and
+ * covers only the window between the webview posting the command and the host
+ * taking its lock. Ranking it higher would mislabel the combination
+ * `streaming` + `navigationInFlight`, which is reachable during snapshot
+ * races and which the host rejects for navigation.
+ */
+export function selectSendBlockedReason(
+    state: Pick<ChatState, 'sendInFlight' | 'navigationInFlight' | 'streaming'>,
+): string | undefined {
+    if (state.sendInFlight) { return 'Iris is still answering'; }
+    if (state.navigationInFlight) { return 'The conversation is still loading'; }
+    if (state.streaming.isStreaming) { return 'Iris is still answering'; }
+    return undefined;
+}
