@@ -470,9 +470,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // The banner can clear while the host still holds its lock: the
         // provider's availability refresh runs ahead of the reload that was
         // deferred until the send settles. Keep the pending resend AND its
-        // bubble; `sendBlocked` is in the dependency list, so the release runs
-        // this again.
-        if (sendBlocked) { return; }
+        // bubble.
+        //
+        // Read LIVE rather than through the render-time closure `sendBlocked`,
+        // for the same reason `handleSendMessage` and `handleRetry` do: a host
+        // snapshot can land between this render committing and this effect's
+        // passive-effect callback running, and the closure would then still
+        // see the stale, unlocked value. Reading live here means `sendBlocked`
+        // is no longer what gates this effect body, so it looks unused below,
+        // but it is NOT dead: it stays in the dependency array purely as the
+        // trigger that re-runs this effect once the live gate releases. Do not
+        // remove it from the deps just because the body does not read it.
+        if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
         resendWhenReachable.current = null;
         // The banner also clears on a NAVIGATION. Cancel when the move is
         // already visible here.

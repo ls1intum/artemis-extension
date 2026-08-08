@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
@@ -986,6 +987,94 @@ describe('Iris Chat Flow', () => {
 			// Blocked: nothing sent, and the bubble is still there to retry.
 			expect(sends()).toHaveLength(0);
 			expect(useChatStore.getState().messages).toHaveLength(1);
+
+			act(() => { useChatStore.setState({ sendInFlight: false }); });
+
+			await waitFor(() => { expect(sends()).toHaveLength(1); });
+			expect((sends()[0][0] as { payload: { text: string } }).payload.text).toBe('Retry me');
+		});
+
+		/**
+		 * A stand-in for "a host snapshot lands between this render
+		 * committing and its effect running". React flushes a commit's
+		 * passive effects in tree order, and a PRECEDING sibling's own
+		 * `useEffect` runs strictly before `IrisChatView`'s. Mounted before
+		 * `IrisChatView`, this fires exactly once (guarded by `armed`), right
+		 * when `unavailableMessage` turns null, and mutates the store
+		 * directly, before the resend effect's own body runs in the SAME
+		 * flush.
+		 *
+		 * That is the only way found, with the tools available here, to make
+		 * a render commit with `sendBlocked === false` in its closure while
+		 * `useChatStore.getState().sendInFlight` is already `true` by the
+		 * time the effect body reads it. Every attempt to produce the same
+		 * gap purely through test-level `act()`/`setState` sequencing (two
+		 * sequential `act()` calls, raw `setState` outside `act()`, awaiting
+		 * across micro- and macrotasks) either collapsed both changes into
+		 * one render that saw them together, or let the whole effect
+		 * including the resend run to completion before the second change
+		 * was even applied. A closure read would have passed either of those
+		 * cases too, so they would not have exercised the bug this guards
+		 * against.
+		 */
+		function RaceInjector({ armed }: { armed: { current: boolean } }) {
+			const unavailable = useChatStore((s) => s.unavailableMessage);
+			useEffect(() => {
+				if (armed.current && unavailable === null) {
+					armed.current = false;
+					useChatStore.setState({ sendInFlight: true });
+				}
+			});
+			return null;
+		}
+
+		it('keeps the deferred resend when the lock lands before the effect body runs, not just before its render', async () => {
+			const armed = { current: false };
+			useChatStore.setState({
+				...HYDRATED,
+				sendInFlight: false,
+				unavailableMessage: 'Iris is temporarily unavailable',
+				messages: [{
+					localId: 'failed-1',
+					role: 'user' as const,
+					content: 'Retry me',
+					timestamp: Date.now(),
+					status: 'error' as const,
+					errorReason: 'iris-unavailable' as const,
+					errorMessage: 'Iris is temporarily unavailable',
+				}],
+			});
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<><RaceInjector armed={armed} /><IrisChatView vscodeApi={mockApi} /></>);
+
+			// Arms resendWhenReachable and asks for a reload.
+			await user.click(screen.getByRole('button', { name: /retry/i }));
+
+			const sends = () => (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+
+			// The ONLY state change in this act(): unlike the test above,
+			// `sendInFlight` is untouched here. RaceInjector flips it to
+			// `true` from inside its own effect, part of the SAME
+			// passive-effect flush, strictly before the resend effect's body
+			// runs, so this render's closure captures `sendBlocked === false`
+			// even though the lock is already live by the time that closure
+			// is read.
+			armed.current = true;
+			act(() => {
+				useChatStore.setState({ unavailableMessage: null });
+			});
+
+			// Blocked: nothing sent, and the bubble is still there to retry.
+			// Before the fix this failed right here: the stale closure let
+			// the effect through, it removed the bubble, and the funnel's own
+			// (already-live) guard then refused the send, losing the text for
+			// good.
+			expect(sends()).toHaveLength(0);
+			expect(useChatStore.getState().messages).toHaveLength(1);
+			expect(useChatStore.getState().messages[0].content).toBe('Retry me');
 
 			act(() => { useChatStore.setState({ sendInFlight: false }); });
 
