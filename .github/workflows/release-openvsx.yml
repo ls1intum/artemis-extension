@@ -397,7 +397,20 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE" 2>&1 | tee /tmp/vsce_out.txt
+          max_attempts=3
+          attempt=1
+          while true; do
+            if vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE" 2>&1 | tee /tmp/vsce_out.txt; then
+              break
+            fi
+            if grep -qiE 'request timeout|etimedout|timed out' /tmp/vsce_out.txt && [[ "$attempt" -lt "$max_attempts" ]]; then
+              echo "::warning::Transient VS Marketplace timeout on attempt $attempt/$max_attempts. Retrying..."
+              attempt=$((attempt + 1))
+              sleep 15
+              continue
+            fi
+            exit 1
+          done
           if grep -qiE 'already (exists|published)|skipping' /tmp/vsce_out.txt; then
             echo "::warning::Marketplace already had $INPUT_VERSION; --skip-duplicate skipped the upload (treated as a retry)."
           fi
