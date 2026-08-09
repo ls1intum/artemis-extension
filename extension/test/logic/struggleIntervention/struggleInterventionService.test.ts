@@ -107,7 +107,7 @@ describe('StruggleInterventionService', () => {
         expect(body.struggleSignal.alert.path).toBe('discrete');
     });
 
-    it('shouldSuppress (BackoffSource): discrete passes by default, both kinds suppressed on student-opt-out', () => {
+    it('shouldSuppress (BackoffSource): discrete passes by default, both kinds suppressed on student-opt-out', async () => {
         // This is what BackoffGate consults ABOVE the throttle, so a suppressed alert never burns delivery budget.
         expect(new StruggleInterventionService(fakeDeps()).shouldSuppress(discreteAlert())).toBe(false);                            // TPS intervenes now
         expect(new StruggleInterventionService(fakeDeps({ isStudentProactiveOn: () => false })).shouldSuppress(discreteAlert())).toBe(true); // opted out (discrete)
@@ -248,12 +248,12 @@ describe('StruggleInterventionService', () => {
         expect(post).toHaveBeenCalledTimes(2);
     });
 
-    it('getProactiveGateState: consentMissing when egress consent is off', () => {
+    it('getProactiveGateState: consentMissing when egress consent is off', async () => {
         const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => false }));
         expect(svc.getProactiveGateState()).toEqual({ consentMissing: true, serverUnavailable: false });
     });
 
-    it('getProactiveGateState: all clear when consent on and server up', () => {
+    it('getProactiveGateState: all clear when consent on and server up', async () => {
         const svc = new StruggleInterventionService(fakeDeps({ isEgressEnabled: () => true }));
         expect(svc.getProactiveGateState()).toEqual({ consentMissing: false, serverUnavailable: false });
     });
@@ -339,16 +339,19 @@ describe('StruggleInterventionService', () => {
         expect(post).not.toHaveBeenCalled();
     });
 
-    it('inbound ambient/active are dropped when the student turned proactive off (mid-flight opt-out)', () => {
+    it('inbound ambient/active are dropped when the student turned proactive off (mid-flight opt-out)', async () => {
         const deps = fakeDeps({ isStudentProactiveOn: () => false });
         const svc = new StruggleInterventionService(deps);
         svc.onServerAmbient('ep-x', 'hint', undefined, undefined, undefined);
         svc.onServerActive('ep-x', 99);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.showActiveBanner).not.toHaveBeenCalled();
     });
 
-    it('consent-guard drop (mid-flight revoke) retires the persisted row for ambient AND active (#349 wave 3)', () => {
+    it('consent-guard drop (mid-flight revoke) retires the persisted row for ambient AND active (#349 wave 3)', async () => {
         // Correlated in-flight marker so the frame passes the correlation guard and lands on the
         // consent guard specifically (not the wave-2 uncorrelated-drop retirement).
         const deps = fakeDeps({ isEgressEnabled: () => false });
@@ -372,11 +375,14 @@ describe('StruggleInterventionService', () => {
         expect(svc2._inFlightMarker).toBeUndefined();
     });
 
-    it('student-opt-out drop retires the persisted row for ambient AND active (#349 wave 3)', () => {
+    it('student-opt-out drop retires the persisted row for ambient AND active (#349 wave 3)', async () => {
         const deps = fakeDeps({ isStudentProactiveOn: () => false });
         const svc = new StruggleInterventionService(deps);
         svc.onServerAmbient('ep-x', 'hint', undefined, undefined, undefined, undefined, 81);
         svc.onServerActive('ep-x', 99, undefined, undefined, undefined, undefined, undefined, 82);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.postRemoveMessage).toHaveBeenCalledWith(81);
         expect(deps.postRemoveMessage).toHaveBeenCalledWith(82);
         expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 81);
@@ -385,7 +391,7 @@ describe('StruggleInterventionService', () => {
         expect(deps.showActiveBanner).not.toHaveBeenCalled();
     });
 
-    it('setStudentProactive(active exercise, false) clears a standing inline cue + lamp + badge + banner', () => {
+    it('setStudentProactive(active exercise, false) clears a standing inline cue + lamp + badge + banner', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc.setStudentProactive(42, false);   // 42 is fakeDeps' active exercise
@@ -395,7 +401,7 @@ describe('StruggleInterventionService', () => {
         expect(deps.hideActiveBanner).toHaveBeenCalled();
     });
 
-    it('setStudentProactive(false) from a NON-active exercise STILL clears the active exercise surfaces (#341 global Off)', () => {
+    it('setStudentProactive(false) from a NON-active exercise STILL clears the active exercise surfaces (#341 global Off)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc.setStudentProactive(999, false);   // active is 42; a global Off clears regardless of source
@@ -407,7 +413,7 @@ describe('StruggleInterventionService', () => {
 
     // C1/C3: ambient = PARKED pointer only (badge + lamp always; gutter icon if anchor live). No inline text, no banner.
     // Note: C3 routes onServerAmbient through the slot guard; tests use simulateDecidePending to set up the in-flight state.
-    it('inbound ambient event (no anchor) → badge + lamp (PARKED pointer); no inline', () => {
+    it('inbound ambient event (no anchor) → badge + lamp (PARKED pointer); no inline', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -421,7 +427,7 @@ describe('StruggleInterventionService', () => {
         expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
-    it('inbound ambient event WITH an anchor → badge + lamp + gutter icon armed; no inline text (spec §5 pull model)', () => {
+    it('inbound ambient event WITH an anchor → badge + lamp + gutter icon armed; no inline text (spec §5 pull model)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -436,7 +442,7 @@ describe('StruggleInterventionService', () => {
         expect(deps.showActiveBanner).not.toHaveBeenCalled();
     });
 
-    it('inbound ambient event WITHOUT an anchor → badge + lamp only; clears any stale inline cue', () => {
+    it('inbound ambient event WITHOUT an anchor → badge + lamp only; clears any stale inline cue', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -452,50 +458,65 @@ describe('StruggleInterventionService', () => {
     // The old 3/session cap is replaced by the slot (only one episode at a time). Only the first active
     // surface per episode is delivered; subsequent decides from a DELIVERED slot are suppressed unless
     // the slot is an escalation candidate (ambient+hardEvent).
-    it('inbound active event (FREE slot) → opens session + badge + banner + inline if anchor live', () => {
+    it('inbound active event (FREE slot) → opens session + badge + banner + inline if anchor live', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.clearInline).toHaveBeenCalled();   // active clears any stale inline cue
-        expect(deps.openSession).toHaveBeenCalledWith(7);
+        expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 7);
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
         // Slot is now DELIVERED
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
-    it('active delivery suppresses the banner when the chat is already open (in-session); the bubble still posts', () => {
+    it('active delivery suppresses the banner when the chat is already open (in-session); the bubble still posts', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc._slot.setInSession(true);                              // chat view open
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.postBubble).toHaveBeenCalled();                // bubble still lands in the open chat
         expect(deps.showActiveBanner).not.toHaveBeenCalled();      // ...but no redundant banner
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
-    it('second active decide on an already-DELIVERED slot is suppressed by the slot (C3 blind-overwrite fix)', () => {
+    it('second active decide on an already-DELIVERED slot is suppressed by the slot (C3 blind-overwrite fix)', async () => {
         // First active takes the slot (DELIVERED). A second decide from a different alert
         // returns 'suppress' (DELIVERED + active without hardEvent). The slot stays DELIVERED.
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.openSession).toHaveBeenCalledTimes(1);
 
         // Simulate a second decide arriving (non-hard boundary -> no escalation)
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.openSession).toHaveBeenCalledTimes(1); // still 1, not 2 -- slot prevents overwrite
     });
 
-    it('slot freed on resetSession() -> next active re-opens (new exercise)', () => {
+    it('slot freed on resetSession() -> next active re-opens (new exercise)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
 
         svc.reset();                       // reset() (surface clear) does NOT free the slot
@@ -507,16 +528,22 @@ describe('StruggleInterventionService', () => {
         // After resetSession a new active takes the slot again
         simulateDecidePending(svc, 'ep-2', false);
         svc.onServerActive('ep-2', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.openSession).toHaveBeenCalledTimes(2);
     });
 
-    it('inbound active event with an anchor ALSO arms the inline breadcrumb (spec §6.1)', () => {
+    it('inbound active event with an anchor ALSO arms the inline breadcrumb (spec §6.1)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 8, 'src/B.java', 84, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         // the bubble still opens (active surface)...
-        expect(deps.openSession).toHaveBeenCalledWith(8);
+        expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 8);
         expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
         // ...AND the inline breadcrumb is armed at the anchor (rendered once the file is visible;
         // the anchor no longer has to be on screen in the delivery moment)...
@@ -527,25 +554,31 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearLamp).not.toHaveBeenCalled();
     });
 
-    it('inbound active event without an anchor arms no inline cue and no jump lamp (clears both)', () => {
+    it('inbound active event without an anchor arms no inline cue and no jump lamp (clears both)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 8, undefined, undefined, undefined, 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.showActiveJump).not.toHaveBeenCalled();
         expect(deps.clearInline).toHaveBeenCalled();
         expect(deps.clearLamp).toHaveBeenCalled();
-        expect(deps.openSession).toHaveBeenCalledWith(8);
+        expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 8);
     });
 
     // Pull re-route (spec §12.2 Off/Less/More): the client-side defence-in-depth that keeps Less
     // from ever surfacing a bubble/notification, even when the server decided `active`.
-    it('Pull re-route: level=less turns an inbound active event into ambient/PARKED, never a bubble/banner/session-open', () => {
+    it('Pull re-route: level=less turns an inbound active event into ambient/PARKED, never a bubble/banner/session-open', async () => {
         const deps = fakeDeps({ getProactiveLevel: () => 'less' });
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7, 'src/B.java', 84, 'check punctuation', 0.9, 'Iris has a suggestion for you.', 123);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         // Re-routed to the ambient/PARKED surface: badge + lamp (+ gutter, since an anchor was sent).
         expect(deps.setBadge).toHaveBeenCalledWith(true);
@@ -561,20 +594,23 @@ describe('StruggleInterventionService', () => {
         expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
-    it('Pull re-route: level=more delivers the full active push (DELIVERED, bubble/banner) unchanged', () => {
+    it('Pull re-route: level=more delivers the full active push (DELIVERED, bubble/banner) unchanged', async () => {
         const deps = fakeDeps({ getProactiveLevel: () => 'more' });
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7, 'src/B.java', 84, 'check punctuation', 0.9, 'Iris has a suggestion for you.', 123);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
-        expect(deps.openSession).toHaveBeenCalledWith(7);
+        expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 7);
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
         expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
-    it('an UNSAFE anchor path (traversal) is treated as no anchor on every surface', () => {
+    it('an UNSAFE anchor path (traversal) is treated as no anchor on every surface', async () => {
         // One contract for inline, gutter, and jump: a malformed server anchor like ../x must not
         // arm any anchor surface (it could point outside the exercise root). It falls through to the
         // no-anchor branch exactly like a missing anchor.
@@ -582,6 +618,9 @@ describe('StruggleInterventionService', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 8, '../../etc/passwd', 1, 'peek', 0.9, 'Hint text', 5);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.showActiveJump).not.toHaveBeenCalled();
         expect(deps.clearInline).toHaveBeenCalled();
@@ -593,7 +632,7 @@ describe('StruggleInterventionService', () => {
     describe('anchor rebase (snapshot-to-delivery gap)', () => {
         const lines = (...ls: string[]): string => ls.join('\n');
 
-        it('rebases the active anchor from the sent snapshot onto the current buffer before arming surfaces', () => {
+        it('rebases the active anchor from the sent snapshot onto the current buffer before arming surfaces', async () => {
             const baseline = lines('class B {', 'void m() {', 'return x;', '}');
             const current = lines('class B {', 'void m() {', 'int y = 0;', 'return x;', '}');
             const deps = fakeDeps({ readFileContent: vi.fn(() => current) });
@@ -601,12 +640,15 @@ describe('StruggleInterventionService', () => {
             simulateDecidePending(svc, 'ep-1', false);
             svc._inFlightMarker!.baseline = { 'src/B.java': baseline };
             svc.onServerActive('ep-1', 8, 'src/B.java', 3, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
             // A line was inserted above the return: server line 3 -> live line 4, on inline AND jump.
             expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 4, 'check punctuation', 'Iris has a suggestion for you.');
             expect(deps.showActiveJump).toHaveBeenCalledWith('src/B.java', 4);
         });
 
-        it('rebases the gutter anchor for an ambient reply too', () => {
+        it('rebases the gutter anchor for an ambient reply too', async () => {
             const baseline = lines('a', 'b', 'TARGET', 'c');
             const current = lines('a', 'NEW', 'b', 'TARGET', 'c');
             const deps = fakeDeps({ readFileContent: vi.fn(() => current) });
@@ -617,7 +659,7 @@ describe('StruggleInterventionService', () => {
             expect(deps.showGutterOnly).toHaveBeenCalledWith('src/A.java', 4);
         });
 
-        it('suppresses the cue but keeps the bubble when the anchored line was rewritten', () => {
+        it('suppresses the cue but keeps the bubble when the anchored line was rewritten', async () => {
             const baseline = lines('class B {', 'void m() {', 'return x;', '}');
             const current = lines('class B {', 'void m() {', 'return y;', '}');
             const deps = fakeDeps({ readFileContent: vi.fn(() => current) });
@@ -625,31 +667,40 @@ describe('StruggleInterventionService', () => {
             simulateDecidePending(svc, 'ep-1', false);
             svc._inFlightMarker!.baseline = { 'src/B.java': baseline };
             svc.onServerActive('ep-1', 8, 'src/B.java', 3, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
             expect(deps.showInline).not.toHaveBeenCalled();
             expect(deps.showActiveJump).not.toHaveBeenCalled();
             expect(deps.clearInline).toHaveBeenCalled();
             // The bubble/session still open; only the code cue is dropped (fail-safe).
             expect(deps.postBubble).toHaveBeenCalled();
-            expect(deps.openSession).toHaveBeenCalledWith(8);
+            expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 8);
         });
 
-        it('keeps the raw server line when the anchor file has no snapshot baseline (unchanged file)', () => {
+        it('keeps the raw server line when the anchor file has no snapshot baseline (unchanged file)', async () => {
             const deps = fakeDeps({ readFileContent: vi.fn(() => 'whatever') });
             const svc = new StruggleInterventionService(deps);
             simulateDecidePending(svc, 'ep-1', false);
             svc._inFlightMarker!.baseline = { 'src/OTHER.java': 'x' }; // no entry for the anchored file
             svc.onServerActive('ep-1', 8, 'src/B.java', 84, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
             expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
             // Without a baseline the live buffer is never consulted.
             expect(deps.readFileContent).not.toHaveBeenCalled();
         });
 
-        it('keeps the raw server line when the anchor file is not open (no current buffer)', () => {
+        it('keeps the raw server line when the anchor file is not open (no current buffer)', async () => {
             const deps = fakeDeps({ readFileContent: vi.fn(() => undefined) });
             const svc = new StruggleInterventionService(deps);
             simulateDecidePending(svc, 'ep-1', false);
             svc._inFlightMarker!.baseline = { 'src/B.java': 'class B {}' };
             svc.onServerActive('ep-1', 8, 'src/B.java', 84, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
             expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
             expect(deps.readFileContent).toHaveBeenCalledWith('src/B.java');
         });
@@ -659,11 +710,14 @@ describe('StruggleInterventionService', () => {
     // All terminal exits (RECOVERED close, watchdog/ABANDON force-free, dismiss, stale-ask
     // "something-else", new-exercise) funnel through _clearEpisodeRuntime(), so one representative
     // path (dismissEpisode) proves the shared seam clears the standing cue.
-    it('a terminal episode exit retires the standing inline cue (no reliance on a later file edit)', () => {
+    it('a terminal episode exit retires the standing inline cue (no reliance on a later file edit)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 8, 'src/B.java', 84, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.showInline).toHaveBeenCalled();     // an inline cue is standing on the DELIVERED slot
         vi.mocked(deps.clearInline).mockClear();        // ignore any setup stale-cue clear
 
@@ -673,11 +727,14 @@ describe('StruggleInterventionService', () => {
         expect(svc._slot.isFree()).toBe(true);
     });
 
-    it('a terminal episode exit retires the jump lamp (mode-guarded clearEpisodeLamp)', () => {
+    it('a terminal episode exit retires the jump lamp (mode-guarded clearEpisodeLamp)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 8, 'src/B.java', 84, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.showActiveJump).toHaveBeenCalled(); // jump lamp is standing on the DELIVERED slot
         vi.mocked(deps.clearEpisodeLamp).mockClear();
 
@@ -691,11 +748,14 @@ describe('StruggleInterventionService', () => {
 
     // #343: the activity-bar badge marks an outstanding proactive hint and is episode-scoped, so the
     // shared terminal seam must clear it too (previously it stranded at "1" after a solved/timed-out close).
-    it('a terminal episode exit clears the activity-bar badge', () => {
+    it('a terminal episode exit clears the activity-bar badge', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 8, 'src/B.java', 84, 'check punctuation', 0.9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         vi.mocked(deps.setBadge).mockClear();           // ignore the delivery-time badge set
 
         svc.dismissEpisode();                           // terminal exit -> _clearEpisodeRuntime()
@@ -742,6 +802,9 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         vi.mocked(deps.postIntervention).mockClear();
 
         // FM is hard, but level is 'active' (no escalation), so C6 raises an offer instead of suppressing.
@@ -811,6 +874,9 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
         expect(body.episode.episodeId).toBe('ep-amb');               // continues the live episode
 
         svc.onServerActive('ep-amb', 55, undefined, undefined, undefined, 0.9, 'escalated hint', 123);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         const state = svc._slot.snapshot().state;
         expect(state.kind).toBe('delivered');
         expect(state.kind === 'delivered' ? state.level : null).toBe('active');
@@ -1041,6 +1107,9 @@ describe('StruggleInterventionService C2 reveal', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-bf');
         svc.onServerActive('ep-bf', 55);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
 
         svc.dismissEpisode('ep-bf');
@@ -1187,7 +1256,7 @@ describe('StruggleInterventionService C2 reveal', () => {
         expect(svc._pendingOutcomes.size).toBe(0);
     });
 
-    it('onServerAmbient with sessionId stores frozenSessionId for the reveal flow', () => {
+    it('onServerAmbient with sessionId stores frozenSessionId for the reveal flow', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1205,13 +1274,16 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Canonical §1 bug: active delivered, later ambient must NOT overwrite
     // -------------------------------------------------------------------------
-    it('canonical §1 bug fixed: ambient after delivered-active is suppressed (no overwrite)', () => {
+    it('canonical §1 bug fixed: ambient after delivered-active is suppressed (no overwrite)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         // First decide: active -> takes slot as DELIVERED
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
         expect(deps.postBubble).toHaveBeenCalledTimes(1);
 
@@ -1224,13 +1296,16 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.showLamp).not.toHaveBeenCalled();
     });
 
-    it('suppressed decide that carries a persisted messageId drops the orphan row (no duplicate hint via history)', () => {
+    it('suppressed decide that carries a persisted messageId drops the orphan row (no duplicate hint via history)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         // First decide: active -> takes slot as DELIVERED
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
 
         // Second decide on the DELIVERED slot: ambient reply carries a persisted messageId (555).
@@ -1247,12 +1322,15 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 555);
     });
 
-    it('suppressed decide WITHOUT a messageId does not attempt a row drop', () => {
+    it('suppressed decide WITHOUT a messageId does not attempt a row drop', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerActive('ep-1', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerAmbient('ep-1', 'New hint', undefined, undefined, undefined); // no messageId
 
@@ -1263,7 +1341,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Preallocated candidate: replace-parked uses the REQUEST's candidate id
     // -------------------------------------------------------------------------
-    it('PARKED ambient + different-problem ambient -> replace-parked using the preallocated candidate id', () => {
+    it('PARKED ambient + different-problem ambient -> replace-parked using the preallocated candidate id', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1284,7 +1362,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(svc._slot.generation()).toBeGreaterThan(gen1);
     });
 
-    it('PARKED ambient + active decide -> replace-delivered using the preallocated candidate id (no split episode)', () => {
+    it('PARKED ambient + active decide -> replace-delivered using the preallocated candidate id (no split episode)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1296,6 +1374,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         // Second decide: active -> PARKED -> replace-delivered (candidate ep-2)
         simulateDecidePending(svc, 'ep-2', false);
         svc.onServerActive('ep-2', 8);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         const snap = svc._slot.snapshot();
         expect(snap.state.kind).toBe('delivered');
@@ -1307,7 +1388,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Stale generation: inbound reply dropped when slot moved on
     // -------------------------------------------------------------------------
-    it('stale-generation reply is dropped by the guard (slot moved on between POST and reply)', () => {
+    it('stale-generation reply is dropped by the guard (slot moved on between POST and reply)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1329,7 +1410,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Escalation: ambient+hardEvent required
     // -------------------------------------------------------------------------
-    it('escalation: delivered-ambient + active + hardEvent -> escalate', () => {
+    it('escalation: delivered-ambient + active + hardEvent -> escalate', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1348,6 +1429,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._candidate = undefined;
 
         svc.onServerActive('ep-escl', 9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         // Slot escalated: still DELIVERED but level changed to active
         const snap = svc._slot.snapshot();
         expect(snap.state.kind).toBe('delivered');
@@ -1355,7 +1439,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.postBubble).toHaveBeenCalledTimes(1);
     });
 
-    it('setInSession(true): escalation is quiet (bubble only, no banner/inline); setInSession(false): loud (banner+inline)', () => {
+    it('setInSession(true): escalation is quiet (bubble only, no banner/inline); setInSession(false): loud (banner+inline)', async () => {
         // Helper to set up a DELIVERED-ambient slot and run an escalating decide
         function runEscalation(inSession: boolean): StruggleInterventionDeps {
             const deps = fakeDeps();
@@ -1400,7 +1484,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(outSessionDeps.showActiveJump).toHaveBeenCalledWith('src/A.java', 10);
     });
 
-    it('escalation WITHOUT an anchor retires any stale parked gutter cue and arms no jump lamp', () => {
+    it('escalation WITHOUT an anchor retires any stale parked gutter cue and arms no jump lamp', async () => {
         // Regression: revealParkedHint keeps the parked gutter cue; a no-anchor escalation must
         // still clear it (previously the escalation returned without touching inline state).
         const deps = fakeDeps();
@@ -1420,7 +1504,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.showInline).not.toHaveBeenCalled();
     });
 
-    it('escalation gated by hardEvent: delivered-ambient + active WITHOUT hardEvent -> suppress', () => {
+    it('escalation gated by hardEvent: delivered-ambient + active WITHOUT hardEvent -> suppress', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1436,6 +1520,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         svc._inFlightMarker = { requestToken, episodeId: 'ep-soft', generation: genAfterReveal, intent: 'decide', localToken };
 
         svc.onServerActive('ep-soft', 9);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         // No escalation, slot stays at ambient level
         expect((svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).level).toBe('ambient');
         expect(deps.postBubble).not.toHaveBeenCalled();
@@ -1533,6 +1620,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         simulateDecidePending(svc, 'ep-del', false);
         svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive('ep-del', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         await new Promise(r => setTimeout(r, 0));
 
         // The decide POST was first call; clear it from spy for clarity
@@ -1596,6 +1686,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         simulateDecidePending(svc, 'ep-del', false);
         svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive('ep-del', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
 
         // Green test -> latch fires -> owed confirmClose queued -> _drainOwed runs but must bail early
@@ -1643,6 +1736,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         simulateDecidePending(svc, 'ep-del', false);
         svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive('ep-del', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         // Slot is DELIVERED, wire is free now; set up an artificial busy wire
         postSpy.mockClear();
 
@@ -1730,7 +1826,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Scoped cancel: terminal via _clearEpisodeRuntime uses the LIVE in-flight token
     // -------------------------------------------------------------------------
-    it('scoped-cancel: _clearEpisodeRuntime cancels under the OWNING exercise, not the current one (#350)', () => {
+    it('scoped-cancel: _clearEpisodeRuntime cancels under the OWNING exercise, not the current one (#350)', async () => {
         const cancelSpy = vi.fn(async () => undefined);
         // Owning exercise A=1; the student has already switched so getExerciseId() now returns B=2.
         const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy, getExerciseId: () => 2 });
@@ -1757,7 +1853,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(svc._inFlightMarker).toBeUndefined();
     });
 
-    it('replace-parked does NOT cancel: the in-flight decide is completing into the replacement', () => {
+    it('replace-parked does NOT cancel: the in-flight decide is completing into the replacement', async () => {
         const cancelSpy = vi.fn(async () => undefined);
         const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy });
         const svc = new StruggleInterventionService(deps);
@@ -1839,7 +1935,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // clearEpisodeRuntime: comprehensive teardown
     // -------------------------------------------------------------------------
-    it('clearEpisodeRuntime teardown: latch reset, watchdog disarmed, owed cleared', () => {
+    it('clearEpisodeRuntime teardown: latch reset, watchdog disarmed, owed cleared', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1863,7 +1959,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // foldEpisode: DELIVERED terminals emit fold; PARKED terminals do not
     // -------------------------------------------------------------------------
-    it('foldEpisode emitted on DELIVERED terminal (onServerClose resolved=true)', () => {
+    it('foldEpisode emitted on DELIVERED terminal (onServerClose resolved=true)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1871,6 +1967,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         simulateDecidePending(svc, 'ep-fold', false);
         svc._lastSignal = { alert: { tSessionS: 530, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 530 };
         svc.onServerActive('ep-fold', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         const episodeId = (svc._slot.snapshot().state as Extract<SlotState, { kind: 'delivered' }>).episode.episodeId;
 
         // Simulate a confirmClose response: resolved=true -> free + foldEpisode
@@ -1885,7 +1984,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.foldEpisode).toHaveBeenCalledWith(episodeId, 'RECOVERED', undefined);
     });
 
-    it('foldEpisode NOT emitted for PARKED terminal (silent discard, no visible artifact)', () => {
+    it('foldEpisode NOT emitted for PARKED terminal (silent discard, no visible artifact)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1904,7 +2003,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // Window count is wire-independent (§13 force-free bound)
     // -------------------------------------------------------------------------
-    it('watchdog force-frees a DELIVERED slot after continuous idle (ABANDONED + fold)', () => {
+    it('watchdog force-frees a DELIVERED slot after continuous idle (ABANDONED + fold)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -1912,6 +2011,9 @@ describe('StruggleInterventionService C3 slot routing', () => {
         simulateDecidePending(svc, 'ep-wdog', false);
         svc._lastSignal = { alert: { tSessionS: 100, primaryBoundary: 'FM', boundaryTypes: ['FM'], severity: 0.72, path: 'armed', inWarmup: false, inGrace: false }, trajectory: [], sessionSeconds: 100 };
         svc.onServerActive('ep-wdog', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         // Watchdog with a tiny idle window, armed in the past so the next tick is past the deadline.
         svc._watchdog = new StaleWatchdog({ idleAbandonMs: 0 });
@@ -1925,13 +2027,16 @@ describe('StruggleInterventionService C3 slot routing', () => {
     // -------------------------------------------------------------------------
     // watchdog.resetProgress: defers stale fire on hard progress
     // -------------------------------------------------------------------------
-    it('onNewBuildResult(true) calls watchdog.resetProgress (defers next stale fire)', () => {
+    it('onNewBuildResult(true) calls watchdog.resetProgress (defers next stale fire)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         // Set up DELIVERED slot + watchdog
         simulateDecidePending(svc, 'ep-wp', false);
         svc.onServerActive('ep-wp', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._watchdog).toBeDefined();
         const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
 
@@ -1940,13 +2045,16 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(resetSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('tick with sBase below reArmSBase calls watchdog.resetProgress (sustained sBase drop)', () => {
+    it('tick with sBase below reArmSBase calls watchdog.resetProgress (sustained sBase drop)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         // Set up DELIVERED slot + watchdog
         simulateDecidePending(svc, 'ep-wp2', false);
         svc.onServerActive('ep-wp2', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._watchdog).toBeDefined();
         const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
 
@@ -1956,12 +2064,15 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(resetSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('tick with sBase above reArmSBase does NOT call watchdog.resetProgress (no reset on high stress)', () => {
+    it('tick with sBase above reArmSBase does NOT call watchdog.resetProgress (no reset on high stress)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         simulateDecidePending(svc, 'ep-wp3', false);
         svc.onServerActive('ep-wp3', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._watchdog).toBeDefined();
         const resetSpy = vi.spyOn(svc._watchdog!, 'resetProgress');
 
@@ -1987,17 +2098,23 @@ describe('StruggleInterventionService live-episode chat frame', () => {
 
         simulateDecidePending(svc, 'ep-live', false);
         svc.onServerActive('ep-live', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         await flushSlotChange();
 
         expect(deps.setChatLiveEpisode).toHaveBeenCalledWith('ep-live');
     });
 
-    it('active delivery threads the episodeId into the bubble', () => {
+    it('active delivery threads the episodeId into the bubble', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
         simulateDecidePending(svc, 'ep-live', false);
         svc.onServerActive('ep-live', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         expect(deps.postBubble).toHaveBeenCalledWith(expect.any(String), null, 'ep-live');
     });
@@ -2008,6 +2125,9 @@ describe('StruggleInterventionService live-episode chat frame', () => {
 
         simulateDecidePending(svc, 'ep-live', false);
         svc.onServerActive('ep-live', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         await flushSlotChange();
         svc.dismissEpisode('ep-live');
         await flushSlotChange();
@@ -2021,6 +2141,9 @@ describe('StruggleInterventionService live-episode chat frame', () => {
 
         simulateDecidePending(svc, 'ep-live', false);
         svc.onServerActive('ep-live', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         await flushSlotChange();
         expect(deps.setChatLiveEpisode).toHaveBeenCalledTimes(1);
 
@@ -2039,6 +2162,9 @@ describe('StruggleInterventionService live-episode chat frame', () => {
 
         simulateDecidePending(svc, 'ep-live', false);
         svc.onServerActive('ep-live', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         await flushSlotChange();
         expect(deps.setChatLiveEpisode).toHaveBeenCalledWith('ep-live');
 
@@ -2058,6 +2184,9 @@ describe('StruggleInterventionService live-episode chat frame', () => {
 
         simulateDecidePending(svc, 'ep-live', false);
         svc.onServerActive('ep-live', 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         await flushSlotChange();
         expect(deps.setChatLiveEpisode).toHaveBeenCalledWith('ep-live');
 
@@ -2077,7 +2206,7 @@ describe('StruggleInterventionService live-episode chat frame', () => {
 });
 
 describe('onConsentRevoked (#349)', () => {
-    it('frees a PARKED slot, clears every surface, keeps the latches', () => {
+    it('frees a PARKED slot, clears every surface, keeps the latches', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -2091,7 +2220,7 @@ describe('onConsentRevoked (#349)', () => {
         expect(deps.hideActiveBanner).toHaveBeenCalled();
         expect(svc._inFlightMarker).toBeUndefined();
     });
-    it('is idempotent on a FREE slot', () => {
+    it('is idempotent on a FREE slot', async () => {
         const svc = new StruggleInterventionService(fakeDeps());
         svc.onConsentRevoked();
         svc.onConsentRevoked();
@@ -2185,7 +2314,7 @@ describe('onConsentRevoked (#349)', () => {
         await p;
         expect(deps.postIntervention).not.toHaveBeenCalled();
     });
-    it('an inbound ambient frame after revocation surfaces nothing', () => {
+    it('an inbound ambient frame after revocation surfaces nothing', async () => {
         let egress = true;
         const deps = fakeDeps({ isEgressEnabled: () => egress });
         const svc = new StruggleInterventionService(deps);
@@ -2195,13 +2324,16 @@ describe('onConsentRevoked (#349)', () => {
         expect(deps.showLamp).not.toHaveBeenCalled();
         expect(svc._slot.isFree()).toBe(true);
     });
-    it('an inbound ACTIVE frame after revocation surfaces nothing', () => {
+    it('an inbound ACTIVE frame after revocation surfaces nothing', async () => {
         let egress = true;
         const deps = fakeDeps({ isEgressEnabled: () => egress });
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
         egress = false;
         svc.onServerActive('ep-test', 7, undefined, undefined, undefined, undefined, undefined, undefined);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(deps.showActiveBanner).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
         expect(svc._slot.isFree()).toBe(true);
@@ -2257,12 +2389,15 @@ describe('StruggleInterventionService revoke->regrant epoch races (#349)', () =>
 
         // B's own reply (echoing B's episodeId) is still consumable -> slot delivers.
         svc.onServerActive(svc._inFlightMarker!.episodeId, 7);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
     // Finding 1: a late ambient/active reply for a superseded request (its episodeId != the live
     // marker's) must be dropped without surfacing anything AND without killing the live marker.
-    it('late-frame correlation: an uncorrelated ambient frame is dropped and preserves the live marker', () => {
+    it('late-frame correlation: an uncorrelated ambient frame is dropped and preserves the live marker', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -2323,7 +2458,7 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
     // Wave 2 Finding 1: a correlation-dropped frame's chat row is already persisted server-side
     // and could surface via chat history; it must be retired (like the suppress path does),
     // while the live marker still survives untouched.
-    it('correlation-mismatch frame with a persisted messageId retires the row and preserves the marker', () => {
+    it('correlation-mismatch frame with a persisted messageId retires the row and preserves the marker', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-B');
@@ -2337,12 +2472,15 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
         expect(deps.showLamp).not.toHaveBeenCalled();
     });
 
-    it('missing-episodeId ACTIVE frame while a marker is live retires the row and preserves the marker', () => {
+    it('missing-episodeId ACTIVE frame while a marker is live retires the row and preserves the marker', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-B');
 
         svc.onServerActive(undefined, 7, undefined, undefined, undefined, undefined, undefined, 888);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         expect(deps.postRemoveMessage).toHaveBeenCalledWith(888);
         expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 888);
@@ -2350,7 +2488,7 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
         expect(deps.postBubble).not.toHaveBeenCalled();
     });
 
-    it('a late frame with NO in-flight marker retires its persisted row and surfaces nothing', () => {
+    it('a late frame with NO in-flight marker retires its persisted row and surfaces nothing', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
 

@@ -30,6 +30,7 @@ const CONFIG = {
     username: process.env.ARTEMIS_STUDENT_USER || 'artemis_test_user_1',
     password: process.env.ARTEMIS_STUDENT_PASSWORD || 'artemis_test_user_1',
     exerciseId: parseInt(process.env.ARTEMIS_EXERCISE_ID ?? '1'),
+    courseId: parseInt(process.env.ARTEMIS_COURSE_ID ?? '1'),
     suiteTimeoutMs: 180_000,
     pollIntervalMs: 3000,
     bubbleTimeoutMs: 120_000,
@@ -139,17 +140,17 @@ suite('E2E: Proactive Struggle-Intervention round-trip', function () {
         while (Date.now() < deadline) {
             try {
                 // get-or-create the immutable per-exercise chat session (the same one an `active` decision materializes).
-                const session = await apiService.getCurrentChat('PROGRAMMING_EXERCISE_CHAT', CONFIG.exerciseId);
-                const messages = await apiService.getChatMessages(session.id);
+                const session = await apiService.getCurrentChat('PROGRAMMING_EXERCISE_CHAT', CONFIG.exerciseId, CONFIG.courseId);
+                const messages = await apiService.getChatMessages(session.sessionId);
                 const proactive = messages.find(m => (m as { origin?: string }).origin === 'PROACTIVE_STRUGGLE');
 
                 if (proactive) {
                     const text = JSON.stringify((proactive as { content?: unknown }).content ?? proactive);
-                    logger.info(`[E2E-Struggle] Proactive bubble found in session ${session.id}: ${text.slice(0, 240)}`, LogCategory.TEST);
+                    logger.info(`[E2E-Struggle] Proactive bubble found in session ${session.sessionId}: ${text.slice(0, 240)}`, LogCategory.TEST);
                     assert.ok(text.length > 0, 'Proactive bubble should carry content');
                     return;
                 }
-                lastSeen = `session ${session.id}, ${messages.length} message(s), none proactive`;
+                lastSeen = `session ${session.sessionId}, ${messages.length} message(s), none proactive`;
             } catch (err) {
                 lastSeen = `lookup error: ${(err as Error).message}`;
             }

@@ -106,7 +106,13 @@ export interface StruggleInterventionDeps {
     readFileContent(anchorFile: string): string | undefined;
     postIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult>;
     /** Open/attach the proactive session by id + reload its history so the bubble shows (spec §5.5 active). */
-    openSession(sessionId: number): Promise<void>;
+    /**
+     * Opens a proactive conversation. Carries the course as well as the session
+     * because the server API scopes session lookup by course, and nothing here
+     * establishes that a proactive session id is globally unique or belongs to
+     * the course currently on screen.
+     */
+    openSession(courseId: number, sessionId: number): Promise<void>;
     /** Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). No per-hint tooltip. */
     showLamp(): void;
     /**
@@ -1189,9 +1195,22 @@ export class StruggleInterventionService implements AlertSink {
         sessionId?: number,
     ): void {
         const bubbleText = text;
-        this._deps.postBubble(bubbleText, messageId, this._deliveredEpisodeId());
-        if (sessionId !== undefined) {
-            void this._deps.openSession(sessionId);
+        const episodeId = this._deliveredEpisodeId();
+        // Navigate BEFORE posting. A bubble emitted while another conversation is
+        // still installed is attributed to that one, so the student sees it in the
+        // wrong place or not at all. The old order was only safe while the provider
+        // attributed bubbles to a local active session.
+        // Optional calls: a caller that cannot name the course (or a harness that
+        // does not stub these) degrades to posting straight away, which is the old
+        // behaviour. Production always resolves both.
+        const exerciseId = this._deps.getExerciseId?.();
+        const courseId = exerciseId !== undefined ? this._deps.resolveRevealTarget?.(exerciseId)?.courseId : undefined;
+        if (sessionId !== undefined && courseId !== undefined) {
+            void this._deps.openSession(courseId, sessionId)
+                .then(() => { this._deps.postBubble(bubbleText, messageId, episodeId); })
+                .catch(() => { this._deps.postBubble(bubbleText, messageId, episodeId); });
+        } else {
+            this._deps.postBubble(bubbleText, messageId, episodeId);
         }
         this._deps.setBadge(true);
         // The bubble already lands in the open chat, so the banner is redundant (and noisy) when the

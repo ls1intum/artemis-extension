@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import type { SessionRecorder } from '@extension/services/recording';
 import {
     RecordingStatusBarService as RecordingStatusBarServiceImpl,
@@ -16,6 +15,7 @@ import type { RecordedEvent } from '@extension/services/recording/types';
 import type { SensorHub } from '@extension/services/sensing';
 import { SPEC } from '@extension/services/struggle/config';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { PlatformCapabilities } from '@extension/theia';
 
@@ -28,8 +28,8 @@ interface RecorderWiringDeps {
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
-    contextStore: ContextStore;
     sensorHub: SensorHub;
+    workspaceTracker: WorkspaceExerciseTracker;
 }
 
 interface RecorderWiringResult {
@@ -41,7 +41,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     const {
         context, consentService, artemisWebsocketService,
         struggleCoordinator, artemisWebviewProvider, chatWebviewProvider,
-        capabilities, exerciseRegistry, contextStore, sensorHub,
+        capabilities, exerciseRegistry, sensorHub, workspaceTracker,
     } = deps;
 
     const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry, undefined, sensorHub);
@@ -198,7 +198,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // Recording status bar button
     const recordingStatusBar = new RecordingStatusBarServiceImpl(
         sessionRecorder,
-        () => contextStore.getWorkspaceExerciseId(),
+        () => workspaceTracker.exerciseId,
     );
     disposables.push(recordingStatusBar);
 

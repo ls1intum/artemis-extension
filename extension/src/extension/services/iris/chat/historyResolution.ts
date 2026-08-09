@@ -6,7 +6,9 @@
  * caller must only treat this `true` as resolution, never fetch-success.
  */
 export function historyResolvesRun(
-    messages: ReadonlyArray<{ id?: number; role: 'user' | 'assistant'; final?: boolean }>,
+    // `role` is widened to a plain string: the conversation transcript also
+    // carries `contextSwap` rows, and only `assistant` is ever matched here.
+    messages: ReadonlyArray<{ id?: number; role: string; final?: boolean }>,
     baselineId: number,
 ): boolean {
     return messages.some(

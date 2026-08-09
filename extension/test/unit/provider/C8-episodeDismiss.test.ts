@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 function buildProvider(): {
@@ -25,11 +25,10 @@ function buildProvider(): {
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
+    const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
     };
-    const contextStore = new ContextStore(mockContext);
 
     const mockApi = { setProactiveOutcome: sinon.stub().resolves() };
 
@@ -40,8 +39,11 @@ function buildProvider(): {
         undefined,
         noAi as never,
         registry as never,
-        courseDataCache as never,
-        contextStore,
+        courseCatalog as never,
+        undefined,
+        new WorkspaceExerciseTracker(),
+        { getAccessTimestamp: () => undefined } as never,
+        { state: 'authenticated', epoch: 0 } as never,
     );
     return { provider, sandbox, mockApi };
 }

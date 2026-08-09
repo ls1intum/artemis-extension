@@ -7,14 +7,16 @@ import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
 import { AuthManager } from '@extension/services/auth';
-import { CourseDataCache } from '@extension/services/courseDataCache';
+import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { classifyIrisCourseAvailability } from '@extension/services/iris/chat/chatSessionService';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { classifyIrisCourseAvailability } from '@extension/services/iris/chat/irisAvailabilityService';
 import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
 import { IrisEnabledCache } from '@extension/services/iris/irisEnabledCache';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
+import { normalizeServerUrl } from '@extension/services/session/identityKeys';
+import { SessionIdentityCoordinator } from '@extension/services/session/sessionIdentityCoordinator';
 import { createProviderRegistry } from '@extension/services/ui';
 import { bannerActionOpensChat } from '@extension/services/ui/nudgeBannerText';
 import { StruggleAlertStatusBar } from '@extension/services/ui/struggleAlertStatusBar';
@@ -24,6 +26,7 @@ import {
     buildChatProviderSink,
     wireWorkspaceDetection,
 } from '@extension/services/workspace/wireWorkspaceDetection';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import {
     authenticateFromEnvironment,
@@ -69,6 +72,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	// view-resolution attempt — including Theia's layout-restore — finds a
 	// registered provider with the correct environment already in place.
 	const artemisApiService = new ArtemisApiService(authManager);
+
+	// `serverKey` is a FUNCTION: the configured URL can change at runtime, and a
+	// value captured here would key every later session to the startup server.
+	const sessionIdentity = new SessionIdentityCoordinator({
+		serverKey: () => normalizeServerUrl(resolveServerUrl()) ?? resolveServerUrl(),
+		hasAuthToken: () => authManager.hasAuthToken(),
+		getCurrentUser: () => artemisApiService.getCurrentUser(),
+	});
+	context.subscriptions.push(sessionIdentity);
+
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const exerciseRegistry = new ExerciseRegistry();
@@ -88,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Level-aware read of the single remembered preference (spec §12.2, issue #341, Off/Less/More);
 	// `isStudentProactiveOn` derives from this rather than duplicating the lookup. Default-on until wired.
 	const getProactiveLevel = (): ProactiveLevel => proactivePreferenceRef?.getLevel() ?? 'more';
-	// Forward-ref: the Iris-enabled cache is constructed later (after ContextStore exists), but the
+	// Forward-ref: the Iris-enabled cache is constructed later (after the catalog exists), but the
 	// engine's gate reads it lazily at alert-time, so a fail-closed default until it is wired.
 	let irisEnabledCache: IrisEnabledCache | undefined;
 	// Forward-ref: the nudge-banner deps below (showNudgeBanner/hideNudgeBanner) are only ever invoked
@@ -102,7 +115,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
 		isStudentProactiveOn: () => getProactiveLevel() !== 'off',
 		getProactiveLevel,
-		openProactiveSession: async sessionId => { await chatWebviewProvider?.openProactiveSession(sessionId); },
+		openProactiveSession: async (courseId, sessionId) => { await chatWebviewProvider?.openProactiveSession(courseId, sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
 		postOptimisticBubble: (text, messageId, episodeId) => chatWebviewProvider?.postOptimisticBubble(text, messageId, episodeId),
 		// State frame (not an event): the engine dedups by value, so a frame swallowed by the
@@ -119,12 +132,13 @@ export async function activate(context: vscode.ExtensionContext) {
 			// TODO C3/C5: wire to chatWebviewProvider.reconcileRevealBubble once the webview supports string-localId dedup
 		},
 		// #364: reveal-into-exercise navigation (persist-then-navigate). All three closures are invoked
-		// lazily (only on a parked-hint reveal, long after activation), so referencing contextStore /
+		// lazily (only on a parked-hint reveal, long after activation), so referencing courseCatalog /
 		// chatWebviewProvider (constructed below) is safe.
 		resolveRevealTarget: exerciseId => {
-			const tracked = contextStore.getExerciseById(exerciseId);
-			if (!tracked || tracked.courseId === undefined || !tracked.title) { return undefined; }
-			return { courseId: tracked.courseId, title: tracked.title };
+			const courseId = courseCatalog.authoritativeCourseIdFor(exerciseId);
+			const title = courseCatalog.exerciseTitle(exerciseId);
+			if (courseId === undefined || !title) { return undefined; }
+			return { courseId, title };
 		},
 		currentNavToken: () => chatWebviewProvider?.currentNavToken() ?? 0,
 		openRevealSession: async (courseId, exerciseId, sessionId, title, expectedNavToken) =>
@@ -214,6 +228,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	const updateAuthContext = async (isAuthenticated: boolean) => {
+		if (isAuthenticated) {
+			// A login just succeeded; find out who it was.
+			void sessionIdentity.resolvePrincipal();
+		} else {
+			// The ONLY signal on the startup-401 path: AuthFlowHandler clears the
+			// credentials and calls this updater without touching anything else.
+			// It also bumps the attempt token, so a principal lookup still open
+			// right now cannot undo it.
+			sessionIdentity.setAnonymous(normalizeServerUrl(resolveServerUrl()) ?? resolveServerUrl());
+		}
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
@@ -242,17 +266,27 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	const courseDataCache = new CourseDataCache(artemisApiService);
-	context.subscriptions.push(courseDataCache);
+	const courseCatalog = new CourseCatalog(artemisApiService);
+	context.subscriptions.push(courseCatalog);
+
+	// Constructed AFTER the catalog, and reading the catalog's epoch rather
+	// than `sessionIdentity.epoch`: every call site captures its epoch from the
+	// catalog, and the coordinator can bump its own generation before `attach`
+	// installs the first one here, which would make every recency write look
+	// stale. One source, shared with the catalog writes these calls sit next to.
+	const courseAccessStorage = new CourseAccessStorageService(
+		context.globalState,
+		() => sessionIdentity.accessScope(),
+		() => courseCatalog.currentEpoch,
+	);
+
 	const providerRegistry = createProviderRegistry();
 
-	context.subscriptions.push(courseDataCache.onCoursesLoaded(data => {
-		const courses = data.courses;
-		if (courses && Array.isArray(courses)) {
-			for (const entry of courses) {
-				exerciseRegistry.registerFromCourseData(entry);
-			}
-		}
+	context.subscriptions.push(courseCatalog.onCoursesLoaded(() => {
+		// The registry is an INDEX over the catalog now. Rebuilding rather than
+		// adding is what makes a deleted exercise stop answering repository
+		// matches; `registerFromCourseData` could only ever grow it.
+		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
 
 	artemisWebviewProvider = new ArtemisWebviewProvider({
@@ -260,15 +294,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
-		exerciseRegistry,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		noAiDetectionService,
 		buildErrorCodeLensProvider,
 		struggleCoordinator,
 		updateAuthContext,
-		courseDataCache,
 		proactiveControl,
+		courseAccessStorage,
+		courseCatalog,
 	});
 	// Wire the engine's lazy preference read to the provider's preference service (built in its constructor above).
 	proactivePreferenceRef = artemisWebviewProvider.proactivePreference;
@@ -309,8 +343,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(struggleAlertStatusBar);
 
-	const contextStore = new ContextStore(context);
-	context.subscriptions.push(contextStore);
+	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
+	// data, an unbounded, unscoped list of every course and exercise this
+	// installation ever saw, sitting in globalState forever.
+	void context.globalState.update('iris.contextStore', undefined);
+
+	const workspaceTracker = new WorkspaceExerciseTracker();
+	context.subscriptions.push(workspaceTracker);
 
 	// Iris-enabled gate (no proactive struggle interventions when Iris is disabled for the
 	// course): keyed to the struggle exercise session, refreshed on session start/end and on
@@ -322,9 +361,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 	irisEnabledCache = new IrisEnabledCache({
 		classify: async (exerciseId) => {
-			const courseId = await resolveCourseIdForExercise(exerciseId, contextStore, artemisApiService);
+			const courseId = await resolveCourseIdForExercise(exerciseId, courseCatalog, artemisApiService);
 			if (courseId === undefined) { return 'unavailable'; }
-			const { availability } = await classifyIrisCourseAvailability(artemisApiService, async () => courseId);
+			const { availability } = await classifyIrisCourseAvailability(
+				artemisApiService,
+				courseCatalog,
+				{ type: 'course', id: courseId, title: courseCatalog.courseTitle(courseId) ?? `course ${courseId}` },
+			);
 			return availability.kind;
 		},
 		onSessionStart: struggleCoordinator.onDidStartSession,
@@ -337,8 +380,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
-		noAiDetectionService, exerciseRegistry, courseDataCache,
-		contextStore,
+		noAiDetectionService, exerciseRegistry, courseCatalog, struggleCoordinator,
+		workspaceTracker, courseAccessStorage, sessionIdentity,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
@@ -355,17 +398,30 @@ export async function activate(context: vscode.ExtensionContext) {
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
 
-	context.subscriptions.push(wireWorkspaceDetection({
+	sessionIdentity.attach({
+		resetConversation: () => chatWebviewProvider.resetForSessionChange(),
+		endTelemetrySession: () => struggleCoordinator.endExerciseSession(),
+		clearWorkspaceTracker: () => workspaceTracker.clear(),
+		clearCatalog: () => courseCatalog.resetTo(sessionIdentity.epoch),
+		resetRegistry: () => exerciseRegistry.reset(),
+		publishEmptyChatSnapshot: () => chatWebviewProvider.publishSnapshot(),
+		rearmStartup: () => chatWebviewProvider.resetStartupForNewSession(),
+	});
+
+	const workspaceDetection = wireWorkspaceDetection({
 		api: artemisApiService,
 		registry: exerciseRegistry,
-		courseDataCache,
+		courseCatalog,
 		sink: buildChatProviderSink(chatWebviewProvider),
 		// Reopening VS Code on an already-cloned exercise only triggers passive detection (Iris chat),
 		// not the webview open flow. Start the struggle session here too so detection resumes.
 		onWorkspaceExerciseDetected: (id, root) => struggleCoordinator.startExerciseSession(id, root),
 		// Symmetric: leaving the exercise (no workspace match) ends the session so it cannot go stale.
 		onWorkspaceExerciseCleared: () => struggleCoordinator.endExerciseSession(),
-	}));
+		session: sessionIdentity,
+	});
+	context.subscriptions.push(workspaceDetection);
+	chatWebviewProvider.attachStartupDetection(workspaceDetection);
 
 	context.subscriptions.push(struggleCoordinator);
 	context.subscriptions.push(artemisWebsocketService);
@@ -427,6 +483,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		};
 	}
 
+	// Establishes the identity independently of any webview. `AuthFlowHandler`
+	// only runs when the Artemis SIDEBAR resolves, and a student who works in
+	// the Iris chat alone never resolves it.
+	void sessionIdentity.resolvePrincipal();
+
 	// Initial auth state — checks both memory (Theia) and SecretStorage (VS Code)
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
@@ -458,8 +519,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		chatWebviewProvider,
 		capabilities,
 		exerciseRegistry,
-		contextStore,
 		sensorHub,
+		workspaceTracker,
 	});
 
 	// Configuration listener for the Artemis server URL.
@@ -487,8 +548,20 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			lastServerUrl = newServerUrl;
+			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
+			// Before the credential check on purpose. The old code only acted when
+			// a token existed, so changing the server while logged out left every
+			// in-memory component holding the previous server's courses.
+			//
+			// Deliberately NOT `resolvePrincipal()`: the stored token is global
+			// rather than per server, so a lookup started here would read the OLD
+			// server's token and ask the NEW server who it belongs to. A server
+			// change never intends to preserve authentication, so it publishes
+			// anonymous and lets the login flow resolve the principal afterwards.
+			sessionIdentity.beginResolving(serverKey);
 			try {
 				if (!(await authManager.hasAuthToken())) {
+					sessionIdentity.setAnonymous(serverKey);
 					return;
 				}
 				logger.info('Artemis server URL changed; clearing credentials stored for the previous server', LogCategory.CONFIG);
@@ -498,6 +571,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');
 			} catch (error) {
 				logger.error('Failed to clear credentials after server URL change', LogCategory.AUTH, error);
+				// `anonymous`, not the `resolving` this catch would otherwise
+				// leave behind. `resolvePrincipal` may stay `resolving` on a
+				// failed token read because a later login retries it; nothing
+				// retries THIS listener, so a throw (SecretStorage can reject,
+				// e.g. an unavailable keychain) would park the session with no
+				// access scope and, once detection is session-scoped, no
+				// detection either. A server change never intends to preserve
+				// authentication, so anonymous is both true and terminal.
+				sessionIdentity.setAnonymous(serverKey);
 			}
 		}));
 	}

@@ -6,7 +6,7 @@ import { StruggleInterventionService } from '@extension/services/struggleInterve
 import { fakeDeps, simulateDelivered } from './helpers';
 
 describe('help_request delivery', () => {
-    it('an active reply to an in-flight help_request appends to the open episode and posts a bubble, even in Less', () => {
+    it('an active reply to an in-flight help_request appends to the open episode and posts a bubble, even in Less', async () => {
         // Establish the delivered episode under the default (more) level first: simulateDelivered
         // drives a real onServerActive call, which itself honors the Less reroute, so flipping the
         // mock to 'less' beforehand would park the episode instead of delivering it. The scenario
@@ -22,6 +22,9 @@ describe('help_request delivery', () => {
         svc._inFlightMarker = { requestToken: 'tok', episodeId: 'ep-hr', generation: gen, intent: 'help_request', localToken };
 
         svc.onServerActive('ep-hr', 1, undefined, undefined, undefined, 0.9, 'next concrete step', 200);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         expect(deps.postBubble).toHaveBeenCalledWith('next concrete step', 200, 'ep-hr');
         const st = svc._slot.snapshot().state as Extract<ReturnType<typeof svc._slot.snapshot>['state'], { kind: 'delivered' }>;

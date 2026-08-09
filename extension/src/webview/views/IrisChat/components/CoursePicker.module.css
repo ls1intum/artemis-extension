@@ -1,0 +1,141 @@
+.dialog {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Cold start: the list IS the transcript, so it sits in flow. */
+.dialogInline {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: transparent;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    overflow-y: auto;
+}
+
+.row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    text-align: left;
+    transition: background 150ms ease;
+}
+
+.row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.rowActive {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.rowIcon {
+    flex-shrink: 0;
+    color: var(--vscode-foreground);
+    opacity: 0.7;
+}
+
+.rowText {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.checkIcon {
+    flex-shrink: 0;
+    color: currentColor;
+}
+
+.emptyState {
+    padding: 24px 12px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* Sits above rows that are still pickable, so it stays out of their way:
+   no vertical padding block of its own, and the warning tokens the chat's
+   own outage banner uses, so the same failure reads the same in both places. */
+.staleNotice {
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 12px;
+    background: var(--vscode-inputValidation-warningBackground);
+    color: var(--vscode-inputValidation-warningForeground);
+    border-bottom: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+
+.errorText {
+    margin: 0 0 10px;
+}
+
+/* Same tokens as the chat's own retry (IrisChatView.module.css): the two
+   surfaces report the same outage and must not look like different features. */
+.retryButton {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.15s;
+}
+
+.retryButton:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+}
+
+.skeletonRow {
+    height: 32px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--vscode-list-hoverBackground) 25%, var(--vscode-dropdown-border) 37%, var(--vscode-list-hoverBackground) 63%);
+    background-size: 400% 100%;
+    animation: course-skeleton-pulse 1.4s ease infinite;
+}
+
+@keyframes course-skeleton-pulse {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+.errorBanner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--vscode-inputValidation-errorBackground, var(--vscode-input-background));
+    color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+    border-bottom: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-dropdown-border));
+    font-size: 12px;
+}

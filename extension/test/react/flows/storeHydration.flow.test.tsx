@@ -254,7 +254,7 @@ describe('exerciseDetailInit hydrates useExerciseDetailStore', () => {
 // ============================================================================
 
 describe('updateIrisState hydrates useChatStore', () => {
-    it('sets sessions, context, and activeSessionId on init', async () => {
+    it('sets the open conversation, its course and the picker lists on init', async () => {
         const mockApi = createMockVsCodeApi();
 
         await act(async () => {
@@ -264,25 +264,11 @@ describe('updateIrisState hydrates useChatStore', () => {
         await act(async () => {
             dispatchExtensionMessage(
                 createIrisInitPayload({
-                    context: {
-                        type: 'course',
-                        id: 1,
-                        title: 'Test Course',
-                        shortName: 'TC',
-                        locked: false,
-                        source: 'user-selected',
-                    },
-                    activeSessionId: 'session-abc',
-                    sessions: [
-                        {
-                            id: 'session-abc',
-                            artemisSessionId: 99,
-                            preview: 'Hello Iris',
-                            messageCount: 1,
-                            createdAt: 1700000000000,
-                            lastActivity: 1700001000000,
-                        },
-                    ],
+                    courseId: 1,
+                    courseTitle: 'Test Course',
+                    currentSessionId: 99,
+                    conversationTitle: 'Hello Iris',
+                    displayMessageCount: 1,
                     exercises: [],
                     courses: [{ id: 1, title: 'Test Course', shortName: 'TC' }],
                 }),
@@ -290,8 +276,8 @@ describe('updateIrisState hydrates useChatStore', () => {
         });
 
         const state = useChatStore.getState();
-        expect(state.sessions.length).toBeGreaterThan(0);
-        expect(state.activeSessionId).toBe('session-abc');
-        expect(state.context).not.toBeNull();
+        expect(state.currentSessionId).toBe(99);
+        expect(state.courseTitle).toBe('Test Course');
+        expect(state.courses.length).toBeGreaterThan(0);
     });
 });

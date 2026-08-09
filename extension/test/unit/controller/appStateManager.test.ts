@@ -1,16 +1,16 @@
 import * as assert from 'assert';
 
 import { AppStateManager } from '@extension/controller/appStateManager';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { CourseDashboardResponse, ExerciseDetailsResponse } from '@extension/types';
 
-/** Minimal mock that satisfies AppStateManager's usage of CourseDataCache */
-function createMockCache(initialData?: CourseDashboardResponse): CourseDataCache {
+/** Minimal mock that satisfies AppStateManager's usage of CourseCatalog */
+function createMockCache(initialData?: CourseDashboardResponse): CourseCatalog {
     let data = initialData;
     return {
         get: () => data,
         clear: () => { data = undefined; },
-    } as unknown as CourseDataCache;
+    } as unknown as CourseCatalog;
 }
 
 suite('AppStateManager Test Suite', () => {
@@ -28,9 +28,9 @@ suite('AppStateManager Test Suite', () => {
         assert.strictEqual(stateManager.userInfo?.username, 'test');
     });
 
-    test('should read courses data from CourseDataCache', () => {
+    test('should read courses data from CourseCatalog', () => {
         const coursesData = { courses: [{ course: { id: 1, title: 'Test Course' } }] };
-        stateManager.setCourseDataCache(createMockCache(coursesData));
+        stateManager.setCourseCatalog(createMockCache(coursesData));
 
         assert.strictEqual(stateManager.coursesData, coursesData);
     });
@@ -111,7 +111,7 @@ suite('AppStateManager Test Suite', () => {
     test('should clear state on showLogin', () => {
         const coursesData = { courses: [{ course: { id: 1, title: 'Test' } }] };
         const cache = createMockCache(coursesData);
-        stateManager.setCourseDataCache(cache);
+        stateManager.setCourseCatalog(cache);
 
         const userInfo = { username: 'test', serverUrl: 'https://test.artemis.de' };
         stateManager.showDashboard(userInfo);

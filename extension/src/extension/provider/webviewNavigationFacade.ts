@@ -8,8 +8,7 @@ import type { AppStateManager, UserInfo } from '@extension/controller/appStateMa
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import type { WebViewActionHandler } from '@extension/controller/types';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
-import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type {
     ExerciseOpeningService,
@@ -42,12 +41,11 @@ export interface WebviewNavigationFacadeDeps {
     appStateManager: AppStateManager;
     artemisApi: ArtemisApiService;
     websocketService: ArtemisWebsocketService;
-    exerciseRegistry: ExerciseRegistry;
     courseAccessStorage: CourseAccessStorageService;
     fullscreenPanelManager: FullscreenPanelManager;
     exerciseOpeningService: ExerciseOpeningService;
     startPageResolver: StartPageResolver;
-    courseDataCache?: CourseDataCache;
+    courseCatalog?: CourseCatalog;
     postMessage: (msg: ExtensionToWebviewMessage) => void;
     render: () => void;
     sendInitData: () => void;
@@ -72,6 +70,11 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     constructor(private readonly deps: WebviewNavigationFacadeDeps) { }
 
     public async openExerciseDetails(exerciseId: number): Promise<void> {
+        // Captured before the fetch below, not after it: the supplemental
+        // write at the end of this method carries it, and reading it there
+        // would stamp an identity change that happened mid-fetch onto data
+        // this session never asked for.
+        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
         // Split fetch failures (user-facing I/O errors) from state-transition
         // failures (programmer errors that violate the navigation invariant):
         // only the fetch is caught and user-reported; invariant breaks propagate.
@@ -102,15 +105,15 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         // Handle post-open side effects (registry, telemetry, chat notify).
         const exerciseData = this.deps.appStateManager.currentExerciseData;
         if (exerciseData?.exercise) {
-            this.deps.exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId);
+            this.deps.exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId, epoch);
         }
     }
 
     public async showCourseList(): Promise<void> {
         try {
             // Ensure courses are in the cache before navigating
-            if (this.deps.courseDataCache) {
-                await this.deps.courseDataCache.fetch();
+            if (this.deps.courseCatalog) {
+                await this.deps.courseCatalog.fetch();
             }
             this.deps.appStateManager.showCourseList();
             this.deps.render();
@@ -121,12 +124,18 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public async showDashboard(userInfo: UserInfo): Promise<void> {
+        // Captured before anything is awaited, because the archive search below
+        // is the longest-running producer in the extension: it issues one
+        // detail request per archived course, and a logout, a 401 or a
+        // server-URL change during it must not let the old server's course
+        // into the new session.
+        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
         // Set state immediately so concurrent logic sees 'dashboard' during fetch
         this.deps.appStateManager.showDashboard(userInfo);
 
         // Fetch courses into the shared cache (swallow error - dashboard renders with empty state)
         try {
-            await this.deps.courseDataCache?.fetch();
+            await this.deps.courseCatalog?.fetch();
         } catch (error) {
             logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
         }
@@ -140,7 +149,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
             this.deps.artemisApi, this.deps.appStateManager.coursesData?.courses || []
         ).then(archivedEntry => {
             if (archivedEntry) {
-                this.deps.appStateManager.injectCourseEntry(archivedEntry);
+                this.deps.appStateManager.injectCourseEntry(archivedEntry, epoch);
             }
         }).catch((err: unknown) => {
             logger.error('Failed to check archived courses for dashboard', LogCategory.VIEW, err);
@@ -154,6 +163,10 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
+        // Everything `resolve()` returns was fetched under THIS session, so
+        // the epoch that guards writing it back has to be read before the
+        // request, not after the answer.
+        const epoch = this.deps.courseCatalog?.currentEpoch ?? 0;
         const result = await this.deps.startPageResolver.resolve();
 
         switch (result.type) {
@@ -185,8 +198,8 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
                 const detail = toCourseDetailData(entry?.course);
                 if (detail) {
-                    this.deps.courseAccessStorage.onCourseAccessed(result.courseId);
-                    this.showCourseDetail(detail);
+                    this.deps.courseAccessStorage.onCourseAccessed(result.courseId, epoch);
+                    this.showCourseDetail(detail, epoch);
                     return;
                 }
                 logger.viewError(`workspace-course start: course ${result.courseId} resolved without a valid id; falling back to dashboard`);
@@ -284,26 +297,21 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.render();
     }
 
-    public showCourseDetail(courseData: CourseDetailData): void {
+    /**
+     * `epoch` is a parameter rather than a live read, and required rather than
+     * defaulted: the only caller reaches this after awaiting the fetch that
+     * produced `courseData`, so the generation that data belongs to is the
+     * caller's to remember.
+     */
+    public showCourseDetail(courseData: CourseDetailData, epoch: number): void {
         this.deps.appStateManager.showCourseDetail(courseData);
 
-        // Populate exercise registry with repository URLs for workspace matching
-        const registry = this.deps.exerciseRegistry;
-        const courseName = courseData?.course?.title || 'Unknown Course';
-        logger.info(`Loading course: ${courseName}`, LogCategory.VIEW);
-
-        registry.registerFromCourseData(courseData);
-
-        // Log what was registered
-        const allExercises = registry.getAllExercises();
-        logger.info(`Registry now contains ${allExercises.length} exercises total`, LogCategory.VIEW);
-        if (allExercises.length > 0) {
-            logger.debug('Exercises in registry:', LogCategory.VIEW);
-            allExercises.forEach(ex => {
-                logger.debug(`   - ${ex.id}: ${ex.title}`, LogCategory.VIEW);
-                logger.debug(`     Repository: ${ex.repositoryUri}`, LogCategory.VIEW);
-            });
-        }
+        // Since Task 5 the registry is rebuilt destructively from the catalog
+        // projection on every catalog write, so a direct registry write here
+        // could be dropped by the next one with nothing to restore it. Write
+        // the catalog instead; `courseData.course` already matches
+        // `CourseDashboardCourse`'s shape.
+        this.deps.courseCatalog?.upsertSupplemental({ kind: 'course', entry: { course: courseData.course } }, epoch);
 
         this.deps.render();
     }

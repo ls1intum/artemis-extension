@@ -30,23 +30,19 @@ vi.mock('@webview/views/IrisChat/components/CodeBlock', () => ({
     ),
 }));
 
+// A conversation the webview considers open AND hydrated: without both, the
+// transcript stays behind the loader and no bubble is rendered at all.
 const HYDRATED = {
-    context: { type: 'exercise' as const, id: 1, title: 'Ex', locked: false, source: 'user-selected' as const, selectedAt: 0 },
-    activeSessionId: 'local-test',
-    sessions: [{ id: 'local-test', artemisSessionId: 42, preview: '', title: '', messageCount: 0, createdAt: 0, lastActivity: 0 }],
-    messageLoad: { localSessionId: 'local-test', status: 'success' as const },
+    currentSessionId: 4711,
+    loadedSessionId: 4711,
 };
 
 describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
     beforeEach(() => {
         useChatStore.setState({
-            context: null,
-            activeSessionId: null,
-            sessions: [],
             exercises: [],
             courses: [],
             messages: [],
-            messageLoad: null,
             suppressedIds: new Set(),
             foldStates: new Map(),
             liveEpisodeIds: new Set(),
@@ -59,6 +55,8 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
             referencedFiles: null,
             showDiagnostics: false,
             hasReceivedInitialIrisState: true,
+            currentSessionId: 4711,
+            loadedSessionId: 4711,
         });
     });
 
@@ -70,7 +68,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         await act(async () => {
             dispatchExtensionMessage({
                 type: 'addMessage',
-                localSessionId: 'local-test',
+                sessionId: 4711,
                 message: {
                     id: 55,
                     role: 'assistant',
@@ -90,7 +88,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
                 type: 'command',
                 command: 'messageProactiveOutcome',
                 payload: expect.objectContaining({
-                    sessionId: 42,
+                    sessionId: 4711,
                     messageId: 55,
                     outcome: 'DISMISSED',
                     proactiveEpisodeId: 'ep-c8-test',
@@ -107,7 +105,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         await act(async () => {
             dispatchExtensionMessage({
                 type: 'addMessage',
-                localSessionId: 'local-test',
+                sessionId: 4711,
                 message: {
                     id: 66,
                     role: 'assistant',
@@ -148,7 +146,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         await act(async () => {
             dispatchExtensionMessage({
                 type: 'addMessage',
-                localSessionId: 'local-test',
+                sessionId: 4711,
                 message: {
                     id: 88,
                     role: 'assistant',
@@ -168,7 +166,7 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
                 type: 'command',
                 command: 'messageProactiveOutcome',
                 payload: expect.objectContaining({
-                    sessionId: 42,
+                    sessionId: 4711,
                     messageId: 88,
                     outcome: 'RECOVERED',
                     proactiveEpisodeId: 'ep-solved',

@@ -97,7 +97,7 @@ export interface StruggleEngineDeps {
     ): Promise<import('@extension/services/struggleIntervention/struggleContract').StruggleEgressResult>;
     /** Open/attach the Iris session carrying a proactive bubble. Lazy: the chat
      *  provider is constructed after the engine, so this is only called later. */
-    openProactiveSession(sessionId: number): Promise<void>;
+    openProactiveSession(courseId: number, sessionId: number): Promise<void>;
     /** Set/clear the proactive badge on the Iris view. Lazy (see above). */
     setProactiveBadge(on: boolean): void;
     /**

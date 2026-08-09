@@ -1,19 +1,19 @@
 import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { SessionState } from '@extension/services/session/sessionIdentityCoordinator';
 
+import type { DetectionOutcome } from './detectionOutcome';
 import { detectAndRegisterWorkspaceExercise } from './workspaceDetectionService';
 
 export interface WorkspaceRegisterInput {
     id: number;
     title: string;
     shortName?: string;
-    courseId?: number;
+    courseId: number;
     repositoryUri?: string;
-    source: 'workspace-detected';
-    isWorkspace: true;
 }
 
 export interface WorkspaceDetectionSink {
@@ -24,7 +24,7 @@ export interface WorkspaceDetectionSink {
 interface WorkspaceDetectionDeps {
     api: ArtemisApiService | undefined;
     registry: ExerciseRegistry;
-    courseDataCache: CourseDataCache;
+    courseCatalog: CourseCatalog;
     sink: WorkspaceDetectionSink;
     /**
      * Optional: start struggle detection for a passively-detected workspace exercise. Bound to the
@@ -42,17 +42,52 @@ interface WorkspaceDetectionDeps {
      * (the coordinator no-ops an end when no session is active); undefined in the clean Open VSX build.
      */
     onWorkspaceExerciseCleared?: () => void;
+    session: {
+        readonly state: SessionState;
+        readonly epoch: number;
+        onDidChangeSession: vscode.Event<SessionState>;
+        onDidStallResolution: vscode.Event<void>;
+        resolvePrincipal(): Promise<void>;
+    };
 }
 
-export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Disposable {
+export function wireWorkspaceDetection(
+    deps: WorkspaceDetectionDeps,
+): vscode.Disposable & { onDetectionSettled: vscode.Event<DetectionOutcome>; retry(): void } {
     let generation = 0;
     let disposed = false;
+    const settled = new vscode.EventEmitter<DetectionOutcome>();
 
     const runDetection = async (): Promise<void> => {
         const token = ++generation;
+        if (disposed) {
+            // Torn down before this deferred (or event-triggered) run even
+            // started. Every other exit path below routes through `stale()`,
+            // which checks `disposed` too; the resolving and anonymous
+            // branches return before ever reaching it, so they need the same
+            // check up front to honour disposal uniformly.
+            return;
+        }
+        const epoch = deps.session.epoch;
+        const kind = deps.session.state.kind;
+        if (kind === 'resolving') {
+            // Not an answer and not a failure. Publishing anything here would
+            // either tell the student this folder has no exercise or offer a
+            // Retry for a question nobody has asked yet.
+            return;
+        }
+        if (kind === 'anonymous') {
+            // Settled, and server-independent: with no account there is
+            // nothing to match against. The chooser is the right screen; the
+            // Retry banner for a 401 dashboard fetch was not.
+            deps.sink.clearWorkspaceExercise();
+            settled.fire({ kind: 'no-match' });
+            return;
+        }
+        const stale = () => disposed || token !== generation || epoch !== deps.session.epoch;
         const callbacks = {
             registerExercise: (input: WorkspaceRegisterInput) => {
-                if (disposed || token !== generation) {
+                if (stale()) {
                     return;
                 }
                 deps.sink.registerWorkspaceExercise(input);
@@ -62,7 +97,7 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
                 deps.onWorkspaceExerciseDetected?.(input.id, vscode.workspace.workspaceFolders?.[0]?.uri);
             },
             clearStaleWorkspaceContext: () => {
-                if (disposed || token !== generation) {
+                if (stale()) {
                     return;
                 }
                 deps.sink.clearWorkspaceExercise();
@@ -71,20 +106,55 @@ export function wireWorkspaceDetection(deps: WorkspaceDetectionDeps): vscode.Dis
                 deps.onWorkspaceExerciseCleared?.();
             },
         };
-        await detectAndRegisterWorkspaceExercise(
-            deps.api, callbacks, deps.registry, deps.courseDataCache,
+        const outcome = await detectAndRegisterWorkspaceExercise(
+            deps.api, callbacks, deps.registry, deps.courseCatalog,
         );
+        if (stale()) {
+            return;
+        }
+        settled.fire(outcome);
     };
 
-    void runDetection();
+    // Deferred, not `void runDetection()`. The anonymous branch answers
+    // without awaiting anything, and a synchronous answer arrives before the
+    // caller holds the event to hear it. One microtask is enough:
+    // `attachStartupDetection` subscribes in the same synchronous activation
+    // block.
+    queueMicrotask(() => void runDetection());
     const folderSub = vscode.workspace.onDidChangeWorkspaceFolders(() => void runDetection());
-    const coursesSub = deps.courseDataCache.onCoursesLoaded(() => void runDetection());
+    const coursesSub = deps.courseCatalog.onCoursesLoaded(() => void runDetection());
+    const sessionSub = deps.session.onDidChangeSession(() => void runDetection());
+    // Identity resolution gave up, so the `resolving` branch above will keep
+    // returning without publishing anything. Left alone that is a chat stuck
+    // on its startup spinner for the rest of the window, with no Retry, for
+    // what is usually one failed request at activation. `unavailable` says
+    // exactly what happened, and it is the one state that comes with a Retry.
+    const stallSub = deps.session.onDidStallResolution(() => {
+        if (disposed || deps.session.state.kind !== 'resolving') { return; }
+        settled.fire({ kind: 'unavailable' });
+    });
 
     return {
+        onDetectionSettled: settled.event,
+        retry: () => {
+            if (deps.session.state.kind === 'resolving') {
+                // Detection has nothing to re-run: it never started. What
+                // failed is the identity lookup, so that is what the Retry
+                // repeats. A resolution that then settles fires
+                // `onDidChangeSession`, and the subscription above runs
+                // detection from there.
+                void deps.session.resolvePrincipal();
+                return;
+            }
+            void runDetection();
+        },
         dispose: () => {
             disposed = true;
             folderSub.dispose();
             coursesSub.dispose();
+            sessionSub.dispose();
+            stallSub.dispose();
+            settled.dispose();
         },
     };
 }

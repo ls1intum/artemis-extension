@@ -97,9 +97,56 @@
     white-space: nowrap;
 }
 
-.rowSubtitle {
+/* Conversation-first subtitle: the context label and the relative time are
+   separate elements (the label is the row's only searchable text). */
+.rowSubtitleSplit {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
+}
+
+.rowContext {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rowTime {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.searchWrapper {
+    position: relative;
+    margin-bottom: 6px;
+}
+
+.searchIcon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--vscode-descriptionForeground);
+    pointer-events: none;
+}
+
+.searchInput {
+    width: 100%;
+    padding: 8px 12px 8px 32px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.searchInput:focus {
+    border-color: var(--vscode-focusBorder);
 }
 
 .checkIcon {
@@ -125,31 +172,6 @@
     font-size: 12px;
 }
 
-.errorState {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 24px 12px;
-    text-align: center;
-    font-size: 13px;
-    color: var(--vscode-descriptionForeground);
-}
-
-.retryButton {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    padding: 4px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.retryButton:hover {
-    background: var(--vscode-button-hoverBackground);
-}
-
 .bucketGroup {
     display: flex;
     flex-direction: column;
@@ -162,24 +184,4 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--vscode-descriptionForeground);
-}
-
-.skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-}
-
-.skeletonRow {
-    height: 36px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, var(--vscode-list-hoverBackground) 25%, var(--vscode-dropdown-border) 37%, var(--vscode-list-hoverBackground) 63%);
-    background-size: 400% 100%;
-    animation: skeleton-pulse 1.4s ease infinite;
-}
-
-@keyframes skeleton-pulse {
-    0% { background-position: 100% 50%; }
-    100% { background-position: 0 50%; }
 }

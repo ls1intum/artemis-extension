@@ -111,7 +111,7 @@ suite('InterventionService (ambient lamp)', () => {
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(item as unknown as vscode.StatusBarItem);
         svc = new InterventionService(5, offScreen); // 5ms flash, cue off screen
         svc.showJump(vscode.Uri.file('/ex/A.java'), 1);
-        assert.strictEqual(item.backgroundColor?.id, 'statusBarItem.warningBackground', 'flashes amber on appearance');
+        assert.strictEqual((item.backgroundColor as { id?: string } | undefined)?.id, 'statusBarItem.warningBackground', 'flashes amber on appearance');
         await settle();
         assert.strictEqual(item.backgroundColor, undefined, 'settles back to the ambient blue-text look');
     });

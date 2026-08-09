@@ -1,7 +1,7 @@
 import type { ExtensionToWebviewMessage, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
-import { classifyIrisCourseAvailability } from '@extension/services/iris/chat/chatSessionService';
+import { classifyIrisCourseAvailability } from '@extension/services/iris/chat/irisAvailabilityService';
 import { deriveProactiveCardState } from '@extension/services/proactiveCardState';
 
 import type { CommandContext, CommandMap } from './types';
@@ -59,7 +59,10 @@ export class ProactiveControlCommandModule {
         if (courseId !== undefined) {
             try {
                 const { availability, settings } = await classifyIrisCourseAvailability(
-                    this.context.artemisApi, async () => courseId);
+                    this.context.artemisApi,
+                    this.context.courseCatalog,
+                    { type: 'course', id: courseId, title: this.context.courseCatalog?.courseTitle(courseId) ?? `course ${courseId}` },
+                );
                 irisAvailability = availability.kind;
                 courseProactiveEnabled = settings?.settings?.proactiveStruggleEnabled;
             } catch {

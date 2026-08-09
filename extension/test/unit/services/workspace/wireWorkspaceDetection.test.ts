@@ -2,8 +2,10 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
-import type { CourseDataCache } from '@extension/services/courseDataCache';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { SessionState } from '@extension/services/session/sessionIdentityCoordinator';
+import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import {
     buildChatProviderSink,
     wireWorkspaceDetection,
@@ -25,12 +27,31 @@ function makeSinkSpy(): WorkspaceDetectionSink & {
     };
 }
 
+function makeSession(kind: SessionState['kind']) {
+    const emitter = new vscode.EventEmitter<SessionState>();
+    const stallEmitter = new vscode.EventEmitter<void>();
+    const state = (kind === 'authenticated'
+        ? { kind, serverKey: 's', principal: 'id:1' }
+        : { kind, serverKey: 's' }) as SessionState;
+    const resolvePrincipal = sinon.stub<[], Promise<void>>().resolves();
+    // `epoch` is a plain mutable field so a test can move it under an open
+    // detection, which is exactly what an identity change does.
+    const session = {
+        state,
+        epoch: 1,
+        onDidChangeSession: emitter.event,
+        onDidStallResolution: stallEmitter.event,
+        resolvePrincipal,
+    };
+    return { session, emitter, stallEmitter, resolvePrincipal };
+}
+
 suite('wireWorkspaceDetection', () => {
     let sandbox: sinon.SinonSandbox;
     let detectStub: sinon.SinonStub;
     let folderEmitter: vscode.EventEmitter<vscode.WorkspaceFoldersChangeEvent>;
     let coursesEmitter: vscode.EventEmitter<unknown>;
-    let courseDataCache: CourseDataCache;
+    let courseCatalog: CourseCatalog;
     let registry: ExerciseRegistry;
 
     setup(() => {
@@ -39,7 +60,7 @@ suite('wireWorkspaceDetection', () => {
         folderEmitter = new vscode.EventEmitter<vscode.WorkspaceFoldersChangeEvent>();
         coursesEmitter = new vscode.EventEmitter<unknown>();
         sandbox.stub(vscode.workspace, 'onDidChangeWorkspaceFolders').callsFake(listener => folderEmitter.event(listener));
-        courseDataCache = { onCoursesLoaded: coursesEmitter.event } as unknown as CourseDataCache;
+        courseCatalog = { onCoursesLoaded: coursesEmitter.event } as unknown as CourseCatalog;
         registry = {} as ExerciseRegistry;
     });
 
@@ -51,7 +72,9 @@ suite('wireWorkspaceDetection', () => {
 
     test('initial detection runs once at wiring time', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();
         assert.strictEqual(detectStub.callCount, 1);
         disposable.dispose();
@@ -59,7 +82,9 @@ suite('wireWorkspaceDetection', () => {
 
     test('onDidChangeWorkspaceFolders event triggers re-detection', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();
         detectStub.resetHistory();
         folderEmitter.fire({ added: [], removed: [] });
@@ -68,9 +93,11 @@ suite('wireWorkspaceDetection', () => {
         disposable.dispose();
     });
 
-    test('courseDataCache.onCoursesLoaded event triggers re-detection', async () => {
+    test('courseCatalog.onCoursesLoaded event triggers re-detection', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();
         detectStub.resetHistory();
         coursesEmitter.fire(undefined);
@@ -93,18 +120,20 @@ suite('wireWorkspaceDetection', () => {
             else {await new Promise<void>(r => { resolveB = r; });}
         });
 
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();          // schedule detection A
         folderEmitter.fire({ added: [], removed: [] });
         await Promise.resolve();          // schedule detection B (A still pending)
 
         // A finishes late; its callback must be a no-op.
         capturedCallbacks[0].registerExercise({
-            id: 1, title: 'Stale', source: 'workspace-detected', isWorkspace: true,
+            id: 1, title: 'Stale', courseId: 9,
         });
         // B finishes normally.
         capturedCallbacks[1].registerExercise({
-            id: 2, title: 'Fresh', source: 'workspace-detected', isWorkspace: true,
+            id: 2, title: 'Fresh', courseId: 9,
         });
 
         resolveA(); resolveB();
@@ -129,7 +158,9 @@ suite('wireWorkspaceDetection', () => {
             else {await new Promise<void>(r => { resolveB = r; });}
         });
 
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();
         folderEmitter.fire({ added: [], removed: [] });
         await Promise.resolve();
@@ -156,11 +187,13 @@ suite('wireWorkspaceDetection', () => {
             await new Promise<void>(r => { resolve = r; });
         });
 
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();          // detection in flight
         disposable.dispose();
 
-        captured.registerExercise({ id: 1, title: 'X', source: 'workspace-detected', isWorkspace: true });
+        captured.registerExercise({ id: 1, title: 'X', courseId: 9 });
         captured.clearStaleWorkspaceContext();
         resolve();
         await Promise.resolve();
@@ -171,7 +204,9 @@ suite('wireWorkspaceDetection', () => {
 
     test('dispose unsubscribes both event listeners: later folder/courses events do not re-trigger detection', async () => {
         const sink = makeSinkSpy();
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();
         disposable.dispose();
         detectStub.resetHistory();
@@ -186,7 +221,9 @@ suite('wireWorkspaceDetection', () => {
         detectStub.callsFake(async (_api: unknown, cb: { clearStaleWorkspaceContext: () => void }) => {
             cb.clearStaleWorkspaceContext();
         });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink });
+        const disposable = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session,
+        });
         await Promise.resolve();
         assert.strictEqual(sink._clear.callCount, 1);
         assert.strictEqual(sink._register.callCount, 0);
@@ -198,9 +235,9 @@ suite('wireWorkspaceDetection', () => {
         const onDetected = sinon.spy();
         let captured!: { registerExercise: (input: WorkspaceRegisterInput) => void; clearStaleWorkspaceContext: () => void };
         detectStub.callsFake(async (_api: unknown, cb: typeof captured) => { captured = cb; });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink, onWorkspaceExerciseDetected: onDetected });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session, onWorkspaceExerciseDetected: onDetected });
         await Promise.resolve();
-        captured.registerExercise({ id: 7, title: 'X', source: 'workspace-detected', isWorkspace: true });
+        captured.registerExercise({ id: 7, title: 'X', courseId: 1 });
         assert.strictEqual(onDetected.callCount, 1, 'detection must start the struggle session');
         assert.strictEqual(onDetected.firstCall.args[0], 7);
         disposable.dispose();
@@ -215,10 +252,10 @@ suite('wireWorkspaceDetection', () => {
             captured = cb;
             await new Promise<void>(r => { resolve = r; });
         });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink, onWorkspaceExerciseDetected: onDetected });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session, onWorkspaceExerciseDetected: onDetected });
         await Promise.resolve();
         disposable.dispose();
-        captured.registerExercise({ id: 1, title: 'X', source: 'workspace-detected', isWorkspace: true });
+        captured.registerExercise({ id: 1, title: 'X', courseId: 1 });
         resolve();
         await Promise.resolve();
         assert.strictEqual(onDetected.callCount, 0);
@@ -231,10 +268,185 @@ suite('wireWorkspaceDetection', () => {
         detectStub.callsFake(async (_api: unknown, cb: { clearStaleWorkspaceContext: () => void }) => {
             cb.clearStaleWorkspaceContext();
         });
-        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseDataCache, sink, onWorkspaceExerciseCleared: onCleared });
+        const disposable = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink, session: makeSession('authenticated').session, onWorkspaceExerciseCleared: onCleared });
         await Promise.resolve();
         assert.strictEqual(onCleared.callCount, 1, 'leaving the exercise must end the struggle session');
         disposable.dispose();
+    });
+
+    test('publishes every settled outcome, including the one from activation', async () => {
+        detectStub.resolves({ kind: 'matched', exerciseId: 42, courseId: 9 });
+        const seen: unknown[] = [];
+
+        const handle = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session: makeSession('authenticated').session,
+        });
+        handle.onDetectionSettled(outcome => seen.push(outcome));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        detectStub.resolves({ kind: 'no-match' });
+        handle.retry();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.deepStrictEqual(seen, [
+            { kind: 'matched', exerciseId: 42, courseId: 9 },
+            { kind: 'no-match' },
+        ]);
+        handle.dispose();
+    });
+
+    test('a superseded run cannot emit its late result', async () => {
+        let resolveFirst: (o: unknown) => void = () => undefined;
+        detectStub.onFirstCall().returns(new Promise(res => { resolveFirst = res; }));
+        detectStub.onSecondCall().resolves({ kind: 'no-match' });
+
+        const handle = wireWorkspaceDetection({
+            api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session: makeSession('authenticated').session,
+        });
+        const seen: unknown[] = [];
+        handle.onDetectionSettled(outcome => seen.push(outcome));
+
+        handle.retry();
+        await Promise.resolve();
+        await Promise.resolve();
+        resolveFirst({ kind: 'matched', exerciseId: 1, courseId: 2 });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.deepStrictEqual(seen, [{ kind: 'no-match' }],
+            'the superseded activation run must not emit after a newer one settled');
+        handle.dispose();
+    });
+
+    test('nothing runs while the session is resolving', async () => {
+        const { session } = makeSession('resolving');
+        const outcomes: DetectionOutcome[] = [];
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        handle.onDetectionSettled(o => outcomes.push(o));
+        await Promise.resolve();
+        assert.strictEqual(detectStub.callCount, 0);
+        assert.deepStrictEqual(outcomes, []);
+        handle.dispose();
+    });
+
+    test('an anonymous session settles no-match without asking the server', async () => {
+        const { session } = makeSession('anonymous');
+        const outcomes: DetectionOutcome[] = [];
+        const sink = makeSinkSpy();
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink, session });
+        handle.onDetectionSettled(o => outcomes.push(o));
+        await Promise.resolve();
+        assert.strictEqual(detectStub.callCount, 0);
+        assert.deepStrictEqual(outcomes, [{ kind: 'no-match' }]);
+        assert.strictEqual(sink._clear.callCount, 1);
+        handle.dispose();
+    });
+
+    test('disposing before the deferred anonymous run fires leaves the sink and outcomes untouched', async () => {
+        const { session } = makeSession('anonymous');
+        const outcomes: DetectionOutcome[] = [];
+        const sink = makeSinkSpy();
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink, session });
+        handle.onDetectionSettled(o => outcomes.push(o));
+        // Torn down before the queued microtask even runs.
+        handle.dispose();
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.strictEqual(sink._clear.callCount, 0);
+        assert.deepStrictEqual(outcomes, []);
+    });
+
+    test('an outcome from a previous epoch is discarded', async () => {
+        const { session } = makeSession('authenticated');
+        let settleDetection: (o: DetectionOutcome) => void = () => undefined;
+        detectStub.returns(new Promise<DetectionOutcome>(resolve => { settleDetection = resolve; }));
+        const outcomes: DetectionOutcome[] = [];
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        handle.onDetectionSettled(o => outcomes.push(o));
+        // Let the deferred initial run start and capture epoch 1 before it
+        // is changed underneath it.
+        await Promise.resolve();
+        // The identity changes while the detection promise is still open.
+        session.epoch = 2;
+        settleDetection({ kind: 'matched', exerciseId: 1, courseId: 2 });
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.deepStrictEqual(outcomes, [], 'an answer for the previous account is not an answer');
+        handle.dispose();
+    });
+
+    // The startup dead end this pair exists for: a transient `getCurrentUser`
+    // failure leaves the session `resolving`, the branch above publishes
+    // nothing, and the chat used to sit on its startup spinner for the rest of
+    // the window with no Retry anywhere.
+    test('a stalled identity resolution settles unavailable', async () => {
+        const { session, stallEmitter } = makeSession('resolving');
+        const outcomes: DetectionOutcome[] = [];
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        handle.onDetectionSettled(o => outcomes.push(o));
+        await Promise.resolve();
+        assert.deepStrictEqual(outcomes, [], 'a resolving session answers nothing on its own');
+
+        stallEmitter.fire();
+
+        assert.deepStrictEqual(outcomes, [{ kind: 'unavailable' }]);
+        handle.dispose();
+        stallEmitter.dispose();
+    });
+
+    test('the retry re-runs the identity lookup while the session is still resolving', async () => {
+        const { session, resolvePrincipal } = makeSession('resolving');
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        await Promise.resolve();
+
+        handle.retry();
+        await Promise.resolve();
+
+        assert.strictEqual(resolvePrincipal.callCount, 1, 'the Retry must repeat what actually failed');
+        assert.strictEqual(detectStub.callCount, 0, 'detection cannot answer without an identity');
+        handle.dispose();
+    });
+
+    test('the retry runs detection, not the identity lookup, once the session is authenticated', async () => {
+        const { session, resolvePrincipal } = makeSession('authenticated');
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        await Promise.resolve();
+        detectStub.resetHistory();
+
+        handle.retry();
+        await Promise.resolve();
+
+        assert.strictEqual(resolvePrincipal.callCount, 0);
+        assert.strictEqual(detectStub.callCount, 1);
+        handle.dispose();
+    });
+
+    test('a stall that arrives after the session settled publishes nothing', async () => {
+        const { session, stallEmitter } = makeSession('anonymous');
+        const outcomes: DetectionOutcome[] = [];
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        await Promise.resolve();
+        handle.onDetectionSettled(o => outcomes.push(o));
+
+        stallEmitter.fire();
+
+        assert.deepStrictEqual(outcomes, [], 'a settled session already has its answer');
+        handle.dispose();
+        stallEmitter.dispose();
+    });
+
+    test('a session change re-runs detection', async () => {
+        const { session, emitter } = makeSession('authenticated');
+        const handle = wireWorkspaceDetection({ api: undefined, registry, courseCatalog, sink: makeSinkSpy(), session });
+        await Promise.resolve();
+        detectStub.resetHistory();
+        emitter.fire(session.state);
+        await Promise.resolve();
+        assert.strictEqual(detectStub.callCount, 1);
+        handle.dispose();
+        emitter.dispose();
     });
 });
 
@@ -245,7 +457,7 @@ suite('buildChatProviderSink', () => {
             clearWorkspaceExercise: sinon.spy(),
         };
         const sink = buildChatProviderSink(provider);
-        const input = { id: 1, title: 'X', source: 'workspace-detected' as const, isWorkspace: true as const };
+        const input = { id: 1, title: 'X', courseId: 9 };
         sink.registerWorkspaceExercise(input);
         assert.ok((provider.registerWorkspaceExercise as sinon.SinonSpy).calledOnceWith(input));
     });

@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonSandbox } {
@@ -21,11 +21,10 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
+    const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
     };
-    const contextStore = new ContextStore(mockContext);
     const mockApi = { setProactiveOutcome: sinon.stub().resolves() };
 
     const provider = new ChatWebviewProvider(
@@ -35,17 +34,18 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         undefined,
         noAi as never,
         registry as never,
-        courseDataCache as never,
-        contextStore,
+        courseCatalog as never,
+        undefined,
+        new WorkspaceExerciseTracker(),
+        { getAccessTimestamp: () => undefined } as never,
+        { state: 'authenticated', epoch: 0 } as never,
     );
-    // postOptimisticBubble/postOfferBubble attribute the bubble to the active
-    // session (the proactive open makes it active in production). Seed one so
-    // the AddMessage is emitted rather than dropped for lack of a session.
-    contextStore.setActiveContext({
-        type: 'exercise', id: 1, title: 'Ex', courseId: 1,
-        source: 'user-selected', locked: false, selectedAt: Date.now(),
-    });
-    contextStore.createSession();
+    // postOptimisticBubble/postOfferBubble attribute the bubble to the OPEN
+    // conversation now (numeric server session), not to a local active session.
+    // Stub one so the AddMessage is emitted rather than dropped as unattributed.
+    (provider as unknown as { _conversation: unknown })._conversation = {
+        state: { snapshot: () => ({ currentSessionId: 4711 }) },
+    };
     return { provider, sandbox };
 }
 

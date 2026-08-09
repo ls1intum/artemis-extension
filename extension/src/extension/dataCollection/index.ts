@@ -39,8 +39,8 @@ export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHand
         chatWebviewProvider: deps.chatWebviewProvider,
         capabilities: deps.capabilities,
         exerciseRegistry: deps.exerciseRegistry,
-        contextStore: deps.contextStore,
         sensorHub: deps.sensorHub,
+        workspaceTracker: deps.workspaceTracker,
     });
 
     // Prompt after wiring so a consent change immediately reaches the recorder.

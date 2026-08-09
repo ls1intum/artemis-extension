@@ -32,7 +32,6 @@ import type {
 import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth/consentService';
-import type { ContextStore } from '@extension/services/iris/context/contextStore';
 import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type {
     AlertEvent,
@@ -46,6 +45,7 @@ import type {
 import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { asEditAlert } from '@test/__shared__/alertNarrow';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
@@ -274,7 +274,7 @@ interface WiringHarness {
 async function makeWiringHarness(
     sandbox: sinon.SinonSandbox,
     initial: MutableConfigState,
-    contextStore: ContextStore = { getWorkspaceExerciseId: () => 42 } as unknown as ContextStore,
+    workspaceTracker: WorkspaceExerciseTracker = { exerciseId: 42 } as unknown as WorkspaceExerciseTracker,
 ): Promise<WiringHarness> {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiring-test-'));
     const configState: MutableConfigState = { ...initial };
@@ -317,8 +317,8 @@ async function makeWiringHarness(
         chatWebviewProvider: chatProvider,
         capabilities: undefined,
         exerciseRegistry: undefined,
-        contextStore,
         sensorHub,
+        workspaceTracker,
     });
 
     return {
@@ -476,16 +476,18 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         }
     });
 
-    test('recorder gate reads from contextStore.getWorkspaceExerciseId; chat getter is unused', async () => {
-        const workspaceGetter = sinon.spy(() => 99);
-        const contextStore = { getWorkspaceExerciseId: workspaceGetter } as unknown as ContextStore;
+    test('recorder gate reads from workspaceTracker.exerciseId; chat getter is unused', async () => {
+        let getterCallCount = 0;
+        const workspaceTracker = {
+            get exerciseId() { getterCallCount++; return 99; },
+        } as unknown as WorkspaceExerciseTracker;
         const initial: MutableConfigState = {
             developerMode: false,
         };
-        const harness = await makeWiringHarness(sandbox, initial, contextStore);
+        const harness = await makeWiringHarness(sandbox, initial, workspaceTracker);
         try {
             await harness.clickRecord();
-            assert.strictEqual(workspaceGetter.callCount, 1, 'workspace getter should be called once per click');
+            assert.strictEqual(getterCallCount, 1, 'workspace getter should be called once per click');
             assert.ok(!harness.chatProvider._selectedExerciseIdSpy.called, 'chat getter must NOT be called by the wiring');
         } finally {
             await harness.dispose();

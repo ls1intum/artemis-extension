@@ -2,49 +2,44 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
+import type { SessionDetail } from '@shared/types/serverContext';
+
 import { ArtemisApiService } from '@extension/api';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
-import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
+import { IrisAvailabilityService } from '@extension/services/iris/chat/irisAvailabilityService';
 import { IrisWebSocketMessageHandler } from '@extension/services/iris/chat/irisWebSocketMessageHandler';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
-import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
-import { ActiveContext } from '@extension/types';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 /**
- * Task 8: generation-scoped reconnect reconciliation wired into the provider.
+ * Recovery of a run whose terminal frame was missed during a websocket drop.
  *
- * These tests exercise `_reconcileOnResubscribe` and the marker-open branch of
- * `_handleChatMessage` directly against the real `IrisRunStateMachine`,
- * `ContextStore` and `IrisWebSocketMessageHandler` the provider constructs.
- * The websocket service is left undefined (matching the sibling provider test
- * harnesses), so `onDidResubscribe` is not subscribed through the constructor;
- * we drive the private reconcile entrypoint that the subscription would call.
+ * These tests drive the LIVE path: `onDidResubscribe` -> `_recoverOnResubscribe`
+ * -> `IrisConversationService.onSubscriptionActive` (re-read + merge) -> run
+ * resolution. The previous version of this suite drove a marker keyed on the
+ * old model's local session id, which the conversation-first host can never
+ * produce, so every test in it passed over code production could not enter.
  */
 
 interface Harness {
     provider: ChatWebviewProvider;
-    contextStore: ContextStore;
     api: sinon.SinonStubbedInstance<ArtemisApiService>;
-    sessionClient: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     postSpy: sinon.SinonSpy;
-    fetchStub: sinon.SinonStub;
     publishSpy: sinon.SinonSpy;
     sandbox: sinon.SinonSandbox;
-    setCurrentSessionId: (id: number | undefined) => void;
 }
 
-// Private surface we reach into. Casting once here keeps the tests readable
-// without sprinkling `as any` everywhere.
 interface ProviderInternals {
     _runs: IrisRunStateMachine;
-    _reconcileMarker: unknown;
-    _reconcileOnResubscribe: (sessionId: number) => Promise<void>;
-    _handleChatMessage: (m: { text?: string; localId?: string; localSessionId?: string }) => Promise<void>;
-    _chatSessionService: IrisChatSessionService;
-    _chatMessageService: { sendMessage: (input: unknown) => Promise<unknown> };
+    _recovery: { generation: number; sessionId: number; baselineMessageId: number } | undefined;
+    _recoverOnResubscribe: (sessionId: number) => Promise<void>;
+    _handleChatMessage: (m: { text?: string; localId?: string; sessionId?: number }) => Promise<void>;
+    _availability: IrisAvailabilityService;
     _websocketMessageHandler: IrisWebSocketMessageHandler;
+    _lastSendGeneration: number | undefined;
+    _sendCoordinator: { send: (input: unknown) => Promise<unknown> } | undefined;
+    _conversation: { state: { snapshot(): { currentSessionId?: number } } } | undefined;
 }
 
 function internals(provider: ChatWebviewProvider): ProviderInternals {
@@ -53,9 +48,6 @@ function internals(provider: ChatWebviewProvider): ProviderInternals {
 
 function buildHarness(): Harness {
     const sandbox = sinon.createSandbox();
-    // A preceding unit-test suite in the aggregate run sometimes crashes before
-    // restoring its sandbox, leaving registerCommand wrapped. Restore a leaked
-    // wrapper first so our own stub can attach and be cleaned up in teardown.
     const leaked = vscode.commands.registerCommand as unknown as { restore?: () => void; isSinonProxy?: boolean };
     if (leaked.isSinonProxy && typeof leaked.restore === 'function') {
         leaked.restore();
@@ -65,347 +57,316 @@ function buildHarness(): Harness {
     sandbox.stub(vscode.window, 'showWarningMessage');
 
     const mockContext = new MockExtensionContext();
-    const contextStore = new ContextStore(mockContext);
     const api = sinon.createStubInstance(ArtemisApiService);
-
+    // BOTH services, so `_conversation` is actually constructed: the recovery
+    // path does not exist without it.
+    const websocket = {
+        onDidChangeConnectionState: new vscode.EventEmitter<{ connected: boolean }>().event,
+        isConnected: () => true,
+        getDisplayStatus: () => 'connected',
+    };
     const noAi = {
         isNoAiEnabled: false,
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
+    const courseCatalog = {
         onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
         fetch: async () => undefined,
+        projection: () => ({ courses: [], exercises: [] }),
+        courseTitle: () => undefined,
+        exerciseTitle: () => undefined,
     };
+    const sessionIdentity = { state: { kind: 'anonymous', serverKey: 'https://artemis.test' }, epoch: 0 };
 
-    // ws service undefined => the constructor does not build/subscribe a live
-    // IrisWebSocketSessionClient; we inject a stubbed one below.
     const provider = new ChatWebviewProvider(
         vscode.Uri.file('/tmp'),
         mockContext as unknown as vscode.ExtensionContext,
         api as unknown as ArtemisApiService,
-        undefined,
+        websocket as never,
         noAi as never,
         registry as never,
-        courseDataCache as never,
-        contextStore,
+        courseCatalog as never,
+        undefined,
+        new WorkspaceExerciseTracker(),
+        { getAccessTimestamp: () => undefined } as never,
+        sessionIdentity as never,
     );
 
-    const sessionClient = sinon.createStubInstance(IrisWebSocketSessionClient);
-    let currentSessionId: number | undefined;
-    Object.defineProperty(sessionClient, 'currentSessionId', {
-        get: () => currentSessionId,
-        configurable: true,
-    });
-    (provider as unknown as { _irisSessionManager: unknown })._irisSessionManager = sessionClient;
-
     const postSpy = sandbox.spy(provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
-    const fetchStub = sandbox.stub(internals(provider)._chatSessionService, 'fetchActiveSessionHistory');
     const publishSpy = sandbox.spy(internals(provider)._websocketMessageHandler, 'publishCurrentRunUi');
 
-    return {
-        provider,
-        contextStore,
-        api,
-        sessionClient,
-        postSpy,
-        fetchStub,
-        publishSpy,
-        sandbox,
-        setCurrentSessionId: (id) => { currentSessionId = id; },
-    };
+    return { provider, api, postSpy, publishSpy, sandbox };
 }
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 
-function context(id: number): ActiveContext {
+function detail(over: Partial<SessionDetail> = {}): SessionDetail {
     return {
-        type: 'course', id, title: `Course ${id}`, courseId: id,
-        source: 'user-selected', locked: false, selectedAt: Date.now(),
+        sessionId: 100,
+        courseId: 42,
+        context: { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 },
+        lastActivity: 0,
+        messages: [],
+        ...over,
     };
 }
 
-/**
- * Establish an active session with the given artemis id and return its local
- * session id (`activeSession.id`). Uses the idempotent overview upsert so the
- * session survives the cleanup pass inside switchSession.
- */
-function activateSession(contextStore: ContextStore, courseId: number, artemisSessionId: number): string {
-    contextStore.setActiveContext(context(courseId));
-    const localId = contextStore.upsertSessionFromOverview({
-        contextKey: `course:${courseId}`,
-        artemisSessionId,
-        lastActivity: Date.now(),
-    });
-    contextStore.switchSession(localId);
-    return localId;
+/** A persisted assistant answer, as the detail endpoint returns it. */
+const answer = (id: number, final = true) => ({
+    id,
+    sender: 'LLM',
+    content: [{ type: 'text', textContent: 'because' }],
+    sentAt: '2025-01-01T00:00:00Z',
+    final,
+});
+
+/** Opens the conversation the whole suite recovers, exactly as production does. */
+async function openConversation(h: Harness, sessionId = 100): Promise<void> {
+    // The acquisition fires an overview refresh; answer it so the course
+    // session list is a real array (an unstubbed sinon method returns
+    // undefined, which `setOverview` then stores and every later read trips on).
+    h.api.listChatSessionsForCourse.resolves([]);
+    h.api.getCurrentChat.resolves(detail({ sessionId }));
+    await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
 }
 
-/** Open a generation and bind it to `runId`. Leaves the machine waiting with
- *  pendingGeneration=false (a frame arrived). Returns the generation id. */
+/**
+ * Stands in for `SendCoordinator`: opens a generation through the same machine
+ * the real runLifecycle wrapper uses, records it the way that wrapper does, and
+ * reports a persisted message. `supersede` mimics an inbound run opening a
+ * newer generation before the POST returns.
+ */
+function injectSendCoordinator(
+    provider: ChatWebviewProvider,
+    opts: { messageId?: number; supersede?: boolean },
+): void {
+    const inner = internals(provider);
+    inner._sendCoordinator = {
+        send: async () => {
+            const generation = inner._runs.beginGeneration();
+            inner._runs.admit({ runId: 'run-send' } as never);
+            inner._lastSendGeneration = generation;
+            if (opts.supersede) {
+                inner._runs.beginGeneration();
+                inner._runs.admit({ runId: 'run-inbound' } as never);
+            }
+            return { kind: 'sent', messageId: opts.messageId };
+        },
+    };
+    const check = inner._availability.checkAndLoadIrisSettings as unknown as { isSinonProxy?: boolean };
+    if (!check.isSinonProxy) {
+        sinon.stub(inner._availability, 'checkAndLoadIrisSettings').resolves({ kind: 'enabled' } as never);
+    }
+}
+
+/** Open a generation and bind it to `runId`, leaving the machine waiting. */
 function beginBoundRun(runs: IrisRunStateMachine, runId: string): number {
     const generation = runs.beginGeneration();
     runs.admit({ runId } as never);
     return generation;
 }
 
-function assistant(id: number, over: Partial<{ final: boolean }> = {}) {
-    return { id, role: 'assistant' as const, content: 'a', timestamp: Date.now(), final: true, ...over };
-}
-
 const mergeCalls = (postSpy: sinon.SinonSpy) =>
     postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'mergeSessionMessages');
-const confirmCalls = (postSpy: sinon.SinonSpy) =>
-    postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'confirmSentMessage');
 const runUiCalls = (postSpy: sinon.SinonSpy) =>
     postSpy.getCalls().filter(c => (c.args[0] as { type?: string })?.type === 'updateIrisRunUi');
 
-suite('ChatWebviewProvider reconnect reconciliation', () => {
+suite('ChatWebviewProvider reconnect recovery', () => {
     let h: Harness;
 
-    setup(() => {
-        h = buildHarness();
-    });
+    setup(() => { h = buildHarness(); });
 
     teardown(() => {
         h.provider.dispose();
         h.sandbox.restore();
     });
 
-    test('initial subscribe with no marker => no fetch', async () => {
-        activateSession(h.contextStore, 5, 42);
-        beginBoundRun(internals(h.provider)._runs, 'run-A');
-        // No marker was ever opened.
-        assert.strictEqual(internals(h.provider)._reconcileMarker, undefined);
+    test('a resubscribe with no outstanding send still re-reads the conversation', async () => {
+        await openConversation(h);
+        h.api.getChatSessionById.resolves(detail({ sessionId: 100, messages: [answer(99)] as never }));
+        h.postSpy.resetHistory();
 
-        await internals(h.provider)._reconcileOnResubscribe(42);
+        await internals(h.provider)._recoverOnResubscribe(100);
+        await tick();
 
-        assert.strictEqual(h.fetchStub.callCount, 0, 'a resubscribe without a marker must not fetch');
+        // The transcript repair is unconditional; only the RUN resolution needs
+        // a baseline.
+        assert.strictEqual(mergeCalls(h.postSpy).length, 1);
+        assert.strictEqual(internals(h.provider)._recovery, undefined);
     });
 
-    test('run A marker (gen G) cannot reconcile once B started (gen G+1), gate fails', async () => {
+    test('conclusive history resolves the run and republishes clean run UI', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 10 });
+        await internals(h.provider)._handleChatMessage({ text: 'why?', localId: 'l1', sessionId: 100 });
         const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        const genA = beginBoundRun(runs, 'run-A');
-        internals(h.provider)._reconcileMarker = {
-            generation: genA, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
-        // B starts and binds its own run: generation advances to G+1, pending
-        // is false again so only the generation-mismatch guard can catch this.
+        assert.strictEqual(runs.waiting, true, 'the send must leave the machine waiting');
+
+        // A stale handler-side draft, mirroring the real scenario: PARTIAL
+        // frames landed before the socket dropped mid-answer, and a pure
+        // disconnect never clears the handler's own projection.
+        internals(h.provider)._websocketMessageHandler.handleIrisWebSocketMessage({
+            type: 'PARTIAL', runId: 'run-send', partialResult: 'stale partial answer', partialSeq: 1,
+        }, 100);
+        h.api.getChatSessionById.resolves(detail({ sessionId: 100, messages: [answer(99)] as never }));
+        h.postSpy.resetHistory();
+        h.publishSpy.resetHistory();
+
+        await internals(h.provider)._recoverOnResubscribe(100);
+        await tick();
+
+        assert.strictEqual(mergeCalls(h.postSpy).length, 1, 'the answer must reach the transcript');
+        assert.strictEqual(runs.waiting, false, 'conclusive history must resolve the run');
+        assert.ok(h.publishSpy.called, 'run UI must be republished after resolution');
+        assert.strictEqual(internals(h.provider)._recovery, undefined, 'the resolved baseline must be cleared');
+
+        const projection = runUiCalls(h.postSpy).at(-1)?.args[0] as { projection?: { draft: unknown; waiting: boolean } };
+        assert.strictEqual(projection?.projection?.draft, null, 'the stale partial must not survive as a phantom bubble');
+        assert.strictEqual(projection?.projection?.waiting, false);
+    });
+
+    test('inconclusive history merges but leaves the run waiting', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 10 });
+        await internals(h.provider)._handleChatMessage({ text: 'why?', localId: 'l1', sessionId: 100 });
+        // Nothing newer than the baseline: a missed FAILED frame leaves no
+        // message, so history can never prove THAT, and guessing would clear an
+        // indicator for a run that may still be going.
+        h.api.getChatSessionById.resolves(detail({ sessionId: 100, messages: [answer(5)] as never }));
+        h.postSpy.resetHistory();
+
+        await internals(h.provider)._recoverOnResubscribe(100);
+        await tick();
+
+        assert.strictEqual(mergeCalls(h.postSpy).length, 1);
+        assert.strictEqual(internals(h.provider)._runs.waiting, true);
+        assert.ok(internals(h.provider)._recovery, 'the baseline stays open for the next attempt');
+    });
+
+    test('a baseline from an older generation resolves nothing', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 10 });
+        await internals(h.provider)._handleChatMessage({ text: 'why?', localId: 'l1', sessionId: 100 });
+        const runs = internals(h.provider)._runs;
+        // B starts and binds its own run: the generation advances, so only the
+        // generation guard can catch this.
         beginBoundRun(runs, 'run-B');
-        assert.strictEqual(runs.pendingGeneration, false);
-        assert.strictEqual(runs.generation, genA + 1);
+        h.api.getChatSessionById.resolves(detail({ sessionId: 100, messages: [answer(99)] as never }));
 
-        await internals(h.provider)._reconcileOnResubscribe(42);
+        await internals(h.provider)._recoverOnResubscribe(100);
+        await tick();
 
-        assert.strictEqual(h.fetchStub.callCount, 0, 'stale-generation marker must not fetch');
+        assert.strictEqual(runs.waiting, true, 'B is still waiting; A must not resolve it');
     });
 
-    test('reconciliation for A completing after B starts cannot resolve or merge (post-await re-check)', async () => {
+    test('pendingGeneration (the first frame never arrived) resolves nothing', async () => {
+        await openConversation(h);
         const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        const genA = beginBoundRun(runs, 'run-A');
-        internals(h.provider)._reconcileMarker = {
-            generation: genA, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
+        // beginGeneration WITHOUT an admitted frame: the run was never bound,
+        // so resolveCurrentRun would finalize the wrong one.
+        const generation = runs.beginGeneration();
+        internals(h.provider)._recovery = { generation, sessionId: 100, baselineMessageId: 10 };
+        h.api.getChatSessionById.resolves(detail({ sessionId: 100, messages: [answer(99)] as never }));
+
+        await internals(h.provider)._recoverOnResubscribe(100);
+        await tick();
+
+        assert.strictEqual(runs.waiting, true);
+        assert.ok(internals(h.provider)._recovery);
+    });
+
+    test('a newer generation starting DURING the re-read aborts the resolve', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 10 });
+        await internals(h.provider)._handleChatMessage({ text: 'why?', localId: 'l1', sessionId: 100 });
+        const runs = internals(h.provider)._runs;
 
         let resolveFetch: (v: unknown) => void = () => { /* noop */ };
-        h.fetchStub.onFirstCall().returns(new Promise(res => { resolveFetch = res; }) as never);
-
-        // Passes the pre-fetch gate, then parks on the await.
-        const p = internals(h.provider)._reconcileOnResubscribe(42);
+        h.api.getChatSessionById.returns(new Promise(res => { resolveFetch = res; }) as never);
+        const p = internals(h.provider)._recoverOnResubscribe(100);
         await tick();
-        assert.strictEqual(h.fetchStub.callCount, 1, 'fetch must have started');
 
-        // While the fetch is in flight, B starts and binds, generation advances.
+        // While the re-read is in flight, B starts and binds.
         beginBoundRun(runs, 'run-B');
-
-        // The fetch now returns conclusive history for A. The post-await
-        // re-validation must still abort: neither merge nor resolve.
-        resolveFetch([assistant(99)]);
+        resolveFetch(detail({ sessionId: 100, messages: [answer(99)] as never }));
         await p;
         await tick();
 
-        assert.strictEqual(mergeCalls(h.postSpy).length, 0, 'stale fetch must not merge into the webview');
-        assert.strictEqual(runs.waiting, true, 'B is still waiting; A must not resolve it');
-        assert.ok(internals(h.provider)._reconcileMarker, 'marker must not be cleared by the aborted reconcile');
+        assert.strictEqual(runs.waiting, true, 'the post-await re-check must abort the resolve');
     });
 
-    test('gen 2 POST resolves before gen 1: gen 1 late completion does not replace/clear gen 2 marker (but still confirms its bubble)', async () => {
+    test('a same-generation run rebind DURING the re-read aborts the resolve', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 10 });
+        await internals(h.provider)._handleChatMessage({ text: 'why?', localId: 'l1', sessionId: 100 });
         const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        h.setCurrentSessionId(42);
-        // Drive the machine to generation 2, waiting.
-        beginBoundRun(runs, 'run-1');
-        beginBoundRun(runs, 'run-2');
-        assert.strictEqual(runs.generation, 2);
-
-        const sendStub = h.sandbox.stub(internals(h.provider)._chatMessageService, 'sendMessage');
-        sendStub.onFirstCall().resolves({ sent: true, sentMessageId: 100, generation: 2 });
-        sendStub.onSecondCall().resolves({ sent: true, sentMessageId: 50, generation: 1 });
-
-        // gen 2's POST returns first and opens the marker.
-        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', localSessionId: 'session-42' });
-        const markerAfterGen2 = internals(h.provider)._reconcileMarker as { generation: number; baselineMessageId: number };
-        assert.strictEqual(markerAfterGen2.generation, 2);
-        assert.strictEqual(markerAfterGen2.baselineMessageId, 100);
-
-        // gen 1's POST returns late. It must NOT overwrite the newer marker...
-        await internals(h.provider)._handleChatMessage({ text: 'a', localId: 'l1', localSessionId: 'session-42' });
-        const markerAfterGen1 = internals(h.provider)._reconcileMarker as { generation: number; baselineMessageId: number };
-        assert.strictEqual(markerAfterGen1.generation, 2, 'gen 1 must not replace the gen 2 marker');
-        assert.strictEqual(markerAfterGen1.baselineMessageId, 100, 'gen 2 baseline must survive');
-
-        // ...but its optimistic bubble is still confirmed, independent of the marker.
-        const confirms = confirmCalls(h.postSpy);
-        assert.ok(confirms.some(c => (c.args[0] as { id?: number }).id === 100), 'gen 2 bubble confirmed');
-        assert.ok(confirms.some(c => (c.args[0] as { id?: number }).id === 50), 'gen 1 bubble still confirmed');
-    });
-
-    test('same-generation run rebind (A -> C) during fetch aborts resolution (currentRunId re-check)', async () => {
-        const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        const genA = beginBoundRun(runs, 'run-A');
-        internals(h.provider)._reconcileMarker = {
-            generation: genA, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
+        const generation = runs.generation;
 
         let resolveFetch: (v: unknown) => void = () => { /* noop */ };
-        h.fetchStub.onFirstCall().returns(new Promise(res => { resolveFetch = res; }) as never);
-
-        const p = internals(h.provider)._reconcileOnResubscribe(42);
+        h.api.getChatSessionById.returns(new Promise(res => { resolveFetch = res; }) as never);
+        const p = internals(h.provider)._recoverOnResubscribe(100);
         await tick();
 
         // A late unknown frame rebinds currentRunId within the SAME generation.
         runs.admit({ runId: 'run-C' } as never);
-        assert.strictEqual(runs.currentRunId, 'run-C');
-        assert.strictEqual(runs.generation, genA, 'generation must be unchanged by the rebind');
-
-        // Conclusive history for A returns, but the run it proves finished is no
-        // longer the bound run, so nothing may resolve or merge.
-        resolveFetch([assistant(99)]);
+        assert.strictEqual(runs.generation, generation, 'the rebind must not bump the generation');
+        resolveFetch(detail({ sessionId: 100, messages: [answer(99)] as never }));
         await p;
         await tick();
 
-        assert.strictEqual(mergeCalls(h.postSpy).length, 0, 'rebind must abort the merge');
-        assert.strictEqual(runs.waiting, true, 'C must not be resolved by A history');
-        assert.ok(internals(h.provider)._reconcileMarker, 'marker must not be cleared');
+        assert.strictEqual(runs.waiting, true, 'history proving the old run finished must not finalize C');
     });
 
-    test('a real context change resets _runs and clears the marker', async () => {
-        const runs = internals(h.provider)._runs;
-        // Establish a first context (this itself resets, so set up state AFTER).
-        h.contextStore.setActiveContext(context(5));
-        beginBoundRun(runs, 'run-A');
-        internals(h.provider)._reconcileMarker = {
-            generation: runs.generation, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
-        assert.strictEqual(runs.waiting, true);
+    test('a send opens the baseline for the generation it began, keyed on the conversation', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 100 });
 
-        // Change to a genuinely different context.
-        h.contextStore.setActiveContext(context(6));
+        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', sessionId: 100 });
 
-        assert.strictEqual(internals(h.provider)._reconcileMarker, undefined, 'context change must clear the marker');
-        assert.strictEqual(runs.waiting, false, 'context change must reset the run machine');
+        const baseline = internals(h.provider)._recovery;
+        assert.strictEqual(baseline?.baselineMessageId, 100);
+        assert.strictEqual(baseline?.sessionId, 100, 'the conversation, not a local session id');
+        assert.strictEqual(baseline?.generation, internals(h.provider)._runs.generation);
     });
 
-    test('pendingGeneration true (first frame never arrived) => no out-of-band resolution', async () => {
-        const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        // beginGeneration WITHOUT an admitted frame: pendingGeneration stays true.
-        const gen = runs.beginGeneration();
-        assert.strictEqual(runs.pendingGeneration, true);
-        internals(h.provider)._reconcileMarker = {
-            generation: gen, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
+    test('an older POST completing late must not replace the newer baseline', async () => {
+        // The coordinator serialises OUR sends, but an inbound run can still
+        // open a newer generation, and a late completion must not point
+        // recovery at a run it did not start.
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 100 });
+        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', sessionId: 100 });
+        const newer = internals(h.provider)._recovery;
 
-        await internals(h.provider)._reconcileOnResubscribe(42);
+        injectSendCoordinator(h.provider, { messageId: 50, supersede: true });
+        await internals(h.provider)._handleChatMessage({ text: 'a', localId: 'l1', sessionId: 100 });
 
-        assert.strictEqual(h.fetchStub.callCount, 0, 'pendingGeneration must block the fetch');
+        assert.deepStrictEqual(internals(h.provider)._recovery, newer, 'the stale POST must not replace it');
     });
 
-    test('a second resubscribe during an in-flight fetch is coalesced (re-runs once)', async () => {
-        const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        const gen = beginBoundRun(runs, 'run-A');
-        internals(h.provider)._reconcileMarker = {
-            generation: gen, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
+    test('a send superseded by a newer generation opens no baseline', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 100, supersede: true });
 
-        let resolveFetch: (v: unknown) => void = () => { /* noop */ };
-        h.fetchStub.onFirstCall().returns(new Promise(res => { resolveFetch = res; }) as never);
-        // Inconclusive history keeps the marker + waiting alive so the coalesced
-        // re-run passes the gate again.
-        h.fetchStub.resolves([] as never);
+        await internals(h.provider)._handleChatMessage({ text: 'b', localId: 'l2', sessionId: 100 });
 
-        const p = internals(h.provider)._reconcileOnResubscribe(42);
-        await tick();
-        assert.strictEqual(h.fetchStub.callCount, 1);
-
-        // Second resubscribe while the first fetch is in flight: must be coalesced.
-        void internals(h.provider)._reconcileOnResubscribe(42);
-        assert.strictEqual(h.fetchStub.callCount, 1, 'the second trigger must not start a parallel fetch');
-
-        resolveFetch([]);
-        await p;
-        await tick();
-
-        assert.strictEqual(h.fetchStub.callCount, 2, 'the coalesced trigger must re-run the fetch exactly once');
+        assert.strictEqual(internals(h.provider)._recovery, undefined);
     });
 
-    test('conclusive history resolves the run and publishes run UI', async () => {
-        const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        const gen = beginBoundRun(runs, 'run-A');
-        internals(h.provider)._reconcileMarker = {
-            generation: gen, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
+    test('opening another conversation resets the run machine and clears the baseline', async () => {
+        await openConversation(h);
+        injectSendCoordinator(h.provider, { messageId: 10 });
+        await internals(h.provider)._handleChatMessage({ text: 'why?', localId: 'l1', sessionId: 100 });
+        assert.ok(internals(h.provider)._recovery);
 
-        // Seed a stale handler-side draft, mirroring the real scenario: earlier
-        // PARTIAL frames landed before the WS dropped mid-answer, and a pure
-        // disconnect never clears the handler's own projection (only the
-        // webview store is reset). The resolution publish below must clear it,
-        // not resurrect it as a phantom duplicate bubble.
-        internals(h.provider)._websocketMessageHandler.handleIrisWebSocketMessage({
-            type: 'PARTIAL', runId: 'run-A', partialResult: 'stale partial answer', partialSeq: 1,
-        });
+        // A navigation: the outgoing conversation's in-flight run has nothing
+        // to do with the one now open.
+        h.api.getChatSessionById.resolves(detail({ sessionId: 200 }));
+        await (h.provider as unknown as { _handleOpenConversation: (p: { courseId: number; sessionId: number }) => Promise<void> })
+            ._handleOpenConversation({ courseId: 42, sessionId: 200 });
 
-        h.fetchStub.resolves([assistant(99)] as never);
-        h.publishSpy.resetHistory();
-        h.postSpy.resetHistory();
-
-        await internals(h.provider)._reconcileOnResubscribe(42);
-        await tick();
-
-        assert.strictEqual(mergeCalls(h.postSpy).length, 1, 'history must be merged');
-        assert.strictEqual(runs.waiting, false, 'conclusive history must resolve the run');
-        assert.ok(h.publishSpy.called, 'run UI must be republished after resolution');
-        assert.strictEqual(internals(h.provider)._reconcileMarker, undefined, 'the resolved marker must be cleared');
-
-        const runUiUpdates = runUiCalls(h.postSpy);
-        assert.strictEqual(runUiUpdates.length, 1, 'exactly one run UI projection must be published on resolution');
-        const projection = runUiUpdates[0].args[0] as { projection: { draft: unknown; waiting: boolean } };
-        assert.strictEqual(projection.projection.draft, null, 'the stale partial draft must be cleared, not resurrected');
-        assert.strictEqual(projection.projection.waiting, false, 'the republished projection must reflect the resolved run');
-    });
-
-    test('inconclusive history merges but leaves waiting true', async () => {
-        const runs = internals(h.provider)._runs;
-        activateSession(h.contextStore, 5, 42);
-        const gen = beginBoundRun(runs, 'run-A');
-        internals(h.provider)._reconcileMarker = {
-            generation: gen, localSessionId: 'session-42', artemisSessionId: 42, baselineMessageId: 10,
-        };
-        // Assistant message at/under the baseline does not prove the in-flight run ended.
-        h.fetchStub.resolves([assistant(10)] as never);
-        h.publishSpy.resetHistory();
-
-        await internals(h.provider)._reconcileOnResubscribe(42);
-        await tick();
-
-        assert.strictEqual(mergeCalls(h.postSpy).length, 1, 'history must still be merged');
-        assert.strictEqual(runs.waiting, true, 'inconclusive history must leave the run waiting');
-        assert.ok(internals(h.provider)._reconcileMarker, 'the marker must survive an inconclusive reconcile');
-        assert.ok(!h.publishSpy.called, 'no resolution => no run-UI republish');
+        assert.strictEqual(internals(h.provider)._recovery, undefined, 'a navigation must clear the baseline');
+        assert.strictEqual(internals(h.provider)._runs.waiting, false, 'and reset the run machine');
     });
 });

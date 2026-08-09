@@ -74,13 +74,13 @@ export class SubscriptionRegistry {
         );
     }
 
-    public subscribeToIrisSession(sessionId: number, onMessage: (message: unknown) => void): () => void {
+    public subscribeToIrisSession(id: number, onMessage: (m: unknown, sourceSessionId: number) => void): () => void {
         if (!this._client) {
             this._deps.log('Cannot subscribe: not connected');
             throw new Error('WebSocket not connected');
         }
 
-        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
+        const topic = WEBSOCKET_TOPICS.irisSession(id);
 
         if (this._subscriptions.has(topic)) {
             this._deps.log(`Replacing existing subscription for ${topic}`);
@@ -92,8 +92,8 @@ export class SubscriptionRegistry {
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
                 const data: unknown = JSON.parse(message.body);
-                this._deps.log(`Received Iris message for session ${sessionId}`);
-                onMessage(data);
+                this._deps.log(`Received Iris message for session ${id}`);
+                onMessage(data, id);
             } catch (error) {
                 const stack = error instanceof Error ? error.stack : String(error);
                 this._deps.log(`Error processing Iris message: ${stack}`);

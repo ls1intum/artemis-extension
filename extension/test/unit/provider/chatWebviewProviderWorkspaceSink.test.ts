@@ -3,11 +3,16 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import * as detectionModule from '@extension/services/workspace/workspaceDetectionService';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
-function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonSandbox; mockContext: MockExtensionContext } {
+function buildProvider(): {
+    provider: ChatWebviewProvider;
+    sandbox: sinon.SinonSandbox;
+    mockContext: MockExtensionContext;
+    coursesLoaded: vscode.EventEmitter<unknown>;
+} {
     const sandbox = sinon.createSandbox();
     sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => undefined });
     const mockContext = new MockExtensionContext();
@@ -16,11 +21,17 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    const courseDataCache = {
-        onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
+    // Kept, not inlined: a test has to be able to fire it.
+    const coursesLoaded = new vscode.EventEmitter<unknown>();
+    const courseCatalog = {
+        onCoursesLoaded: coursesLoaded.event,
         fetch: async () => undefined,
+        projection: () => ({ courses: [], exercises: [] }),
+        courseTitle: () => undefined,
+        exerciseTitle: () => undefined,
     };
-    const contextStore = new ContextStore(mockContext);
+    const workspaceTracker = new WorkspaceExerciseTracker();
+    const sessionIdentity = { state: { kind: 'anonymous', serverKey: 'https://artemis.test' }, epoch: 0 };
     const provider = new ChatWebviewProvider(
         vscode.Uri.file('/tmp'),
         mockContext as unknown as vscode.ExtensionContext,
@@ -28,52 +39,94 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         undefined,
         noAi as never,
         registry as never,
-        courseDataCache as never,
-        contextStore,
+        courseCatalog as never,
+        undefined,
+        workspaceTracker,
+        { getAccessTimestamp: () => undefined } as never,
+        sessionIdentity as never,
     );
-    return { provider, sandbox, mockContext };
+    return { provider, sandbox, mockContext, coursesLoaded };
 }
 
 suite('ChatWebviewProvider workspace sink', () => {
     let provider: ChatWebviewProvider;
     let sandbox: sinon.SinonSandbox;
+    let coursesLoaded: vscode.EventEmitter<unknown>;
 
     setup(() => {
         const built = buildProvider();
         provider = built.provider;
         sandbox = built.sandbox;
+        coursesLoaded = built.coursesLoaded;
     });
 
     teardown(() => {
         provider.dispose();
         sandbox.restore();
+        coursesLoaded.dispose();
     });
 
-    test('registerWorkspaceExercise delegates to chatContextManager.registerExerciseAndAutoSelect', () => {
-        const ccm = (provider as unknown as { _chatContextManager: { registerExerciseAndAutoSelect: sinon.SinonStub } })._chatContextManager;
-        const spy = sandbox.stub(ccm, 'registerExerciseAndAutoSelect');
-        const input = { id: 1, title: 'X', source: 'workspace-detected' as const, isWorkspace: true as const };
-        provider.registerWorkspaceExercise(input);
-        assert.ok(spy.calledOnceWith(input));
-    });
-
-    test('clearWorkspaceExercise calls clearStaleWorkspaceContext, clearWorkspaceFlag, postSnapshot in order', () => {
+    test('registerWorkspaceExercise sets the exercise on the workspace tracker', () => {
         const internals = provider as unknown as {
-            _chatContextManager: { clearStaleWorkspaceContext: sinon.SinonStub };
-            _contextStore: { clearWorkspaceFlag: sinon.SinonStub };
+            _workspaceTracker: { set: sinon.SinonStub };
+        };
+        const set = sandbox.stub(internals._workspaceTracker, 'set');
+        const input = { id: 1, title: 'X', courseId: 9 };
+
+        provider.registerWorkspaceExercise(input);
+
+        assert.ok(set.calledOnceWith(input));
+    });
+
+    test('the detected exercise reaches the wire, so the picker can badge it', () => {
+        // The picker derives its "Workspace" badge from `workspaceExerciseId`
+        // alone (`ContextPicker.tsx`). Between Tasks 7 and 9 the presenter
+        // still read the persisted store, which no longer received workspace
+        // writes, so the field was permanently undefined and the badge dark.
+        const posted: Array<{ type?: string; state?: { workspaceExerciseId?: number } }> = [];
+        sandbox.stub(
+            provider as unknown as { _postMessageSafe: (m: unknown) => void },
+            '_postMessageSafe',
+        ).callsFake((m: unknown) => { posted.push(m as { type?: string }); });
+
+        provider.registerWorkspaceExercise({ id: 77, title: 'BFS', courseId: 9 });
+        (provider as unknown as { _viewStatePresenter: { postSnapshot(): void } })
+            ._viewStatePresenter.postSnapshot();
+
+        const state = posted.filter(m => m?.type === 'updateIrisState').at(-1)?.state;
+        assert.strictEqual(state?.workspaceExerciseId, 77);
+    });
+
+    // A supplemental write (entering a course, opening an exercise) has to
+    // repaint the picker by itself. It used to reach the webview only because
+    // `ChatStartupCoordinator.onDetectionSettled` republishes the detection
+    // state unconditionally, so the repaint rode on a workspace detection: a
+    // git-remote read and possibly an archived-course probe for what is a
+    // redraw, and nothing at all while the session is still resolving.
+    test('a catalog write repaints the chat on its own', () => {
+        const postSnapshot = sandbox.stub(
+            (provider as unknown as { _viewStatePresenter: { postSnapshot(): void } })._viewStatePresenter,
+            'postSnapshot',
+        );
+
+        coursesLoaded.fire(undefined);
+
+        assert.strictEqual(postSnapshot.callCount, 1);
+    });
+
+    test('clearWorkspaceExercise calls the tracker clear then postSnapshot', () => {
+        const internals = provider as unknown as {
+            _workspaceTracker: { clear: sinon.SinonStub };
             _viewStatePresenter: { postSnapshot: sinon.SinonStub };
         };
-        const a = sandbox.stub(internals._chatContextManager, 'clearStaleWorkspaceContext');
-        const b = sandbox.stub(internals._contextStore, 'clearWorkspaceFlag');
+        const b = sandbox.stub(internals._workspaceTracker, 'clear');
         const c = sandbox.stub(internals._viewStatePresenter, 'postSnapshot');
 
         provider.clearWorkspaceExercise();
 
-        assert.ok(a.calledOnce, 'clearStaleWorkspaceContext should fire');
-        assert.ok(b.calledOnce, 'clearWorkspaceFlag should fire');
+        assert.ok(b.calledOnce, 'the tracker clear() should fire');
         assert.ok(c.calledOnce, 'postSnapshot should fire');
-        assert.ok(a.calledBefore(b), 'clearStale must run before clearFlag');
-        assert.ok(b.calledBefore(c), 'clearFlag must run before postSnapshot');
+        assert.ok(b.calledBefore(c), 'clear must run before postSnapshot');
     });
 });
 

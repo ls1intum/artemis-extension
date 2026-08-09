@@ -105,7 +105,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             return vscode.workspace.textDocuments.find(d => isAnchorDocument(d, anchorFile, root))?.getText();
         },
         postIntervention: (exId, body) => deps.postIntervention(exId, body),
-        openSession: async id => { await deps.openProactiveSession(id); },
+        openSession: async (courseId, id) => { await deps.openProactiveSession(courseId, id); },
         showLamp: () => lamp.showLamp(),
         // Snapshot the absolute anchor Uri at arm time (inverse of the shared relPath in inlineHint.ts),
         // so a later exercise switch cannot retarget the jump click. The orchestrator has already

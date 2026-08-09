@@ -149,4 +149,24 @@ suite('ExerciseRegistry Test Suite', () => {
         assert.strictEqual(exercises[0].id, 1);
         assert.strictEqual(exercises[0].title, 'Exercise 1 (updated title)');
     });
+
+    test('reset empties the exercises and the participation lookup', () => {
+        const registry = new ExerciseRegistry();
+        registry.registerExercise(1, 'A', 'https://git/a', 'A', 10, 99);
+        registry.reset();
+        assert.deepStrictEqual(registry.getAllExercises(), []);
+        assert.strictEqual(registry.getExerciseIdByParticipation(99), undefined);
+    });
+
+    test('replaceAll installs exactly the given entries and rebuilds the lookup', () => {
+        const registry = new ExerciseRegistry();
+        registry.registerExercise(1, 'A', 'https://git/a', 'A', 10, 99);
+        registry.replaceAll([
+            { id: 2, title: 'B', repositoryUri: 'https://git/b', courseId: 11, participationId: 42 },
+        ]);
+        assert.deepStrictEqual(registry.getAllExercises().map(e => e.id), [2]);
+        assert.strictEqual(registry.getExerciseIdByParticipation(42), 2);
+        // The previous participation must not answer for an exercise that is gone.
+        assert.strictEqual(registry.getExerciseIdByParticipation(99), undefined);
+    });
 });

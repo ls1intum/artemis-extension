@@ -81,6 +81,34 @@ export class ExerciseRegistry {
         }
     }
 
+    /**
+     * Empties the whole index. The registry is memory-only but outlives a
+     * logout, and workspace detection only fetches when it is EMPTY
+     * (workspaceDetectionService.ts), so without this the next account's
+     * detection reads the previous account's exercises and can resolve their
+     * ids for this folder's remote.
+     */
+    public reset(): void {
+        this.exercises.clear();
+        this.participationToExercise.clear();
+    }
+
+    /**
+     * Installs exactly entries, dropping everything else. The registry is an
+     * index over the catalog now, not a second source of truth: an exercise the
+     * catalog no longer projects must not keep answering repository matches.
+     */
+    public replaceAll(entries: ExerciseRegistryEntry[]): void {
+        this.reset();
+        for (const entry of entries) {
+            this.registerExercise(
+                entry.id, entry.title, entry.repositoryUri,
+                entry.shortName, entry.courseId, entry.participationId,
+            );
+        }
+        logger.exercise(`Registry rebuilt with ${this.exercises.size} exercises`);
+    }
+
     public registerFromCourseData(courseData: unknown): void {
         // Local predicate: accept anything that structurally looks like a
         // CourseDashboardEntry (has a `course` property OR top-level `id`).

@@ -1,10 +1,5 @@
-export type { ChatContextReason } from './chat/chatContextManager';
-export { ChatContextManager } from './chat/chatContextManager';
 export { ChatDiagnosticsService } from './chat/chatDiagnosticsService';
-export { ChatMessageService } from './chat/chatMessageService';
-export { IrisChatSessionService } from './chat/chatSessionService';
 export { IRIS_CHAT_HELP_MARKDOWN } from './chat/helpContent';
+export { IrisAvailabilityService } from './chat/irisAvailabilityService';
 export { IrisWebSocketMessageHandler } from './chat/irisWebSocketMessageHandler';
-export { ContextStore } from './context/contextStore';
-export type { IrisServiceDeps } from './context/sessionSyncUtils';
 export { IrisWebSocketSessionClient } from './transport/irisWebSocketSessionClient';

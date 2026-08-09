@@ -2,8 +2,11 @@ import * as vscode from 'vscode';
 
 import type { ExtensionToWebviewMessage, IrisRunUiProjection, WebSocketDisplayStatus } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
+import type { IrisChatMessage } from '@shared/types/apiResponses';
 
 import { classifyIrisFrame } from '@extension/services/iris/chat/classifyIrisFrame';
+import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
+import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import type { IrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
 import { isIrisActivity, isIrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
@@ -40,9 +43,10 @@ export class IrisWebSocketMessageHandler {
     //
     // NOTE: on disconnect, only the webview store is reset (via
     // UpdateWebSocketStatus -> resetTransientChatUi in the webview). This
-    // handler-side projection is intentionally left untouched here; clearing
-    // it on reconnect is owned by the deferred reconnect-reconciliation work,
-    // not an oversight of this handler.
+    // handler-side projection is left untouched here on purpose: the
+    // provider's `_recoverOnResubscribe` clears it (resetRunUiAndPublish)
+    // once the reconciled history proves the run finished, which is the only
+    // moment a stale partial is known to be stale.
     private _draft: { runId: string; text: string } | null = null;
     private _activities: IrisActivityDTO[] = [];
     private _runState: IrisRunState | null = null;
@@ -54,17 +58,62 @@ export class IrisWebSocketMessageHandler {
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _runs: IrisRunStateMachine,
-        private readonly _getLocalSessionId: () => string | undefined,
-        private readonly _onSessionTitleUpdate?: (artemisSessionId: number, title: string) => void,
+        private readonly _getConversation: () => IrisConversationService | undefined,
     ) { }
 
-    public handleIrisWebSocketMessage(data: unknown): void {
+    /**
+     * Gates every behaviour that needs a conversation (the source-session
+     * check, the CTXSWAP branch, host-state ingestion) on one being *open*,
+     * not merely constructed: the service exists from activation, but
+     * `ConversationState.currentSessionId` stays `undefined` until `start()`
+     * or a navigation has installed something.
+     */
+    private get _activeConversation(): IrisConversationService | undefined {
+        const conversation = this._getConversation();
+        return conversation?.state.snapshot().currentSessionId !== undefined ? conversation : undefined;
+    }
+
+    public handleIrisWebSocketMessage(data: unknown, sourceSessionId: number): void {
         if (!isIrisWebSocketMessage(data) || typeof data.type !== 'string') {
             logger.info(`Unknown message format: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
             return;
         }
 
-        // Proactive struggle pushes are classified and routed FIRST, before the
+        // 1. Source check FIRST: before admission, before run state, before the
+        //    title handler. A frame from the conversation we just left must not
+        //    be able to bind an unknown run as current or rename the live
+        //    session. Skipped only while nothing is open yet, when there is
+        //    no conversation to check the frame against.
+        const conversation = this._activeConversation;
+        if (conversation !== undefined) {
+            const current = conversation.state.snapshot().currentSessionId;
+            if (sourceSessionId !== current) {
+                logger.info(`Dropped frame from session ${sourceSessionId} (current ${String(current)})`, LogCategory.WEBSOCKET);
+                return;
+            }
+            // 2. A context-swap marker is not chat and never touches run state.
+            if (data.type === 'MESSAGE' && data.message && isContextSwap(data.message)) {
+                this._handleContextSwap(conversation, data.message);
+                return;
+            }
+            // 3. Anything else carrying a body is CONTENT, whatever we draw.
+            //    Placed here so the USER-echo, bodiless-answer and ARTIFACT
+            //    early returns further down cannot skip it.
+            if (data.type === 'MESSAGE' && data.message) {
+                conversation.state.upsertMessage(data.message);
+            }
+        }
+
+        // Proactive pushes are routed BEFORE run admission but AFTER the source
+        // check and the canonical upsert above: the frame is already in
+        // ConversationState, so this path only adds the proactive rendering.
+        // Deliberately outside the `conversation !== undefined` guard, because
+        // `_handleProactiveMessage` records the message for the study before it
+        // decides whether there is anywhere to draw it.
+        // A proactive push is a complete, server-initiated bubble, never part of
+        // a user-initiated run; letting one that happened to carry a runId/runState
+        // reach admission or applyRunState could bind, reject, or finalize a live
+        // user run and wipe its draft. The proactive path bypasses run state entirely. before the
         // run state machine ever sees the frame. A proactive push is a complete,
         // server-initiated bubble, never part of a user-initiated run; letting a
         // proactive frame that happened to carry a runId/runState reach admission
@@ -138,7 +187,7 @@ export class IrisWebSocketMessageHandler {
             sentAt: sentAtMs,
         });
 
-        const localSessionId = this._getLocalSessionId();
+        const localSessionId = this._targetSessionId();
         if (!localSessionId) {
             // No active session to attribute the bubble to. Dropping the render
             // is correct (it would attach to whatever session the user opens
@@ -149,7 +198,7 @@ export class IrisWebSocketMessageHandler {
 
         this._postMessage({
             type: ExtensionMsg.AddMessage,
-            localSessionId,
+            sessionId: localSessionId,
             message: {
                 id: msg.id,
                 role: 'assistant',
@@ -197,10 +246,10 @@ export class IrisWebSocketMessageHandler {
 
         const content = extractIrisMessageContent(msg.content);
         if (msg.sender === 'USER') {
-            // A USER frame is the echoed prompt, never a run terminator; it must
-            // not finalize the current run even if the server ever scopes it to
-            // a runId.
+            // Never a run terminator, whoever wrote it: it must not finalize the
+            // current run even if the server ever scopes it to a runId.
             this.publishCurrentRunUi();
+            this._renderForeignUserMessage(msg, content);
             return;
         }
 
@@ -223,19 +272,19 @@ export class IrisWebSocketMessageHandler {
             if (!intermediate) { this._activities = []; }
         }
 
-        const localSessionId = this._getLocalSessionId();
-        if (!localSessionId) {
-            // No active session to attribute this message to. Dropping is
-            // correct: rendering it would attach it to whatever session the
-            // user opens next.
-            logger.info('Dropping Iris message: no active local session', LogCategory.WEBSOCKET);
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) {
+            // No conversation to attribute this message to. Dropping is
+            // correct: rendering it would attach it to whatever conversation
+            // the student opens next.
+            logger.info('Dropping Iris message: no session to attribute it to', LogCategory.WEBSOCKET);
             return;
         }
 
         const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
         this._postMessage({
             type: ExtensionMsg.AddMessage,
-            localSessionId,
+            sessionId,
             message: {
                 id: msg.id,
                 role: 'assistant',
@@ -261,16 +310,57 @@ export class IrisWebSocketMessageHandler {
     }
 
     /**
-     * `undefined` when there is no active local session. `localSessionId` on the
-     * projection is a required `string`, and the accessor is
-     * `snapshot().activeSession?.id`, so the narrowing has to happen HERE.
-     * "The webview will reject it" is not reachable: tsc rejects it first.
+     * A USER message on this conversation that the webview has not drawn: one
+     * the student wrote SOMEWHERE ELSE (the Artemis web client, a second
+     * window), or the server's echo of our own prompt.
+     *
+     * These used to be dropped wholesale, on the grounds that a USER frame is
+     * only ever our own echo. That quietly broke the promise the whole
+     * conversation-first model rests on: what you see is what the server has.
+     * The host state already recorded it (every MESSAGE frame with a body is
+     * upserted above), so the message reappeared on the next reload, which made
+     * the gap look like a rendering delay rather than a loss.
+     *
+     * Deliberately NOT gated on `sendInFlight`. That flag is set before file
+     * collection and stays set through the POST and its reconciliation, and
+     * another client can write throughout, so suppressing by timing loses those
+     * messages for good: nothing re-delivers the transcript when a send settles.
+     * Telling our own echo apart from a foreign message is the webview's job,
+     * because only it knows what it drew (see `upsertMessage` in the store).
+     */
+    private _renderForeignUserMessage(msg: IrisChatMessage, content: string): void {
+        if (!content) { return; }
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) { return; }
+
+        this._postMessage({
+            type: ExtensionMsg.AddMessage,
+            sessionId,
+            message: {
+                id: msg.id,
+                role: 'user',
+                content,
+                timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+            },
+        });
+    }
+
+    /** The conversation a frame belongs to, or `undefined` when none is open. */
+    private _targetSessionId(): number | undefined {
+        return this._activeConversation?.state.snapshot().currentSessionId;
+    }
+
+    /**
+     * `undefined` when there is nothing to attribute the projection to.
+     * `sessionId` is a required `number` on the projection, so the narrowing
+     * has to happen HERE: "the webview will reject it" is not reachable, tsc
+     * rejects it first.
      */
     private _buildProjection(): IrisRunUiProjection | undefined {
-        const localSessionId = this._getLocalSessionId();
-        if (!localSessionId) { return undefined; }
+        const sessionId = this._targetSessionId();
+        if (sessionId === undefined) { return undefined; }
         return {
-            localSessionId,
+            sessionId,
             revision: ++this._revision,
             draft: this._draft,
             activities: this._activities,
@@ -323,7 +413,57 @@ export class IrisWebSocketMessageHandler {
         }
 
         logger.info(`Session title received: "${sessionTitle}" for session ${artemisSessionId}`, LogCategory.WEBSOCKET);
-        this._onSessionTitleUpdate?.(artemisSessionId, sessionTitle);
+
+        const conversation = this._activeConversation;
+        if (!conversation) { return; }
+        conversation.state.setTitle(sessionTitle);
+        // Without this, a server-side rename lands in host state but never
+        // reaches the webview until some unrelated emit happens to fire: the
+        // presenter repaints only off IrisConversationService.onDidChange,
+        // which fires only from _emit/notifyChanged.
+        conversation.notifyChanged();
+    }
+
+    /**
+     * A context-swap marker is not chat: it never touches run state, and a
+     * malformed one is repaired by reloading rather than guessed at.
+     */
+    private _handleContextSwap(conversation: IrisConversationService, message: IrisChatMessage): void {
+        const swap = parseContextSwap(message);
+        if (!swap) {
+            // Undecodable marker: it is still content on the server, so reload the
+            // detail rather than guess. Never fall through to the chat path.
+            //
+            // `reload` refuses while a send is unresolved and defers itself, which
+            // matters here: the server writes this marker WHILE our own POST is
+            // open, so an ungated reload would navigate mid-send and walk straight
+            // past the dispatcher gating of spec 7.3.
+            void conversation.reload();
+            return;
+        }
+        const outcome = conversation.state.applyContextSwap(swap, message);
+        const sessionId = this._targetSessionId();
+        if (sessionId !== undefined) {
+            this._postMessage({
+                type: ExtensionMsg.AddMessage,
+                sessionId,
+                message: {
+                    id: message.id,
+                    role: 'contextSwap',
+                    content: describeContextSwap(swap),
+                    timestamp: message.sentAt ? new Date(message.sentAt).getTime() : Date.now(),
+                },
+            });
+        }
+        if (outcome === 'pending-dropped') {
+            // Informative only, no undo: the marker itself makes the conversation
+            // non-empty, so the staging could never be restored.
+            this._postMessage({
+                type: ExtensionMsg.ShowChatNotice,
+                text: 'The topic was changed elsewhere. Your staged topic was discarded.',
+            });
+        }
+        conversation.notifyChanged();
     }
 
     public async handleReconnectWebSocket(): Promise<ReconnectResult> {

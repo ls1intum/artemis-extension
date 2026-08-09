@@ -3,255 +3,150 @@ import BookOpen from 'lucide-react/dist/esm/icons/book-open';
 import Check from 'lucide-react/dist/esm/icons/check';
 import File from 'lucide-react/dist/esm/icons/file';
 import Search from 'lucide-react/dist/esm/icons/search';
-import type { KeyboardEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
 
-import type { ChatContextType } from '@shared/types/context';
-
 import { useClickOutside } from '@webview/hooks/useClickOutside';
-import { compareCoursesForPicker, compareExercisesForPicker } from '@webview/views/IrisChat/pickerSort';
-import type { ChatContext, ContextItem } from '@webview/views/IrisChat/types';
+import { usePopoverKeyDown } from '@webview/hooks/usePopoverKeyDown';
+import { compareExercisesForPicker } from '@webview/views/IrisChat/pickerSort';
+import type { ContentState, ContextItem, ConversationTopic } from '@webview/views/IrisChat/types';
 
 import styles from './ContextPicker.module.css';
 
 interface ContextPickerProps {
-    context: ChatContext | null;
+    onClose?: () => void;
     exercises: ContextItem[];
-    courses: ContextItem[];
-    onSelectContext: (type: ChatContextType, id: number, title: string, shortName?: string) => void;
-    onClose: () => void;
+    /** The course the picker is scoped to. There are no cross-course entries. */
+    courseId: number;
+    committedContext?: ConversationTopic;
+    pendingContext?: ConversationTopic;
+    contentState?: ContentState;
+    sendInFlight?: boolean;
+    /** Pinned and badged in the list when it belongs to this course. */
+    workspaceExerciseId?: number | null;
+    onSelect: (topic: ConversationTopic) => void;
 }
 
-/** True if `context` is the "course chat" for the given course id. */
-function isActiveCourseChat(context: ChatContext | null, courseId: number): boolean {
-    return context?.type === 'course' && context.id === courseId;
-}
-
-/** True if `context` is the given exercise. */
-function isActiveExercise(context: ChatContext | null, exerciseId: number): boolean {
-    return context?.type === 'exercise' && context.id === exerciseId;
-}
-
-export function ContextPicker({ context, exercises, courses, onSelectContext, onClose }: ContextPickerProps) {
+/**
+ * The topic picker: "Course chat" as a fixed first entry, then this course's
+ * exercises with the workspace one pinned and badged. One checkmark, on
+ * `pending ?? committed`.
+ *
+ * No cross-course entries. The host rejects a cross-course topic change
+ * outright, so such a pick could never be a staging, and folding a course
+ * navigation into this menu would make one click mean two different things.
+ */
+export function ContextPicker({
+    courseId,
+    exercises,
+    committedContext,
+    pendingContext,
+    contentState = 'unknown',
+    sendInFlight = false,
+    workspaceExerciseId = null,
+    onSelect,
+    onClose,
+}: ContextPickerProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const dialogRef = useRef<HTMLDivElement>(null);
-    const searchInputRef = useRef<HTMLInputElement>(null);
-    const [showOtherCourses, setShowOtherCourses] = useState(false);
 
-    useClickOutside(dialogRef, true, onClose);
+    useClickOutside(dialogRef, true, () => onClose?.());
+    const handleKeyDown = usePopoverKeyDown(dialogRef, () => onClose?.());
 
-    const workspaceExercise = useMemo(() => exercises.find(ex => ex.isWorkspace), [exercises]);
-
-    const currentCourseId = useMemo(() => {
-        if (context?.type === 'exercise' && context.courseId !== undefined) { return context.courseId; }
-        if (context?.type === 'course') { return context.id; }
-        if (workspaceExercise?.courseId !== undefined) { return workspaceExercise.courseId; }
-        return courses[0]?.id;
-    }, [context, workspaceExercise, courses]);
-
-    const currentCourse = useMemo(
-        () => courses.find(c => c.id === currentCourseId),
-        [courses, currentCourseId]
-    );
-
-    const otherCourses = useMemo(
-        () => courses.filter(c => c.id !== currentCourseId).sort(compareCoursesForPicker),
-        [courses, currentCourseId]
-    );
-
-    const currentCourseExercises = useMemo(
-        () => exercises.filter(ex => ex.courseId === currentCourseId).sort(compareExercisesForPicker),
-        [exercises, currentCourseId]
-    );
+    // The chip shows `pending ?? committed`, and so does the checkmark: the
+    // two must never disagree about what the topic currently is.
+    const selected = pendingContext ?? committedContext;
+    // A pick always stages into the OPEN conversation, so there is no
+    // consequence to warn about. 'unknown' is still disabled: without the
+    // transcript we cannot tell a real change from a no-op. An in-flight send
+    // owns the conversation until it resolves.
+    const entriesDisabled = contentState === 'unknown' || sendInFlight;
 
     const q = searchQuery.trim().toLowerCase();
-    const isSearching = q.length > 0;
 
-    // Cross-course search: group matching exercises + matching courses (as
-    // course-chat rows) by course, ordered like the retired context dropdown.
-    const searchGroups = useMemo(() => {
-        if (!isSearching) { return []; }
+    const courseExercises = useMemo(
+        () => exercises
+            .filter((ex) => ex.courseId === courseId)
+            .map((ex) => ({ ...ex, isWorkspace: ex.isWorkspace || ex.id === workspaceExerciseId }))
+            .sort(compareExercisesForPicker),
+        [exercises, courseId, workspaceExerciseId],
+    );
 
-        const matchingCourseIds = new Set(
-            courses.filter(c => c.title.toLowerCase().includes(q) || (c.shortName ?? '').toLowerCase().includes(q))
-                .map(c => c.id)
-        );
+    const visibleExercises = q.length === 0
+        ? courseExercises
+        : courseExercises.filter((ex) => ex.title.toLowerCase().includes(q)
+            || (ex.shortName ?? '').toLowerCase().includes(q));
+    const showCourseChat = q.length === 0 || 'course chat'.includes(q);
 
-        const exercisesByCourse = new Map<number, ContextItem[]>();
-        for (const ex of exercises) {
-            const matches = ex.title.toLowerCase().includes(q) || (ex.shortName ?? '').toLowerCase().includes(q);
-            if (!matches || ex.courseId === undefined) { continue; }
-            const list = exercisesByCourse.get(ex.courseId) ?? [];
-            list.push(ex);
-            exercisesByCourse.set(ex.courseId, list);
-        }
-
-        const involvedCourseIds = new Set<number>([...matchingCourseIds, ...exercisesByCourse.keys()]);
-
-        return courses
-            .filter(c => involvedCourseIds.has(c.id))
-            .sort(compareCoursesForPicker)
-            .map(course => ({
-                course,
-                showCourseChat: matchingCourseIds.has(course.id),
-                courseExercises: (exercisesByCourse.get(course.id) ?? []).sort(compareExercisesForPicker),
-            }));
-    }, [isSearching, q, courses, exercises]);
-
-    const handleSelectExercise = (exercise: ContextItem) => {
-        onSelectContext('exercise', exercise.id, exercise.title, exercise.shortName);
-    };
-
-    const handleSelectCourseChat = (course: ContextItem) => {
-        onSelectContext('course', course.id, course.title, course.shortName);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            onClose();
-            return;
-        }
-        if (event.key !== 'Tab') { return; }
-
-        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
-            'button, input, [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusables || focusables.length === 0) { return; }
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-
-        if (event.shiftKey && active === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && active === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    };
-
-    const renderExerciseRow = (exercise: ContextItem) => {
-        const active = isActiveExercise(context, exercise.id);
-        return (
-            <button
-                key={exercise.id}
-                type="button"
-                className={clsx(styles.row, { [styles.rowActive]: active })}
-                data-testid={active ? 'picker-active' : undefined}
-                onClick={() => handleSelectExercise(exercise)}
-            >
-                <File size={16} className={styles.rowIcon} />
-                <span className={styles.rowText} data-testid="picker-exercise">
-                    {exercise.title}
-                    {exercise.isWorkspace && <span className={styles.badge}>Workspace</span>}
-                </span>
-                {active && <Check size={16} className={styles.checkIcon} />}
-            </button>
-        );
-    };
-
-    // The "Course chat" row for the currently shown course (default view,
-    // and again per-course-header when a search matches a course by name).
-    const renderCourseChatRow = (course: ContextItem) => {
-        const active = isActiveCourseChat(context, course.id);
-        return (
-            <button
-                key={`course-chat-${course.id}`}
-                type="button"
-                className={clsx(styles.row, { [styles.rowActive]: active })}
-                data-testid={active ? 'picker-active' : undefined}
-                onClick={() => handleSelectCourseChat(course)}
-            >
-                <BookOpen size={16} className={styles.rowIcon} />
-                <span className={styles.rowTextColumn}>
-                    <span className={styles.rowText}>Course chat</span>
-                    <span className={styles.rowSubtitle}>General questions about the course</span>
-                </span>
-                {active && <Check size={16} className={styles.checkIcon} />}
-            </button>
-        );
-    };
-
-    // A plain course-title row for the "Choose another course…" footer list.
-    const renderOtherCourseRow = (course: ContextItem) => {
-        const active = isActiveCourseChat(context, course.id);
-        return (
-            <button
-                key={course.id}
-                type="button"
-                className={clsx(styles.row, { [styles.rowActive]: active })}
-                data-testid={active ? 'picker-active' : undefined}
-                onClick={() => handleSelectCourseChat(course)}
-            >
-                <BookOpen size={16} className={styles.rowIcon} />
-                <span className={styles.rowText}>{course.title}</span>
-                {active && <Check size={16} className={styles.checkIcon} />}
-            </button>
-        );
-    };
+    const isSelected = (mode: string, entityId: number) =>
+        selected?.mode === mode && selected.entityId === entityId;
 
     return (
         <div
             ref={dialogRef}
-            className={styles.dialog}
+            className={styles.dialogUp}
             role="dialog"
+            aria-label="Select topic"
             aria-modal="true"
             onKeyDown={handleKeyDown}
         >
             <div className={styles.searchWrapper}>
                 <Search size={14} className={styles.searchIcon} />
                 <input
-                    ref={searchInputRef}
                     type="text"
                     className={styles.searchInput}
-                    placeholder="Search course or exercise…"
+                    placeholder="Search topics…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     autoFocus
                 />
             </div>
 
-            {!isSearching && (
-                <div className={styles.list}>
-                    {currentCourse && renderCourseChatRow(currentCourse)}
+            <div className={styles.list}>
+                {showCourseChat && (
+                    <button
+                        type="button"
+                        className={clsx(styles.row, { [styles.rowActive]: isSelected('COURSE_CHAT', courseId) })}
+                        data-testid="picker-entry-course"
+                        aria-current={isSelected('COURSE_CHAT', courseId) || undefined}
+                        disabled={entriesDisabled}
+                        onClick={() => onSelect({ mode: 'COURSE_CHAT', entityId: courseId })}
+                    >
+                        <BookOpen size={16} className={styles.rowIcon} />
+                        <span className={styles.rowText}>Course chat</span>
+                        {isSelected('COURSE_CHAT', courseId) && <Check size={16} className={styles.checkIcon} />}
+                    </button>
+                )}
 
-                    {currentCourseExercises.map(renderExerciseRow)}
+                {visibleExercises.map((exercise) => {
+                    const active = isSelected('PROGRAMMING_EXERCISE_CHAT', exercise.id);
+                    return (
+                        <button
+                            key={exercise.id}
+                            type="button"
+                            className={clsx(styles.row, { [styles.rowActive]: active })}
+                            data-testid={`picker-entry-${exercise.id}`}
+                            aria-current={active || undefined}
+                            disabled={entriesDisabled}
+                            onClick={() => onSelect({
+                                mode: 'PROGRAMMING_EXERCISE_CHAT',
+                                entityId: exercise.id,
+                                name: exercise.title,
+                            })}
+                        >
+                            <File size={16} className={styles.rowIcon} />
+                            <span className={styles.rowText}>
+                                {exercise.title}
+                                {exercise.isWorkspace && <span className={styles.badge}>Workspace</span>}
+                            </span>
+                            {active && <Check size={16} className={styles.checkIcon} />}
+                        </button>
+                    );
+                })}
 
-                    {otherCourses.length > 0 && (
-                        <div className={styles.footer}>
-                            <button
-                                type="button"
-                                className={styles.footerButton}
-                                onClick={() => setShowOtherCourses(v => !v)}
-                            >
-                                Choose another course…
-                            </button>
-                            {showOtherCourses && (
-                                <div className={styles.otherCourses}>
-                                    {otherCourses.map(renderOtherCourseRow)}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {isSearching && (
-                <div className={styles.list}>
-                    {searchGroups.length === 0 && (
-                        <div className={styles.emptyState}>No exercises or courses found</div>
-                    )}
-                    {searchGroups.map(({ course, showCourseChat, courseExercises }) => (
-                        <div key={course.id} className={styles.group}>
-                            <div className={styles.groupHeader}>{course.title}</div>
-                            {showCourseChat && renderCourseChatRow(course)}
-                            {courseExercises.map(renderExerciseRow)}
-                        </div>
-                    ))}
-                </div>
-            )}
+                {!showCourseChat && visibleExercises.length === 0 && (
+                    <div className={styles.emptyState}>No topics found</div>
+                )}
+            </div>
         </div>
     );
 }

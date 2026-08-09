@@ -12,6 +12,7 @@ import type { ChatMessage, StreamingState } from '@webview/views/IrisChat/types'
 
 import { ActivityFeed } from './ActivityFeed';
 import styles from './ChatMessageList.module.css';
+import { ContextSwapRow } from './ContextSwapRow';
 import { groupEarlierHints } from './earlierHints';
 import { EarlierHintsGroup } from './EarlierHintsGroup';
 import { type EpisodeOutcome, episodeTopic, outcomeMeta, rowOutcome } from './episodeSummary';
@@ -108,6 +109,13 @@ interface ChatMessageListProps {
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
     isChatDisabled?: boolean;
+    /**
+     * Sending is refused right now. Only reaches the welcome prompts, which
+     * are sends and go inert with the send button.
+     */
+    sendDisabled?: boolean;
+    /** Why sending is blocked, surfaced on the welcome prompts. */
+    sendDisabledLabel?: string;
     /** Invoked when a failed user message's Retry button is clicked. */
     onRetry?: (localId: string) => void;
     /**
@@ -139,6 +147,8 @@ export function ChatMessageList({
     onSendPrompt,
     hasContext,
     isChatDisabled,
+    sendDisabled,
+    sendDisabledLabel,
     onRetry,
     isRetryDisabled,
     onDismiss,
@@ -241,6 +251,12 @@ export function ChatMessageList({
     // "earlier hints" group (which only ever hands it closed episodes, i.e. the fold-line branch).
     const renderItem = (item: ChatRenderItem): ReactNode => {
         if (item.kind === 'single') {
+            // Stored topic-change markers render in transcript order, before the
+            // message they triggered, matching the server's write order. They carry
+            // no episode, so grouping always hands them over as a single item.
+            if (item.message.role === 'contextSwap') {
+                return <ContextSwapRow key={item.message.localId} text={item.message.content} />;
+            }
             const episodeId = item.message.proactiveEpisodeId;
             if (episodeId) {
                 if (isEpisodeClosed(episodeId)) {
@@ -311,7 +327,13 @@ export function ChatMessageList({
         <div ref={scrollRef} className={styles.scrollContainer}>
             <div ref={contentRef} className={styles.content}>
                 {showWelcome ? (
-                    <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
+                    <WelcomeState
+                        onSendPrompt={onSendPrompt}
+                        hasContext={hasContext}
+                        isChatDisabled={isChatDisabled}
+                        sendDisabled={sendDisabled}
+                        sendDisabledLabel={sendDisabledLabel}
+                    />
                 ) : (
                     <>
                         {groupedRows.map((row) =>

@@ -111,39 +111,39 @@ function simulateParkedWithClosePending(svc: StruggleInterventionService, episod
 // ---------------------------------------------------------------------------
 
 describe('classifyStruggleEvent', () => {
-    it('parses an ambient event', () => {
+    it('parses an ambient event', async () => {
         const e = classifyStruggleEvent({ exerciseId: 42, action: 'ambient', message: 'Re-check the logic.' });
         expect(e).toMatchObject({ exerciseId: 42, action: 'ambient', message: 'Re-check the logic.' });
     });
-    it('parses an active event with sessionId', () => {
+    it('parses an active event with sessionId', async () => {
         const e = classifyStruggleEvent({ exerciseId: 42, action: 'active', sessionId: 7 });
         expect(e).toMatchObject({ exerciseId: 42, action: 'active', sessionId: 7 });
     });
-    it('reads an optional confidence if the frame forwards it (Plan 2 cross-plan)', () => {
+    it('reads an optional confidence if the frame forwards it (Plan 2 cross-plan)', async () => {
         const e = classifyStruggleEvent({ exerciseId: 42, action: 'ambient', message: 'x', confidence: 0.7 });
         expect(e?.confidence).toBe(0.7);
     });
-    it('parses messageId when present (ambient + active)', () => {
+    it('parses messageId when present (ambient + active)', async () => {
         expect(classifyStruggleEvent({ exerciseId: 1, action: 'ambient', message: 'hi', sessionId: 9, messageId: 556, confidence: 0.8 })?.messageId).toBe(556);
         expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9, messageId: 555 })?.messageId).toBe(555);
     });
-    it('leaves messageId undefined when absent or non-numeric', () => {
+    it('leaves messageId undefined when absent or non-numeric', async () => {
         expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9 })?.messageId).toBeUndefined();
         expect(classifyStruggleEvent({ exerciseId: 1, action: 'active', sessionId: 9, messageId: 'x' })?.messageId).toBeUndefined();
     });
-    it('parses anchor + inlineHint', () => {
+    it('parses anchor + inlineHint', async () => {
         const e = classifyStruggleEvent({ exerciseId: 1, action: 'ambient', sessionId: 9, messageId: 5, anchorFile: 'Sort.java', anchorLine: 42, inlineHint: 'off-by-one?' });
         expect(e?.anchorFile).toBe('Sort.java');
         expect(e?.anchorLine).toBe(42);
         expect(e?.inlineHint).toBe('off-by-one?');
     });
-    it('leaves anchor fields undefined when absent or wrong-typed', () => {
+    it('leaves anchor fields undefined when absent or wrong-typed', async () => {
         const e = classifyStruggleEvent({ exerciseId: 1, action: 'ambient', message: 'x', anchorFile: 7, anchorLine: 'x', inlineHint: 9 });
         expect(e?.anchorFile).toBeUndefined();
         expect(e?.anchorLine).toBeUndefined();
         expect(e?.inlineHint).toBeUndefined();
     });
-    it('returns undefined for malformed / non-struggle frames', () => {
+    it('returns undefined for malformed / non-struggle frames', async () => {
         expect(classifyStruggleEvent({ foo: 1 })).toBeUndefined();
         expect(classifyStruggleEvent(null)).toBeUndefined();
         expect(classifyStruggleEvent({ exerciseId: 42, action: 'silent' })).toBeUndefined();
@@ -156,7 +156,7 @@ describe('classifyStruggleEvent', () => {
 // ---------------------------------------------------------------------------
 
 describe('subscribeStruggleEvents dispatch', () => {
-    it('threads exerciseId + episodeId + messageId through to the ambient/active handlers', () => {
+    it('threads exerciseId + episodeId + messageId through to the ambient/active handlers', async () => {
         let onFrame: ((d: unknown) => void) | undefined;
         const subscribe = (_topic: string, f: (d: unknown) => void) => { onFrame = f; return { dispose() { /* noop */ } }; };
         const onServerAmbient = vi.fn();
@@ -186,7 +186,7 @@ describe('subscribeStruggleEvents dispatch', () => {
 // ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService surface split (C1)', () => {
-    it('onServerAmbient with anchor: showGutterOnly + badge + lamp; never showInline, never banner, never bubble', () => {
+    it('onServerAmbient with anchor: showGutterOnly + badge + lamp; never showInline, never banner, never bubble', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -202,7 +202,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.postBubble).not.toHaveBeenCalled();
     });
 
-    it('onServerAmbient without anchor: badge + lamp only; no gutter-only, no inline', () => {
+    it('onServerAmbient without anchor: badge + lamp only; no gutter-only, no inline', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
@@ -216,12 +216,15 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.postBubble).not.toHaveBeenCalled();
     });
 
-    it('onServerActive posts optimistic bubble tagged with messageId + inline + banner + badge + hides lamp', () => {
+    it('onServerActive posts optimistic bubble tagged with messageId + inline + banner + badge + hides lamp', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
         svc.onServerActive('ep-test', 42, 'Sort.java', 10, 'off-by-one?', undefined, 'Try checking array bounds.', 556);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         // Optimistic bubble with messageId for dedup
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556, 'ep-test');
@@ -238,12 +241,15 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.showLamp).not.toHaveBeenCalled();
     });
 
-    it('onServerActive with messageId=null posts runtime-only fallback bubble and still proceeds', () => {
+    it('onServerActive with messageId=null posts runtime-only fallback bubble and still proceeds', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
         svc.onServerActive('ep-test', 42, undefined, undefined, undefined, undefined, 'Try checking bounds.', null);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         // Fallback bubble with null id (runtime-only, no dedup tag)
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking bounds.', null, 'ep-test');
@@ -251,12 +257,15 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.clearLamp).toHaveBeenCalled();
     });
 
-    it('onServerActive with undefined message falls back to a default bubble text', () => {
+    it('onServerActive with undefined message falls back to a default bubble text', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc);
 
         svc.onServerActive('ep-test', 42, undefined, undefined, undefined, undefined, undefined, 123);
+        // The active surface navigates before posting the bubble, so let that settle.
+        await Promise.resolve();
+        await Promise.resolve();
 
         // postBubble still called even if message is undefined
         expect(deps.postBubble).toHaveBeenCalled();
@@ -266,7 +275,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(calledId).toBe(123);
     });
 
-    it('applyEscalation(inSession=true) posts quiet bubble and suppresses banner + inline', () => {
+    it('applyEscalation(inSession=true) posts quiet bubble and suppresses banner + inline', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -277,7 +286,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.showInline).not.toHaveBeenCalled();
     });
 
-    it('applyEscalation(inSession=false) fires banner + inline push', () => {
+    it('applyEscalation(inSession=false) fires banner + inline push', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -288,7 +297,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Check the loop bounds.');
     });
 
-    it('applyEscalation(inSession=false) without anchor data: banner but no inline push', () => {
+    it('applyEscalation(inSession=false) without anchor data: banner but no inline push', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
 
@@ -305,12 +314,12 @@ describe('StruggleInterventionService surface split (C1)', () => {
 // ---------------------------------------------------------------------------
 
 describe('classifyStruggleEvent -- C4 new frame kinds', () => {
-    it('round-trips kind=decide action=silent with episodeId and messageId', () => {
+    it('round-trips kind=decide action=silent with episodeId and messageId', async () => {
         const e = classifyStruggleEvent({ exerciseId: 5, kind: 'decide', action: 'silent', episodeId: 'ep-1', messageId: 42 });
         expect(e).toMatchObject({ exerciseId: 5, kind: 'decide', action: 'silent', episodeId: 'ep-1', messageId: 42 });
     });
 
-    it('round-trips kind=confirm_close with all fields', () => {
+    it('round-trips kind=confirm_close with all fields', async () => {
         const e = classifyStruggleEvent({
             exerciseId: 5, kind: 'confirm_close', episodeId: 'ep-1', resolved: true,
             closingSentence: 'Great job!', episodeLabel: 'Sort fixed', messageId: 99,
@@ -318,11 +327,11 @@ describe('classifyStruggleEvent -- C4 new frame kinds', () => {
         expect(e).toMatchObject({ kind: 'confirm_close', episodeId: 'ep-1', resolved: true, closingSentence: 'Great job!', episodeLabel: 'Sort fixed', messageId: 99 });
     });
 
-    it('returns undefined for kind=confirm_close missing resolved', () => {
+    it('returns undefined for kind=confirm_close missing resolved', async () => {
         expect(classifyStruggleEvent({ exerciseId: 5, kind: 'confirm_close', episodeId: 'ep-1' })).toBeUndefined();
     });
 
-    it('parses kind=decide action=ambient with episodeId (new-style)', () => {
+    it('parses kind=decide action=ambient with episodeId (new-style)', async () => {
         const e = classifyStruggleEvent({ exerciseId: 5, kind: 'decide', action: 'ambient', episodeId: 'ep-2', message: 'Check bounds.', messageId: 88 });
         expect(e).toMatchObject({ kind: 'decide', action: 'ambient', episodeId: 'ep-2', message: 'Check bounds.', messageId: 88 });
     });
@@ -339,7 +348,7 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
         return { subscribe, emit: (d: unknown) => onFrame!(d) };
     }
 
-    it('dispatches kind=decide action=silent to onServerSilent with episodeId and messageId', () => {
+    it('dispatches kind=decide action=silent to onServerSilent with episodeId and messageId', async () => {
         const { subscribe, emit } = makeSubscribe();
         const onServerSilent = vi.fn();
         subscribeStruggleEvents(subscribe, {
@@ -350,7 +359,7 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
         expect(onServerSilent).toHaveBeenCalledWith('ep-silent', 11);
     });
 
-    it('dispatches kind=confirm_close to onServerClose', () => {
+    it('dispatches kind=confirm_close to onServerClose', async () => {
         const { subscribe, emit } = makeSubscribe();
         const onServerClose = vi.fn();
         subscribeStruggleEvents(subscribe, {
@@ -361,7 +370,7 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
         expect(onServerClose).toHaveBeenCalledWith('ep-close', true, 22, undefined, 'Sort done');
     });
 
-    it('still dispatches backwards-compat ambient/active frames', () => {
+    it('still dispatches backwards-compat ambient/active frames', async () => {
         const { subscribe, emit } = makeSubscribe();
         const onServerAmbient = vi.fn();
         const onServerActive = vi.fn();
@@ -381,7 +390,7 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
 // ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService -- C4 silent dispatch', () => {
-    it('kind=decide action=silent with matching episodeId on FREE slot stays FREE and clears candidate', () => {
+    it('kind=decide action=silent with matching episodeId on FREE slot stays FREE and clears candidate', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-test');
@@ -393,7 +402,7 @@ describe('StruggleInterventionService -- C4 silent dispatch', () => {
         expect(svc._inFlightMarker).toBeUndefined();
     });
 
-    it('kind=decide action=silent with mismatched episodeId is dropped (no slot change)', () => {
+    it('kind=decide action=silent with mismatched episodeId is dropped (no slot change)', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-test');
@@ -406,7 +415,7 @@ describe('StruggleInterventionService -- C4 silent dispatch', () => {
         expect(svc._slot.snapshot().state.kind).toBe('free');
     });
 
-    it('mismatched episodeId with messageId triggers postRemoveMessage', () => {
+    it('mismatched episodeId with messageId triggers postRemoveMessage', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-test');
@@ -416,7 +425,7 @@ describe('StruggleInterventionService -- C4 silent dispatch', () => {
         expect(deps.postRemoveMessage).toHaveBeenCalledWith(42);
     });
 
-    it('kind=decide action=silent with PARKED slot calls discardParkedToFree', () => {
+    it('kind=decide action=silent with PARKED slot calls discardParkedToFree', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDecidePending(svc, 'ep-parked');
@@ -438,7 +447,7 @@ describe('StruggleInterventionService -- C4 silent dispatch', () => {
 });
 
 describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
-    it('DELIVERED resolved=true frees slot + calls setEpisodeOutcome(RECOVERED) + foldEpisode with praise', () => {
+    it('DELIVERED resolved=true frees slot + calls setEpisodeOutcome(RECOVERED) + foldEpisode with praise', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDeliveredWithClosePending(svc, 'ep-close');
@@ -450,7 +459,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', 'RECOVERED', { episodeLabel: 'Well done!', closeMessageId: 55 });
     });
 
-    it('DELIVERED resolved=true with no episodeLabel emits fold without praise', () => {
+    it('DELIVERED resolved=true with no episodeLabel emits fold without praise', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDeliveredWithClosePending(svc, 'ep-close');
@@ -461,7 +470,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         expect(deps.foldEpisode).toHaveBeenCalledWith('ep-close', 'RECOVERED', undefined);
     });
 
-    it('PARKED resolved=true calls discardParkedToFree: no message, no fold, no outcome', () => {
+    it('PARKED resolved=true calls discardParkedToFree: no message, no fold, no outcome', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateParkedWithClosePending(svc, 'ep-parked');
@@ -474,7 +483,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         expect(deps.setEpisodeOutcome).not.toHaveBeenCalled();
     });
 
-    it('PARKED resolved=false stays PARKED', () => {
+    it('PARKED resolved=false stays PARKED', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateParkedWithClosePending(svc, 'ep-parked');
@@ -485,7 +494,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         expect(deps.foldEpisode).not.toHaveBeenCalled();
     });
 
-    it('confirmClose with mismatched episodeId is dropped + triggers postRemoveMessage', () => {
+    it('confirmClose with mismatched episodeId is dropped + triggers postRemoveMessage', async () => {
         const deps = makeDeps();
         const svc = new StruggleInterventionService(deps);
         simulateDeliveredWithClosePending(svc, 'ep-close');

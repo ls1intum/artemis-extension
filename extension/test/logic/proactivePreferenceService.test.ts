@@ -18,7 +18,7 @@ function fakeMemento(): import('vscode').Memento {
 const settle = () => new Promise<void>(r => setTimeout(r, 0));
 
 describe('ProactivePreferenceService', () => {
-    const scope = { serverUrl: 'https://artemis.example.com', principal: { id: 7, login: 'student1' } };
+    const scope = { serverKey: 'https://artemis.example.com', principal: `id:${7}` };
     const levelKey = `proactive.level::${normalizeScopeSegment(scope)}`;
     let svc: ProactivePreferenceService;
     beforeEach(() => { svc = new ProactivePreferenceService(fakeMemento(), () => scope); });
@@ -85,7 +85,7 @@ describe('ProactivePreferenceService', () => {
 
     it('isolates levels by server::principal scope', async () => {
         const memento = fakeMemento();
-        const scopeB = { serverUrl: 'https://artemis.example.com', principal: { id: 9, login: 'student2' } };
+        const scopeB = { serverKey: 'https://artemis.example.com', principal: `id:${9}` };
         new ProactivePreferenceService(memento, () => scope).setLevel('off');
         await settle();
         expect(new ProactivePreferenceService(memento, () => scopeB).getLevel()).toBe('more');

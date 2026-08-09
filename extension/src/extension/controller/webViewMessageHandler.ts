@@ -6,8 +6,7 @@ import { getCommand } from '@shared/messageContracts';
 import { ArtemisApiService } from '@extension/api';
 import { AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import type { CourseDataCache } from '@extension/services/courseDataCache';
-import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -50,10 +49,9 @@ export class WebViewMessageHandler {
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
         extensionContext: vscode.ExtensionContext,
-        exerciseRegistry: ExerciseRegistry,
         providerRegistry: IProviderRegistry,
         websocketService?: ArtemisWebsocketService,
-        courseDataCache?: CourseDataCache,
+        courseCatalog?: CourseCatalog,
         courseAccessStorage?: CourseAccessStorageService,
         recordingHandlers: CommandMap = {},
         struggleLiveFeed?: { subscribe(sink: (msg: ExtensionToWebviewMessage) => void): void; unsubscribe(sink: (msg: ExtensionToWebviewMessage) => void): void; dropSink(sink: (msg: ExtensionToWebviewMessage) => void): void },
@@ -71,13 +69,13 @@ export class WebViewMessageHandler {
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
             getWebsocketService: () => this._websocketService,
             extensionContext,
-            exerciseRegistry,
             providerRegistry,
-            courseDataCache,
+            courseCatalog,
             courseAccessStorage,
             struggleLiveFeed,
             proactivePreference,
             proactiveControl,
+            sessionEpoch: () => courseCatalog?.currentEpoch ?? 0,
         };
 
         this.repositoryStatusModule = new RepositoryStatusCommands(context);
