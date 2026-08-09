@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Changed
+
+- **VS Code Compatibility**: Lowered the minimum required VS Code version from 1.97.0 to 1.93.0 (August 2024), so four more releases of VS Code can install the extension. 1.93 is the genuine floor: it is the release that finalised the Terminal Shell Integration API the struggle detection depends on.
+
 ### Internal
 
 - **Release pipeline:** The Marketplace publish now retries transient network failures instead of stalling the whole release, and the release runbook documents the dev-to-main sync and the CI gate timing.
