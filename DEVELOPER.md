@@ -8,7 +8,7 @@ This guide covers building, running, and shipping the extension. The codebase is
 
 - **Node.js** v22.x or higher
 - **npm**
-- **VS Code** version 1.97.0 or higher
+- **VS Code** version 1.93.0 or higher
 - *(Optional, for packaging)* `vsce`: `npm install -g @vscode/vsce`
 
 ## Getting Started

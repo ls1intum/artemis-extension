@@ -61,7 +61,7 @@ Choose your preferred visual style:
 
 ### Requirements
 
-- **VS Code** version 1.97.0 or higher
+- **VS Code** version 1.93.0 or higher
 - Access to an **Artemis** server (e.g., `artemis.tum.de`)
 - A valid Artemis account (student or instructor)
 
