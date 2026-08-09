@@ -339,7 +339,7 @@
     "npm-run-all2": "8.0.4",
     "sinon": "21.0.3",
     "tsc-alias": "1.8.17",
-    "tsx": "4.19.2",
+    "tsx": "4.23.11",
     "typescript": "5.9.3",
     "typescript-plugin-css-modules": "5.2.0",
     "vitest": "4.1.0",
