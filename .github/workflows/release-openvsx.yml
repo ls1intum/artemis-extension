@@ -179,6 +179,13 @@ jobs:
           name=$(echo "$run_json" | jq -r '.name // ""')
           head_sha=$(echo "$run_json" | jq -r '.head_sha // ""')
           app_id=$(echo "$run_json" | jq -r '.app.id // 0')
+          # Distinguish "no check run at all" from "wrong shape". They produced the
+          # same cryptic empty-field error before, which reads like a broken
+          # workflow when the real answer is usually "you dispatched too early".
+          if [[ -z "$name" && -z "$head_sha" ]]; then
+            echo "::error::No 'CI gate' check run exists on $SHA yet, so CI has not started or is still running on this commit. Wait for it to finish, then dispatch again. This is the usual cause right after pushing to main."
+            exit 1
+          fi
           if [[ "$name" != "CI gate" || "$head_sha" != "$SHA" || "$app_id" != "15368" ]]; then
             echo "::error::CI gate response shape unexpected. name='$name' head_sha='$head_sha' app_id='$app_id' (expected CI gate / $SHA / 15368)."
             exit 1
@@ -362,7 +369,10 @@ jobs:
     needs: [prepare, build]
     if: ${{ !inputs.dry_run && inputs.publish_marketplace }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 20, not 10: a failing attempt can burn the gallery's own 180s timeout, and
+    # three of those plus the backoff between them is ~10.5 minutes. At 10 the
+    # retry loop would be killed mid-recovery, which is worse than not retrying.
+    timeout-minutes: 20
     environment: production  # same env as openvsx -> approval typically resolves both with one click
     permissions:
       actions: read
@@ -397,7 +407,33 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE" 2>&1 | tee /tmp/vsce_out.txt
+          # Three attempts. The gallery endpoint fails at the transport layer
+          # often enough to stall a whole release: 0.4.9 died twice, once on
+          # 'Request timeout: /_apis/gallery' after 180s and once on
+          # 'read ECONNRESET' after 72s, then succeeded on an unchanged third
+          # try. Each failure cost a manual re-run and an environment approval,
+          # and blocked the tag, the GitHub release and the EduIDE bump behind it.
+          #
+          # Retrying is safe by construction rather than by luck: --skip-duplicate
+          # means an upload that landed but timed out while waiting for the
+          # response comes back as a duplicate on the next attempt, which the
+          # check below already reads as success. A package the gallery genuinely
+          # rejects fails all three attempts and still fails the job.
+          attempt=1
+          max_attempts=3
+          while true; do
+            if vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE" 2>&1 | tee /tmp/vsce_out.txt; then
+              break
+            fi
+            if [[ "$attempt" -ge "$max_attempts" ]]; then
+              echo "::error::vsce publish failed $max_attempts times. The underlying error is in the log above."
+              exit 1
+            fi
+            delay=$(( attempt * 30 ))
+            echo "::warning::vsce publish attempt $attempt of $max_attempts failed. Retrying in ${delay}s."
+            sleep "$delay"
+            attempt=$(( attempt + 1 ))
+          done
           if grep -qiE 'already (exists|published)|skipping' /tmp/vsce_out.txt; then
             echo "::warning::Marketplace already had $INPUT_VERSION; --skip-duplicate skipped the upload (treated as a retry)."
           fi
