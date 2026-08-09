@@ -508,3 +508,46 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
         expect(svc._inFlightMarker).toBeDefined();
     });
 });
+
+describe('active surface: bubble ordering against the conversation open', () => {
+    /**
+     * Before the conversation model, the provider attributed a bubble to whatever
+     * local session was active, so posting first and opening second was harmless.
+     * It is not any more: a bubble emitted while another conversation is still
+     * installed is attributed to THAT one, so the student either sees the hint in
+     * the wrong chat or not at all. The bubble therefore waits for the open.
+     */
+    it('posts the bubble only after the target conversation has opened', async () => {
+        let openTargetConversation!: () => void;
+        const openSession = vi.fn().mockReturnValue(new Promise<void>(r => { openTargetConversation = r; }));
+        const deps = makeDeps({ openSession });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
+
+        svc.onServerActive('ep-test', 42, undefined, undefined, undefined, undefined, 'Hint.', 556);
+        await Promise.resolve();
+
+        expect(openSession).toHaveBeenCalledWith(100, 42);
+        expect(deps.postBubble).not.toHaveBeenCalled();
+
+        openTargetConversation();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(deps.postBubble).toHaveBeenCalledWith('Hint.', 556, 'ep-test');
+    });
+
+    it('still posts the bubble when the conversation fails to open, rather than swallowing the hint', async () => {
+        const openSession = vi.fn().mockRejectedValue(new Error('offline'));
+        const deps = makeDeps({ openSession });
+        const svc = new StruggleInterventionService(deps);
+        simulateDecidePending(svc);
+
+        svc.onServerActive('ep-test', 42, undefined, undefined, undefined, undefined, 'Hint.', 556);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(deps.postBubble).toHaveBeenCalledWith('Hint.', 556, 'ep-test');
+    });
+});
