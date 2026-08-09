@@ -4,6 +4,21 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-08-09
+
+### Changed
+
+- **VS Code Compatibility**: Lowered the minimum required VS Code version from 1.97.0 to 1.93.0 (August 2024), so four more releases of VS Code can install the extension. 1.93 is the genuine floor: it is the release that finalised the Terminal Shell Integration API the struggle detection depends on.
+
+### Security
+
+- **WebSocket client**: Updated `ws` to 8.21.0. It ships inside the extension and carries the live connection to Artemis, so the fix only reaches you with this release. Addresses [CVE-2026-45736](https://nvd.nist.gov/vuln/detail/CVE-2026-45736), where closing a connection could disclose uninitialised memory.
+
+### Internal
+
+- **Release pipeline:** The Marketplace publish now retries transient network failures instead of stalling the whole release, and the release runbook documents the dev-to-main sync and the CI gate timing.
+- **Dependencies:** Brought the build and test toolchain up to date (esbuild, vite, vitest, eslint, and the React and testing libraries). Every type package in `extension/package.json` is now pinned to an exact version, with `engines.vscode` the only range, so the compiler can no longer accept a VS Code API that the declared minimum version does not have.
+
 ## [0.4.9] - 2026-08-08
 
 ### Changed

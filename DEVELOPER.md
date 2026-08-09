@@ -8,7 +8,7 @@ This guide covers building, running, and shipping the extension. The codebase is
 
 - **Node.js** v22.x or higher
 - **npm**
-- **VS Code** version 1.97.0 or higher
+- **VS Code** version 1.93.0 or higher
 - *(Optional, for packaging)* `vsce`: `npm install -g @vscode/vsce`
 
 ## Getting Started
@@ -138,10 +138,12 @@ Releasing is driven by `.github/workflows/release-openvsx.yml` (manual `workflow
 ### Cutting a release
 
 1. Bump the `version` in `extension/package.json` and add the matching `## [x.y.z]` section to `CHANGELOG.md`; merge to `dev` (or `main`).
-2. Go to **Actions → "Release to Open VSX and VS Marketplace" → Run workflow**.
-3. Pick the branch (`main` for a normal release, `dev` for an ad-hoc / hotfix release of pre-merge work), enter the exact `version` (must match `package.json`), and leave both publish toggles on - or tick **Dry run** to build and validate only.
-4. Approve the `production` environment gate when prompted.
-5. On success the workflow tags the commit, creates the GitHub release with the changelog notes, and (after the Open VSX publish) dispatches the EduIDE bundled-extension bump PR.
+2. For a normal release, sync `dev` into `main` **with a real merge commit, never a squash**. A squash carries no parent link, so `main` never gets `dev` as an ancestor and the next sync computes its merge base from the release before it. The 0.4.7 and 0.4.8 syncs were squashed, and by 0.4.9 that produced conflicts in eight files that had nothing to do with the release. If the sync PR conflicts for this reason, the resolution is "main becomes dev": the tree should end up identical to `dev`, with `dev` recorded as the second parent.
+3. Wait for CI to finish on the commit you are about to release. The workflow requires a green `CI gate` check run on that exact SHA and fails immediately if none exists yet, which is easy to trip by dispatching straight after a push.
+4. Go to **Actions → "Release to Open VSX and VS Marketplace" → Run workflow**.
+5. Pick the branch (`main` for a normal release, `dev` for an ad-hoc / hotfix release of pre-merge work), enter the exact `version` (must match `package.json`), and leave both publish toggles on - or tick **Dry run** to build and validate only.
+6. Approve the `production` environment gate when prompted.
+7. On success the workflow tags the commit, creates the GitHub release with the changelog notes, and (after the Open VSX publish) dispatches the EduIDE bundled-extension bump PR.
 
 ### Marketplace docs are generated
 
