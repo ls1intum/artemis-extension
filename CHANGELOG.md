@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Internal
+
+- **Release pipeline:** The Marketplace publish now retries transient network failures instead of stalling the whole release, and the release runbook documents the dev-to-main sync and the CI gate timing.
+
 ## [0.4.9] - 2026-08-08
 
 ### Changed
