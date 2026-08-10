@@ -209,6 +209,37 @@ suite('Artemis API Service Test Suite', () => {
         assert.deepStrictEqual(dashboard, mockDashboard);
     });
 
+    test('should fetch login options for a given username', async () => {
+        const username = 'testuser';
+        const mockOptions = { loginMethod: 'OIDC', idpName: 'TUM Login' };
+
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/core/public/login-options?usernameOrEmail=${username}`));
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify(mockOptions),
+            } as any;
+        };
+
+        const result = await apiService.getLoginOptions(username);
+        assert.strictEqual(result.loginMethod, 'OIDC');
+        assert.strictEqual(result.idpName, 'TUM Login');
+    });
+
+    test('should throw ApiError 500 if getLoginOptions returns empty body', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLoginOptions('testuser'),
+            (err: unknown) => err instanceof ApiError && err.status === 500,
+        );
+    });
+
     test('should get single course for dashboard', async () => {
         const courseId = 1;
         const mockCourseData = { course: { id: 1, title: 'Course 1', exercises: [] } };
