@@ -409,6 +409,21 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Public API: navigation delegation ──────────────────────────────
 
     /**
+     * Send a message to the webview safely.
+     */
+    public postMessage(message: ExtensionToWebviewMessage): void {
+        this._postMessageSafe(message);
+    }
+
+    public async navigateToStartPage(user?: any): Promise<void> {
+        const serverUrl = resolveServerUrl();
+        await this._navigationFacade.navigateToStartPage({
+            username: user?.login ?? '',
+            serverUrl,
+            user,
+    });
+}
+    /**
      * Thin delegation so external callers (extension.ts, extensionCommands.ts)
      * do not need to reach into the facade.
      */

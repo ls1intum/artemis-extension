@@ -14,7 +14,8 @@ export const WebviewCmd = {
     // Auth
     Login: 'login',
     Logout: 'logout',
-
+    CheckLoginOptions: 'checkLoginOptions',
+    StartOidcLogin: 'startOidcLogin',
     // Navigation
     BackToDashboard: 'backToDashboard',
     ShowAllCourses: 'showAllCourses',
@@ -129,6 +130,8 @@ interface WebviewCmdPayloads {
     // Auth
     login: { username: string; password: string; rememberMe: boolean };
     logout: undefined;
+    checkLoginOptions: { username: string };
+    startOidcLogin: { username: string; rememberMe: boolean };
 
     // Navigation
     backToDashboard: undefined;

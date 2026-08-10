@@ -1,3 +1,4 @@
+import { LoginOptionsResponse } from '@extension/domain/auth';
 import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '@extension/domain/problemStatementRendering';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -171,6 +172,18 @@ export class ArtemisApiService {
             throw new ApiError('Not authenticated', 401);
         }
         return parseArtemisUser(JSON.parse(body));
+    }
+
+    // Get the login option (OIDC or password) for given username
+    async getLoginOptions(username: string): Promise<LoginOptionsResponse> {
+        const response = await this.makeRequest(`/api/core/public/login-options?usernameOrEmail=${encodeURIComponent(username)}`);
+        const body = (await response.text()).trim();
+        if (!body) {
+            // if request is empty, the problem lies on the server side
+            throw new ApiError('Server error', 500);
+        }
+        const data: LoginOptionsResponse = JSON.parse(body)
+        return data;
     }
 
     // Get archived courses (inactive courses from previous semesters)

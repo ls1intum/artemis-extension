@@ -15,8 +15,55 @@ export class AuthCommandModule {
         return {
             [WebviewCmd.Login]: this.handleLogin,
             [WebviewCmd.Logout]: this.handleLogout,
+            [WebviewCmd.CheckLoginOptions]: this.handleCheckLoginOptions,
+            [WebviewCmd.StartOidcLogin]: this.handleStartOidcLogin,
         };
     }
+
+    private handleCheckLoginOptions = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const payload = getPayload<WebCmd<'checkLoginOptions'>>(message);
+            const username = payload.username;
+
+            const options = await this.context.artemisApi.getLoginOptions(username);
+
+            this.context.sendMessage({
+                type: ExtensionMsg.LoginOptionsResult,
+                loginMethod: options.loginMethod,
+                idpName: options.idpName,
+            });
+        } catch (error: unknown) {
+            logger.error('Failed to check login options:', LogCategory.AUTH, error);
+
+            this.context.sendMessage({
+                type: ExtensionMsg.LoginOptionsError,
+                error: error instanceof Error ? error.message : 'Failed to determine login method',
+            });
+        }
+    };
+
+    // Redirects user to /oauth2/authorization/oidc?redirect=vscode and starts the OIDC authentication
+    private handleStartOidcLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
+    try {
+        const payload = getPayload<WebCmd<'startOidcLogin'>>(message);
+        const rememberMe = payload.rememberMe ?? true;
+
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+
+        const oidcUrl = `${serverUrl}/oauth2/authorization/oidc?redirect=vscode&rememberMe=${rememberMe}`;
+
+        await vscode.env.openExternal(vscode.Uri.parse(oidcUrl));
+    } catch (error: unknown) {
+        logger.error('Failed to start OIDC login:', LogCategory.AUTH, error);
+        vscode.window.showErrorMessage('Failed to open login page in browser.');
+
+        this.context.sendMessage({
+            type: ExtensionMsg.LoginError,
+            error: 'Failed to open browser for TUM Login.',
+        });
+    }
+};
 
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {

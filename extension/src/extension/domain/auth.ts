@@ -29,4 +29,8 @@ export function parseProfileInfo(data: unknown): ProfileInfo {
 export interface AuthenticationResult {
     readonly success: boolean;
 }
-
+export type LoginMethod = 'PASSWORD' | 'OIDC' | 'SAML2'
+export interface LoginOptionsResponse {
+    loginMethod: LoginMethod;
+    idpName: string;
+}

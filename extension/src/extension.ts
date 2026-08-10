@@ -28,6 +28,8 @@ import {
 import { resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 import { wireDataCollection } from '@dataCollection';
 import { createTelemetryManager } from '@telemetry';
+import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
+import { ExtensionMsg } from '@shared/messageContracts/extensionMessages';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: ITelemetryManager | undefined;
@@ -166,6 +168,38 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
+
+	const uriHandler = new ArtemisUriHandler(async (rawToken: string) => {
+		try {
+			const formattedToken = rawToken.startsWith('jwt=') ? rawToken : `jwt=${rawToken}`;
+			await authManager.storeArtemisCredentials(formattedToken, true);
+			const user = await artemisApiService.getCurrentUser();
+			await updateAuthContext(true);
+
+			artemisWebviewProvider.postMessage({
+				type: ExtensionMsg.LoginSuccess,
+				username: user.login || 'User',
+			});
+
+			await artemisWebviewProvider.navigateToStartPage(user);
+
+			vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || 'User'}`);
+		} catch (error) {
+			logger.error('Failed to complete OIDC login from URI callback:', LogCategory.AUTH, error);
+
+			await authManager.clear();
+			await updateAuthContext(false);
+
+			vscode.window.showErrorMessage('Failed to complete authentication with received token.');
+
+			artemisWebviewProvider.postMessage({
+				type: ExtensionMsg.LoginError,
+				error: 'Authentication failed. Please try again.',
+			});
+		}
+	});
+
+	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
 	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
 	// data, an unbounded, unscoped list of every course and exercise this
