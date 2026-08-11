@@ -40,7 +40,6 @@ artemis-extension/
 ├── DEVELOPER.md                  # This file
 ├── CONTRIBUTING.md               # Contribution workflow
 ├── CHANGELOG.md                  # Single source of truth for release notes
-├── docs/                         # Cross-cutting design notes (struggle detection)
 ├── scripts/                      # Repo-level release helpers (shell)
 ├── extension/                    # VS Code extension package (npm root)
 │   ├── src/
@@ -221,7 +220,13 @@ The store listings show the repo-root **`README.md`** (user docs) and **`CHANGEL
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow & conventions |
 | [extension/docs/DEVELOPER-GUIDE.md](extension/docs/DEVELOPER-GUIDE.md) | Deep dive: webview architecture, message contracts, stores |
 | [recording-viewer/README.md](recording-viewer/README.md) | The standalone session recording viewer |
+| [extension/docs/adr/](extension/docs/adr/) | Architecture decision records |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes (single source) |
+
+Per-change design specs and implementation plans are **not** in the repository. They are working
+notes for one change and age out as soon as it lands, so `docs/superpowers/`,
+`extension/docs/superpowers/` and `extension/docs/plans/` are git-ignored. Rationale that should
+outlive a pull request belongs in the code, in an ADR, or on the issue.
 
 ## Resources
 

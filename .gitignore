@@ -63,5 +63,13 @@ extension/recording-viewer.zip
 # Staging directory for openvsx clean packaging
 extension/build/
 
-# Superpowers scratch state (specs/plans under docs/superpowers/ ARE tracked)
+# Superpowers scratch state
 .superpowers/
+
+# Design specs and implementation plans. Working notes for a single change, kept
+# local: they age out the moment the change lands, and tracking them put ~10k
+# added lines into PR diffs that nobody reviewed. The design rationale that
+# outlives a PR belongs in the code, an ADR, or the issue.
+docs/superpowers/
+extension/docs/superpowers/
+extension/docs/plans/
