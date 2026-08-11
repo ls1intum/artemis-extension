@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -136,4 +136,62 @@ describe('generate-clean-manifest against the real package.json', () => {
         expect(cmds).not.toContain('artemis.replaySession');
         expect(cmds).not.toContain('artemis.showStruggleScore');
     });
+
+    /**
+     * The drop lists (RECORDER_COMMANDS / STRUGGLE_COMMANDS) are hand-maintained while the code
+     * they describe is not. `verify-clean-bundle.js` proves the excluded code is absent from the
+     * BUNDLE; nothing checked the MANIFEST against it. So a command added to an excluded module
+     * shipped as a palette entry with no handler behind it ("command not found") -- exactly what
+     * the drop lists exist to prevent.
+     *
+     * The check is deliberately NOT a scan for `registerCommand('<id>')` call sites: registrations
+     * also go through constants (`registerCommand(HINT_COMMAND, ...)`), so a syntactic scan
+     * silently misses them. It asks a form-independent question instead: does a file that
+     * survives the build contain both this command id and a `registerCommand` call? That holds
+     * for the literal and the constant form alike, since a command's id and its registration sit
+     * in the same file here.
+     *
+     * The check is necessary, not sufficient: it cannot prove the two occurrences belong
+     * together. It is aimed at the failure that actually happens -- a command whose module is
+     * dropped from a variant -- and there the id vanishes from the surviving source entirely.
+     *
+     * Classification comes from `verify-clean-bundle.js` itself, so the two cannot drift.
+     */
+    const { isForbiddenInput } = require(
+        join(__dirname, '../../../scripts/verify-clean-bundle.js')
+    ) as { isForbiddenInput: (p: string, profile: string) => boolean };
+
+    const SRC = join(__dirname, '../../../src');
+
+    function allSourceFiles(dir: string): string[] {
+        return readdirSync(dir, { recursive: true, encoding: 'utf8' })
+            .map(entry => join(dir, entry))
+            .filter(p => /\.(ts|tsx)$/.test(p) && statSync(p).isFile());
+    }
+
+    /** Command ids with no registering file left in the source surviving `profile`. */
+    function unbackedCommands(commands: string[], profile: string): string[] {
+        const registrars = allSourceFiles(SRC)
+            .filter(p => !isForbiddenInput(p, profile))
+            .map(p => readFileSync(p, 'utf8'))
+            .filter(text => text.includes('registerCommand'));
+        // Quoted, so an id is not "found" inside a longer one: 'artemis.login' must not match
+        // 'artemis.loginView.focus'.
+        return commands.filter(c => !registrars.some(t => t.includes(`'${c}'`) || t.includes(`"${c}"`)));
+    }
+
+    for (const profile of ['desktop', 'openvsx'] as const) {
+        it(`${profile}: contributes no command whose id occurs only in code the bundle drops`, () => {
+            const contributed = realManifest().contributes.commands.map(c => c.command);
+
+            // Canary: the classification must actually exclude something that matters, otherwise
+            // a broken predicate (or a moved file) would turn the assertion below into a
+            // vacuous pass. This set is precisely what the profile's drop list must cover.
+            const dropped = unbackedCommands(contributed, profile);
+            expect(dropped.length).toBeGreaterThan(0);
+
+            const shipped = cleanManifest(realManifest(), profile).contributes.commands.map(c => c.command);
+            expect(shipped.filter(c => dropped.includes(c))).toEqual([]);
+        });
+    }
 });
