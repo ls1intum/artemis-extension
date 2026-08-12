@@ -1074,4 +1074,49 @@ suite('Artemis API Service Test Suite', () => {
             clock.restore();
         }
     });
+
+    test('should exchange code for JWT token', async () => {
+        const code = 'valid-code-123';
+        const mockJwt = 'mock.jwt.token.string';
+
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/core/public/exchange-code?code=${code}`));
+            return {
+                ok: true,
+                status: 200,
+                text: async () => mockJwt,
+            } as any;
+        };
+
+        const token = await apiService.exchangeCodeForToken(code);
+        assert.strictEqual(token, mockJwt);
+    });
+
+    test('should properly URL-encode special characters in exchange code', async () => {
+        const codeWithSpecialChars = 'code+with/special=chars';
+
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`code=${encodeURIComponent(codeWithSpecialChars)}`));
+            return {
+                ok: true,
+                status: 200,
+                text: async () => 'jwt-token',
+            } as any;
+        };
+
+        await apiService.exchangeCodeForToken(codeWithSpecialChars);
+    });
+
+    test('should throw error when exchange code is expired or invalid (401/404)', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 404,
+            text: async () => 'Not Found',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('expired-code'),
+            (err: unknown) => err instanceof Error && err.message.includes('expired or is invalid'),
+        );
+    });
 });

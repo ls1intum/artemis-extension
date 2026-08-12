@@ -186,6 +186,20 @@ export class ArtemisApiService {
         return data;
     }
 
+    public async exchangeCodeForToken(code: string): Promise<string> {
+        const response = await this.makeRequest(`/api/core/public/exchange-code?code=${encodeURIComponent(code)}`);
+
+        if (!response.ok) {
+            if (response.status === 404 || response.status === 401) {
+                throw new Error('The login code has expired or is invalid. Please try logging in again.');
+            }
+            throw new Error(`Server returned status ${response.status} during code exchange.`);
+        }
+
+        const jwtToken = await response.text();
+        return jwtToken;
+    }
+
     // Get archived courses (inactive courses from previous semesters)
     async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
         const response = await this.makeRequest('/api/core/courses/for-archive');

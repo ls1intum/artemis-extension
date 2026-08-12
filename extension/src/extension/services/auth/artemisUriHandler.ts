@@ -1,13 +1,14 @@
 import * as vscode from 'vscode';
 
 export class ArtemisUriHandler implements vscode.UriHandler {
-    constructor(private readonly handleToken: (token: string) => Promise<void>) {}
+    constructor(private readonly handleCode: (token: string) => Promise<void>) {}
 
     async handleUri(uri: vscode.Uri): Promise<void> {
-        // We expect the following Uri: vscode://<publisher>.<extension-name>/auth-callback?token=EYJ...
+        // We expect the following Uri: vscode://<publisher>.<extension-name>/auth-callback?code=EXCHANGE-CODE
         const queryParams = new URLSearchParams(uri.query);
-        const token = queryParams.get('token');
+        const code = queryParams.get('code');
         const error = queryParams.get('error');
+
         if (error) {
             const message = error === 'deactivated'
                 ? 'Your account is deactivated in Artemis.'
@@ -15,10 +16,10 @@ export class ArtemisUriHandler implements vscode.UriHandler {
             vscode.window.showErrorMessage(`Artemis Login failed: ${message}`);
             return;
         }
-        if (token) {
-            await this.handleToken(token);
+        if (code) {
+            await this.handleCode(code);
         } else {
-            vscode.window.showErrorMessage('Artemis Login failed: No auth token received from server.');
+            vscode.window.showErrorMessage('Artemis Login failed: No auth code received from server.');
         }
     }
 }

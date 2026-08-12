@@ -169,10 +169,16 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const uriHandler = new ArtemisUriHandler(async (rawToken: string) => {
+	const uriHandler = new ArtemisUriHandler(async (code: string) => {
 		try {
+			// 1. Exchange code to the jwt token
+			const rawToken = await artemisApiService.exchangeCodeForToken(code);
+
+			// 2. Format the token
 			const formattedToken = rawToken.startsWith('jwt=') ? rawToken : `jwt=${rawToken}`;
 			await authManager.storeArtemisCredentials(formattedToken, true);
+
+			// 3. Get user data
 			const user = await artemisApiService.getCurrentUser();
 			await updateAuthContext(true);
 
@@ -190,7 +196,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			await authManager.clear();
 			await updateAuthContext(false);
 
-			vscode.window.showErrorMessage('Failed to complete authentication with received token.');
+			const errorMessage = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
+			vscode.window.showErrorMessage(`Artemis Login failed: ${errorMessage}`);
 
 			artemisWebviewProvider.postMessage({
 				type: ExtensionMsg.LoginError,
