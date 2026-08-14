@@ -118,9 +118,6 @@ export class WebViewMessageHandler {
         return task;
     }
 
-    /**
-     * Process a message received from the webview.
-     */
     public async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
         const command = getCommand(message);
         try {
@@ -137,23 +134,14 @@ export class WebViewMessageHandler {
         }
     }
 
-    /**
-     * Dispose the handler and its command modules.
-     */
     public dispose(): void {
         this.repositoryStatusModule.dispose();
     }
 
-    /**
-     * Set the authentication context updater function.
-     */
     public setAuthContextUpdater(updater: (isAuthenticated: boolean) => Promise<void>): void {
         this._authContextUpdater = updater;
     }
 
-    /**
-     * Set the method for sending messages to the webview.
-     */
     public setMessageSender(sendMessage: (message: ExtensionToWebviewMessage) => void): void {
         this._sendMessage = sendMessage;
     }

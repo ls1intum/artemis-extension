@@ -30,12 +30,11 @@ type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
 /**
  * Outcome of a {@link readEnvVarsViaDataBridge} call.
  *
- * The discriminator distinguishes two situations that both used to be encoded
- * as `undefined`: a genuine Desktop boot (`no-bridge`) and an EduIDE boot where
- * the bridge was expected but unreachable (`failure`). Conflating them lets a
- * broken EduIDE pod silently boot in Desktop-Cookie mode, which is the wrong
- * failure mode (auth would attempt the wrong scheme). Auto-clone is handled
- * by the companion Scorpio extension.
+ * The discriminator separates a genuine Desktop boot (`no-bridge`) from an
+ * EduIDE boot where the bridge was expected but unreachable (`failure`).
+ * Conflating them lets a broken EduIDE pod silently boot in Desktop-Cookie
+ * mode, so auth attempts the wrong scheme. Auto-clone is handled by the
+ * companion Scorpio extension.
  */
 type ReadEnvResult<T extends string> =
     | { kind: 'no-bridge' }
@@ -50,10 +49,10 @@ type ReadEnvResult<T extends string> =
  * runs an HTTP server that receives late-arriving environment variables via
  * POST and exposes them through the {@link DATA_BRIDGE_COMMAND} VS Code command.
  *
- * Only activates when `DATA_BRIDGE_ENABLED` is set in the environment — this
- * is the same env var that the data-bridge extension itself uses to start its
- * HTTP server. Without it, the command may be registered but never receives
- * data, which would cause a 10s blocking poll on every startup.
+ * Only activates when `DATA_BRIDGE_ENABLED` is set, the same env var the
+ * data-bridge extension uses to start its HTTP server. Without it the command
+ * may be registered but never receive data, costing a 10s blocking poll on
+ * every startup.
  *
  * Polls every 500ms until all requested keys are present, with a 10s timeout.
  *
@@ -69,11 +68,9 @@ type ReadEnvResult<T extends string> =
 export async function readEnvVarsViaDataBridge<T extends string>(
     names: readonly T[],
 ): Promise<ReadEnvResult<T>> {
-    // DATA_BRIDGE_ENABLED is a container-boot config var, available in process.env
-    // from container startup — unlike the credentials (ARTEMIS_TOKEN etc.) which are
-    // injected later via the data-bridge HTTP server. This is why process.env is
-    // reliable here even though it's unreliable for late-arriving credentials.
-    // Without this guard, polling would block for 10s with no data arriving.
+    // DATA_BRIDGE_ENABLED is a container-boot config var, so process.env holds
+    // it from startup. The credentials (ARTEMIS_TOKEN etc.) arrive later via the
+    // bridge's HTTP server, which is why process.env is unreliable for those.
     const bridgeEnabled = process.env.DATA_BRIDGE_ENABLED;
     if (bridgeEnabled !== '1' && bridgeEnabled !== 'true') {
         return { kind: 'no-bridge' };
@@ -93,7 +90,7 @@ export async function readEnvVarsViaDataBridge<T extends string>(
             // The data-bridge `getEnv` command requires a `string[]` argument
             // (validated server-side via arktype). Calling without args makes
             // the command return its error summary as a plain string, not a
-            // record — which silently masquerades as an empty result.
+            // record, which silently masquerades as an empty result.
             const envMap = await vscode.commands.executeCommand<Record<string, string> | string>(
                 DATA_BRIDGE_COMMAND,
                 [...names],
@@ -108,13 +105,12 @@ export async function readEnvVarsViaDataBridge<T extends string>(
                     }
                     return { kind: 'success', env: result };
                 }
-                // Record present but missing keys — keep polling; values may
+                // Record present but missing keys: keep polling, values may
                 // arrive in a later POST.
             } else if (envMap !== undefined && envMap !== null) {
-                // Non-record response (string, array, primitive). The bridge is
-                // responding but rejecting the call, so polling will not help —
-                // the request shape is wrong and won't change. Fail fast with
-                // the actual response captured for diagnostics.
+                // Non-record response (string, array, primitive): the bridge is
+                // responding but rejecting the call, and the request shape will
+                // not change, so fail fast instead of polling.
                 return {
                     kind: 'failure',
                     reason: 'invalid-response',
@@ -122,8 +118,8 @@ export async function readEnvVarsViaDataBridge<T extends string>(
                 };
             }
         } catch (e) {
-            // data-bridge may not be ready yet — keep polling. Capture the
-            // most recent error to surface if the deadline elapses.
+            // data-bridge may not be ready yet, so keep polling. The most
+            // recent error is surfaced if the deadline elapses.
             lastError = e instanceof Error ? e.message : String(e);
         }
 
@@ -152,10 +148,10 @@ interface DataBridgeProbeResult {
 
 /**
  * One-shot live probe of the data-bridge state. Unlike {@link readEnvVarsViaDataBridge}
- * this does not poll, does not gate on `DATA_BRIDGE_ENABLED`, and does not fall
- * back — it reports raw observed state so the diagnostic command can show
- * exactly why detection is failing (extension absent vs. command error vs.
- * empty storage vs. partial values).
+ * this does not poll, does not gate on `DATA_BRIDGE_ENABLED`, and does not
+ * fall back. It reports raw observed state so the diagnostic command can show
+ * why detection is failing (extension absent vs. command error vs. empty
+ * storage vs. partial values).
  */
 export async function probeDataBridge(
     keys: readonly KnownBridgeKey[] = KNOWN_BRIDGE_KEYS,

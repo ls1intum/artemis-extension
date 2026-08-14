@@ -79,11 +79,9 @@ describe('ServiceHealth', () => {
 	it('collapses service details when clicked again', async () => {
 		render(<ServiceHealth services={[onlineService]} />);
 
-		// Click to expand
 		await userEvent.click(screen.getByText('Artemis API'));
 		expect(screen.getByText('Endpoint:')).toBeInTheDocument();
 
-		// Click again to collapse
 		await userEvent.click(screen.getByText('Artemis API'));
 		expect(screen.queryByText('Endpoint:')).not.toBeInTheDocument();
 	});

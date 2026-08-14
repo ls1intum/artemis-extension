@@ -1,7 +1,5 @@
 /**
- * Comprehensive Report Generator — EQ-based
- *
- * Creates a detailed Markdown document after each test run.
+ * Writes the EQ-based test run to a detailed Markdown document.
  */
 
 import * as fs from 'fs';

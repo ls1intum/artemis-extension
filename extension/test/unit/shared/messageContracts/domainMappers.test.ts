@@ -56,10 +56,9 @@ suite('toCourseDetailData', () => {
     });
 
     test('drops unknown server keys from the result', () => {
-        // Use a key the current mapper does NOT special-case (the current
-        // implementation explicitly strips `exams`, so we'd get a false
-        // pre-impl green). `serverOnlyField` is fictional and proves the
-        // explicit-field-list construction in the new impl really drops it.
+        // A key the mapper does NOT special-case: `exams` is stripped
+        // explicitly, so it would pass either way. `serverOnlyField` is
+        // fictional and proves the explicit field list drops unknown keys.
         const raw = { id: 1, title: 'X', serverOnlyField: 'leak' } as CourseDashboardCourse;
         const result = toCourseDetailData(raw);
         assert.ok(result);

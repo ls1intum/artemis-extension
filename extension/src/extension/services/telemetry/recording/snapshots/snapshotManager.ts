@@ -81,10 +81,9 @@ export class SnapshotManager {
         generation: number,
         opts: { allowDuringStartup?: boolean } = {},
     ): Promise<void> {
-        // Pre-write gate.
         if (!this.canWriteSnapshot(generation)) { return; }
-        // In-flight dedup — fixes rapid-switch race where two concurrent
-        // snapshot calls for the same URI could each emit a fileSnapshot event.
+        // In-flight dedup: on a rapid editor switch, two concurrent snapshot
+        // calls for the same URI would each emit a fileSnapshot event.
         if (this._inFlightSnapshots.has(uri)) { return; }
 
         this._inFlightSnapshots.add(uri);

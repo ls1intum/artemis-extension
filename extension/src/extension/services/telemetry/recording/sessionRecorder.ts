@@ -5,37 +5,19 @@
  * Only active when consent is Extended. Writes JSONL event streams
  * to {globalStorageUri}/recordings/{sessionId}/.
  *
- * ## Lifecycle FSM (Block AB)
+ * ## Lifecycle FSM
  *
  * The recorder is a finite-state machine with six phases:
  *
- *   idle → starting → recording → ending → idle          (normal cycle)
- *   {idle|starting|recording|ending} → disabling → disabled  (consent downgrade)
- *   disabled → idle                                       (re-enable)
+ *   idle -> starting -> recording -> ending -> idle          (normal cycle)
+ *   {idle|starting|recording|ending} -> disabling -> disabled (consent downgrade)
+ *   disabled -> idle                                          (re-enable)
  *
- * `_phase` replaces the legacy `_isRecording` / `_isEnabled` booleans. Phase
- * transitions other than the synchronous `disable()` kick-off happen inside
- * the lifecycle mutex (`_lifecyclePromise`), so only one of `_doStart`,
- * `_doFinalize`, or `_doDisable` runs at a time.
- *
- * ## Session Generation Token
- *
- * Every successful `_doStart` increments `_currentGeneration`. `startSession`
- * callers also receive their own `requestedGeneration` — if another start is
- * enqueued before the current one reaches the commit point, the older
- * request aborts (no `sessionStart` written) and the newer wins. Async work
- * (snapshots, terminal output readers, debounce timers) captures the
- * generation at dispatch time and re-checks before writing, so stale
- * callbacks from a previous session can never contaminate a later one.
- *
- * ## Commit Boundary
- *
- * `_sessionStartWritten` flips to `true` only after the `sessionStart` event
- * has been handed to the writer. It is the authoritative signal for
- * "does the on-disk JSONL contain a session header?". `_committedGeneration`
- * pairs with it: on consent downgrade, `_doDisable` finalises a session only
- * when both are set AND the generation matches the one captured synchronously
- * at `disable()` time — guaranteeing no finalise-after-abort races.
+ * Phase transitions and the session generation token are owned by
+ * `LifecycleController`; this class only reads them for its record-phase
+ * guards. Async work (snapshots, terminal output readers, debounce timers)
+ * captures the generation at dispatch time and re-checks before writing, so
+ * stale callbacks from a previous session cannot contaminate a later one.
  */
 
 import * as vscode from 'vscode';
@@ -48,7 +30,7 @@ import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
 import type { InterventionRecordAction, RecordedEvent, SerializedErrorSnapshot, SubmissionPayload } from './types';
 
 /**
- * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
+ * Distributive `Omit` over `RecordedEvent`. Keeps each union variant intact
  * after stripping the `timestamp` discriminator-adjacent field.
  */
 type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
@@ -87,22 +69,16 @@ type StartupContributor = StartupContributorFromModule;
 type RecorderPhase = RecorderPhaseFromState;
 
 export class SessionRecorder implements WebSocketMessageHandler {
-    // ── Shutdown guard ────────────────────────────────────────────────
-
     private _disposed = false;
-
-    // ── Lifecycle state (phase + generation + active session) ─────────
 
     private readonly _state = new RecorderLifecycleState();
 
-    // Forwarding getters — used internally by record-phase guards and by
-    // whitebox tests. Writes go through explicit _state.* methods.
+    // Read-only forwarding for the record-phase guards and whitebox tests.
+    // Writes go through explicit _state.* methods.
     private get _phase(): RecorderPhase { return this._state.phase; }
     private get _currentGeneration(): number { return this._state.currentGeneration; }
     private get _activeExerciseId(): number | undefined { return this._state.activeSession?.exerciseId; }
     private get _eventCount(): number { return this._state.activeSession?.eventCount ?? 0; }
-
-    // ── Session state ──────────────────────────────────────────────────
 
     private readonly _snapshots: SnapshotManager;
     private readonly _observation: ObservationRegistry;
@@ -153,14 +129,10 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    // ── Public state accessors ────────────────────────────────────────
-
     get isEnabled(): boolean { return this._state.isEnabled; }
     get isRecording(): boolean { return this._state.isRecording; }
     get activeExerciseId(): number | undefined { return this._state.activeSession?.exerciseId; }
     get eventCount(): number { return this._state.activeSession?.eventCount ?? 0; }
-
-    // ── Startup contributors ──────────────────────────────────────────
 
     /**
      * Register a synchronous startup event producer. Contributor fires once
@@ -172,8 +144,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         return this._startup.register(contributor);
     }
 
-    // ── Enable / Disable (delegated to LifecycleController) ──────────
-
     enable(): void {
         this._lifecycle.enable();
     }
@@ -182,8 +152,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         this._lifecycle.disable();
     }
 
-    // ── Session lifecycle (delegated) ────────────────────────────────
-
     async startSession(exerciseId: number, participantId?: string, exerciseRoot?: string): Promise<void> {
         return this._lifecycle.startSession(exerciseId, participantId, exerciseRoot);
     }
@@ -191,8 +159,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
     async endSession(reason: 'user-end' | 'deactivate' = 'user-end'): Promise<void> {
         return this._lifecycle.endSession(reason);
     }
-
-    // ── WebSocketMessageHandler ───────────────────────────────────────
 
     onNewResult(result: ResultDTO): void {
         if (this._phase !== 'recording') {
@@ -208,25 +174,16 @@ export class SessionRecorder implements WebSocketMessageHandler {
         );
     }
 
-    // ── Public recording methods for chat / view / EQ / lifecycle events ──
-    //
-    // The public `record*` wrappers below are thin shells around `_record`,
-    // which centralises the phase check, the timestamp, the generation capture,
-    // and the empty-opts call to `LifecycleController.recordInternal`. Keep
-    // these methods this shape — anything that needs custom `opts`, a
-    // pre-existing timestamp (e.g. from a collector), or a different
-    // generation snapshot must go through `_lifecycle.recordInternal` directly
-    // and is NOT a candidate for this helper.
-
     /**
-     * Centralised recording helper for the public `record*` methods.
-     * Captures the phase guard, the synchronous `Date.now()` timestamp, and
-     * the current generation in one place so the wrapper methods stay
-     * declarative payloads.
+     * Centralises the phase guard, the synchronous `Date.now()` timestamp and
+     * the generation capture for the public `record*` wrappers below, so those
+     * stay declarative payloads. Anything that needs custom `opts`, a
+     * pre-existing timestamp (e.g. from a collector) or a different generation
+     * snapshot must call `_lifecycle.recordInternal` directly instead.
      *
-     * `RecordedEventWithoutTimestamp` is a *distributive* omit — the built-in
+     * `RecordedEventWithoutTimestamp` is a *distributive* omit; the built-in
      * `Omit<RecordedEvent, 'timestamp'>` collapses the discriminated union and
-     * drops per-variant fields like `action`, `eq`, `panel`, etc.
+     * drops per-variant fields like `action`, `eq`, `panel`.
      */
     private _record(event: RecordedEventWithoutTimestamp): void {
         if (this._phase !== 'recording') {
@@ -272,12 +229,10 @@ export class SessionRecorder implements WebSocketMessageHandler {
     }
 
     /**
-     * Record a send-attempt lifecycle event.
-     *
      * Emit with status='pending' immediately before the API call, then again
-     * with status='sent' on success or status='failed' on error. This ensures
-     * failed sends are visible in the recording even when no irisChatMessage
-     * event is produced.
+     * with status='sent' on success or status='failed' on error, so failed
+     * sends stay visible in the recording even when no irisChatMessage event is
+     * produced.
      */
     recordIrisChatSendAttempt(
         content: string,
@@ -292,9 +247,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    /**
-     * Record a helpful/unhelpful feedback submission for an Iris message.
-     */
     recordIrisChatFeedback(messageId: string, helpful: boolean): void {
         this._record({
             type: 'irisChatFeedback',
@@ -303,9 +255,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    /**
-     * Record a test-results-overview view opened event.
-     */
     recordTestResultsOverviewOpened(payload: {
         viewId: string;
         exerciseId: number;
@@ -322,9 +271,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    /**
-     * Record a test-results-overview view closed event.
-     */
     recordTestResultsOverviewClosed(payload: {
         viewId: string;
         exerciseId: number;
@@ -340,9 +286,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    /**
-     * Record a task-feedback view opened event.
-     */
     recordTaskFeedbackOpened(payload: {
         viewId: string;
         exerciseId: number;
@@ -362,9 +305,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    /**
-     * Record a task-feedback view closed event.
-     */
     recordTaskFeedbackClosed(payload: {
         viewId: string;
         exerciseId: number;
@@ -441,10 +381,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    /**
-     * Record a problem-statement scroll event (how far the student has scrolled
-     * through the exercise description).
-     */
     recordProblemStatementScroll(payload: ProblemStatementScrollPayload): void {
         this._record({
             type: 'problemStatementScroll',
@@ -452,10 +388,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    /**
-     * Record a problem-statement text-selection event (text the student
-     * highlighted inside the exercise description).
-     */
     recordProblemStatementSelection(payload: ProblemStatementSelectionPayload): void {
         this._record({
             type: 'problemStatementSelection',
@@ -464,8 +396,8 @@ export class SessionRecorder implements WebSocketMessageHandler {
     }
 
     /**
-     * Record a submission lifecycle event (started/succeeded/failed). `exerciseId`
-     * is stamped from the active session, consistent with how buildResult is stamped.
+     * `exerciseId` is stamped from the active session, consistent with how
+     * buildResult is stamped.
      */
     recordSubmission(payload: SubmissionPayload): void {
         this._record({
@@ -511,14 +443,12 @@ export class SessionRecorder implements WebSocketMessageHandler {
         });
     }
 
-    // ── Shutdown ──────────────────────────────────────────────────────
-
     /**
      * Awaitable teardown. Deliberately NOT named `dispose()` and the class does
      * NOT implement `vscode.Disposable`: the durability guarantee (buffered
      * events flushed to disk) only holds if this is awaited, so it must never be
      * registered in `context.subscriptions` where VS Code would fire-and-forget it.
-     * The durable path is `deactivate()` → DataCollectionHandle → here.
+     * The durable path is `deactivate()` to DataCollectionHandle to here.
      */
     async shutdown(): Promise<void> {
         if (this._disposed) { return; }
@@ -535,8 +465,6 @@ export class SessionRecorder implements WebSocketMessageHandler {
         await this._writer.shutdown();
         this._onDidChangeState.dispose();
     }
-
-    // ── Private: State notification ─────────────────────────────────────
 
     private _fireStateChange(): void {
         this._onDidChangeState.fire({

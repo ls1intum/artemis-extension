@@ -1,5 +1,4 @@
 // Covers E2EV-10: GitCredentials view E2E smoke test
-// (E2EV-10 remapped from BuildFeedback — GitCredentials is the 10th actual standalone view)
 import assert from 'assert';
 import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
@@ -30,7 +29,6 @@ describe('GitCredentials View UI Tests', function () {
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Log in once before all tests in this suite
 		await performLogin(driver, username, password);
 	});
 
@@ -49,7 +47,7 @@ describe('GitCredentials View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context.
 		}
 	});
 
@@ -59,7 +57,6 @@ describe('GitCredentials View UI Tests', function () {
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		// Navigate from Dashboard by clicking "Git Credentials" button
 		try {
 			const gitCredentialsButton = await driver.wait(
 				until.elementLocated(
@@ -70,13 +67,12 @@ describe('GitCredentials View UI Tests', function () {
 			await gitCredentialsButton.click();
 			await driver.sleep(2000);
 		} catch {
-			// Button not found — skip gracefully
+			// Button not found, skip gracefully.
 			await takeScreenshot(driver, 'git-credentials-smoke');
 			this.skip();
 			return;
 		}
 
-		// Assert GitCredentials content is visible (form, input, or content container)
 		let contentElement: Awaited<ReturnType<typeof driver.findElement>> | null = null;
 		try {
 			contentElement = await driver.wait(

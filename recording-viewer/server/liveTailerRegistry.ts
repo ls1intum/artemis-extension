@@ -50,7 +50,7 @@ export class LiveTailerRegistry {
                     initialOffset = Number(stat.size);
                     initialLineNo = count;
                 }
-            } catch { /* file missing — leave cursor at 0/0 */ }
+            } catch { /* file missing, leave the cursor at 0/0 */ }
             const tailer = new LiveTailer(eventsPath, {
                 ...this._opts,
                 initialOffset,

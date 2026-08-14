@@ -78,7 +78,7 @@ describe('SSE /api/recordings/:id/events/stream', () => {
         api(req, res, () => {});
         await new Promise(r => setTimeout(r, 200));
         triggerClose();
-        triggerClose(); // second close should be a no-op
+        triggerClose();
         expect(true).toBe(true);
     });
 
@@ -99,15 +99,13 @@ describe('SSE /api/recordings/:id/events/stream', () => {
         (req as unknown as { url: string }).url = '/api/recordings/sess-pending/events/stream';
         api(req, res, () => {});
         try {
-            // Wait briefly to confirm stream opened
             await new Promise(r => setTimeout(r, 200));
-            expect(captured.status).toBe(200); // stream opened
+            expect(captured.status).toBe(200);
             // events.jsonl appears later (simulating initSession completing)
             fs.writeFileSync(path.join(tmpDir, 'sess-pending/events.jsonl'), '{"type":"first","timestamp":1}\n');
             // Wait for at least one tailer poll cycle (1s) + margin
             const ok = await waitFor(() => captured.written.join('').includes('id: 1'));
             expect(ok).toBe(true);
-            // Verify NO session-gone was emitted
             expect(captured.written.join('')).not.toMatch(/event: session-gone/);
         } finally {
             triggerClose();

@@ -230,10 +230,10 @@ suite('handleViewArchivedCourse', () => {
         sandbox.restore();
     });
 
-    // This branch had no epoch at all: it awaited the archived-course detail
-    // and then recorded a course id chosen before that await, under whichever
-    // account the session had become. The recency store is persisted, so the
-    // wrong entry outlived the window.
+    // The archived-course detail is awaited before the recency write, so the
+    // write has to carry the epoch captured before it. Otherwise the course id
+    // is recorded under whichever account the session has become, and the
+    // recency store is persisted, so the wrong entry outlives the window.
     test('stamps the recency write with the epoch from before the fetch', async () => {
         const onCourseAccessed = sandbox.stub();
         let epoch = 2;

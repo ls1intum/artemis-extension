@@ -13,12 +13,11 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
 /**
  * Manages Iris chat sessions and WebSocket subscriptions.
  *
- * SAFETY FEATURES to prevent connection flooding:
- * 1. Stores unsubscribe function for connection state callback
- * 2. Converges towards the desired session (`_converge`): a deliberate
+ * Guards against connection flooding:
+ * 1. Converges towards the desired session (`_converge`): a deliberate
  *    `subscribeToSession` call is never rate-limited, only reconnect storms
  *    are damped by MIN_RESUBSCRIBE_INTERVAL_MS
- * 3. Does NOT call connect() - only subscribes if already connected
+ * 2. Does NOT call connect(), only subscribes if already connected
  */
 export class IrisWebSocketSessionClient implements vscode.Disposable {
     /**
@@ -54,7 +53,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     public dispose(): void {
         logger.session('Disposing...');
 
-        // Unsubscribe from connection state changes FIRST
+        // Drop the connection listener first, so a state change arriving mid
+        // dispose cannot converge a new subscription into existence.
         if (this._connectionStateSubscription) {
             this._connectionStateSubscription.dispose();
             this._connectionStateSubscription = undefined;
@@ -118,11 +118,11 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     /**
      * Every (re)connect creates a FRESH STOMP session, so every prior protocol
      * subscription is gone whether or not we were told about the disconnect.
-     * The baseline resubscribes unconditionally on `connected: true` for exactly
-     * this reason: the disconnect notification is debounced by 5 s and a fast
-     * reconnect may arrive first, so keying the invalidation on `connected:
-     * false` misses it, `_converge` sees subscribed === desired, returns, and
-     * the client is permanently deaf on the new connection with no error.
+     * Hence the unconditional invalidation here rather than one keyed on
+     * `connected: false`: the disconnect notification is debounced by 5 s and a
+     * fast reconnect may arrive first, which would leave `_converge` seeing
+     * subscribed === desired, returning, and the client permanently deaf on the
+     * new connection with no error.
      */
     private _onConnectionStateChanged(connected: boolean): void {
         this._subscribedSessionId = undefined;
@@ -138,8 +138,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
 
         const waited = Date.now() - this._lastResubscribeAttempt;
         if (!options.immediate && waited < MIN_RESUBSCRIBE_INTERVAL_MS) {
-            // SCHEDULE, never drop. Dropping is what left a conversation
-            // permanently unsubscribed after a fast second switch.
+            // SCHEDULE, never drop: dropping leaves a conversation permanently
+            // unsubscribed after a fast second switch.
             if (!this._convergeTimer) {
                 this._convergeTimer = setTimeout(() => {
                     this._convergeTimer = undefined;
@@ -195,10 +195,9 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
      * Monitor WebSocket connection state and converge the subscription when
      * reconnected.
      *
-     * SAFETY: Does NOT call connect() - only subscribes if already connected.
+     * SAFETY: Does NOT call connect(), only subscribes if already connected.
      */
     private _startWebSocketMonitoring(): void {
-        // Store subscription disposable for cleanup in dispose()
         this._connectionStateSubscription = this._websocketService.onDidChangeConnectionState(({ connected: isConnected }) => {
             logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);

@@ -21,8 +21,8 @@ interface Props {
  */
 export function EventBadge({ type, label, className, title }: Props) {
     const color = (MARKER_COLORS as Record<string, string>)[type];
-    // `${color}26` appends ~15% alpha (0x26/0xff) to the 6-digit hex for the
-    // translucent background, matching the previous per-type CSS look.
+    // `${color}26` appends ~15% alpha (0x26/0xff) to the 6-digit hex, which is
+    // the translucent background.
     const style: CSSProperties | undefined = color
         ? { color, background: `${color}26` }
         : undefined;

@@ -52,8 +52,8 @@ interface ChartPoint {
 
 
 /**
- * Dot for original EQ line — trigger points get a larger, highlighted ring.
- * Continuous (save/build) points get a small dot.
+ * Dot for the original EQ line. Trigger points get a larger, highlighted ring,
+ * continuous (save/build) points a small dot.
  */
 function EqDot(props: Record<string, unknown>) {
     const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
@@ -92,7 +92,6 @@ function EqDotDimmed(props: Record<string, unknown>) {
     return <Dot cx={cx} cy={cy} r={2.5} fill="#94a3b8" stroke="#1e1e2e" strokeWidth={1} />;
 }
 
-// Dot for replay line
 function ReplayConfidenceDot(props: Record<string, unknown>) {
     const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
     if (payload.replayEqPercent == null) return null;
@@ -100,7 +99,6 @@ function ReplayConfidenceDot(props: Record<string, unknown>) {
     return <Dot cx={cx} cy={cy} r={4} fill={fill} stroke="#1e1e2e" strokeWidth={1.5} />;
 }
 
-// Tooltip showing EQ value + source/trigger info
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint }> }) {
     if (!active || !payload?.[0]) return null;
     const data = payload[0].payload;
@@ -146,7 +144,7 @@ interface LineChartProps {
 
 /**
  * Data-only chart. Wrapped in React.memo so it only rerenders when the
- * underlying data changes — not on every pan/zoom frame. The live zoom
+ * underlying data changes, not on every pan/zoom frame. The live zoom
  * rectangle and video playhead live in SessionChartOverlay as a DOM
  * sibling instead, so they never touch recharts.
  */
@@ -160,7 +158,6 @@ const SessionLineChart = memo(function SessionLineChart({
     const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
 
-    // Build merged data points
     const mergedMap = new Map<number, ChartPoint>();
 
     for (const e of eqEvents) {
@@ -169,7 +166,7 @@ const SessionLineChart = memo(function SessionLineChart({
         const existing = mergedMap.get(timeOffset);
 
         if (existing && isTrigger) {
-            // Don't overwrite real data — just tag as trigger
+            // Don't overwrite real data, only tag it as a trigger.
             existing.triggerType = e.triggerType;
             existing.triggerEqPercent = Math.round(e.eq * 100);
         } else {
@@ -259,7 +256,6 @@ const SessionLineChart = memo(function SessionLineChart({
                     />
                 ))}
 
-                {/* Original EQ line */}
                 <Line
                     type="monotone"
                     dataKey="eqPercent"
@@ -271,7 +267,6 @@ const SessionLineChart = memo(function SessionLineChart({
                     connectNulls
                 />
 
-                {/* Replay EQ line (only when replay data present) */}
                 {hasReplay && (
                     <Line
                         type="monotone"

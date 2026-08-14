@@ -27,7 +27,6 @@ export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage
     if (!WEBVIEW_MSG_TYPES.has(type)) {
         return false;
     }
-    // Field validation for specific message types
     switch (type) {
         case WebviewMsgType.Error: {
             const payload = (msg as { payload?: unknown }).payload;
@@ -39,7 +38,6 @@ export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage
             if (typeof command !== 'string' || !webviewCmdValues.has(command)) {
                 return false;
             }
-            // Reject commands that require a payload but are missing one
             if (COMMANDS_REQUIRING_PAYLOAD.has(command)) {
                 const payload = (msg as { payload?: unknown }).payload;
                 if (typeof payload !== 'object' || payload === null) {

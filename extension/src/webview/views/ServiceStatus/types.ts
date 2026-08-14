@@ -1,15 +1,9 @@
 import type { VsCodeApi } from '@shared/messageContracts';
 
-/**
- * Props for the ServiceStatusView component.
- */
 export interface ServiceStatusViewProps {
     vscodeApi: VsCodeApi;
 }
 
-/**
- * Health check result for a single service.
- */
 export interface HealthCheckResult {
     status: 'online' | 'offline' | 'unknown';
     message: string;
@@ -18,10 +12,7 @@ export interface HealthCheckResult {
     response: string | null;
 }
 
-/**
- * Persisted state for ServiceStatus view.
- * Only persist serverUrl (durable). Health results are transient.
- */
+/** Only serverUrl is durable; health results are transient and not persisted. */
 export interface ServiceStatusPersistedState {
     serverUrl?: string;
 }

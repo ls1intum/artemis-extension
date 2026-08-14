@@ -1,4 +1,4 @@
-// Covers E2EX-01: Login flow interaction test — credentials → Dashboard
+// Covers E2EX-01: login flow interaction test, credentials to Dashboard
 import * as assert from 'assert';
 import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 
@@ -75,12 +75,11 @@ describe('Login Flow UI Tests', function () {
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		// After successful login, the view should have navigated to Dashboard
-		// Wait for Dashboard heading — any h1 element proves Dashboard mounted
+		// After a successful login the view navigates to Dashboard; any h1 element
+		// proves Dashboard mounted.
 		const heading = await waitForElement(driver, 'h1', 15000);
 		assert.ok(heading, 'Dashboard heading should be visible after login');
 
-		// Verify we're not still on the login form
 		const loginForms = await driver.findElements(By.css('form #username'));
 		assert.strictEqual(
 			loginForms.length, 0,

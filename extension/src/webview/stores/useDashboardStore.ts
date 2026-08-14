@@ -10,7 +10,6 @@ interface DashboardState {
     workspaceExercise: { id: number; title: string } | 'loading' | null;
     isLoading: boolean;
 
-    // Actions
     loadDashboard: (vscodeApi: VsCodeApi) => void;
     setDashboardData: (courses: RecentCourseNode[]) => void;
     setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => void;

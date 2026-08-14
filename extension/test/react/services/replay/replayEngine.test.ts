@@ -270,8 +270,8 @@ describe('replaySession', () => {
         const t = 10_000;
         const events: RecordedEvent[] = [
             diagEvent(t, 'file:///a.ts', [compilerDiag('ts2304')]),
-            saveEvent(t + 100, 'file:///a.ts'),   // save 1 — another save within 500ms → coalesced
-            saveEvent(t + 400, 'file:///a.ts'),   // save 2 — no save within 500ms → fires
+            saveEvent(t + 100, 'file:///a.ts'),   // save 1: another save within 500ms, so coalesced
+            saveEvent(t + 400, 'file:///a.ts'),   // save 2: no save within 500ms, so it fires
         ];
         const result = replaySession(events);
         expect(result).toHaveLength(1);
@@ -312,7 +312,7 @@ describe('replaySession', () => {
             saveEvent(t + 5_100, 'file:///a.ts'),
         ];
         const result = replaySession(events);
-        // At the >= boundary, not deduped — both snapshots accepted
+        // At the >= boundary nothing is deduped, so both snapshots are accepted
         expect(result).toHaveLength(2);
     });
 

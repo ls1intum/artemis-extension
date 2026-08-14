@@ -66,10 +66,9 @@ export function CoursePicker({
 
     // The dialog itself is the fallback focus target, and the effect re-runs
     // when the rows arrive. On a fresh installation the picker opens EMPTY
-    // (status 'loading'), so there is no focusable child to take focus; with a
-    // one-shot `[]` effect focus stayed outside the dialog entirely, and since
-    // the handler below is on the dialog, neither Escape nor the Tab trap ever
-    // saw a key. That is exactly the state a first-time student opens it in.
+    // (status 'loading') with no focusable child, so a one-shot `[]` effect
+    // would leave focus outside the dialog, where the handler below never sees
+    // Escape or the Tab trap.
     useEffect(() => {
         const dialog = dialogRef.current;
         if (!dialog) { return; }
@@ -117,12 +116,11 @@ export function CoursePicker({
             )}
 
             {/*
-              * Two shapes of the same outage. With no rows the list cannot be
-              * read at all, so the failure IS the content. With rows, they were
-              * fetched earlier in this session and stay pickable, but they are
-              * unconfirmed: a course removed since then would still be listed,
-              * which is the defect this picker's live list exists to prevent.
-              * Saying so beats both hiding the rows and presenting them as current.
+              * Two shapes of the same outage. With no rows the failure IS the
+              * content. With rows, they were fetched earlier in this session
+              * and stay pickable but unconfirmed: a course removed since then
+              * would still be listed, which is the defect this picker's live
+              * list exists to prevent.
               */}
             {(status === 'error' || status === 'stale') && (
                 <div

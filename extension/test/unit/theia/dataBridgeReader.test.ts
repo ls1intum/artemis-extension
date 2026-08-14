@@ -1,13 +1,6 @@
 /**
- * Unit tests for readEnvVarsViaDataBridge.
- *
- * Verifies the discriminated-union return contract:
- *  - DATA_BRIDGE_ENABLED unset → 'no-bridge'
- *  - DATA_BRIDGE_ENABLED=1 + command not registered → 'failure: command-missing'
- *  - DATA_BRIDGE_ENABLED=1 + command never delivers → 'failure: timeout'
- *  - DATA_BRIDGE_ENABLED=1 + command returns full record → 'success'
- *  - DATA_BRIDGE_ENABLED=1 + command returns partial record → eventually
- *    'failure: timeout' (waits for all keys)
+ * Unit tests for readEnvVarsViaDataBridge and its discriminated-union return
+ * contract (no-bridge / failure / success).
  */
 
 import * as vscode from 'vscode';
@@ -87,7 +80,6 @@ suite('readEnvVarsViaDataBridge', () => {
         if (result.kind === 'failure') {
             assert.strictEqual(result.reason, 'timeout');
         }
-        // Polling happened at least once
         assert.ok(setTimeoutStub.callCount >= 1);
     });
 
@@ -96,8 +88,8 @@ suite('readEnvVarsViaDataBridge', () => {
         sandbox.stub(vscode.commands, 'getCommands').resolves(['dataBridge.getEnv']);
         sandbox.stub(vscode.commands, 'executeCommand').resolves('arktype validation error: expected string[]');
 
-        // No setTimeout/Date stubs needed — the function should fail fast on
-        // the first non-record response without polling further.
+        // No setTimeout/Date stubs needed: the function fails fast on the first
+        // non-record response without polling further.
         const result = await readEnvVarsViaDataBridge(KEYS);
 
         assert.strictEqual(result.kind, 'failure');

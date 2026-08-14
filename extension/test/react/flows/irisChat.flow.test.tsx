@@ -10,25 +10,20 @@ import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
 /**
  * Iris chat flow integration tests.
  *
- * Tests the chat lifecycle: context selection -> type message -> send ->
- * thinking indicator -> final assistant message clears transient UI.
- * Also covers conversation history, referenced files, disabled states,
- * websocket banner, and cold-mount hydration.
- *
  * The Artemis Iris WebSocket does NOT chunk-stream to this client; only a
  * single final MESSAGE frame is delivered (see irisWebSocketMessageHandler).
  * These tests therefore exercise the thinking-indicator -> AddMessage path,
  * not a chunk simulation.
  */
 
-// Mock streamdown — ESM-only package
+// streamdown is ESM-only, so it has to be mocked here.
 vi.mock('streamdown', () => ({
 	Streamdown: ({ children }: { children?: string }) => (
 		<span data-testid="streamdown">{children}</span>
 	),
 }));
 
-// Mock use-stick-to-bottom — ESM package
+// use-stick-to-bottom is ESM-only, so it has to be mocked here.
 vi.mock('use-stick-to-bottom', () => ({
 	useStickToBottom: vi.fn().mockReturnValue({
 		scrollRef: { current: null },
@@ -108,7 +103,6 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// INBOUND: the conversation the host opened.
 			dispatchExtensionMessage({
 				type: 'updateIrisState',
 				state: {
@@ -154,7 +148,6 @@ describe('Iris Chat Flow', () => {
 			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 			await user.type(textarea, 'How do I implement binary search?{Enter}');
 
-			// OUTBOUND: verify sendMessage postMessage with message text
 			await waitFor(() => {
 				expect(mockApi.postMessage).toHaveBeenCalledWith(
 					expect.objectContaining({
@@ -177,7 +170,6 @@ describe('Iris Chat Flow', () => {
 			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 			await user.type(textarea, 'Explain quicksort{Enter}');
 
-			// User message appears optimistically before extension response
 			await waitFor(() => {
 				expect(screen.getByText('Explain quicksort')).toBeInTheDocument();
 			});
@@ -189,12 +181,10 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Try to send empty message via Enter
 			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 			await user.click(textarea);
 			await user.keyboard('{Enter}');
 
-			// No sendMessage postMessage should be sent
 			const calls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls;
 			const sendMessageCalls = calls.filter(
 				(call) =>
@@ -254,7 +244,7 @@ describe('Iris Chat Flow', () => {
 			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			expect(useChatStore.getState().liveDraft?.text).toBe('partial');
 
-			// The Artemis MESSAGE frame arrives — extension forwards it as an
+			// The Artemis MESSAGE frame arrives. The extension forwards it as an
 			// AddMessage carrying the commit projection, which clears the draft
 			// and waiting flag atomically with the committed message.
 			dispatchExtensionMessage({
@@ -282,12 +272,11 @@ describe('Iris Chat Flow', () => {
 
 	describe('Conversation history', () => {
 		it('preserves message history across multiple exchanges', async () => {
-			// LoadMessages is gated on activeSessionId — set it to match the dispatched payload.
+			// LoadMessages is gated on activeSessionId, so it must match the dispatched payload.
 			useChatStore.setState({ currentSessionId: OPEN });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Load multiple messages from extension
 			dispatchExtensionMessage({
 				type: 'loadMessages',
 				sessionId: OPEN,
@@ -309,7 +298,6 @@ describe('Iris Chat Flow', () => {
 		});
 
 		it('adds new message to existing conversation via addMessage event', async () => {
-			// Pre-populate with existing messages
 			useChatStore.setState({
 				...HYDRATED,
 				messages: [
@@ -381,7 +369,6 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// INBOUND: extension sends referenced files
 			dispatchExtensionMessage({
 				type: 'updateReferencedFiles',
 				includedFiles: ['src/Main.java', 'src/Utils.java'],
@@ -464,7 +451,6 @@ describe('Iris Chat Flow', () => {
 			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
 
-			// Host posts SendRejected.
 			dispatchExtensionMessage({
 				type: 'sendRejected',
 				localId: payload.localId,
@@ -477,14 +463,11 @@ describe('Iris Chat Flow', () => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			});
 
-			// Original user text still visible.
 			expect(screen.getByText('How do I solve task 2?')).toBeInTheDocument();
-			// Error footer rendered.
 			expect(screen.getByText('Not sent')).toBeInTheDocument();
 			expect(
 				screen.getByText('Please select a course or exercise context first.')
 			).toBeInTheDocument();
-			// Message marked error in store.
 			const updated = useChatStore.getState().messages.find((m) => m.localId === payload.localId);
 			expect(updated?.status).toBe('error');
 			expect(updated?.errorReason).toBe('no-context');
@@ -510,9 +493,8 @@ describe('Iris Chat Flow', () => {
 				useChatStore.setState({ currentSessionId: 901 });
 			});
 
-			// Stale rejection arrives — must be ignored. Without the
-			// conversation guard, this would clear the next conversation's
-			// transient UI by accident.
+			// Stale rejection must be ignored. Without the conversation guard,
+			// this would clear the next conversation's transient UI by accident.
 			act(() => {
 				useChatStore.getState().startStreaming(); // simulate new session has a pending send
 			});
@@ -525,7 +507,6 @@ describe('Iris Chat Flow', () => {
 				errorMessage: 'Please select a course or exercise context first.',
 			});
 
-			// New session's streaming flag is untouched.
 			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 		});
 
@@ -535,7 +516,6 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Seed a failed user message directly.
 			act(() => {
 				useChatStore.setState({
 					messages: [{
@@ -553,15 +533,12 @@ describe('Iris Chat Flow', () => {
 			const retry = screen.getByRole('button', { name: 'Retry sending this message' });
 			await user.click(retry);
 
-			// Failed entry removed.
 			expect(useChatStore.getState().messages.find((m) => m.localId === 'failed-1')).toBeUndefined();
-			// New optimistic message present with same content but different localId.
 			const fresh = useChatStore.getState().messages.find((m) => m.content === 'Retry me');
 			expect(fresh).toBeDefined();
 			expect(fresh!.localId).not.toBe('failed-1');
 			expect(fresh!.status).toBe('sending');
 
-			// sendMessage posted with the fresh localId.
 			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
 				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
 			);
@@ -607,7 +584,7 @@ describe('Iris Chat Flow', () => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			});
 
-			// Typing is allowed during a run now, sending is not. The Enter
+			// Typing is allowed during a run, sending is not. The Enter
 			// guard in ChatInput plus the funnel guard in handleSendMessage
 			// are what keep this to one command.
 			await user.click(textarea);
@@ -627,7 +604,6 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// First send.
 			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
 			await user.type(textarea, 'Persistent question{Enter}');
 
@@ -636,7 +612,6 @@ describe('Iris Chat Flow', () => {
 			);
 			const payload1 = (sendCall1![0] as { payload: { localId: string; sessionId: number } }).payload;
 
-			// First rejection.
 			dispatchExtensionMessage({
 				type: 'sendRejected',
 				localId: payload1.localId,
@@ -648,10 +623,8 @@ describe('Iris Chat Flow', () => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			});
 
-			// First retry: Retry button is currently disabled (context held —
-			// see other test) so simulate a context where retry is enabled.
-			// Use a reason that allows retry without state change: temporarily
-			// override errorReason to a value the current canRetry permits.
+			// Retry stays disabled while the no-context reason holds, so drop
+			// errorReason to a value canRetry permits.
 			act(() => {
 				useChatStore.setState({
 					messages: useChatStore.getState().messages.map((m) =>
@@ -664,7 +637,6 @@ describe('Iris Chat Flow', () => {
 
 			await user.click(screen.getByRole('button', { name: 'Retry sending this message' }));
 
-			// A second sendMessage call should have fired with a different localId.
 			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
 				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
 			);
@@ -672,7 +644,6 @@ describe('Iris Chat Flow', () => {
 			const payload2 = (sendCalls[1][0] as { payload: { localId: string; sessionId: number } }).payload;
 			expect(payload2.localId).not.toBe(payload1.localId);
 
-			// Second rejection on the retried message.
 			dispatchExtensionMessage({
 				type: 'sendRejected',
 				localId: payload2.localId,
@@ -684,7 +655,6 @@ describe('Iris Chat Flow', () => {
 			await waitFor(() => {
 				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
 			});
-			// The retried message is itself now marked failed.
 			const retried = useChatStore.getState().messages.find((m) => m.localId === payload2.localId);
 			expect(retried?.status).toBe('error');
 		});
@@ -847,20 +817,15 @@ describe('Iris Chat Flow', () => {
 		});
 
 		it('refuses a blocked send at the funnel without disturbing anything', () => {
-			// The welcome prompts are the shortest path to the funnel: they
-			// call handleSendMessage directly (WelcomeState.tsx, via
-			// onSendPrompt), with no composer in between. They are now gated
-			// like Retry, so the lock has to be taken AFTER the render that
-			// drew them live, the same way the Retry race test below reaches
-			// its guard. That stale button is the only way into the funnel
-			// while the gate is shut, which makes this test the coverage of
-			// the funnel guard itself.
+			// The welcome prompts call handleSendMessage directly (WelcomeState.tsx,
+			// via onSendPrompt), with no composer in between, and are gated like
+			// Retry. A stale enabled button is the only way into the funnel while
+			// the gate is shut, so this test is the coverage of the funnel guard
+			// itself.
 			//
 			// Only the host lock is set, deliberately. `showWelcome` is
-			// `messages.length === 0 && !hasRunSurface` (ChatMessageList.tsx),
-			// so seeding `streaming` here would hide the very buttons this
-			// test clicks. The lock alone blocks the funnel and keeps them on
-			// screen.
+			// `messages.length === 0 && !hasRunSurface` (ChatMessageList.tsx), so
+			// seeding `streaming` here would hide the very buttons this test clicks.
 			useChatStore.setState({
 				...HYDRATED,
 				messages: [],
@@ -1050,7 +1015,6 @@ describe('Iris Chat Flow', () => {
 				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
 			);
 
-			// Blocked: nothing sent, and the bubble is still there to retry.
 			expect(sends()).toHaveLength(0);
 			expect(useChatStore.getState().messages).toHaveLength(1);
 
@@ -1061,27 +1025,19 @@ describe('Iris Chat Flow', () => {
 		});
 
 		/**
-		 * A stand-in for "a host snapshot lands between this render
-		 * committing and its effect running". React flushes a commit's
-		 * passive effects in tree order, and a PRECEDING sibling's own
-		 * `useEffect` runs strictly before `IrisChatView`'s. Mounted before
-		 * `IrisChatView`, this fires exactly once (guarded by `armed`), right
-		 * when `unavailableMessage` turns null, and mutates the store
-		 * directly, before the resend effect's own body runs in the SAME
-		 * flush.
+		 * A stand-in for "a host snapshot lands between this render committing
+		 * and its effect running". React flushes a commit's passive effects in
+		 * tree order, and a PRECEDING sibling's own `useEffect` runs strictly
+		 * before `IrisChatView`'s. Mounted before `IrisChatView`, this fires
+		 * exactly once (guarded by `armed`), right when `unavailableMessage`
+		 * turns null, and mutates the store directly, before the resend
+		 * effect's own body runs in the SAME flush.
 		 *
-		 * That is the only way found, with the tools available here, to make
-		 * a render commit with `sendBlocked === false` in its closure while
-		 * `useChatStore.getState().sendInFlight` is already `true` by the
-		 * time the effect body reads it. Every attempt to produce the same
-		 * gap purely through test-level `act()`/`setState` sequencing (two
-		 * sequential `act()` calls, raw `setState` outside `act()`, awaiting
-		 * across micro- and macrotasks) either collapsed both changes into
-		 * one render that saw them together, or let the whole effect
-		 * including the resend run to completion before the second change
-		 * was even applied. A closure read would have passed either of those
-		 * cases too, so they would not have exercised the bug this guards
-		 * against.
+		 * It is the only way here to commit a render holding
+		 * `sendBlocked === false` in its closure while `sendInFlight` is already
+		 * `true` by the time the effect body reads it. Plain test-level
+		 * `act()`/`setState` sequencing collapses both changes into one render,
+		 * which a closure read survives, so it would not exercise the guard.
 		 */
 		function RaceInjector({ armed }: { armed: { current: boolean } }) {
 			const unavailable = useChatStore((s) => s.unavailableMessage);
@@ -1133,11 +1089,9 @@ describe('Iris Chat Flow', () => {
 				useChatStore.setState({ unavailableMessage: null });
 			});
 
-			// Blocked: nothing sent, and the bubble is still there to retry.
-			// Before the fix this failed right here: the stale closure let
-			// the effect through, it removed the bubble, and the funnel's own
-			// (already-live) guard then refused the send, losing the text for
-			// good.
+			// Blocked: nothing sent, and the bubble is still there to retry. A
+			// stale closure would let the effect through, remove the bubble, and
+			// the funnel's live guard would then refuse the send, losing the text.
 			expect(sends()).toHaveLength(0);
 			expect(useChatStore.getState().messages).toHaveLength(1);
 			expect(useChatStore.getState().messages[0].content).toBe('Retry me');
@@ -1187,7 +1141,6 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Frame 1: loader, never welcome.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 

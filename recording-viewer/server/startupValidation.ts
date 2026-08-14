@@ -8,7 +8,7 @@ export interface StartupTokens {
 /**
  * Validate at startup: if both tokens are configured, they must differ.
  * The dual-undefined case is allowed (no auth configured at all; the server
- * binds to localhost in that mode, matching the pre-multi-rater behavior).
+ * binds to localhost in that mode).
  */
 export function validateStartupConfig(tokens: StartupTokens): void {
     if (tokens.liveToken && tokens.researcherToken && tokens.liveToken === tokens.researcherToken) {

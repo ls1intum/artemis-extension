@@ -22,16 +22,16 @@ import { useStickToBottom } from 'use-stick-to-bottom';
 export function useAutoScroll() {
     const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom();
 
-    // Scroll to bottom when user sends a message (explicit intent to follow conversation)
+    // Sending a message is explicit intent to follow the conversation.
     const scrollOnSend = useCallback(() => {
         scrollToBottom();
     }, [scrollToBottom]);
 
     return {
-        scrollRef,       // Attach to scroll container div
-        contentRef,      // Attach to content wrapper div inside scroll container
-        isAtBottom,      // Whether user is near bottom (for UI indicators)
+        scrollRef,       // Attach to the scroll container div
+        contentRef,      // Attach to the content wrapper inside the scroll container
+        isAtBottom,
         scrollOnSend,    // Call after sending a message
-        scrollToBottom,  // Manual scroll to bottom
+        scrollToBottom,
     };
 }

@@ -38,18 +38,16 @@ export interface TopicResolutionInput {
  * unconditionally (`context-selection.component.ts` calls `stagePendingContext`
  * for both the picker and the chip's remove icon, with no check on the
  * transcript), and the server commits it on the next send by writing a CTXSWAP
- * marker. The switch is therefore recorded in the transcript rather than
- * hidden, which is what an earlier draft of this file tried to achieve by
- * opening or creating a second conversation instead. That protected nothing the
- * marker does not already protect, and it made the same gesture behave
- * differently in the two clients: here a new conversation, in the browser a
- * divider. Starting a fresh conversation is the header `+`, a separate gesture
- * in both clients.
+ * marker, so the switch is recorded in the transcript rather than hidden.
+ * Opening a second conversation instead would protect nothing the marker does
+ * not already protect and would make the same gesture behave differently in the
+ * two clients. Starting a fresh conversation is the header `+`, a separate
+ * gesture in both clients.
  *
  * HOST-ONLY. The webview must not import this (`eslint.config.mjs` bans
  * `@extension/*` from `src/webview/**`), so the picker cannot label its rows
- * with what each pick would do. It no longer needs to: every pick does the
- * same thing.
+ * with what each pick would do. It does not need to: every pick does the same
+ * thing.
  */
 export function resolveTopic(input: TopicResolutionInput): TopicDecision {
     const { target, courseId, currentSessionId, committedContext, pendingContext, contentState } = input;

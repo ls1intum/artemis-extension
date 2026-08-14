@@ -61,15 +61,11 @@ export function getLatestById<T extends { id?: number }>(
 /**
  * The result to DISPLAY for a participation: the latest result of the newest
  * submission that actually has one (submission-first, matching how the rest of
- * the codebase resolves "latest" (see `ExerciseDetailView` lines 227-229,
- * `participationHelpers.ts`).
+ * the codebase resolves "latest", see `participationHelpers.ts`).
  *
  * Differs from `getLatestById(latestSubmission?.results)` only during a build:
  * a freshly-created submission has no results yet, so reading only the latest
  * submission returns nothing and the previous result vanishes from the UI.
- * Walking submissions newest-first keeps the previous result visible until the
- * new one lands on the newest submission. When the newest submission has a
- * result, this returns exactly that result, identical to `latestResult`.
  *
  * NOT a global "highest result id" scan: a re-evaluated older submission can
  * own a result with a higher id than the newest submission's, which must NOT
@@ -184,11 +180,8 @@ export function classifyTaskTests(
     testIds: number[],
     latestResult: LatestResultLike | undefined,
 ): TaskTestState {
-    // A task without testIds has no associated tests; the result is irrelevant.
     // Hoisted above the other guards so 'no-tests-in-task' is the canonical
-    // state for this defensive case across all input combinations (the click
-    // handler in ProblemStatement.tsx already short-circuits empty testId
-    // lists before reaching here).
+    // state for a task without tests across all input combinations.
     if (testIds.length === 0) {
         return { kind: 'no-tests-in-task' };
     }
@@ -248,9 +241,9 @@ export function classifyTaskTests(
 
 /**
  * Counts derived from a {@link TaskTestState}, in the shape the telemetry
- * payload expects. `passedCount` + `failedCount` preserves the pre-existing
- * `totalTests` semantics (matched tests for this task); `notExecutedCount`
- * is additive so historical analytics keep working.
+ * payload expects. `passedCount` + `failedCount` is `totalTests` (the matched
+ * tests for this task); `notExecutedCount` is additive on top rather than
+ * folded into `failedCount`, so existing analytics keep working.
  */
 export function countsForTelemetry(state: TaskTestState): {
     passedCount: number;

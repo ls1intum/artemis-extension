@@ -7,18 +7,12 @@ import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 /** Fallback flush interval in case RAF never fires (e.g. hidden tab) */
 const FALLBACK_FLUSH_MS = 1000;
 
-/** Hard cap on buffered messages — flush immediately when exceeded */
+/** Flush threshold: reaching it schedules a flush instead of waiting for the next frame. */
 const MAX_BUFFER_SIZE = 100;
 
 /**
- * RAF-batched WebSocket update hook.
- * Buffers incoming WebSocket messages and processes them once per frame
- * to prevent re-render storms from high-frequency updates.
- *
- * Safety features:
- * - Fallback timer: flushes every FALLBACK_FLUSH_MS even if RAF doesn't fire
- * - Max buffer size: immediate flush when buffer exceeds MAX_BUFFER_SIZE
- * - Cleanup: clears buffer on unmount to prevent stale closure dispatches
+ * Buffers incoming WebSocket messages and processes them once per frame, so
+ * high-frequency updates cannot cause a re-render storm.
  */
 export function useWebSocketUpdates(): void {
     const updateBuildStatus = useExerciseDetailStore((state) => state.updateBuildStatus);
@@ -41,7 +35,6 @@ export function useWebSocketUpdates(): void {
                 fallbackTimerRef.current = null;
             }
 
-            // Process all buffered updates
             for (const update of updates) {
                 switch (update.updateType) {
                     case 'newResult':
@@ -61,22 +54,20 @@ export function useWebSocketUpdates(): void {
             if (!isExtensionMessage(event.data)) { return; }
             if (event.data.type !== ExtensionMsg.WebsocketUpdate) { return; }
 
-            // Add to buffer - push update fields (now at root level) to preserve discriminated union
+            // Push the update fields without `type` so the buffered value
+            // stays a member of the discriminated union.
             const { type: _type, ...updateData } = event.data;
             bufferRef.current.push(updateData);
 
-            // Immediate flush if buffer exceeds max size
             if (bufferRef.current.length >= MAX_BUFFER_SIZE) {
                 setTimeout(flushBuffer, 0);
                 return;
             }
 
-            // Schedule RAF flush if not already scheduled
             if (rafIdRef.current === null) {
                 rafIdRef.current = requestAnimationFrame(flushBuffer);
             }
 
-            // Schedule fallback timer in case RAF never fires (hidden tab)
             if (fallbackTimerRef.current === null) {
                 fallbackTimerRef.current = setTimeout(flushBuffer, FALLBACK_FLUSH_MS);
             }
@@ -87,13 +78,11 @@ export function useWebSocketUpdates(): void {
         return () => {
             window.removeEventListener('message', handleMessage);
 
-            // Cancel pending RAF
             if (rafIdRef.current !== null) {
                 cancelAnimationFrame(rafIdRef.current);
                 rafIdRef.current = null;
             }
 
-            // Cancel pending fallback timer
             if (fallbackTimerRef.current !== null) {
                 clearTimeout(fallbackTimerRef.current);
                 fallbackTimerRef.current = null;

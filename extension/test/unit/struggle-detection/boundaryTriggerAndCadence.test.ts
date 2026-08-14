@@ -1,13 +1,12 @@
 /**
- * Boundary Trigger & Adaptive Cadence — Unit Tests
+ * Boundary Trigger and Adaptive Cadence unit tests.
  *
- * Tests paper-compliance fixes:
- *   Fix 1: Selection-Trigger significance check (P11: "insignificant selection → no response")
- *   Fix 2: Idle-Definition includes all activity (P11: "no edit, caret, or selection")
- *          + One-Shot Idle Timer (P11: "User has been idle" → intervene once)
- *   Fix 3: Adaptive cadence dismiss tracks correct trigger type
- *   Fix 4: isLikelyManualPaste heuristic (MVP Edge Case 3)
- *   Fix 5: Adaptive threshold caps (180s idle, 120s selection)
+ * Covers:
+ *   Selection triggers ignore insignificant selections (P11: "insignificant selection -> no response")
+ *   Idle counts every activity kind (P11: "no edit, caret, or selection"), one shot per idle period
+ *   Adaptive cadence dismiss tracks the trigger type that was shown
+ *   isLikelyManualPaste heuristic
+ *   Adaptive threshold caps (180s idle, 120s selection)
  */
 
 import * as assert from 'assert';
@@ -19,18 +18,11 @@ import { InactivityService } from '@extension/services/telemetry/inactivityServi
 import { AdaptiveCadence } from '@extension/services/telemetry/intervention/adaptiveCadence';
 import { DEFAULT_TRIGGER_CONFIG, TriggerType } from '@extension/services/telemetry/types';
 
-// ============================================================================
-// Test Subclass — exposes protected methods for direct invocation in tests
-// ============================================================================
-
+/** Exposes InactivityService's protected activity recorders to tests. */
 class TestableInactivityService extends InactivityService {
     public recordActivity(): void { this._recordActivity(); }
     public recordWeakActivity(): void { this._recordWeakActivity(); }
 }
-
-// ============================================================================
-// Mock Helpers
-// ============================================================================
 
 /** Create a mock TextDocumentContentChangeEvent for isLikelyManualPaste tests */
 function makeChangeEvent(opts: {
@@ -90,10 +82,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         clock.restore();
     });
 
-    // =========================================================================
-    // Fix 1: Selection-Trigger Significance Check
-    // =========================================================================
-
     suite('Fix 1: Selection-Trigger Significance', () => {
 
         let inactivityService: InactivityService;
@@ -119,7 +107,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             const event = makeSelectionEvent([{ isEmpty: true }]);
             emitter.handleSelectionChange(event);
 
-            // Advance past selection threshold — should NOT fire
             clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000);
             assert.strictEqual(firedTriggers.length, 0, 'Empty selection must not trigger');
         });
@@ -128,24 +115,20 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             const event = makeSelectionEvent([{ isEmpty: false }]);
             emitter.handleSelectionChange(event);
 
-            // Advance past selection threshold — should fire
             clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000);
             assert.strictEqual(firedTriggers.length, 1);
             assert.strictEqual(firedTriggers[0], 'selection-maintained');
         });
 
         test('Cursor click cancels running selection timer', () => {
-            // Start with a range selection
             const rangeEvent = makeSelectionEvent([{ isEmpty: false }]);
             emitter.handleSelectionChange(rangeEvent);
 
-            // After half the threshold, click (empty selection)
             clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS / 2);
             const cursorEvent = makeSelectionEvent([{ isEmpty: true }]);
             emitter.handleSelectionChange(cursorEvent);
 
-            // Advance well past the original threshold — selection-maintained should NOT fire
-            // (idle triggers may fire due to elapsed time — that's expected and unrelated)
+            // Idle triggers may also fire from elapsed time; only selection-maintained matters here.
             clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS * 2);
             const selectionTriggers = firedTriggers.filter(t => t === 'selection-maintained');
             assert.strictEqual(selectionTriggers.length, 0, 'Cursor click must cancel selection timer');
@@ -175,10 +158,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             assert.strictEqual(firedTriggers.length, 0);
         });
     });
-
-    // =========================================================================
-    // Fix 2: Idle-Definition (all activity resets idle) + One-Shot Idle Timer
-    // =========================================================================
 
     suite('Fix 2: Idle-Definition — getTimeSinceLastActivity()', () => {
 
@@ -229,7 +208,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             inactivityService.recordActivity();
             // Go idle for >= ACTIVE threshold (30s)
             clock.tick(30_000);
-            // Resume activity
             inactivityService.recordActivity();
 
             assert.strictEqual(resumeCount, 1, 'Should fire once on resume after idle');
@@ -240,7 +218,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             inactivityService.onDidResumeActivity(() => resumeCount++);
 
             inactivityService.recordActivity();
-            clock.tick(10_000); // Only 10s — still "active"
+            clock.tick(10_000); // still inside the 30s active window
             inactivityService.recordActivity();
 
             assert.strictEqual(resumeCount, 0, 'Should not fire when still within active window');
@@ -257,10 +235,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             assert.strictEqual(resumeCount, 1, 'Weak activity should also trigger resume');
         });
     });
-
-    // =========================================================================
-    // One-Shot Idle Timer (Paper model: fire once, re-arm on resume)
-    // =========================================================================
 
     suite('One-Shot Idle Timer', () => {
 
@@ -283,7 +257,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('Idle fires exactly once after threshold', () => {
-            // Record activity to establish baseline
             inactivityService.recordActivity();
             // Advance past idle threshold (30s)
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 1);
@@ -294,7 +267,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
         test('Idle does NOT fire repeatedly while user stays idle', () => {
             inactivityService.recordActivity();
-            // Advance well past threshold — in old polling model this would fire multiple times
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 60_000);
 
             const idleTriggers = firedTriggers.filter(t => t === 'idle');
@@ -303,15 +275,15 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
         test('Activity during idle period delays fire until actual threshold', () => {
             inactivityService.recordActivity();
-            // Advance 10s — timer was armed for 30s at construction
+            // Advance 10s; the timer was armed for 30s at construction.
             clock.tick(10_000);
             // Activity at 10s resets the idle clock (but not the timer directly).
             // When the original timer fires at 30s, it sees only 20s of idle
             // and re-arms for the remaining 10s.
             inactivityService.recordActivity();
 
-            // At 20s after second activity (30s from start) — timer callback
-            // re-checks and sees only 20s idle → re-arms
+            // At 20s after the second activity (30s from start) the timer
+            // callback re-checks, sees only 20s idle, and re-arms.
             clock.tick(20_000);
             assert.strictEqual(firedTriggers.filter(t => t === 'idle').length, 0,
                 'Should not fire yet — only 20s idle since last activity');
@@ -326,10 +298,8 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             inactivityService.recordActivity();
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 1);
 
-            // Idle fired once
             assert.strictEqual(firedTriggers.filter(t => t === 'idle').length, 1);
 
-            // Wait much longer — should NOT fire again
             clock.tick(120_000);
             assert.strictEqual(firedTriggers.filter(t => t === 'idle').length, 1,
                 'Without resume, idle must not fire again');
@@ -337,7 +307,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
         test('onDidResumeActivity re-arms idle timer → fires again after new idle period', () => {
             inactivityService.recordActivity();
-            // First idle fire
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 1);
             assert.strictEqual(firedTriggers.filter(t => t === 'idle').length, 1);
 
@@ -345,18 +314,15 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             inactivityService.recordActivity();
             // This triggers onDidResumeActivity → _armIdleTimer()
 
-            // Wait for threshold again
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 1);
             assert.strictEqual(firedTriggers.filter(t => t === 'idle').length, 2,
                 'After resume + idle period, idle should fire again');
         });
 
         test('Adaptive threshold used when arming (k=1 → 60s)', () => {
-            // Increment idle ignore count to raise threshold to 60s
             adaptiveCadence.incrementIgnoreCount('idle');
             assert.strictEqual(adaptiveCadence.getIdleThreshold(), 60_000);
 
-            // Record activity and re-arm (simulate resume)
             inactivityService.recordActivity();
             // Need to go idle first (>= 30s) then resume to trigger re-arm
             clock.tick(30_000);
@@ -372,8 +338,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
             // The first idle fires at constructor time (30s from start).
             // After resume+re-arm with 60s threshold, a new idle fires at ~60s.
-            // At 31s after re-arm: should NOT have fired the new one yet
-            // At 61s after re-arm: should have fired
             assert.ok(idleAt61s > idleAt31s,
                 `Adaptive threshold (60s) should delay fire: at31s=${idleAt31s}, at61s=${idleAt61s}`);
         });
@@ -384,21 +348,13 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
             emitter.reset();
 
-            // The old timer is cleared, new one armed. Advance another 15s from reset.
-            // Since reset re-arms with fresh threshold (30s) and activity timestamps
-            // were not reset (still 15s ago from the tick before reset... actually
-            // reset() doesn't call inactivityService.reset(). So getTimeSinceLastActivity()
-            // is now 15s. The new _armIdleTimer computes: 30s - 15s = 15s delay.
-            // After 16s more, it should fire.
+            // reset() re-arms but leaves the activity timestamps alone, so the
+            // fresh 30s threshold minus the 15s already idle leaves a 15s delay.
             clock.tick(16_000);
             const idleTriggers = firedTriggers.filter(t => t === 'idle');
             assert.ok(idleTriggers.length >= 1, 'After reset and threshold elapsed, idle should fire');
         });
     });
-
-    // =========================================================================
-    // Fix 3: Adaptive Cadence — Dismiss tracks correct trigger type
-    // =========================================================================
 
     suite('Fix 3: Adaptive Cadence — Per-trigger-type dismiss tracking', () => {
 
@@ -437,10 +393,8 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('Dismiss after execution-error should NOT increment idle', () => {
-            // This test validates the fix: before Fix 3, dismiss always incremented 'idle'
             const cadence = new AdaptiveCadence();
 
-            // Simulate: trigger was execution-error, user dismisses
             const triggerType: TriggerType = 'execution-error';
             cadence.incrementIgnoreCount(triggerType);
 
@@ -468,12 +422,8 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             // 2. Before dismiss, another trigger fires but doesn't reach intervention
             //    (due to cooldown / canIntervene check)
             // 3. Dismiss should still use the original trigger type
-            //
-            // This is tested at the TelemetryManager level conceptually,
-            // but we verify the AdaptiveCadence correctly receives the right type.
             const cadence = new AdaptiveCadence();
 
-            // Original intervention trigger
             const originalTrigger: TriggerType = 'execution-error';
             // Simulate what TelemetryManager does on dismiss
             cadence.incrementIgnoreCount(originalTrigger);
@@ -483,13 +433,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
     });
 
-    // =========================================================================
-    // isLikelyManualPaste — Heuristic Edge Cases (MVP Edge Case 3)
-    // =========================================================================
-
     suite('isLikelyManualPaste — Heuristic', () => {
-
-        // --- Positive cases: should detect as paste ---
 
         test('Pure multi-line insert (Ctrl+V paste) → true', () => {
             const change = makeChangeEvent({
@@ -517,12 +461,10 @@ suite('Boundary Trigger & Cadence Fixes', () => {
                 text: 'new line 1\nnew line 2\nnew line 3\n',
                 rangeLength: 40,
                 rangeIsEmpty: false,
-                rangeIsSingleLine: false, // Selection spans multiple lines
+                rangeIsSingleLine: false,
             });
             assert.strictEqual(isLikelyManualPaste(change), true);
         });
-
-        // --- Negative cases: single-line (not multi-line) ---
 
         test('Single-line insert → false', () => {
             const change = makeChangeEvent({
@@ -541,8 +483,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             });
             assert.strictEqual(isLikelyManualPaste(change), false);
         });
-
-        // --- Negative cases: formatter/refactoring exclusion ---
 
         test('Formatter: replaces >1000 chars with multi-line output → false', () => {
             const change = makeChangeEvent({
@@ -575,15 +515,13 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             assert.strictEqual(isLikelyManualPaste(change), true);
         });
 
-        // --- Negative cases: Copilot/snippet exclusion ---
-
         test('Copilot: single-line range replaced with multi-line → false', () => {
             // Copilot ghost text: replaces inline text on one line with multi-line completion
             const change = makeChangeEvent({
                 text: 'function hello() {\n  console.log("hi");\n}\n',
                 rangeLength: 10,
                 rangeIsEmpty: false,
-                rangeIsSingleLine: true, // Original range is on a single line
+                rangeIsSingleLine: true,
             });
             assert.strictEqual(isLikelyManualPaste(change), false);
         });
@@ -600,7 +538,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
         test('Copilot on empty range (isEmpty=true, isSingleLine=true) → true (pure insert)', () => {
             // Edge case: some completions insert at cursor with empty range.
-            // range.isEmpty means no text was replaced — looks like a paste.
+            // range.isEmpty means no text was replaced, so it looks like a paste.
             // This is a known limitation noted in the MVP.
             const change = makeChangeEvent({
                 text: 'completion line 1\ncompletion line 2\n',
@@ -610,8 +548,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             });
             assert.strictEqual(isLikelyManualPaste(change), true);
         });
-
-        // --- Combined edge cases ---
 
         test('Large paste (999 chars) with multi-line range → true', () => {
             const change = makeChangeEvent({
@@ -633,10 +569,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             assert.strictEqual(isLikelyManualPaste(change), false);
         });
     });
-
-    // =========================================================================
-    // Adaptive Threshold Caps (180s idle, 120s selection)
-    // =========================================================================
 
     suite('Adaptive Threshold Caps', () => {
 
@@ -718,7 +650,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         test('Idle cap holds even after reset and re-increment', () => {
             const cadence = new AdaptiveCadence();
 
-            // Exceed cap, then reset, then exceed again
             for (let i = 0; i < 8; i++) {
                 cadence.incrementIgnoreCount('idle');
             }
@@ -742,17 +673,12 @@ suite('Boundary Trigger & Cadence Fixes', () => {
                 cadence.incrementIgnoreCount('idle');
             }
 
-            // Selection is still at initial
             assert.strictEqual(cadence.getSelectionThreshold(), 15_000,
                 'Selection threshold must not be affected by idle ignores');
             assert.strictEqual(cadence.getIdleThreshold(), 180_000,
                 'Idle should be capped');
         });
     });
-
-    // =========================================================================
-    // fireExecutionErrorTrigger()
-    // =========================================================================
 
     suite('fireExecutionErrorTrigger()', () => {
 
@@ -796,10 +722,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             assert.strictEqual(errors.length, 2, 'Second fire after cooldown should succeed');
         });
     });
-
-    // =========================================================================
-    // handleTextDocumentChange() integration
-    // =========================================================================
 
     suite('handleTextDocumentChange() integration', () => {
 
@@ -906,10 +828,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
     });
 
-    // =========================================================================
-    // Fresh threshold in idle callback (Fix 1 dedicated test)
-    // =========================================================================
-
     suite('Fresh threshold in idle callback (Fix 1)', () => {
 
         let inactivityService: TestableInactivityService;
@@ -935,10 +853,9 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             // Activity baseline is construction time (IS constructor sets Date.now).
             inactivityService.recordActivity();
 
-            // Tick 15s — timer still pending (armed for 30s)
+            // Tick 15s; the timer is still pending (armed for 30s).
             clock.tick(15_000);
 
-            // Increase threshold to 60s
             adaptiveCadence.incrementIgnoreCount('idle');
             assert.strictEqual(adaptiveCadence.getIdleThreshold(), 60_000);
 
@@ -967,11 +884,10 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
             clock.tick(15_000);
 
-            // Drop threshold back to 30s
             adaptiveCadence.resetAll();
             assert.strictEqual(adaptiveCadence.getIdleThreshold(), 30_000);
 
-            // Tick 15s more (30s total idle) — triggers resume on next activity
+            // Tick 15s more (30s total idle); resume fires on the next activity.
             clock.tick(15_000);
 
             // Resume activity after 30s idle → onDidResumeActivity → re-arm
@@ -986,10 +902,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             );
         });
     });
-
-    // =========================================================================
-    // handleSelectionChange() cooldown
-    // =========================================================================
 
     suite('handleSelectionChange() cooldown', () => {
 
@@ -1015,7 +927,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             const selections = () => firedTriggers.filter(t => t === 'selection-maintained');
 
             emitter.handleSelectionChange(makeSelectionEvent([{ isEmpty: false }]));
-            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000); // fires
+            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000);
             assert.strictEqual(selections().length, 1, 'First selection should fire');
 
             emitter.handleSelectionChange(makeSelectionEvent([{ isEmpty: false }]));
@@ -1037,10 +949,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             assert.strictEqual(selections().length, 2, 'Second after cooldown should fire');
         });
     });
-
-    // =========================================================================
-    // reset() — selection timer and cooldown clearing
-    // =========================================================================
 
     suite('reset() — selection timer and cooldown clearing', () => {
 
@@ -1068,7 +976,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS / 2);
             emitter.reset();
 
-            // Tick well past original threshold — idle may fire from re-arm, but selection must not
+            // Tick well past the original threshold; idle may fire from the re-arm, but selection must not.
             clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS * 2);
 
             const selections = firedTriggers.filter(t => t === 'selection-maintained');
@@ -1082,15 +990,11 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
             emitter.reset();
 
-            // Fire immediately — should succeed because cooldown was cleared
+            // Fires immediately because reset cleared the cooldown.
             emitter.fireExecutionErrorTrigger();
             assert.strictEqual(errors().length, 2, 'After reset, cooldown should be cleared');
         });
     });
-
-    // =========================================================================
-    // dispose() stops idle timer from firing
-    // =========================================================================
 
     suite('dispose() stops idle timer from firing', () => {
 

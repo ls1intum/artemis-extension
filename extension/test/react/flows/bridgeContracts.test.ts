@@ -1,7 +1,7 @@
 /**
  * Bridge contract tests for all AppStateManager state transitions.
  *
- * These tests verify runtime payload shape contracts — complementing the
+ * These tests verify runtime payload shape contracts, complementing the
  * compile-time type-drift detection in messageContracts.test.ts.
  *
  * Rules:
@@ -24,10 +24,6 @@ import {
 } from '@test/react/fixtures';
 
 describe('Bridge Contracts', () => {
-
-    // =========================================================================
-    // 1. showDashboard() → dashboard state → dashboardInit
-    // =========================================================================
 
     describe('dashboard (dashboardInit)', () => {
         it('has type discriminant "dashboardInit"', () => {
@@ -58,10 +54,6 @@ describe('Bridge Contracts', () => {
         });
     });
 
-    // =========================================================================
-    // 3. showCourseList() → course-list state → courseListInit
-    // =========================================================================
-
     describe('course-list (courseListInit)', () => {
         it('has type discriminant "courseListInit"', () => {
             const payload = createCourseListPayload();
@@ -89,10 +81,6 @@ describe('Bridge Contracts', () => {
             expect(payload.courses[0].course.id).toBe(7);
         });
     });
-
-    // =========================================================================
-    // 4 & 5. showCourseDetail() / showArchivedCourseDetail() → course-detail → courseDetailInit
-    // =========================================================================
 
     describe('course-detail (courseDetailInit)', () => {
         it('has type discriminant "courseDetailInit"', () => {
@@ -123,10 +111,6 @@ describe('Bridge Contracts', () => {
             expect(payload.hideDeveloperTools).toBe(false);
         });
     });
-
-    // =========================================================================
-    // 6. showExerciseDetail() → exercise-detail state → exerciseDetailInit
-    // =========================================================================
 
     describe('exercise-detail (exerciseDetailInit)', () => {
         it('has type discriminant "exerciseDetailInit"', () => {
@@ -160,10 +144,6 @@ describe('Bridge Contracts', () => {
         });
     });
 
-    // =========================================================================
-    // 7. showServiceStatus() → service-status state → serviceStatusInit
-    // =========================================================================
-
     describe('service-status (serviceStatusInit)', () => {
         it('has type discriminant "serviceStatusInit"', () => {
             const payload = createServiceStatusPayload();
@@ -185,10 +165,6 @@ describe('Bridge Contracts', () => {
             expect(payload.serverUrl).toBe('https://custom.artemis.tum.de');
         });
     });
-
-    // =========================================================================
-    // 10. showRecommendedExtensions() → recommended-extensions → recommendedExtensionsInit
-    // =========================================================================
 
     describe('recommended-extensions (recommendedExtensionsInit)', () => {
         it('has type discriminant "recommendedExtensionsInit"', () => {
@@ -220,10 +196,6 @@ describe('Bridge Contracts', () => {
             expect(payload.categories[0].id).toBe('java');
         });
     });
-
-    // =========================================================================
-    // 11. showGitCredentials() → git-credentials state → gitIdentityInfo
-    // =========================================================================
 
     describe('git-credentials (gitIdentityInfo)', () => {
         it('has type discriminant "gitIdentityInfo"', () => {

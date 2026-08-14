@@ -203,8 +203,6 @@ describe('CourseDetailView', () => {
 		});
 	});
 
-	// --- error state ---
-
 	it('shows error message when error is set', () => {
 		useCourseDetailStore.setState({ error: 'Failed to load course', isLoading: false });
 		const mockApi = createMockVsCodeApi();

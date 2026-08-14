@@ -84,12 +84,10 @@ suite('RepositoryStatusCommands', () => {
         sandbox = sinon.createSandbox();
         showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
 
-        // Default workspace folder
         sandbox.stub(vscode.workspace, 'workspaceFolders').value([
             { uri: vscode.Uri.file('/ws'), name: 'ws', index: 0 } as vscode.WorkspaceFolder,
         ]);
 
-        // Configuration stub: defaults
         configValues = new Map<string, unknown>();
         configValues.set('showUnsavedChangesWarning', true);
         configValues.set('autoSave', 'off');
@@ -130,14 +128,11 @@ suite('RepositoryStatusCommands', () => {
         mod.setRepositoryContext('https://artemis.example.com/git/repo.git', 42);
         assert.ok(listeners.save, 'save listener should be registered');
 
-        // Fire a save event for a doc inside the workspace
         listeners.save({ uri: vscode.Uri.file('/ws/Main.java') } as vscode.TextDocument);
 
-        // Before 500ms, getWorkspaceStatus should NOT be called
         await clock.tickAsync(499);
         sinon.assert.notCalled(getWorkspaceStatus);
 
-        // After the debounce window elapses, getWorkspaceStatus is called
         await clock.tickAsync(1);
         sinon.assert.called(getWorkspaceStatus);
         assert.strictEqual(getWorkspaceStatus.firstCall.args[0], 'https://artemis.example.com/git/repo.git');
@@ -183,7 +178,6 @@ suite('RepositoryStatusCommands', () => {
         const { ctx } = buildContext();
         const mod = new RepositoryStatusCommands(ctx, makeDeps());
 
-        // Should have registered 5 listeners with corresponding disposables
         assert.strictEqual(listeners.disposables.length, 5);
 
         mod.setRepositoryContext('https://x/y.git', 1);
@@ -192,12 +186,10 @@ suite('RepositoryStatusCommands', () => {
 
         mod.dispose();
 
-        // All registered disposables were called
         for (const d of listeners.disposables) {
             sinon.assert.calledOnce(d);
         }
 
-        // Pending debounce timer should not fire after dispose
         await clock.tickAsync(1000);
         sinon.assert.notCalled(getWorkspaceStatus);
     });
@@ -317,7 +309,6 @@ suite('RepositoryStatusCommands', () => {
             autoSaveEnabled: false,
         });
 
-        // Ensure dispose is invoked safely
         mod.dispose();
     });
 

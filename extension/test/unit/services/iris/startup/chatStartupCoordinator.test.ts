@@ -94,11 +94,10 @@ suite('ChatStartupCoordinator', () => {
     });
 
     test('a rejecting start leaves the latch eligible, and a later settled match starts again', async () => {
-        // Regression guard: a transient failure (e.g. a 500 from the acquire
-        // call) must not permanently strand the student on the cold-start
-        // chooser. The latch was consumed before the attempt was even made,
-        // which is what stops a double start; on failure that permission has
-        // to come back.
+        // A transient failure (e.g. a 500 from the acquire call) must not
+        // permanently strand the student on the cold-start chooser. The latch
+        // is consumed before the attempt is made, which is what stops a double
+        // start; on failure that permission has to come back.
         const start = sinon.stub();
         start.onFirstCall().rejects(new Error('network down'));
         start.onSecondCall().resolves();
@@ -153,15 +152,13 @@ suite('ChatStartupCoordinator', () => {
     });
 
     test('an explicit intent admitted WHILE the attempt is still pending is not resurrected by a later re-arm', async () => {
-        // The real interleaving: `start()` is a genuine HTTP round trip, so
-        // it stays pending for hundreds of milliseconds — plenty of time for
-        // the student to click "Ask Iris about" or switch a topic. Before
-        // `cancel()` could record an intent on a `consumed` latch, this
-        // window silently dropped it: `cancel()` no-opped (state was
-        // `consumed`, not `eligible`), the attempt then failed and re-armed
-        // the latch as if nothing had happened, and a later settle started
-        // automatically anyway — exactly the automatic cold start the
-        // student's own navigation was supposed to rule out for good.
+        // The real interleaving: `start()` is a genuine HTTP round trip, so it
+        // stays pending for hundreds of milliseconds, plenty of time for the
+        // student to click "Ask Iris about" or switch a topic. `cancel()` must
+        // therefore record an intent on a `consumed` latch too. If it no-opped
+        // there, the failing attempt would re-arm the latch as if nothing had
+        // happened and a later settle would start automatically, which is
+        // exactly the cold start the student's own navigation rules out.
         let rejectStart: (error: unknown) => void = () => undefined;
         const start = sinon.stub().returns(new Promise((_resolve, reject) => { rejectStart = reject; }));
         const publishDetectionState = sinon.spy();
@@ -173,11 +170,11 @@ suite('ChatStartupCoordinator', () => {
         assert.strictEqual(start.callCount, 1, 'the automatic attempt began, and its promise is still pending');
 
         // The student explicitly navigates away WHILE the attempt is
-        // in flight — no response has arrived yet.
+        // in flight, before any response has arrived.
         coordinator.admitExplicitIntent('askIrisAbout');
 
-        // The in-flight attempt now fails: the same transient error this
-        // whole fix targets.
+        // The in-flight attempt now fails: the transient error that re-arms
+        // the latch.
         rejectStart(new Error('network down'));
         await Promise.resolve();
         await Promise.resolve();
@@ -221,8 +218,8 @@ suite('ChatStartupCoordinator', () => {
     test('a view re-resolved after a session change does not start the previous identity\'s exercise', () => {
         // The webview is disposed and recreated whenever the panel is collapsed
         // and reopened, so `onViewResolved` really does arrive again after a
-        // login. With the old `matched` still on the coordinator it would name
-        // an exercise that belongs to the account that just left.
+        // login. A `matched` left over from the previous identity would name an
+        // exercise that belongs to the account that just left.
         const { coordinator, start } = makeCoordinator();
         coordinator.onViewResolved();
         coordinator.onDetectionSettled(MATCH);

@@ -158,7 +158,6 @@ suite('ProblemStatementRenderService', () => {
         const first = await service.render(mockExercise());
         assert.strictEqual(first, undefined);
 
-        // Subsequent call must not hit the API
         const second = await service.render(mockExercise());
         assert.strictEqual(second, undefined);
         assert.strictEqual(renderStub.callCount, 1);
@@ -171,7 +170,7 @@ suite('ProblemStatementRenderService', () => {
         assert.strictEqual(second, undefined);
         assert.strictEqual(renderStub.callCount, 1);
 
-        // Reset
+        // Re-enable server rendering.
         service.invalidateAll();
         configChangeCallbacks.forEach(cb => cb(configChangeEvent(true)));
 
@@ -207,10 +206,8 @@ suite('ProblemStatementRenderService', () => {
         await service.render(mockExercise());
         assert.strictEqual(renderStub.callCount, 1);
 
-        // Fire config change targeting the server URL
         configChangeCallbacks.forEach(cb => cb(configChangeEvent(true)));
 
-        // Server should now be re-enabled and next render hits API
         renderStub.onCall(1).resolves(mockDto());
         const result = await service.render(mockExercise());
         assert.ok(result);

@@ -97,11 +97,7 @@ export class ChatDiagnosticsService {
         return report;
     }
 
-    /**
-     * The open conversation, which is what this report is mostly asked about.
-     * The removed "Debug Sessions (Raw)" command described the local session
-     * store that no longer exists; this describes what replaced it.
-     */
+    /** The open conversation, which is what this report is mostly asked about. */
     private _conversationSection(): string {
         const conversation = this._getConversation();
         if (!conversation) {

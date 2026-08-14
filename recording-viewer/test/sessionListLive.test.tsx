@@ -27,7 +27,7 @@ describe('SessionList live indicator', () => {
         expect(liveRows[0].textContent).toContain('live-sess-1');
 
         const cell = liveRows[0].querySelector('.session-id-cell');
-        // Badge must be the FIRST child so overflow:hidden cannot clip it (the bug).
+        // Badge must be the FIRST child so overflow:hidden cannot clip it.
         expect(cell?.firstElementChild?.classList.contains('live-session-badge')).toBe(true);
         expect(cell?.querySelector('.live-session-badge')?.textContent).toBe('LIVE');
 

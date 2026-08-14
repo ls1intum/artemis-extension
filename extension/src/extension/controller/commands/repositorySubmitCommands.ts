@@ -21,7 +21,7 @@ const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
  */
 const MAX_RECORDED_COMMIT_MESSAGE_LENGTH = 512;
 
-/** Cap a commit message for the recording only — never the value committed to git. */
+/** Cap a commit message for the recording only, never the value committed to git. */
 function capRecordedCommitMessage(message: string | undefined): string | undefined {
     if (message === undefined || message.length <= MAX_RECORDED_COMMIT_MESSAGE_LENGTH) {
         return message;
@@ -200,9 +200,9 @@ export class RepositorySubmitCommands {
                 }
             });
 
-            // succeeded — the only success site. The post-success work below cannot throw into the
-            // outer catch (recheck is fire-and-forget and the websocket reconnect has its own .catch),
-            // but succeededEmitted also hardens the "exactly one terminal per started" invariant.
+            // The only success site. The post-success work below cannot throw into the
+            // outer catch (recheck is fire-and-forget and the websocket reconnect has its own
+            // .catch), but succeededEmitted also hardens "exactly one terminal per started".
             if (participationId !== undefined) {
                 fireSubmission({ status: 'succeeded', participationId, commitMessage: capRecordedCommitMessage(resolvedCommitMessage) });
                 succeededEmitted = true;
@@ -263,7 +263,6 @@ export class RepositorySubmitCommands {
         );
 
         if (choice === 'Configure Git Identity') {
-            // Navigate to the Git Credentials Helper view
             this.context.actionHandler.showGitCredentials();
         }
 

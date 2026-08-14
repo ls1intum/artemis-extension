@@ -9,24 +9,14 @@ import {
     SessionStartContext,
 } from './types';
 
-/**
- * Payload emitted by onDidBlockIntervention.
- */
 interface BlockedInterventionPayload {
     decision: InterventionDecision;
 }
 
-/**
- * Payload emitted by onDidDismissIntervention (extends InterventionDecision with dismissReason).
- */
 interface DismissInterventionPayload extends InterventionDecision {
     dismissReason: InterventionDismissReason;
 }
 
-/**
- * Payload emitted by onDidAcceptIntervention — identical to InterventionDecision for now,
- * typed separately to allow future extension.
- */
 type AcceptInterventionPayload = InterventionDecision;
 
 /**
@@ -59,13 +49,8 @@ export class InterventionService implements vscode.Disposable, SessionResettable
      */
     private _currentSubtleDecision: InterventionDecision | undefined = undefined;
 
-    /**
-     * Last time a block-event was emitted per (triggerType|'__none__', blockedReason) key.
-     * Used for rate-limiting blocked-decision events.
-     */
+    /** Last block-event emission per `(triggerType|'__none__', blockedReason)` key. */
     private readonly _blockEventLastFiredAt = new Map<string, number>();
-
-    // ── Events ──────────────────────────────────────────────────────────
 
     private readonly _onDidShowIntervention = new vscode.EventEmitter<InterventionDecision>();
     public readonly onDidShowIntervention = this._onDidShowIntervention.event;
@@ -94,14 +79,10 @@ export class InterventionService implements vscode.Disposable, SessionResettable
             lastAccepted: false,
         };
 
-        // Register the subtle-accept command. When the status bar is clicked
-        // during an active subtle hint, this fires onDidAcceptIntervention and
-        // opens Iris Chat.
-        //
-        // Tests must dispose previous instances before creating a new one;
-        // VS Code throws on duplicate command registration and that exception
-        // is intentionally surfaced now so test pollution can't silently route
-        // status-bar clicks to a stale handler.
+        // Tests must dispose previous instances before creating a new one:
+        // VS Code throws on duplicate command registration, and that exception
+        // is deliberately left to surface so test pollution cannot silently
+        // route status-bar clicks to a stale handler.
         const subtleAcceptCmd = vscode.commands.registerCommand(
             'iris.intervention.acceptSubtle',
             () => this.handleAcceptSubtle(),
@@ -124,16 +105,14 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         this._onDidBlockIntervention.dispose();
     }
 
-    // ── Subtle hint ──────────────────────────────────────────────────────
-
     /**
-     * Show subtle hint with EQ context.
-     * Sets the status bar command to `iris.intervention.acceptSubtle` so that
-     * a click is tracked as an accept event before opening Iris Chat.
+     * Show subtle hint with EQ context. Points the status bar at
+     * `iris.intervention.acceptSubtle` so a click is tracked as an accept
+     * event before Iris Chat opens.
      */
     public showSubtleHintEQ(decision: InterventionDecision): void {
-        // If there is already an active subtle hint that was never accepted/dismissed,
-        // implicitly dismiss it as 'replaced' before showing the new one.
+        // An active hint that was never accepted or dismissed counts as
+        // implicitly dismissed ('replaced') by the new one.
         if (this._currentSubtleDecision !== undefined) {
             this._emitDismiss(this._currentSubtleDecision, 'replaced');
             this._currentSubtleDecision = undefined;
@@ -149,18 +128,10 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         this._onDidShowIntervention.fire(decision);
     }
 
-    // ── Notification / proactive interventions ──────────────────────────
-
-    /**
-     * Show a notification-level intervention with EQ context.
-     */
     public async showNotificationEQ(decision: InterventionDecision): Promise<void> {
         await this._showModalIntervention(decision, 'notification');
     }
 
-    /**
-     * Show a proactive-level intervention with EQ context.
-     */
     public async showProactiveHelpEQ(decision: InterventionDecision): Promise<void> {
         await this._showModalIntervention(decision, 'proactive');
     }
@@ -176,7 +147,6 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         kind: 'notification' | 'proactive',
     ): Promise<void> {
         if (!this._canIntervene()) {
-            // Cooldown blocked a wanted intervention — fire blocked event with cooldown reason.
             this.recordBlockedDecision({
                 ...decision,
                 blockedReason: 'cooldown',
@@ -218,11 +188,6 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         await this._handleModalResult(decision, result === variant.acceptLabel);
     }
 
-    /**
-     * Handle the user's response to a notification/proactive modal. On accept,
-     * record acceptance, fire the accept event, and open Iris Chat; otherwise
-     * record the dismissal and emit a 'user-action' dismiss.
-     */
     private async _handleModalResult(decision: InterventionDecision, accepted: boolean): Promise<void> {
         if (accepted) {
             this._state.lastAccepted = true;
@@ -236,12 +201,9 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         }
     }
 
-    // ── Hint hide ──────────────────────────────────────────────────────
-
     /**
-     * Hide the status bar hint.
-     * If a subtle hint was active, fires a dismiss event with reason 'hidden'
-     * and resets the status bar command to the default.
+     * Hide the status bar hint. An active subtle hint is dismissed with reason
+     * 'hidden' and the status bar command falls back to the default.
      */
     public hideHint(): void {
         if (this._currentSubtleDecision !== undefined) {
@@ -254,8 +216,6 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         this._statusBarItem.backgroundColor = undefined;
         this._statusBarItem.hide();
     }
-
-    // ── Blocked decisions ──────────────────────────────────────────────
 
     /**
      * Record a decision where `rawWanted=true` but `shouldIntervene=false`.
@@ -277,29 +237,15 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         this._onDidBlockIntervention.fire({ decision });
     }
 
-    // ── State accessors ────────────────────────────────────────────────
-
-    /**
-     * Get current intervention state
-     */
     public getState(): InterventionState {
         return { ...this._state };
     }
 
-    // ── Session lifecycle ──────────────────────────────────────────────
-
-    /**
-     * SessionResettable — reset intervention state when a new exercise session starts.
-     */
     public onSessionStart(_context: SessionStartContext): void {
         this.reset();
     }
 
-    /**
-     * Reset intervention state (e.g., for new session)
-     */
     public reset(): void {
-        // Dismiss any pending subtle hint as 'session-end'
         if (this._currentSubtleDecision !== undefined) {
             this._emitDismiss(this._currentSubtleDecision, 'session-end');
             this._currentSubtleDecision = undefined;
@@ -315,18 +261,14 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         this._statusBarItem.hide();
     }
 
-    // ── Private helpers ────────────────────────────────────────────────
-
     /**
-     * Handle the `iris.intervention.acceptSubtle` command.
-     * Public so it can be tested directly and overridden in subclasses.
-     * Fires accept, clears the current subtle decision, resets the status bar
-     * command, and opens Iris Chat.
+     * Handle the `iris.intervention.acceptSubtle` command. Public so it can be
+     * tested directly and overridden in subclasses.
      */
     public handleAcceptSubtle(): void {
         const decision = this._currentSubtleDecision;
         if (decision === undefined) {
-            // No active subtle hint — fall back to just opening chat.
+            // No active subtle hint, so just open chat.
             void vscode.commands.executeCommand('iris.chatView.focus');
             return;
         }
@@ -341,35 +283,26 @@ export class InterventionService implements vscode.Disposable, SessionResettable
     /**
      * Emit a dismiss event with an explicit reason.
      *
-     * Does NOT mutate `_state.lastDismissed` — callers that represent an
-     * explicit user dismissal ('Not now' / 'Later') set that flag themselves
-     * before calling. Implicit lifecycle dismissals ('replaced', 'hidden',
-     * 'session-end') must not flip the flag, because `InterventionFilter`
-     * uses `lastDismissed` to block subsequent subtle/notification deliveries.
+     * Does NOT mutate `_state.lastDismissed`: callers representing an explicit
+     * user dismissal ('Not now' / 'Later') set that flag themselves before
+     * calling. Implicit lifecycle dismissals ('replaced', 'hidden',
+     * 'session-end') must not flip it, since `InterventionFilter` uses
+     * `lastDismissed` to block subsequent subtle/notification deliveries.
      */
     private _emitDismiss(decision: InterventionDecision, reason: InterventionDismissReason): void {
         this._onDidDismissIntervention.fire({ ...decision, dismissReason: reason });
     }
 
-    /**
-     * Check if we can show a notification/proactive intervention (respecting cooldown).
-     */
     private _canIntervene(): boolean {
         const now = Date.now();
         return (now - this._state.lastInterventionTime) >= InterventionService.INTERVENTION_COOLDOWN_MS;
     }
 
-    /**
-     * Record that a notification/proactive intervention was shown.
-     */
     private _recordIntervention(): void {
         this._state.lastInterventionTime = Date.now();
         this._state.sessionInterventionCount++;
     }
 
-    /**
-     * Build a rate-limit map key from trigger type and blocked reason.
-     */
     private _blockRateLimitKey(
         triggerType: string | undefined,
         blockedReason: InterventionBlockedReason | undefined,
@@ -377,9 +310,6 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         return `${triggerType ?? '__none__'}:${blockedReason ?? '__none__'}`;
     }
 
-    /**
-     * Build notification message for EQ-based intervention
-     */
     private _buildNotificationMessageEQ(decision: InterventionDecision): string {
         if (decision.eq >= InterventionService.EQ_REPEATED_ERRORS_THRESHOLD) {
             return 'You seem to be running into repeated errors. Would you like help from Iris?';
@@ -387,9 +317,6 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         return 'It looks like you might be stuck. Would you like help from Iris?';
     }
 
-    /**
-     * Build proactive message for EQ-based intervention
-     */
     private _buildProactiveMessageEQ(decision: InterventionDecision): string {
         if (decision.eq >= InterventionService.EQ_SEVERE_STRUGGLE_THRESHOLD) {
             return "You've been encountering the same errors repeatedly. Let Iris help you work through this!";

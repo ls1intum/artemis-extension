@@ -30,12 +30,8 @@ import {
 } from '@extension/utils';
 
 /**
- * Dependencies for `WebviewNavigationFacade`.
- *
- * Services are passed in as already-constructed instances. The 5 callbacks
- * (postMessage, render, sendInitData, backgroundRenderProblemStatement,
- * getServerUrl) bridge back to the provider, which still owns the webview
- * surface and the SSR coordination path.
+ * Dependencies for `WebviewNavigationFacade`. The callbacks bridge back to the
+ * provider, which owns the webview surface and the SSR coordination path.
  */
 export interface WebviewNavigationFacadeDeps {
     appStateManager: AppStateManager;
@@ -54,10 +50,9 @@ export interface WebviewNavigationFacadeDeps {
 }
 
 /**
- * Concentrates all navigation actions and server-URL plumbing that used to
- * live on `ArtemisWebviewProvider`. Implements `WebViewActionHandler` so the
- * webview message handler can route commands here without going through the
- * provider.
+ * Concentrates all navigation actions and server-URL plumbing. Implements
+ * `WebViewActionHandler` so the webview message handler can route commands here
+ * without going through `ArtemisWebviewProvider`.
  *
  * The facade does not own a `vscode.WebviewView`. All view-level concerns
  * (rendering HTML, posting messages, scheduling SSR) are exposed as callbacks
@@ -86,10 +81,8 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.appStateManager.showExerciseDetail(data);
         this.deps.render();
 
-        // Fire background server render for progressive enhancement
         this.deps.backgroundRenderProblemStatement();
 
-        // Ensure WebSocket is connected for real-time updates
         if (this.deps.websocketService && !this.deps.websocketService.isConnected()) {
             logger.websocket('Exercise opened - ensuring WebSocket connection for real-time updates...');
             try {
@@ -108,7 +101,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
 
     public async showCourseList(): Promise<void> {
         try {
-            // Ensure courses are in the cache before navigating
             if (this.deps.courseCatalog) {
                 await this.deps.courseCatalog.fetch();
             }
@@ -130,7 +122,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         // Set state immediately so concurrent logic sees 'dashboard' during fetch
         this.deps.appStateManager.showDashboard(userInfo);
 
-        // Fetch courses into the shared cache (swallow error - dashboard renders with empty state)
+        // Error swallowed: the dashboard renders with an empty state.
         try {
             await this.deps.courseCatalog?.fetch();
         } catch (error) {
@@ -214,12 +206,11 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     public showLogin(): void {
         this.deps.appStateManager.showLogin();
         this.deps.render();
-        // Send the server URL to the login page for status checking
+        // The login page needs the server URL for its status check.
         this.postServerUrl();
     }
 
     public showAiConfig(): void {
-        // Map installed extensions by ID for quick lookup
         const installedExtensions = new Map<string, vscode.Extension<unknown>>();
         for (const ext of vscode.extensions.all) {
             installedExtensions.set(ext.id.toLowerCase(), ext);
@@ -296,11 +287,10 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     public showCourseDetail(courseData: CourseDetailData, epoch: number): void {
         this.deps.appStateManager.showCourseDetail(courseData);
 
-        // Since Task 5 the registry is rebuilt destructively from the catalog
-        // projection on every catalog write, so a direct registry write here
-        // could be dropped by the next one with nothing to restore it. Write
-        // the catalog instead; `courseData.course` already matches
-        // `CourseDashboardCourse`'s shape.
+        // The registry is rebuilt destructively from the catalog projection on
+        // every catalog write, so a direct registry write here would be dropped
+        // by the next one with nothing to restore it. Write the catalog
+        // instead; `courseData.course` already matches `CourseDashboardCourse`.
         this.deps.courseCatalog?.upsertSupplemental({ kind: 'course', entry: { course: courseData.course } }, epoch);
 
         this.deps.render();
@@ -347,8 +337,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         }
     }
 
-    // ── View-callback delegations ──────────────────────────────────────
-
     public render(): void {
         this.deps.render();
     }
@@ -360,8 +348,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     public backgroundRenderProblemStatement(): void {
         this.deps.backgroundRenderProblemStatement();
     }
-
-    // ── Server-URL helpers ─────────────────────────────────────────────
 
     /**
      * Public because the provider's AuthFlowHandler callback bag invokes this
@@ -386,14 +372,12 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     private async _suggestWorkspaceStartPage(): Promise<void> {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
 
-        // Only suggest if the user is on the default dashboard start page
+        // Only suggest to users still on the default start page.
         const startPage = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY, 'dashboard');
         if (startPage !== 'dashboard') { return; }
 
-        // Check the "don't show again" flag
         if (!config.get<boolean>(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, true)) { return; }
 
-        // Check if there's a workspace exercise match in the loaded courses
         const repoUrl = await getWorkspaceRepositoryUrl();
         if (!repoUrl) { return; }
 

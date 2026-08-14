@@ -1,7 +1,7 @@
 /**
  * Scenario Loader
  * 
- * Loads scenario definitions from YAML files and validates them.
+ * Loads scenario definitions from JSON files and validates them.
  */
 
 import * as fs from 'fs';
@@ -18,12 +18,6 @@ import {
     WaitEvent,
 } from './types';
 
-/**
- * Loads and parses YAML scenario files
- * 
- * Note: We use a simple custom parser instead of js-yaml to avoid
- * adding another dependency. For complex scenarios, consider adding js-yaml.
- */
 export class ScenarioLoader {
     private scenariosDir: string;
     
@@ -31,13 +25,9 @@ export class ScenarioLoader {
         this.scenariosDir = scenariosDir;
     }
     
-    /**
-     * Load all scenarios from the scenarios directory
-     */
     async loadAllScenarios(): Promise<StruggleScenario[]> {
         const scenarios: StruggleScenario[] = [];
         
-        // Get all subdirectories
         const categories = ['obvious', 'subtle', 'no-struggle', 'edge-cases', 'eq-specific'];
         
         for (const category of categories) {
@@ -62,9 +52,6 @@ export class ScenarioLoader {
         return scenarios;
     }
     
-    /**
-     * Load scenarios by category
-     */
     async loadByCategory(category: 'obvious' | 'subtle' | 'no-struggle' | 'edge-cases' | 'eq-specific'): Promise<StruggleScenario[]> {
         const categoryPath = path.join(this.scenariosDir, category);
         
@@ -88,9 +75,6 @@ export class ScenarioLoader {
         return scenarios;
     }
     
-    /**
-     * Load a single scenario from a JSON file
-     */
     async loadScenario(filePath: string): Promise<StruggleScenario | null> {
         try {
             const content = fs.readFileSync(filePath, 'utf-8');
@@ -106,9 +90,6 @@ export class ScenarioLoader {
         }
     }
     
-    /**
-     * Parse raw JSON into typed scenario
-     */
     private parseScenario(raw: unknown): StruggleScenario {
         const obj = raw as Record<string, unknown>;
         
@@ -123,9 +104,6 @@ export class ScenarioLoader {
         };
     }
     
-    /**
-     * Parse expected outcome
-     */
     private parseExpectedOutcome(raw: unknown): ExpectedOutcome {
         const obj = raw as Record<string, unknown> ?? {};
         const eqObj = obj.expectedEQ as Record<string, number> ?? {};
@@ -146,9 +124,6 @@ export class ScenarioLoader {
         };
     }
     
-    /**
-     * Parse events array
-     */
     private parseEvents(raw: unknown[]): ScenarioEvent[] {
         if (!Array.isArray(raw)) {
             return [];
@@ -157,9 +132,6 @@ export class ScenarioLoader {
         return raw.map(e => this.parseEvent(e)).filter((e): e is ScenarioEvent => e !== null);
     }
     
-    /**
-     * Parse a single event
-     */
     private parseEvent(raw: unknown): ScenarioEvent | null {
         const obj = raw as Record<string, unknown>;
         const type = String(obj.type ?? '');
@@ -262,9 +234,6 @@ export class ScenarioLoader {
         return 'obvious';
     }
     
-    /**
-     * Validate scenario structure
-     */
     private validateScenario(scenario: StruggleScenario): void {
         if (!scenario.id) {
             throw new Error('Scenario must have an id');

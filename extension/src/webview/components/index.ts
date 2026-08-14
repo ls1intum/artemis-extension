@@ -16,7 +16,7 @@ export { ListItem } from './ListItem';
 export { AskIris } from './AskIris';
 export { ServiceHealth } from './ServiceHealth';
 
-// UI primitives for Phase 4
+// Feedback / page-state components
 export { EmptyState } from './EmptyState';
 export { ErrorMessage } from './ErrorMessage';
 export { PageHeader } from './PageHeader';

@@ -22,11 +22,10 @@ interface AppProps {
 }
 
 export function App({ vscodeApi }: AppProps) {
-	// Read the view name from the root element's data-view attribute
 	const viewName = document.getElementById('root')?.getAttribute('data-view');
 
 	// Signal readiness to extension host after mount.
-	// This is the single source of the ready signal — individual views register
+	// This is the single source of the ready signal: individual views register
 	// their message listeners in useEffect (child effects fire before parent),
 	// so listeners are in place before this signal triggers sendInitData().
 	useEffect(() => {
@@ -64,7 +63,7 @@ export function App({ vscodeApi }: AppProps) {
 		}
 	})();
 
-	// IrisChat is fullscreen (100vh) — no wrapper padding
+	// IrisChat is fullscreen (100vh), so it gets no wrapper padding.
 	if (viewName === 'irisChat') {return view;}
 
 	return <div className={styles.viewWrapper}>{view}</div>;

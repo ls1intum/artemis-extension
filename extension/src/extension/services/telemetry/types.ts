@@ -3,8 +3,6 @@
 // type-only guarantees no runtime 'vscode' resolution leaks into that path.
 import type * as vscode from 'vscode';
 
-// ── Session lifecycle ───────────────────────────────────────────────
-
 /**
  * Context passed to telemetry sub-services when a new exercise session starts.
  */
@@ -16,24 +14,17 @@ export interface SessionStartContext {
 /**
  * Implemented by telemetry sub-services that need per-exercise lifecycle management.
  * TelemetryManager iterates all registered SessionResettable services on exercise
- * switch instead of calling individual reset methods, ensuring no service is missed.
+ * switch instead of calling individual reset methods.
  */
 export interface SessionResettable {
     onSessionStart(context: SessionStartContext): void;
     onSessionEnd?(): void;
 }
 
-// ── Diagnostics ─────────────────────────────────────────────────────
-
-/**
- * Represents a tracked VS Code diagnostic with persistence information
- */
 export interface TrackedDiagnostic {
     /** Unique identifier generated from file:line:code hash */
     id: string;
-    /** URI of the file containing the diagnostic */
     uri: string;
-    /** Range where the diagnostic appears */
     range: {
         startLine: number;
         startCharacter: number;
@@ -42,23 +33,14 @@ export interface TrackedDiagnostic {
     };
     /** Diagnostic code (e.g., 'ts2304') */
     code: string | number | undefined;
-    /** Diagnostic message */
     message: string;
-    /** Severity level */
     severity: vscode.DiagnosticSeverity;
-    /** Timestamp when first seen */
     firstSeen: number;
-    /** Timestamp when last seen */
     lastSeen: number;
-    /** Number of times this diagnostic has appeared */
     occurrences: number;
-    /** Whether this diagnostic has been resolved */
     resolved: boolean;
 }
 
-/**
- * Inactivity pattern classification
- */
 export type InactivityPattern = 'active' | 'thinking' | 'confusion' | 'giving-up';
 
 /**
@@ -75,18 +57,14 @@ export type RecommendedAction = 'none' | InterventionLevel;
 
 /**
  * Struggle context for Iris chat integration.
- * EQ-based — replaces old weighted score.
  */
 export interface StruggleContext {
-    /** Whether student is currently struggling */
     isStruggling: boolean;
-    /** Error Quotient (0.0-1.0), replaces old 0-100 score */
+    /** Error Quotient (0.0-1.0) */
     eq: number;
-    /** EQ confidence level */
     eqConfidence: EQConfidence;
     /** Which trigger caused the evaluation (if any) */
     triggerType?: TriggerType;
-    /** Recommended action */
     recommendedAction: RecommendedAction;
 }
 
@@ -94,52 +72,35 @@ export interface StruggleContext {
  * Build result from Artemis server
  */
 export interface BuildResult {
-    /** Timestamp of the build */
     timestamp: number;
-    /** Whether the build succeeded */
     success: boolean;
-    /** Number of errors in the build */
     errorCount: number;
-    /** Names of failed test cases */
     failedTests: string[];
-    /** Raw build log content */
     buildLog: string | undefined;
-    /** Submission ID from Artemis */
     submissionId: number | undefined;
     /** Whether the build itself failed (compiler error), from result.submission?.buildFailed */
     rawBuildFailed?: boolean;
 }
 
-/**
- * Intervention state tracking
- */
 export interface InterventionState {
-    /** Last intervention timestamp */
     lastInterventionTime: number;
-    /** Number of interventions in current session */
     sessionInterventionCount: number;
-    /** Whether the last intervention was dismissed */
     lastDismissed: boolean;
-    /** Whether the last intervention was accepted */
     lastAccepted: boolean;
 }
 
-// ============================================================================
-// EQ-based Struggle Detection Types (Jadud 2006 / Pu et al. 2025)
-// ============================================================================
+// EQ-based struggle detection types (Jadud 2006 / Pu et al. 2025)
 
 /**
  * Snapshot of error state at a compile-equivalent event.
  * [ADAPTATION] Paper had single error per compile; VS Code shows all errors simultaneously.
  */
 export interface ErrorSnapshot {
-    /** Timestamp of the snapshot */
     timestamp: number;
     /** Whether there are any errors (severity=Error, excluding lint) */
     hasErrors: boolean;
     /** Set of active error families as "source:code" strings */
     errorFamilies: Set<string>;
-    /** Total number of active errors */
     errorCount: number;
 }
 
@@ -158,13 +119,13 @@ export interface EQState {
 }
 
 /**
- * EQ confidence — binary gate based on Jadud's minimum.
+ * EQ confidence: binary gate based on Jadud's minimum.
  * ✅ Paper-validated: >=7 events = >=6 pairs [P3, Section 4]
  */
 export type EQConfidence = 'insufficient' | 'sufficient';
 
 /**
- * EQ configuration — paper-validated weights and thresholds.
+ * EQ configuration: paper-validated weights and thresholds.
  * Weights: +8 (both error), +3 (same type) → max 11 [P3, Section 4]
  */
 export interface EQConfig {
@@ -199,7 +160,7 @@ export const TRIGGER_TYPES = ['execution-error', 'multiline-paste', 'idle', 'sel
 export type TriggerType = typeof TRIGGER_TYPES[number];
 
 /**
- * Trigger configuration — paper-validated thresholds [P11, Section 4]
+ * Trigger configuration: paper-validated thresholds [P11, Section 4]
  */
 export interface TriggerConfig {
     /** Idle initial threshold: 30s [P11, Section 4] */
@@ -238,7 +199,6 @@ export const DEFAULT_TRIGGER_CONFIG: TriggerConfig = {
  * Adaptive state for trigger threshold escalation [P11, Section 4]
  */
 export interface AdaptiveState {
-    /** Ignore count per trigger type */
     ignoreCounts: Record<TriggerType, number>;
 }
 
@@ -253,23 +213,20 @@ export type BuildResultClassification = 'compiler-error' | 'test-failure' | 'suc
  * VS Code: save event or Artemis build result.
  */
 export interface CompileEquivalentEvent {
-    /** Timestamp of the event */
     timestamp: number;
-    /** Source of the event */
     source: 'save' | 'build';
-    /** Error snapshot at this point */
     snapshot: ErrorSnapshot;
 }
 
 /**
  * Reason why an intervention was blocked (i.e. rawWanted=true but shouldIntervene=false).
  *
- * - 'cooldown'        — InterventionService internal cooldown (notification/proactive only)
- * - 'warmup'          — Exercise hasn't reached the 5-minute warmup yet
- * - 'recent-progress' — Student made progress within the 2-minute grace period
- * - 'session-limit'   — Max interventions per session exceeded
- * - 'last-dismissed'  — Previous intervention was dismissed (non-proactive blocked)
- * - 'low-confidence'  — EQ above threshold but confidence gate is 'insufficient'
+ * - 'cooldown':        InterventionService internal cooldown (notification/proactive only)
+ * - 'warmup':          Exercise hasn't reached the 5-minute warmup yet
+ * - 'recent-progress': Student made progress within the 2-minute grace period
+ * - 'session-limit':   Max interventions per session exceeded
+ * - 'last-dismissed':  Previous intervention was dismissed (non-proactive blocked)
+ * - 'low-confidence':  EQ above threshold but confidence gate is 'insufficient'
  */
 export const INTERVENTION_BLOCKED_REASONS = [
     'cooldown',
@@ -284,10 +241,10 @@ export type InterventionBlockedReason = typeof INTERVENTION_BLOCKED_REASONS[numb
 /**
  * Reason why an intervention was dismissed.
  *
- * - 'user-action'  — User explicitly clicked "Not now" / "Later"
- * - 'hidden'       — Hint was hidden implicitly (e.g. build succeeded, session ended)
- * - 'replaced'     — A newer intervention replaced the current one
- * - 'session-end'  — Session ended while intervention was pending
+ * - 'user-action':  User explicitly clicked "Not now" / "Later"
+ * - 'hidden':       Hint was hidden implicitly (e.g. build succeeded, session ended)
+ * - 'replaced':     A newer intervention replaced the current one
+ * - 'session-end':  Session ended while intervention was pending
  */
 export const INTERVENTION_DISMISS_REASONS = ['user-action', 'hidden', 'replaced', 'session-end'] as const;
 export type InterventionDismissReason = typeof INTERVENTION_DISMISS_REASONS[number];
@@ -309,7 +266,7 @@ export type InterventionSuppressionReason = typeof INTERVENTION_SUPPRESSION_REAS
  * Payload of `TelemetryManager.onDidSuppressIntervention`.
  *
  * `decision` is the original eligible decision with `shouldIntervene === true`.
- * It must NOT be mutated to `false` — the recording must retain the per-opportunity
+ * It must NOT be mutated to `false`; the recording must retain the per-opportunity
  * eligibility signal for later analysis.
  */
 export interface SuppressedInterventionPayload {
@@ -323,7 +280,7 @@ export interface SuppressedInterventionPayload {
 export interface InterventionDecision {
     /**
      * True when EQ is above the severity threshold, ignoring confidence and
-     * guardrails. This is the "raw" want signal — the engine wanted to show
+     * guardrails. This is the "raw" want signal: the engine wanted to show
      * something based on severity alone.
      *
      * Example: EQ=0.5 (above notification threshold), confidence=insufficient
@@ -332,13 +289,10 @@ export interface InterventionDecision {
     rawWanted: boolean;
     /** Whether to actually show an intervention (rawWanted AND confidence AND guardrails pass) */
     shouldIntervene: boolean;
-    /** Intervention level */
     level: RecommendedAction;
     /** Which trigger caused evaluation */
     triggerType?: TriggerType;
-    /** Current EQ value */
     eq: number;
-    /** Current EQ confidence */
     confidence: EQConfidence;
     /**
      * Populated when rawWanted=true and shouldIntervene=false.

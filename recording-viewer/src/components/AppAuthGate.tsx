@@ -4,7 +4,7 @@ import { RecordingViewerApp } from '../App';
 
 /**
  * Top-level auth wrapper. Decides between LoginScreen, the main app, or a
- * loading placeholder. Crucially, does NOT call hooks conditionally —
+ * loading placeholder. Crucially, it does NOT call hooks conditionally:
  * `RecordingViewerApp` is its own component, so hook order in it is independent.
  */
 export function AppAuthGate() {

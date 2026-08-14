@@ -10,17 +10,15 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _lastEditTimestamp: number = Date.now();
     /**
-     * Weak activity timestamp for cursor movements.
-     * Cursor movement counts as 'weak activity' - it prevents transition
-     * from 'active' to 'thinking', but does NOT reset deeper inactivity states.
-     * This follows research showing cursor movement without editing often
-     * indicates confusion/reading rather than productive work.
+     * Cursor movement counts as 'weak activity': it prevents the transition
+     * from 'active' to 'thinking' but does NOT reset deeper inactivity states,
+     * because research shows cursor movement without editing often indicates
+     * confused reading rather than productive work.
      */
     private _lastWeakActivityTimestamp: number = Date.now();
     private _currentPattern: InactivityPattern = 'active';
     private _patternCheckTimer: NodeJS.Timeout | undefined;
 
-    /** Pattern check interval (5 seconds) */
     private static readonly PATTERN_CHECK_INTERVAL_MS = 5000;
 
     /**
@@ -61,12 +59,8 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         this._onDidResumeActivity.dispose();
     }
 
-    /**
-     * Start listening to document changes
-     */
     private _startTracking(): void {
         const changeListener = vscode.workspace.onDidChangeTextDocument(event => {
-            // Ignore non-file schemes and empty changes
             if (event.document.uri.scheme !== 'file' || event.contentChanges.length === 0) {
                 return;
             }
@@ -74,7 +68,6 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         });
         this._disposables.push(changeListener);
 
-        // Also track when user saves
         const saveListener = vscode.workspace.onDidSaveTextDocument(document => {
             if (document.uri.scheme === 'file') {
                 this._recordActivity();
@@ -82,10 +75,7 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         });
         this._disposables.push(saveListener);
 
-        // Track cursor movement as WEAK activity only
-        // Cursor movement prevents 'active' -> 'thinking' transition
-        // but does NOT reset deeper inactivity states ('thinking' -> 'confusion' or 'confusion' -> 'giving-up')
-        // Research shows cursor movement without editing often indicates confusion/reading
+        // Cursor movement is WEAK activity only (see _lastWeakActivityTimestamp).
         const selectionListener = vscode.window.onDidChangeTextEditorSelection(event => {
             if (event.textEditor.document.uri.scheme === 'file') {
                 this._recordWeakActivity();
@@ -94,10 +84,7 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         this._disposables.push(selectionListener);
     }
 
-    /**
-     * Record strong user activity (actual edits/saves).
-     * This fully resets all inactivity timers.
-     */
+    /** Strong activity (edits/saves): resets all inactivity timers. */
     protected _recordActivity(): void {
         const wasIdle = this.getTimeSinceLastActivity() >= InactivityService.THRESHOLDS.ACTIVE;
         const now = Date.now();
@@ -110,14 +97,7 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         }
     }
 
-    /**
-     * Record weak user activity (cursor movement without editing).
-     * Only prevents transition from 'active' to 'thinking'.
-     * Does NOT reset deeper inactivity states.
-     *
-     * Rationale: Cursor movement during confusion/struggle often indicates
-     * the student is reading/scrolling without making progress, not productive work.
-     */
+    /** Weak activity (cursor movement): keeps 'active', never resets deeper states. */
     protected _recordWeakActivity(): void {
         const wasIdle = this.getTimeSinceLastActivity() >= InactivityService.THRESHOLDS.ACTIVE;
         this._lastWeakActivityTimestamp = Date.now();
@@ -128,9 +108,6 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         }
     }
 
-    /**
-     * Start periodic pattern checking
-     */
     private _startPatternCheck(): void {
         this._patternCheckTimer = setInterval(() => {
             this._currentPattern = this._classifyPattern();
@@ -138,30 +115,24 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
     }
 
     /**
-     * Classify the current inactivity pattern based on activity timestamps.
-     * 
-     * Uses graduated activity tracking:
-     * - 'active': Recent strong activity (edits) OR weak activity (cursor)
-     * - 'thinking': No recent activity, but within productive pause window (< 90s from last edit)
-     * - 'confusion': Extended inactivity (90s - 5min from last edit)
-     * - 'giving-up': Prolonged inactivity (> 5min from last edit)
-     * 
-     * Weak activity (cursor movement) only prevents 'active' -> 'thinking' transition.
+     * - 'active': recent strong activity (edits) OR weak activity (cursor)
+     * - 'thinking': within the productive pause window (< 90s from last edit)
+     * - 'confusion': 90s to 5min from last edit
+     * - 'giving-up': > 5min from last edit
      */
     private _classifyPattern(): InactivityPattern {
         const now = Date.now();
         const elapsedSinceEdit = now - this._lastEditTimestamp;
         const elapsedSinceWeakActivity = now - this._lastWeakActivityTimestamp;
 
-        // For 'active' state: consider BOTH strong and weak activity
-        // This prevents cursor movement from being completely ignored
+        // 'active' considers BOTH strong and weak activity.
         if (elapsedSinceEdit < InactivityService.THRESHOLDS.ACTIVE ||
             elapsedSinceWeakActivity < InactivityService.THRESHOLDS.ACTIVE) {
             return 'active';
         }
         
-        // For deeper states: use only strong activity (edits)
-        // Cursor movement during confusion doesn't indicate progress
+        // Deeper states use only strong activity: cursor movement during
+        // confusion does not indicate progress.
         if (elapsedSinceEdit < InactivityService.THRESHOLDS.THINKING) {
             return 'thinking';
         } else if (elapsedSinceEdit < InactivityService.THRESHOLDS.CONFUSION) {
@@ -171,18 +142,15 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         }
     }
 
-    /**
-     * Get the current inactivity pattern
-     */
     public getCurrentPattern(): InactivityPattern {
-        // Always recalculate to ensure accuracy
+        // Recalculate: the 5s timer alone leaves the cached value stale.
         this._currentPattern = this._classifyPattern();
         return this._currentPattern;
     }
 
     /**
-     * Get time elapsed since last edit in milliseconds.
-     * Only considers strong activity (edits/saves) — used for pattern classification.
+     * Time since the last edit or save in milliseconds. Strong activity only,
+     * which is what pattern classification uses.
      */
     public getTimeSinceLastEdit(): number {
         return Date.now() - this._lastEditTimestamp;
@@ -197,16 +165,10 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         return Date.now() - Math.max(this._lastEditTimestamp, this._lastWeakActivityTimestamp);
     }
 
-    /**
-     * SessionResettable — delegates to existing reset().
-     */
     public onSessionStart(_context: SessionStartContext): void {
         this.reset();
     }
 
-    /**
-     * Reset the last edit timestamp (e.g., when starting a new session)
-     */
     public reset(): void {
         const now = Date.now();
         this._lastEditTimestamp = now;

@@ -118,7 +118,6 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
             },
         } as unknown as ExerciseDetailsResponse;
 
-        // Should not throw when storage is undefined
         assert.doesNotThrow(() => svc.handleExerciseOpened(exerciseData, 103, 0));
     });
 });

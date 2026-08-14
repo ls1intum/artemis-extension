@@ -1,4 +1,3 @@
-// Configuration constants
 export const CONFIG = {
     ARTEMIS_SERVER_URL_DEFAULT: 'https://artemis.tum.de',
     AUTH_COOKIE_NAME: 'jwt',
@@ -25,7 +24,6 @@ export const CONFIG = {
     },
 } as const;
 
-// VS Code Configuration keys
 export const VSCODE_CONFIG = {
     ARTEMIS_SECTION: 'artemis',
     SERVER_URL_KEY: 'serverUrl',
@@ -43,7 +41,6 @@ export const VSCODE_CONFIG = {
     },
 } as const;
 
-// File processing constants
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1MB - Maximum file size for content inclusion
 
 // WebSocket topic paths for STOMP subscriptions

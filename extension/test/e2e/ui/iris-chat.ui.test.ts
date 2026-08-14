@@ -1,5 +1,5 @@
 // Covers E2EV-09: IrisChat view E2E smoke test
-// IrisChat is a SEPARATE sidebar panel from Artemis — it has its own webview provider.
+// IrisChat is a SEPARATE sidebar panel from Artemis, with its own webview provider.
 import * as assert from 'assert';
 import { ActivityBar, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
@@ -38,14 +38,13 @@ describe('IrisChat View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context, ignore.
 		}
 	});
 
 	it('should render IrisChat with chat input', async function () {
 		this.timeout(30000);
 
-		// Open the Iris Chat panel via ActivityBar
 		const activityBar = new ActivityBar();
 
 		let control = await activityBar.getViewControl('Chat');
@@ -61,12 +60,10 @@ describe('IrisChat View UI Tests', function () {
 
 		await control.openView();
 
-		// Switch to the Iris Chat webview frame
 		let chatInput: Awaited<ReturnType<typeof waitForElement>> | null = null;
 		try {
 			await switchToWebviewFrame(driver);
 
-			// Assert chat input using a combined CSS selector
 			chatInput = await waitForElement(
 				driver,
 				'[aria-label="Chat input"], textarea',

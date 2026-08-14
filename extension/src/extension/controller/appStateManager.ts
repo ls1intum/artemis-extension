@@ -31,17 +31,15 @@ interface AiExtension {
 /**
  * Discriminated union for the navigation payload. Each view owns exactly one
  * variant, and "back" transitions restore the parent payload explicitly.
- * Entering a view without its required parent in scope is a programmer error
- * — we throw so the bug surfaces instead of silently rendering a broken screen.
+ * Entering a view without its required parent in scope is a programmer error,
+ * so it throws instead of silently rendering a broken screen.
  */
 type NavigationPayload =
     | { kind: 'none' }
     | { kind: 'course'; data: CourseDetailData }
     | { kind: 'exercise'; data: ExerciseDetailsResponse; parentCourse: CourseDetailData };
 
-/**
- * Manages the application state for the Artemis webview
- */
+/** Manages the application state for the Artemis webview. */
 export class AppStateManager {
     private _currentState: AppState = 'login';
     private _userInfo?: UserInfo;
@@ -72,8 +70,6 @@ export class AppStateManager {
         this._currentState = newState;
         this._onStateChange?.(prev, newState);
     }
-
-    // ── Getters ──────────────────────────────────────────────────────
 
     get currentState(): AppState {
         return this._currentState;
@@ -124,8 +120,6 @@ export class AppStateManager {
     set archiveCheckComplete(value: boolean) {
         this._archiveCheckComplete = value;
     }
-
-    // ── State transitions ────────────────────────────────────────────
 
     /**
      * Seeds authenticated session state without triggering a 'dashboard' state change.

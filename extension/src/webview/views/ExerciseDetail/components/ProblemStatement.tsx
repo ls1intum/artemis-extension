@@ -55,9 +55,9 @@ function renderKatexFormulas(container: HTMLElement): void {
 }
 
 /**
- * ProblemStatement component — displays server-rendered HTML from the Artemis
- * SSR endpoint. The server handles Markdown→HTML, PlantUML SVG inlining,
- * task markers with test status, and embedded CSS.
+ * Displays server-rendered HTML from the Artemis SSR endpoint. The server
+ * handles Markdown→HTML, PlantUML SVG inlining, task markers with test
+ * status, and embedded CSS.
  *
  * KaTeX math rendering is handled client-side: the server provides formula
  * placeholders which are rendered using the bundled KaTeX npm package after

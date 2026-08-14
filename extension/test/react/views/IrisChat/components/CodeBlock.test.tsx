@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock shiki before importing the component (structure tests only — no token testing)
+// Mock shiki before importing the component (structure tests only, no token testing).
 vi.mock('shiki/core', () => ({
 	createHighlighterCore: vi.fn().mockResolvedValue({
 		getLoadedLanguages: vi.fn().mockReturnValue(['javascript', 'typescript', 'python']),
@@ -65,7 +65,6 @@ describe('CodeBlock', () => {
 	it('renders the code block container', async () => {
 		const { container } = render(<CodeBlock language="javascript">const x = 1;</CodeBlock>);
 		await waitFor(() => {
-			// Container div renders immediately
 			expect(container.firstChild).toBeInTheDocument();
 		});
 	});
@@ -116,7 +115,6 @@ describe('CodeBlock', () => {
 		const { container } = render(<CodeBlock language="javascript">const x = 1;</CodeBlock>);
 
 		await waitFor(() => {
-			// After async highlighting, a pre element should appear in the code section
 			const preEl = container.querySelector('pre');
 			expect(preEl).toBeInTheDocument();
 		});

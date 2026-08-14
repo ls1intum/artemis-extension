@@ -15,11 +15,10 @@ const THEIA_ENV_VARS = [
     'ARTEMIS_TOKEN',
 ] as const;
 
-// ── Module-level singleton ──────────────────────────────────────────
-// Initialized once during activate() via initializeTheiaContext().
-// All services read the environment through getTheiaEnvironment() instead
-// of receiving it as a constructor parameter — this prevents the footgun
-// where a caller forgets to pass theiaEnv and silently falls back to defaults.
+// Initialized once during activate() via initializeTheiaContext(). Services
+// read the environment through getTheiaEnvironment() rather than taking it as
+// a constructor parameter, so a caller cannot forget to pass it and silently
+// fall back to defaults.
 let _theiaEnv: TheiaEnvironment = VSCODE_ENVIRONMENT;
 
 /**
@@ -84,8 +83,8 @@ async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
 
     const env = result.env;
     if (!env.ARTEMIS_TOKEN || !env.ARTEMIS_URL) {
-        // Bridge responded but did not deliver the auth pair — same hard
-        // failure as `failure` from the caller's perspective.
+        // Bridge responded but did not deliver the auth pair, which is the
+        // same hard failure as `failure` from the caller's perspective.
         logger.error(
             'EduIDE bridge response missing ARTEMIS_URL or ARTEMIS_TOKEN',
             LogCategory.GENERAL,

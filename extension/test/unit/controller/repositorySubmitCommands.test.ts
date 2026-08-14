@@ -193,15 +193,14 @@ suite('RepositorySubmitCommands', () => {
         sinon.assert.calledOnce(stubs.pullWithRebase);
         sinon.assert.calledOnce(stubs.push);
 
-        // Success information message
         const successCall = showInformationMessage.getCalls().find(c => {
             const arg = c.args[0] as string;
             return typeof arg === 'string' && arg.includes('Successfully submitted "Foo"');
         });
         assert.ok(successCall, 'Expected success information message mentioning "Foo"');
 
-        // recheckRepoStatus invoked (fire-and-forget). The implementation uses `void ctx.recheckRepoStatus?.();`
-        // so we only assert it was called, not awaited.
+        // recheckRepoStatus is fire-and-forget (`void ctx.recheckRepoStatus?.()`),
+        // so only the call is asserted, never its completion.
         sinon.assert.calledOnce(recheckRepoStatus);
     });
 
@@ -479,7 +478,7 @@ suite('RepositorySubmitCommands', () => {
             payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: longMessage },
         } as never);
 
-        // The actual git commit must receive the FULL message — the cap is recording-only.
+        // The actual git commit must receive the FULL message: the cap is recording-only.
         sinon.assert.calledOnceWithExactly(stubs.commit, longMessage, { cwd: '/ws' });
 
         // Both recorded events carry the capped (512-char) copy.
@@ -555,8 +554,8 @@ suite('RepositorySubmitCommands', () => {
     });
 
     test('no-workspace emits started then failed with reason no-workspace', async () => {
-        // The default setup stubs workspaceFolders to a present folder, so override it to undefined
-        // for this test. Mirror the existing "no workspace folder" abort test's sandbox-reset approach.
+        // The default setup stubs workspaceFolders to a present folder, so a fresh
+        // sandbox is needed to override it to undefined.
         sandbox.restore();
         sandbox = sinon.createSandbox();
         showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
@@ -682,7 +681,7 @@ suite('RepositorySubmitCommands', () => {
         } as never;
 
         await handler(msg);   // succeeds; connect() fired but never resolves (fire-and-forget)
-        await handler(msg);   // must still proceed — proves the flag was not held by the hanging connect
+        await handler(msg);   // must still proceed: the flag is not held by the hanging connect
 
         sinon.assert.called(connect);
         sinon.assert.calledTwice(stubs.addAll);

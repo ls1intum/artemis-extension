@@ -16,7 +16,6 @@ describe('EventBadge', () => {
         const b = render(<EventBadge type="windowFocus" />).container.querySelector('span')!;
         expect(a.style.color).not.toBe('');
         expect(b.style.color).not.toBe('');
-        // diagnostics and windowFocus used to share #fbbf24; they must now differ.
         expect(a.style.color).not.toBe(b.style.color);
     });
 

@@ -66,7 +66,7 @@ suite('AppStateManager Test Suite', () => {
 
         stateManager.showCourseDetail(courseData);
         stateManager.showExerciseDetail(exerciseData);
-        // currentCourseData is strict to the 'course' variant — undefined while in exercise view
+        // currentCourseData is strict to the 'course' variant: undefined while in exercise view
         assert.strictEqual(stateManager.currentCourseData, undefined);
 
         stateManager.backToCourseDetails();

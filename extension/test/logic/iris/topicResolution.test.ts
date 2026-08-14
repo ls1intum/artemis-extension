@@ -68,8 +68,8 @@ describe('resolveTopic', () => {
     it('refuses an EXERCISE from another course, which its id alone cannot reveal', () => {
         // "Ask Iris about this exercise" from a dashboard row in course 43 while
         // a course-42 conversation is open. The entity id says nothing about the
-        // course, so without the caller's hint this staged silently and the next
-        // send carried a context the conversation cannot hold.
+        // course, so without the caller's hint it would stage silently and the
+        // next send would carry a context the conversation cannot hold.
         const decision = resolveTopic(input({ targetCourseId: 43 }));
         expect(decision).toEqual({ kind: 'refuse', reason: 'cross-course' });
     });

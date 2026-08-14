@@ -5,7 +5,7 @@
  * (e.g. `vscode.debug.onDidChangeBreakpoints`), so the four listeners in
  * ObservationRegistry are not exercised directly. We unit-test the pure
  * collectors with real `vscode.SourceBreakpoint` objects, and verify the
- * phase/generation gating of the new event types via the same white-box
+ * phase/generation gating of these event types via the same white-box
  * `injectEvent` approach used by workspaceEvents.test.ts.
  */
 
@@ -41,7 +41,6 @@ function sourceBp(
 }
 
 suite('Debugger recording — pure collectors', () => {
-    // T3: debugSession collector copies session fields for started/terminated.
     test('T3. collectDebugSession copies sessionId/name/type/parentSession', () => {
         // Partial fake: collectDebugSession only reads id/name/type/parentSession,
         // so a minimal cast is sufficient (this tests extraction, not the API contract).
@@ -60,7 +59,6 @@ suite('Debugger recording — pure collectors', () => {
         assert.strictEqual(event.parentSessionId, 'p0');
     });
 
-    // T4: activeChanged with no session leaves all session fields undefined.
     test('T4. collectDebugSession(activeChanged, undefined) omits session fields', () => {
         const event = collectDebugSession('activeChanged', undefined);
 
@@ -71,7 +69,6 @@ suite('Debugger recording — pure collectors', () => {
         assert.strictEqual(event.parentSessionId, undefined);
     });
 
-    // T6: collector maps fields, keeps 0-based line/column, copies inherited props.
     test('T6. collectBreakpointChange maps fields with 0-based line/column', () => {
         const bp = sourceBp('/workspace/exercise1/src/Main.java', 9, {
             char: 4, condition: 'x > 0', logMessage: 'hit',
@@ -91,7 +88,6 @@ suite('Debugger recording — pure collectors', () => {
         assert.strictEqual(out.logMessage, 'hit');
     });
 
-    // T7: filter keeps in-root source breakpoints, drops function + out-of-root.
     test('T7. filterRecordableSourceBreakpoints keeps in-root source breakpoints only', () => {
         const inRoot = sourceBp('/workspace/exercise1/src/Main.java', 1);
         const outOfRoot = sourceBp('/workspace/other/Lib.java', 1);
@@ -103,7 +99,6 @@ suite('Debugger recording — pure collectors', () => {
         assert.strictEqual(kept[0], inRoot);
     });
 
-    // T8: snapshot emits in-root breakpoints with given timestamp, null when none.
     test('T8. collectInitialBreakpointSnapshot returns event with timestamp, or null', () => {
         const inRoot = sourceBp('/workspace/exercise1/src/Main.java', 2);
         const outOfRoot = sourceBp('/workspace/other/Lib.java', 2);
@@ -119,7 +114,6 @@ suite('Debugger recording — pure collectors', () => {
         assert.strictEqual(none, null);
     });
 
-    // T9: a bulk array maps to ONE event with one entry per breakpoint.
     test('T9. collectBreakpointChange maps a multi-breakpoint array to one event', () => {
         const bps = [
             sourceBp('/workspace/exercise1/src/A.java', 1),
@@ -133,8 +127,6 @@ suite('Debugger recording — pure collectors', () => {
         assert.strictEqual(event.breakpoints.length, 3);
     });
 });
-
-// ── White-box harness (mirrors workspaceEvents.test.ts) ───────────────
 
 class FakeFs implements RecordingFs {
     appendedChunks: string[] = [];
@@ -202,7 +194,6 @@ suite('Debugger recording — phase gating (white-box)', () => {
         try { await recorder.shutdown(); } catch { /* ignore */ }
     });
 
-    // T5: events recorded while recording carry their structure into the stream.
     test('T5. debugSession + breakpointChange land in the stream while recording', async () => {
         recorder.enable();
         await recorder.startSession(1, 'p1', ROOT);
@@ -219,7 +210,6 @@ suite('Debugger recording — phase gating (white-box)', () => {
         assert.ok(bp && bp.type === 'breakpointChange' && bp.breakpoints[0].line === 9);
     });
 
-    // T2: an event recorded with a stale generation token is dropped.
     test('T2. stale-generation event is dropped', async () => {
         recorder.enable();
         await recorder.startSession(1, 'p1', ROOT);
@@ -235,7 +225,6 @@ suite('Debugger recording — phase gating (white-box)', () => {
         assert.strictEqual(events.filter(e => e.type === 'debugSession').length, 0);
     });
 
-    // T1: idle phase (before startSession) drops the events.
     test('T1. events injected before startSession are dropped', () => {
         recorder.enable();
         injectEvent(recorder, DEBUG_SESSION_STARTED);
@@ -245,7 +234,6 @@ suite('Debugger recording — phase gating (white-box)', () => {
         assert.strictEqual(events.filter(e => e.type === 'debugSession' || e.type === 'breakpointChange').length, 0);
     });
 
-    // T1 (cont.): after disable, events are dropped.
     test('T1. events injected after disable are dropped', async () => {
         recorder.enable();
         await recorder.startSession(1, 'p1', ROOT);

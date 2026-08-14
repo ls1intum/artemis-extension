@@ -11,8 +11,6 @@ describe('TestResultsOverlay', () => {
         { id: 2, name: 'testB', passed: false, message: 'fail msg' },
     ];
 
-    // ── Overview ('all') mode ────────────────────────────────────────────
-
     it('renders default title in overview mode', () => {
         render(<TestResultsOverlay open onClose={() => undefined} state={{ kind: 'all', testCases }} />);
         expect(screen.getByText('Test Results')).toBeInTheDocument();
@@ -22,8 +20,6 @@ describe('TestResultsOverlay', () => {
         render(<TestResultsOverlay open onClose={() => undefined} state={{ kind: 'all', testCases: [] }} />);
         expect(screen.getByText('No test results available.')).toBeInTheDocument();
     });
-
-    // ── Task mode: per-kind empty/structured states ──────────────────────
 
     it('renders task-mode title from taskName', () => {
         render(
@@ -164,8 +160,6 @@ describe('TestResultsOverlay', () => {
         expect(screen.getByText(/1 test in this task did not run/i)).toBeInTheDocument();
     });
 
-    // ── Close interactions ───────────────────────────────────────────────
-
     it('calls onClose with "button" when X is clicked', async () => {
         const onClose = vi.fn();
         render(<TestResultsOverlay open onClose={onClose} state={{ kind: 'all', testCases }} />);
@@ -188,7 +182,6 @@ describe('TestResultsOverlay', () => {
         expect(onClose).not.toHaveBeenCalled();
     });
 
-    // ── Rebuild banner ───────────────────────────────────────────────────
     const BANNER_RE = /a new build is running/i;
 
     it('shows the rebuild banner when buildRunning is true (task mode)', () => {

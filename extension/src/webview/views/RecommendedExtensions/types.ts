@@ -1,8 +1,5 @@
 import type { VsCodeApi } from '@shared/messageContracts';
 
-/**
- * Individual extension metadata.
- */
 export interface Extension {
     id: string;
     name: string;
@@ -14,9 +11,6 @@ export interface Extension {
     isInstalled: boolean;
 }
 
-/**
- * Extension category grouping related extensions.
- */
 export interface ExtensionCategory {
     id: string;
     name: string;
@@ -24,9 +18,6 @@ export interface ExtensionCategory {
     extensions: Extension[];
 }
 
-/**
- * Props for RecommendedExtensionsView component.
- */
 export interface RecommendedExtensionsViewProps {
     vscodeApi: VsCodeApi;
 }

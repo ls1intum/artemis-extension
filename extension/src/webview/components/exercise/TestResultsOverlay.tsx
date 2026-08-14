@@ -88,8 +88,6 @@ export function TestResultsOverlay(props: TestResultsOverlayProps) {
     );
 }
 
-// ── Overview body (global "all tests" modal) ────────────────────────────────
-
 function OverviewBody({ testCases }: { testCases: TestCase[] }) {
     const passed = testCases.filter((t) => t.passed);
     const failed = testCases.filter((t) => !t.passed);
@@ -123,8 +121,6 @@ function OverviewBody({ testCases }: { testCases: TestCase[] }) {
         </>
     );
 }
-
-// ── Task body (per-task modal driven by TaskTestState) ──────────────────────
 
 function TaskBody({ state }: { state: TaskTestState }) {
     switch (state.kind) {
@@ -213,8 +209,6 @@ function TaskBody({ state }: { state: TaskTestState }) {
         }
     }
 }
-
-// ── Shared building blocks ──────────────────────────────────────────────────
 
 function Summary({ passedCount, total }: { passedCount: number; total: number }) {
     const percentage = total > 0 ? (passedCount / total) * 100 : 0;

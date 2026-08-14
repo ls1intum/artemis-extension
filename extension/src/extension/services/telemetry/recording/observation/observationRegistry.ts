@@ -41,7 +41,7 @@ interface ObservationRegistryDeps {
  * boundaries. `setExerciseContext(uri)` is called per-session to update the
  * URI-root filter.
  *
- * Three explicit teardown paths replace the old single `_disposeEventListeners`:
+ * Three explicit teardown paths:
  *   - `flushDebouncesForEnd(gen)`: on regular sessionEnd, flushes buffered
  *     debounce payloads into the record sink with `allowDuringEnding`.
  *   - `discardDebouncesForConsentDowngrade()`: GDPR path, drops all pending
@@ -52,19 +52,11 @@ interface ObservationRegistryDeps {
  */
 export class ObservationRegistry {
     /**
-     * Debounce windows for selection and visible-range events. Engineering
-     * choice calibrated by manual testing during recorder development, not a
-     * paper citation.
-     *
-     * Both event types arrive in high-frequency bursts: selection during
-     * typing and rapid cursor movement, visible-range during scroll inertia.
-     * The chosen windows coalesce a burst into one recorded event while
-     * keeping distinct user actions separable in the recording.
-     *
-     * Tighter values would inflate JSONL size without obvious analysis
-     * benefit; looser values would risk merging semantically distinct
-     * selections or scrolls. Revisit if downstream analysis needs higher
-     * temporal resolution.
+     * Debounce windows for selection and visible-range events, both of which
+     * arrive in high-frequency bursts (typing and cursor movement, scroll
+     * inertia). The windows coalesce a burst into one recorded event while
+     * keeping distinct user actions separable. Engineering choice calibrated
+     * by manual testing, not a paper citation.
      */
     static readonly SELECTION_DEBOUNCE_MS = 200;
     static readonly VISIBLE_RANGE_DEBOUNCE_MS = 300;
@@ -94,12 +86,9 @@ export class ObservationRegistry {
         this._lastActiveEditorUri = uri;
     }
 
-    // ── Subscription registration (enable-scoped) ─────────────────────
-
     enable(): void {
         const recordingPhase = (): boolean => this._deps.state.phase === 'recording';
 
-        // Text changes
         const textChange = vscode.workspace.onDidChangeTextDocument(event => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(event.document.uri, this._exerciseRootUri)) { return; }
@@ -108,7 +97,6 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(textChange);
 
-        // File save
         const save = vscode.workspace.onDidSaveTextDocument(doc => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
@@ -116,7 +104,6 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(save);
 
-        // Active editor switch + snapshot on first open
         const editorSwitch = vscode.window.onDidChangeActiveTextEditor(editor => {
             if (!recordingPhase()) { return; }
             const prev = this._lastActiveEditorUri;
@@ -134,7 +121,6 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(editorSwitch);
 
-        // Diagnostics changes
         const diagnosticsChange = vscode.languages.onDidChangeDiagnostics(event => {
             if (!recordingPhase()) { return; }
             for (const uri of event.uris) {
@@ -144,16 +130,14 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(diagnosticsChange);
 
-        // Window focus
         const windowFocus = vscode.window.onDidChangeWindowState(state => {
             if (!recordingPhase()) { return; }
             this._deps.record(collectWindowFocus(state), {}, this._deps.state.currentGeneration);
         });
         this._eventListenerDisposables.push(windowFocus);
 
-        // Selection changes (debounced 200ms, per-URI — Block J).
-        // Payload serialized at trigger time; generation captured at trigger
-        // time and passed to the delayed record call.
+        // Payload and generation are captured at trigger time and passed to
+        // the delayed record call, so a session switch cannot retag them.
         const selectionChange = vscode.window.onDidChangeTextEditorSelection(event => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
@@ -174,7 +158,6 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(selectionChange);
 
-        // Visible range changes (debounced 300ms, per-URI — Block J).
         const visibleRangeChange = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
             if (!recordingPhase()) { return; }
             if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
@@ -195,7 +178,6 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(visibleRangeChange);
 
-        // Terminal open/close
         const terminalOpen = vscode.window.onDidOpenTerminal(terminal => {
             if (!recordingPhase()) { return; }
             this._deps.record({
@@ -218,12 +200,6 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(terminalClose);
 
-        // File workspace events (Block K). fileCreate/fileDelete and
-        // textDocumentOpen/textDocumentClose share the same phase-gate +
-        // URI-filter + record pattern and route through private helpers
-        // (`_emitMultiFileEvent`, `_emitTextDocumentEvent`). fileRename has its
-        // own shape (two URIs per entry, accept-if-either-side-in-root) and
-        // stays inline.
         const fileCreate = vscode.workspace.onDidCreateFiles(event =>
             this._emitMultiFileEvent(event.files, 'fileCreate'));
         this._eventListenerDisposables.push(fileCreate);
@@ -232,6 +208,8 @@ export class ObservationRegistry {
             this._emitMultiFileEvent(event.files, 'fileDelete'));
         this._eventListenerDisposables.push(fileDelete);
 
+        // Inline rather than a helper: two URIs per entry, and an entry counts
+        // when either side is inside the exercise root.
         const fileRename = vscode.workspace.onDidRenameFiles(event => {
             if (!recordingPhase()) { return; }
             const gen = this._deps.state.currentGeneration;
@@ -257,7 +235,6 @@ export class ObservationRegistry {
             this._emitTextDocumentEvent(doc, 'textDocumentClose'));
         this._eventListenerDisposables.push(textDocumentClose);
 
-        // Debug session lifecycle
         const debugStart = vscode.debug.onDidStartDebugSession(s =>
             this._recordDebugSession('started', s));
         this._eventListenerDisposables.push(debugStart);
@@ -270,10 +247,9 @@ export class ObservationRegistry {
             this._recordDebugSession('activeChanged', s));
         this._eventListenerDisposables.push(debugActive);
 
-        // Breakpoint changes. onDidChangeBreakpoints carries three arrays; each
-        // is processed independently and empty arrays emit nothing. The VS Code
-        // API does not guarantee one event per user action, so no coalescing is
-        // assumed; breakpoint changes are low-frequency, no debounce is applied.
+        // The VS Code API does not guarantee one event per user action, so no
+        // coalescing is assumed. Breakpoint changes are low-frequency, so no
+        // debounce either.
         const breakpointChange = vscode.debug.onDidChangeBreakpoints(event => {
             this._emitBreakpointChange('added', event.added);
             this._emitBreakpointChange('removed', event.removed);
@@ -281,13 +257,11 @@ export class ObservationRegistry {
         });
         this._eventListenerDisposables.push(breakpointChange);
 
-        // Terminal shell execution tracking — only available in VS Code Desktop
+        // Terminal shell execution tracking exists only in VS Code Desktop.
         if (this._deps.capabilities?.hasTerminalShellExecution !== false) {
             this._terminalCollector.register(this._eventListenerDisposables);
         }
     }
-
-    // ── Teardown paths ────────────────────────────────────────────────
 
     /**
      * On regular sessionEnd: flush any buffered debounce payloads to the
@@ -314,14 +288,13 @@ export class ObservationRegistry {
         }
         this._pendingVisibleRangePayloads.clear();
 
-        // Abort any still-running terminal shell executions.
         this._terminalCollector.abortAllPending();
     }
 
     /**
      * GDPR-strict: on consent downgrade, DISCARD buffered debounce payloads.
-     * The user revoked consent — the last cached keystroke derivative must
-     * not hit disk. Does NOT dispose subscriptions; that happens next via
+     * Consent is revoked, so the last cached keystroke derivative must not hit
+     * disk. Does NOT dispose subscriptions; that happens next via
      * disposeSubscriptions() during _doDisable.
      */
     discardDebouncesForConsentDowngrade(): void {
@@ -345,15 +318,12 @@ export class ObservationRegistry {
      * subscriptions. Idempotent. Last-active-editor is reset so a fresh
      * enable starts with a clean slate.
      *
-     * Pending terminal executions are aborted and cleared here too. In normal
-     * call ordering the caller (LifecycleController) already invokes
-     * `flushDebouncesForEnd` or `discardDebouncesForConsentDowngrade` first,
-     * which empties this map. The explicit clear here is defense-in-depth so
-     * that the invariant "no pending execution can emit after
-     * `disposeSubscriptions`" is enforced by this method alone, not by caller
-     * ordering. Note: `execution.read()` cannot be cancelled, so the async
-     * reader may continue to consume output until VS Code closes its stream;
-     * the `entry.aborted` flag suppresses any subsequent record call.
+     * Pending terminal executions are aborted here too, even though the caller
+     * normally flushes or discards first: the invariant "no pending execution
+     * emits after `disposeSubscriptions`" must hold from this method alone,
+     * not from caller ordering. `execution.read()` cannot be cancelled, so the
+     * async reader may keep consuming output until VS Code closes its stream;
+     * `entry.aborted` suppresses any later record call.
      */
     disposeSubscriptions(): void {
         for (const timer of this._selectionDebounceTimers.values()) {
@@ -373,8 +343,6 @@ export class ObservationRegistry {
         }
         this._lastActiveEditorUri = undefined;
     }
-
-    // ── Event emit helpers ────────────────────────────────────────────
 
     /**
      * Emit a recorder event for each URI in a file-set workspace event
@@ -398,10 +366,6 @@ export class ObservationRegistry {
         }
     }
 
-    /**
-     * Emit a recorder event for a single text-document workspace event
-     * (`onDidOpenTextDocument` / `onDidCloseTextDocument`).
-     */
     private _emitTextDocumentEvent(
         doc: vscode.TextDocument,
         type: 'textDocumentOpen' | 'textDocumentClose',
