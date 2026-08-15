@@ -57,7 +57,7 @@ describe('LiveTailerRegistry', () => {
         // currentLineNo must reflect the seed (2 lines counted at acquire).
         expect(handle.tailer.currentLineNo()).toBe(2);
         // Append a 3rd line before the tailer's first poll runs. The line
-        // must still emit, with lineNo=3 — not be skipped as "historical".
+        // must still emit, with lineNo=3, not be skipped as "historical".
         fs.appendFileSync(path.join(tmpDir, 'sess-1/events.jsonl'), '{"a":3}\n');
         const got: Array<{ line: string; lineNo: number }> = [];
         handle.tailer.subscribe((line, lineNo) => got.push({ line, lineNo }));

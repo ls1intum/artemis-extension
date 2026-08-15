@@ -114,7 +114,6 @@ function stubWebsocket(sandbox: sinon.SinonSandbox): ArtemisWebsocketService {
 function stubWebviewProvider(): ArtemisWebviewProvider {
     const onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     const onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
-    // NEW: emitters + fire methods for view-tracking events.
     const onDidOpenOverview = new vscode.EventEmitter<TestResultsOverviewOpenedPayload>();
     const onDidCloseOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
     const onDidOpenTask = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
@@ -268,7 +267,7 @@ interface WiringHarness {
 /**
  * Build a wiring harness against a per-suite sandbox. The sandbox owns every
  * stub so a thrown error mid-construction (or a forgotten dispose call) cannot
- * leak `getConfiguration` / `registerCommand` wraps into the next test —
+ * leak `getConfiguration` / `registerCommand` wraps into the next test:
  * `sandbox.restore()` in teardown rolls them all back unconditionally.
  */
 async function makeWiringHarness(
@@ -494,8 +493,6 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
         }
     });
 
-    // ── Forwarding: Iris chat ──────────────────────────────────────────────
-
     test('forwards onDidSendIrisChatMessage to recordIrisChatSent', async () => {
         const harness = await makeWiringHarness(sandbox, { developerMode: false });
         try {
@@ -631,8 +628,6 @@ suite('sessionRecorderWiring — recorder feed and configuration provenance', ()
             await harness.dispose();
         }
     });
-
-    // ── Forwarding: navigation + panel visibility ──────────────────────────
 
     test('forwards onDidChangeViewNavigation to recordViewNavigation', async () => {
         const harness = await makeWiringHarness(sandbox, { developerMode: false });

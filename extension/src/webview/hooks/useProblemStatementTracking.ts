@@ -33,9 +33,9 @@ function selectionPayloadsEqual(a: ProblemStatementSelectionPayload, b: ProblemS
 }
 
 /**
- * Records reading behavior in the problem statement for the session recorder
- * (issue #281): page scroll position + statement geometry, and text
- * selections inside the statement container.
+ * Records reading behavior in the problem statement for the session recorder:
+ * page scroll position + statement geometry, and text selections inside the
+ * statement container.
  *
  * The whole ExerciseDetail page scrolls (the statement has no own scroll
  * container), so scroll events are window-level and carry the statement's
@@ -49,8 +49,8 @@ function selectionPayloadsEqual(a: ProblemStatementSelectionPayload, b: ProblemS
  *
  * Consent gating happens extension-side in the SessionRecorder (single gate);
  * the webview always posts. Pending emits are flushed on cleanup while the
- * element is still connected — detached geometry would be garbage, so a
- * disposed webview loses at most the last debounce window (accepted in spec).
+ * element is still connected, because detached geometry would be garbage: a
+ * disposed webview loses at most the last debounce window.
  */
 export function useProblemStatementTracking(
     element: HTMLElement | null,
@@ -62,7 +62,6 @@ export function useProblemStatementTracking(
     const lastScrollRef = useRef<ProblemStatementScrollPayload | null>(null);
     const lastSelectionRef = useRef<ProblemStatementSelectionPayload | null>(null);
 
-    // ── Scroll + baseline ───────────────────────────────────────────────
     useEffect(() => {
         if (!element || bodyHtml === undefined) {
             return;
@@ -117,12 +116,11 @@ export function useProblemStatementTracking(
             observer?.disconnect();
             if (pendingTimer !== undefined) {
                 window.clearTimeout(pendingTimer);
-                emit(); // flush — recorder-side gating makes this consent-safe
+                emit(); // flush; recorder-side gating makes this consent-safe
             }
         };
     }, [element, bodyHtml, vscodeApi]);
 
-    // ── Selection ───────────────────────────────────────────────────────
     useEffect(() => {
         if (!element) {
             return;

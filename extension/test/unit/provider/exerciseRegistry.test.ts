@@ -58,8 +58,6 @@ suite('ExerciseRegistry Test Suite', () => {
         assert.strictEqual(exercises[0].courseId, 200);
     });
 
-    // --- participationId reverse-lookup (NEW-2 fix) ---
-
     test('getExerciseIdByParticipation returns exerciseId for registered participation', () => {
         registry.registerExercise(1, 'Ex1', 'https://git.example.com/ex1', 'ex1', 100, 5001);
         assert.strictEqual(registry.getExerciseIdByParticipation(5001), 1);
@@ -108,7 +106,6 @@ suite('ExerciseRegistry Test Suite', () => {
     });
 
     test('should replace course exercises when re-registering from fresh course data', () => {
-        // Initial registration
         const courseData1 = {
             course: {
                 id: 100,

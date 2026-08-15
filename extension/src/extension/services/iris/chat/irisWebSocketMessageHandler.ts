@@ -314,12 +314,10 @@ export class IrisWebSocketMessageHandler {
      * the student wrote SOMEWHERE ELSE (the Artemis web client, a second
      * window), or the server's echo of our own prompt.
      *
-     * These used to be dropped wholesale, on the grounds that a USER frame is
-     * only ever our own echo. That quietly broke the promise the whole
-     * conversation-first model rests on: what you see is what the server has.
-     * The host state already recorded it (every MESSAGE frame with a body is
-     * upserted above), so the message reappeared on the next reload, which made
-     * the gap look like a rendering delay rather than a loss.
+     * Rendering it upholds the conversation-first promise: what you see is what
+     * the server has. Dropping it would still leave it in host state (every
+     * MESSAGE frame with a body is upserted above), so it would reappear on the
+     * next reload.
      *
      * Deliberately NOT gated on `sendInFlight`. That flag is set before file
      * collection and stays set through the POST and its reconciliation, and
@@ -370,7 +368,6 @@ export class IrisWebSocketMessageHandler {
         };
     }
 
-    /** Publishes the current projection. */
     public publishCurrentRunUi(): void {
         const projection = this._buildProjection();
         if (!projection) { return; }
@@ -481,7 +478,6 @@ export class IrisWebSocketMessageHandler {
             this._websocketService.resetConnectionState();
             await this._websocketService.connect();
 
-            // If we have an active Iris session, resubscribe to it
             const irisSessionManager = this._getIrisWebSocketSessionClient();
             if (irisSessionManager?.currentSessionId && this._websocketService.isConnected()) {
                 logger.info(`Resubscribing to Iris session after reconnect: ${irisSessionManager.currentSessionId}`, LogCategory.IRIS_CHAT);

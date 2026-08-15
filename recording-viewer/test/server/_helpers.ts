@@ -1,4 +1,3 @@
-// test/server/_helpers.ts
 import { Writable } from 'stream';
 import type { IncomingRequest, ServerResponse } from '../../server/types';
 
@@ -46,7 +45,7 @@ export function makeRes(): MockResHandle {
                     Buffer.isBuffer(data) ? data : Buffer.from(String(data)),
                 ]);
             }
-            // If status was never set explicitly, Node would default to 200 — mirror that.
+            // Node defaults to 200 when no status was set explicitly; mirror that.
             if (captured.status === 0) captured.status = 200;
             captured.endCalled = true;
             resolveDone();

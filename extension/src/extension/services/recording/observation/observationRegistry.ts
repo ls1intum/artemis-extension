@@ -42,7 +42,7 @@ interface ObservationRegistryDeps {
  * boundaries. `setExerciseContext(uri)` is called per-session to update the
  * URI-root filter.
  *
- * Three explicit teardown paths replace the old single `_disposeEventListeners`:
+ * Three explicit teardown paths:
  *   - `flushDebouncesForEnd(gen)`: on regular sessionEnd, flushes buffered
  *     debounce payloads into the record sink with `allowDuringEnding`.
  *   - `discardDebouncesForConsentDowngrade()`: GDPR path, drops all pending
@@ -53,19 +53,11 @@ interface ObservationRegistryDeps {
  */
 export class ObservationRegistry {
     /**
-     * Debounce windows for selection and visible-range events. Engineering
-     * choice calibrated by manual testing during recorder development, not a
-     * paper citation.
-     *
-     * Both event types arrive in high-frequency bursts: selection during
-     * typing and rapid cursor movement, visible-range during scroll inertia.
-     * The chosen windows coalesce a burst into one recorded event while
-     * keeping distinct user actions separable in the recording.
-     *
-     * Tighter values would inflate JSONL size without obvious analysis
-     * benefit; looser values would risk merging semantically distinct
-     * selections or scrolls. Revisit if downstream analysis needs higher
-     * temporal resolution.
+     * Debounce windows for selection and visible-range events, both of which
+     * arrive in high-frequency bursts (typing and cursor movement, scroll
+     * inertia). The windows coalesce a burst into one recorded event while
+     * keeping distinct user actions separable. Engineering choice calibrated
+     * by manual testing, not a paper citation.
      */
     static readonly SELECTION_DEBOUNCE_MS = 200;
     static readonly VISIBLE_RANGE_DEBOUNCE_MS = 300;
@@ -94,8 +86,6 @@ export class ObservationRegistry {
     seedActiveEditor(uri: string | undefined): void {
         this._lastActiveEditorUri = uri;
     }
-
-    // ── Subscription registration (enable-scoped) ─────────────────────
 
     enable(): void {
         const hub = this._deps.hub;
@@ -289,8 +279,6 @@ export class ObservationRegistry {
         this._terminalCollector.register(hub, this._eventListenerDisposables);
     }
 
-    // ── Teardown paths ────────────────────────────────────────────────
-
     /**
      * On regular sessionEnd: flush any buffered debounce payloads to the
      * record sink with `allowDuringEnding` so they're persisted before the
@@ -316,14 +304,13 @@ export class ObservationRegistry {
         }
         this._pendingVisibleRangePayloads.clear();
 
-        // Abort any still-running terminal shell executions.
         this._terminalCollector.abortAllPending();
     }
 
     /**
      * GDPR-strict: on consent downgrade, DISCARD buffered debounce payloads.
-     * The user revoked consent — the last cached keystroke derivative must
-     * not hit disk. Does NOT dispose subscriptions; that happens next via
+     * Consent is revoked, so the last cached keystroke derivative must not hit
+     * disk. Does NOT dispose subscriptions; that happens next via
      * disposeSubscriptions() during _doDisable.
      */
     discardDebouncesForConsentDowngrade(): void {
@@ -348,15 +335,12 @@ export class ObservationRegistry {
      * last hub consumer detaches). Idempotent. Last-active-editor is reset so a fresh
      * enable starts with a clean slate.
      *
-     * Pending terminal executions are aborted and cleared here too. In normal
-     * call ordering the caller (LifecycleController) already invokes
-     * `flushDebouncesForEnd` or `discardDebouncesForConsentDowngrade` first,
-     * which empties this map. The explicit clear here is defense-in-depth so
-     * that the invariant "no pending execution can emit after
-     * `disposeSubscriptions`" is enforced by this method alone, not by caller
-     * ordering. Note: `execution.read()` cannot be cancelled, so the async
-     * reader may continue to consume output until VS Code closes its stream;
-     * the `entry.aborted` flag suppresses any subsequent record call.
+     * Pending terminal executions are aborted here too, even though the caller
+     * normally flushes or discards first: the invariant "no pending execution
+     * emits after `disposeSubscriptions`" must hold from this method alone,
+     * not from caller ordering. `execution.read()` cannot be cancelled, so the
+     * async reader may keep consuming output until VS Code closes its stream;
+     * `entry.aborted` suppresses any later record call.
      */
     disposeSubscriptions(): void {
         for (const timer of this._selectionDebounceTimers.values()) {
@@ -376,8 +360,6 @@ export class ObservationRegistry {
         }
         this._lastActiveEditorUri = undefined;
     }
-
-    // ── Event emit helpers ────────────────────────────────────────────
 
     /**
      * Emit a recorder event for each URI in a file-set workspace event
@@ -401,10 +383,6 @@ export class ObservationRegistry {
         }
     }
 
-    /**
-     * Emit a recorder event for a single text-document workspace event
-     * (`onDidOpenTextDocument` / `onDidCloseTextDocument`).
-     */
     private _emitTextDocumentEvent(
         doc: vscode.TextDocument,
         type: 'textDocumentOpen' | 'textDocumentClose',

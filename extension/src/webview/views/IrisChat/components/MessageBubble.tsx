@@ -65,7 +65,6 @@ function MessageBubbleComponent({
     const isUser = message.role === 'user';
     const streamdownComponents = useStreamdownConfig();
 
-    // Compute relative timestamp
     const relativeTime = useMemo(() => formatRelativeTime(message.timestamp), [message.timestamp]);
 
     const handleFeedback = (feedback: 'positive' | 'negative') => {

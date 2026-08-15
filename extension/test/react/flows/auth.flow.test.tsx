@@ -15,7 +15,6 @@ import { LoginView } from '@webview/views/Login/LoginView';
  */
 describe('Auth Flow', () => {
 	beforeEach(() => {
-		// Clean any lingering message listeners between tests
 	});
 
 	it('shows error message when login fails with invalid credentials', async () => {
@@ -23,12 +22,10 @@ describe('Auth Flow', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<LoginView vscodeApi={mockApi} />);
 
-		// Enter credentials and submit
 		await user.type(screen.getByTestId('login-username'), 'wronguser');
 		await user.type(screen.getByTestId('login-password'), 'wrongpass');
 		await user.click(screen.getByTestId('login-submit'));
 
-		// Simulate loading
 		dispatchExtensionMessage({
 			type: 'showLoading',
 			message: 'Checking credentials...',
@@ -39,13 +36,11 @@ describe('Auth Flow', () => {
 			expect(screen.getByText('Checking credentials')).toBeInTheDocument();
 		});
 
-		// Simulate login error response
 		dispatchExtensionMessage({
 			type: 'loginError',
 			error: 'Invalid username or password',
 		});
 
-		// Verify error displayed and form re-shown
 		await waitFor(() => {
 			expect(screen.getByTestId('login-status')).toHaveTextContent('Invalid username or password');
 		});
@@ -95,7 +90,6 @@ describe('Auth Flow', () => {
 		const form = screen.getByTestId('login-form');
 		fireEvent.submit(form);
 
-		// Verify no login postMessage sent
 		const calls = (mockApi.postMessage as ReturnType<typeof import('vitest').vi.fn>).mock.calls;
 		const loginCalls = calls.filter(
 			(call) =>
@@ -105,7 +99,6 @@ describe('Auth Flow', () => {
 		);
 		expect(loginCalls).toHaveLength(0);
 
-		// Verify error message displayed
 		await waitFor(() => {
 			expect(screen.getByTestId('login-status')).toBeInTheDocument();
 		});

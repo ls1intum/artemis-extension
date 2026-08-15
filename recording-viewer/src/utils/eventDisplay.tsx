@@ -60,7 +60,7 @@ function describeStatementScroll(e: {
 
 const SELECTION_PREVIEW_CHARS = 60;
 
-/** '"implement the…" (25 chars)' — preview + uncapped length. */
+/** '"implement the…" (25 chars)': preview + uncapped length. */
 function describeStatementSelection(e: { selectedText: string; selectionLength: number }): string {
     const preview = e.selectedText.length > SELECTION_PREVIEW_CHARS
         ? `${e.selectedText.slice(0, SELECTION_PREVIEW_CHARS)}…`

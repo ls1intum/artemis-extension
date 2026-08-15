@@ -14,16 +14,14 @@ declare global {
 	}
 }
 
-// Acquire VS Code API once at module scope
+// acquireVsCodeApi() may only be called once, hence module scope.
 const vscode = window.acquireVsCodeApi();
 
-// Get root container
 const container = document.getElementById('root');
 if (!container) {
 	throw new Error('Root container not found');
 }
 
-// Render React app with error boundary
 const root = createRoot(container);
 root.render(
 	<ErrorBoundary vscodeApi={vscode}>

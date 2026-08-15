@@ -6,9 +6,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 
 const execFileAsync = promisify(execFile);
 
-/**
- * Type for the file exists checker function (used for dependency injection in tests)
- */
+/** File-existence probe; injected in tests. */
 type FileExistsChecker = (uri: vscode.Uri) => Promise<boolean>;
 
 /**
@@ -25,10 +23,6 @@ export class NoAiDetectionService implements vscode.Disposable {
     public readonly onNoAiStatusChanged = this._onNoAiStatusChanged.event;
     private _initPromise: Promise<boolean>;
 
-    /**
-     * Customizable file exists checker for testing.
-     * Default implementation uses vscode.workspace.fs.stat
-     */
     private _fileExistsChecker: FileExistsChecker = async (uri: vscode.Uri) => {
         try {
             await vscode.workspace.fs.stat(uri);
@@ -51,9 +45,6 @@ export class NoAiDetectionService implements vscode.Disposable {
         return this._initPromise;
     }
 
-    /**
-     * Set a custom file exists checker (for testing purposes)
-     */
     public setFileExistsChecker(checker: FileExistsChecker): void {
         this._fileExistsChecker = checker;
     }
@@ -74,18 +65,13 @@ export class NoAiDetectionService implements vscode.Disposable {
         return this._isNoAiEnabled;
     }
 
-    /**
-     * Returns the path to the detected .noai file, if any
-     */
     public get noAiFilePath(): string | undefined {
         return this._noAiFilePath;
     }
 
     private _initialize(): void {
-        // Initial check
         this._initPromise = this._checkForNoAiFile();
 
-        // Watch for workspace folder changes
         const workspaceFolderListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
             logger.info('.noai detection: Workspace folders changed, re-checking...', LogCategory.GENERAL);
             void this._checkForNoAiFile().catch((err: unknown) => {
@@ -95,15 +81,11 @@ export class NoAiDetectionService implements vscode.Disposable {
         });
         this._disposables.push(workspaceFolderListener);
 
-        // Setup file watcher for .noai files
         this._setupFileWatcher();
     }
 
     private _setupFileWatcher(): void {
-        // Dispose existing watcher
         this._fileWatcher?.dispose();
-
-        // Watch for .noai file creation/deletion in all workspace folders
         this._fileWatcher = vscode.workspace.createFileSystemWatcher('**/.noai');
 
         this._fileWatcher.onDidCreate((uri) => {
@@ -123,9 +105,6 @@ export class NoAiDetectionService implements vscode.Disposable {
         this._disposables.push(this._fileWatcher);
     }
 
-    /**
-     * Manually trigger a check for .noai files
-     */
     public async checkForNoAiFile(): Promise<boolean> {
         return this._checkForNoAiFile();
     }
@@ -143,9 +122,7 @@ export class NoAiDetectionService implements vscode.Disposable {
             return this._isNoAiEnabled;
         }
 
-        // Check each workspace folder
         for (const folder of workspaceFolders) {
-            // Check workspace root
             const workspaceNoAi = vscode.Uri.joinPath(folder.uri, '.noai');
             if (await this._fileExists(workspaceNoAi)) {
                 this._isNoAiEnabled = true;
@@ -154,7 +131,7 @@ export class NoAiDetectionService implements vscode.Disposable {
                 break;
             }
 
-            // Check git root (might be different from workspace root)
+            // The git root may differ from the workspace root.
             const gitRoot = await this._getGitRoot(folder);
             if (gitRoot && gitRoot !== folder.uri.fsPath) {
                 const gitNoAi = vscode.Uri.file(`${gitRoot}/.noai`);
@@ -167,7 +144,6 @@ export class NoAiDetectionService implements vscode.Disposable {
             }
         }
 
-        // Fire event if state changed
         if (previousState !== this._isNoAiEnabled) {
             logger.info(`.noai detection state changed: ${this._isNoAiEnabled ? 'DISABLED' : 'ENABLED'}`, LogCategory.GENERAL);
             this._onNoAiStatusChanged.fire(this._isNoAiEnabled);

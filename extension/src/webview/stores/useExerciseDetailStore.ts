@@ -31,8 +31,8 @@ interface DirtyPagesStatus {
     autoSaveEnabled: boolean;
 }
 
-// Re-export so existing webview callers that already import this name keep
-// working. The canonical source of truth is now @shared/types/apiResponses.
+// Alias for webview callers importing this name. Canonical source of truth:
+// @shared/types/apiResponses.
 export type PendingSubmissionInfo = PendingSubmissionStatus;
 
 interface ExerciseDetailState {
@@ -44,19 +44,16 @@ interface ExerciseDetailState {
     /**
      * Pending build statuses keyed by `participation.id`. The view picks the
      * entry that matches the participation it has selected (graded vs.
-     * practice). Replaces a singleton `pendingSubmission` field that was
-     * silently overwritten per participation by the loader — see #168.
+     * practice).
      */
     pendingSubmissionsByParticipationId: Record<number, PendingSubmissionStatus>;
 
-    // Extension→Webview response state
     repoStatus: RepoStatus | null;
     clonedNotice: { exerciseTitle: string; participationId: number } | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
     /** AskIris proactive Off/Less/More control + availability card (spec §12.2 / §14), tagged with its exercise so a late update can't paint the wrong card. */
     proactiveControl: ProactiveControlState | null;
 
-    // Actions
     setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean, repoStatus?: RepoStatus) => void;
     setError: (error: string | null) => void;
     setLoading: (loading: boolean) => void;
@@ -73,10 +70,6 @@ interface ExerciseDetailState {
     clearPendingSubmission: () => void;
 }
 
-/**
- * Helper to find participation by result or submission ID.
- * Mimics the legacy resolveParticipationForResult logic.
- */
 function findParticipationForResult(
     exerciseData: ExerciseDetailsResponse,
     result: ResultSummary
@@ -152,7 +145,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
                 const updatedData = structuredClone(state.exerciseData);
 
-                // Find participation: match by participationId first, then by result ID, then fallback
                 let participation: ParticipationSummary | null = null;
                 if (payload.participationId && updatedData.exercise?.studentParticipations) {
                     participation = updatedData.exercise.studentParticipations.find(
@@ -166,8 +158,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     return;
                 }
 
-                // Results live on submission.results in Artemis
-                // Find the latest submission (highest ID) and update its results
+                // Results live on submission.results in Artemis.
                 const submissions = participation.submissions ?? [];
                 const latestSubmission = [...submissions]
                     .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
@@ -191,12 +182,10 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     }
                 }
 
-                // Clear the pending entry for the participation we actually
-                // mutated. We use `participation.id` (the resolved owner)
-                // rather than `payload.participationId` so a malformed or
-                // mismatched payload never deletes an unrelated key.
-                // Other participations' pending builds are preserved — they
-                // were unaffected by this result.
+                // Clear the pending entry keyed on `participation.id` (the
+                // resolved owner) rather than `payload.participationId`, so a
+                // mismatched payload cannot delete an unrelated key. Other
+                // participations' pending builds are unaffected.
                 const clearedParticipationId = participation.id;
                 const nextPending = { ...state.pendingSubmissionsByParticipationId };
                 if (clearedParticipationId !== undefined) {
@@ -217,7 +206,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
                 const updatedData = structuredClone(state.exerciseData);
 
-                // Find participation by participationId first
                 let participation: ParticipationSummary | undefined;
                 if (payload.participationId && updatedData.exercise?.studentParticipations) {
                     participation = updatedData.exercise.studentParticipations.find(

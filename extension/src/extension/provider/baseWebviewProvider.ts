@@ -143,9 +143,9 @@ export abstract class BaseWebviewProvider {
 
     /**
      * Safely post a message to the webview, queuing it if not ready yet.
-     * Coalesces same-type messages (keeps latest), but only within the
-     * segment of the queue after the most recent event-type message — see
-     * `coalescePending`. Event-type messages are always appended without
+     * Coalesces same-type messages (keeps latest), but only within the segment
+     * of the queue after the most recent event-type message (see
+     * `coalescePending`). Event-type messages are always appended without
      * deduplication. Enforces a hard cap on the queue length.
      */
     protected _postMessageSafe(message: ExtensionToWebviewMessage): void {

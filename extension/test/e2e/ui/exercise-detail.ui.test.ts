@@ -29,7 +29,6 @@ describe('ExerciseDetail View UI Tests', function () {
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Log in once before all tests in this suite
 		await performLogin(driver, username, password);
 	});
 
@@ -42,19 +41,19 @@ describe('ExerciseDetail View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context.
 		}
 	});
 
 	it('should render ExerciseDetail view or accept loading state', async function () {
-		// Longer timeout — 2 navigation steps required (Dashboard → Course → Exercise)
+		// Two navigation steps (Dashboard, Course, Exercise) need the longer timeout.
 		this.timeout(45000);
 
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		// Step 1: Navigate from Dashboard to a Course
-		// CSS module classes are hashed — use element type / XPath text selectors only
+		// Step 1: Dashboard to Course. CSS module classes are hashed, so only
+		// element types and XPath text selectors are usable here.
 		const courseElement = await driver
 			.findElement(
 				By.xpath(
@@ -64,7 +63,6 @@ describe('ExerciseDetail View UI Tests', function () {
 			.catch(() => null);
 
 		if (!courseElement) {
-			// No courses available — skip gracefully
 			console.log('ExerciseDetail smoke: No courses available; skipping ExerciseDetail smoke test');
 			await takeScreenshot(driver, 'exercise-detail-smoke-no-courses');
 			this.skip();
@@ -76,8 +74,7 @@ describe('ExerciseDetail View UI Tests', function () {
 		// Wait for CourseDetail to load before looking for exercises
 		await driver.sleep(3000);
 
-		// Step 2: Find and click an exercise within the CourseDetail view
-		// Use XPath text content selectors to find clickable exercise items
+		// Step 2: Course to Exercise.
 		const exerciseElement = await driver
 			.findElement(
 				By.xpath(
@@ -87,7 +84,6 @@ describe('ExerciseDetail View UI Tests', function () {
 			.catch(() => null);
 
 		if (!exerciseElement) {
-			// No exercises found in this course — skip gracefully
 			console.log('ExerciseDetail smoke: No exercises available in course; skipping ExerciseDetail smoke test');
 			await takeScreenshot(driver, 'exercise-detail-smoke-no-exercises');
 			this.skip();
@@ -96,8 +92,6 @@ describe('ExerciseDetail View UI Tests', function () {
 
 		await exerciseElement.click();
 
-		// Wait for ExerciseDetail view to load
-		// Assert #participation-section OR any content container
 		const participationSection = await driver
 			.wait(
 				() =>

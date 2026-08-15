@@ -15,9 +15,8 @@ export interface LiveHotkeyHandlers {
     onEscape?: () => boolean; // returns true if it consumed the Escape (had something to clear)
 }
 
-/** Pure function form of the keydown handler. Exported for unit testing.
- *  Returns true if the event was handled (so caller can decide whether to
- *  call preventDefault — we do it inline here). */
+/** Pure function form of the keydown handler, exported for unit testing.
+ *  Calls preventDefault inline for the events it handles. */
 export function handleLiveHotkey(e: KeyboardEvent, handlers: LiveHotkeyHandlers): void {
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;

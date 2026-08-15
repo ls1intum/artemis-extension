@@ -54,11 +54,9 @@ interface ContextChipProps {
  * instead, in the same place and still opening the picker, and borrows the
  * pill's background only on hover.
  *
- * The remove icon is always present on a topic pill. It used to be hidden once
- * the conversation had content, back when the click navigated away instead of
- * removing anything; it stages in every state now, so the icon means one thing
- * throughout. A slot that never empties also keeps the pill from changing
- * width mid-conversation, which is what the conditional padding got wrong.
+ * The remove icon is always present on a topic pill: it stages in every state,
+ * so the icon means one thing throughout, and a slot that never empties keeps
+ * the pill from changing width mid-conversation.
  */
 export function ContextChip({
     context,

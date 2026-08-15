@@ -31,8 +31,7 @@ function startOfDayOffset(now: Date, daysBack: number): number {
  * Pure: `nowMs` is always supplied by the caller, this function never calls
  * `Date.now()` itself, so bucket boundaries stay deterministic and testable.
  * Boundaries are computed from local-timezone midnights via
- * `startOfDayOffset` (the `Date` constructor used there resolves
- * year/month/day in the local timezone).
+ * `startOfDayOffset`.
  *
  * An entry with an invalid or unparseable timestamp (`lastActivity <= 0` or
  * non-finite, which is what the host sends when neither `lastActivityDate`

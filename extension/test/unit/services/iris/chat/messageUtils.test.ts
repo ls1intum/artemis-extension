@@ -1,8 +1,7 @@
 /**
- * Unit tests for `extractIrisMessageContent` (#193 fix). With null/undefined
- * inputs the function previously returned the *value* `undefined` from
- * `JSON.stringify`, which then crashed `IrisWebSocketMessageHandler` on
- * `content.length`.
+ * Unit tests for `extractIrisMessageContent`. The function must always return a
+ * string, including for null/undefined input: `IrisWebSocketMessageHandler` reads
+ * `content.length` on the result and crashes on `undefined`.
  */
 
 import * as assert from 'assert';
@@ -19,8 +18,7 @@ suite('extractIrisMessageContent: null / undefined (regression #193)', () => {
     });
 
     test('result is always a string (type-honest)', () => {
-        // The declared return type is `string`; verify it for the inputs
-        // that previously violated the contract.
+        // The declared return type is `string`, and null/undefined must honour it.
         assert.strictEqual(typeof extractIrisMessageContent(undefined), 'string');
         assert.strictEqual(typeof extractIrisMessageContent(null), 'string');
     });
@@ -55,10 +53,8 @@ suite('extractIrisMessageContent: array of content parts', () => {
     });
 
     test('empty array falls through to JSON.stringify', () => {
-        // Pre-existing behaviour: empty array does not match the
-        // length > 0 branch and serializes to `'[]'`. Documenting here
-        // so a future refactor noticing it knows the call sites have
-        // tolerated this for the entire history of the function.
+        // An empty array does not match the length > 0 branch and serializes to
+        // `'[]'`. Every call site tolerates that.
         assert.strictEqual(extractIrisMessageContent([]), '[]');
     });
 });

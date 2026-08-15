@@ -170,9 +170,7 @@ describe('DashboardView', () => {
 		});
 
 		await waitFor(() => {
-			// The section header
 			expect(screen.getByText('Current Workspace Exercise')).toBeInTheDocument();
-			// The exercise title
 			expect(screen.getByText('My Active Exercise')).toBeInTheDocument();
 		});
 	});
@@ -191,7 +189,6 @@ describe('DashboardView', () => {
 			expect(screen.getByText('Open This Exercise')).toBeInTheDocument();
 		});
 
-		// Click the workspace exercise list item
 		await userEvent.click(screen.getByText('Open This Exercise'));
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(

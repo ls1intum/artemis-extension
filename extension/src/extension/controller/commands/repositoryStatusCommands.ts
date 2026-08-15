@@ -18,11 +18,10 @@ interface RepoContext {
  * Helper functions injected via the constructor so tests can substitute
  * deterministic doubles. The defaults wire up to the production modules.
  *
- * (This injection seam was added because the production helpers are
- * re-exported through `@extension/services/workspace` barrel modules, where
- * the TS-emitted descriptors are non-configurable getters that sinon cannot
- * stub. Direct namespace stubbing fails with "descriptor is not configurable",
- * so we inject the callables instead.)
+ * The injection seam is necessary because the production helpers are
+ * re-exported through `@extension/services/workspace` barrel modules, where the
+ * TS-emitted descriptors are non-configurable getters: namespace stubbing fails
+ * with "descriptor is not configurable", so the callables are injected instead.
  */
 export interface RepositoryStatusCommandsDeps {
     getWorkspaceStatus: typeof workspaceServices.getWorkspaceStatus;
@@ -107,7 +106,6 @@ export class RepositoryStatusCommands {
             .filter((uri): uri is string => !!uri);
 
         if (exercise?.id === undefined || repoUris.length === 0) {
-            // Fall back to cached context if available
             if (this.currentRepoContext) {
                 await this._checkRepositoryStatusWithContext([this.currentRepoContext.expectedRepoUrl], this.currentRepoContext.exerciseId);
             } else {
@@ -125,7 +123,6 @@ export class RepositoryStatusCommands {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             this.currentWorkspacePath = workspaceFolder?.uri.fsPath;
 
-            // Try each participation URI until we find a match
             for (const uri of repoUris) {
                 const status = await this.deps.getWorkspaceStatus(uri, workspaceFolder);
                 if (status.isConnected) {
@@ -140,7 +137,6 @@ export class RepositoryStatusCommands {
                 }
             }
 
-            // No match found
             this.context.sendMessage({
                 type: ExtensionMsg.UpdateRepoStatus,
                 isConnected: false,

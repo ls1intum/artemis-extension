@@ -4,14 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatMessage } from '@webview/views/IrisChat/types';
 
-// Mock streamdown since it's an ESM package
+// ESM-only package.
 vi.mock('streamdown', () => ({
 	Streamdown: ({ children, mode }: { children?: string; mode?: string }) => (
 		<div data-testid="streamdown" data-mode={mode}>{children}</div>
 	),
 }));
 
-// Mock CodeBlock to avoid Shiki complexity in MessageBubble tests
+// Mocked to keep Shiki out of these tests.
 vi.mock(
 	'@webview/views/IrisChat/components/CodeBlock',
 	() => ({
@@ -63,8 +63,8 @@ describe('MessageBubble', () => {
 			errorReason: 'no-context',
 		});
 		render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={vi.fn()} />);
-		// Original message content stays visible (this is the bugfix from #178:
-		// previously the bubble replaced its content with the error block).
+		// The bubble keeps its content and appends the error block; it never
+		// replaces the message the student wrote.
 		expect(screen.getByText('How do I solve task 2?')).toBeInTheDocument();
 		expect(screen.getByText('Not sent')).toBeInTheDocument();
 		expect(screen.getByText('Please select a course or exercise context first.')).toBeInTheDocument();
@@ -258,7 +258,6 @@ describe('MessageBubble', () => {
 	it('keeps the timestamp in the DOM for assistant messages (not hover-gated mount)', () => {
 		const message = makeMessage({ role: 'assistant', content: 'hi' });
 		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
-		// timestamp element present without any hover event
 		expect(screen.getByTestId('message-timestamp')).toBeInTheDocument();
 	});
 

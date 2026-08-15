@@ -7,10 +7,9 @@ import { LogCategory, logger } from '@extension/services/loggingService';
  *   1. the catalog's authoritative entities (dashboard, full course entries)
  *   2. `api.getExerciseDetails(...).exercise.course.id`
  *
- * There is no write-back. The previous first branch read a persisted map
- * keyed by bare numeric id with no server identity, which is exactly how an
- * "Ask Iris about this exercise" click navigated into a course from another
- * Artemis instance.
+ * No write-back, and deliberately no persisted id map: a map keyed by bare
+ * numeric id carries no server identity, so an "Ask Iris about this exercise"
+ * click can resolve into a course on a different Artemis instance.
  */
 export async function resolveCourseIdForExercise(
     exerciseId: number,

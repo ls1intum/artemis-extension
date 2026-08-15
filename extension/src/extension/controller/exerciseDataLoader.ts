@@ -13,8 +13,8 @@ import { pickHighestId } from '@extension/utils/participationHelpers';
  *   - 401/403: auth state is invalid → rethrow, callers already handle this
  *   - 5xx / network / unknown: enrichment outage → log warning, continue with
  *     the base exercise data so the user can still open the exercise page
- *   - Malformed/schema-invalid response (MalformedResponseError): rethrow —
- *     silent fall-back would hide real backend regressions
+ *   - Malformed/schema-invalid response (MalformedResponseError): rethrow,
+ *     because a silent fall-back would hide real backend regressions
  */
 function isAuthError(err: unknown): boolean {
     return err instanceof ApiError && (err.status === 401 || err.status === 403);
@@ -25,8 +25,8 @@ function isAuthError(err: unknown): boolean {
  * enrichment. Returns the error if it must propagate, `null` if it was
  * handled (logged) and the load can continue without that piece of data.
  *
- * Centralizing this prevents the policy from drifting across the two
- * call sites (pending submission + latest result) where it used to live.
+ * Centralizing this keeps the policy from drifting across its two call sites
+ * (pending submission + latest result).
  */
 function classifyEnrichmentError(err: unknown, context: string): Error | null {
     if (isAuthError(err) || err instanceof MalformedResponseError) {
@@ -44,17 +44,18 @@ function classifyEnrichmentError(err: unknown, context: string): Error | null {
  * Fetch exercise details and enrich all participations with pending submissions
  * and result feedbacks. This is the single source of truth for exercise data loading.
  *
- * Per-participation enrichment runs in parallel; auth (401/403) and malformed
- * responses are deferred until every per-participation task has settled, then
- * the first such fatal error is rethrown. Non-fatal failures (network, 5xx)
- * are logged and the load continues with whatever did succeed. This matters
- * for exercises with concurrent pending builds across participations — see
- * #168 for the data-loss bug this loop used to silently produce when the
- * `pendingSubmission` field was a singleton.
+ * Per-participation enrichment runs in parallel. Fatal errors (see the
+ * enrichment-error policy above) are deferred until every task has settled and
+ * the first one is then rethrown; non-fatal failures are logged and the load
+ * continues with whatever did succeed.
+ *
+ * Pending submissions are returned keyed by participation, never as a single
+ * value: an exercise can have concurrent pending builds across participations,
+ * and a singleton would drop all but one of them.
  *
  * The expected participation count per exercise is ≤2 (graded + practice),
- * so we do not impose a concurrency cap on the outer Promise.all. If the
- * instructor / test-run case ever causes that to grow, revisit.
+ * so there is no concurrency cap on the outer Promise.all. If the instructor /
+ * test-run case ever causes that to grow, revisit.
  */
 export async function fetchAndEnrichExerciseDetails(
     api: ArtemisApiService,
@@ -94,10 +95,9 @@ export async function fetchAndEnrichExerciseDetails(
         if (feedbacksResult.status === 'fulfilled') {
             const resultWithFeedbacks = feedbacksResult.value;
             if (resultWithFeedbacks?.feedbacks?.length) {
-                // Enrich the latest result with feedbacks using the same endpoint
-                // as the Artemis webapp. This single call returns the latest
-                // Result with feedbacks embedded — no need to manually find the
-                // resultId or make a separate feedbacks call.
+                // Same endpoint as the Artemis webapp: one call returns the
+                // latest Result with feedbacks embedded, so there is no
+                // resultId lookup and no separate feedbacks call.
                 const latestSubmission = pickHighestId(participation.submissions);
                 const latestResult = pickHighestId(latestSubmission?.results);
                 if (latestResult) {
@@ -114,10 +114,8 @@ export async function fetchAndEnrichExerciseDetails(
     }));
 
     if (fatalErrors.length > 0) {
-        // Throwing the first fatal error matches the previous semantics
-        // (the old serial loop would have aborted on the first auth/
-        // malformed failure). Settling everything first prevents
-        // background log spam after the rejection.
+        // Settling everything before throwing prevents background log spam
+        // after the rejection.
         throw fatalErrors[0];
     }
 
@@ -125,9 +123,6 @@ export async function fetchAndEnrichExerciseDetails(
     return exerciseDetails;
 }
 
-/**
- * Fetch archived course detail.
- */
 export async function fetchArchivedCourseDetail(
     api: ArtemisApiService,
     courseId: number,

@@ -28,11 +28,10 @@ function buildService(coursesData: { courses: Array<{ course: { id?: number; tit
 }
 
 suite('ViewInitDataService.sendDashboardInit', () => {
-    // Note: courses without a numeric id are filtered upstream by
-    // selectRecentCourses, so the drop-coverage for the mapper's null
-    // return happens in the toCourseDetailData test suite. This test
-    // documents the end-to-end behavior: no id=0 sentinel reaches the
-    // emitted payload.
+    // Courses without a numeric id are filtered upstream by selectRecentCourses,
+    // so the coverage for the mapper's null return lives in the
+    // toCourseDetailData suite. This test pins the end-to-end behavior: no id=0
+    // sentinel reaches the emitted payload.
     test('emits no id=0 entries (id-less courses dropped upstream + mapper)', () => {
         const { service, getPosted } = buildService({
             courses: [

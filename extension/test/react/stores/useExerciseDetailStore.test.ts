@@ -208,7 +208,7 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 555 });
 		});
 
-		// After processing, the entry should be present keyed by participation.id (#168 fix).
+		// The entry is keyed by participation.id.
 		expect(result.current.exerciseData).not.toBeNull();
 		expect(result.current.pendingSubmissionsByParticipationId[555]?.participationId).toBe(555);
 	});
@@ -249,7 +249,6 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateBuildStatus(resultPayload);
 		});
 
-		// Participation should be untouched
 		const p = result.current.exerciseData?.exercise?.studentParticipations?.[0];
 		expect(p?.id).toBe(10);
 		expect(p?.submissions).toHaveLength(1);
@@ -279,8 +278,6 @@ describe('useExerciseDetailStore', () => {
 		expect(p?.submissions).toHaveLength(1);
 		expect(p?.submissions?.[0]?.id).toBe(200);
 	});
-
-	// --- #168 per-participation pending submission map ---
 
 	it('setExerciseData hydrates pendingSubmissionsByParticipationId from the response', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
@@ -347,7 +344,7 @@ describe('useExerciseDetailStore', () => {
 			});
 		});
 
-		// Both entries must coexist; the pre-fix singleton would have dropped one.
+		// Both entries must coexist; a single shared slot would drop one.
 		expect(result.current.pendingSubmissionsByParticipationId[100]).toBeTruthy();
 		expect(result.current.pendingSubmissionsByParticipationId[200]?.state).toBe('BUILDING');
 		expect(result.current.pendingSubmissionsByParticipationId[200]?.buildTimingInfo?.buildStartDate)
@@ -403,8 +400,8 @@ describe('useExerciseDetailStore', () => {
 			}), false);
 		});
 
-		// Payload omits participationId — the store falls back to walking
-		// the submission/result tree to find the owning participation.
+		// With no participationId in the payload, the store walks the
+		// submission/result tree to find the owning participation.
 		act(() => {
 			result.current.updateBuildStatus(makeResult({ id: 777 }));
 		});
@@ -447,7 +444,6 @@ describe('useExerciseDetailStore', () => {
 		expect(result.current.clonedNotice).toEqual({ exerciseTitle: 'Old Exercise', participationId: 42 });
 		expect(result.current.dirtyPagesStatus?.hasDirtyPages).toBe(true);
 
-		// Switch to a new exercise
 		act(() => {
 			result.current.setExerciseData(makeExerciseData({ exercise: { id: 2, title: 'New Exercise', studentParticipations: [] } }), false);
 		});
@@ -459,11 +455,8 @@ describe('useExerciseDetailStore', () => {
 	it('state is fully reset in beforeEach — exercise data does not bleed between tests', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
 
-		// Should be null from beforeEach reset
 		expect(result.current.exerciseData).toBeNull();
 	});
-
-	// --- error state ---
 
 	it('setError sets error and stops loading', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());

@@ -14,23 +14,15 @@ import * as assert from 'assert';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 
-// =============================================================================
-// CONFIGURATION
-// =============================================================================
-
 const CONFIG = {
     artemisUrl: process.env.ARTEMIS_URL || 'http://localhost:8080',
     username: process.env.ARTEMIS_USER || 'artemis_admin',
     password: process.env.ARTEMIS_PASSWORD || 'artemis_admin',
-    // Canonical name is ARTEMIS_EXERCISE_ID (matches the UI test); accept
-    // the legacy unprefixed EXERCISE_ID as fallback for back-compat. See #198.
+    // Canonical name is ARTEMIS_EXERCISE_ID (matches the UI test); the
+    // unprefixed EXERCISE_ID is still accepted as a fallback.
     exerciseId: parseInt(process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '1'),
     timeout: 30000, // 30 seconds for Iris response
 };
-
-// =============================================================================
-// TEST DATA
-// =============================================================================
 
 const TEST_FILES = {
     // Buggy BubbleSort (swapped = false instead of true)
@@ -126,10 +118,6 @@ public class QuickSort implements SortStrategy {
     }
 };
 
-// =============================================================================
-// ARTEMIS API CLIENT (Direct HTTP, no mocking)
-// =============================================================================
-
 import { ArtemisTestClient as ArtemisTestClientBase } from './helpers/artemisTestClient';
 
 class ArtemisTestClient extends ArtemisTestClientBase {
@@ -141,7 +129,6 @@ class ArtemisTestClient extends ArtemisTestClientBase {
             entityId: String(exerciseId),
         });
 
-        // Try to get current session
         let response = await fetch(
             `${this.baseUrl}/api/iris/chat/sessions/current?${params.toString()}`,
             { method: 'POST', headers: this.getHeaders() },
@@ -153,7 +140,6 @@ class ArtemisTestClient extends ArtemisTestClientBase {
             return data.id;
         }
 
-        // Create new session
         response = await fetch(
             `${this.baseUrl}/api/iris/chat/sessions?${params.toString()}`,
             { method: 'POST', headers: this.getHeaders() },
@@ -244,12 +230,7 @@ class ArtemisTestClient extends ArtemisTestClientBase {
     }
 }
 
-// =============================================================================
-// TEST SUITE
-// =============================================================================
-
 suite('E2E: Uncommitted Changes Flow', function () {
-    // Increase timeout for E2E tests
     this.timeout(CONFIG.timeout);
 
     let client: ArtemisTestClient;
@@ -266,7 +247,6 @@ suite('E2E: Uncommitted Changes Flow', function () {
         logger.info(`  Exercise ID: ${CONFIG.exerciseId}`, LogCategory.TEST);
         logger.info('', LogCategory.TEST);
 
-        // Check if Artemis is running
         try {
             const healthCheck = await fetch(CONFIG.artemisUrl);
             if (!healthCheck.ok) {
@@ -281,7 +261,6 @@ suite('E2E: Uncommitted Changes Flow', function () {
 
         logger.info('✅ Artemis is running\n', LogCategory.TEST);
 
-        // Login
         client = new ArtemisTestClient(CONFIG.artemisUrl);
         const loggedIn = await client.login(CONFIG.username, CONFIG.password);
         if (!loggedIn) {
@@ -290,7 +269,6 @@ suite('E2E: Uncommitted Changes Flow', function () {
             return;
         }
 
-        // Get or create session
         const session = await client.getOrCreateSession(CONFIG.exerciseId);
         if (!session) {
             logger.error('❌ Could not create Iris session!', LogCategory.TEST);

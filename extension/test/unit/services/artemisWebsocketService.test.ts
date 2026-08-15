@@ -19,7 +19,6 @@ async function flushMicrotasks(): Promise<void> {
     }
 }
 
-// Mock Stomp Client
 class MockStompClient {
     public config: StompConfig;
     public connected: boolean = false;
@@ -61,7 +60,6 @@ class MockStompClient {
         };
     }
 
-    // Helper to simulate connection
     simulateConnect() {
         this.connected = true;
         if (this.config.onConnect) {
@@ -69,7 +67,6 @@ class MockStompClient {
         }
     }
 
-    // Helper to simulate error
     simulateError(message: string) {
         if (this.config.onStompError) {
             this.config.onStompError({
@@ -80,7 +77,6 @@ class MockStompClient {
         }
     }
 
-    // Helper to simulate message
     simulateMessage(topic: string, body: any) {
         const callback = this.subscriptions.get(topic);
         if (callback) {
@@ -104,28 +100,17 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
     }
 }
 
-/**
- * WebSocket Service Tests
- * 
- * These tests use a mock STOMP client to verify:
- * - Connection establishment and lifecycle
- * - Subscription management
- * - Message handling and routing
- * - Error handling
- */
 suite('Artemis WebSocket Service Test Suite', () => {
     let wsService: TestableArtemisWebsocketService;
     let authManager: AuthManager;
     let context: MockExtensionContext;
 
     setup(() => {
-        // Setup auth manager with mock credentials
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
     });
 
     teardown(async () => {
-        // Clean up
         if (wsService) {
             await wsService.disconnect();
         }
@@ -146,30 +131,24 @@ suite('Artemis WebSocket Service Test Suite', () => {
     test('should connect and handle state changes', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
-        // Mock auth
         await authManager.storeArtemisCredentials('jwt=token', true);
 
-        // Track state changes via EventEmitter (no immediate replay on subscribe)
         const states: boolean[] = [];
         wsService.onDidChangeConnectionState(({ connected: isConnected }) => {
             states.push(isConnected);
         });
 
-        // No immediate replay: states should be empty before any event fires
         assert.strictEqual(states.length, 0, 'EventEmitter should not replay on subscribe');
 
-        // Connect - flush microtasks so connect() reaches _createClient() past async operations
         const connectPromise = wsService.connect();
         await flushMicrotasks();
 
         assert.ok(wsService.mockClient, 'Client should be created');
         assert.strictEqual(wsService.mockClient.active, true, 'Client should be active');
 
-        // Simulate connection success
         wsService.mockClient.simulateConnect();
         await connectPromise;
 
-        // Should be connected now
         assert.strictEqual(wsService.isConnected(), true);
         assert.strictEqual(states[states.length - 1], true);
     });
@@ -182,7 +161,6 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // Register a handler
         let receivedResult: ResultDTO | undefined;
         wsService.registerMessageHandler({
             onNewResult: (result) => {
@@ -190,14 +168,12 @@ suite('Artemis WebSocket Service Test Suite', () => {
             }
         });
 
-        // Subscribe
         wsService.subscribeToPersonalResults();
 
-        // Verify subscription in mock client
         const topic = '/user/topic/newResults';
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Should be subscribed to results');
 
-        // Simulate message — raw JSON data that will be parsed via fromJSON
+        // Raw JSON data, parsed through fromJSON.
         const mockResultData = {
             id: 1,
             score: 100,
@@ -209,7 +185,6 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
         wsService.mockClient!.simulateMessage(topic, mockResultData);
 
-        // Verify handler was called with a proper ResultDTO instance
         assert.ok(receivedResult);
         assert.strictEqual(receivedResult!.id, 1);
         assert.strictEqual(receivedResult!.score, 100);
@@ -240,12 +215,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // Simulate error
         wsService.mockClient!.simulateError('Connection lost');
 
-        // Service might log it, but shouldn't crash. 
-        // We can check if it tries to reconnect or updates state if implemented.
-        // Currently implementation just logs errors.
+        // The service only logs the error; not crashing is the assertion.
         assert.ok(true);
     });
 
@@ -265,14 +237,11 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', true);
 
-        // Not connected yet
         assert.strictEqual(wsService.isConnected(), false);
 
-        // Connect — flush microtasks so connect() reaches _createClient()
         const connectPromise = wsService.connect();
         await flushMicrotasks();
 
-        // Should have tried to connect
         assert.ok(wsService.mockClient);
         assert.strictEqual(wsService.mockClient!.active, true);
 
@@ -295,25 +264,20 @@ suite('Artemis WebSocket Service Test Suite', () => {
         const topic = `/user/topic/iris/${sessionId}`;
         let receivedMessage: any;
 
-        // Subscribe
         const unsubscribe = wsService.subscribeToIrisSession(sessionId, (message) => {
             receivedMessage = message;
         });
 
-        // Verify subscription
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Should be subscribed to Iris session');
 
-        // Simulate message
         const mockIrisMessage = {
             content: 'Hello from Iris',
             sender: 'IRIS'
         };
         wsService.mockClient!.simulateMessage(topic, mockIrisMessage);
 
-        // Verify handler called
         assert.deepStrictEqual(receivedMessage, mockIrisMessage);
 
-        // Unsubscribe via returned function
         unsubscribe();
         assert.strictEqual(wsService.mockClient!.subscriptions.has(topic), false, 'Should be unsubscribed');
     });
@@ -341,20 +305,17 @@ suite('Artemis WebSocket Service Test Suite', () => {
         const sessionId = 42;
         const topic = `/user/topic/iris/${sessionId}`;
 
-        // First subscription
         const unsub1 = wsService.subscribeToIrisSession(sessionId, () => { });
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'First subscription should exist');
 
-        // Second subscription for same session — replaces the first
+        // A second subscription for the same session replaces the first.
         const unsub2 = wsService.subscribeToIrisSession(sessionId, () => { });
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Second subscription should exist');
 
-        // Call stale unsubscribe from first subscription — should NOT remove the new entry
         unsub1();
         assert.ok(wsService.mockClient!.subscriptions.has(topic),
             'Active subscription should still exist after stale unsubscribe');
 
-        // Call current unsubscribe — should remove the entry
         unsub2();
         assert.strictEqual(wsService.mockClient!.subscriptions.has(topic), false,
             'Subscription should be removed after current unsubscribe');

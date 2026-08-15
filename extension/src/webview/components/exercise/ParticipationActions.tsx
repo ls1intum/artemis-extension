@@ -110,7 +110,6 @@ export function ParticipationActions({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isDropdownOpen]);
 
-  // Participation info section
   const renderParticipationInfo = () => {
     if (isProgramming) {
       if (hasParticipation) { return null; }
@@ -201,7 +200,6 @@ export function ParticipationActions({
     );
   };
 
-  // Commit message input
   const renderCommitMessageInput = () => {
     if (!showCommitMessageInput) {return null;}
     return (
@@ -217,11 +215,9 @@ export function ParticipationActions({
     );
   };
 
-  // Action buttons for programming exercises
   const renderProgrammingActions = () => {
     if (!isProgramming) {return null;}
 
-    // Practice available - show practice and browser buttons
     if (isPracticeAvailable) {
       return (
         <div className={clsx(styles.participationActions, styles.notParticipated, className)}>
@@ -237,7 +233,6 @@ export function ParticipationActions({
       );
     }
 
-    // Not participated - show start button
     if (!hasParticipation) {
       return (
         <div className={clsx(styles.participationActions, styles.notParticipated, className)}>
@@ -271,7 +266,6 @@ export function ParticipationActions({
             </Button>
             {isDropdownOpen && (
               <div className={styles.moreDropdown}>
-                {/* Section: Workspace */}
                 <div className={styles.dropdownSection}>
                   {!isManagedEnvironment && isWorkspaceConnected && (
                     <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onClone?.(); }}>
@@ -295,10 +289,9 @@ export function ParticipationActions({
                   </button>
                 </div>
 
-                {/* Section: Share (only when at least one copy callback is available).
-                    Split-button when BOTH copy callbacks are provided.
-                    Single full-width item when only one is provided (preserves
-                    visible label + focus target). */}
+                {/* Split-button when BOTH copy callbacks are provided, one
+                    full-width item when only one is (keeps a visible label
+                    and a focus target either way). */}
                 {(onCopyCloneUrl || onCopyAuthenticatedCloneUrl) && (
                   <>
                     <div className={styles.dropdownDivider} />
@@ -343,7 +336,6 @@ export function ParticipationActions({
                   </>
                 )}
 
-                {/* Section: External */}
                 <div className={styles.dropdownDivider} />
                 <div className={styles.dropdownSection}>
                   <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
@@ -381,7 +373,6 @@ export function ParticipationActions({
     );
   };
 
-  // Action buttons for non-programming exercises
   const renderNonProgrammingActions = () => {
     if (isProgramming) {return null;}
 

@@ -123,7 +123,7 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
             { registerExercise: () => undefined, clearStaleWorkspaceContext },
             emptyRegistry(),
             cache,
-            async () => null,               // the injected resolver, see Step 5
+            async () => null,               // the injected resolver
         );
 
         assert.strictEqual(outcome.kind, 'no-match',

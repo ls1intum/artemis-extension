@@ -10,9 +10,9 @@ const config: AppConfig = {
     allowWrite: false,
 };
 
-// Mimics connect's chaining contract: `app.use()` returns the app. This is what
-// makes the "hooks must return undefined" assertion meaningful — a hook that
-// implicitly returns `middlewares.use(...)` would leak the app, not undefined.
+// Mimics connect's chaining contract: `app.use()` returns the app. That is what
+// makes the "hooks must return undefined" assertion meaningful, since a hook
+// implicitly returning `middlewares.use(...)` would leak the app.
 function fakeMiddlewareServer() {
     const middlewares = { use: vi.fn(() => middlewares) };
     return { middlewares };
@@ -36,8 +36,8 @@ describe('createRecordingsApiPlugin', () => {
         const preview = fakeMiddlewareServer();
 
         // The hooks must return undefined: `middlewares.use()` returns the connect app,
-        // and Vite invokes a hook's return value as a post-hook — returning the app would
-        // crash the preview server (it would be called with no request).
+        // and Vite invokes a hook's return value as a post-hook, so returning the app
+        // would crash the preview server (it would be called with no request).
         expect(plugin.configureServer(dev)).toBeUndefined();
         expect(plugin.configurePreviewServer(preview)).toBeUndefined();
 

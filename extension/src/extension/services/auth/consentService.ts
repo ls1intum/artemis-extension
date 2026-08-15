@@ -3,9 +3,6 @@ import * as vscode from 'vscode';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { VSCODE_CONFIG } from '@extension/utils';
 
-/**
- * Consent levels for data collection.
- */
 export enum ConsentLevel {
     /** User has not yet made a decision */
     Pending = 'pending',
@@ -40,24 +37,18 @@ export class ConsentService implements vscode.Disposable {
         }
     }
 
-    /**
-     * Returns the current consent level from configuration.
-     */
+    /** Read live from configuration, never cached. */
     public get consentLevel(): ConsentLevel {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const value = config.get<string>(VSCODE_CONFIG.DATA_COLLECTION_CONSENT_KEY, ConsentLevel.Pending);
         return this._parseConsentLevel(value);
     }
 
-    /**
-     * Returns true if extended data collection is enabled.
-     */
     public get isExtendedCollectionEnabled(): boolean {
         return this.consentLevel === ConsentLevel.Extended;
     }
 
     private _initialize(): void {
-        // Listen for configuration changes
         const configListener = vscode.workspace.onDidChangeConfiguration((event) => {
             if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DATA_COLLECTION_CONSENT_KEY}`)) {
                 const newLevel = this.consentLevel;
@@ -68,10 +59,7 @@ export class ConsentService implements vscode.Disposable {
         this._disposables.push(configListener);
     }
 
-    /**
-     * Shows a notification prompting the user for consent if they haven't decided yet.
-     * Does nothing if consent is already set to declined, basic, or extended.
-     */
+    /** Prompts only while consent is still `Pending`. */
     public async promptIfPending(): Promise<void> {
         if (this.consentLevel !== ConsentLevel.Pending) {
             return;
@@ -98,12 +86,9 @@ export class ConsentService implements vscode.Disposable {
                 `${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DATA_COLLECTION_CONSENT_KEY}`
             );
         }
-        // If dismissed (selection is undefined), do nothing - will prompt again next time
+        // Dismissed (selection undefined): leave it Pending so the next startup prompts again.
     }
 
-    /**
-     * Programmatically sets the consent level.
-     */
     public async setConsent(level: ConsentLevel): Promise<void> {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         await config.update(VSCODE_CONFIG.DATA_COLLECTION_CONSENT_KEY, level, vscode.ConfigurationTarget.Global);

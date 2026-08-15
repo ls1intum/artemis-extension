@@ -1,12 +1,6 @@
 /**
- * Unit tests for test-results and task-feedback view events.
- *
- * Covers:
- *   - recordTestResultsOverviewOpened: opened event with test counts
- *   - recordTestResultsOverviewClosed: closed event with durationMs and closeReason
- *   - recordTaskFeedbackOpened: opened event with taskName and testIds
- *   - recordTaskFeedbackClosed: closed event with durationMs and closeReason
- *   - Phase guard: all four methods no-op outside 'recording' phase
+ * Unit tests for test-results and task-feedback view events: payload contents and
+ * the phase guard that makes all four record methods no-ops outside 'recording'.
  */
 
 import * as vscode from 'vscode';
@@ -20,8 +14,6 @@ import type {
     TaskFeedbackViewEvent,
     TestResultsOverviewViewEvent,
 } from '@extension/services/recording/types';
-
-// ── Minimal fake FS ───────────────────────────────────────────────────────────
 
 class FakeFs implements RecordingFs {
     appendedChunks: string[] = [];
@@ -53,8 +45,6 @@ class FakeFs implements RecordingFs {
     }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function collectWrittenEvents(fakeFs: FakeFs): RecordedEvent[] {
     const events: RecordedEvent[] = [];
     for (const chunk of [...fakeFs.appendedChunks, ...fakeFs.syncChunks]) {
@@ -81,8 +71,6 @@ function makeRecorder(): { recorder: SessionRecorder; fs: FakeFs } {
     );
     return { recorder, fs };
 }
-
-// ── Suite ─────────────────────────────────────────────────────────────────────
 
 suite('SessionRecorder — view events', () => {
     let recorder: SessionRecorder;
@@ -160,7 +148,7 @@ suite('SessionRecorder — view events', () => {
 
     test('all four methods are no-ops outside recording phase', async () => {
         const { recorder: idleRecorder, fs: idleFs } = makeRecorder();
-        // No enable() / startSession() — phase stays 'idle'
+        // No enable() / startSession(), so the phase stays 'idle'.
         idleRecorder.recordTestResultsOverviewOpened({ viewId: 'x', exerciseId: 1, totalTests: 0, passedTests: 0, failedTests: 0 });
         idleRecorder.recordTestResultsOverviewClosed({ viewId: 'x', exerciseId: 1, durationMs: 0, closeReason: 'button' });
         idleRecorder.recordTaskFeedbackOpened({ viewId: 'y', exerciseId: 1, taskName: 't', testIds: [], totalTests: 0, passedTests: 0, failedTests: 0 });

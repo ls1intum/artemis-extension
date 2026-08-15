@@ -9,8 +9,8 @@ const RECORDER_ACTIVE_KEY = 'iris.recorder.active';
 
 /**
  * Real data-collection seam for the local-recording build variant. Wraps the
- * untouched index.ts wiring and publishes the `iris.recorder.active` context key so
- * the manifest shows recorder commands only when the recorder is actually present.
+ * index.ts wiring and publishes the `iris.recorder.active` context key so the
+ * manifest shows recorder commands only when the recorder is actually present.
  */
 export function wireDataCollection(deps: DataCollectionDeps): DataCollectionHandle {
     const handle = wireReal(deps);

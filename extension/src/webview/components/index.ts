@@ -17,7 +17,7 @@ export { AskIris } from './AskIris';
 export { ServiceHealth } from './ServiceHealth';
 export type { ProactiveLevel } from '@shared/messageContracts';
 
-// UI primitives for Phase 4
+// Feedback / page-state components
 export { EmptyState } from './EmptyState';
 export { ErrorMessage } from './ErrorMessage';
 export { PageHeader } from './PageHeader';

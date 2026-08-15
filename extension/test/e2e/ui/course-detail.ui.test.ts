@@ -29,7 +29,6 @@ describe('CourseDetail View UI Tests', function () {
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Log in once before all tests in this suite
 		await performLogin(driver, username, password);
 	});
 
@@ -42,7 +41,7 @@ describe('CourseDetail View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context.
 		}
 	});
 
@@ -52,8 +51,8 @@ describe('CourseDetail View UI Tests', function () {
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		// Try to find a clickable course card/link from the Dashboard
-		// CSS module classes are hashed — use element type / XPath text selectors only
+		// CSS module classes are hashed, so only element types and XPath text
+		// selectors are usable here.
 		const courseElement = await driver
 			.findElement(
 				By.xpath(
@@ -63,7 +62,6 @@ describe('CourseDetail View UI Tests', function () {
 			.catch(() => null);
 
 		if (!courseElement) {
-			// No course element found — skip gracefully (empty dashboard / no enrolled courses)
 			console.log('CourseDetail smoke: No courses available for CourseDetail smoke test');
 			await takeScreenshot(driver, 'course-detail-smoke-no-courses');
 			this.skip();
@@ -72,7 +70,6 @@ describe('CourseDetail View UI Tests', function () {
 
 		await courseElement.click();
 
-		// Wait for CourseDetail view to load — accept any container element
 		const container = await driver
 			.wait(
 				() =>
@@ -87,7 +84,8 @@ describe('CourseDetail View UI Tests', function () {
 
 		await takeScreenshot(driver, 'course-detail-smoke');
 
-		// Accept loading/empty states as valid — smoke test proves navigation and view mounting
+		// Loading and empty states count: this smoke test proves navigation and
+		// view mounting, nothing about the content.
 		assert.ok(container, 'CourseDetail view should mount and render a container element');
 	});
 });

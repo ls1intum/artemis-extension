@@ -90,9 +90,9 @@ export class NavigationCommandModule {
         this.context.courseAccessStorage?.onCourseAccessed(courseId, epoch);
 
         // Writes the catalog's supplemental layer rather than the registry
-        // directly: the registry is rebuilt from the catalog projection now
-        // (Task 5), so a direct registry write would be data the next catalog
-        // event silently discards.
+        // directly: the registry is rebuilt from the catalog projection, so a
+        // direct registry write is data the next catalog event silently
+        // discards.
         this.context.courseCatalog?.upsertSupplemental({
             kind: 'course',
             entry: { course: { id: courseId, title: course.title, shortName: course.shortName, exercises: course.exercises } },
@@ -214,7 +214,6 @@ export class NavigationCommandModule {
             const payload = getPayload<WebCmd<'reloadCourseDetail'>>(message);
             const courseId = payload.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
-                // Fetch fresh course data from the single-course dashboard endpoint.
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
                 const courseData = toCourseDetailData(dashboardDTO.course);
                 if (!courseData) {
@@ -282,7 +281,6 @@ export class NavigationCommandModule {
             let parentCourseDetailData: CourseDetailData | null = null;
 
             if (coursesData?.courses) {
-                // Short-circuit: if courseId is provided, look up the course directly
                 if (courseId) {
                     const courseEntry = coursesData.courses.find(c => c.course?.id === courseId);
                     if (courseEntry?.course) {
@@ -294,7 +292,6 @@ export class NavigationCommandModule {
                     }
                 }
 
-                // Fallback: scan all courses for the exercise
                 if (!parentCourseDetailData) {
                     for (const courseEntry of coursesData.courses) {
                         const exercises = courseEntry?.course?.exercises || [];

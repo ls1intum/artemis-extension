@@ -1,8 +1,5 @@
 import * as vscode from 'vscode';
 
-/**
- * Log levels for the logging service
- */
 enum LogLevel {
     DEBUG = 0,
     INFO = 1,
@@ -10,9 +7,6 @@ enum LogLevel {
     ERROR = 3,
 }
 
-/**
- * Log categories for filtering and organizing logs
- */
 export enum LogCategory {
     GENERAL = 'General',
     WEBSOCKET = 'WebSocket',
@@ -32,9 +26,6 @@ export enum LogCategory {
     STRUGGLE = 'Struggle'
 }
 
-/**
- * Configuration options for the logging service
- */
 interface LoggingConfig {
     minLevel: LogLevel;
     enabledCategories: Set<LogCategory> | 'all';
@@ -43,14 +34,8 @@ interface LoggingConfig {
 }
 
 /**
- * Centralized logging service for the Artemis extension.
- * All logging should go through this service instead of using console.* directly.
- * 
- * Features:
- * - Configurable log levels
- * - Category-based filtering
- * - Output channel integration for VS Code
- * - Consistent log formatting with emojis and prefixes
+ * Centralized logging service. All logging goes through this instead of
+ * console.* directly.
  */
 class LoggingService {
     private static instance: LoggingService;
@@ -66,9 +51,6 @@ class LoggingService {
         // Private constructor for singleton
     }
 
-    /**
-     * Get the singleton instance of the logging service
-     */
     public static getInstance(): LoggingService {
         if (!LoggingService.instance) {
             LoggingService.instance = new LoggingService();
@@ -76,9 +58,6 @@ class LoggingService {
         return LoggingService.instance;
     }
 
-    /**
-     * Initialize the logging service with VS Code output channel
-     */
     public initialize(outputChannel?: vscode.OutputChannel): void {
         if (outputChannel) {
             this.outputChannel = outputChannel;
@@ -87,9 +66,6 @@ class LoggingService {
         }
     }
 
-    /**
-     * Check if a log should be output based on level and category
-     */
     private shouldLog(level: LogLevel, category?: LogCategory): boolean {
         if (level < this.config.minLevel) {
             return false;
@@ -100,9 +76,6 @@ class LoggingService {
         return true;
     }
 
-    /**
-     * Format a log message with timestamp and category
-     */
     private formatMessage(level: LogLevel, message: string, category?: LogCategory): string {
         const parts: string[] = [];
 
@@ -122,9 +95,6 @@ class LoggingService {
         return parts.join(' ');
     }
 
-    /**
-     * Output a log message to the output channel and optionally console
-     */
     private output(level: LogLevel, message: string, category?: LogCategory, ...args: unknown[]): void {
         if (!this.shouldLog(level, category)) {
             return;
@@ -132,7 +102,6 @@ class LoggingService {
 
         const formattedMessage = this.formatMessage(level, message, category);
 
-        // Format additional arguments
         const argsString = args.length > 0
             ? ' ' + args.map(arg => {
                 if (arg instanceof Error) {
@@ -151,7 +120,6 @@ class LoggingService {
 
         const fullMessage = formattedMessage + argsString;
 
-        // Output to VS Code output channel
         if (this.outputChannel) {
             this.outputChannel.appendLine(fullMessage);
         }
@@ -176,130 +144,74 @@ class LoggingService {
         }
     }
 
-    // ========== Public logging methods ==========
-
-    /**
-     * Log a debug message
-     */
     public debug(message: string, category?: LogCategory, ...args: unknown[]): void {
         this.output(LogLevel.DEBUG, message, category, ...args);
     }
 
-    /**
-     * Log an info message
-     */
     public info(message: string, category?: LogCategory, ...args: unknown[]): void {
         this.output(LogLevel.INFO, message, category, ...args);
     }
 
-    /**
-     * Log a warning message
-     */
     public warn(message: string, category?: LogCategory, ...args: unknown[]): void {
         this.output(LogLevel.WARN, message, category, ...args);
     }
 
-    /**
-     * Log an error message
-     */
     public error(message: string, category?: LogCategory, ...args: unknown[]): void {
         this.output(LogLevel.ERROR, message, category, ...args);
     }
 
-    // ========== Convenience methods with pre-set categories ==========
-
-    /**
-     * Log a WebSocket-related message
-     */
     public websocket(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `🔌 ${message}`, LogCategory.WEBSOCKET, ...args);
     }
 
-    /**
-     * Log a WebSocket warning
-     */
     public websocketWarn(message: string, ...args: unknown[]): void {
         this.output(LogLevel.WARN, `🔌 ${message}`, LogCategory.WEBSOCKET, ...args);
     }
 
-    /**
-     * Log an Iris Chat-related message
-     */
     public irisChat(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `💬 ${message}`, LogCategory.IRIS_CHAT, ...args);
     }
 
-    /**
-     * Log an Iris Chat warning
-     */
     public irisChatWarn(message: string, ...args: unknown[]): void {
         this.output(LogLevel.WARN, `💬 ${message}`, LogCategory.IRIS_CHAT, ...args);
     }
 
-    /**
-     * Log a context-related message
-     */
     public context(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `🔧 ${message}`, LogCategory.CONTEXT, ...args);
     }
 
-    /**
-     * Log an exercise-related message
-     */
     public exercise(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `📚 ${message}`, LogCategory.EXERCISE, ...args);
     }
 
-    /**
-     * Log a file monitor-related message
-     */
     public fileMonitor(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `📁 ${message}`, LogCategory.FILE_MONITOR, ...args);
     }
 
-    /**
-     * Log a file monitor error
-     */
     public fileMonitorError(message: string, ...args: unknown[]): void {
         this.output(LogLevel.ERROR, `📁 ${message}`, LogCategory.FILE_MONITOR, ...args);
     }
 
-    /**
-     * Log a telemetry-related message
-     */
     public telemetry(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, message, LogCategory.TELEMETRY, ...args);
     }
 
-    /**
-     * Log a session-related message
-     */
     public session(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `🎯 ${message}`, LogCategory.SESSION, ...args);
     }
 
-    /**
-     * Log a session error
-     */
     public sessionError(message: string, ...args: unknown[]): void {
         this.output(LogLevel.ERROR, `🎯 ${message}`, LogCategory.SESSION, ...args);
     }
 
-    /**
-     * Log a view-related message
-     */
     public view(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `👁️ ${message}`, LogCategory.VIEW, ...args);
     }
 
-    /**
-     * Log a view error
-     */
     public viewError(message: string, ...args: unknown[]): void {
         this.output(LogLevel.ERROR, `👁️ ${message}`, LogCategory.VIEW, ...args);
     }
 
 }
 
-// Export singleton instance
 export const logger = LoggingService.getInstance();

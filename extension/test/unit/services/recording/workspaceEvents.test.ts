@@ -1,24 +1,11 @@
 /**
- * Unit tests for Block K — workspace file events and document open/close
+ * Unit tests for workspace file events and document open/close (Block K).
  *
  * The VS Code extension-host test environment does not expose a way to fire
  * read-only `Event<T>` objects (e.g. `vscode.workspace.onDidCreateFiles`)
- * programmatically from test code.  We therefore use the same white-box
- * approach established in Block J: drive `_lifecycle.recordInternal` directly to
- * verify the recorder correctly gates and writes events, and assert that the
- * event types land in the stream with the expected fields.
- *
- * Covers:
- *   1. fileCreate event lands in stream with correct uri
- *   2. fileDelete event lands in stream with correct uri
- *   3. fileRename event lands in stream with oldUri + newUri
- *   4. textDocumentOpen event lands in stream with correct uri
- *   5. textDocumentClose event lands in stream with correct uri
- *   6. Events outside exerciseRoot are rejected by shouldRecordUri (unit-tested in uriFilter.test.ts;
- *      recorded here as a white-box integration check via the phase gate)
- *   7. All five new event types are gated by `_phase === 'recording'`: none reach disk when the
- *      recorder is idle (before startSession)
- *   8. All five new event types are gated by `_phase === 'recording'`: none reach disk after disable()
+ * programmatically from test code, so these tests drive
+ * `_lifecycle.recordInternal` directly (white-box) and assert that the events
+ * land in the stream with the expected fields.
  */
 
 import * as vscode from 'vscode';
@@ -28,8 +15,6 @@ import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type { RecordingFs } from '@extension/services/recording/storageWriter';
 import { RecordingStorageWriter } from '@extension/services/recording/storageWriter';
 import type { RecordedEvent } from '@extension/services/recording/types';
-
-// ── Minimal in-memory FS ──────────────────────────────────────────────────
 
 class FakeFs implements RecordingFs {
     appendedChunks: string[] = [];
@@ -62,8 +47,6 @@ class FakeFs implements RecordingFs {
         this.syncChunks.push(data);
     }
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────
 
 function collectWrittenEvents(fakeFs: FakeFs): RecordedEvent[] {
     const events: RecordedEvent[] = [];
@@ -103,8 +86,6 @@ function injectEvent(recorder: SessionRecorder, event: RecordedEvent): void {
 
 const ROOT = vscode.Uri.file('/workspace/exercise1').toString();
 
-// ── Suite ────────────────────────────────────────────────────────────────
-
 suite('Block K — workspace file events (white-box)', () => {
     let recorder: SessionRecorder;
     let fakeFs: FakeFs;
@@ -118,8 +99,6 @@ suite('Block K — workspace file events (white-box)', () => {
     teardown(async () => {
         try { await recorder.shutdown(); } catch { /* ignore */ }
     });
-
-    // ── Test 1: fileCreate ───────────────────────────────────────────────
 
     test('1. fileCreate event lands in stream with correct uri', async () => {
         recorder.enable();
@@ -136,8 +115,6 @@ suite('Block K — workspace file events (white-box)', () => {
         assert.ok(creates.some(e => e.uri === uri), `expected fileCreate with uri ${uri}`);
     });
 
-    // ── Test 2: fileDelete ───────────────────────────────────────────────
-
     test('2. fileDelete event lands in stream with correct uri', async () => {
         recorder.enable();
         await recorder.startSession(1, 'p1', ROOT);
@@ -152,8 +129,6 @@ suite('Block K — workspace file events (white-box)', () => {
         assert.ok(deletes.length > 0, 'expected at least one fileDelete event');
         assert.ok(deletes.some(e => e.uri === uri), `expected fileDelete with uri ${uri}`);
     });
-
-    // ── Test 3: fileRename ───────────────────────────────────────────────
 
     test('3. fileRename event lands in stream with oldUri and newUri', async () => {
         recorder.enable();
@@ -172,8 +147,6 @@ suite('Block K — workspace file events (white-box)', () => {
         assert.ok(ev, `expected fileRename with oldUri=${oldUri} newUri=${newUri}`);
     });
 
-    // ── Test 4: textDocumentOpen ─────────────────────────────────────────
-
     test('4. textDocumentOpen event lands in stream with correct uri', async () => {
         recorder.enable();
         await recorder.startSession(1, 'p1', ROOT);
@@ -188,8 +161,6 @@ suite('Block K — workspace file events (white-box)', () => {
         assert.ok(opens.length > 0, 'expected at least one textDocumentOpen event');
         assert.ok(opens.some(e => e.uri === uri), `expected textDocumentOpen with uri ${uri}`);
     });
-
-    // ── Test 5: textDocumentClose ────────────────────────────────────────
 
     test('5. textDocumentClose event lands in stream with correct uri', async () => {
         recorder.enable();
@@ -206,12 +177,10 @@ suite('Block K — workspace file events (white-box)', () => {
         assert.ok(closes.some(e => e.uri === uri), `expected textDocumentClose with uri ${uri}`);
     });
 
-    // ── Test 6: Phase gate — all five types blocked before startSession ──
-
     test('6. all five Block K event types are rejected when not in recording phase (idle)', () => {
         recorder.enable();
-        // Phase is 'idle' — no session started yet. Injecting through _lifecycle.recordInternal
-        // should drop events because `_phase !== 'recording'`.
+        // Phase is 'idle' (no session started yet), so _lifecycle.recordInternal
+        // drops the events because `_phase !== 'recording'`.
         const uri = vscode.Uri.file('/workspace/exercise1/src/Test.java').toString();
         const oldUri = uri;
         const newUri = vscode.Uri.file('/workspace/exercise1/src/Test2.java').toString();
@@ -234,13 +203,11 @@ suite('Block K — workspace file events (white-box)', () => {
             `expected no Block K events before startSession, got: ${blockK.map(e => e.type).join(', ')}`);
     });
 
-    // ── Test 7: Phase gate — all five types blocked after disable() ──────
-
     test('7. all five Block K event types are blocked after disable()', async () => {
         recorder.enable();
         await recorder.startSession(1, 'p1', ROOT);
 
-        // Disable synchronously — phase flips to 'disabling' immediately.
+        // Disabling is synchronous: the phase flips to 'disabling' immediately.
         recorder.disable();
 
         // At this point phase is 'disabling', so _lifecycle.recordInternal must drop events.
@@ -268,13 +235,10 @@ suite('Block K — workspace file events (white-box)', () => {
             `expected no Block K events after disable(), got: ${blockK.map(e => e.type).join(', ')}`);
     });
 
-    // ── Test 8: generation gate — stale callbacks from previous session ──
-
     test('8. Block K events from a stale generation are not written to the new session', async () => {
         recorder.enable();
         await recorder.startSession(1, 'p1', ROOT);
 
-        // Capture the generation for session 1.
         const staleGen: number = (recorder as unknown as { _currentGeneration: number })._currentGeneration;
 
         // End session 1 and start session 2, so _currentGeneration advances.
@@ -290,7 +254,6 @@ suite('Block K — workspace file events (white-box)', () => {
         await recorder.endSession();
 
         const events = collectWrittenEvents(fakeFs);
-        // The stale fileCreate (timestamp: 99) must not appear.
         const staleCreates = events.filter(
             e => e.type === 'fileCreate' && (e as { uri: string }).uri === uri,
         );

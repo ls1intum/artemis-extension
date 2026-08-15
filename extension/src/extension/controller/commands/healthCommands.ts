@@ -5,7 +5,6 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 
 import type { CommandContext, CommandMap } from './types';
 
-// Health check result structure
 interface HealthCheckResult {
     status: 'online' | 'offline' | 'unknown';
     message: string;
@@ -28,7 +27,6 @@ export class HealthCommandModule {
     private handlePerformHealthChecks = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { serverUrl } = getPayload<WebCmd<'performHealthChecks'>>(message);
 
-        // Simplified health checks - only meaningful ones
         const results: HealthCheckResults = {
             serverReachability: { status: 'unknown', message: 'Not checked', endpoint: serverUrl, httpStatus: null, response: null },
             apiAvailability: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/management/health`, httpStatus: null, response: null },
@@ -36,7 +34,6 @@ export class HealthCommandModule {
         };
 
         try {
-            // 1. Server Reachability - Basic connectivity check
             try {
                 const reachabilityResponse = await fetch(serverUrl, {
                     method: 'HEAD',
@@ -61,7 +58,6 @@ export class HealthCommandModule {
                 };
             }
 
-            // 2. API Availability - Spring Actuator health endpoint (shows if backend is healthy)
             try {
                 const healthResponse = await fetch(`${serverUrl}/management/health`, {
                     method: 'GET',
@@ -109,7 +105,6 @@ export class HealthCommandModule {
                 };
             }
 
-            // 3. Iris AI Service - Check if Iris profile is active using /management/info
             try {
                 const infoResponse = await fetch(`${serverUrl}/management/info`, {
                     method: 'GET',

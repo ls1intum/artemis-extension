@@ -17,9 +17,7 @@ import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
  *
  * These tests drive the LIVE path: `onDidResubscribe` -> `_recoverOnResubscribe`
  * -> `IrisConversationService.onSubscriptionActive` (re-read + merge) -> run
- * resolution. The previous version of this suite drove a marker keyed on the
- * old model's local session id, which the conversation-first host can never
- * produce, so every test in it passed over code production could not enter.
+ * resolution.
  */
 
 interface Harness {

@@ -1,14 +1,7 @@
 /**
- * Unit tests for Block G — Snapshot Retry with fileSnapshotError
- *
- * Covers:
- *   - writeSnapshot() returns false on fs error, true on success
- *   - First write failure: no fileSnapshot event, URI not in _snapshotedUris,
- *     retry happens on next editor switch
- *   - 3 consecutive failures: one fileSnapshotError event, no fileSnapshot event,
- *     URI permanently marked (no further retry attempts)
- *   - After fileSnapshotError: further editor switches to the same URI are no-ops
- *   - _snapshotRetries is cleared on session end/start (via _resetSessionState)
+ * Unit tests for snapshot retry: a failed write leaves the URI unsnapshotted so the
+ * next editor switch retries, three consecutive failures emit a single
+ * fileSnapshotError and mark the URI permanently, and retry counters reset per session.
  */
 
 import * as vscode from 'vscode';
@@ -18,8 +11,6 @@ import { SessionRecorder } from '@extension/services/recording/sessionRecorder';
 import type { RecordingFs } from '@extension/services/recording/storageWriter';
 import { RecordingStorageWriter } from '@extension/services/recording/storageWriter';
 import type { RecordedEvent } from '@extension/services/recording/types';
-
-// ── Fake FS with per-path failure control ─────────────────────────────────────
 
 /**
  * A RecordingFs where writeFile can be configured to fail for specific paths
@@ -31,7 +22,7 @@ class FakeFs implements RecordingFs {
     removedPaths: string[] = [];
     syncChunks: string[] = [];
 
-    /** Map of path-suffix → remaining failure count */
+    /** Map of path fragment (matched with `includes`) to remaining failure count */
     private _failPaths = new Map<string, number>();
 
     /**
@@ -72,8 +63,6 @@ class FakeFs implements RecordingFs {
     }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function collectWrittenEvents(fakeFs: FakeFs): RecordedEvent[] {
     const events: RecordedEvent[] = [];
     for (const chunk of fakeFs.appendedChunks) {
@@ -97,7 +86,6 @@ function collectWrittenEvents(fakeFs: FakeFs): RecordedEvent[] {
     return events;
 }
 
-/** Create a fresh SessionRecorder + FakeFs pair with writer injected. */
 function makeRecorder(): { recorder: SessionRecorder; fs: FakeFs } {
     const fs = new FakeFs();
     const writer = new RecordingStorageWriter('/fake-base', fs, 'test-version');
@@ -134,8 +122,6 @@ function getSnapshotRetries(recorder: SessionRecorder): Map<string, number> {
     return (recorder as any)._snapshots._snapshotRetries as Map<string, number>;
 }
 
-// ── Suite ────────────────────────────────────────────────────────────────────
-
 suite('SessionRecorder — Block G: Snapshot Retry', () => {
     let recorder: SessionRecorder;
     let fs: FakeFs;
@@ -151,8 +137,6 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
     teardown(async () => {
         try { await recorder.shutdown(); } catch { /* ignore */ }
     });
-
-    // ── Test 1: writeSnapshot returns false on error, true on success ─────
 
     test('writeSnapshot() returns false on fs error and true on success', async () => {
         const ctx = makeRecorder();
@@ -173,12 +157,9 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         await writer.endSession();
     });
 
-    // ── Test 2: First failure — no fileSnapshot, URI not in _snapshotedUris ──
-
     test('first snapshot failure: no fileSnapshot event emitted, URI stays unsnapshotted', async () => {
         const uri = 'file:///fake/Main.java';
-        // The sanitized filename will contain the sha1 hash prefix + "Main.java"
-        // We fail any writeFile that is not events.jsonl or metadata.json (i.e., snapshot files).
+        // Fail writes whose path contains 'snapshots', i.e. the snapshot files only.
         fs.failWriteFileFor('snapshots', 1);
 
         const gen = (recorder as any)._currentGeneration as number;
@@ -192,12 +173,9 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         const snapshotedUris = getSnapshotedUris(recorder);
         assert.ok(!snapshotedUris.has(uri), 'URI must not be in _snapshotedUris after first failure');
 
-        // retry counter should be 1
         const retries = getSnapshotRetries(recorder);
         assert.strictEqual(retries.get(uri), 1, 'retry counter must be 1 after first failure');
     });
-
-    // ── Test 3: Retry succeeds on second attempt ──────────────────────────
 
     test('retry on second editor switch succeeds: one fileSnapshot event, URI marked as snapshotted', async () => {
         const uri = 'file:///fake/Main.java';
@@ -206,18 +184,18 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
 
         const gen = (recorder as any)._currentGeneration as number;
 
-        // First attempt — fails
+        // First attempt fails.
         await triggerSnapshot(recorder, uri, 'class Main {}', gen);
 
         const eventsAfterFailure = collectWrittenEvents(fs);
         const snapshotsAfterFailure = eventsAfterFailure.filter(e => e.type === 'fileSnapshot');
         assert.strictEqual(snapshotsAfterFailure.length, 0, 'no snapshot after first failure');
 
-        // URI is still not in _snapshotedUris — simulate next editor switch
+        // The URI is still not in _snapshotedUris, so the next editor switch retries.
         const snapshotedUrisBefore = getSnapshotedUris(recorder);
         assert.ok(!snapshotedUrisBefore.has(uri), 'URI must not be snapshotted yet, enabling retry');
 
-        // Second attempt — succeeds (fs is no longer failing)
+        // Second attempt succeeds (the fs is no longer failing).
         await triggerSnapshot(recorder, uri, 'class Main {}', gen);
 
         // Check in-memory state BEFORE endSession clears it via _resetSessionState().
@@ -235,8 +213,6 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         assert.strictEqual(snapshots.length, 1, 'exactly one fileSnapshot after successful retry');
         assert.strictEqual(snapshots[0].uri, uri);
     });
-
-    // ── Test 4: 3 consecutive failures → one fileSnapshotError event ──────
 
     test('3 consecutive failures: emits exactly one fileSnapshotError, URI permanently marked', async () => {
         const uri = 'file:///fake/Heavy.java';
@@ -270,8 +246,6 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         assert.strictEqual(errors[0].reason, 'snapshot-write-failed-after-3-retries');
     });
 
-    // ── Test 5: After fileSnapshotError, further switches are no-ops ──────
-
     test('after fileSnapshotError, further snapshot attempts for the same URI are no-ops', async () => {
         const uri = 'file:///fake/Frozen.java';
         // Fail all 3 writes to reach the error state
@@ -283,31 +257,25 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         await triggerSnapshot(recorder, uri, 'content', gen);
         await triggerSnapshot(recorder, uri, 'content', gen);
 
-        // URI is now in _snapshotedUris — any subsequent call from
-        // _captureFirstOpenSnapshot would be guarded by the `has(uri)` check.
-        // Verify the set membership BEFORE endSession clears it via _resetSessionState().
+        // The URI is now in _snapshotedUris, so the `has(uri)` guard in
+        // _captureFirstOpenSnapshot and in the editorSwitch listener blocks further
+        // attempts. Check membership BEFORE endSession clears it via _resetSessionState().
         const snapshotedUrisBefore = getSnapshotedUris(recorder);
         assert.ok(snapshotedUrisBefore.has(uri), 'URI should be permanently marked at this point');
 
-        // editorSwitch listener guard: _snapshotedUris.has(uri) must be true, blocking 4th attempt.
-        // This is the invariant that prevents further snapshot attempts for this URI.
         assert.ok(snapshotedUrisBefore.has(uri),
             'editorSwitch listener guard: _snapshotedUris.has(uri) must be true, blocking 4th attempt');
 
-        // endSession flushes the event buffer to disk so we can inspect it via collectWrittenEvents.
-        // The fileSnapshotError event is in the writer's buffer until the flush runs.
+        // The fileSnapshotError event sits in the writer's buffer until endSession flushes it.
         await recorder.endSession();
 
-        // Verify exactly one fileSnapshotError in the event stream, confirming:
-        //   (a) the error was emitted after the 3rd failure, and
-        //   (b) no duplicate error was produced (the URI was permanently marked).
+        // Exactly one fileSnapshotError confirms both that the error was emitted after
+        // the 3rd failure and that the permanent mark prevented a duplicate.
         const events = collectWrittenEvents(fs);
         const errorsAfterEnd = events.filter(e => e.type === 'fileSnapshotError');
         assert.strictEqual(errorsAfterEnd.length, 1,
             'exactly one fileSnapshotError in the event stream — no duplicate error events');
     });
-
-    // ── Test 6: _snapshotRetries cleared on new session ───────────────────
 
     test('_snapshotRetries is cleared when a new session starts', async () => {
         const uri = 'file:///fake/Transient.java';
@@ -320,7 +288,6 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         const retriesBefore = getSnapshotRetries(recorder);
         assert.strictEqual(retriesBefore.get(uri), 1, 'retry counter is 1 before session restart');
 
-        // End session and start a new one
         await recorder.endSession();
         await recorder.startSession(43, 'p-2');
 
@@ -329,8 +296,6 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
 
         await recorder.endSession();
     });
-
-    // ── Test 7: fileSnapshotError appears before sessionEnd ───────────────
 
     test('fileSnapshotError is written to the event stream (before sessionEnd)', async () => {
         const uri = 'file:///fake/ErrOrder.java';

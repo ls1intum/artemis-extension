@@ -34,7 +34,6 @@ describe('mergeHistory', () => {
         expect(result[1].localId).toBe('b');
         expect(result[1].status).toBe('sent');
 
-        // The newly-recovered bubble is present with its incoming content.
         expect(result[2].id).toBe(3);
         expect(result[2].content).toBe('the recovered answer');
         expect(result[2].localId).toBe('z');

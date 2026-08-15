@@ -22,12 +22,10 @@ export function shouldAcceptBuildResult(
     activeExerciseId: number | undefined,
     exerciseRegistry: ExerciseRegistry | undefined,
 ): boolean {
-    // Guard 1: no active session → drop everything.
     if (activeExerciseId === undefined) {
         return false;
     }
 
-    // Guard 2: known participation mapped to a different exercise → drop.
     const resultParticipationId = result.participation?.id;
     if (resultParticipationId !== undefined && exerciseRegistry !== undefined) {
         const mappedExerciseId = exerciseRegistry.getExerciseIdByParticipation(resultParticipationId);

@@ -14,7 +14,6 @@ interface DashboardState {
      *  until the init payload confirms developer mode. */
     hideDeveloperTools: boolean;
 
-    // Actions
     loadDashboard: (vscodeApi: VsCodeApi) => void;
     setDashboardData: (courses: RecentCourseNode[]) => void;
     setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => void;

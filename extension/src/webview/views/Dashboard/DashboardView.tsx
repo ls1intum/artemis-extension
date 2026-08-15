@@ -36,7 +36,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set([0]));
 
-    // Listen for dashboard messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.DashboardInit) {
             setDashboardData(msg.courses ?? []);
@@ -121,7 +120,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     return (
         <div className={styles.dashboard}>
-            {/* Welcome Header */}
             <Container>
                 <div className={styles.dashboardHeader}>
                     <button
@@ -153,7 +151,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                 </div>
             </Container>
 
-            {/* Workspace Exercise Section */}
             <Container
                 className={styles.workspaceExerciseSection}
                 padding="tight"
@@ -182,7 +179,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                 )}
             </Container>
 
-            {/* Recent Courses Section */}
             <Container
                 className={styles.recentCourses}
                 header={
@@ -211,7 +207,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                         {recentCourses.map((courseNode, index) => {
                             const isExpanded = expandedCourses.has(index);
                             const course = courseNode.courseData.course;
-                            const exercises = courseNode.exercises.slice(0, 4); // Show up to 4 exercises
+                            const exercises = courseNode.exercises.slice(0, 4);
 
                             return (
                                 <div
@@ -274,7 +270,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                 )}
             </Container>
 
-            {/* Quick Actions Section */}
             <Container
                 className={styles.quickActions}
                 header={<h2 className={styles.sectionTitle}>Tools & Settings</h2>}

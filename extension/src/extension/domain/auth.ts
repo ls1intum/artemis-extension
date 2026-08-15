@@ -1,7 +1,5 @@
 export const PROFILE_IRIS = 'iris';
 
-// --- Server Profile ---
-
 export interface ProfileInfo {
     readonly activeProfiles: string[];
     readonly activeModuleFeatures: string[];
@@ -23,8 +21,6 @@ export function parseProfileInfo(data: unknown): ProfileInfo {
         openApiEnabled: typeof d.openApiEnabled === 'boolean' ? d.openApiEnabled : undefined,
     };
 }
-
-// --- Authentication ---
 
 export interface AuthenticationResult {
     readonly success: boolean;

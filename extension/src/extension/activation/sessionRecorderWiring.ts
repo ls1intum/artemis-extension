@@ -52,7 +52,6 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
 
     const disposables: vscode.Disposable[] = [];
 
-    // Consent changes toggle recording
     disposables.push(consentService.onConsentChanged(level => {
         if (level === 'extended') {
             sessionRecorder.enable();
@@ -61,13 +60,11 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         }
     }));
 
-    // WebSocket message handler registration (with proper teardown)
     artemisWebsocketService.registerMessageHandler(sessionRecorder);
     disposables.push(new vscode.Disposable(() => {
         artemisWebsocketService.unregisterMessageHandler(sessionRecorder);
     }));
 
-    // Chat message events
     disposables.push(chatWebviewProvider.onDidSendIrisChatMessage(text => {
         sessionRecorder.recordIrisChatSent(text);
     }));
@@ -75,12 +72,10 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordIrisChatReceived(msg.content, msg.messageId, msg.sessionId, msg.sentAt);
     }));
 
-    // Chat send-attempt lifecycle (pending/sent/failed)
     disposables.push(chatWebviewProvider.onDidAttemptIrisChatSend(({ content, status, errorMessage }) => {
         sessionRecorder.recordIrisChatSendAttempt(content, status, errorMessage);
     }));
 
-    // Chat feedback
     disposables.push(chatWebviewProvider.onDidProvideIrisChatFeedback(({ messageId, helpful }) => {
         sessionRecorder.recordIrisChatFeedback(messageId, helpful);
     }));
@@ -108,7 +103,6 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
             });
     }));
 
-    // Provider navigation/visibility events
     disposables.push(artemisWebviewProvider.onDidChangeViewNavigation(({ from, to }) => {
         sessionRecorder.recordViewNavigation(from, to);
     }));
@@ -119,8 +113,8 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordPanelVisibility('chat', visible);
     }));
 
-    // Test-results view tracking. Provider events flow from the webview commands
-    // via testResultsTrackingCommands -> ArtemisWebviewProvider.fireXxx -> here.
+    // Test-results events flow from the webview commands via
+    // testResultsTrackingCommands -> ArtemisWebviewProvider.fireXxx -> here.
     disposables.push(artemisWebviewProvider.onDidOpenTestResultsOverview(payload => {
         sessionRecorder.recordTestResultsOverviewOpened(payload);
     }));
@@ -143,7 +137,7 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordProblemStatementSelection(payload);
     }));
 
-    // Submission tracking. Provider events flow from handleSubmitExercise ->
+    // Submission events flow from handleSubmitExercise ->
     // ArtemisWebviewProvider.fireSubmission -> here.
     disposables.push(artemisWebviewProvider.onDidSubmission(payload => {
         sessionRecorder.recordSubmission(payload);
@@ -186,9 +180,9 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         }];
     }));
 
-    // Initial breakpoint snapshot — onDidChangeBreakpoints is delta-only, so
-    // breakpoints already set when recording starts would otherwise be invisible
-    // in replay. Breakpoints are workspace-global, independent of debug sessions.
+    // onDidChangeBreakpoints is delta-only, so breakpoints already set when
+    // recording starts would otherwise be invisible in replay. Breakpoints are
+    // workspace-global, independent of debug sessions.
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
         const root = ctx.exerciseRoot ? vscode.Uri.parse(ctx.exerciseRoot) : undefined;
         const snapshot = collectInitialBreakpointSnapshot(sensorHub.readBreakpoints(), root, ctx.timestamp);

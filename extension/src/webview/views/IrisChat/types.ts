@@ -16,7 +16,6 @@ export type ContentState = NonNullable<WireIrisState['contentState']>;
 /** One row of the course-wide conversation list (history popover). */
 export type ConversationSummary = NonNullable<WireIrisState['conversations']>[number];
 
-// Chat message as rendered in the UI
 export interface ChatMessage {
     id?: number;           // Artemis message ID (undefined for optimistic messages)
     localId: string;       // Client-generated UUID for optimistic tracking
@@ -90,7 +89,6 @@ export interface ContextItem extends ExerciseRef {
     lastViewed?: number;   // for compareCoursesForPicker
 }
 
-// Referenced file info
 export interface ReferencedFile {
     path: string;
     reason?: string;
@@ -102,11 +100,11 @@ export interface ReferencedFilesData {
     totalCount: number;
 }
 
-// Transient flag for "Iris is preparing a response" UI.
-// The Artemis Iris WebSocket never streams chunks to this client — it sends
-// only the final MESSAGE frame (see irisWebSocketMessageHandler) — so the
-// only thing this flag drives is the thinking indicator between send and
-// the final AddMessage push that clears it via resetTransientChatUi.
+// Transient flag for "Iris is preparing a response" UI. The Artemis Iris
+// WebSocket never streams chunks to this client; it sends only the final
+// MESSAGE frame (see irisWebSocketMessageHandler). So the only thing this flag
+// drives is the thinking indicator between send and the final AddMessage push
+// that clears it via resetTransientChatUi.
 export interface StreamingState {
     isStreaming: boolean;
 }

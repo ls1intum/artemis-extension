@@ -78,8 +78,7 @@ export function wireWorkspaceDetection(
         }
         if (kind === 'anonymous') {
             // Settled, and server-independent: with no account there is
-            // nothing to match against. The chooser is the right screen; the
-            // Retry banner for a 401 dashboard fetch was not.
+            // nothing to match against, so the chooser is the right screen.
             deps.sink.clearWorkspaceExercise();
             settled.fire({ kind: 'no-match' });
             return;

@@ -19,8 +19,6 @@ import * as assert from 'assert';
 import type { ResultDTO } from '@extension/domain';
 import { collectBuildResult } from '@extension/services/recording/eventCollectors';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function makeResult(overrides: Partial<ResultDTO> = {}): ResultDTO {
     return {
         id: 42,
@@ -32,8 +30,6 @@ function makeResult(overrides: Partial<ResultDTO> = {}): ResultDTO {
         ...overrides,
     };
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 suite('collectBuildResult (Block F)', () => {
     test('1. positive:false → failedTestDetails and failedTests populated', () => {

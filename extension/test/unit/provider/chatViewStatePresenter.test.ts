@@ -147,10 +147,9 @@ interface Harness {
     postSpy: sinon.SinonSpy;
     sandbox: sinon.SinonSandbox;
     /**
-     * `getDetectionState` defaults to `'settled'`: none of the pre-existing
-     * tests in this file care about it, and `'settled'` is the value that
-     * keeps their conversation-shaped assertions unaffected by an unrelated
-     * field.
+     * `getDetectionState` defaults to `'settled'`: the conversation-shaped
+     * tests do not care about it, and `'settled'` keeps their assertions
+     * unaffected by an unrelated field.
      */
     build: (
         getConversation: () => IrisConversationService | undefined,
@@ -209,7 +208,7 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(state.courseId, undefined);
         assert.strictEqual(state.courseTitle, undefined);
         assert.strictEqual(state.currentSessionId, undefined);
-        // 'unknown', not undefined: every field is required on the wire now, so
+        // 'unknown', not undefined: every field is required on the wire, so
         // "no conversation" has to be stated rather than left off.
         assert.strictEqual(state.contentState, 'unknown');
         assert.deepStrictEqual(state.conversations, []);
@@ -411,19 +410,16 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
         assert.strictEqual(state.workspaceExerciseId, 12);
     });
 
-    // Task 8: the coordinator's live detection state has to reach the wire.
+    // The coordinator's live detection state has to reach the wire.
     // The React tests inject snapshots directly and bypass this bridge
     // entirely, so only a host-side test can catch a presenter that hard-codes
     // the value instead of reading it from the getter.
     test('the snapshot carries the current detection state', () => {
-        // A single snapshot cannot tell "reads the getter every call" apart
-        // from "reads it once and caches it": both answer the same value on
-        // the first post. The getter's return value changes between the two
-        // `postSnapshot()` calls below specifically to rule out caching - a
-        // presenter that memoized the first read (e.g. `this._cached ??=
-        // this._getDetectionState()`) would still pass a single-snapshot
-        // version of this test but would freeze the wire at `'unavailable'`
-        // forever in production, and the course chooser would never appear.
+        // The getter's value changes between the two `postSnapshot()` calls to
+        // rule out caching: a single snapshot cannot tell "reads the getter
+        // every call" apart from "reads it once and caches it", and a memoizing
+        // presenter would freeze the wire at `'unavailable'` in production, so
+        // the course chooser would never appear.
         let detectionState: 'unsettled' | 'settled' | 'unavailable' = 'unavailable';
         const presenter = h.build(() => undefined, () => detectionState);
 

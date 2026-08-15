@@ -21,25 +21,22 @@ describe('Exercise Submission Flow UI Tests', function () {
 	before(async function () {
 		this.timeout(30000);
 
-		// Require credentials — skip entire suite if not set
 		try {
 			({ username, password } = getCredentials());
 		} catch {
 			this.skip();
 		}
 
-		// Require exercise ID — skip entire suite if not set
-		// Canonical name is ARTEMIS_EXERCISE_ID; accept legacy EXERCISE_ID
-		// as fallback for back-compat with older configs. See #198.
+		// The canonical name is ARTEMIS_EXERCISE_ID; EXERCISE_ID is accepted as
+		// a fallback for older configs.
 		exerciseId = process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '';
 		if (!exerciseId) {
-			this.skip(); // Skip if no exercise ID provided
+			this.skip();
 		}
 
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Login first before running submission tests
 		await performLogin(driver, username, password);
 	});
 
@@ -52,7 +49,7 @@ describe('Exercise Submission Flow UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context.
 		}
 	});
 
@@ -64,8 +61,7 @@ describe('Exercise Submission Flow UI Tests', function () {
 
 		await takeScreenshot(driver, 'exercise-submission-before-navigate');
 
-		// Step 1: Attempt to navigate to the target exercise
-		// Try direct navigation via exercise ID text content first
+		// Try direct navigation via the exercise ID's text content first.
 		const directExercise = await driver
 			.findElement(
 				By.xpath(
@@ -78,8 +74,8 @@ describe('Exercise Submission Flow UI Tests', function () {
 			await directExercise.click();
 			await driver.sleep(2000);
 		} else {
-			// Step 2: Navigate through Dashboard → Course → Exercise list
-			// Click any course card — CSS module classes are hashed, use structural XPath
+			// Navigate through Dashboard, Course, Exercise list. CSS module
+			// classes are hashed, so the course card is matched structurally.
 			const courseElement = await driver
 				.findElement(
 					By.xpath(
@@ -98,7 +94,6 @@ describe('Exercise Submission Flow UI Tests', function () {
 			await courseElement.click();
 			await driver.sleep(3000);
 
-			// Step 3: Find and click an exercise within the CourseDetail view
 			const exerciseElement = await driver
 				.findElement(
 					By.xpath(
@@ -120,8 +115,8 @@ describe('Exercise Submission Flow UI Tests', function () {
 
 		await takeScreenshot(driver, 'exercise-submission-exercise-loaded');
 
-		// Step 4: Look for a submit or run button using XPath text selectors
-		// CSS module classes are hashed — never use class selectors here
+		// CSS module classes are hashed, so the submit/run button is matched on
+		// its text rather than on a class.
 		const submitButton = await driver
 			.findElement(
 				By.xpath(
@@ -137,12 +132,10 @@ describe('Exercise Submission Flow UI Tests', function () {
 			return;
 		}
 
-		// Step 5: Click the submit button
 		await submitButton.click();
 		await takeScreenshot(driver, 'exercise-submission-after-click');
 
-		// Step 6: Assert build progress appears within 15 seconds
-		// Look for any text indicating build/submission is in progress
+		// Any text indicating the build or submission is in progress counts.
 		const progressIndicator = await driver
 			.wait(
 				() =>

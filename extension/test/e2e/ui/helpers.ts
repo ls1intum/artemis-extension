@@ -6,8 +6,7 @@ import { ActivityBar, By, SideBarView, until, WebDriver, WebviewView, Workbench 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const SCREENSHOTS_DIR = path.join(PROJECT_ROOT, 'test', 'ui', 'screenshots');
 
-// Cache axe source once — read at module load time.
-// At runtime __dirname is out/test/e2e/ui/ — four levels up reaches the package root.
+// At runtime __dirname is out/test/e2e/ui/, so four levels up reaches the package root.
 const AXE_SOURCE = fs.readFileSync(
 	path.resolve(__dirname, '..', '..', '..', '..', 'node_modules', 'axe-core', 'axe.min.js'),
 	'utf-8'
@@ -63,8 +62,8 @@ export async function waitForElement(
 /**
  * Read Artemis credentials from environment variables. The canonical names
  * are `ARTEMIS_USER` and `ARTEMIS_PASSWORD` (matching the non-UI E2E tests
- * and `run-e2e-tests.sh`). `ARTEMIS_PASS` is accepted as a fallback for
- * back-compat with the original UI-test convention; see issue #198.
+ * and `run-e2e-tests.sh`). `ARTEMIS_PASS` is accepted as a fallback for the
+ * older UI-test convention.
  *
  * Throws if either is unset.
  */
@@ -129,16 +128,14 @@ export async function takeScreenshot(driver: WebDriver, name: string): Promise<s
 
 /**
  * Run axe-core accessibility analysis inside the current webview iframe context.
- * MUST be called AFTER switchToWebviewFrame() — injects axe into the active frame.
+ * MUST be called AFTER switchToWebviewFrame(): it injects axe into the active frame.
  * Returns axe results with violations array. Zero violations = WCAG 2.1 AA compliant.
  */
 export async function runAxeInCurrentFrame(
 	driver: WebDriver,
 ): Promise<{ violations: Array<{ id: string; impact: string; description: string; nodes: unknown[] }> }> {
-	// Inject axe-core source into the current frame
 	await driver.executeScript(AXE_SOURCE);
 
-	// Run axe with WCAG 2.1 AA tags
 	const results = await driver.executeAsyncScript(`
 		var done = arguments[arguments.length - 1];
 		axe.run(document, {
@@ -151,11 +148,11 @@ export async function runAxeInCurrentFrame(
 
 /**
  * Best-effort cleanup for `after()` hooks of credential-gated UI suites.
- * No-op when `driver` is undefined — covers the case where `before()`
+ * No-op when `driver` is undefined, which covers the case where `before()`
  * skipped the suite (missing credentials) and never assigned `driver`,
  * which would otherwise crash the after-hook with
  * `Cannot read properties of undefined (reading 'sleep')` and mask the
- * intended skip as a real failure. See #176.
+ * intended skip as a real failure.
  */
 export async function safeLogoutAndCleanup(driver: WebDriver | undefined): Promise<void> {
 	if (!driver) { return; }

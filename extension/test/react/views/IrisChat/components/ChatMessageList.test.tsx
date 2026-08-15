@@ -93,7 +93,6 @@ describe('ChatMessageList', () => {
 
 	it('renders welcome state when no messages', () => {
 		renderList({ hasContext: true });
-		// WelcomeState renders with Iris greeting when hasContext is true
 		expect(screen.getByText("Hi! I'm Iris, your AI tutor.")).toBeInTheDocument();
 	});
 
@@ -148,7 +147,6 @@ describe('ChatMessageList', () => {
 				makeMessage({ role: i % 2 === 0 ? 'user' : 'assistant', content: `Msg ${i}` }, i)
 			),
 		});
-		// All 5 messages should be rendered
 		for (let i = 0; i < 5; i++) {
 			expect(screen.getByText(`Msg ${i}`)).toBeInTheDocument();
 		}

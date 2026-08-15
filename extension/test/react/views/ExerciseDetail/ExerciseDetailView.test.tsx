@@ -9,12 +9,11 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__hel
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 
-// Mock useWebSocketUpdates — not under test here
+// useWebSocketUpdates is not under test here.
 vi.mock('@webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
 
-// Helper to build minimal exerciseData
 function makeExerciseData(overrides: Partial<ExerciseDetailsResponse> = {}): ExerciseDetailsResponse {
 	return {
 		exercise: {
@@ -469,8 +468,6 @@ describe('ExerciseDetailView', () => {
 		);
 	});
 
-	// --- error state ---
-
 	it('shows error message when error is set', () => {
 		useExerciseDetailStore.setState({ error: 'Failed to load exercise', isLoading: false });
 		const mockApi = createMockVsCodeApi();
@@ -526,8 +523,8 @@ describe('ExerciseDetailView', () => {
 
 	it('overview lists test results when test names are hidden (showTestNamesToStudents=false)', async () => {
 		// Feedbacks as Artemis sends them with hidden test names: no text, no
-		// testCase.testName, only detailText + testCase.id. Regression test for
-		// the "No test results available." bug — the list must be populated.
+		// testCase.testName, only detailText + testCase.id. The list must still be
+		// populated.
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData({
 				exercise: {
@@ -596,12 +593,10 @@ describe('ExerciseDetailView', () => {
 		expect(typeof payload.viewId).toBe('string');
 	});
 
-	// ── Task overlay state coverage ──────────────────────────────────────
-	//
-	// Each test sets up exerciseData to drive classifyTaskTests through a
-	// distinct branch, then clicks a task span and verifies the rendered
-	// empty-state copy. Catches regressions in the full click→classify→
-	// overlay-render pipeline that unit/component tests can't reach.
+	// Task overlay state coverage: each test sets up exerciseData to drive
+	// classifyTaskTests through a distinct branch, then clicks a task span and
+	// verifies the rendered empty-state copy, covering the full
+	// click -> classify -> overlay-render pipeline.
 
 	function exerciseWithFeedbacks(feedbacks: unknown[] | undefined, successful = false): ExerciseDetailsResponse {
 		const submission: Record<string, unknown> = {
@@ -882,10 +877,10 @@ describe('ExerciseDetailView', () => {
 		});
 
 		it('shows the strip when a build runs and the card leaves the viewport', () => {
-			// pendingSubmissionsByParticipationId is a TOP-LEVEL store field
-			// (not read from exerciseData) — seed it as a sibling, matching
-			// participation id 99 from the helper. Now-relative timing dates
-			// so the ETA pass-through (view → strip) is exercised end-to-end.
+			// pendingSubmissionsByParticipationId is a TOP-LEVEL store field (not
+			// read from exerciseData), so seed it as a sibling matching participation
+			// id 99 from the helper. Now-relative timing dates keep the ETA
+			// pass-through (view -> strip) exercised end-to-end.
 			useExerciseDetailStore.setState({
 				exerciseData: makeExerciseDataWithParticipation(),
 				pendingSubmissionsByParticipationId: {

@@ -58,14 +58,12 @@ export function SubmissionStatus({
   estimatedCompletionDate,
   buildStartDate,
 }: SubmissionStatusProps) {
-  // ETA countdown for building state
   const { etaSeconds, progressPercent } = useBuildProgress(
     status === 'building',
     buildStartDate,
     estimatedCompletionDate,
   );
 
-  // Empty state for programming exercises with no submissions
   if (status === 'no-submission' && exerciseType === 'programming') {
     return (
       <div className={clsx(styles.buildStatus, styles.buildStatusEmpty, className)}>
@@ -74,7 +72,6 @@ export function SubmissionStatus({
     );
   }
 
-  // Building/pending state
   if (status === 'building' || status === 'pending') {
     const hasDeterminateProgress = status === 'building' && progressPercent !== null;
 
@@ -173,7 +170,6 @@ export function SubmissionStatus({
     );
   }
 
-  // Non-programming exercise status
   let statusText = 'Submission Status';
   let statusBadgeForNonProgramming: ReactNode = null;
 

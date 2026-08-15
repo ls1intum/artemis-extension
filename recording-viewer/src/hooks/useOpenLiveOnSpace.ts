@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 /** True while an interactive control is focused, where Space has its own meaning
  *  (activating a button, toggling a checkbox, text entry). The shortcut must not
- *  fire in that case — e.g. Space on a focused "Delete"/"Open Folder" button must
+ *  fire in that case: Space on a focused "Delete"/"Open Folder" button has to
  *  activate the button, not open the live session. */
 function isInteractiveElementFocused(): boolean {
     const el = document.activeElement as HTMLElement | null;

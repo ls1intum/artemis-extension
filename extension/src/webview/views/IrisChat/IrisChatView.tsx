@@ -28,16 +28,11 @@ interface IrisChatViewProps {
 
 export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
-    // Sending and composing are different questions. This one answers "would
-    // the host take a send right now", and carries the sentence that explains
-    // a no.
-    //
-    // Declared HERE, above every effect, not next to the other derivations
-    // further down: the deferred-resend effect lists `sendBlocked` in its
-    // dependency array, and a dependency array is evaluated during render. A
-    // `const` declared below that effect would be in its temporal dead zone
-    // and throw a ReferenceError on every render. Keep this declaration ahead
-    // of any effect that reads it.
+    // Answers "would the host take a send right now", and carries the sentence
+    // that explains a no. Must stay ahead of every effect that reads it: the
+    // deferred-resend effect lists `sendBlocked` in its dependency array, which
+    // is evaluated during render, so a `const` declared below it would be in
+    // its temporal dead zone.
     const sendBlockedReason = selectSendBlockedReason(store);
     const sendBlocked = sendBlockedReason !== undefined;
     const {
@@ -55,15 +50,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const [historyOpen, setHistoryOpen] = useState(false);
     const [coursePickerOpen, setCoursePickerOpen] = useState(false);
     /**
-     * The student asked to see the course list anyway, from the startup-
-     * outage screen. Detection may never come back (it can fail identically
-     * on every retry, e.g. an archived-courses lookup that keeps throwing),
-     * so Retry cannot be the ONLY way off that screen: without this, a
-     * student whose courses are already sitting in the store from an earlier
-     * dashboard fetch would be stuck behind an outage banner forever. Reset
-     * is not needed: once a course is picked, `courseId` stops being null and
-     * `detectionUnavailable` (which this flag only matters under) goes false
-     * on its own.
+     * The student asked to see the course list anyway, from the startup-outage
+     * screen. Detection can fail identically on every retry (e.g. an
+     * archived-courses lookup that keeps throwing), so Retry cannot be the ONLY
+     * way off that screen. No reset needed: once a course is picked, `courseId`
+     * stops being null and `detectionUnavailable` goes false on its own.
      */
     const [outageChooserRequested, setOutageChooserRequested] = useState(false);
     // True while the host is reading the dashboard course list. A fresh
@@ -74,30 +65,24 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     /** Whether a `refreshCourses` is outstanding. See the snapshot handler. */
     const coursesRequested = useRef(false);
     const sideMenuRef = useRef<HTMLDivElement>(null);
-    // Element that opened the currently-visible popover (context row or
-    // history button), captured so focus can be restored to it on close.
-    // A single shared ref instead of a `headerRef` because the two openers
-    // are different elements and a click-outside close must return focus
-    // to whichever one was actually clicked.
+    // Element that opened the currently-visible popover, captured so focus can
+    // be restored to it on close. One shared ref because a click-outside close
+    // must return focus to whichever opener was actually clicked.
     const openerRef = useRef<HTMLElement | null>(null);
-    // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
 
-    // A navigation-initiating popover stays open until the navigation lands,
-    // so a failure has somewhere to be read (see `openSessionError` below).
-    // The success signal is the conversation differing from the one that was
-    // open when the popover was opened, so the id is CAPTURED at open time
-    // rather than tracked as "the previous value": `currentSessionId` is
-    // legitimately `null` whenever nothing is open (a failed acquisition, Iris
-    // unavailable), and the header and both popovers still render in that
-    // state, so `null` cannot double as "no popover is open". `undefined` can:
-    // it is not part of the field's type.
+    // A navigation-initiating popover stays open until the navigation lands, so
+    // a failure has somewhere to be read (see `openSessionError` below). The
+    // success signal is the conversation differing from the one CAPTURED at
+    // open time: `currentSessionId` is legitimately `null` whenever nothing is
+    // open, so `null` cannot double as "no popover is open". `undefined` can, it
+    // is not part of the field's type.
     const sessionWhenPopoverOpened = useRef<number | null | undefined>(undefined);
     // The course is captured alongside it, because a course move does not
     // always change the conversation id: entering a course whose Iris is
     // switched off leaves it null, and it may have been null before. Without
-    // this the picker would stay parked on top of the banner that explains
-    // where the student now is.
+    // this the picker stays parked on top of the banner that explains where the
+    // student now is.
     const courseWhenPopoverOpened = useRef<number | null | undefined>(undefined);
     useEffect(() => {
         if (sessionWhenPopoverOpened.current === undefined) { return; }
@@ -123,12 +108,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     }, [store.streaming.isStreaming]);
 
-    // Last resort. Deliberately above BOTH request timeouts that can run
-    // before a send settles: the POST (30s, CONFIG.API.REQUEST_TIMEOUT_MS)
-    // and, when that times out, the coordinator's reconciliation GET
-    // (sendCoordinator.ts:204), which has the same budget. A shorter deadline
-    // would race a send that is still legitimately being resolved and put
-    // back the very duplicate this removes.
+    // Last resort. Deliberately above BOTH request timeouts that can run before
+    // a send settles: the POST (30s, CONFIG.API.REQUEST_TIMEOUT_MS) and, when
+    // that times out, the coordinator's reconciliation GET on the same budget.
+    // A shorter deadline would race a send that is still legitimately being
+    // resolved and put back the very duplicate this removes.
     useEffect(() => {
         const held = store.pendingEcho;
         if (!held) { return; }
@@ -143,7 +127,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         return () => clearTimeout(timer);
     }, [store.pendingEcho]);
 
-    // Message listener - handles messages from extension
     useExtensionMessage((msg) => {
         // Reads the store directly, not the render-time closure: messages
         // arrive between renders and the conversation must be the CURRENT one.
@@ -302,18 +285,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
             case ExtensionMsg.SendRejected: {
                 // Ignore stale rejections that arrive after the user already
-                // switched session — the corresponding optimistic message
-                // would not exist in the active session anyway, and clearing
-                // transient UI for an unrelated session is wrong.
+                // switched session. The optimistic message does not exist in
+                // the active session anyway, and clearing transient UI for an
+                // unrelated session is wrong.
                 if (!belongsHere(msg)) {
                     break;
                 }
                 const matched = markMessageFailed(msg.localId, msg.errorMessage, msg.reason);
-                // Only clear the indicator if we actually found and updated
-                // the message. A non-match means the rejection is stale
-                // (e.g. retry already removed the failed entry, or messages
-                // were re-hydrated from server) and we must not touch the
-                // current request's transient UI.
+                // A non-match means the rejection is stale (retry already
+                // removed the failed entry, or messages were re-hydrated from
+                // the server), so the current request's transient UI stands.
                 if (matched) {
                     resetTransientChatUi();
                 }
@@ -380,15 +361,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
         // Read LIVE rather than through the render-time closure: this funnel is
         // reached from event handlers and from an effect, either of which can
-        // run a tick behind the render that produced them. Every caller is
-        // covered here, so this is the guarantee; the disabled button and the
-        // inert Retry are only affordances.
+        // run a tick behind the render that produced them. This is the
+        // guarantee; the disabled button and the inert Retry are affordances.
         if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return false; }
 
-        // Clear any stale streaming state from the previous request
         resetTransientChatUi();
 
-        // Add optimistic message
         store.addMessage({
             localId,
             role: 'user',
@@ -431,15 +409,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
         // BEFORE the removal, never after: the funnel would refuse the send and
         // the bubble would already be gone, taking the student's text with it.
-        // `isRetryDisabled` does not make this unreachable, it only narrows the
-        // window: a click can still land between the host taking the lock and
-        // React committing the render that disables the button. This guard is
-        // what closes that window, and the flow tests cover it.
+        // `isRetryDisabled` only narrows the window; a click can still land
+        // between the host taking the lock and React committing the render that
+        // disables the button. This guard closes that window.
         if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
-        // Remove the failed entry first so handleSendMessage's optimistic
-        // add doesn't briefly produce two copies. Zustand+React batch the
-        // two state updates in the same event tick, so there is no visible
-        // flicker.
+        // Remove the failed entry first so handleSendMessage's optimistic add
+        // doesn't briefly produce two copies. Zustand+React batch the two state
+        // updates in the same event tick, so there is no visible flicker.
         store.removeMessage(localId);
         handleSendMessage(failed.content);
     };
@@ -483,9 +459,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'openFile', { filePath: path });
     };
 
-    // Nothing local owns conversations any more, so there is nothing to
-    // reset: the command re-reads the open conversation from the server, and
-    // `package.json` names it "Artemis: Reload Iris Chat".
+    // Nothing local owns conversations, so there is nothing to reset: the
+    // command re-reads the open conversation from the server. `package.json`
+    // names it "Artemis: Reload Iris Chat".
     const handleResetSessions = () => {
         setSideMenuOpen(false);
         postCommand(vscodeApi, 'resetChatSessions');
@@ -515,14 +491,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     /**
      * The message a Retry deferred until the chat is reachable again. Held in a
-     * ref, not in state: it must not trigger a render of its own, and it is
-     * read exactly once by the effect below.
+     * ref, not in state: it must not trigger a render of its own.
      *
      * It carries the TEXT and the conversation, not just the localId. A
      * successful reload delivers the server transcript before it clears the
      * banner, and that transcript replaces the message array, taking the unsent
-     * local bubble with it: by the time the effect runs there is nothing left
-     * to look up.
+     * local bubble with it, so there is nothing left to look up.
      */
     const resendWhenReachable = useRef<{ localId: string; text: string; sessionId: number | null } | null>(null);
     useEffect(() => {
@@ -534,27 +508,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // deferred until the send settles. Keep the pending resend AND its
         // bubble.
         //
-        // Read LIVE rather than through the render-time closure `sendBlocked`,
-        // for the same reason `handleSendMessage` and `handleRetry` do: a host
-        // snapshot can land between this render committing and this effect's
-        // passive-effect callback running, and the closure would then still
-        // see the stale, unlocked value. Reading live here means `sendBlocked`
-        // is no longer what gates this effect body, so it looks unused below,
-        // but it is NOT dead: it stays in the dependency array purely as the
-        // trigger that re-runs this effect once the live gate releases. Do not
-        // remove it from the deps just because the body does not read it.
+        // Read LIVE rather than through the render-time closure `sendBlocked`:
+        // a host snapshot can land between this render committing and this
+        // effect's callback running, and the closure would still see the stale,
+        // unlocked value. `sendBlocked` is therefore not read below, but it is
+        // NOT dead: it stays in the dependency array as the trigger that re-runs
+        // this effect once the live gate releases. Do not drop it from the deps.
         if (selectSendBlockedReason(useChatStore.getState()) !== undefined) { return; }
         resendWhenReachable.current = null;
         // The banner also clears on a NAVIGATION. Cancel when the move is
-        // already visible here.
-        //
-        // The host hides the banner BEFORE it publishes the new snapshot, so
-        // this can still run while the webview reports the old conversation.
-        // The send is then addressed to that same conversation, because
-        // `handleSendMessage` reads the session from the very snapshot this
-        // check just compared: the two cannot disagree. The host refuses it by
-        // origin (`conversation-changed`) once it has moved on, which is the
-        // rejection that exists for exactly this.
+        // already visible here. The host hides the banner BEFORE it publishes
+        // the new snapshot, so this can still run while the webview reports the
+        // old conversation; the send then addresses that same conversation, and
+        // the host refuses it by origin (`conversation-changed`).
         if (store.currentSessionId !== pending.sessionId) { return; }
         // The bubble may or may not have survived the reload; drop it if it did,
         // so the resend does not leave a duplicate behind.
@@ -565,40 +531,35 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         // render instead of on the transitions that matter.
     }, [store.unavailableMessage, sendBlocked]);
 
-    // Popover open/close helpers. The two popovers are mutually exclusive.
-    // Opening one always closes the other. Closing restores focus to
-    // whichever element opened it (captured in openerRef), then clears the
-    // ref so a click-outside close doesn't refocus a stale element.
+    // The popovers are mutually exclusive: opening one closes the others.
+    // Closing restores focus to whichever element opened it (openerRef), then
+    // clears the ref so a click-outside close doesn't refocus a stale element.
     const openPicker = (opener: HTMLElement) => {
         openerRef.current = opener;
         setHistoryOpen(false);
         setCoursePickerOpen(false);
-        // Captured like the other two openers. Without it the effect above
-        // never fires for the topic picker, so a navigation the student did
-        // not start (an Ask-Iris command landing on another course) swaps the
-        // rows under the cursor and the click stages a DIFFERENT course's
-        // exercise. It also keeps the ref honest when this opener closes the
-        // history: otherwise the ref stays live for a popover that is gone.
+        // Without this the effect above never fires for the topic picker, so a
+        // navigation the student did not start (an Ask-Iris command landing on
+        // another course) swaps the rows under the cursor and the click stages
+        // a DIFFERENT course's exercise.
         sessionWhenPopoverOpened.current = useChatStore.getState().currentSessionId;
         courseWhenPopoverOpened.current = useChatStore.getState().courseId;
         setPickerOpen(true);
     };
 
-    // Opening the picker IS the question "what is there now". The guard that
-    // used to sit here asked only when the list was empty, which, with a
-    // persisted list, meant never. The previous list stays rendered until the
-    // answer arrives, so the concern that guard named is still covered; only
-    // an empty list shows the loading state.
+    // Opening the picker IS the question "what is there now", so it always
+    // refetches. The previous list stays rendered until the answer arrives;
+    // only an empty list shows the loading state.
     const requestCourses = () => {
         coursesRequested.current = true;
         if (useChatStore.getState().courses.length === 0) { setCoursesLoading(true); }
         postCommand(vscodeApi, 'refreshCourses');
     };
 
-    // The same outage reads differently depending on what survived it. With
-    // no rows the failure is all there is to show; with rows, they stay
-    // pickable but unconfirmed, and saying so is what keeps this picker from
-    // presenting exactly the stale course list it was built to stop showing.
+    // The same outage reads differently depending on what survived it. With no
+    // rows the failure is all there is to show; with rows, they stay pickable
+    // but unconfirmed, and saying so keeps the picker from presenting a stale
+    // course list as current.
     const coursePickerStatus = coursesLoading
         ? 'loading'
         : !store.coursesUnavailable ? 'ready'
@@ -641,17 +602,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         openerRef.current = null;
     };
 
-    // Check if chat is disabled
     const isChatDisabled = store.disabledMessage !== null || store.isNoAiDetected;
 
-    /** "There is something to talk to", i.e. a conversation is open. */
     const hasConversation = store.currentSessionId !== null;
 
-    // Decide whether the Retry button on a failed user message should be
-    // active right now. Retry is meaningful only when the underlying cause
-    // has plausibly cleared since the original send. Computed inline per
-    // render because the message list is short and `messages.map` already
-    // walks it; rebuilding a Map would be wasted work.
+    // Retry is meaningful only when the underlying cause has plausibly cleared
+    // since the original send. Computed inline per render because the message
+    // list is short and `messages.map` already walks it.
     const isRetryDisabled = (msg: { errorReason?: ChatMessage['errorReason'] }) => {
         // A retry IS a send. While the host would refuse one, this is an inert
         // control rather than an affordance whose only outcome is a rejection
@@ -666,8 +623,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 // Never disabled for its own reason (the gate above still
                 // applies). This button IS the reload while the banner is up:
                 // it reloads first and sends afterwards (see `handleRetry`).
-                // Two Retry buttons at once, one of them dead, is a puzzle
-                // rather than an affordance.
                 return false;
             case 'no-ai':
                 return store.isNoAiDetected;
@@ -691,19 +646,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // topic currently is, so both read the same expression.
     const topic = store.pendingContext ?? store.committedContext;
     // No workspace exercise detected and nothing opened: there is no course to
-    // put in a header, so the transcript offers the course list instead of an
-    // empty conversation the student cannot act on.
+    // put in a header, so the transcript offers the course list instead.
     //
-    // Gated on the first snapshot having arrived, for the same reason
-    // `messagesHydrated` is: before it, "nothing is open" and "we have not
-    // been told yet" are indistinguishable, and guessing the former flashes
-    // the course chooser at every student who does have a conversation.
-    //
-    // `detectionState === 'settled'` is load-bearing, not defensive: workspace
-    // detection is asynchronous, and the very first snapshot can say "nothing
-    // is open" while detection is still running. Offering the course chooser
-    // at that moment tells the student to pick one by hand while the
-    // extension is still working out which exercise their folder is.
+    // Both guards are load-bearing. Before the first snapshot, "nothing is
+    // open" and "not told yet" are indistinguishable, and guessing the former
+    // flashes the course chooser at every student who does have a conversation.
+    // And workspace detection is asynchronous, so an unsettled state can say
+    // "nothing is open" while the extension is still working out which exercise
+    // the folder is.
     const isColdStart = store.hasReceivedInitialIrisState
         && store.detectionState === 'settled'
         && store.courseId === null
@@ -715,20 +665,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     //
     // `courseId === null` is load-bearing, not defensive: entering a course
     // whose Iris is disabled deliberately sets `courseId` and leaves
-    // `currentSessionId` null (#375). Without this clause, a failed
-    // background detection would cover that course's own banner with a
-    // startup-outage screen.
+    // `currentSessionId` null. Without this clause, a failed background
+    // detection would cover that course's own banner with a startup-outage
+    // screen.
     const detectionUnavailable = store.hasReceivedInitialIrisState
         && store.detectionState === 'unavailable'
         && store.courseId === null
         && store.currentSessionId === null;
 
-    // Nothing open and no answer yet. Distinct from both of the above, and it
-    // has to suppress the ordinary shell: the header falls back to "Choose a
-    // course" (`ChatHeader`) and the composer to "Choose a course to start
-    // chatting" (below), so merely dropping a spinner into the message area
-    // would still tell the student to pick a course while detection is
-    // mid-flight.
+    // Nothing open and no answer yet. Must suppress the ordinary shell: the
+    // header falls back to "Choose a course" (`ChatHeader`) and the composer to
+    // "Choose a course to start chatting" (below), so a spinner in the message
+    // area alone would still tell the student to pick a course while detection
+    // is mid-flight.
     const startupPending = store.hasReceivedInitialIrisState
         && store.detectionState === 'unsettled'
         && store.courseId === null
@@ -739,14 +688,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // and the outage states get their own message-area branch instead.
     // `outageChooserRequested` deliberately does NOT enter this: the header
     // stays suppressed even once the student has bypassed the outage screen,
-    // for the same reason it is suppressed on the ordinary cold start (there
-    // is no course to put in it yet).
+    // because there is still no course to put in it.
     const suppressOrdinaryShell = startupPending || detectionUnavailable;
 
-    // The cold-start chooser itself, and the ONE other path allowed to reach
-    // it: a student who bypassed a startup outage that will not clear on its
-    // own. Both render the identical inline picker below; this is not a
-    // second chooser, it is the same one reached from a second precondition.
+    // The cold-start chooser, plus the ONE other path allowed to reach it: a
+    // student who bypassed a startup outage that will not clear on its own.
+    // Both render the identical inline picker below.
     const showCourseChooser = isColdStart || (detectionUnavailable && outageChooserRequested);
 
     // The cold start renders the course list as the whole screen, so it must
@@ -756,10 +703,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         if (!showCourseChooser || coldStartFetched.current) { return; }
         coldStartFetched.current = true;
         requestCourses();
-        // Reached from either precondition can trigger it, and the ref makes
-        // it once-only. `requestCourses` is deliberately absent from the
-        // deps: it is a new function on every render and reads the store,
-        // not the closure.
+        // Either precondition can trigger it, and the ref makes it once-only.
+        // `requestCourses` is deliberately absent from the deps: it is a new
+        // function on every render and reads the store, not the closure.
     }, [showCourseChooser]);
 
     const handleRetryStartupDetection = () => {
@@ -767,15 +713,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     };
 
     /**
-     * The startup-outage screen's second action. Retry re-runs detection,
-     * which can fail identically forever (e.g. an archived-courses lookup
-     * that keeps throwing on every attempt), so it cannot be the only way
-     * off that screen when the student's courses are already sitting in the
-     * store from an earlier dashboard fetch. Only flips the flag:
-     * `showCourseChooser` becoming true is what the `coldStartFetched` effect
-     * above already watches, so THAT is the one fetch-if-needed call, the
-     * same one the ordinary cold start reaches it through. Calling
-     * `requestCourses` here too would fire it twice for one click.
+     * The startup-outage screen's second action. Only flips the flag: the
+     * `coldStartFetched` effect above already watches `showCourseChooser`, so
+     * calling `requestCourses` here too would fetch twice for one click.
      */
     const handleChooseCourseFromOutage = () => {
         setOutageChooserRequested(true);
@@ -788,7 +728,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     // Disabled banner = strictly off (instructor disabled, .noai). The
     // unavailable banner (yellow, retry-able) is rendered separately below.
-    // When both states are non-null, the disabled banner wins — it carries
+    // When both states are non-null, the disabled banner wins: it carries
     // strictly more information.
     let disabledBannerText: string | null = null;
     if (store.disabledMessage) {
@@ -808,11 +748,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         (m) => m.role === 'user' && m.status === 'error' && m.errorReason === 'iris-unavailable',
     );
 
-    // Compute disabled placeholder for input. Order matters: real
-    // unavailability ('no context', '.noai', explicit disabled, transient
-    // unavailable) wins over the 'loading' state — we only fall through to
-    // 'Loading…' when the chat is otherwise usable but still waiting for
-    // hydration.
+    // Order matters: real unavailability ('no context', '.noai', explicit
+    // disabled, transient unavailable) wins over the 'loading' state. 'Loading…'
+    // is only reached when the chat is otherwise usable but still hydrating.
     let disabledPlaceholder: string | undefined;
     if (store.disabledMessage) {
         // Ahead of the no-conversation case on purpose. Entering a course whose
@@ -849,9 +787,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         store.hasReceivedInitialIrisState
         && (!hasConversation || store.loadedSessionId === store.currentSessionId);
     // Availability failures (disabled / temporarily unavailable) are NOT
-    // "history failed to load" — gate the loader on them so the spinner
-    // does not spin forever next to a banner that already states the
-    // problem. Fixes the #219 stuck-loader symptom.
+    // "history failed to load". Gate the loader on them so the spinner does not
+    // spin forever next to a banner that already states the problem.
     const isChatUnavailable = store.unavailableMessage !== null;
     const messagesLoading =
         !messagesHydrated
@@ -862,10 +799,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     return (
         <div className={styles.container}>
-            {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
-                    {/* Iris logo */}
                     <img
                         src={irisLogoUri}
                         alt=""
@@ -876,7 +811,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <h1 className={styles.title}>Chat with Iris</h1>
                 </div>
 
-                {/* Hamburger menu */}
                 <div className={styles.headerRight} ref={sideMenuRef}>
                     <button
                         className={styles.menuButton}
@@ -922,12 +856,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             </div>
 
-            {/* Header: course line + conversation line. The popovers are
-                anchored to this section (position: relative) so they render
-                directly beneath the header. Suppressed on the cold start (no
-                course to name) AND while detection is pending/unavailable
-                (the header falls back to "Choose a course", which is not
-                true yet, or not true at all, in either of those states). */}
+            {/* Course line + conversation line. The popovers are anchored to
+                this section (position: relative) so they render directly
+                beneath the header. Suppressed on the cold start (no course to
+                name) and while detection is pending/unavailable (the header
+                would fall back to "Choose a course", which is not true there). */}
             {!isColdStart && !suppressOrdinaryShell && (
             <div className={styles.contextSection}>
                 <ChatHeader
@@ -967,14 +900,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         currentSessionId={store.currentSessionId}
                         openError={store.openSessionError}
                         onOpen={(conversation) => {
-                            // Id-based, so it never consults the topic index:
-                            // a lecture or text-exercise conversation is
-                            // openable even though it can never be a topic.
+                            // Id-based, so it never consults the topic index: a
+                            // lecture or text-exercise conversation is openable
+                            // even though it can never be a topic.
                             //
                             // Deliberately does NOT close the popover: an open
                             // that fails posts `openSessionError`, which needs a
-                            // visible destination. The effect above closes it
-                            // once the conversation actually changes.
+                            // visible destination.
                             postCommand(vscodeApi, 'openConversation', {
                                 courseId: conversation.courseId,
                                 sessionId: conversation.sessionId,
@@ -990,7 +922,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             </div>
             )}
 
-            {/* Disabled banner (Iris not available or .noai detected) */}
             {disabledBannerText && (
                 <div className={styles.disabledBanner}>
                     <Info size={16} />
@@ -998,23 +929,19 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* Iris-availability transient banner: the chat couldn't reach
-                Iris (network/5xx/timeout). The Retry button triggers
-                ReloadChatSession on the extension side, which re-reads the
-                open conversation from the server. It is the only path back:
-                a websocket reconnect repairs the SUBSCRIPTION and reconciles
-                the transcript, but it does not re-run the availability
+            {/* Transient banner: the chat couldn't reach Iris
+                (network/5xx/timeout). Retry triggers ReloadChatSession, which
+                re-reads the open conversation from the server. It is the only
+                path back: a websocket reconnect repairs the SUBSCRIPTION and
+                reconciles the transcript, but never re-runs the availability
                 check. */}
             {showUnavailableBanner && (
                 <div className={styles.unavailableBanner} role="alert">
                     <Info size={16} />
                     <span>{store.unavailableMessage}</span>
                     {/* Only when nothing else offers one. A failed message's own
-                        Retry reloads too, and two of them at once, pointing at
-                        the same reload, is what made the greyed-out one look
-                        broken. Without any failed message this is the only way
-                        back: a websocket reconnect repairs the subscription but
-                        never re-runs the availability check. */}
+                        Retry reloads too, and two Retry buttons pointing at the
+                        same reload read as one of them being broken. */}
                     {!hasRetryableMessage && (
                         <button
                             className={styles.retryButton}
@@ -1026,15 +953,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* WebSocket status banner: shown when the connection is in a
-                terminal state the user must act on (retries exhausted, or
-                client torn down without a pending retry). Transient states
-                ('connecting', 'reconnecting') and the pre-init 'unknown'
-                state suppress the banner — the status bar already surfaces
-                that detail. Also suppressed when the unavailable banner is
-                shown: its Retry button is the right affordance and surfacing
-                a second Reconnect button would give the user two competing
-                recovery paths for the same underlying problem. */}
+            {/* Shown only when the connection is in a terminal state the user
+                must act on (retries exhausted, or client torn down without a
+                pending retry). Transient states ('connecting', 'reconnecting')
+                and the pre-init 'unknown' state suppress the banner; the status
+                bar already surfaces that detail. Also suppressed under the
+                unavailable banner, whose Retry is the right affordance: a second
+                Reconnect button offers a competing recovery path for the same
+                problem. */}
             {store.webSocketStatus === 'disconnected' && !isChatDisabled && !showUnavailableBanner && (
                 <div className={styles.websocketBanner}>
                     <span>WebSocket disconnected</span>
@@ -1050,11 +976,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             {/* Message list with hydration loader. Hierarchy: disabled (nothing
                 to show) > loader (pending hydration) > populated/welcome list.
                 `unavailable` deliberately does NOT gate the list: it is the
-                transient state, offered with a Retry, and the messages are
-                still here. Blanking them threw away what the student was
-                reading because the server hiccupped, while the header went on
-                counting them. Only a course with Iris switched off genuinely
-                has no conversation behind the banner. */}
+                transient state, offered with a Retry, and the messages are still
+                here. Blanking them would discard what the student is reading
+                over a server hiccup while the header goes on counting them. */}
             <div className={styles.messagesSection}>
                 {showCourseChooser ? (
                     <div className={styles.coldStart}>
@@ -1098,28 +1022,21 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     </div>
                 ) : detectionUnavailable ? (
                     // Detection could not reach the server. Reuses the cold
-                    // start's layout (a short explanation plus an action),
-                    // but the primary action re-runs detection rather than
-                    // opening the course chooser directly: there may be no
-                    // course to choose. A SECOND action escapes this screen
-                    // even when detection cannot: the same failure (e.g. an
-                    // archived-courses lookup that keeps throwing) can repeat
-                    // on every retry, and the student's courses may already
-                    // be sitting in the store from an earlier dashboard
-                    // fetch. Without it, Retry would be the only way out and
-                    // this screen would be a dead end.
+                    // start's layout, but the primary action re-runs detection
+                    // rather than opening the course chooser: there may be no
+                    // course to choose. The second action escapes this screen
+                    // even when detection cannot, so Retry failing forever is
+                    // not a dead end.
                     <div className={styles.coldStart}>
                         <p className={styles.coldStartText}>
                             {/*
-                              * Names the failure, not its cause. Three things
-                              * reach this screen: a dashboard or archive lookup
-                              * that threw, an identity lookup the server could
-                              * not answer, and a stored credential the keychain
-                              * could not read. The last one is local, so
-                              * blaming the server was simply wrong there. What
-                              * the wording must still keep is the difference
-                              * from a `no-match`: this says the attempt failed,
-                              * never that this folder is not an exercise.
+                              * Names the failure, not its cause: a dashboard or
+                              * archive lookup that threw, an identity lookup the
+                              * server could not answer, or a stored credential
+                              * the keychain could not read (that one is local,
+                              * so the wording must not blame the server). It
+                              * must still differ from a `no-match`: the attempt
+                              * failed, not "this folder is not an exercise".
                               */}
                             Detecting your Artemis exercise failed. This is usually temporary.
                         </p>
@@ -1174,27 +1091,23 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 )}
             </div>
 
-            {/* Input section */}
             <div className={styles.inputSection}>
-                {/* Referenced files */}
                 <ReferencedFiles
                     files={store.referencedFiles}
                     onOpenFile={handleOpenFile}
                 />
 
-                {/* One muted line above the composer. Actionless in PR 1. */}
                 <ChatNotice
                     notice={store.notice}
                     currentSessionId={store.currentSessionId}
                     onExpire={() => useChatStore.setState({ notice: null })}
                 />
 
-                {/* The topic lives here, on the composer, not in the header:
-                    it is what the next message is about, so it belongs beside
-                    the thing that writes that message. Suppressed for the same
-                    reason the header is: with no course open yet (or not
-                    genuinely, in the pending/unavailable states) there is
-                    nothing for it to name. */}
+                {/* The topic lives on the composer, not in the header: it is
+                    what the next message is about, so it belongs beside the
+                    thing that writes that message. Suppressed for the same
+                    reason the header is: with no course open there is nothing
+                    for it to name. */}
                 {!isColdStart && !suppressOrdinaryShell && (
                     <div className={styles.topicRow}>
                         <button
@@ -1261,7 +1174,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     }
                 />
 
-                {/* Disclaimer */}
                 <div className={styles.disclaimer}>
                     Iris has access to your uncommitted changes (
                     <button

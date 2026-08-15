@@ -36,7 +36,6 @@ describe('Course Navigation Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<CourseListView vscodeApi={mockApi} />);
 
-			// INBOUND: simulate course data from extension
 			dispatchExtensionMessage({
 				type: 'courseListInit',
 				courses: [
@@ -56,7 +55,6 @@ describe('Course Navigation Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<CourseListView vscodeApi={mockApi} />);
 
-			// Load courses via message
 			dispatchExtensionMessage({
 				type: 'courseListInit',
 				courses: [makeCourseDetailData({ id: 10, title: 'Software Engineering', semester: 'SS25' })],
@@ -66,10 +64,8 @@ describe('Course Navigation Flow', () => {
 				expect(screen.getByText('Software Engineering')).toBeInTheDocument();
 			});
 
-			// Click on a course
 			await user.click(screen.getByText('Software Engineering'));
 
-			// OUTBOUND: verify viewCourseDetails postMessage sent with course data
 			expect(mockApi.postMessage).toHaveBeenCalledWith(
 				expect.objectContaining({
 					type: 'command',
@@ -95,7 +91,6 @@ describe('Course Navigation Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<CourseDetailView vscodeApi={mockApi} />);
 
-			// INBOUND: simulate course detail data from extension
 			dispatchExtensionMessage({
 				type: 'courseDetailInit',
 				courseData: {
@@ -124,7 +119,6 @@ describe('Course Navigation Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<CourseDetailView vscodeApi={mockApi} />);
 
-			// Load course detail
 			dispatchExtensionMessage({
 				type: 'courseDetailInit',
 				courseData: {
@@ -143,10 +137,8 @@ describe('Course Navigation Flow', () => {
 				expect(screen.getByText('Unique Exercise Title')).toBeInTheDocument();
 			});
 
-			// Click on the exercise
 			await user.click(screen.getByText('Unique Exercise Title'));
 
-			// OUTBOUND: verify openExerciseDetails postMessage with exerciseId
 			expect(mockApi.postMessage).toHaveBeenCalledWith(
 				expect.objectContaining({
 					type: 'command',

@@ -199,7 +199,6 @@ suite('Panel hide/show state persistence', () => {
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
 
-        // Stub hasAuthToken to return true (authenticated state) by default
         sandbox.stub(mockAuthManager, 'hasAuthToken').resolves(true);
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
@@ -228,12 +227,10 @@ suite('Panel hide/show state persistence', () => {
         spyWebview = new SpyWebview();
         controllableView = new ControllableWebviewView(spyWebview);
 
-        // Wire up the provider
         await provider.resolveWebviewView(controllableView, {} as any, {} as any);
 
-        // Simulate the React webview sending the 'ready' signal so _webviewReady = true
+        // The React webview's 'ready' signal is what sets _webviewReady.
         spyWebview.simulateMessage({ type: 'ready' });
-        // Flush microtasks
         await Promise.resolve();
     });
 
@@ -255,7 +252,6 @@ suite('Panel hide/show state persistence', () => {
     test('sendInitData is called when panel becomes visible', async () => {
         const resendSpy = sandbox.spy(provider, 'sendInitData');
 
-        // Hide first, then show
         controllableView.simulateHide();
         await Promise.resolve();
         controllableView.simulateShow();
@@ -276,17 +272,14 @@ suite('Panel hide/show state persistence', () => {
     });
 
     test('_webviewReady stays true across hide/show (retainContextWhenHidden behavior)', async () => {
-        // After setup, _webviewReady should be true from the ready signal
         assert.strictEqual((provider as any)._webviewReady, true, '_webviewReady should be true after ready signal');
 
-        // Hide and show the panel
         controllableView.simulateHide();
         await Promise.resolve();
         controllableView.simulateShow();
         await Promise.resolve();
         await Promise.resolve();
 
-        // _webviewReady must NOT be reset during hide/show
         assert.strictEqual((provider as any)._webviewReady, true, '_webviewReady should remain true after hide/show');
     });
 
@@ -294,16 +287,14 @@ suite('Panel hide/show state persistence', () => {
         // Clear messages captured during setup
         spyWebview.sentMessages = [];
 
-        // Hide and show panel
         controllableView.simulateHide();
         await Promise.resolve();
         controllableView.simulateShow();
         await Promise.resolve();
         await Promise.resolve();
 
-        // The sendInitData call should post a message directly (not queue it)
-        // In the default 'login' state sendInitData does nothing, so we need to
-        // set state to dashboard first and provide minimal courses data
+        // sendInitData does nothing in the default 'login' state, so the state
+        // and a minimal courses payload have to be set first.
         (provider as any)._appStateManager._currentState = 'dashboard';
         (provider as any)._appStateManager._coursesData = { courses: [] };
 
@@ -312,7 +303,6 @@ suite('Panel hide/show state persistence', () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        // A dashboardInit message should be posted directly (not queued in _pendingMessages)
         const dashboardMsg = spyWebview.sentMessages.find((m: any) => m.type === 'dashboardInit');
         assert.ok(dashboardMsg, 'dashboardInit message should be sent directly to webview (not queued)');
         assert.strictEqual((provider as any)._pendingMessages.length, 0, 'no messages should be queued');

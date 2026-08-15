@@ -12,8 +12,8 @@ function makeSession(events: RecordedEvent[]): LoadedSession {
 
 describe('SessionInfo event breakdown', () => {
     it('lists every event type, active ones first (curated order) then empty ones', () => {
-        // sessionStart is index 0 of ALL_EVENT_TYPES, save is later — so active
-        // order should be [sessionStart, save] regardless of count.
+        // sessionStart is index 0 of ALL_EVENT_TYPES and save comes later, so the
+        // active order is [sessionStart, save] regardless of count.
         const events = [
             ev('sessionStart', 1),
             ev('save', 2),

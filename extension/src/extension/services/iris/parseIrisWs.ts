@@ -1,16 +1,13 @@
 /**
- * Light-touch runtime guards for Iris WebSocket payloads (#183 part B).
+ * Light-touch runtime guards for Iris WebSocket payloads.
  *
  * Deliberately less strict than the replay-surface parsers in
- * `recording/parseRecordedData.ts`: live WS frames go straight into the
- * UI (chat panel, status indicator), so a wrong-shaped frame just causes
- * a missing render — there's no downstream replay aggregation to corrupt.
- * The guards therefore check the minimum needed to safely call the
- * payload an `IrisWebSocketMessage`:
- *   - object shape (not null, not array, not primitive)
- *
- * Everything else stays as a permissive `[key: string]: unknown` lookup
- * at the call site — matching how live WS data is consumed elsewhere.
+ * `recording/parseRecordedData.ts`: live WS frames go straight into the UI
+ * (chat panel, status indicator), so a wrong-shaped frame only causes a
+ * missing render, with no downstream replay aggregation to corrupt. The guards
+ * check object shape (not null, not array, not primitive) and nothing else;
+ * every key stays a permissive `[key: string]: unknown` lookup at the call
+ * site.
  */
 
 import type { IrisActivityDTO, IrisChatMessage, IrisRunState } from '@extension/types';
@@ -33,9 +30,9 @@ export type IrisWebSocketMessage = Record<string, unknown> & {
 };
 
 /**
- * True if `data` looks like an object IrisWebSocketMessage payload — i.e.
- * non-null, non-array, non-primitive. Per-key shape (`type`, `message`,
- * etc.) is still permissive and validated downstream by the handler.
+ * True if `data` looks like an object IrisWebSocketMessage payload: non-null,
+ * non-array, non-primitive. Per-key shape (`type`, `message`, etc.) stays
+ * permissive and is validated downstream by the handler.
  */
 export function isIrisWebSocketMessage(data: unknown): data is IrisWebSocketMessage {
     return data !== null && typeof data === 'object' && !Array.isArray(data);

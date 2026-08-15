@@ -1,5 +1,5 @@
 /**
- * Unit tests for SessionRecorder — Block AB+E
+ * Unit tests for SessionRecorder (Block AB+E)
  *
  * Covers the lifecycle FSM, commit boundary, generation token, startup
  * contributors, initial-state events, and consent-downgrade semantics.
@@ -7,7 +7,7 @@
  * Tests drive the real SessionRecorder class with an injected
  * RecordingStorageWriter backed by a controllable in-memory fake fs. VS Code
  * listeners that fire during startup (`visibleTextEditors`, `terminals`,
- * `activeTextEditor`) are read from the real `vscode` namespace — the tests
+ * `activeTextEditor`) are read from the real `vscode` namespace. The tests
  * make no assumptions about what is open at test time and assert only on the
  * presence/ordering of marker events and lifecycle-relevant pieces of the
  * stream.
@@ -31,7 +31,7 @@ import type {
  * ObservationRegistry the SessionRecorder composes. Tests need to seed
  * these maps to exercise discard/flush paths without waiting for real
  * debounce timers to fire. Centralized so the unsafe cast lives in one
- * place — and so the test's coupling to internal field names is honest.
+ * place.
  */
 function pendingDebounceMaps(recorder: SessionRecorder): {
     _pendingSelectionPayloads: Map<string, RecordedEvent>;
@@ -42,8 +42,6 @@ function pendingDebounceMaps(recorder: SessionRecorder): {
         _pendingVisibleRangePayloads: Map<string, RecordedEvent>;
     } })._observation;
 }
-
-// ── Fake FS with full pause-control ───────────────────────────────────────
 
 /**
  * In-memory RecordingFs with pause-on-demand for mkdir, writeFile and
@@ -128,8 +126,6 @@ class FakeFs implements RecordingFs {
     }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────
-
 function collectWrittenEvents(fakeFs: FakeFs): RecordedEvent[] {
     const events: RecordedEvent[] = [];
     for (const chunk of fakeFs.appendedChunks) {
@@ -167,8 +163,6 @@ function makeRecorder(): { recorder: SessionRecorder; fs: FakeFs } {
     return { recorder, fs };
 }
 
-// ── Suite ────────────────────────────────────────────────────────────────
-
 suite('SessionRecorder (Block AB+E)', () => {
     let recorder: SessionRecorder;
     let fs: FakeFs;
@@ -182,8 +176,6 @@ suite('SessionRecorder (Block AB+E)', () => {
     teardown(async () => {
         try { await recorder.shutdown(); } catch { /* ignore */ }
     });
-
-    // ── Test: Basic start sequence ────────────────────────────────────────
 
     test('startSession emits sessionStart, initial-state, startupPhaseComplete in order', async () => {
         recorder.enable();
@@ -206,8 +198,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.strictEqual(start.schemaVersion, 3);
     });
 
-    // ── Test: sessionEnd is strictly the last event ───────────────────────
-
     test('sessionEnd is strictly the last event in the stream', async () => {
         recorder.enable();
         await recorder.startSession(1);
@@ -218,8 +208,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         const events = collectWrittenEvents(fs);
         assert.strictEqual(events[events.length - 1].type, 'sessionEnd');
     });
-
-    // ── Test: Public record methods drop events after disable ─────────────
 
     test('disable() immediately blocks further record() calls', async () => {
         recorder.enable();
@@ -238,8 +226,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         const chatMsgs = events.filter(e => e.type === 'irisChatMessage');
         assert.strictEqual(chatMsgs.length, 0, 'no chat messages should reach disk after disable()');
     });
-
-    // ── Test: post-commit disable produces consentChange + sessionEnd ─────
 
     test('post-commit disable emits consentChange then sessionEnd, no startupPhaseComplete-after-consentChange', async () => {
         recorder.enable();
@@ -266,12 +252,9 @@ suite('SessionRecorder (Block AB+E)', () => {
             'startupPhaseComplete must not appear after consentChange');
     });
 
-    // ── Test: multi-generation coalescing ─────────────────────────────────
-
     test('three rapid startSession(A,B,C) calls produce at most one sessionStart per exercise', async () => {
         recorder.enable();
 
-        // Fire three starts without awaiting the first two.
         const a = recorder.startSession(100);
         const b = recorder.startSession(101);
         const c = recorder.startSession(102);
@@ -290,7 +273,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.ok(committedExerciseIds.includes(102),
             `expected exerciseId 102 to commit, got ${JSON.stringify(committedExerciseIds)}`);
 
-        // At most one sessionStart per exerciseId.
         const uniqueIds = new Set(committedExerciseIds);
         assert.strictEqual(uniqueIds.size, committedExerciseIds.length, 'no duplicate sessionStart per exercise');
 
@@ -299,8 +281,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.strictEqual(sessionEnds.length, sessionStarts.length,
             `expected ${sessionStarts.length} sessionEnd(s), got ${sessionEnds.length}`);
     });
-
-    // ── Test: startSession after disable() is a no-op ─────────────────────
 
     test('startSession() after disable() does not start a new session', async () => {
         recorder.enable();
@@ -315,8 +295,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         const sessionStarts = events.filter(e => e.type === 'sessionStart');
         assert.strictEqual(sessionStarts.length, 0, 'no session should have started after disable()');
     });
-
-    // ── Test: Startup contributors emit between sessionStart and startupPhaseComplete ──
 
     test('registered startup contributor events appear between sessionStart and startupPhaseComplete', async () => {
         recorder.enable();
@@ -346,8 +324,6 @@ suite('SessionRecorder (Block AB+E)', () => {
             `contributor event must be between sessionStart(${startIdx}) and startupPhaseComplete(${completeIdx}), got index ${markerIdx}`);
     });
 
-    // ── Test: metadata.eventCount matches lines written ──────────────────
-
     test('metadata.eventCount equals number of events in events.jsonl', async () => {
         recorder.enable();
         await recorder.startSession(77);
@@ -358,7 +334,6 @@ suite('SessionRecorder (Block AB+E)', () => {
 
         const events = collectWrittenEvents(fs);
 
-        // Find the last metadata write.
         const metadataWrite = [...fs.writtenFiles].reverse().find(f => f.path.endsWith('metadata.json'));
         assert.ok(metadataWrite, 'metadata.json was not written');
         const metadata = JSON.parse(metadataWrite.data) as { eventCount: number };
@@ -367,15 +342,11 @@ suite('SessionRecorder (Block AB+E)', () => {
             `metadata.eventCount=${metadata.eventCount} but JSONL has ${events.length} events`);
     });
 
-    // ── Test: initial metadata.json is written at session start ──────────
-
     test('initial metadata.json is written at session start with endTime: null', async () => {
         recorder.enable();
         await recorder.startSession(77);
 
-        // The first metadata write should happen during startSession, before
-        // endSession is called. Find it without ending the session.
-        // Allow the lane work to drain so the write actually hits the fake fs.
+        // Allow the lane work to drain so the initial write reaches the fake fs.
         await new Promise(resolve => setTimeout(resolve, 20));
 
         const firstMetadataWrite = fs.writtenFiles.find(f => f.path.endsWith('metadata.json'));
@@ -411,8 +382,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.ok(metadata.eventCount > 0, 'final eventCount should reflect recorded events');
     });
 
-    // ── Test: lifecycle.recordInternal phase gating (via public surface) ──────────
-
     test('record() after session ends but before new session starts is a no-op', async () => {
         recorder.enable();
         await recorder.startSession(1);
@@ -428,22 +397,18 @@ suite('SessionRecorder (Block AB+E)', () => {
             'no events should be written between sessions');
     });
 
-    // ── Test: enable()/disable() is idempotent ───────────────────────────
-
     test('enable() after enable() is a no-op', () => {
         recorder.enable();
         assert.strictEqual(recorder.isEnabled, true);
-        recorder.enable(); // should not throw
+        recorder.enable();
         assert.strictEqual(recorder.isEnabled, true);
     });
 
     test('disable() after disable() is a no-op', () => {
         recorder.enable();
         recorder.disable();
-        recorder.disable(); // should not throw
+        recorder.disable();
     });
-
-    // ── Test: Pre-commit disable (paused initSession) aborts cleanly ─────
 
     test('disable() during paused initSession aborts without writing sessionStart', async () => {
         recorder.enable();
@@ -462,7 +427,7 @@ suite('SessionRecorder (Block AB+E)', () => {
         recorder.disable();
 
         // Release the paused writeFile so _doStart advances to its pre-commit
-        // re-check — which must abort (no sessionStart written).
+        // re-check, which must abort (no sessionStart written).
         fs.releaseWriteFile();
 
         // Await the start call (no-ops after abort) and the disable lifecycle.
@@ -484,8 +449,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.ok(fs.removedPaths.length > 0, 'writer.abort() should have removed the session dir');
     });
 
-    // ── Test: consent downgrade discards pending debounces (via disable) ──
-
     test('consent-downgrade path does not re-emit startupPhaseComplete', async () => {
         recorder.enable();
         await recorder.startSession(5);
@@ -502,8 +465,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.strictEqual(completeCount, 1,
             `expected exactly one startupPhaseComplete, got ${completeCount}`);
     });
-
-    // ── Test: dispose drains buffered events ─────────────────────────────
 
     test('dispose() with buffered events flushes everything before resolving', async () => {
         recorder.enable();
@@ -525,8 +486,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         const types = events.map(e => e.type);
         assert.ok(types.includes('sessionEnd'), 'dispose() should end the active session');
     });
-
-    // ── Test: Generation token monotonicity (regression for reuse bug) ────
 
     test('disable → re-enable → start uses strictly larger generation (no reuse)', async () => {
         recorder.enable();
@@ -560,20 +519,12 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.ok(uniqueDirs.size >= 2, 'expected at least 2 session directories');
     });
 
-    // ── Test: stale contributor from a previous generation is ignored ───
-
     test('stale contributor that outlives its session does not leak events into a later one', async () => {
         recorder.enable();
 
-        // A "misbehaving" contributor that caches the ctx and re-fires events
-        // for a previous session. We exercise the generation gate explicitly
-        // by calling recordViewNavigation() from inside the contributor,
-        // which uses _currentGeneration at call-time — in the current (good)
-        // implementation that is always the live generation, so this test
-        // really just anchors the monotonic-generation invariant: the pre-
-        // `-1` bug would have produced a `viewNavigation` event from
-        // generation 0 inside session 2's stream after a disable + re-enable
-        // cycle because _currentGeneration would also have been 0.
+        // Anchors the monotonic-generation invariant: the contributor fires
+        // exactly once per committed session and never leaks events from an
+        // earlier generation into a later session.
         let firedCount = 0;
         recorder.registerStartupContributor(() => {
             firedCount++;
@@ -588,10 +539,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         await recorder.startSession(11);
         await recorder.endSession();
 
-        // Contributor fired once per committed session — not more, not less.
         assert.strictEqual(firedCount, 2, `contributor fired ${firedCount} times, expected 2`);
 
-        // Both committed sessions exist, and each one is balanced.
         const events = collectWrittenEvents(fs);
         const starts = events.filter(e => e.type === 'sessionStart');
         const ends = events.filter(e => e.type === 'sessionEnd');
@@ -603,8 +552,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         const startsTyped = starts as Array<{ exerciseId: number }>;
         assert.deepStrictEqual(startsTyped.map(s => s.exerciseId), [10, 11]);
     });
-
-    // ── Test: consent-downgrade discards pending debounce payloads ──────
 
     test('consent-downgrade discards pending debounce payloads instead of flushing them', async () => {
         recorder.enable();
@@ -623,32 +570,27 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
         pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(fakeUri, pendingPayload);
 
-        // Revoke consent — _doDisable must DISCARD, not flush, the pending payload.
+        // Revoke consent: _doDisable must discard, not flush, the pending payload.
         recorder.disable();
         await new Promise(resolve => setTimeout(resolve, 30));
 
         const events = collectWrittenEvents(fs);
         const types = events.map(e => e.type);
 
-        // The pending selectionChange must NOT appear in the stream.
         const selectionEvents = events.filter(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === fakeUri);
         assert.strictEqual(selectionEvents.length, 0,
             'pending debounce payload must be discarded (not flushed) on consent downgrade');
 
-        // The stream must still end with consentChange then sessionEnd.
         const consentIdx = types.lastIndexOf('consentChange');
         const endIdx = types.lastIndexOf('sessionEnd');
         assert.ok(consentIdx >= 0, 'consentChange must appear in the stream');
         assert.ok(endIdx > consentIdx, 'sessionEnd must come after consentChange');
 
-        // The recorder must have cleared all pending payloads.
         assert.strictEqual(pendingDebounceMaps(recorder)._pendingSelectionPayloads.size, 0,
             '_pendingSelectionPayloads must be empty after disable()');
         assert.strictEqual(pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.size, 0,
             '_pendingVisibleRangePayloads must be empty after disable()');
     });
-
-    // ── Test: record methods without recording phase are no-ops ──────────
 
     test('recordPanelVisibility is a no-op when no session is active', async () => {
         recorder.enable();
@@ -662,8 +604,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.strictEqual(panelEvents.length, 0,
             'panelVisibility before startSession must not be recorded');
     });
-
-    // ── Test: recordSubmission stamps exerciseId and respects recording phase ──
 
     test('recordSubmission stamps exerciseId from the active session and records the payload', async () => {
         recorder.enable();
@@ -681,10 +621,8 @@ suite('SessionRecorder (Block AB+E)', () => {
     });
 
     test('recordSubmission is dropped when not recording', async () => {
-        // Recorder is enabled but no session has started, so the phase is not
-        // 'recording' and _record must short-circuit. Mirroring the
-        // recordPanelVisibility no-op test, we prove nothing was written by
-        // inspecting the actual event stream, not just the trivial eventCount.
+        // Enabled but no session has started, so the phase is not 'recording'
+        // and _record short-circuits.
         recorder.enable();
 
         recorder.recordSubmission({ status: 'failed', participationId: 1, failureReason: 'push-failed' });
@@ -696,8 +634,6 @@ suite('SessionRecorder (Block AB+E)', () => {
             'submission before startSession must not be recorded');
         assert.strictEqual(recorder.eventCount, 0);
     });
-
-    // ── Block J: Per-URI debounce tests ───────────────────────────────────
 
     test('Block J — alternating selections on two URIs both appear in stream (no overwrite)', async () => {
         recorder.enable();
@@ -725,7 +661,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uriA, payloadA);
         pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uriB, payloadB);
 
-        // Flush on session end must emit both.
         await recorder.endSession();
 
         const events = collectWrittenEvents(fs);
@@ -752,11 +687,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         // Prime the pending map as if the event listener serialized at trigger time.
         pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, triggerTimePayload);
 
-        // Simulate a post-trigger state change: the map now holds a DIFFERENT payload
-        // for the same URI — but we captured triggerTimePayload already, so the
-        // timer closure (which holds a reference to triggerTimePayload) will compare
-        // correctly. The debounce timer has not been set in this white-box test,
-        // so endSession() is the flush path we exercise here.
+        // No debounce timer is set in this whitebox test, so endSession() is the
+        // flush path under test.
         await recorder.endSession();
 
         const events = collectWrittenEvents(fs);
@@ -810,7 +742,7 @@ suite('SessionRecorder (Block AB+E)', () => {
 
         pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
 
-        // Consent revoked — pending payload must be discarded (Option A).
+        // Consent revoked: the pending payload must be discarded, not flushed.
         recorder.disable();
         await new Promise(resolve => setTimeout(resolve, 30));
 
@@ -826,7 +758,7 @@ suite('SessionRecorder (Block AB+E)', () => {
 
         const uri = 'file:///proj/F.java';
 
-        // Simulate five rapid triggers on the same URI — only the last should remain pending.
+        // Five rapid triggers on the same URI; only the last stays pending.
         for (let i = 0; i < 5; i++) {
             const payload: RecordedEvent = {
                 type: 'selectionChange',
@@ -838,7 +770,6 @@ suite('SessionRecorder (Block AB+E)', () => {
             pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
         }
 
-        // After rapid triggers the map must still have exactly one entry for this URI.
         assert.strictEqual(
             pendingDebounceMaps(recorder)._pendingSelectionPayloads.size,
             1,
@@ -877,7 +808,6 @@ suite('SessionRecorder (Block AB+E)', () => {
         pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uriA, payloadA);
         pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uriB, payloadB);
 
-        // Flush on session end must emit both.
         await recorder.endSession();
 
         const events = collectWrittenEvents(fs);
@@ -902,7 +832,7 @@ suite('SessionRecorder (Block AB+E)', () => {
 
         pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uri, payload);
 
-        // Consent revoked — pending payload must be discarded (Option A).
+        // Consent revoked: the pending payload must be discarded, not flushed.
         recorder.disable();
         await new Promise(resolve => setTimeout(resolve, 30));
 
@@ -942,11 +872,7 @@ suite('SessionRecorder — configuration provenance', () => {
     });
 });
 
-// ── Characterization tests: normal-end vs consent-downgrade finalization ──
-
 suite('SessionRecorder finalization path characterization', () => {
-
-    // ── Test A: metadata is equally well-formed for both finalization paths ──
 
     test('Test A1: normal endSession produces well-formed metadata and sessionEnd as last event', async () => {
         const { recorder, fs } = makeRecorder();
@@ -959,11 +885,9 @@ suite('SessionRecorder finalization path characterization', () => {
 
         const events = collectWrittenEvents(fs);
 
-        // Final JSONL line must be sessionEnd.
         assert.strictEqual(events[events.length - 1].type, 'sessionEnd',
             'last event must be sessionEnd for normal endSession path');
 
-        // Exactly one metadata write with non-null endTime.
         const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
         const finalizedMetaWrites = metadataWrites.filter(w => {
             const parsed = JSON.parse(w.data) as { endTime: number | null };
@@ -1000,11 +924,9 @@ suite('SessionRecorder finalization path characterization', () => {
 
         const events = collectWrittenEvents(fs);
 
-        // Final JSONL line must be sessionEnd.
         assert.strictEqual(events[events.length - 1].type, 'sessionEnd',
             'last event must be sessionEnd for consent-downgrade path');
 
-        // Exactly one metadata write with non-null endTime (the final write).
         const metadataWrites = fs.writtenFiles.filter(f => f.path.endsWith('metadata.json'));
         const finalizedMetaWrites = metadataWrites.filter(w => {
             const parsed = JSON.parse(w.data) as { endTime: number | null };
@@ -1026,8 +948,6 @@ suite('SessionRecorder finalization path characterization', () => {
 
         try { await recorder.shutdown(); } catch { /* ignore */ }
     });
-
-    // ── Test B: flush vs discard for pending debounce payloads ──────────
 
     test('Test B: endSession flushes pending debounce; disable discards it', async () => {
         const fakeUri = 'file:///proj/CharTest.java';
@@ -1075,15 +995,12 @@ suite('SessionRecorder finalization path characterization', () => {
         assert.strictEqual(s2SelEvents.length, 0,
             `disable must discard pending selectionChange (it appeared in the stream). types=${s2Types.join(',')}`);
 
-        // The stream must still contain consentChange then sessionEnd.
         const s2ConsentIdx = s2Types.lastIndexOf('consentChange');
         const s2EndIdx = s2Types.lastIndexOf('sessionEnd');
         assert.ok(s2ConsentIdx >= 0, 'consentChange must appear after disable()');
         assert.ok(s2EndIdx > s2ConsentIdx, 'sessionEnd must come after consentChange');
         try { await s2.recorder.shutdown(); } catch { /* ignore */ }
     });
-
-    // ── Test C: recorder can start a new session cleanly after both paths ──
 
     test('Test C1: two sequential endSession calls produce correct isolated streams', async () => {
         const { recorder, fs } = makeRecorder();
@@ -1109,7 +1026,6 @@ suite('SessionRecorder finalization path characterization', () => {
         assert.strictEqual(ends.length, 2, 'two sessionEnd events');
         assert.strictEqual(consents.length, 0, 'no consentChange events on normal end path');
 
-        // Verify ordering: each sessionStart precedes the next sessionEnd.
         const start30Idx = events.findIndex(e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 30);
         const end30Idx = events.findIndex(e => e.type === 'sessionEnd');
         const start31Idx = events.findIndex(e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 31);
@@ -1145,7 +1061,6 @@ suite('SessionRecorder finalization path characterization', () => {
         assert.strictEqual(ends.length, 2, 'two sessionEnd events, one per session');
         assert.strictEqual(consents.length, 1, 'exactly one consentChange from the disable that ended session 40');
 
-        // The consentChange must appear between the two sessions.
         const start40Idx = events.findIndex(
             e => e.type === 'sessionStart' && (e as { exerciseId?: number }).exerciseId === 40,
         );

@@ -1,20 +1,8 @@
 /**
- * Unit tests for parseRecordedEvent + parseSessionMetadata (#183).
- *
  * The recording replay path reads untrusted on-disk data (metadata.json,
- * events.jsonl). Pre-fix it was cast directly to the typed shape, masking
- * schema drift. The validators are strict per-variant on RecordedEvent so
- * adding a new event type requires touching both the type declaration and
- * the parser case (deliberate review affordance).
- *
- * Test strategy:
- *   - Happy-path roundtrip per variant: build an object literal that matches
- *     the declared type, parse it, assert deep-equal back.
- *   - Reject malformed input at the dispatcher level (non-object, wrong
- *     `type`, missing `timestamp`).
- *   - Reject malformed input at the per-variant level for each shape that
- *     has a "tricky" required field (literal unions, secondary discriminator
- *     on view events, nested arrays, etc.).
+ * events.jsonl). The validators are strict per-variant on RecordedEvent, so
+ * adding a new event type requires touching both the type declaration and the
+ * parser case (a deliberate review affordance).
  */
 
 import * as assert from 'assert';
@@ -57,8 +45,6 @@ suite('parseRecordedEvent — dispatcher-level rejection', () => {
         }
     });
 });
-
-// ── Per-variant happy-path roundtrips ──────────────────────────────────
 
 suite('parseRecordedEvent — per-variant happy path', () => {
     const range = { startLine: 1, startCharacter: 2, endLine: 3, endCharacter: 4 };
@@ -365,7 +351,6 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
 
-    // ── debugSession ───────────────────────────────────────────────────
     test('debugSession — started with all session fields', () => {
         const e: RecordedEvent = {
             type: 'debugSession', timestamp: ts, action: 'started',
@@ -379,7 +364,6 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
 
-    // ── breakpointChange ───────────────────────────────────────────────
     test('breakpointChange — added with full breakpoint payload', () => {
         const e: RecordedEvent = {
             type: 'breakpointChange', timestamp: ts, action: 'added',
@@ -404,8 +388,6 @@ suite('parseRecordedEvent — per-variant happy path', () => {
         assert.deepStrictEqual(parseRecordedEvent(clone(e)), clone(e));
     });
 });
-
-// ── Per-variant rejection of tricky shapes ─────────────────────────────
 
 suite('parseRecordedEvent — per-variant rejection', () => {
     const validRange = { startLine: 1, startCharacter: 2, endLine: 3, endCharacter: 4 };
@@ -481,9 +463,8 @@ suite('parseRecordedEvent — per-variant rejection', () => {
     });
 
     test('diagnostics rejects diagnostic with present-but-wrong-typed code (regression)', () => {
-        // Pre-fix this slipped through and silently coerced `code` to undefined,
-        // losing the schema failure signal. Now an explicit non-string/non-number
-        // `code` must trip the validator.
+        // An explicit non-string/non-number `code` must trip the validator
+        // rather than being silently coerced to undefined.
         const bad = {
             type: 'diagnostics', timestamp: ts, uri: 'file:///a.ts',
             diagnostics: [{
@@ -519,8 +500,6 @@ suite('parseRecordedEvent — per-variant rejection', () => {
         }
     });
 });
-
-// ── SessionMetadata ────────────────────────────────────────────────────
 
 suite('parseSessionMetadata', () => {
     test('happy path — all fields including optional', () => {
@@ -682,19 +661,13 @@ suite('parseRecordedEvent — submission', () => {
     });
 });
 
-// ── KNOWN_EVENT_TYPES drift regression (#215) ─────────────────────────
-//
-// `scripts/validate-recording.ts` used to keep its own hand-synced Set of
-// known event types, which drifted from the parser. KNOWN_EVENT_TYPES is now
-// derived from the EVENT_PARSERS dispatch table and shared with the validator,
-// so the two can no longer drift. These assertions guard that the shared set
-// still recognizes the event types that historically drifted (or were added
-// after the original drift), and excludes unknown / inherited-prototype keys.
+// KNOWN_EVENT_TYPES is derived from the EVENT_PARSERS dispatch table and
+// shared with `scripts/validate-recording.ts`, so the validator cannot drift
+// from the parser. These assertions guard that the shared set recognizes the
+// event types listed below and excludes unknown / inherited-prototype keys.
 
 suite('KNOWN_EVENT_TYPES — drift regression for #215', () => {
     test('contains the event types that historically drifted out of the validator', () => {
-        // The original #215 drift cases (missing from the validator's old Set)
-        // plus the debugger / submission types added afterwards in #233 / #236.
         const mustContain = [
             'configurationSnapshot',
             'configurationChange',

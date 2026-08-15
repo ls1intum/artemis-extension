@@ -27,7 +27,7 @@ describe('useInViewport', () => {
     const disconnect = vi.fn();
 
     beforeEach(() => {
-        // happy-dom has no IntersectionObserver — stub it.
+        // happy-dom has no IntersectionObserver, so stub it.
         // Must use a regular function (not an arrow function) so it is new-able.
         vi.stubGlobal(
             'IntersectionObserver',

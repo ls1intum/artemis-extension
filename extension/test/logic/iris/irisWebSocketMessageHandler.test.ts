@@ -23,11 +23,10 @@ import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachin
 import type { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 
 /**
- * Regression coverage for the FIX described in the whole-branch review: a
- * USER-sender MESSAGE frame must never finalize the current run, even if it
- * arrives scoped to the current run's runId (today the server always sends
- * USER frames with runId/runState null, but the handler must not depend on
- * that contract — see the comment on `_handleMessage`).
+ * A USER-sender MESSAGE frame must never finalize the current run, even when
+ * it arrives scoped to the current run's runId. The server sends USER frames
+ * with runId/runState null today, but the handler must not depend on that
+ * contract (see the comment on `_handleMessage`).
  */
 describe('IrisWebSocketMessageHandler: USER frames never finalize a run', () => {
     it('a USER MESSAGE scoped to the current run leaves it waiting and still accepting PARTIALs', () => {
@@ -41,8 +40,8 @@ describe('IrisWebSocketMessageHandler: USER frames never finalize a run', () => 
         expect(runs.currentRunId).toBe('A');
         expect(runs.waiting).toBe(true);
 
-        // A USER frame scoped to the current run (the hypothetical dangerous
-        // case the FIX guards against, not today's actual server behaviour).
+        // A USER frame scoped to the current run: the dangerous case the guard
+        // covers, not today's server behaviour.
         handler.handleIrisWebSocketMessage({
             type: 'MESSAGE',
             runId: 'A',
@@ -66,13 +65,8 @@ describe('IrisWebSocketMessageHandler: USER frames never finalize a run', () => 
     });
 });
 
-// ---------------------------------------------------------------------------
-// Task 6: session-scoped frames and CTXSWAP classification at the transport
-// boundary. These tests exercise the NEW-model gate directly: `makeHandler`
-// installs a real `ConversationState` with a session already current, so
-// `_activeConversation` is defined regardless of the (dormant, until Task 14)
-// production wiring.
-// ---------------------------------------------------------------------------
+// `makeHandler` installs a real `ConversationState`; passing `currentSessionId`
+// makes that session current, so `_activeConversation` is defined.
 
 const EX5 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 5 };
 const EX7 = { mode: 'PROGRAMMING_EXERCISE_CHAT' as const, entityId: 7 };
@@ -171,8 +165,8 @@ describe('CTXSWAP frames', () => {
     });
 
     it('never finalizes the run', () => {
-        // The server pushes the marker WHILE our own POST is open, so today a
-        // successful first message terminates its own run.
+        // The server pushes the marker while our own POST is still open, so
+        // finalizing on it would kill a live run.
         const { handler, runs } = makeHandler({ currentSessionId: 7 });
         runs.beginGeneration();
         handler.handleIrisWebSocketMessage(ctxswapFrame(EX5), 7);
@@ -277,10 +271,8 @@ describe('host state ingestion (Task 6 step 7)', () => {
     });
 
     it('a USER frame from another client makes the host conversation non-empty', () => {
-        // The state half of it; the rendering half is pinned in "USER frames
-        // from another client" above. The title used to promise "from another
-        // client" while the assertion required it NOT to be rendered, which is
-        // the contradiction that hid the loss.
+        // The state half; the rendering half is pinned in "USER frames from
+        // another client" above.
         const { handler, state } = makeHandler({ currentSessionId: 7 });
         handler.handleIrisWebSocketMessage(
             { type: 'MESSAGE', message: { id: 13, sender: 'USER', content: [{ textContent: 'hi', type: 'text' }] } },

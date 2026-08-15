@@ -14,9 +14,9 @@ export class ExerciseOpeningService {
 
     /**
      * Handle post-open side effects after an exercise is opened: record it in
-     * the catalog's supplemental layer (Task 5's registry rebuild picks it up
-     * from there), remember the course as recently opened, and start the
-     * telemetry session.
+     * the catalog's supplemental layer (the registry rebuild picks it up from
+     * there), remember the course as recently opened, and start the telemetry
+     * session.
      *
      * `epoch` is passed in rather than read live. This runs after the caller
      * has awaited the exercise fetch, and a live read here would hand the
@@ -27,16 +27,15 @@ export class ExerciseOpeningService {
         // ONE guard, ahead of all three side effects, because they are one
         // decision: this open either still belongs to the current session or it
         // does not. The catalog write and the recency write each reject a stale
-        // epoch on their own, but the telemetry start never had a guard, so a
-        // late `openExerciseDetails` completing after an identity change would
-        // start a session for the PREVIOUS account's exercise moments after the
-        // reset ended it. That is the same corrupt cross-account recording the
-        // reset exists to prevent, arriving by a different door.
+        // epoch on their own, but the telemetry start does not, so without this
+        // a late `openExerciseDetails` completing after an identity change
+        // would start a session for the PREVIOUS account's exercise moments
+        // after the reset ended it.
         //
         // With no catalog there is no epoch to compare against, so the check
         // stands down rather than silently swallowing every open. The two inner
         // guards stay: they are shared with call sites that do not come through
-        // here, and defence in depth is the point of them.
+        // here.
         if (epoch !== (this._courseCatalog?.currentEpoch ?? epoch)) { return; }
 
         const exercise = exerciseData.exercise;

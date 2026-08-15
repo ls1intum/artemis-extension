@@ -69,7 +69,6 @@ suite('SubscriptionRegistry', () => {
         const unsub1 = registry.subscribeToIrisSession(sessionId, () => { /* noop */ });
         assert.ok(client.subscribed.has(topic));
 
-        // Replace
         const unsub2 = registry.subscribeToIrisSession(sessionId, () => { /* noop */ });
         assert.ok(client.subscribed.has(topic));
 

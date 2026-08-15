@@ -21,7 +21,7 @@ function buildProvider(): {
         onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
     };
     const registry = { getAllExercises: () => [] };
-    // Kept, not inlined: a test has to be able to fire it.
+    // Not inlined: a test has to be able to fire it.
     const coursesLoaded = new vscode.EventEmitter<unknown>();
     const courseCatalog = {
         onCoursesLoaded: coursesLoaded.event,
@@ -80,9 +80,8 @@ suite('ChatWebviewProvider workspace sink', () => {
 
     test('the detected exercise reaches the wire, so the picker can badge it', () => {
         // The picker derives its "Workspace" badge from `workspaceExerciseId`
-        // alone (`ContextPicker.tsx`). Between Tasks 7 and 9 the presenter
-        // still read the persisted store, which no longer received workspace
-        // writes, so the field was permanently undefined and the badge dark.
+        // alone (`ContextPicker.tsx`), so the presenter has to put the detected
+        // exercise on the wire or the badge stays dark.
         const posted: Array<{ type?: string; state?: { workspaceExerciseId?: number } }> = [];
         sandbox.stub(
             provider as unknown as { _postMessageSafe: (m: unknown) => void },
@@ -98,11 +97,10 @@ suite('ChatWebviewProvider workspace sink', () => {
     });
 
     // A supplemental write (entering a course, opening an exercise) has to
-    // repaint the picker by itself. It used to reach the webview only because
-    // `ChatStartupCoordinator.onDetectionSettled` republishes the detection
-    // state unconditionally, so the repaint rode on a workspace detection: a
-    // git-remote read and possibly an archived-course probe for what is a
-    // redraw, and nothing at all while the session is still resolving.
+    // repaint the picker by itself. Riding on
+    // `ChatStartupCoordinator.onDetectionSettled` instead would cost a
+    // git-remote read and possibly an archived-course probe for what is only a
+    // redraw, and would repaint nothing while the session is still resolving.
     test('a catalog write repaints the chat on its own', () => {
         const postSnapshot = sandbox.stub(
             (provider as unknown as { _viewStatePresenter: { postSnapshot(): void } })._viewStatePresenter,
@@ -183,9 +181,8 @@ suite('ChatWebviewProvider stops detecting workspace', () => {
     });
 
     test('_sendInitData does not invoke workspace detection', async () => {
-        // _sendInitData is private but is the path that previously called detection.
-        // Cast through unknown to invoke it directly — this is a regression guard,
-        // documenting that the detection call has been deleted from that codepath.
+        // _sendInitData is private, so it is invoked through an unknown cast.
+        // It must not trigger workspace detection.
         await (provider as unknown as { _sendInitData: () => Promise<void> })._sendInitData();
         assert.strictEqual(detectStub.callCount, 0, '_sendInitData must not detect workspace');
     });

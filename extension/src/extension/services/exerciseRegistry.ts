@@ -58,9 +58,8 @@ export class ExerciseRegistry {
     }
 
     /**
-     * Clears all exercises belonging to a specific course.
-     * This should be called before re-registering exercises from fresh course data
-     * to ensure deleted exercises are removed from the registry.
+     * Clears all exercises belonging to a course. Call it before re-registering
+     * from fresh course data, so deleted exercises leave the registry.
      */
     public clearCourse(courseId: number): void {
         const toDelete: number[] = [];
@@ -95,7 +94,7 @@ export class ExerciseRegistry {
 
     /**
      * Installs exactly entries, dropping everything else. The registry is an
-     * index over the catalog now, not a second source of truth: an exercise the
+     * index over the catalog, not a second source of truth: an exercise the
      * catalog no longer projects must not keep answering repository matches.
      */
     public replaceAll(entries: ExerciseRegistryEntry[]): void {
@@ -110,19 +109,16 @@ export class ExerciseRegistry {
     }
 
     public registerFromCourseData(courseData: unknown): void {
-        // Local predicate: accept anything that structurally looks like a
-        // CourseDashboardEntry (has a `course` property OR top-level `id`).
-        // Anything else is dropped silently because all known call sites
-        // pass either a server response or one of the entry shapes we
-        // construct internally.
+        // Accept anything that structurally looks like a CourseDashboardEntry
+        // (a `course` property or a top-level `id`). Anything else is dropped
+        // silently: every call site passes a server response or an internally
+        // constructed entry shape.
         if (!isLikelyCourseEntry(courseData)) {
             return;
         }
         const entry = courseData;
-        // Existing semantics preserved: prefer nested `course.id`, fall back
-        // to a top-level `id` on the legacy `{ id, exercises }` shape some
-        // callers still pass. Both branches use a real `typeof` narrowing,
-        // not a cast.
+        // Prefer nested `course.id`, fall back to a top-level `id` on the
+        // legacy `{ id, exercises }` shape some callers still pass.
         const courseId = typeof entry.course?.id === 'number'
             ? entry.course.id
             : (typeof entry.id === 'number' ? entry.id : undefined);
@@ -142,9 +138,8 @@ export class ExerciseRegistry {
                 continue;
             }
             const firstParticipation = source.studentParticipations?.[0];
-            // The original code preserved the participation id when present,
-            // for upstream wiring; toExerciseSource intentionally drops it,
-            // so we still read it from the raw exercise.
+            // `toExerciseSource` intentionally drops the participation id, so
+            // read it from the raw exercise for the upstream wiring.
             const rawFirstParticipation = exercise.studentParticipations?.[0];
             const participationId = typeof rawFirstParticipation?.id === 'number'
                 ? rawFirstParticipation.id

@@ -17,8 +17,6 @@ export interface SerializedDiagnostic {
     source: string | undefined;
 }
 
-// ── Individual event types ────────────────────────────────────────────
-
 export interface TextChangeEvent {
     type: 'textChange';
     timestamp: number;
@@ -56,7 +54,7 @@ export interface BuildResultEvent {
     timestamp: number;
     successful: boolean | undefined;
     errorCount: number;
-    /** Legacy: flat array of detailText strings for failed test feedbacks. Kept for backwards compat. */
+    /** Flat array of detailText strings for failed test feedbacks. Required on every event; `failedTestDetails` adds test names alongside it. */
     failedTests: string[];
     buildFailed: boolean;
     /** Raw test-case counts (for the Test-Stagnation add-on). Null/absent for a
@@ -90,7 +88,7 @@ export interface SessionStartEvent {
     exerciseId: number;
     participantId: string | undefined;
     exerciseRoot?: string;
-    /** Schema version for forward-compat parsing. Block AB introduces version 2. */
+    /** Schema version for forward-compat parsing. */
     schemaVersion?: number;
 }
 
@@ -101,9 +99,9 @@ export interface SessionEndEvent {
 }
 
 /**
- * Emitted when user consent is downgraded (or upgraded) mid-session.
- * Minimal payload — carries no user data — acts as a marker only. The
- * downgraded path is followed by a `sessionEnd` and metadata finalisation.
+ * Emitted when user consent is downgraded (or upgraded) mid-session. Marker
+ * only, carrying no user data. The downgraded path is followed by a
+ * `sessionEnd` and metadata finalisation.
  */
 export interface ConsentChangeEvent {
     type: 'consentChange';
@@ -159,7 +157,7 @@ export interface IrisChatMessageEvent {
     timestamp: number;
     direction: 'sent' | 'received';
     content: string;
-    // Added in Block H: optional metadata from server response / WebSocket payload
+    // Optional metadata from the server response / WebSocket payload.
     messageId?: string;
     sessionId?: string;
     sentAt?: number;
@@ -209,7 +207,7 @@ export interface PanelVisibilityEvent {
 export interface ProblemStatementScrollEvent {
     type: 'problemStatementScroll';
     timestamp: number;
-    /** Page scroll position — the ExerciseDetail webview scrolls as a whole page. */
+    /** Page scroll position; the ExerciseDetail webview scrolls as a whole page. */
     scrollTop: number;
     scrollHeight: number;
     viewportHeight: number;
@@ -281,7 +279,7 @@ export interface FileSnapshotErrorEvent {
     reason: string;
 }
 
-// ── Block K: Workspace file events (schemaVersion 2) ─────────────────
+// Workspace file events (schemaVersion 2).
 
 export interface FileCreateEvent {
     type: 'fileCreate';
@@ -381,8 +379,6 @@ export type TaskFeedbackViewEvent =
     | TaskFeedbackViewOpenedEvent
     | TaskFeedbackViewClosedEvent;
 
-// ── Debugger events ───────────────────────────────────────────────────
-
 export interface DebugSessionEvent {
     type: 'debugSession';
     timestamp: number;
@@ -410,8 +406,6 @@ export interface BreakpointChangeEvent {
         logMessage?: string;
     }[];
 }
-
-// ── Submission events ─────────────────────────────────────────────────
 
 export type SubmissionFailureReason =
     | 'no-workspace' | 'no-changes' | 'git-identity-missing'
@@ -536,8 +530,6 @@ export type RecordedEvent =
     | StruggleScoreEvent
     | AlertEvent;
 
-// ── Session metadata ──────────────────────────────────────────────────
-
 export interface SessionMetadata {
     sessionId: string;
     exerciseId: number;
@@ -545,7 +537,7 @@ export interface SessionMetadata {
     startTime: number;
     endTime: number | null | undefined;
     eventCount: number;
-    /** Schema version for forward-compat parsing. Block D introduces version 2. */
+    /** Schema version for forward-compat parsing. */
     schemaVersion?: number;
     /** Recorder version string, set by storageWriter at write time. */
     recorderVersion?: string;

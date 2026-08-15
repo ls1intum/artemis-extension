@@ -11,8 +11,8 @@ import { ArtemisWebsocketService } from './artemisWebsocketService';
  * StatusBar item showing WebSocket connection status.
  *
  * Visibility rules:
- * - developerMode ON: always shown (any state, including connected and while
- *   logged out) — diagnostics.
+ * - developerMode ON: always shown for diagnostics (any state, including
+ *   connected and while logged out).
  * - developerMode OFF:
  *   - shown when disconnected or reconnecting (a problem the user can act on)
  *   - 2s flash after a successful reconnect, then hidden
@@ -96,7 +96,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     /**
      * Sync authentication state. When toggled, re-applies visibility so the
      * status bar can hide on logout (no WebSocket exists) and re-evaluate on
-     * login. Idempotent — no-op when the value matches the current state.
+     * login. Idempotent: a value matching the current state is a no-op.
      */
     public setAuthenticated(value: boolean): void {
         if (this._isAuthenticated === value) {

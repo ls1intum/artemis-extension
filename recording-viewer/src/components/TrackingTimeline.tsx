@@ -106,7 +106,6 @@ export function TrackingTimeline({
         return orderTypesActiveFirst(enabled, t => eventsByType.has(t));
     }, [eventsByType, enabledTypes, hideEmptyLanes]);
 
-    // Per-lane bins
     const laneBins = useMemo(() => {
         const result = new Map<EventType, Bin[]>();
         for (const type of visibleLanes) {
@@ -116,7 +115,7 @@ export function TrackingTimeline({
         return result;
     }, [eventsByType, visibleLanes, sessionStartTime, xDomain, timelineWidth]);
 
-    // Annotation groups (pixel-clustered)
+    // Annotations are clustered by pixel distance, not by time.
     const annotationGroups = useMemo<AnnotationGroup[]>(
         () => buildAnnotationGroups(annotations, sessionStartTime, xDomain, timelineWidth),
         [annotations, sessionStartTime, xDomain, timelineWidth],
@@ -167,7 +166,7 @@ export function TrackingTimeline({
         return () => mql.removeEventListener?.('change', onChange);
     }, [dprTick]);
 
-    // Playhead animation loop (DOM overlay, unchanged contract)
+    // Playhead animation loop, drawn as a DOM overlay rather than on the canvas.
     useEffect(() => {
         if (!videoTimeRef || !playheadRef.current) return;
         let rafId: number;
@@ -366,8 +365,8 @@ export function TrackingTimeline({
             if (ts != null) onSetPendingPosition(ts);
         }
 
-        // Shift+click additionally seeks the video to the click position,
-        // preserving current SVG behavior where dots do not stopPropagation.
+        // Shift+click additionally seeks the video to the click position; dots
+        // do not stopPropagation, so a dot click seeks too.
         if (e.shiftKey && onSeekVideo) {
             const ts = xToTime(x, sessionStartTime, xDomain, timelineWidth);
             if (ts != null) onSeekVideo(ts);
@@ -385,7 +384,6 @@ export function TrackingTimeline({
     return (
         <div className="tracking-timeline" ref={containerRef}>
             <div className="tracking-timeline-grid" style={{ display: 'grid', gridTemplateColumns: `${LABEL_WIDTH}px 1fr` }}>
-                {/* Lane labels */}
                 <div className="lane-labels">
                     {visibleLanes.map(type => (
                         <div
@@ -416,7 +414,6 @@ export function TrackingTimeline({
                         onMouseLeave={handleMouseLeave}
                     />
 
-                    {/* Video playhead line */}
                     {videoTimeRef && (
                         <div
                             ref={playheadRef}
@@ -447,7 +444,6 @@ export function TrackingTimeline({
                         );
                     })()}
 
-                    {/* Tooltip */}
                     {tooltip && (
                         <div
                             className="timeline-tooltip"
@@ -494,7 +490,6 @@ export function TrackingTimeline({
                         </div>
                     )}
 
-                    {/* Annotation popover */}
                     {annotPopover && (
                         <div
                             className="annotation-popover"
@@ -573,7 +568,6 @@ export function TrackingTimeline({
                 </div>
             </div>
 
-            {/* Hints */}
             <p className="timeline-seek-hint">
                 {isZoomed && 'Drag to pan'}
                 {isZoomed && onSeekVideo && ' \u00b7 '}

@@ -2,26 +2,21 @@
  * Handles all file I/O for session recordings.
  *
  * Uses a 10-event / 1-second buffer to batch writes.
- * Never throws — recording must not impact IDE stability.
+ * Never throws: recording must not impact IDE stability.
  *
  * ## Durability Policy
  *
- * On graceful shutdown (shutdown() is awaited), data integrity is guaranteed:
- * all buffered events are written before the method returns. On extension-host
- * crash, process-kill, or any fatal failure that bypasses `finally` execution,
- * up to `BUFFER_THRESHOLD` (10) events may be lost. Lifecycle events
- * (`sessionStart`, `sessionEnd`, `consentChange`) are recorded like any other
- * event and share the same crash-durability boundary.
- *
- * On graceful extension unload, `deactivate()` in `extension.ts` is async
- * and explicitly awaits `SessionRecorder.shutdown()`, so all buffered events
- * reach disk before the extension host tears down the process.
+ * Awaiting shutdown() guarantees all buffered events are written first.
+ * `deactivate()` in `extension.ts` awaits it, so graceful unload loses nothing.
+ * An extension-host crash or process-kill bypasses `finally` and can lose up to
+ * `BUFFER_THRESHOLD` (10) events; lifecycle events (`sessionStart`,
+ * `sessionEnd`, `consentChange`) share that same boundary.
  *
  * ## Serialisation (Write Lane)
  *
  * All file-system operations are serialised through a single Promise chain
  * (`_writeLane`). This guarantees:
- *   1. No two `appendFile` calls run in parallel — JSONL line order is preserved.
+ *   1. No two `appendFile` calls run in parallel, so JSONL line order holds.
  *   2. Buffer removal is atomic: `splice` only runs after a successful write,
  *      so a failed write retains the full batch for the next attempt.
  *
@@ -29,7 +24,7 @@
  *
  * If `appendFile` fails mid-write the file may contain an incomplete final
  * line. JSONL consumers MUST wrap each `JSON.parse` in try/catch and skip
- * malformed lines with a warning (already best-practice; required here).
+ * malformed lines with a warning.
  */
 
 import * as crypto from 'crypto';
@@ -85,8 +80,6 @@ export class RecordingStorageWriter {
     private _disposed = false;
     private readonly _fs: RecordingFs;
 
-    // ── Write-Lane state ──────────────────────────────────────────────────
-
     /**
      * Single Promise chain that serialises all fs writes. Every write
      * operation appends to this chain via `.then(() => ...)` so that at most
@@ -113,8 +106,6 @@ export class RecordingStorageWriter {
     private get _laneIdle(): boolean {
         return this._activeWrites === 0 && this._queuedWrites === 0;
     }
-
-    // ── Threshold-flush debounce flag ─────────────────────────────────────
 
     /**
      * Set to true when a threshold-triggered flush is requested while another
@@ -160,15 +151,10 @@ export class RecordingStorageWriter {
     }
 
     /**
-     * Returns a Promise that resolves once all events buffered at call-time
-     * have been written to disk.
-     *
-     * Unlike the threshold-debounced flush triggered by appendEvent, this
-     * public method always enqueues a real flush operation and waits for it,
-     * so callers can rely on "await writer.flush()" meaning "buffered events
-     * are now on disk". Multiple concurrent callers each get their own
-     * flush — earlier flushes drain the buffer; subsequent flushes find it
-     * empty and return quickly.
+     * Resolves once all events buffered at call time are on disk. Unlike the
+     * threshold-debounced flush in appendEvent, this always enqueues a real
+     * flush and awaits it. Concurrent callers each get their own flush; later
+     * ones find the buffer already drained and return quickly.
      */
     async flush(): Promise<void> {
         if (this._disabled || !this._eventsPath) {
@@ -221,16 +207,13 @@ export class RecordingStorageWriter {
     }
 
     async endSession(): Promise<void> {
-        // Two-drain pattern: ensure any in-flight flush completes, then flush
-        // whatever was buffered during that flush, then wait for that too.
-        // A single await flush() is not enough: if a debounced flush was queued
-        // inside the current flush's finally block, _drainLane() resolves before
-        // that deferred flush runs, so events buffered during flush1 (including
-        // the sessionEnd event itself) would be silently lost when _eventsPath
-        // is cleared below.
-        await this._drainLane();          // wait for any in-flight work
-        await this._enqueueFlush();       // flush everything currently buffered
-        await this._drainLane();          // wait for that flush + any deferred follow-up
+        // Two-drain pattern. A single flush() is not enough: a debounced flush
+        // queued inside the first flush's finally block runs after _drainLane()
+        // resolves, so events buffered during it (including sessionEnd) would be
+        // lost when _eventsPath is cleared below.
+        await this._drainLane();
+        await this._enqueueFlush();
+        await this._drainLane();
 
         if (this._buffer.length > 0) {
             logger.warn(
@@ -246,19 +229,14 @@ export class RecordingStorageWriter {
     }
 
     /**
-     * Awaitable shutdown. Guarantees all buffered events are written to disk
-     * before returning. Deliberately NOT named `dispose()`: it must be awaited
-     * for the durability guarantee to hold, so it must never be mistaken for a
-     * synchronous `vscode.Disposable.dispose()`.
+     * Awaitable shutdown (see the Durability Policy above). Deliberately NOT
+     * named `dispose()`: it must be awaited for that guarantee to hold, so it
+     * must never be mistaken for a synchronous `vscode.Disposable.dispose()`.
      *
-     * If the lane is already idle (no active/queued writes), a synchronous
-     * fallback writes the remaining buffer directly for minimal latency.
-     *
-     * If the lane is busy, waits up to 5 seconds for it to drain, then
-     * performs one final async flush for any events that arrived during the
-     * drain, then drains once more to ensure the deferred follow-up flush also
-     * completes. If the drain times out, the remaining buffer is lost and a
-     * warning is logged.
+     * An idle lane takes a synchronous fallback write for minimal latency. A
+     * busy lane gets up to 5 seconds to drain, then a final flush plus a second
+     * drain for the deferred follow-up. On drain timeout the remaining buffer is
+     * lost and a warning is logged.
      */
     async shutdown(): Promise<void> {
         if (this._disposed) { return; }
@@ -266,7 +244,7 @@ export class RecordingStorageWriter {
         this._stopFlushTimer();
 
         if (this._laneIdle) {
-            // Lane is free — use sync fallback for lowest-latency shutdown.
+            // Lane is free, so the sync fallback gives the lowest-latency shutdown.
             if (this._buffer.length > 0 && this._eventsPath && !this._disabled) {
                 try {
                     const lines = this._buffer.map(e => JSON.stringify(e)).join('\n') + '\n';
@@ -284,11 +262,9 @@ export class RecordingStorageWriter {
             ]);
 
             if (drained) {
-                // Lane drained — flush anything buffered during the drain, then
-                // drain once more so the deferred follow-up flush also completes.
-                // (One _enqueueFlush() alone is not enough: the debounced flush2
-                // enqueued inside flush1's finally block resolves after _drainLane
-                // was captured, so without a second drain it runs after we return.)
+                // Flush anything buffered during the drain, then drain again: the
+                // debounced follow-up enqueued inside the first flush's finally
+                // block would otherwise run after we return.
                 await this._enqueueFlush();
                 await this._drainLane();
             } else {
@@ -304,8 +280,8 @@ export class RecordingStorageWriter {
      * Abort a partially-initialised session. Stops the flush timer, clears
      * the buffer, and removes the session directory tree if it exists.
      *
-     * NOT routed through the write lane — intended as an emergency cleanup
-     * path when session start itself fails (e.g. pre-commit abort in
+     * NOT routed through the write lane: this is an emergency cleanup path for
+     * when session start itself fails (e.g. pre-commit abort in
      * SessionRecorder._doStart). Safe to call even if initSession was never
      * completed.
      */
@@ -335,8 +311,6 @@ export class RecordingStorageWriter {
         return `snapshots/${this._sanitizeFileName(uri)}.txt`;
     }
 
-    // ── Private: Lane management ──────────────────────────────────────────
-
     /**
      * Returns a Promise that resolves once the current write lane has fully
      * drained (all queued and active writes complete).
@@ -352,12 +326,10 @@ export class RecordingStorageWriter {
     /**
      * Threshold-driven flush from appendEvent. Debounced: if a flush is already
      * in-flight or queued, sets `_flushRequested` instead of enqueuing a second
-     * one. After any lane work completes, the finally block checks the flag and
-     * enqueues a follow-up flush if set.
+     * one, and the finally block of the running lane work picks it up.
      *
-     * The returned promise resolves when the lane drains; this is intentional
-     * for fire-and-forget threshold triggers (callers don't await it). For
-     * "await my events to disk" semantics, use the public flush() method.
+     * The returned promise resolves when the lane drains, which suits
+     * fire-and-forget triggers. For "await my events to disk", use flush().
      */
     private _enqueueThresholdFlush(): Promise<void> {
         if (this._activeWrites > 0 || this._queuedWrites > 0) {
@@ -368,9 +340,8 @@ export class RecordingStorageWriter {
     }
 
     /**
-     * Enqueues a fresh flush operation on the write lane. Always enqueues —
-     * does not debounce. Returns a Promise that resolves when this specific
-     * flush completes.
+     * Enqueues a fresh flush on the write lane without debouncing. Resolves
+     * when that specific flush completes.
      */
     private _enqueueFlush(): Promise<void> {
         return this._enqueueLaneWork(async () => {
@@ -402,13 +373,9 @@ export class RecordingStorageWriter {
      * Generic lane-enqueue helper. Wraps any async `work` lambda in the
      * serialisation machinery (counters, error handling, flush-debounce).
      *
-     * Always resolves — never rejects. Storage I/O errors are logged and
-     * counted; the caller does not need to catch. This upholds the class
-     * contract: "Never throws — recording must not impact IDE stability."
-     *
-     * A defensive try/catch around non-work code (counters, debounce) ensures
-     * unexpected exceptions do not leave `_writeLane` in a rejected state
-     * (which would cause all subsequent lane work to hang silently).
+     * Always resolves, never rejects. The defensive try/catch around the
+     * non-work code keeps `_writeLane` out of a rejected state, which would
+     * hang all subsequent lane work silently.
      */
     private _enqueueLaneWork(
         work: () => Promise<void>,
@@ -429,11 +396,10 @@ export class RecordingStorageWriter {
                     } finally {
                         this._activeWrites--;
                         try {
-                            // Honour deferred threshold flush requests after any
-                            // lane work completes, not just flushes — otherwise
-                            // a threshold trigger fired during a writeSnapshot or
-                            // writeMetadata sits unprocessed until the next
-                            // appendEvent-triggered threshold hit or timer tick.
+                            // Honour deferred flush requests after ANY lane work,
+                            // not just flushes: a threshold trigger fired during a
+                            // writeSnapshot or writeMetadata would otherwise sit
+                            // unprocessed until the next threshold hit or timer tick.
                             if (this._flushRequested) {
                                 this._flushRequested = false;
                                 void this._enqueueFlush();
@@ -445,9 +411,8 @@ export class RecordingStorageWriter {
                     }
                 })
                 .catch((err) => {
-                    // Defensive invariant: _writeLane must never reject. If it
-                    // somehow does, swallow the error so _queuedWrites does not
-                    // leak and the lane does not deadlock on all future enqueues.
+                    // _writeLane must never reject: swallow so _queuedWrites does
+                    // not leak and future enqueues do not deadlock.
                     logger.error(
                         '[StorageWriter] Lane rejected; this should never happen',
                         LogCategory.TELEMETRY,
@@ -458,8 +423,6 @@ export class RecordingStorageWriter {
 
         return result;
     }
-
-    // ── Private: Timer ────────────────────────────────────────────────────
 
     private _startFlushTimer(): void {
         this._stopFlushTimer();
@@ -477,8 +440,6 @@ export class RecordingStorageWriter {
             this._flushTimer = undefined;
         }
     }
-
-    // ── Private: Helpers ──────────────────────────────────────────────────
 
     private _sanitizeFileName(uri: string): string {
         const lastSegment = uri.split('/').pop() ?? 'unknown';

@@ -9,7 +9,7 @@ describe('classifyTaskTests', () => {
     });
 
     it('returns no-result when feedbacks field is undefined (enrichment never delivered)', () => {
-        // Note: `feedbacks` not in the object at all — enrichment path leaves it undefined.
+        // Note: `feedbacks` not in the object at all; the enrichment path leaves it undefined.
         const state = classifyTaskTests([1], { successful: false });
         expect(state).toEqual({ kind: 'no-result', notExecutedIds: [1] });
     });

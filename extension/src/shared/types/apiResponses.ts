@@ -1,6 +1,6 @@
-// Lightweight response interfaces for Tier-2 API methods.
-// These are passed through to WebViews as raw JSON — no runtime conversion.
-// The index signature preserves extra fields the server may add.
+// Lightweight response interfaces for Tier-2 API methods, passed through to
+// WebViews as raw JSON with no runtime conversion. The index signature
+// preserves extra fields the server may add.
 
 export interface CourseDashboardResponse {
     courses?: CourseDashboardEntry[];
@@ -41,8 +41,7 @@ export interface ExerciseDetailsResponse {
      *
      * Multiple participations may have concurrent pending builds (e.g.
      * graded + practice). The webview picks the entry that matches its
-     * currently-selected participation. Previously this was a single
-     * field that was silently overwritten per participation (#168).
+     * currently-selected participation.
      */
     pendingSubmissionsByParticipationId?: Record<number, PendingSubmissionStatus>;
     [key: string]: unknown;
@@ -53,10 +52,10 @@ export interface ExerciseDetailsResponse {
  * webview store.
  *
  * Two producers feed this shape with deliberately asymmetric fidelity:
- *   - The REST `latest-pending-submission` endpoint only signals
- *     "a build is in flight for this participation" — the loader
- *     normalizes its `ProgrammingSubmission` response to bare
- *     `{ participationId }` (no state, no timing).
+ *   - The REST `latest-pending-submission` endpoint only signals that a build
+ *     is in flight for this participation, so the loader normalizes its
+ *     `ProgrammingSubmission` response to bare `{ participationId }` (no
+ *     state, no timing).
  *   - WebSocket `submissionProcessing` events carry the full status
  *     (queued vs. building, buildTimingInfo) and overwrite the entry.
  *

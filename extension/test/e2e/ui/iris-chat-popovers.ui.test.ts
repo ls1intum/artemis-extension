@@ -230,9 +230,9 @@ describe('Iris chat popovers', function () {
 		const details = await dialog.getDetails();
 		assert.match(details, /One conversation at a time/, 'the guide must carry its actual content');
 
-		// Dismiss by keyboard. Clicking the message box's own button proved
-		// flaky (ElementNotInteractable on an otherwise identical run), and a
-		// modal left standing wedges every test after this one.
+		// Dismiss by keyboard. Clicking the message box's own button is flaky
+		// (ElementNotInteractable on an otherwise identical run), and a modal
+		// left standing wedges every test after this one.
 		await driver.actions().sendKeys(Key.ESCAPE).perform();
 		await driver.wait(
 			async () => (await driver.findElements(By.className('monaco-dialog-box'))).length === 0,

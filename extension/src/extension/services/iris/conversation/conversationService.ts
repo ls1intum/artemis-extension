@@ -54,13 +54,8 @@ interface IrisConversationDeps {
     /** Resolves the workspace exercise, or undefined when none is detected. */
     getWorkspaceExercise(): { exerciseId: number; courseId: number } | undefined;
     /**
-     * Renders an installed conversation's transcript.
-     *
-     * Every install goes through it, which is what makes "the conversation
-     * model owns the transcript" true rather than aspirational: the service is
-     * the only thing that knows a conversation was just adopted, and a caller
-     * that has to remember to render afterwards is a caller that will forget on
-     * one of the six paths.
+     * Renders an installed conversation's transcript. Every install goes
+     * through it, so no caller has to remember to render afterwards.
      *
      * `mode: 'load'` REPLACES the visible transcript (a fresh install: the
      * student is now looking at a different conversation, or at a re-read of
@@ -154,8 +149,7 @@ export class IrisConversationService {
      * The ONE commit point. Every acquisition path funnels through it, which is
      * how the websocket subscription, the course, the invisible cache and the
      * emitted snapshot stay in step. Subscribing here (and only here) is why a
-     * newly opened conversation actually receives its assistant frames; the old
-     * model did this inside the deleted `initializeSession`.
+     * newly opened conversation actually receives its assistant frames.
      *
      * It takes the ENCLOSING navigation's token and checks it once, immediately
      * before committing. The subscribe call itself is synchronous by contract
@@ -165,13 +159,9 @@ export class IrisConversationService {
      */
     private _install(detail: SessionDetail, captured: GuardTuple, isCurrent: () => boolean): boolean {
         if (!isCurrent()) { return false; }
-        // ONE atomic state call. An earlier draft did `beginLoad()` here, then
-        // `beginNavigation()`, then `installDetail(detail, captured)`: the
-        // navigation bumps the generation, so the captured guard was already
-        // invalid and installDetail returned false on EVERY install. The return
-        // value was ignored, so the service reported success while leaving
-        // `detail` and `committedContext` undefined for a session it had just
-        // named as current.
+        // ONE atomic state call. Splitting it into beginLoad + beginNavigation +
+        // installDetail invalidates `captured` before it is used, because the
+        // navigation bumps the generation.
         //
         // `captured` is reserved BEFORE the request that produced `detail`,
         // never here, for two independent reasons:
@@ -184,9 +174,8 @@ export class IrisConversationService {
         //   load cannot install over a later one. A ticket taken here would
         //   reflect arrival order instead, which is exactly the wrong order.
         if (!this.state.installAcquired(detail, captured)) { return false; }
-        // SYNCHRONOUS declaration of intent; the transport converges in the
-        // background and owns latest-wins (Task 6). It does NOT mean the STOMP
-        // subscription is live, which is why the reconciliation below exists.
+        // Declaring the intent does not mean the STOMP subscription is live,
+        // which is why `onSubscriptionActive` reconciles afterwards.
         this._deps.subscribeToSession(detail.sessionId);
         this._emit();
         // AFTER the emit, never before it. The webview keys an incoming
@@ -226,12 +215,12 @@ export class IrisConversationService {
      * Two rules, both load-bearing:
      *
      * 1. **One token per user-visible operation, spanning probe AND install.**
-     *    An earlier draft gave `_probe` its own token. It expired when the probe
-     *    returned, so `navigationInFlight` dropped to false in the window before
-     *    `_install` ran. A send admitted in that window POSTs to the OLD session
-     *    while the install switches the view to the new one, and the send's
-     *    `upsertMessage` then writes the old conversation's message into the new
-     *    conversation's transcript.
+     *    A token scoped to the probe alone expires when the probe returns, so
+     *    `navigationInFlight` drops to false in the window before `_install`
+     *    runs. A send admitted in that window POSTs to the OLD session while
+     *    the install switches the view to the new one, and the send's
+     *    `upsertMessage` then writes the old conversation's message into the
+     *    new conversation's transcript.
      * 2. **`_navigate` never nests.** Helpers take `isCurrent` as a parameter
      *    rather than opening their own token. A nested call would bump
      *    `_navRequestSeq` and make the outer `isCurrent()` permanently false,
@@ -304,9 +293,9 @@ export class IrisConversationService {
             try {
                 fresh = await this._api.createCourseSession(courseId);
             } catch (error) {
-                // The dispatcher acts on an OUTCOME, not an exception: a 500 here
-                // must become a notice, not an unhandled rejection on the promise
-                // Task 14's `await newConversation()` awaits.
+                // The dispatcher acts on an OUTCOME, not an exception: a 500
+                // here must become a notice, not an unhandled rejection on the
+                // returned promise.
                 logger.warn('Iris new-conversation create failed', LogCategory.IRIS_CHAT, error);
                 return { kind: 'rejected', reason: 'failed' } as const;
             }
@@ -336,20 +325,17 @@ export class IrisConversationService {
         }
         await this._navigate(async (isCurrent) => {
             const captured = this.state.beginLoad();
-            // AFTER the read, never before. The escape hatch still drops
-            // everything local, which is its whole point (`setOverview([])`
-            // alone leaves knownInvisible in place, so a wedged client stays
-            // wedged). But a reload that FAILS must cost nothing: this is also
-            // the path a Retry takes on a transient outage, and clearing first
-            // left the student with an empty history and no way to refill it,
-            // the refill being the thing that had just failed.
+            // Read BEFORE clearing. The escape hatch drops everything local,
+            // which is its whole point (`setOverview([])` alone leaves
+            // knownInvisible in place, so a wedged client stays wedged), but a
+            // reload that FAILS must cost nothing: Retry takes this path on a
+            // transient outage, and clearing first leaves the student with an
+            // empty history and no way to refill it.
             const detail = await this._api.getChatSessionById(courseId, currentSessionId);
-            // BOTH guards before touching anything. Clearing on the way in cost
-            // the student their history whenever the re-read failed; clearing
-            // after the read but before the guards let a stale reload wipe the
-            // caches of the navigation that had won. Nothing awaits between
-            // here and the install, so a check that passes now still holds
-            // there.
+            // BOTH guards before touching anything, otherwise a stale reload
+            // wipes the caches of the navigation that won. Nothing awaits
+            // between here and the install, so a check that passes now still
+            // holds there.
             if (!isCurrent() || !this.state.accepts(captured)) { return; }
             this.state.resetCachesForReload();
             if (!this._install(detail, captured, isCurrent)) { return; }
@@ -394,9 +380,7 @@ export class IrisConversationService {
         isCurrent: () => boolean,
     ): Promise<TopicChangeOutcome> {
         // One pass. A topic change stays in the open conversation, so there is
-        // no candidate to probe and nothing to revalidate: the earlier draft's
-        // two-pass loop existed only to check a session the index had guessed at
-        // before switching to it, and it no longer switches.
+        // no candidate to probe and nothing to revalidate.
         const decision = resolveTopic(this._resolutionInput(target, courseHint));
         switch (decision.kind) {
             case 'noop': return { kind: 'noop' };
@@ -499,8 +483,7 @@ export class IrisConversationService {
      * switch cannot: it has no session id yet, so it acquires first (see
      * `switchCourse`). Never consults the topic index.
      * It stages NOTHING: an explicit "open this conversation" outranks passive
-     * detection, and cut 2 removed the saved-pending restoration that undo
-     * needed.
+     * detection.
      */
     public async navigateTo(params: { courseId: number; sessionId: number }): Promise<void> {
         if (this.state.sendInFlight) { return; }
@@ -525,9 +508,9 @@ export class IrisConversationService {
      * Artemis' own client cannot even reach that state, because its course
      * follows the page.
      *
-     * Private, and takes `isCurrent`, deliberately. An earlier draft let the
-     * caller catch the 403 and start a FRESH navigation, which made a slow 403
-     * for course A outrank a switch to course B issued after it.
+     * Private, and takes `isCurrent`, deliberately: letting the caller catch
+     * the 403 and start a FRESH navigation would make a slow 403 for course A
+     * outrank a switch to course B issued after it.
      */
     private _enterCourseWithoutConversation(courseId: number, isCurrent: () => boolean): boolean {
         if (!isCurrent()) { return false; }
@@ -604,13 +587,12 @@ export class IrisConversationService {
         // `seq` is unique per request, so it is the identity to compare.
         // The overview is a best-effort CACHE, and every caller fires it as
         // `void refreshOverview()`. So it catches internally and always settles
-        // successfully: relying on each present and future caller to append
-        // `.catch(...)` is how a 500 becomes an unhandled rejection.
+        // successfully: relying on each caller to append `.catch(...)` is how a
+        // 500 becomes an unhandled rejection.
         //
-        // Also note the shape: the request lives in its own async method and the
-        // cleanup is attached with `.finally`, so nothing reads `promise` from
-        // inside its own initializer. The previous form did, and would have hit
-        // the temporal dead zone if the API ever threw synchronously.
+        // The request lives in its own async method and the cleanup is attached
+        // with `.finally`, so nothing reads `promise` from inside its own
+        // initializer (a temporal dead zone hit if the API throws synchronously).
         const promise = this._runOverviewRequest(courseId, seq)
             .catch((error: unknown) => {
                 logger.warn('Iris overview refresh failed', LogCategory.IRIS_CHAT, error);
@@ -656,15 +638,9 @@ export class IrisConversationService {
      *
      * NOT wrapped in `_navigate`: this fires from the transport via
      * `onDidResubscribe` and can land in the middle of a real, user-visible
-     * navigation. Taking a token here would bump `_navRequestSeq` and make the
-     * outer navigation's `isCurrent()` permanently false, silently turning the
-     * user's own history open or topic switch into a no-op. `_navigate` never
-     * nests, and a reconciliation is not itself a user-visible navigation, so
+     * navigation, and `_navigate` never nests (see rule 2 there). A
+     * reconciliation is not itself a user-visible navigation, so
      * `installDetail`'s own guard tuple is what protects this call instead.
-     *
-     * Subscribes FIRST, then reads: a CTXSWAP that lands between the GET
-     * completing and the subscription going live would otherwise be lost with
-     * nothing left to repair it.
      *
      * A LOAD like any other (guard matrix: "reconnect detail"), so it goes
      * through `beginLoad` and `installDetail` directly and never merges:
@@ -678,7 +654,6 @@ export class IrisConversationService {
         if (snapshot.currentSessionId === undefined || snapshot.courseId === undefined) { return; }
         // Subscribe FIRST: a CTXSWAP between the GET completing and the
         // subscription becoming active would otherwise be lost entirely.
-        // Synchronous by contract (see IrisConversationDeps), so no await.
         this._deps.subscribeToSession(snapshot.currentSessionId);
         this.state.noteReconnect();
 
@@ -690,7 +665,6 @@ export class IrisConversationService {
         try {
             const detail = await this._api.getChatSessionById(snapshot.courseId, snapshot.currentSessionId);
             if (!this.state.installDetail(detail, captured)) {
-                // Something moved while we were fetching. Discard, do not merge.
                 return;
             }
             this._emit();

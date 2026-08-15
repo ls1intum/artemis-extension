@@ -69,7 +69,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// ── Phase A2: synchronous service construction & provider registration ──
 	// All service constructors below are synchronous. Registering the webview
 	// providers before yielding back to the event loop ensures that any
-	// view-resolution attempt — including Theia's layout-restore — finds a
+	// view-resolution attempt (including Theia's layout-restore) finds a
 	// registered provider with the correct environment already in place.
 	const artemisApiService = new ArtemisApiService(authManager);
 
@@ -273,7 +273,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// than `sessionIdentity.epoch`: every call site captures its epoch from the
 	// catalog, and the coordinator can bump its own generation before `attach`
 	// installs the first one here, which would make every recency write look
-	// stale. One source, shared with the catalog writes these calls sit next to.
+	// stale.
 	const courseAccessStorage = new CourseAccessStorageService(
 		context.globalState,
 		() => sessionIdentity.accessScope(),
@@ -283,9 +283,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	const providerRegistry = createProviderRegistry();
 
 	context.subscriptions.push(courseCatalog.onCoursesLoaded(() => {
-		// The registry is an INDEX over the catalog now. Rebuilding rather than
-		// adding is what makes a deleted exercise stop answering repository
-		// matches; `registerFromCourseData` could only ever grow it.
+		// The registry is an INDEX over the catalog. Rebuilding rather than adding
+		// is what makes a deleted exercise stop answering repository matches.
 		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
 
@@ -343,9 +342,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(struggleAlertStatusBar);
 
-	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
-	// data, an unbounded, unscoped list of every course and exercise this
-	// installation ever saw, sitting in globalState forever.
+	// Drop the `iris.contextStore` key: an unbounded, unscoped list of every
+	// course and exercise this installation ever saw, orphaned in globalState.
 	void context.globalState.update('iris.contextStore', undefined);
 
 	const workspaceTracker = new WorkspaceExerciseTracker();
@@ -449,8 +447,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		updateAuthContext,
 	}));
 
-	// Kept as a defensive safety net for any future when-clause gating.
-	// The login view itself no longer depends on this context key.
+	// Defensive safety net for future when-clause gating; no view reads this key.
 	void vscode.commands.executeCommand('setContext', 'iris:extensionReady', true);
 
 	// ── Phase B: async initialization (UI already responsive) ────────
@@ -488,7 +485,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// the Iris chat alone never resolves it.
 	void sessionIdentity.resolvePrincipal();
 
-	// Initial auth state — checks both memory (Theia) and SecretStorage (VS Code)
+	// Initial auth state: checks both memory (Theia) and SecretStorage (VS Code).
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
@@ -549,9 +546,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			lastServerUrl = newServerUrl;
 			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
-			// Before the credential check on purpose. The old code only acted when
-			// a token existed, so changing the server while logged out left every
-			// in-memory component holding the previous server's courses.
+			// Before the credential check on purpose: a server change while logged
+			// out must still drop the previous server's courses from every
+			// in-memory component.
 			//
 			// Deliberately NOT `resolvePrincipal()`: the stored token is global
 			// rather than per server, so a lookup started here would read the OLD
