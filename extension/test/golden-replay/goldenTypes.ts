@@ -1,8 +1,6 @@
 import type { BoundaryType } from '@extension/services/struggle/config';
 import { BOUNDARY_PRIORITY } from '@extension/services/struggle/config';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export interface GoldenTick {
     readonly t: number;
     readonly effectiveWindowS: number;
@@ -63,8 +61,6 @@ export interface GoldenSession {
     readonly alerts: GoldenAlert[];
     readonly inject: GoldenInject;
 }
-
-// ── Validator helpers ─────────────────────────────────────────────────────────
 
 const VALID_BOUNDARY_TYPES = new Set<string>(BOUNDARY_PRIORITY);
 const VALID_PATHS = new Set<string>(['armed', 'e6']);
@@ -203,8 +199,6 @@ function parseInject(raw: unknown): GoldenInject {
         ),
     };
 }
-
-// ── Public parser ─────────────────────────────────────────────────────────────
 
 /**
  * Strict runtime validator for golden session JSON. Throws a descriptive Error

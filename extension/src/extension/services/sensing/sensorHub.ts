@@ -92,8 +92,8 @@ export interface SensorHub extends vscode.Disposable {
 
 /**
  * A hub channel that subscribes to its VS Code source event only while at
- * least one consumer is attached, and unsubscribes when the last detaches
- * (PR1 decision log #1a). Fan-out is synchronous in attach order.
+ * least one consumer is attached, and unsubscribes when the last detaches.
+ * Fan-out is synchronous in attach order.
  */
 class LazyRelay<TRaw, TSignal> implements vscode.Disposable {
     // One entry per subscription (NOT per unique function): the same listener
@@ -140,9 +140,8 @@ class LazyRelay<TRaw, TSignal> implements vscode.Disposable {
         // Copy: a subscription may attach/detach during fan-out. Chosen
         // semantics: a subscription disposed mid-fan-out still receives the
         // in-flight signal. Errors are isolated per listener so one throwing
-        // consumer cannot suppress delivery to the others (matching the
-        // pre-hub world, where each consumer held its own VS Code
-        // subscription and VS Code isolated listener errors).
+        // consumer cannot suppress delivery to the others, matching how VS Code
+        // isolates listener errors across its own subscriptions.
         for (const entry of [...this._subscriptions]) {
             try {
                 entry.call(signal);
@@ -260,12 +259,12 @@ export class VsCodeSensorHub implements SensorHub {
         h => vscode.debug.onDidChangeBreakpoints(h),
         (event: vscode.BreakpointsChangeEvent): BreakpointsSignal => ({ ts: Date.now(), event }),
     );
-    // Internal sources: plain emitters — there is no VS Code subscription to
-    // defer, so the LazyRelay machinery does not apply. ts is stamped at emit.
+    // Internal sources: plain emitters, since there is no VS Code subscription
+    // to defer and the LazyRelay machinery does not apply. ts is stamped at emit.
     // NOTE: unlike LazyRelay channels, vscode.EventEmitter does NOT isolate
-    // listener errors — a throwing consumer propagates back into the emit*
-    // caller. The PR-2c producers (websocket handler, UI layer) must wrap
-    // their emit calls or this block must grow LazyRelay-style isolation.
+    // listener errors: a throwing consumer propagates back into the emit*
+    // caller. The producers (websocket handler, UI layer) must wrap their emit
+    // calls or this block must grow LazyRelay-style isolation.
     private readonly _buildResultEmitter = new vscode.EventEmitter<BuildResultSignal>();
     readonly onBuildResult = this._buildResultEmitter.event;
     private readonly _taskFeedbackViewEmitter = new vscode.EventEmitter<TaskFeedbackViewSignal>();

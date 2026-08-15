@@ -10,14 +10,10 @@ import styles from './SlotPanel.module.css';
 import { mmss } from './useEngineCountdowns';
 import { useSlotCountdowns } from './useSlotCountdowns';
 
-// ---------------------------------------------------------------------------
-// Inner component - always receives a non-null snapshot, so hooks are called
-// unconditionally (satisfying Rules of Hooks).
-// ---------------------------------------------------------------------------
-
 /**
  * The "why is it silent" block: session latches, student toggle, and the idle-abandon evidence
- * gate. Rendered in BOTH the free and occupied branches — the free state is exactly when these matter.
+ * gate. Rendered in BOTH the free and occupied branches, since the free state is exactly when
+ * these matter.
  */
 function SuppressionStatus({ snapshot }: { snapshot: SlotDebugSnapshot }) {
     const s = snapshot.suppression;
@@ -161,10 +157,6 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
         </div>
     );
 }
-
-// ---------------------------------------------------------------------------
-// Exported outer component - owns subscribe lifecycle and null-guard for snapshot.
-// ---------------------------------------------------------------------------
 
 /**
  * Developer-only panel showing live slot state for the v3 proactivity pipeline.

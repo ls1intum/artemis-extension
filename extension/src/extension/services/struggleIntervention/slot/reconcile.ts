@@ -1,10 +1,6 @@
 import type { Level } from './episode';
 import type { SlotState } from './slotManager';
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 export interface Decision {
     action: 'silent' | 'ambient' | 'active';
     text: string | null;
@@ -19,10 +15,6 @@ export type ReconcileAction =
     | { kind: 'discard-free' }                    // PARKED + silent
     | { kind: 'escalate' }                        // DELIVERED ambient (revealed) + active + hardEvent
     | { kind: 'suppress' };                       // everything else
-
-// ---------------------------------------------------------------------------
-// Pure reconciliation function
-// ---------------------------------------------------------------------------
 
 /**
  * Apply a decision against the current slot state and derive the action.
@@ -47,10 +39,6 @@ export function reconcile(slot: SlotState, decision: Decision): ReconcileAction 
             return reconcileDelivered(slot.level, decision);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Per-state helpers
-// ---------------------------------------------------------------------------
 
 function reconcileFree(decision: Decision): ReconcileAction {
     switch (decision.action) {

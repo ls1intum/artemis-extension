@@ -35,7 +35,7 @@ describe('ProactivePreferenceService', () => {
 
     it('is a SINGLE remembered level: a value set once is read back everywhere (no per-exercise keying)', () => {
         svc.setLevel('less');
-        // There is no exercise dimension anymore — every read returns the one stored level.
+        // There is no exercise dimension: every read returns the one stored level.
         expect(svc.getLevel()).toBe('less');
         expect(svc.isProactiveOn()).toBe(true);
     });

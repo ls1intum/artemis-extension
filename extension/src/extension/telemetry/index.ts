@@ -180,9 +180,8 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
             // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
             // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
-            // Focus is no longer fired eagerly here (#364 Task 2): the reveal-navigation
-            // (ChatWebviewProvider.revealProactiveSessionForExercise, wired in Task 3) is the
-            // single owner of focus.
+            // Do not fire focus here: the reveal-navigation
+            // (ChatWebviewProvider.revealProactiveSessionForExercise) is the single owner of focus.
             void orchestrator.revealParkedHint();
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
@@ -193,9 +192,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         }),
     );
 
-    // Single source of truth for the proactive-help level (spec §12.2, issue #341). The level is one
-    // remembered setting now, so there is no active-exercise keying; getProactiveLevel() already
-    // defaults to 'more' when unset. Read live so a mid-session Off/Less/More flip takes effect at once.
+    // Single source of truth for the proactive-help level (spec §12.2). The level is one remembered
+    // setting, so there is no active-exercise keying; getProactiveLevel() already defaults to 'more'
+    // when unset. Read live so a mid-session Off/Less/More flip takes effect at once.
     const getActiveProactiveLevel = (): ProactiveLevel => deps.getProactiveLevel();
 
     // Tier-2 delivery throttle wraps the orchestrator (downstream of the recorded
@@ -220,7 +219,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // In developer mode, also surface the per-tick decision so it's visible why an alert (does not) fire.
     deps.context.subscriptions.push(coordinator.onDidTick(t => {
         orchestrator.onTick(t);
-        // Phase B: pass the live debug snapshot so the one-line tick log also carries the
+        // Pass the live debug snapshot so the one-line tick log also carries the
         // throttle/grace timers (same data source the dev dashboard renders from).
         if (isDevMode()) { devLog(formatTick(t, coordinator.getDebugSnapshot())); }
     }));
@@ -348,7 +347,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         devLog('▶ Cleared mocked proactivity surfaces (dev command)');
     };
 
-    // The command is now a submenu: the real force path plus purely-visual ambient/active mocks.
+    // The command is a submenu: the real force path plus purely-visual ambient/active mocks.
     // Palette entry is dev-gated (config.artemis.developerMode) but re-check here in case it is
     // invoked programmatically.
     deps.context.subscriptions.push(vscode.commands.registerCommand('artemis.forceStruggleIntervention', async () => {
@@ -381,7 +380,6 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         dismissEpisode: (episodeId?: string) => orchestrator.dismissEpisode(episodeId),
         // "Solved it" positive close (RECOVERED); seam callback to setStruggleCallbacks.onEpisodeResolve.
         resolveEpisode: (episodeId?: string) => orchestrator.resolveEpisode(episodeId),
-        // Slot debug (Task 4): expose orchestrator snapshot/history + register the change sink.
         getSlotDebugSnapshot: () => orchestrator.getSlotDebugSnapshot(),
         getEpisodeHistory: () => orchestrator.getEpisodeHistory(),
         setSlotChangeSink: (fn: () => void) => { slotChangeSink = fn; },
@@ -400,7 +398,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
                 }
                 return;
             }
-            // LEGACY active banner (unchanged behaviour):
+            // Legacy active banner (payload without a `moment`):
             const { action, episodeId } = payload;
             // 'showMe' also navigates to the flagged line by reusing the already-armed jump lamp (a
             // no-op when no anchor is armed). Done before the mock guard so the dev mock jumps too and

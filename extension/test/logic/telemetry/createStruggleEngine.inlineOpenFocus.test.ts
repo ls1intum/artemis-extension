@@ -6,10 +6,8 @@ import { createStruggleEngine } from '@extension/telemetry/index';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 /**
- * #364 Task 2: the `iris.intervention.inlineOpen` command used to fire `iris.chatView.focus`
- * eagerly right after triggering the reveal. Focus ownership moves to
- * `ChatWebviewProvider.revealProactiveSessionForExercise` (the caller wiring lands in Task 3),
- * so this handler must now trigger the reveal WITHOUT focusing the chat itself.
+ * #364 Task 2: focus ownership belongs to `ChatWebviewProvider.revealProactiveSessionForExercise`,
+ * so the `iris.intervention.inlineOpen` command triggers the reveal WITHOUT focusing the chat itself.
  *
  * The vscode mock mirrors createStruggleEngine.proactiveLevel.test.ts, with one difference:
  * `commands.registerCommand` captures each handler by id (instead of just returning a
@@ -90,7 +88,7 @@ function fakeDeps(): StruggleEngineDeps {
         revealAmbient: vi.fn(async () => ({}) as never),
         setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        // #364 reveal navigation: defaults, unused in this suite.
         resolveRevealTarget: () => ({ courseId: 1, title: 'Fake Exercise' }),
         currentNavToken: () => 0,
         openRevealSession: vi.fn(async () => true),

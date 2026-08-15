@@ -6,10 +6,6 @@ import { classifyStruggleEvent, subscribeStruggleEvents } from '@extension/servi
 import type { StruggleInterventionDeps } from '@extension/services/struggleIntervention/struggleInterventionService';
 import { StruggleInterventionService } from '@extension/services/struggleIntervention/struggleInterventionService';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /**
  * Set up a synthetic in-flight 'decide' for testing inbound handlers.
  * In production these are set by _handleAlert before the async POST;
@@ -56,7 +52,7 @@ function makeDeps(overrides: Partial<StruggleInterventionDeps> = {}): StruggleIn
         setTimeoutFn: (_fn: () => void, _ms: number) => { /* deterministic noop */ },
         // C2 reveal deps (no-ops for these tests)
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        // Reveal navigation (unused in this suite).
         resolveRevealTarget: () => ({ courseId: 100, title: 'Fake Exercise' }),
         currentNavToken: () => 1,
         openRevealSession: vi.fn(async () => true),
@@ -82,7 +78,6 @@ function simulateDeliveredWithClosePending(svc: StruggleInterventionService, epi
     // First put slot in DELIVERED via the decide path
     simulateDecidePending(svc, episodeId);
     svc.onServerActive(episodeId, 42, undefined, undefined, undefined, undefined, 'Iris has a hint.', 100);
-    // Now set up the confirm_close in-flight
     const gen = svc._slot.generation();
     const requestToken = 'close-request-token';
     const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken };
@@ -97,18 +92,12 @@ function simulateParkedWithClosePending(svc: StruggleInterventionService, episod
     // Put slot in PARKED via ambient decide path
     simulateDecidePending(svc, episodeId);
     svc.onServerAmbient(episodeId, 'Ambient hint', undefined, undefined, undefined, undefined, null);
-    // Now set up the confirm_close in-flight
     const gen = svc._slot.generation();
     const requestToken = 'close-parked-token';
     const stamp: PendingStamp = { episodeId, generation: gen, hardEvent: false, requestToken };
     const localToken = svc._guard.issue('confirm_close', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'confirm_close', localToken };
 }
-
-
-// ---------------------------------------------------------------------------
-// classifyStruggleEvent
-// ---------------------------------------------------------------------------
 
 describe('classifyStruggleEvent', () => {
     it('parses an ambient event', async () => {
@@ -151,10 +140,6 @@ describe('classifyStruggleEvent', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// subscribeStruggleEvents dispatch
-// ---------------------------------------------------------------------------
-
 describe('subscribeStruggleEvents dispatch', () => {
     it('threads exerciseId + episodeId + messageId through to the ambient/active handlers', async () => {
         let onFrame: ((d: unknown) => void) | undefined;
@@ -163,7 +148,7 @@ describe('subscribeStruggleEvents dispatch', () => {
         const onServerActive = vi.fn();
         subscribeStruggleEvents(subscribe, { onServerAmbient, onServerActive, onServerSilent: vi.fn(), onServerClose: vi.fn() });
 
-        // Ambient: episodeId threaded (#349 Finding 1), messageId absent -> null
+        // Ambient: episodeId threaded, messageId absent -> null
         onFrame!({ exerciseId: 42, action: 'ambient', episodeId: 'ep-a', message: 'Re-check the logic.', anchorFile: 'src/A.java', anchorLine: 42, inlineHint: 'off-by-one?' });
         expect(onServerAmbient).toHaveBeenCalledWith(42, 'ep-a', 'Re-check the logic.', 'src/A.java', 42, 'off-by-one?', undefined, null);
 
@@ -181,10 +166,6 @@ describe('subscribeStruggleEvents dispatch', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// C1: Surface split (onServerAmbient / onServerActive behavior)
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService surface split (C1)', () => {
     it('onServerAmbient with anchor: showGutterOnly + badge + lamp; never showInline, never banner, never bubble', async () => {
         const deps = makeDeps();
@@ -196,7 +177,6 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.showGutterOnly).toHaveBeenCalledWith('Sort.java', 10);
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         expect(deps.showLamp).toHaveBeenCalled();
-        // Must NOT show inline text, banner, or bubble:
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.showActiveBanner).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
@@ -230,9 +210,7 @@ describe('StruggleInterventionService surface split (C1)', () => {
         expect(deps.postBubble).toHaveBeenCalledWith('Try checking array bounds.', 556, 'ep-test');
         // Inline breadcrumb armed at the anchor (4th arg = message ?? inlineHint, so message wins when provided)
         expect(deps.showInline).toHaveBeenCalledWith('Sort.java', 10, 'off-by-one?', 'Try checking array bounds.');
-        // Nudge banner
         expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-test');
-        // Badge
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         // Anchored active: the jump lamp is armed (not the unconditional clearLamp), and the
         // ambient reveal-lamp is never shown for active.
@@ -267,7 +245,6 @@ describe('StruggleInterventionService surface split (C1)', () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        // postBubble still called even if message is undefined
         expect(deps.postBubble).toHaveBeenCalled();
         const [calledText, calledId] = (deps.postBubble as ReturnType<typeof vi.fn>).mock.calls[0] as [string, number];
         expect(typeof calledText).toBe('string');
@@ -309,10 +286,6 @@ describe('StruggleInterventionService surface split (C1)', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// C4: classifyStruggleEvent -- new frame kinds
-// ---------------------------------------------------------------------------
-
 describe('classifyStruggleEvent -- C4 new frame kinds', () => {
     it('round-trips kind=decide action=silent with episodeId and messageId', async () => {
         const e = classifyStruggleEvent({ exerciseId: 5, kind: 'decide', action: 'silent', episodeId: 'ep-1', messageId: 42 });
@@ -336,10 +309,6 @@ describe('classifyStruggleEvent -- C4 new frame kinds', () => {
         expect(e).toMatchObject({ kind: 'decide', action: 'ambient', episodeId: 'ep-2', message: 'Check bounds.', messageId: 88 });
     });
 });
-
-// ---------------------------------------------------------------------------
-// C4: subscribeStruggleEvents -- dispatch to new handlers
-// ---------------------------------------------------------------------------
 
 describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
     function makeSubscribe() {
@@ -385,10 +354,6 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// C4: orchestrator handler integration -- silent / confirmClose / staleCheck
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService -- C4 silent dispatch', () => {
     it('kind=decide action=silent with matching episodeId on FREE slot stays FREE and clears candidate', async () => {
         const deps = makeDeps();
@@ -411,7 +376,6 @@ describe('StruggleInterventionService -- C4 silent dispatch', () => {
 
         // in-flight marker must NOT be consumed (real reply may still arrive)
         expect(svc._inFlightMarker).toBeDefined();
-        // slot stays FREE (was already free; no change)
         expect(svc._slot.snapshot().state.kind).toBe('free');
     });
 
@@ -490,7 +454,7 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
 
         svc.onServerClose('ep-parked', false, undefined, undefined, undefined);
 
-        expect(svc._slot.snapshot().state.kind).toBe('parked'); // stays PARKED
+        expect(svc._slot.snapshot().state.kind).toBe('parked');
         expect(deps.foldEpisode).not.toHaveBeenCalled();
     });
 
@@ -501,7 +465,6 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
 
         svc.onServerClose('ep-WRONG', true, 77, undefined, 'Close sentence');
 
-        // Slot stays DELIVERED
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
         expect(deps.postRemoveMessage).toHaveBeenCalledWith(77);
         // Marker NOT consumed (real reply may still arrive)
@@ -511,11 +474,9 @@ describe('StruggleInterventionService -- C4 confirmClose dispatch', () => {
 
 describe('active surface: bubble ordering against the conversation open', () => {
     /**
-     * Before the conversation model, the provider attributed a bubble to whatever
-     * local session was active, so posting first and opening second was harmless.
-     * It is not any more: a bubble emitted while another conversation is still
-     * installed is attributed to THAT one, so the student either sees the hint in
-     * the wrong chat or not at all. The bubble therefore waits for the open.
+     * A bubble emitted while another conversation is still installed is attributed
+     * to THAT one, so the student sees the hint in the wrong chat or not at all.
+     * The bubble therefore waits for the open.
      */
     it('posts the bubble only after the target conversation has opened', async () => {
         let openTargetConversation!: () => void;

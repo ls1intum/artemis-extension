@@ -1,4 +1,3 @@
-// extension/test/__shared__/testSensorHub.ts
 /**
  * Controllable SensorHub for tests: every channel is backed by a public
  * EventEmitter (fire via `hub.emit.<channel>.fire(...)`), state reads return

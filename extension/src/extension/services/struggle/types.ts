@@ -1,4 +1,3 @@
-// extension/src/extension/services/struggle/types.ts
 import type { BoundaryType } from './config';
 
 /** Per-tick feature vector (Python compute_features row). All rates per minute,
@@ -14,7 +13,7 @@ export interface FeatureVector {
     readonly tsState: boolean;
 }
 
-/** Outcome of one engine tick (input for the struggleScore recording in PR 2c). */
+/** Outcome of one engine tick (input for the struggleScore recording). */
 export interface TickRecord {
     /** Session-relative tick time in seconds (10, 20, ...). */
     readonly t: number;

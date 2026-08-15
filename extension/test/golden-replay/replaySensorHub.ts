@@ -11,7 +11,7 @@
  * session-relative time and its ORIGINAL index. `pumpUpTo(tS)` fires all
  * not-yet-fired entries with time <= tS, sorted by (time, originalIndex) so
  * equal timestamps preserve recording order (the engine's own intake queue is
- * stable-sorted the same way — struggleEngine.ts#_drainUpTo).
+ * stable-sorted the same way, see struggleEngine.ts#_drainUpTo).
  *
  * Signal `ts` convention: the engine computes `relS(ts) = (ts - sessionStartMs)
  * / 1000`, so every fired signal carries `ts = sessionStartMs + tSeconds * 1000`.
@@ -163,9 +163,9 @@ export class ReplaySensorHub implements SensorHub {
      * (b) makes a mid-stream rollback impossible. Snapshots are never re-applied
      * from the pump queue.
      *
-     * The recorder snapshots files LAZILY on first open/switch — observed AFTER
-     * the startupPhaseComplete marker, not before it — so a "snapshots before the
-     * marker" notion is empty in practice. We therefore treat every snapshotted
+     * The recorder snapshots files LAZILY on first open/switch, observed AFTER
+     * the startupPhaseComplete marker and never before it, so a "snapshots before
+     * the marker" notion is empty in practice. We therefore treat every snapshotted
      * URI as an already-open doc for readTextDocuments(): the engine's document
      * shadow reads `before` at the first textChange regardless, where the seeded
      * baseline is the snapshot content either way, so readTextDocuments() timing
@@ -251,8 +251,8 @@ export class ReplaySensorHub implements SensorHub {
             const uriKey = this._snapshotUris[0];
             for (const t of this._opts.injectedPasteEventTimes ?? []) {
                 const tsMs = this._opts.sessionStartMs + t * 1000;
-                // chars/lines are unused by the engine — it reads only ts + uri for
-                // the N1 boundary — so they carry placeholder values.
+                // chars/lines are unused by the engine (it reads only ts + uri for
+                // the N1 boundary), so they carry placeholder values.
                 push(t, () => this._pasteDetected.fire(
                     { ts: tsMs, uri: makeUri(uriKey), chars: 0, lines: 1 },
                 ));

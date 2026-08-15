@@ -222,7 +222,6 @@ export function ChatMessageList({
         );
     };
 
-    // Auto-scroll when new messages arrive
     useEffect(() => {
         scrollOnSend();
     }, [messages.length, scrollOnSend]);

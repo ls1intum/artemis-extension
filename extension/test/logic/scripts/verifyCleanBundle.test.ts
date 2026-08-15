@@ -80,10 +80,9 @@ describe('verify-clean-bundle', () => {
         });
         /**
          * The seam's REAL entry, as opposed to its noop. esbuild aliases `@telemetry` to noop.ts
-         * here, so this file only reaches the bundle via an import that bypasses the alias -- and
-         * it carries the engine wiring plus the developer commands. It matched no forbidden
-         * prefix before (TELEMETRY_SUBTREE is `services/telemetry/`, a layout this branch does
-         * not use), so that bypass would have shipped silently.
+         * here, so this file only reaches the bundle via an import that bypasses the alias, and
+         * it carries the engine wiring plus the developer commands. TELEMETRY_SUBTREE
+         * (`services/telemetry/`) does not cover this path, so it needs its own forbidden entry.
          */
         it('forbids the real telemetry seam entry, while Desktop keeps it', () => {
             const f = metaWith(['src/extension/telemetry/index.ts']);

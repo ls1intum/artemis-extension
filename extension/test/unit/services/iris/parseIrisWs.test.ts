@@ -1,5 +1,5 @@
 /**
- * Unit tests for the light-touch Iris WS guards (#183 part B).
+ * Unit tests for the light-touch Iris WS guards.
  *
  * Light-touch means: reject obvious shape failures (null, arrays, primitives)
  * but trust the type interface for per-field details. The downstream handler

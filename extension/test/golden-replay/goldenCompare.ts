@@ -3,8 +3,6 @@ import type { AlertRecord, TickRecord } from '@extension/services/struggle/types
 import type { GoldenAlert, GoldenSession, GoldenTick } from './goldenTypes';
 import type { ReplayResult } from './struggleReplay';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export interface ExactDivergence {
     readonly kind: 'tickCount' | 'tickField' | 'alertCount' | 'alertField';
     readonly t?: number;
@@ -35,11 +33,7 @@ export interface CausalReport {
     readonly alertSharedTimeFieldMismatches: number;
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const TOL = 1e-6;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function approxEq(a: number, b: number): boolean {
     return Math.abs(a - b) <= TOL;
@@ -52,8 +46,6 @@ function arraysEqual<T>(a: readonly T[], b: readonly T[]): boolean {
     }
     return true;
 }
-
-// ── compareExact ──────────────────────────────────────────────────────────────
 
 function compareTickFields(
     rt: TickRecord,
@@ -70,9 +62,9 @@ function compareTickFields(
         { field: 'fTyping', replay: rt.features.fTyping, golden: gt.fTyping },
         { field: 'fGap', replay: rt.features.fGap, golden: gt.fGap },
         // The golden fixtures still carry fFb/fA8/fN2/s/v/fastDecay from the
-        // study engine; the live engine dropped the bonus-severity context
-        // signals and the V(t) telemetry curve, so those fields are no longer
-        // recomputed or compared. sBase and the alert stream stay pinned.
+        // study engine; the live engine has no bonus-severity context signals
+        // and no V(t) telemetry curve, so those fields are neither recomputed
+        // nor compared. sBase and the alert stream stay pinned.
         { field: 'sBase', replay: rt.sBase, golden: gt.sBase },
     ];
 
@@ -306,8 +298,6 @@ export function compareExact(replay: ReplayResult, golden: GoldenSession): Exact
 
     return { ok: true };
 }
-
-// ── summarizeCausal ───────────────────────────────────────────────────────────
 
 /**
  * Measurement-only comparison: counts disagreements and deltas without asserting.

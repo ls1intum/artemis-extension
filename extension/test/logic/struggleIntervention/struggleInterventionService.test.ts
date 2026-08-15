@@ -22,7 +22,6 @@ function simulateDecidePending(svc: StruggleInterventionService, episodeId = 'ep
     const stamp: PendingStamp = { episodeId, generation: gen, hardEvent, requestToken };
     const localToken = svc._guard.issue('decide', stamp);
     svc._inFlightMarker = { requestToken, episodeId, generation: gen, intent: 'decide', localToken };
-    // Also set the candidate so take-parked/take-delivered can proceed
     svc._candidate = { episodeId, hints: [], createdAtMs: 0 };
 }
 
@@ -58,9 +57,9 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         setTimeoutFn: () => { /* never auto-clear in-flight in tests */ },
         // C2 reveal deps
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal-into-exercise navigation. Behavior-preserving defaults (valid target, stable
-        // nav token, navigation succeeds) so existing reveal tests never abort through the new guard.
-        // Spies so tests can assert call order / not-called.
+        // Reveal-into-exercise navigation defaults (valid target, stable nav token, navigation
+        // succeeds) so reveal tests never abort through the guard. Spies so tests can assert
+        // call order / not-called.
         resolveRevealTarget: vi.fn(() => ({ courseId: 100, title: 'Fake Exercise' })),
         currentNavToken: vi.fn(() => 1),
         openRevealSession: vi.fn(async () => true),
@@ -361,7 +360,6 @@ describe('StruggleInterventionService', () => {
         expect(deps.postRemoveMessage).toHaveBeenCalledWith(71);
         expect(deps.deleteSupersededProactiveMessage).toHaveBeenCalledWith(42, 71);
         expect(deps.showInline).not.toHaveBeenCalled();
-        // The guard's pre-existing marker handling is unchanged: _clearInFlight releases it.
         expect(svc._inFlightMarker).toBeUndefined();
 
         const deps2 = fakeDeps({ isEgressEnabled: () => false });
@@ -423,7 +421,6 @@ describe('StruggleInterventionService', () => {
         expect(deps.showInline).not.toHaveBeenCalled();
         expect(deps.postBubble).not.toHaveBeenCalled();
         expect(deps.showActiveBanner).not.toHaveBeenCalled();
-        // Slot is now PARKED
         expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
@@ -454,10 +451,10 @@ describe('StruggleInterventionService', () => {
         expect(deps.showInline).not.toHaveBeenCalled();
     });
 
-    // C3: active now routes through the slot guard; use simulateDecidePending for test setup.
-    // The old 3/session cap is replaced by the slot (only one episode at a time). Only the first active
-    // surface per episode is delivered; subsequent decides from a DELIVERED slot are suppressed unless
-    // the slot is an escalation candidate (ambient+hardEvent).
+    // C3: active routes through the slot guard; use simulateDecidePending for test setup.
+    // The slot holds one episode at a time: only the first active surface per episode is delivered;
+    // subsequent decides from a DELIVERED slot are suppressed unless the slot is an escalation
+    // candidate (ambient+hardEvent).
     it('inbound active event (FREE slot) → opens session + badge + banner + inline if anchor live', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -470,7 +467,6 @@ describe('StruggleInterventionService', () => {
         expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 7);
         expect(deps.setBadge).toHaveBeenCalledWith(true);
         expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
-        // Slot is now DELIVERED
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
     });
 
@@ -546,10 +542,9 @@ describe('StruggleInterventionService', () => {
         expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 8);
         expect(deps.showActiveBanner).toHaveBeenCalledWith('ep-1');
         // ...AND the inline breadcrumb is armed at the anchor (rendered once the file is visible;
-        // the anchor no longer has to be on screen in the delivery moment)...
+        // the anchor does not have to be on screen in the delivery moment)...
         expect(deps.showInline).toHaveBeenCalledWith('src/B.java', 84, 'check punctuation', 'Iris has a suggestion for you.');
-        // ...and the jump lamp is armed at the same anchor (the persistent way to reach the cue);
-        // showActiveJump replaces the old unconditional clearLamp for the anchored case.
+        // ...and the jump lamp is armed at the same anchor (the persistent way to reach the cue).
         expect(deps.showActiveJump).toHaveBeenCalledWith('src/B.java', 84);
         expect(deps.clearLamp).not.toHaveBeenCalled();
     });
@@ -746,8 +741,8 @@ describe('StruggleInterventionService', () => {
         expect(deps.clearLamp).not.toHaveBeenCalled();
     });
 
-    // #343: the activity-bar badge marks an outstanding proactive hint and is episode-scoped, so the
-    // shared terminal seam must clear it too (previously it stranded at "1" after a solved/timed-out close).
+    // The activity-bar badge marks an outstanding proactive hint and is episode-scoped, so the
+    // shared terminal seam must clear it too (otherwise it strands at "1" after a close).
     it('a terminal episode exit clears the activity-bar badge', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -764,10 +759,6 @@ describe('StruggleInterventionService', () => {
         expect(svc._slot.isFree()).toBe(true);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Delivered-slot POST gating: no decide POST when the result is provably discarded
-// ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService delivered-slot POST gating', () => {
     // While the slot is DELIVERED, reconcile suppresses every inbound decide result except the
@@ -884,10 +875,7 @@ describe('StruggleInterventionService delivered-slot POST gating', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // C2: hold-frozen ambient + reveal-on-click + episode-outcome API + back-fill
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService C2 reveal', () => {
     /** Puts the slot in PARKED state and sets the frozen session id. */
     function setupParked(svc: StruggleInterventionService, sessionId: number, hintText = 'Re-check the loop.', epId = 'ep-uuid'): void {
@@ -1266,14 +1254,7 @@ describe('StruggleInterventionService C2 reveal', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// C3: Slot routing (Step-1 spec tests from the task brief)
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService C3 slot routing', () => {
-    // -------------------------------------------------------------------------
-    // Canonical §1 bug: active delivered, later ambient must NOT overwrite
-    // -------------------------------------------------------------------------
     it('canonical §1 bug fixed: ambient after delivered-active is suppressed (no overwrite)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -1310,8 +1291,8 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
         // Second decide on the DELIVERED slot: ambient reply carries a persisted messageId (555).
         // reconcile(DELIVERED, ambient) -> suppress. The persisted row would otherwise linger on the
-        // server and reappear as a chat row on the next history/chat-ws load (the duplicate-hint the
-        // stale-check removal is meant to prevent), so suppress MUST drop it.
+        // server and reappear as a duplicate chat row on the next history/chat-ws load, so suppress
+        // MUST drop it.
         simulateDecidePending(svc, 'ep-1', false);
         svc.onServerAmbient('ep-1', 'New hint', undefined, undefined, undefined, undefined, 555);
 
@@ -1338,9 +1319,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.deleteSupersededProactiveMessage).not.toHaveBeenCalled();
     });
 
-    // -------------------------------------------------------------------------
-    // Preallocated candidate: replace-parked uses the REQUEST's candidate id
-    // -------------------------------------------------------------------------
     it('PARKED ambient + different-problem ambient -> replace-parked using the preallocated candidate id', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -1385,9 +1363,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.postBubble).toHaveBeenCalledTimes(1);
     });
 
-    // -------------------------------------------------------------------------
-    // Stale generation: inbound reply dropped when slot moved on
-    // -------------------------------------------------------------------------
     it('stale-generation reply is dropped by the guard (slot moved on between POST and reply)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -1407,9 +1382,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(st.episode.episodeId).toBe('ep-stale'); // NOT replaced
     });
 
-    // -------------------------------------------------------------------------
-    // Escalation: ambient+hardEvent required
-    // -------------------------------------------------------------------------
     it('escalation: delivered-ambient + active + hardEvent -> escalate', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -1485,8 +1457,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
     });
 
     it('escalation WITHOUT an anchor retires any stale parked gutter cue and arms no jump lamp', async () => {
-        // Regression: revealParkedHint keeps the parked gutter cue; a no-anchor escalation must
-        // still clear it (previously the escalation returned without touching inline state).
+        // revealParkedHint keeps the parked gutter cue; a no-anchor escalation must still clear it.
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
         svc._slot.takeParked(0, { episodeId: 'ep-na', hints: [], createdAtMs: 0 }, { level: 'ambient', text: 'h', atSessionS: 0 });
@@ -1528,11 +1499,8 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.postBubble).not.toHaveBeenCalled();
     });
 
-    // -------------------------------------------------------------------------
-    // isNew flip on first accepted request
-    // -------------------------------------------------------------------------
     it('isNew=true on first POST; flips to false on the next POST to the same episode (after first accepted)', async () => {
-        // The only continuation POST left from a DELIVERED slot is the escalation candidate
+        // The only continuation POST from a DELIVERED slot is the escalation candidate
         // (revealed-ambient level + hard boundary); all other delivered-slot decides are
         // skipped before the POST (delivered-slot POST gating).
         const postSpy = vi.fn(async () => 'accepted' as const);
@@ -1608,9 +1576,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(parked.episode.episodeId).toBe(sentEpisodeId);
     });
 
-    // -------------------------------------------------------------------------
-    // Progress confirmClose: DELIVERED -> progress, PARKED -> parked_progress
-    // -------------------------------------------------------------------------
     it('newGreenTest while DELIVERED -> confirmClose POSTed with confirmReason=progress exactly once', async () => {
         const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
@@ -1724,9 +1689,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(body.struggleSignal.alert.path).toBe('discrete');
     });
 
-    // -------------------------------------------------------------------------
-    // Owed confirmClose: not lost while wire is busy with a decide
-    // -------------------------------------------------------------------------
     it('owed confirmClose set while decide is in flight is NOT lost: POSTs when wire frees', async () => {
         const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
@@ -1762,9 +1724,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect((postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1].intent).toBe('confirm_close');
     });
 
-    // -------------------------------------------------------------------------
-    // PARKED confirmClose-reply (required test)
-    // -------------------------------------------------------------------------
     it('PARKED: newGreenTest issues confirmClose with parked_progress; resolved=true frees silently (no fold, no outcome)', async () => {
         const postSpy = vi.fn(async () => 'accepted' as const);
         const deps = fakeDeps({ postIntervention: postSpy });
@@ -1823,9 +1782,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect((postSpy.mock.calls[0] as unknown as [number, StruggleInterventionRequest])[1].confirmReason).toBe('parked_progress');
     });
 
-    // -------------------------------------------------------------------------
-    // Scoped cancel: terminal via _clearEpisodeRuntime uses the LIVE in-flight token
-    // -------------------------------------------------------------------------
     it('scoped-cancel: _clearEpisodeRuntime cancels under the OWNING exercise, not the current one (#350)', async () => {
         const cancelSpy = vi.fn(async () => undefined);
         // Owning exercise A=1; the student has already switched so getExerciseId() now returns B=2.
@@ -1874,9 +1830,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(svc._slot.snapshot().state.kind).toBe('parked');
     });
 
-    // -------------------------------------------------------------------------
-    // revealParkedHint: scoped cancel + re-owe under DELIVERED semantics
-    // -------------------------------------------------------------------------
     it('reveal: scoped-cancels in-flight parked_progress confirmClose + re-owes as DELIVERED progress', async () => {
         const cancelSpy = vi.fn(async () => undefined);
         const deps = fakeDeps({ cancelOutstandingStruggleJob: cancelSpy });
@@ -1932,9 +1885,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(cancelSpy).toHaveBeenCalledTimes(1); // no extra cancel calls
     });
 
-    // -------------------------------------------------------------------------
-    // clearEpisodeRuntime: comprehensive teardown
-    // -------------------------------------------------------------------------
     it('clearEpisodeRuntime teardown: latch reset, watchdog disarmed, owed cleared', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -1956,9 +1906,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(svc._inFlightMarker).toBeUndefined();
     });
 
-    // -------------------------------------------------------------------------
-    // foldEpisode: DELIVERED terminals emit fold; PARKED terminals do not
-    // -------------------------------------------------------------------------
     it('foldEpisode emitted on DELIVERED terminal (onServerClose resolved=true)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -2000,9 +1947,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.foldEpisode).not.toHaveBeenCalled();
     });
 
-    // -------------------------------------------------------------------------
-    // Window count is wire-independent (§13 force-free bound)
-    // -------------------------------------------------------------------------
+    // Spec §13 force-free bound: the idle window is counted independent of wire activity.
     it('watchdog force-frees a DELIVERED slot after continuous idle (ABANDONED + fold)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -2024,9 +1969,6 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.foldEpisode).toHaveBeenCalled();
     });
 
-    // -------------------------------------------------------------------------
-    // watchdog.resetProgress: defers stale fire on hard progress
-    // -------------------------------------------------------------------------
     it('onNewBuildResult(true) calls watchdog.resetProgress (defers next stale fire)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);
@@ -2084,11 +2026,8 @@ describe('StruggleInterventionService C3 slot routing', () => {
 
 });
 
-// ---------------------------------------------------------------------------
 // Live-episode chat frame (SetLiveEpisode seam): the engine pushes which episode
 // is DELIVERED so the chat webview never folds the live episode as an earlier hint.
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService live-episode chat frame', () => {
     const flushSlotChange = () => new Promise(r => setTimeout(r, 0));
 
@@ -2340,10 +2279,6 @@ describe('onConsentRevoked (#349)', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// #349 revoke->regrant epoch-boundary races (Findings 1-3 regression tests)
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService revoke->regrant epoch races (#349)', () => {
     // Finding 2: a stale POST completion from request A (superseded by a revoke->regrant that
     // issued a fresh marker for request B) must not clear or latch onto B's live in-flight state.
@@ -2450,10 +2385,6 @@ describe('StruggleInterventionService revoke->regrant epoch races (#349)', () =>
     });
 });
 
-// ---------------------------------------------------------------------------
-// #349 wave 2: persisted-row retirement on correlation drops + reveal epoch boundary
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoch (#349)', () => {
     // Wave 2 Finding 1: a correlation-dropped frame's chat row is already persisted server-side
     // and could surface via chat history; it must be retired (like the suppress path does),
@@ -2532,7 +2463,7 @@ describe('StruggleInterventionService wave 2: stale-row retirement + reveal epoc
     });
 
     // Wave 2 Finding 2b: a reveal POST that REJECTS after a revoke must not schedule a retry
-    // (the old code captured the already-bumped generation, so a regrant would replay stale content).
+    // (capturing the already-bumped generation would let a regrant replay stale content).
     it('reveal rejecting after a revoke schedules no retry', async () => {
         let egress = true;
         let rejectReveal!: (e: Error) => void;

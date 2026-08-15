@@ -142,7 +142,7 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
 
     test('stop() halts ticking; restart resets all state', () => {
         // NOTE: the default clock's now() is the real Date.now(), far beyond
-        // START — stop()'s final drain would catch up across years of grid
+        // START, so stop()'s final drain would catch up across years of grid
         // ticks. Use a pinned manual clock for this lifecycle test.
         engine.dispose();
         hub = new TestSensorHub();
@@ -193,8 +193,8 @@ suite('StruggleEngine (tick contract end-to-end)', () => {
         const clock = sinon.useFakeTimers({ now: START, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
         try {
             hub = new TestSensorHub();
-            // Manual engine clock: now() follows the faked Date, no interval —
-            // reproduces "tick 70 due but not yet run" (timer jitter).
+            // Manual engine clock: now() follows the faked Date, no interval.
+            // Reproduces "tick 70 due but not yet run" (timer jitter).
             engine = new StruggleEngine(hub, { now: () => Date.now(), setInterval: () => 0, clearInterval: () => { /* manual */ } });
             const seen: TickRecord[] = [];
             engine.onDidTick(t => seen.push(t));

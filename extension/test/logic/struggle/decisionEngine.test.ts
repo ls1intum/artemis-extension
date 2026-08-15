@@ -5,7 +5,6 @@ import { DecisionEngine } from '@extension/services/struggle/decision/decisionEn
 import type { EngineTick } from '@extension/services/struggle/types';
 import { asEditAlert } from '@test/__shared__/alertNarrow';
 
-/** Build an EngineTick. */
 function mkTick(t: number, urgency: number, opts: {
     boundaries?: BoundaryType[];
     typingRate?: number | null;
@@ -53,9 +52,7 @@ describe('DecisionEngine (Schicht 3 — urgency-threshold owner)', () => {
         expect(d.decide(mkTick(10, 0.9, { boundaries: [] }))).toBeNull();
     });
 
-    // The load-bearing v3 contract: the decision thresholds on urgency = S_base
-    // ONLY. (The former "ignores telemetry V" decoupling tests are gone with the
-    // V field itself — the type system now enforces that structurally.)
+    // The load-bearing v3 contract: the decision thresholds on urgency = S_base ONLY.
     it('B2 blocks while typing_rate >= 20 even with urgency >= θ', () => {
         const d = new DecisionEngine({ warmupS: 0, cooldownS: 0 });
         expect(d.decide(mkTick(10, 0.8, { typingRate: 25 }))).toBeNull();

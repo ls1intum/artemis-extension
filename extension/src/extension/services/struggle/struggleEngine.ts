@@ -12,8 +12,7 @@
  *
  * Sensor policy at intake mirrors the recorder (the frozen parameters were
  * derived on recorded streams): shouldRecordUri(uri, exerciseRoot) filtering.
- * v3 no longer consumes the editor visibleRange stream (the dropped N4 scroll
- * feature).
+ * v3 does not consume the editor visibleRange stream (no N4 scroll feature).
  */
 import * as vscode from 'vscode';
 
@@ -97,9 +96,8 @@ export class StruggleEngine implements vscode.Disposable {
 
     start(session: EngineSessionContext): void {
         // Teardown only (no final drain): the CALLER ends the previous session
-        // explicitly via stop() when drain semantics are wanted (PR 2c session
-        // fan-out does stop() then start()). This keeps start() safe for
-        // tests/replay that control time themselves.
+        // explicitly via stop() when drain semantics are wanted. This keeps
+        // start() safe for tests/replay that control time themselves.
         this._teardown();
         this._session = session;
         this._resetState();
@@ -126,9 +124,9 @@ export class StruggleEngine implements vscode.Disposable {
         this._teardown();
     }
 
-    /** Abort path: teardown WITHOUT the final drain (used by dispose; also
-     *  what tests with a real default clock rely on — a drain against real
-     *  Date.now() would catch up across the whole fake-session span). */
+    /** Shared teardown, WITHOUT the final drain. Tests with a real default clock
+     *  rely on that: a drain against real Date.now() would catch up across the
+     *  whole fake-session span. */
     private _teardown(): void {
         if (this._timer !== undefined) {
             this._clock.clearInterval(this._timer);

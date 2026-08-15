@@ -1,10 +1,6 @@
 import type { Episode, EpisodeHint, Level, SlotGeneration } from './episode';
 import { addHint } from './episode';
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 export type SlotState =
     | { kind: 'free' }
     | { kind: 'parked'; episode: Episode; level: 'ambient'; frozenText: string; generation: SlotGeneration }
@@ -15,10 +11,6 @@ export interface SlotSnapshot {
     inSession: boolean;
     generation: SlotGeneration;
 }
-
-// ---------------------------------------------------------------------------
-// SlotManager
-// ---------------------------------------------------------------------------
 
 /**
  * Pure in-memory slot state machine.
@@ -47,9 +39,7 @@ export class SlotManager {
         return this._state.kind === 'free';
     }
 
-    // -----------------------------------------------------------------------
     // Semantic transitions (each bumps generation)
-    // -----------------------------------------------------------------------
 
     /** FREE -> PARKED. The episode receives the hint as its first hints[] entry. */
     takeParked(_now: number, episode: Episode, hint: EpisodeHint): SlotSnapshot {
@@ -152,19 +142,11 @@ export class SlotManager {
         return this.snapshot();
     }
 
-    // -----------------------------------------------------------------------
-    // Non-semantic transition (does NOT bump generation)
-    // -----------------------------------------------------------------------
-
     /** Toggle the in-session flag without changing the episode state or bumping generation. */
     setInSession(open: boolean): SlotSnapshot {
         this._inSession = open;
         return this.snapshot();
     }
-
-    // -----------------------------------------------------------------------
-    // Private helpers
-    // -----------------------------------------------------------------------
 
     private _requireKind(op: string, required: SlotState['kind']): void {
         if (this._state.kind !== required) {

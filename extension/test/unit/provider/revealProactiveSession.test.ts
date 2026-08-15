@@ -1,6 +1,5 @@
 /**
- * Reveal path after the conversation-model migration (#364 spec A, ported in the
- * dev merge).
+ * Reveal path in the conversation model.
  *
  * Two guarantees live here that a compiler cannot hold up:
  *

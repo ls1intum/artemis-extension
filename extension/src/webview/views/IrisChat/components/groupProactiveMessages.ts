@@ -54,7 +54,6 @@ export function groupByEpisode(messages: ChatMessage[]): ChatRenderItem[] {
                 emittedEpisodes.add(episodeId);
                 const msgs = episodeMap.get(episodeId)!;
                 if (msgs.length === 1) {
-                    // Single-message episode renders as a plain single.
                     items.push({ kind: 'single', message: msgs[0] });
                 } else {
                     items.push({ kind: 'episode', episodeId, messages: msgs });

@@ -6,8 +6,6 @@ import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 import { compareExact, summarizeCausal } from './goldenCompare';
 import type { GoldenAlert, GoldenSession, GoldenTick } from './goldenTypes';
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
-
 function makeTick(overrides: Partial<GoldenTick> = {}): GoldenTick {
     return {
         t: 10,
@@ -93,8 +91,6 @@ function makeReplayAlert(ga: GoldenAlert): AlertRecord {
         inGrace: ga.inGrace,
     };
 }
-
-// ── compareExact ──────────────────────────────────────────────────────────────
 
 describe('compareExact', () => {
     it('returns ok:true when replay exactly matches golden', () => {
@@ -193,8 +189,6 @@ describe('compareExact', () => {
         expect(result.firstDivergence?.kind).toBe('alertCount');
     });
 });
-
-// ── summarizeCausal ───────────────────────────────────────────────────────────
 
 describe('summarizeCausal', () => {
     it('returns correct tick and alert counts without throwing', () => {

@@ -1,4 +1,3 @@
-// extension/src/extension/services/intervention/debug/struggleDebug.ts
 import * as vscode from 'vscode';
 
 import type { StruggleSnapshot } from '@extension/services/struggle/types';

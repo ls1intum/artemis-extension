@@ -11,11 +11,11 @@ const LEVELS: readonly ProactiveLevel[] = ['off', 'less', 'more'];
 
 /**
  * Durable single proactive-help level (spec §12.2, Off/Less/More), stored in VS Code globalState
- * keyed by server + principal. The level is remembered ONCE per user (issue #341), not per exercise:
- * every exercise reads the same value. Default is `more`, so proactive help exists without any setup.
- * Plain client service — imports NOTHING from services/struggle|intervention, so it stays in the
+ * keyed by server + principal. The level is remembered ONCE per user, not per exercise: every
+ * exercise reads the same value. Default is `more`, so proactive help exists without any setup.
+ * Plain client service: imports NOTHING from services/struggle|intervention, so it stays in the
  * clean bundle. The legacy per-exercise map key (`proactive.preference::…`) is deliberately never
- * read or written (the feature was unreleased when this landed, so there is nothing to migrate).
+ * read or written, since that shape never shipped and there is nothing to migrate.
  */
 export class ProactivePreferenceService {
     private readonly _shadow = new Map<string, ProactiveLevel>();

@@ -5,17 +5,9 @@ import { ProgressCloseLatch } from '@extension/services/struggleIntervention/slo
 
 const BASE_CFG: ProgressCloseCfg = { reArmSBase: 0.4, reArmHoldMs: 5_000 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function latch(cfg: ProgressCloseCfg = BASE_CFG): ProgressCloseLatch {
     return new ProgressCloseLatch(cfg);
 }
-
-// ---------------------------------------------------------------------------
-// Initial state
-// ---------------------------------------------------------------------------
 
 describe('ProgressCloseLatch', () => {
     describe('initial state', () => {
@@ -27,10 +19,6 @@ describe('ProgressCloseLatch', () => {
             expect(latch().shouldPost()).toBe(false);
         });
     });
-
-    // -----------------------------------------------------------------------
-    // newGreenTest edge -> pending-post
-    // -----------------------------------------------------------------------
 
     describe('newGreenTest edge', () => {
         it('observe with newGreenTest=true moves open -> pending-post', () => {
@@ -52,10 +40,6 @@ describe('ProgressCloseLatch', () => {
             expect(l.shouldPost()).toBe(false);
         });
     });
-
-    // -----------------------------------------------------------------------
-    // onPosted: TOTAL function -- all three states
-    // -----------------------------------------------------------------------
 
     describe('onPosted totality', () => {
         it('onPosted from open is a no-op (state stays open, shouldPost stays false)', () => {
@@ -89,10 +73,6 @@ describe('ProgressCloseLatch', () => {
         });
     });
 
-    // -----------------------------------------------------------------------
-    // shouldPost stays true across ticks until onPosted (wire-busy)
-    // -----------------------------------------------------------------------
-
     describe('wire-busy: owed close survives extra ticks', () => {
         it('shouldPost stays true across multiple ticks without onPosted', () => {
             const l = latch();
@@ -106,11 +86,6 @@ describe('ProgressCloseLatch', () => {
             expect(l.state()).toBe('pending-post');
         });
     });
-
-    // -----------------------------------------------------------------------
-    // No stacking: a second edge while pending-post or candidate-close does not
-    // add another close
-    // -----------------------------------------------------------------------
 
     describe('no edge stacking', () => {
         it('second newGreenTest while pending-post does not stack (still one owed close)', () => {
@@ -133,10 +108,6 @@ describe('ProgressCloseLatch', () => {
             expect(l.shouldPost()).toBe(false);
         });
     });
-
-    // -----------------------------------------------------------------------
-    // onConfirmResult
-    // -----------------------------------------------------------------------
 
     describe('onConfirmResult(true) -- terminal', () => {
         it('onConfirmResult(true) from candidate-close moves to a non-firing state', () => {
@@ -181,10 +152,6 @@ describe('ProgressCloseLatch', () => {
             expect(l.shouldPost()).toBe(true);
         });
     });
-
-    // -----------------------------------------------------------------------
-    // sBase sustained-below edge
-    // -----------------------------------------------------------------------
 
     describe('sBase sustained-below edge', () => {
         it('sBase below reArmSBase for less than reArmHoldMs does not owe a close', () => {
@@ -243,11 +210,6 @@ describe('ProgressCloseLatch', () => {
         });
     });
 
-    // -----------------------------------------------------------------------
-    // sBase re-arm after onConfirmResult(false): must rise above reArmSBase
-    // before the sBase path can re-fire
-    // -----------------------------------------------------------------------
-
     describe('sBase re-arm after onConfirmResult(false)', () => {
         it('still-below sBase right after onConfirmResult(false) does not immediately re-fire', () => {
             const l = latch();
@@ -276,10 +238,6 @@ describe('ProgressCloseLatch', () => {
             expect(l.state()).toBe('pending-post');
         });
     });
-
-    // -----------------------------------------------------------------------
-    // reset()
-    // -----------------------------------------------------------------------
 
     describe('reset()', () => {
         it('reset from pending-post clears back to open', () => {
@@ -322,10 +280,6 @@ describe('ProgressCloseLatch', () => {
             expect(l.state()).toBe('pending-post');
         });
     });
-
-    // -----------------------------------------------------------------------
-    // Combined: newGreenTest + sBase in same tick
-    // -----------------------------------------------------------------------
 
     describe('combined: newGreenTest takes priority when both would fire', () => {
         it('newGreenTest=true at the sBase threshold tick moves to pending-post once', () => {

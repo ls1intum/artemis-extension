@@ -4,13 +4,11 @@ import type { RecordedEvent } from '../src/types';
 import { eventDetail } from '../src/utils/eventDisplay';
 
 /**
- * `intervention` was retired from the canonical schema (EQ engine removal,
- * commit 87fd6578, synced into the generated types by 36fbe503) and is no
- * longer part of `RecordedEvent`. Old recordings on disk still contain
- * `intervention` rows and `eventDetail` still renders them (see the legacy
- * branch in eventDisplay.tsx), so this suite keeps exercising that path via a
- * viewer-local legacy shape + cast, mirroring eventDisplay.tsx's own
- * LegacyInterventionEvent.
+ * `intervention` is not part of the canonical `RecordedEvent` schema. Old
+ * recordings on disk still contain `intervention` rows and `eventDetail` still
+ * renders them (see the legacy branch in eventDisplay.tsx), so this suite
+ * exercises that path via a viewer-local legacy shape + cast, mirroring
+ * eventDisplay.tsx's own LegacyInterventionEvent.
  */
 interface LegacyInterventionEvent {
     type: 'intervention';

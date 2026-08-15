@@ -17,16 +17,12 @@ describe('C8: dismissEpisode', () => {
 
         svc.dismissEpisode('ep-dismiss');
 
-        // Slot is now free
         expect(svc._slot.snapshot().state.kind).toBe('free');
-        // Generation bumped (slot transitioned)
         expect(svc._slot.generation()).toBeGreaterThan(genBefore);
-        // Episode outcome written
         await Promise.resolve();
         expect(deps.setEpisodeOutcome).toHaveBeenCalledWith(42, 'ep-dismiss', 'DISMISSED');
-        // Fold posted without praise
         expect(deps.foldEpisode).toHaveBeenCalledWith('ep-dismiss', 'DISMISSED');
-        // NO praise (third arg absent or undefined; the second arg is now the outcome)
+        // No praise: index 2 is the optional praise arg and stays absent (index 1 is the outcome).
         const foldCall = (deps.foldEpisode as ReturnType<typeof vi.fn>).mock.calls[0];
         expect(foldCall[2]).toBeUndefined();
     });
@@ -36,7 +32,6 @@ describe('C8: dismissEpisode', () => {
         const svc = new StruggleInterventionService(deps);
         simulateDelivered(svc, 'ep-clear');
 
-        // Plant an owed confirmClose
         svc._owedConfirmClose = { confirmReason: 'progress' };
         // Watchdog was armed by simulateDelivered (via onServerActive take-delivered path)
         expect(svc._watchdog).toBeDefined();
@@ -102,7 +97,6 @@ describe('C8: dismissEpisode', () => {
 
         svc.dismissEpisode('ep-stale-different'); // different from live 'ep-live'
 
-        // Slot must NOT be freed
         expect(svc._slot.snapshot().state.kind).toBe('delivered');
         await Promise.resolve();
         // Outcome write for the passed id (safe back-fill)

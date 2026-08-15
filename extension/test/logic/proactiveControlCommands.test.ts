@@ -98,7 +98,7 @@ describe('ProactiveControlCommandModule', () => {
         expect(h.sent.at(-1)).toMatchObject({ cardState: 'available', proactiveControlAvailable: true });
     });
 
-    // ── Slice 5c: card-state derivation ────────────────────────────────────
+    // Card-state derivation
     it('all signals ok (with courseId) → available', async () => {
         const h = harness({});
         await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));

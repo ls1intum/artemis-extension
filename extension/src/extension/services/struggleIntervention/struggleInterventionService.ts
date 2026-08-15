@@ -27,10 +27,6 @@ import { StaleWatchdog } from './slot/staleWatchdog';
 import type { StruggleEgressResult, StruggleInterventionRequest, StruggleSignal } from './struggleContract';
 import { TickRingBuffer } from './tickRingBuffer';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 /** The in-flight marker tracks the outstanding struggle POST (single-outstanding). */
 interface InFlightMarker {
     requestToken: string;
@@ -56,10 +52,6 @@ interface OwedConfirmClose {
     confirmReason: 'progress' | 'parked_progress';
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 /** Delay between reveal-persist retries. The server upsert is idempotent (A10), so retries are safe. */
 const REVEAL_RETRY_MS = 5_000;
 /** Maximum number of reveal-persist retry attempts (~1 min at 5s). After this the bubble stays runtime-only. */
@@ -83,10 +75,6 @@ function isHardAlert(alert: AlertRecord): boolean {
         : alert.trigger === 'test-stagnation';
 }
 
-// ---------------------------------------------------------------------------
-// Deps interface
-// ---------------------------------------------------------------------------
-
 export interface StruggleInterventionDeps {
     /** True iff Iris is enabled for the active exercise's course (global profile + course chat).
      *  Fail-closed: false when Iris is off OR availability is not yet known. */
@@ -105,12 +93,11 @@ export interface StruggleInterventionDeps {
      */
     readFileContent(anchorFile: string): string | undefined;
     postIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult>;
-    /** Open/attach the proactive session by id + reload its history so the bubble shows (spec §5.5 active). */
     /**
-     * Opens a proactive conversation. Carries the course as well as the session
-     * because the server API scopes session lookup by course, and nothing here
-     * establishes that a proactive session id is globally unique or belongs to
-     * the course currently on screen.
+     * Opens (or attaches to) a proactive conversation and reloads its history, so the bubble shows
+     * (spec §5.5 active). Carries the course as well as the session because the server API scopes
+     * session lookup by course, and nothing here establishes that a proactive session id is
+     * globally unique or belongs to the course currently on screen.
      */
     openSession(courseId: number, sessionId: number): Promise<void>;
     /** Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). No per-hint tooltip. */
@@ -181,12 +168,8 @@ export interface StruggleInterventionDeps {
      * replays it on webview init, so a re-created webview never folds the live episode.
      */
     setChatLiveEpisode(episodeId: string | null): void;
-    // ---- C2: reveal flow ----
-    /**
-     * Reconcile the reveal bubble after server persist confirms the canonical row.
-     */
+    /** Reconcile the reveal bubble after server persist confirms the canonical row. */
     reconcileOptimisticBubble(localId: string, serverId: number, proactiveEpisodeId: string | undefined, sentAt: string): void;
-    // ---- #364: reveal-into-exercise navigation (persist-then-navigate) ----
     /**
      * Resolve the owning course + display title of a parked hint's exercise (#364 spec C).
      * Synchronous local lookup; undefined when the exercise is untracked, or the tracked entry
@@ -204,18 +187,11 @@ export interface StruggleInterventionDeps {
     notifyRevealUnavailable(): void;
     /** Notify the student that a parked hint could not be persisted, so the reveal permanently gave up (#364). */
     notifyRevealFailed(): void;
-    /**
-     * Reveal the hidden ambient hint by persisting it as a chat message in the proactive session (A10).
-     */
+    /** Reveal the hidden ambient hint by persisting it as a chat message in the proactive session (A10). */
     revealAmbient(exerciseId: number, episodeId: string, hintText: string, level: Level, clientMessageId: string): Promise<IrisChatMessage>;
-    /**
-     * Record the student's terminal outcome for an episode-keyed proactive row (A10).
-     */
+    /** Record the student's terminal outcome for an episode-keyed proactive row (A10). */
     setEpisodeOutcome(exerciseId: number, episodeId: string, outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' | 'INTERRUPTED'): Promise<{ applied: boolean }>;
-    // ---- C3: slot-continuity ----
-    /**
-     * Cancel an outstanding struggle job by its per-POST requestToken (A10 scoped cancel).
-     */
+    /** Cancel an outstanding struggle job by its per-POST requestToken (A10 scoped cancel). */
     cancelOutstandingStruggleJob(exerciseId: number, requestToken: string): Promise<void>;
     /**
      * Emit the host-to-webview fold signal for a terminal DELIVERED episode (C6/C7 renders).
@@ -226,7 +202,6 @@ export interface StruggleInterventionDeps {
         outcome: 'RECOVERED' | 'DISMISSED' | 'ABANDONED',
         praise?: { episodeLabel: string; closeMessageId: number },
     ): void;
-    // ---- C4: stale-row suppression ----
     /**
      * Post a host->webview removeMessage{id} so the webview removes the stale row (if present)
      * and suppresses any later chat-ws arrival of the same id (C4 stale-row suppression).
@@ -249,10 +224,7 @@ export interface StruggleInterventionDeps {
     progressCloseCfg?: ProgressCloseCfg;
 }
 
-// ---------------------------------------------------------------------------
-// Default slot config (mirrors TUNING.slot; injected so tests can override)
-// ---------------------------------------------------------------------------
-
+// Default slot config (mirrors TUNING.slot; injected so tests can override).
 const DEFAULT_SLOT_CFG: StaleConfig = {
     idleAbandonMs: 600_000,
     warnLeadMs: 60_000,
@@ -263,14 +235,10 @@ const DEFAULT_PROGRESS_CFG: ProgressCloseCfg = {
     reArmHoldMs: 30_000,
 };
 
-// ---------------------------------------------------------------------------
-// Service
-// ---------------------------------------------------------------------------
-
 /**
  * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}; alerts
  * arrive via the coordinator's sink chain (BackoffGate -> ThrottledAlertSink -> this, see telemetry/index.ts)
- * with no settings gate since #352 (consent gates the engine, level/gates/throttle gate the surfaces) and the
+ * with no settings gate (#352: consent gates the engine, level/gates/throttle gate the surfaces) and the
  * `reset()`/`resetSession()` teardown calls stay authoritative. Ticks are fed via {@link onTick} (wired in
  * extension.ts from `coordinator.onDidTick`). vscode-free at runtime -- only type imports; all effects injected.
  */
@@ -285,11 +253,9 @@ export class StruggleInterventionService implements AlertSink {
      */
     private _revealRetryGen = 0;
 
-    // ---------------------------------------------------------------------------
-    // C3: slot-core state (package-internal for test access -- underscore prefix)
-    // ---------------------------------------------------------------------------
+    // Slot-core state (package-internal for test access: underscore prefix).
 
-    // Slot state machine (C2 introduced; C3 routes all decisions through it)
+    // Slot state machine; every decision routes through it
     readonly _slot = new SlotManager();
 
     // Async/generation guard: validates inbound websocket replies against the live slot state
@@ -349,10 +315,6 @@ export class StruggleInterventionService implements AlertSink {
      */
     private _awaitingEvidence = false;
 
-    // ---------------------------------------------------------------------------
-    // Task 3: episode history ring buffer + slot-change notify
-    // ---------------------------------------------------------------------------
-
     private _episodeHistory: EpisodeHistoryEntry[] = [];
     private static readonly HISTORY_CAP = 20;
     private _slotChangeScheduled = false;
@@ -365,10 +327,6 @@ export class StruggleInterventionService implements AlertSink {
             _deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG,
         );
     }
-
-    // ---------------------------------------------------------------------------
-    // Slot debug snapshot + episode history (read-only, never throw)
-    // ---------------------------------------------------------------------------
 
     /** Snapshot of the slot/intervention runtime for the dev dashboard. Pure read, never throws. */
     getSlotDebugSnapshot(): SlotDebugSnapshot {
@@ -461,10 +419,7 @@ export class StruggleInterventionService implements AlertSink {
         try { this._deps.setChatLiveEpisode(live); } catch { /* best-effort: chat push must never break the engine */ }
     }
 
-    // ---------------------------------------------------------------------------
-    // Notifying setters (complete-by-construction notify coverage)
-    // ---------------------------------------------------------------------------
-
+    // Notifying setters (complete-by-construction notify coverage).
     private _setInFlightMarker(v: InFlightMarker | undefined): void { this._inFlightMarker = v; this.notifySlotDebugChanged(); }
     private _setOwedConfirmClose(v: OwedConfirmClose | undefined): void { this._owedConfirmClose = v; this.notifySlotDebugChanged(); }
     private _setAwaitingEvidence(value: boolean, reason: string): void {
@@ -484,10 +439,6 @@ export class StruggleInterventionService implements AlertSink {
     private _setPendingOutcome(episodeId: string, outcome: { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }): void { this._pendingOutcomes.set(episodeId, outcome); this.notifySlotDebugChanged(); }
     private _deletePendingOutcome(episodeId: string): void { this._pendingOutcomes.delete(episodeId); this.notifySlotDebugChanged(); }
     private _clearPendingOutcomes(): void { this._pendingOutcomes.clear(); this.notifySlotDebugChanged(); }
-
-    // ---------------------------------------------------------------------------
-    // AlertSink
-    // ---------------------------------------------------------------------------
 
     /** Fed every engine tick (ungated buffer fill). Wired externally so we don't bypass coordinator gating. */
     onTick(tick: TickRecord): void {
@@ -532,7 +483,6 @@ export class StruggleInterventionService implements AlertSink {
         if (!newGreenTest) { return; }
         // A new green test is fresh student activity: clear the idle-abandon gate.
         this._setAwaitingEvidence(false, 'new green test');
-        // Feed the latch: newGreenTest=true triggers a progress edge
         // Use Date.now() for the latch since it cares about real time, not session time
         this._latch.observe(Date.now(), 1.0 /* above any threshold, won't fire sBase path */, true);
         this._propagateLatchToOwed();
@@ -596,10 +546,6 @@ export class StruggleInterventionService implements AlertSink {
     shouldSuppress(alert: AlertRecord): boolean {
         return this._suppressReason(alert) !== null;
     }
-
-    // ---------------------------------------------------------------------------
-    // Core alert handler (C3: preallocation + slot routing)
-    // ---------------------------------------------------------------------------
 
     private async _handleAlert(alert: AlertRecord): Promise<void> {
         const suppressed = this._suppressReason(alert);
@@ -762,10 +708,6 @@ export class StruggleInterventionService implements AlertSink {
             }
         }
     }
-
-    // ---------------------------------------------------------------------------
-    // Inbound decision handlers (C3 slot-reaction logic; C4 dispatches to these)
-    // ---------------------------------------------------------------------------
 
     /**
      * Inbound ambient event from the server (PARKED pointer only: spec §5 pull model).
@@ -998,10 +940,8 @@ export class StruggleInterventionService implements AlertSink {
             return;
         }
 
-        // Clear the in-flight marker for the confirmClose intent
         this._setInFlightMarker(undefined);
 
-        // Notify the latch
         this._latch.onConfirmResult(resolved);
 
         if (resolved) {
@@ -1015,7 +955,6 @@ export class StruggleInterventionService implements AlertSink {
             this._setOwedConfirmClose(undefined);
 
             if (wasDelivered) {
-                // DELIVERED resolved=true: free + RECOVERED outcome + fold with praise
                 this._dbg(`  -> CLOSE resolved: DELIVERED -> FREE (RECOVERED) episodeId=${liveEpisodeId ?? 'n/a'}`);
                 const exerciseId = this._deps.getExerciseId();
                 this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'delivered' }>).episode, 'RECOVERED');
@@ -1031,7 +970,6 @@ export class StruggleInterventionService implements AlertSink {
                     this._deps.foldEpisode(liveEpisodeId, 'RECOVERED', praise);
                 }
             } else if (wasParked) {
-                // PARKED resolved=true: discard silently (no row, no fold, no outcome)
                 this._dbg('  -> CLOSE resolved: PARKED -> FREE (silent discard)');
                 this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'parked' }>).episode, 'DISCARDED');
                 this._slot.discardParkedToFree();
@@ -1041,15 +979,10 @@ export class StruggleInterventionService implements AlertSink {
                 this._clearEpisodeRuntime();
             }
         } else {
-            // Not resolved: drain any queued work
             this._dbg('  -> CLOSE not resolved: latch re-arms, slot stays');
             void this._drainOwed();
         }
     }
-
-    // ---------------------------------------------------------------------------
-    // Reconcile-action applier (shared by onServerAmbient / onServerActive)
-    // ---------------------------------------------------------------------------
 
     private _applyDecideAction(
         action: ReconcileAction,
@@ -1070,7 +1003,7 @@ export class StruggleInterventionService implements AlertSink {
         // in the ~10s round-trip. Done ONCE here so every surface (gutter, inline + jump, escalation)
         // shares the corrected line. undefined -> the anchored line is gone, so the surfaces'
         // `!== undefined` guards drop the cue while the bubble/message still shows (fail-safe). No
-        // baseline (anchor on an unchanged file) or file not open -> keep the raw line (today's behaviour).
+        // baseline (anchor on an unchanged file) or file not open -> keep the raw line.
         let effectiveAnchorLine = anchorLine;
         if (anchorFile !== undefined && anchorLine !== undefined && isSafeAnchorPath(anchorFile)) {
             const base = baseline?.[anchorFile];
@@ -1088,7 +1021,6 @@ export class StruggleInterventionService implements AlertSink {
                 this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
                 this._watchdog.arm(now, true /* parked */);
                 this._latch.reset();
-                // Parked surface: badge + lamp (+ gutter when the reply carries an anchor)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
                 if (anchorFile && effectiveAnchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
@@ -1123,12 +1055,10 @@ export class StruggleInterventionService implements AlertSink {
                 const ep = this._candidate!;
                 this._slot.replaceParked(now, ep, hint);
                 this._candidate = undefined;
-                // Watchdog: fresh instance for the new episode
                 this._watchdog?.disarm();
                 this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
                 this._watchdog.arm(now, true /* parked */);
                 this._latch.reset();
-                // Surface: same parked pointers (badge + lamp + maybe gutter)
                 this._deps.setBadge(true);
                 this._deps.showLamp();
                 if (anchorFile && effectiveAnchorLine !== undefined && inlineHint && isSafeAnchorPath(anchorFile)) {
@@ -1148,7 +1078,6 @@ export class StruggleInterventionService implements AlertSink {
                 this._slot.replaceWithDelivered(now, ep, hint);
                 this._dbg(`  -> REPLACE-DELIVERED bubble hint="${text}"`);
                 this._candidate = undefined;
-                // Watchdog: fresh instance for the replacement episode
                 this._watchdog?.disarm();
                 this._watchdog = new StaleWatchdog(this._deps.slotCfg ?? DEFAULT_SLOT_CFG);
                 this._watchdog.arm(now, false /* delivered */);
@@ -1159,7 +1088,6 @@ export class StruggleInterventionService implements AlertSink {
             }
 
             case 'escalate': {
-                // DELIVERED ambient + hardEvent: escalate to active (same episode)
                 this._slot.escalate(hint);
                 this._dbg(`  -> ESCALATE ambient->active hint="${text}"`);
                 const inSession = this._slot.snapshot().inSession;
@@ -1198,11 +1126,10 @@ export class StruggleInterventionService implements AlertSink {
         const episodeId = this._deliveredEpisodeId();
         // Navigate BEFORE posting. A bubble emitted while another conversation is
         // still installed is attributed to that one, so the student sees it in the
-        // wrong place or not at all. The old order was only safe while the provider
-        // attributed bubbles to a local active session.
+        // wrong place or not at all.
         // Optional calls: a caller that cannot name the course (or a harness that
-        // does not stub these) degrades to posting straight away, which is the old
-        // behaviour. Production always resolves both.
+        // does not stub these) degrades to posting straight away. Production always
+        // resolves both.
         const exerciseId = this._deps.getExerciseId?.();
         const courseId = exerciseId !== undefined ? this._deps.resolveRevealTarget?.(exerciseId)?.courseId : undefined;
         if (sessionId !== undefined && courseId !== undefined) {
@@ -1257,7 +1184,7 @@ export class StruggleInterventionService implements AlertSink {
     ): void {
         this._deps.postBubble(text, messageId, this._deliveredEpisodeId());
         const hasAnchor = !!anchorFile && anchorLine !== undefined && !!inlineHint && isSafeAnchorPath(anchorFile);
-        // The jump lamp is a leiser, no-focus-steal code pointer, so arm it for an anchored
+        // The jump lamp is a quieter, no-focus-steal code pointer, so arm it for an anchored
         // escalation regardless of in-session (the inline cue below stays in-session-suppressed).
         if (hasAnchor) {
             this._deps.showActiveJump(anchorFile, anchorLine);
@@ -1279,10 +1206,6 @@ export class StruggleInterventionService implements AlertSink {
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Guard validation helpers
-    // ---------------------------------------------------------------------------
-
     /**
      * #349 Finding 1: inbound stale-frame correlation for the AMBIENT/ACTIVE surface handlers.
      * While a request is in flight, a late reply must echo the same episodeId as the live marker;
@@ -1291,8 +1214,8 @@ export class StruggleInterventionService implements AlertSink {
      * live request's wire is never killed by a foreign frame. A frame that carries NO episodeId fails
      * closed the same way: the current C4 server echoes episodeId on every new-style frame (mirroring
      * onServerSilent/onServerClose, which already drop on a missing/mismatched echo), so an absent id
-     * means a stale or foreign frame. When no marker is in flight, correlation is skipped and today's
-     * behaviour applies (the exercise-id filter and consent guard still run).
+     * means a stale or foreign frame. When no marker is in flight, correlation is skipped (the
+     * exercise-id filter and consent guard still run).
      * Returns true when the frame should be dropped.
      */
     private _isUncorrelatedFrame(frameEpisodeId: string | undefined): boolean {
@@ -1362,14 +1285,9 @@ export class StruggleInterventionService implements AlertSink {
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Watchdog event handling
-    // ---------------------------------------------------------------------------
-
     private _handleWatchdogTick(nowMs: number): void {
         if (!this._watchdog) { return; }
         const snap = this._slot.snapshot();
-        // Only tick when slot is PARKED or DELIVERED
         if (snap.state.kind === 'free') { return; }
 
         const event = this._watchdog.tick(nowMs);
@@ -1393,8 +1311,7 @@ export class StruggleInterventionService implements AlertSink {
                 break;
             }
             case 'force-free': {
-                // DELIVERED terminal: free + ABANDONED + clearEpisodeRuntime + foldEpisode (no praise)
-                // Scoped cancel is now hoisted into _clearEpisodeRuntime.
+                // Scoped cancel lives in _clearEpisodeRuntime.
                 this._dbg('  -> WATCHDOG force-free: DELIVERED -> FREE (ABANDONED)');
                 const deliveredEp = snap.state.kind === 'delivered' ? snap.state.episode : undefined;
                 const episodeId = deliveredEp?.episodeId;
@@ -1411,8 +1328,8 @@ export class StruggleInterventionService implements AlertSink {
                 break;
             }
             case 'free-silent': {
-                // PARKED terminal: free silently (no row, no foldEpisode)
-                // Scoped cancel is now hoisted into _clearEpisodeRuntime.
+                // PARKED terminal: free silently (no row, no foldEpisode). Scoped cancel lives in
+                // _clearEpisodeRuntime.
                 this._dbg('  -> WATCHDOG free-silent: PARKED -> FREE (silent)');
                 const parkedEp = snap.state.kind === 'parked' ? snap.state.episode : undefined;
                 if (parkedEp) { this.recordTerminalEpisode(parkedEp, 'DISCARDED'); }
@@ -1423,10 +1340,6 @@ export class StruggleInterventionService implements AlertSink {
             }
         }
     }
-
-    // ---------------------------------------------------------------------------
-    // Consented follow-up (help_request)
-    // ---------------------------------------------------------------------------
 
     /**
      * POST a consented follow-up (help_request) for the live DELIVERED episode. Single-flight; the reply
@@ -1495,10 +1408,6 @@ export class StruggleInterventionService implements AlertSink {
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Owed-request drain (confirmClose)
-    // ---------------------------------------------------------------------------
-
     /**
      * Propagate latch pending-post state -> _owedConfirmClose queue.
      * Called immediately after every latch.observe() call so the owed entry is always set
@@ -1534,11 +1443,8 @@ export class StruggleInterventionService implements AlertSink {
         if (exerciseId === undefined) { return; }
         if (!this._lastSignal) { return; }
 
-        // Priority 1: owed confirmClose
         if (this._owedConfirmClose) {
             const { confirmReason } = this._owedConfirmClose;
-            // Determine episode block based on current slot state
-            // Get episode from whichever taken state we're in (DELIVERED or PARKED)
             const epState = snap.state;
             const ep = (epState.kind === 'delivered' || epState.kind === 'parked') ? epState.episode : null;
             if (!ep) { return; }
@@ -1592,10 +1498,6 @@ export class StruggleInterventionService implements AlertSink {
 
     }
 
-    // ---------------------------------------------------------------------------
-    // clearEpisodeRuntime: tears down ALL per-episode runtime state
-    // ---------------------------------------------------------------------------
-
     /**
      * Called on EVERY terminal transition (slot free). Tears down the progress latch, watchdog,
      * owed requests, and the live-ask binding (which neutralises any pending ABANDON timers).
@@ -1636,7 +1538,6 @@ export class StruggleInterventionService implements AlertSink {
         }
         // Clear the in-flight marker (slot is terminal, nothing to reply to)
         this._setInFlightMarker(undefined);
-        // Null the candidate (always overwritten before next use, but cleaner to be explicit)
         this._candidate = undefined;
         // An offer still outstanding when the episode terminates (RECOVERED / DISMISSED / any
         // force-free) must be resolved + cleared here, the single terminal chokepoint. Otherwise
@@ -1645,10 +1546,7 @@ export class StruggleInterventionService implements AlertSink {
         this.notifySlotDebugChanged();
     }
 
-    // ---------------------------------------------------------------------------
-    // Moment-1 "still stuck" offer (delivered-slot cap, one outstanding offer at a time)
-    // ---------------------------------------------------------------------------
-
+    // Moment-1 "still stuck" offer (delivered-slot cap, one outstanding offer at a time).
     private _offerCapForLevel(level: ProactiveLevel): number {
         return level === 'more' ? 3 : level === 'less' ? 1 : 0;
     }
@@ -1723,10 +1621,7 @@ export class StruggleInterventionService implements AlertSink {
         this._deps.resolveOfferBubble(offerId, 'timeout');
     }
 
-    // ---------------------------------------------------------------------------
-    // Moment-3 "Still on this?" presence check (60s before the idle-abandon force-free)
-    // ---------------------------------------------------------------------------
-
+    // Moment-3 "Still on this?" presence check (60s before the idle-abandon force-free).
     private _raiseAbandonOffer(episodeId: string): void {
         const level = this._deps.getProactiveLevel();
         // Off = 0 offers.
@@ -1782,7 +1677,7 @@ export class StruggleInterventionService implements AlertSink {
 
     /**
      * Manual "Solved it" close: the student self-reports success, so the episode terminates with a
-     * RECOVERED outcome (positive — the fold line is a success summary and Pyris/eval see the hint as
+     * RECOVERED outcome (positive: the fold line is a success summary and Pyris/eval see the hint as
      * having helped). Mirrors {@link dismissEpisode} exactly except for the outcome; both share
      * {@link _manualCloseEpisode}. Unlike the auto-detected RECOVERED close there is no LLM praise row,
      * so the fold carries no praise.
@@ -1811,7 +1706,6 @@ export class StruggleInterventionService implements AlertSink {
         const shouldFreeSlot = snapState.kind === 'delivered' && matchesLive;
 
         if (shouldFreeSlot) {
-            // Full DELIVERED resolution: free + runtime teardown + outcome + fold (no praise)
             this.recordTerminalEpisode((snapState as Extract<typeof snapState, { kind: 'delivered' }>).episode, outcome);
             this._slot.free();
             this._clearEpisodeRuntime();
@@ -1841,7 +1735,7 @@ export class StruggleInterventionService implements AlertSink {
             if (this._deps.getExerciseId() !== exerciseId) { return; }
             this._setAwaitingEvidence(false, 'proactive re-enabled');
         } else {
-            // Off is now a GLOBAL level (#341): clear the active exercise's surfaces regardless of which
+            // Off is a GLOBAL level (#341): clear the active exercise's surfaces regardless of which
             // exercise view triggered it. The orchestrator already targets the active exercise, so this
             // is always the right instance to clear.
             this._deps.clearLamp();
@@ -1854,7 +1748,7 @@ export class StruggleInterventionService implements AlertSink {
 
     /**
      * AlertSink.reset -- shared surface-clearing helper invoked by the consent/session teardown paths
-     * (no standalone production caller since #352; level-Off clears surfaces via its own path). Clears
+     * (no standalone production caller; level-Off clears surfaces via its own path). Clears
      * ALL surfaces (incl. the lamp) + the in-flight slot, but DELIBERATELY KEEPS the per-session latches
      * (404 / course-off) and the active cap: a mid-session surface clear must not silently lift a latch.
      */
@@ -1944,10 +1838,6 @@ export class StruggleInterventionService implements AlertSink {
         this.notifySlotDebugChanged();
     }
 
-    // -------------------------------------------------------------------------
-    // C2: reveal-on-click + episode-outcome back-fill
-    // -------------------------------------------------------------------------
-
     /**
      * Reveal the parked ambient hint (spec §5.2 pull reveal). Transitions the slot PARKED -> DELIVERED,
      * opens the proactive session, posts an optimistic bubble, and persists the canonical row.
@@ -1994,11 +1884,10 @@ export class StruggleInterventionService implements AlertSink {
         // C3: scoped-cancel any in-flight request (the generation bump on reveal makes it stale)
         const inflight = this._inFlightMarker;
         if (inflight) {
-            // Scoped cancel: send server cancel to free the job slot
+            // Scoped cancel frees the server-side job slot.
             this._deps.cancelOutstandingStruggleJob(exerciseId, inflight.requestToken).catch(() => { /* best-effort */ });
-            // Re-owe the work that was in-flight under DELIVERED semantics
+            // Re-owe the in-flight work under DELIVERED semantics (progress, not parked_progress).
             if (inflight.intent === 'confirm_close') {
-                // Re-owe as a DELIVERED progress close (not parked_progress)
                 this._setOwedConfirmClose({ confirmReason: 'progress' });
             }
             // Clear the in-flight marker so the wire re-opens
@@ -2007,8 +1896,6 @@ export class StruggleInterventionService implements AlertSink {
 
         // Also reset the latch so it does not remain stuck in candidate-close
         this._latch.reset();
-        // Clear any owed confirmClose (the re-owe above replaces it with the DELIVERED variant)
-        // We set it above if needed; otherwise clear stale parked_progress
         if (this._owedConfirmClose?.confirmReason === 'parked_progress') {
             // Convert to delivered progress (same physical edge, new slot state)
             this._setOwedConfirmClose({ confirmReason: 'progress' });
@@ -2026,8 +1913,8 @@ export class StruggleInterventionService implements AlertSink {
 
         this._dbg(`  -> REVEAL click: episodeId=${episodeId} sessionId=${sessionId} exerciseId=${exerciseId} localId=${localId}`);
         // Persist first; navigate to the hint's exercise ONLY from the confirmed same-epoch success
-        // branch inside _persistReveal (spec C.6). The parked path no longer posts an optimistic
-        // bubble or opens the session eagerly -- the row arrives via the A0-preserved reload.
+        // branch inside _persistReveal (spec C.6). The parked path posts no optimistic bubble and
+        // does not open the session eagerly: the row arrives via the A0-preserved reload.
         await this._persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId, courseId, sessionId, title, navToken);
     }
 

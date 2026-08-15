@@ -14,7 +14,7 @@ interface EarlierHintsGroupProps {
 
 /**
  * Collapses a run of consecutive closed proactive episodes behind a single "N earlier hints" line.
- * Clicking it reveals the individual fold lines (unchanged), keeping the history reachable while
+ * Clicking it reveals the individual fold lines, keeping the history reachable while
  * killing the tall stack of near-identical rows in a long session.
  */
 export function EarlierHintsGroup({ items, renderFoldLine }: EarlierHintsGroupProps) {

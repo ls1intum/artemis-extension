@@ -6,10 +6,6 @@ import type { LiveDecisionTrace, LiveTick, VsCodeApi } from '@shared/messageCont
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { LiveEngineSection } from '@webview/views/StruggleDetection/LiveEngineSection';
 
-// ---------------------------------------------------------------------------
-// Fixtures — minimal LiveTick / LiveDecisionTrace builders.
-// ---------------------------------------------------------------------------
-
 function makeTrace(overrides: Partial<LiveDecisionTrace> = {}): LiveDecisionTrace {
     return {
         outcome: 'suppressed',
@@ -112,9 +108,9 @@ describe('LiveEngineSection', () => {
     });
 
     it('attaches the resize observer when the chart frame mounts after data, and disconnects on reset', () => {
-        // Locks HIGH-2: the chart frame renders only once ticks arrive, so a mount-only observer
-        // would never attach and the width would stay pinned to the fallback. The callback ref must
-        // observe exactly when the frame mounts and disconnect when it unmounts (reset -> empty).
+        // The chart frame renders only once ticks arrive, so a mount-only observer would never
+        // attach and the width would stay pinned to the fallback. The callback ref must observe
+        // exactly when the frame mounts and disconnect when it unmounts (reset -> empty).
         const observe = vi.fn();
         const disconnect = vi.fn();
         class MockResizeObserver {

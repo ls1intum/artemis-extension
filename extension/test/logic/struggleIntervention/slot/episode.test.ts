@@ -16,14 +16,9 @@ describe('episode model', () => {
         const hint: EpisodeHint = { level: 'ambient', text: 'check your loop', atSessionS: 60 };
         const ep2 = addHint(ep, hint);
 
-        // input is unchanged
         expect(ep.hints).toHaveLength(0);
-
-        // output has the new hint
         expect(ep2.hints).toHaveLength(1);
         expect(ep2.hints[0]).toEqual(hint);
-
-        // other fields are preserved
         expect(ep2.episodeId).toBe('ep-1');
         expect(ep2.createdAtMs).toBe(1000);
     });

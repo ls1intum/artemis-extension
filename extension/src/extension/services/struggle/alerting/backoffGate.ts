@@ -21,9 +21,6 @@ export class BackoffGate implements AlertSink {
     constructor(private readonly inner: AlertSink, private readonly backoff: BackoffSource) {}
 
     deliver(alert: AlertRecord): void {
-        // Suppressed alerts (course-off / student-opt-out / evidence-gate / delivered-slot) never surface, so
-        // drop them here — above the throttle — instead of inside the orchestrator (below it), where they
-        // would still burn delivery budget.
         if (this.backoff.shouldSuppress(alert)) {
             return;
         }

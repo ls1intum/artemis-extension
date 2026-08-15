@@ -47,7 +47,7 @@ export interface StruggleCoordinatorDeps {
 }
 
 /**
- * Owns the struggle engine (the live decision path). Replaces the v1 TelemetryManager.
+ * Owns the struggle engine (the live decision path).
  *
  * Responsibilities:
  *  - WebSocket build-result producer: guard → hub.emitBuildResult (engine).
@@ -158,7 +158,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
 
     setWebsocketService(ws: ArtemisWebsocketService): void {
         this._websocketService = ws;
-        ws.registerMessageHandler(this);     // coordinator implements WebSocketMessageHandler (onNewResult)
+        ws.registerMessageHandler(this);
     }
 
     // ── Recorder feed (subscribed by sessionRecorderWiring) ────────────
@@ -187,7 +187,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
         if (this._activeExerciseId !== undefined) { this.endExerciseSession(); }
         this._activeExerciseId = exerciseId;
         this._activeExerciseRoot = exerciseRoot;
-        this._maxPassedTestCount = -1;  // reset per-exercise baseline
+        this._maxPassedTestCount = -1;
         this._refTestCaseCount = -1;
         // New exercise session: reset the sink's per-session throttle budget AND clear
         // any stale intervention (resetSession falls back to reset when unsupported).
@@ -347,7 +347,7 @@ export class StruggleCoordinator implements vscode.Disposable, WebSocketMessageH
     isSkipWarmup(): boolean { return this._skipWarmup; }
 
     dispose(): void {
-        this._websocketService?.unregisterMessageHandler(this);   // parity with v1 TelemetryManager.dispose
+        this._websocketService?.unregisterMessageHandler(this);
         this.endExerciseSession();
         while (this._disposables.length > 0) { this._disposables.pop()?.dispose(); }
         this._engine.dispose();

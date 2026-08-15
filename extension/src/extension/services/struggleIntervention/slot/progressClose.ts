@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 export type CloseState = 'open' | 'pending-post' | 'candidate-close';
 
 /** Configuration consumed from TUNING knobs (injected by the orchestrator). */
@@ -11,10 +7,6 @@ export interface ProgressCloseCfg {
     /** How long (ms) sBase must be continuously below reArmSBase to fire one close edge. */
     reArmHoldMs: number;
 }
-
-// ---------------------------------------------------------------------------
-// ProgressCloseLatch
-// ---------------------------------------------------------------------------
 
 /**
  * Progress-edge detector and confirmClose edge-trigger latch (§7.1).

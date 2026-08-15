@@ -5,12 +5,11 @@ import type { StruggleDebugSnapshot } from '@shared/messageContracts';
 /**
  * Engine clock, offset-corrected and advanced once per second. The snapshot arrives only every
  * ~10 s (one per engine tick), so we re-anchor on each fresh `nowMs` and interpolate with the local
- * wall clock in between — yielding smooth per-second countdowns without drifting from engine time.
+ * wall clock in between, yielding smooth per-second countdowns without drifting from engine time.
  */
 export function useEngineNow(anchorNowMs: number): number {
     const baseRef = useRef({ engine: anchorNowMs, client: Date.now() });
     const [, setNonce] = useState(0);
-    // Re-anchor whenever a fresh snapshot (new nowMs) arrives.
     useEffect(() => {
         baseRef.current = { engine: anchorNowMs, client: Date.now() };
         setNonce((n) => n + 1);

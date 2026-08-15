@@ -2,9 +2,9 @@ import type { ProactiveCardReason, ProactiveCardState } from '@shared/messageCon
 
 /**
  * Inputs to the AskIris card-state decision (spec §12.2 / §14). All gathered host-side in
- * {@link ProactiveControlCommandModule}. The clean (no-engine) build DOES reach this function now
- * (its chat-availability card renders too) — but its `_push` masks the proactive-only inputs, so
- * only `noai`/`iris-off`/`available` can result. There is still no `enginePresent` input here.
+ * {@link ProactiveControlCommandModule}. The clean (no-engine) build reaches this function too (its
+ * chat-availability card renders there), but its `_push` masks the proactive-only inputs, so only
+ * `noai`/`iris-off`/`available` can result. There is no `enginePresent` input here.
  */
 export interface ProactiveCardSignals {
     /** The chat's §14 classification: enabled / disabled (iris-off OR no LLM opt-in) / unavailable (transient). */

@@ -71,7 +71,7 @@ function mmss(totalSeconds: number): string {
  * Build the status-bar text/tooltip/background for a classified tick + the warm-up countdown.
  *
  * `warmupRemainingS` is `null` when the engine is NOT in warm-up, and the seconds remaining
- * (>= 0) while it is — gated on the engine's own `inWarmup` flag, NOT on `remaining > 0`, so the
+ * (>= 0) while it is. It is gated on the engine's own `inWarmup` flag, NOT on `remaining > 0`, so the
  * warm-up state persists through the engine's final warm-up tick (where `remaining` is 0 but
  * non-FM/E4 alerts are still suppressed) instead of disappearing one tick early.
  *

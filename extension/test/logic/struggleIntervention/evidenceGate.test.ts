@@ -1,5 +1,5 @@
 /**
- * Evidence gate after idle-abandon (plan: abandon-evidence-gate).
+ * Evidence gate after idle-abandon.
  *
  * After the stale watchdog silently frees a slot (force-free DELIVERED -> ABANDONED,
  * free-silent PARKED), the orchestrator drops non-hard-boundary alerts PRE-throttle
@@ -15,9 +15,7 @@ import { StruggleInterventionService } from '@extension/services/struggleInterve
 import type { IrisChatMessage } from '@extension/types';
 import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
-// ---------------------------------------------------------------------------
 // Harness (mirrors the fakeDeps pattern from struggleInterventionService.test.ts)
-// ---------------------------------------------------------------------------
 
 const IDLE_ABANDON_MS = 1000;
 
@@ -52,7 +50,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* no real timers in tests */ },
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        // Reveal navigation (defaults; unused in this suite).
         resolveRevealTarget: () => ({ courseId: 100, title: 'Fake Exercise' }),
         currentNavToken: () => 1,
         openRevealSession: vi.fn(async () => true),
@@ -133,10 +131,6 @@ function simulateParked(svc: StruggleInterventionService, episodeId = 'ep-parked
 function driveIdleAbandon(svc: StruggleInterventionService): void {
     svc.onTick(tick(Date.now() + IDLE_ABANDON_MS + 1000, 0.7));
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('StruggleInterventionService - evidence gate after idle-abandon', () => {
     it('setStudentProactive(true) from a NON-active exercise does NOT clear the active exercise evidence gate (#341)', () => {

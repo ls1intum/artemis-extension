@@ -23,7 +23,7 @@ interface ProactiveControlVM {
   /** False in the clean/no-engine build: the card is a chat-availability reflection with no level control. */
   controlAvailable: boolean;
   onLevelChange: (level: ProactiveLevel) => void;
-  /** #342: opens the settings UI at the code-reading consent; only used for reason `consent-missing`. */
+  /** Opens the settings UI at the code-reading consent; only used for reason `consent-missing`. */
   onOpenConsentSettings?: () => void;
 }
 

@@ -183,8 +183,8 @@ describe('ReplaySensorHub — channel mapping + state reads', () => {
 
     it('derive-mode fires onPasteDetected via the multi-line fallback (no clipboard in replay)', () => {
         // Replay has no clipboard -> detectPastes(signal, undefined) takes the multi-line
-        // heuristic fallback. A long SINGLE-line insert (the retired >10-char rule) must NOT
-        // qualify anymore; a multi-line pure insert must.
+        // heuristic fallback. A long SINGLE-line insert must NOT qualify (there is no
+        // char-count rule); a multi-line pure insert must.
         const events = buildEvents();
         events.push(
             {

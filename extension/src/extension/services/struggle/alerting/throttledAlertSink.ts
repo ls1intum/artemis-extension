@@ -1,4 +1,3 @@
-// extension/src/extension/services/struggle/alerting/throttledAlertSink.ts
 /**
  * Tier-2 delivery throttle (Engine v3 WS4). A decorator AlertSink that rate-limits
  * DELIVERY to an inner sink (the proactive intervention orchestrator). It sits strictly

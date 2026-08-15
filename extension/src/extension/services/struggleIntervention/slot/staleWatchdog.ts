@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 /** Watchdog configuration (consumed from TUNING.slot in config.ts). */
 export interface StaleConfig {
     /**
@@ -28,10 +24,6 @@ export type StaleEvent =
     | { kind: 'pre-abandon-warn' }
     | { kind: 'force-free' }
     | { kind: 'free-silent' };
-
-// ---------------------------------------------------------------------------
-// StaleWatchdog
-// ---------------------------------------------------------------------------
 
 /**
  * Continuous-idle watchdog. A delivered hint's slot stays occupied while the student is idle

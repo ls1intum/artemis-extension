@@ -25,7 +25,7 @@ function signal(
 }
 
 describe('detectPastes (N1 rule: clipboard-confirmed paste of >= 2 lines, Pu 2025)', () => {
-    // ---- the completion false positives the rework kills ----
+    // ---- completion false positives that must not fire ----
 
     it('IntelliSense accept (single-line prefix replace, long identifier) is NOT a paste', () => {
         const out = detectPastes(signal([{ text: 'calculateOptimalPayment', rangeLength: 9 }]), 'unrelated clipboard');

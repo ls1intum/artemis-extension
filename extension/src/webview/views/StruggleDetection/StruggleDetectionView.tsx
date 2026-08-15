@@ -151,7 +151,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                         </div>
                     ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {/* Score + status on one line; the long explanation moves to a hover tooltip. */}
+                        {/* Score + status on one line; the long explanation lives in a hover tooltip. */}
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
                             <div style={{ fontSize: '26px', fontWeight: 700, color: urgencyColor, minWidth: '54px', lineHeight: 1 }}>
                                 {data.urgency.toFixed(2)}
@@ -219,7 +219,6 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                     Renders in both the sidebar and the fullscreen editor-tab copy (feed is sender-aware). */}
                 {data.developerMode && <LiveEngineSection vscodeApi={vscodeApi} collapsible defaultCollapsed />}
 
-                {/* Developer tools */}
                 {__IRIS_RECORDING__ && data.developerMode && (
                     <Container
                         header={

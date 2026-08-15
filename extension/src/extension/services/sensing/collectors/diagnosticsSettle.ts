@@ -9,8 +9,7 @@ import { shouldRecordUri } from '@extension/services/sensing/uriFilter';
  *
  * After a save on a recordable URI, waits DIAGNOSTICS_SETTLE_MS for the
  * language server to update, then emits one bulk diagnostics dump. Saves
- * within the window coalesce into a single timer, matching the (since
- * removed) v1 compile-equivalent emitter's save path (engineering choice,
+ * within the window coalesce into a single timer (engineering choice,
  * calibrated for LS latency).
  */
 export class DiagnosticsSettleCollector implements vscode.Disposable {

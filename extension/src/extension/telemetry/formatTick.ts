@@ -37,8 +37,7 @@ function phaseBSegment(snap: StruggleDebugSnapshot): string {
  * reconstruct WHY an alert did/did not fire from the [Struggle] channel ALONE (the primary debug
  * surface today): the urgency-vs-θ decision + reason, the severity decomposition (urgency = sBase
  * = (fTyping + fGap) / 2), the boundary set, every gate's live condition, and the warmup/cooldown
- * countdowns that are derivable from the tick itself. (Phase B appends the throttle and B4-grace
- * timers once the debug-snapshot plumbing lands — those need ms anchors the tick does not carry.)
+ * countdowns that are derivable from the tick itself.
  *
  * Pass the optional debug `snap` (Phase B) to append the throttle and B4-grace timers that need ms
  * anchors the tick alone does not carry; omit it for the Phase-A-only line.

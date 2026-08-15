@@ -5,10 +5,6 @@ import type { EpisodeHistoryEntry } from '@shared/messageContracts';
 
 import { EpisodeHistoryPanel } from '@webview/views/StruggleDetection/EpisodeHistoryPanel';
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 const BASE_MS = 1_700_000_000_000;
 
 function makeEntry(overrides: Partial<EpisodeHistoryEntry> = {}): EpisodeHistoryEntry {
@@ -22,10 +18,6 @@ function makeEntry(overrides: Partial<EpisodeHistoryEntry> = {}): EpisodeHistory
         ...overrides,
     };
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('EpisodeHistoryPanel', () => {
     it('renders two entries with id, outcome chip, and mmss duration; newest first', () => {
@@ -46,15 +38,12 @@ describe('EpisodeHistoryPanel', () => {
 
         render(<EpisodeHistoryPanel episodes={entries} />);
 
-        // Both episode IDs are visible.
         expect(screen.getByText('ep-first')).toBeInTheDocument();
         expect(screen.getByText('ep-second')).toBeInTheDocument();
 
-        // Outcome chips are rendered as text.
         expect(screen.getByText('DISMISSED')).toBeInTheDocument();
         expect(screen.getByText('RECOVERED')).toBeInTheDocument();
 
-        // Duration in M:SS format is rendered.
         expect(screen.getByText('1:00')).toBeInTheDocument();
         expect(screen.getByText('20:00')).toBeInTheDocument();
 

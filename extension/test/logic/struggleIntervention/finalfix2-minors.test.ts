@@ -7,11 +7,8 @@ import { StruggleInterventionService } from '@extension/services/struggleInterve
 
 import { fakeDeps, simulateDelivered } from './helpers';
 
-// ---------------------------------------------------------------------------
-// #3 -- Less + chat-closed offer is unanswerable (badge-only strands the slot):
-// _raiseStuckOffer / _raiseAbandonOffer must stay fully quiet instead.
-// ---------------------------------------------------------------------------
-
+// A Less + chat-closed offer is unanswerable (badge-only strands the slot), so
+// _raiseStuckOffer / _raiseAbandonOffer stay fully quiet.
 describe('Final-fix wave 2 minor #3: Less + chat-closed stays fully quiet', () => {
     it('a Moment-1 stuck-offer trigger raises nothing (no outstanding offer, no bubble/banner/badge)', async () => {
         const deps = fakeDeps();   // default level 'more', so simulateDelivered really delivers (no Pull re-route)
@@ -63,11 +60,8 @@ describe('Final-fix wave 2 minor #3: Less + chat-closed stays fully quiet', () =
     });
 });
 
-// ---------------------------------------------------------------------------
-// #5 -- an accept must not be dropped silently when a concurrent decide is in flight:
-// acceptOffer / needMoreHelp must bail BEFORE consuming the offer.
-// ---------------------------------------------------------------------------
-
+// An accept must not be dropped silently when a concurrent decide is in flight:
+// acceptOffer / needMoreHelp bail BEFORE consuming the offer.
 describe('Final-fix wave 2 minor #5: accept bails (leaves the offer outstanding) while a decide is in flight', () => {
     function armConcurrentDecide(svc: StruggleInterventionService, episodeId: string, requestToken: string): void {
         const gen = svc._slot.generation();

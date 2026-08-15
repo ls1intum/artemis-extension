@@ -7,7 +7,7 @@
 // the frozen Python reference (exact decision surface: sBase, boundaries, alerts).
 //
 // causal mode: replays with the TS engine deriving everything online, and
-// REPORTS (does not assert) the divergence from the offline reference — the
+// REPORTS (does not assert) the divergence from the offline reference: the
 // N1 paste-boundary deviation. Numbers are printed locally and intentionally
 // never committed.
 import * as fs from 'node:fs';

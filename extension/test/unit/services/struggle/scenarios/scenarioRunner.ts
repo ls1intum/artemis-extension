@@ -1,4 +1,3 @@
-// extension/test/unit/services/struggle/scenarios/scenarioRunner.ts
 /**
  * Scenario harness (Engine v3): drives the StruggleEngine end-to-end with
  * synthetic sensor events on a sinon-faked clock. Scenarios are typed TS data;
@@ -61,8 +60,7 @@ export function runScenario(scenario: Scenario): ScenarioResult {
     const hub = new TestSensorHub();
     const engine = new StruggleEngine(hub, NOOP_ENGINE_CLOCK);
     const alerts: AlertRecord[] = [];
-    // Route alerts through the same AlertSink contract the production delivery
-    // path (PR 2c) will implement — the harness IS the first consumer of the seam.
+    // Route alerts through the same AlertSink contract as the production delivery path.
     const sink: AlertSink = { deliver: a => alerts.push(a) };
     const ticks: TickRecord[] = [];
     engine.onDidAlert(a => sink.deliver(a));
@@ -114,10 +112,10 @@ export function runScenario(scenario: Scenario): ScenarioResult {
         atomic.sort((a, b) => a.at - b.at);
 
         // Ordering per timestamp (tick contract): (1) advance the sinon clock to
-        // the event time (the engine does NOT tick — noop interval); (2) fire ALL
+        // the event time (the engine does NOT tick, noop interval); (2) fire ALL
         // events at this timestamp so any event at exactly a grid time is enqueued
         // before its tick runs (events sharing a timestamp must all enqueue before
-        // that tick — otherwise the first one's advanceTo runs the tick before the
+        // that tick, otherwise the first one's advanceTo runs the tick before the
         // rest are enqueued and they drain one tick late); (3) advanceTo(time)
         // processes every due tick.
         let currentS = 0;

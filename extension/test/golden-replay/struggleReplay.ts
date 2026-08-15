@@ -4,14 +4,14 @@
  * against the frozen Python reference.
  *
  * Two modes:
- *   - 'exact'  — inject the golden's N1 paste times, so N1-boundary detection
- *                and alerting run on exactly the reference's paste input.
- *   - 'causal' — the engine derives paste online from the recorded events.
+ *   - 'exact':  inject the golden's N1 paste times, so N1-boundary detection
+ *               and alerting run on exactly the reference's paste input.
+ *   - 'causal': the engine derives paste online from the recorded events.
  *
  * Determinism (one intake path, struggleEngine.ts §5): per grid tick we (1)
  * pump every hub signal with time <= tS so the engine ENQUEUES it, THEN (2)
  * advanceTo(tS) which drains ts <= tS and computes the tick. Pump-then-advance
- * is the contract — a signal at exactly a grid time must be enqueued before its
+ * is the contract: a signal at exactly a grid time must be enqueued before its
  * own tick runs. The engine's live interval timer is disabled here: a fake clock
  * whose setInterval never fires lets the harness own the clock.
  */

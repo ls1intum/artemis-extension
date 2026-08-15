@@ -1,13 +1,12 @@
-// extension/src/extension/services/struggle/boundaries/boundaryTracker.ts
 /**
  * Boundary bookkeeping (spec §3): FM/E4/N1 events are assigned to the
  * FIRST tick >= event time and evaluated exactly once there; the STATE
  * boundary has interval semantics (pending at every tick with an active TS
- * state after warmup — this realizes the "synthetic warmup entry" without an
+ * state after warmup; this realizes the "synthetic warmup entry" without an
  * exit/re-entry). Port of assign_to_ticks / build_boundaries (engine_v2.py,
  * v3 drops the N4-state arm).
  *
- * Incremental contract: ingest() in non-decreasing tick consumption order —
+ * Incremental contract: ingest() in non-decreasing tick consumption order.
  * flagsAt(t) consumes every buffered event with ts <= t and must be called
  * with strictly increasing t (the engine's grid guarantees both).
  */

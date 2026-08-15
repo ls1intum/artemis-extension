@@ -72,7 +72,7 @@ describe('DecisionFlowPipeline', () => {
         const stages = Array.from(container.querySelectorAll('[data-status]'));
         expect(stages).toHaveLength(5);
         expect(stages[0].getAttribute('data-status')).toBe('block');    // candidate is the blocker
-        expect(stages[2].getAttribute('data-status')).toBe('neutral');  // severity NOT reached — must not read as passed
+        expect(stages[2].getAttribute('data-status')).toBe('neutral');  // severity NOT reached, must not read as passed
         expect(screen.getByText('over threshold')).toBeInTheDocument(); // its live condition is still stated
     });
 
@@ -94,7 +94,7 @@ describe('DecisionFlowPipeline', () => {
         render(<DecisionFlowPipeline debug={snap({ decisionTrace: trace({
             outcome: 'fired-edit', reason: 'fired', boundariesPresent: ['FM'],
             // FM/E4 break through warm-up and FM survives the grace filter, so these flags can
-            // still be true on a fired tick — but the flow stopped nowhere, so no gate row may read
+            // still be true on a fired tick, but the flow stopped nowhere, so no gate row may read
             // "engaged" (that would contradict the green "all clear" Gates stage box).
             gates: { fluentTyping: false, grace: true, warmup: true, belowThreshold: false, cooldown: false, notRearmed: false },
         }) })} />);

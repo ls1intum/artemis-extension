@@ -1,4 +1,3 @@
-// extension/test/unit/services/struggle/scenarios/scenarios.ts
 import type { Scenario } from './scenarioRunner';
 
 export const SCENARIOS: Scenario[] = [
@@ -10,8 +9,9 @@ export const SCENARIOS: Scenario[] = [
         events: [],
         // Derivation (v3 2-feature): idle S = (1 + 1)/2 = 1.0 >= theta(0.7) from
         // t=40 on; warmup blocks STATE until 480; first free tick 490 (armed),
-        // then E6 every 120 s. (v2 was S=0.7 at theta 0.6; same alert timeline,
-        // which is gated by warmup+cooldown, not by the exact V-crossing tick.)
+        // then E6 every 120 s. The alert timeline is gated by warmup+cooldown,
+        // not by the exact tick where S crosses theta: the pre-v3 parameters
+        // (S=0.7 at theta 0.6) pin the same three times.
         expected: { alertTimes: [490, 610, 730] },
     },
     {
@@ -95,15 +95,14 @@ export const SCENARIOS: Scenario[] = [
             { at: 485, type: 'build', failed: ['x'] },     // first+failed: FM (bad build)
             { at: 500, type: 'paste', chars: 40, lines: 3 },
         ],
-        // CORRECTED derivation (the original [490, 610] over-derived past the
-        // session end): alert 490 (FM primary, armed; FM survives grace). Paste at
+        // Derivation: alert 490 (FM primary, armed; FM survives grace). Paste at
         // EXACTLY 500 -> first tick >= 500 is tick 500 (not 510). At tick 500 N1 +
         // STATE are present but grace (500-485=15 <= 32.94) keeps only FM, so
         // both N1 and STATE are filtered -> no alert. Tick 510 still in grace (25 <=
         // 32.94): STATE filtered -> no alert. Ticks 520-560: grace over, STATE
         // survives, V 1.0 >= theta(0.7), but cooldown blocks every tick (t-490 < 120 for
         // all t <= 560). The next e6 re-alert (STATE; cooldown 610-490=120, e6 since
-        // in_state_since=40) would only fire at tick 610 -- BEYOND this 560 s session.
+        // in_state_since=40) would only fire at tick 610, BEYOND this 560 s session.
         // So the only alert within the session is 490.
         expected: { alertTimes: [490] },
     },
@@ -118,7 +117,7 @@ export const SCENARIOS: Scenario[] = [
             // path never alerts.
             { at: 0, type: 'typing', durationS: 220, charsPerSecond: 2 },
             // Builds land exactly on grid ticks AND share each timestamp with a
-            // typing char — the harness must enqueue both before that tick runs.
+            // typing char: the harness must enqueue both before that tick runs.
             { at: 60, type: 'build', failed: ['a', 'b', 'c'], passed: 2, total: 5 },
             { at: 120, type: 'build', failed: ['a', 'b', 'c'], passed: 2, total: 5 },
             { at: 180, type: 'build', failed: ['a', 'b', 'c'], passed: 2, total: 5 }, // 3rd identical (2/5) plateau -> fires at tick 180

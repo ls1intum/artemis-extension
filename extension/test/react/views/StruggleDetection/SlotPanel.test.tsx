@@ -6,10 +6,6 @@ import type { SlotDebugSnapshot, VsCodeApi } from '@shared/messageContracts';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { SlotPanel } from '@webview/views/StruggleDetection/SlotPanel';
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 const NOW_MS = 1_700_000_000_000;
 
 const SUPPRESSION_CLEAR: SlotDebugSnapshot['suppression'] = {
@@ -72,10 +68,6 @@ function postedCommands(api: VsCodeApi): string[] {
             typeof m === 'object' && m !== null && (m as { type?: string }).type === 'command')
         .map((m) => m.command);
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('SlotPanel', () => {
     it('renders state badge, episode id, in-flight intent, and idle-free countdown when delivered', () => {

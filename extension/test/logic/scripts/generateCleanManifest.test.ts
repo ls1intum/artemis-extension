@@ -139,10 +139,9 @@ describe('generate-clean-manifest against the real package.json', () => {
 
     /**
      * The drop lists (RECORDER_COMMANDS / STRUGGLE_COMMANDS) are hand-maintained while the code
-     * they describe is not. `verify-clean-bundle.js` proves the excluded code is absent from the
-     * BUNDLE; nothing checked the MANIFEST against it. So a command added to an excluded module
-     * shipped as a palette entry with no handler behind it ("command not found") -- exactly what
-     * the drop lists exist to prevent.
+     * they describe is not, and `verify-clean-bundle.js` only proves the excluded code is absent
+     * from the BUNDLE, not from the MANIFEST. Without this check, a command added to an excluded
+     * module ships as a palette entry with no handler behind it ("command not found").
      *
      * The check is deliberately NOT a scan for `registerCommand('<id>')` call sites: registrations
      * also go through constants (`registerCommand(HINT_COMMAND, ...)`), so a syntactic scan
@@ -152,8 +151,8 @@ describe('generate-clean-manifest against the real package.json', () => {
      * in the same file here.
      *
      * The check is necessary, not sufficient: it cannot prove the two occurrences belong
-     * together. It is aimed at the failure that actually happens -- a command whose module is
-     * dropped from a variant -- and there the id vanishes from the surviving source entirely.
+     * together. It targets the failure that actually happens (a command whose module is dropped
+     * from a variant), where the id vanishes from the surviving source entirely.
      *
      * Classification comes from `verify-clean-bundle.js` itself, so the two cannot drift.
      */

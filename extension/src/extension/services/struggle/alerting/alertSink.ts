@@ -3,10 +3,10 @@ import type { StruggleThrottleState } from '@shared/messageContracts';
 
 import type { AlertRecord } from '@extension/services/struggle/types';
 
-/** Delivery interface; the notification implementation arrives in PR 2c. */
+/** Delivery interface for struggle alerts. */
 export interface AlertSink {
     deliver(alert: AlertRecord): void;
-    /** Clear any visible intervention (consent/session teardown, #352).
+    /** Clear any visible intervention (consent/session teardown).
      *  Does NOT reset per-session delivery budgets - clearing surfaces must not
      *  refill the throttle. */
     reset?(): void;
@@ -22,7 +22,7 @@ export interface AlertSink {
      * trigger). Decorator sinks forward; non-participating sinks omit the method.
      */
     onNewBuildResult?(hasNewGreenTest: boolean): void;
-    /** Consent revoked mid-session (#349): clear visible surfaces AND terminate local
+    /** Consent revoked mid-session: clear visible surfaces AND terminate local
      *  episode/slot/in-flight state (no egress). PRESERVES the per-session delivery
      *  budget and the 404/course-off latches - revoke->regrant must not refill or lift
      *  anything. Decorator sinks forward; minimal sinks may omit it (callers fall back

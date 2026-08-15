@@ -7,10 +7,7 @@ import { ExtensionMsg } from '@shared/messageContracts';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { StruggleDetectionView } from '@webview/views/StruggleDetection/StruggleDetectionView';
 
-// ---------------------------------------------------------------------------
-// Fixtures (mirrored from StruggleDetectionView.test.tsx)
-// ---------------------------------------------------------------------------
-
+// Fixtures mirrored from StruggleDetectionView.test.tsx.
 function trace(over: Partial<LiveDecisionTrace> = {}): LiveDecisionTrace {
     return {
         outcome: 'suppressed', reason: 'cooldown', discreteTrigger: null,
@@ -59,10 +56,6 @@ const FREE_SNAPSHOT: SlotDebugSnapshot = {
         serverAvailable: true, courseProactiveOff: false, studentProactiveOn: true,
     },
 };
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('StruggleDetectionView - slot and episode panels', () => {
     it('mounts both Slot and Episodes panels when developerMode:true and not embedded', () => {

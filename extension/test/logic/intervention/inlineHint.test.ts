@@ -83,10 +83,10 @@ describe('inlineHint helpers', () => {
         });
 
         it('follows the merged remainder past inserted lines when an edit reaches into the anchor line', () => {
-            // Repro: an edit from (0-based 5,3) into the anchor line (0-based 9), replaced with
-            // 'x\ny\n' (2 inserted breaks). The surviving tail of the anchor line merges onto
-            // 0-based line 5+2=7 -> 1-based 8. The buggy branch returned start.line+1 = 6,
-            // dropping the inserted lines. With added=0 this must still equal the swallow case (6).
+            // An edit from (0-based 5,3) into the anchor line (0-based 9), replaced with 'x\ny\n'
+            // (2 inserted breaks). The surviving tail of the anchor line merges onto 0-based line
+            // 5+2=7 -> 1-based 8, so the inserted lines must not be dropped. With added=0 this
+            // still equals the swallow case (6).
             expect(shiftAnchorLine(10, change(5, 3, 9, 2, 'x\ny\n'))).toBe(8);
             expect(shiftAnchorLine(10, change(5, 3, 9, 2, ''))).toBe(6);
         });

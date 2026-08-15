@@ -120,7 +120,6 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
         const dismissBtn = screen.getByRole('button', { name: 'Dismiss this suggestion' });
         fireEvent.click(dismissBtn);
 
-        // Should still post the command with the message fields
         expect(mockApi.postMessage).toHaveBeenCalledWith(
             expect.objectContaining({
                 type: 'command',
@@ -131,7 +130,6 @@ describe('C8: Dismiss payload includes proactiveEpisodeId', () => {
                 }),
             })
         );
-        // proactiveEpisodeId should be undefined (not present) in the payload
         const calls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls as Array<[{ command?: string; payload?: { proactiveEpisodeId?: string } }]>;
         const outcomeCall = calls.find(([msg]) => msg.command === 'messageProactiveOutcome');
         expect(outcomeCall).toBeDefined();

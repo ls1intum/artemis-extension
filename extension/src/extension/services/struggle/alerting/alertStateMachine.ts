@@ -94,10 +94,10 @@ export class AlertStateMachine {
         const p = this._p;
 
         // Step 1: urgency bookkeeping (hysteresis / over-theta run on S_base).
-        // Moved ABOVE `base` so the gate-condition snapshot below reads the same
+        // Must run ABOVE `base` so the gate-condition snapshot below reads the same
         // _armed/_inStateSince the gates check. `base` does not depend on Step 1
         // (it never reads _armed/_inStateSince, and Step 1 leaves _lastAlert
-        // untouched), so the recorded trace + the alert returns are unchanged.
+        // untouched), so the recorded trace and the alert returns are unaffected.
         if (urgency < p.thetaFull - p.hysteresis) {
             this._armed = true;
             this._inStateSince = null;

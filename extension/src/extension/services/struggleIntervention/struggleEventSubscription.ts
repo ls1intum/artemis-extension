@@ -43,7 +43,7 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
     const action = typeof f.action === 'string' ? f.action : undefined;
 
     if (kind === 'decide' && action === 'silent') {
-        // New-style silent decide: requires episodeId to be validated by the orchestrator.
+        // Silent decide: requires episodeId to be validated by the orchestrator.
         // The frame is still returned even if episodeId is absent; the orchestrator drops it.
         const sessionId = typeof f.sessionId === 'number' ? f.sessionId : undefined;
         return {

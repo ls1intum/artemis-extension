@@ -1,8 +1,7 @@
-// extension/src/extension/services/struggle/gates/gates.ts
 /**
  * Surviving gates (spec §4); B1/N3/N9 deliberately NOT included. These are the
- * three predicates the alert state machine applies IN ITS FIXED ORDER —
- * the order lives in alerting/alertStateMachine.ts, not here.
+ * three predicates the alert state machine applies IN ITS FIXED ORDER. The
+ * order lives in alerting/alertStateMachine.ts, not here.
  */
 import type { BoundaryType } from '@extension/services/struggle/config';
 import { SPEC } from '@extension/services/struggle/config';

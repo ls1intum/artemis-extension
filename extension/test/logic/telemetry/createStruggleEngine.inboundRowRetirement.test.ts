@@ -84,7 +84,7 @@ function fakeDeps(): { deps: StruggleEngineDeps; feedFrame: (data: unknown) => v
         revealAmbient: vi.fn(async () => ({}) as never),
         setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        // Reveal navigation (unused in this suite).
         resolveRevealTarget: () => ({ courseId: 1, title: 'Fake Exercise' }),
         currentNavToken: () => 0,
         openRevealSession: vi.fn(async () => true),

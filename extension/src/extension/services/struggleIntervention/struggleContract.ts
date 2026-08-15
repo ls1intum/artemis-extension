@@ -1,4 +1,4 @@
-/** Boundary codenames — the engine's edit-path set (constants.ts) plus the wire-only 'TPS'
+/** Boundary codenames: the engine's edit-path set (struggle/config.ts) plus the wire-only 'TPS'
  *  for the discrete test-stagnation path. Mirrored by the Pyris BoundaryType literal. */
 export type BoundaryType = 'FM' | 'E4' | 'N1' | 'STATE' | 'TPS';
 
@@ -75,8 +75,8 @@ export interface StruggleInterventionEvent {
     action?: 'silent' | 'ambient' | 'active';
     message?: string;
     sessionId?: number;
-    /** Saved IrisMessage id for the persisted proactive message (spec §7.2/§8). Set for ambient and active after
-     *  unify-persistence; lets a later slice target the exact message (open/reveal/dismiss).
+    /** Saved IrisMessage id for the persisted proactive message (spec §7.2/§8). Set for ambient and active;
+     *  lets a later slice target the exact message (open/reveal/dismiss).
      *  Also present on confirm_close (close/offer row). */
     messageId?: number;
     /** Server-computed Pyris confidence, forwarded by Plan 2 (Task 4b 5-component DTO) for the client eval log (§12). */

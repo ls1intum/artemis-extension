@@ -161,29 +161,15 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     },
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Returns the fully spelled-out text for an `EditTraceReason`.
- * Useful for rendering the decision-trace panel without having to index GLOSSARY directly.
- */
 export function reasonText(reason: EditTraceReason): string {
     return GLOSSARY[reason].text;
 }
 
-/**
- * Returns `{ text, code }` for a `BoundaryType` code.
- * Useful for boundary marker tooltips on the urgency curve.
- */
 export function boundaryText(code: BoundaryType): { text: string; code: string } {
     const entry = GLOSSARY[code];
     return { text: entry.text, code: entry.code };
 }
 
-/**
- * Returns the fully spelled-out text for a discrete trigger.
- * Currently only `'test-stagnation'` exists.
- */
 export function discreteText(trigger: 'test-stagnation'): string {
     return GLOSSARY[trigger].text;
 }

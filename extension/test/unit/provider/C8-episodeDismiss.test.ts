@@ -1,8 +1,8 @@
 /**
  * C8: ChatWebviewProvider _handleProactiveOutcome routes to onEpisodeDismiss when
  * proactiveEpisodeId is present; legacy setProactiveOutcome persist for a missing id.
- * The dismiss backoff has been removed, so a dismiss records DISMISSED with no
- * memory that changes future behavior (no pause/rate event).
+ * There is no dismiss backoff: a dismiss records DISMISSED with no memory that
+ * changes future behavior (no pause/rate event).
  */
 import * as vscode from 'vscode';
 import * as assert from 'assert';
@@ -104,8 +104,8 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
     });
 
     test('legacy dismiss persists DISMISSED with the backoff removed (no dismiss event on the provider)', (done) => {
-        // Regression guard for U4: the hidden dismiss backoff is gone. A dismiss on the legacy
-        // (no episode id) path must STILL persist DISMISSED, and the provider must no longer expose
+        // Regression guard: there is no hidden dismiss backoff. A dismiss on the legacy
+        // (no episode id) path must STILL persist DISMISSED, and the provider must not expose
         // any backoff-dismiss event (dismissing carries no memory that changes future behavior).
         assert.strictEqual(
             (provider as unknown as { onDidDismissProactive?: unknown }).onDidDismissProactive,

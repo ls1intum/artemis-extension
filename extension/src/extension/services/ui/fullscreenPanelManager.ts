@@ -35,7 +35,7 @@ export class FullscreenPanelManager {
             // Same shared builder the sidebar uses (repoStatus, dev-tools gating, and the
             // cached SSR). onReady also fires on RequestInit; rebuilding each time is fine.
             // Consent/.noai/SSR live updates arrive via the broadcaster (registered in
-            // _openFullscreenPanel), so this panel no longer needs its own listeners.
+            // _openFullscreenPanel), so this panel needs no listeners of its own.
             onReady: (postSafe) => {
                 void this._getViewInitData().buildExerciseDetailInit(exerciseData).then(({ msg }) => postSafe(msg));
             },

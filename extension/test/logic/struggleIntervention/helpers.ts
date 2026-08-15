@@ -1,7 +1,4 @@
-/**
- * Shared test helpers for the struggleIntervention logic-test suite.
- * Extracted from C8-dismissEpisode.test.ts (C1) so later tasks can reuse them.
- */
+/** Shared test helpers for the struggleIntervention logic-test suite. */
 import { vi } from 'vitest';
 
 import type { PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
@@ -40,8 +37,8 @@ export function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): Struggle
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal-into-exercise navigation. Defaults are behavior-preserving (a valid target so
-        // the reveal never aborts through the untracked guard; a stable nav token; navigation succeeds).
+        // Reveal-into-exercise navigation: a valid target so the reveal never aborts through the
+        // untracked guard, a stable nav token, and a navigation that succeeds.
         resolveRevealTarget: () => ({ courseId: 100, title: 'Fake Exercise' }),
         currentNavToken: () => 1,
         openRevealSession: vi.fn(async () => true),

@@ -34,7 +34,7 @@ export function assertSpecConstants(g: GoldenSession): void {
  * the replay would reconstruct against an empty document): `ReplaySensorHub`
  * applies every textChange to the seeded FileTextState (throwing on an unseeded
  * URI) and causal-mode paste derivation reads that same reconstructed text.
- * Membership — not stream order — is the contract: the recorder writes a
+ * Membership, not stream order, is the contract: the recorder writes a
  * snapshot's event only after async I/O, so it can legitimately land after an
  * early edit, and the replay hub pre-seeds FileTextState from ALL fileSnapshots
  * up front regardless of position.

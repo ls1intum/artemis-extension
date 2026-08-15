@@ -3,17 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { Intent, PendingStamp } from '@extension/services/struggleIntervention/slot/guard';
 import { InFlightGuard } from '@extension/services/struggleIntervention/slot/guard';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeStamp(episodeId: string, generation: number, hardEvent = false): PendingStamp {
     return { episodeId, generation, hardEvent, requestToken: `tok-${episodeId}` };
 }
-
-// ---------------------------------------------------------------------------
-// InFlightGuard
-// ---------------------------------------------------------------------------
 
 describe('InFlightGuard', () => {
     it('issue returns a monotonically increasing token', () => {
@@ -40,7 +32,6 @@ describe('InFlightGuard', () => {
         const newStamp = makeStamp('ep-2', 2);
         const oldToken = guard.issue('decide', oldStamp);
         guard.issue('decide', newStamp);
-        // oldToken must be null - superseded by the second issue
         expect(guard.accept('decide', oldToken, 'ep-1', 1)).toBeNull();
     });
 
@@ -48,7 +39,6 @@ describe('InFlightGuard', () => {
         const guard = new InFlightGuard();
         const stamp = makeStamp('ep-1', 3);
         const token = guard.issue('decide', stamp);
-        // token is latest, but wrong generation supplied by caller
         expect(guard.accept('decide', token, 'ep-1', 4)).toBeNull();
     });
 
@@ -66,11 +56,9 @@ describe('InFlightGuard', () => {
         const t1 = guard.issue('decide', stamp1);
         const t2 = guard.issue('confirm_close', stamp2);
 
-        // each resolves under its own intent
         expect(guard.accept('decide', t1, 'ep-1', 1)).toEqual(stamp1);
         expect(guard.accept('confirm_close', t2, 'ep-2', 2)).toEqual(stamp2);
 
-        // wrong token for an intent always returns null
         expect(guard.accept('confirm_close', t1, 'ep-1', 1)).toBeNull();
     });
 
@@ -79,10 +67,8 @@ describe('InFlightGuard', () => {
         const s1 = makeStamp('ep-A', 1);
         const s2 = makeStamp('ep-B', 2);
         const t1 = guard.issue('decide', s1);
-        // issue confirm_close: separate counter slot
         guard.issue('confirm_close', s2);
 
-        // decide token must still be the latest for decide
         expect(guard.accept('decide', t1, 'ep-A', 1)).toEqual(s1);
     });
 
@@ -96,7 +82,6 @@ describe('InFlightGuard', () => {
 
     it('cancel is a no-op when nothing is outstanding for that intent', () => {
         const guard = new InFlightGuard();
-        // should not throw
         expect(() => guard.cancel('confirm_close')).not.toThrow();
     });
 

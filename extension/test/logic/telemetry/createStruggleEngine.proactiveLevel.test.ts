@@ -60,7 +60,7 @@ vi.mock('vscode', () => {
     };
 });
 
-/** A fully-formed `StruggleEngineDeps` fake; `getProactiveLevel` (now exercise-independent) is under test. */
+/** A fully-formed `StruggleEngineDeps` fake; the exercise-independent `getProactiveLevel` is under test. */
 function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
     return {
         hub: new TestSensorHub(),
@@ -81,7 +81,7 @@ function fakeDeps(getProactiveLevel: () => ProactiveLevel): StruggleEngineDeps {
         revealAmbient: vi.fn(async () => ({}) as never),
         setEpisodeOutcome: vi.fn(async () => ({ applied: true })),
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        // Reveal navigation: inert defaults, unused in this suite.
         resolveRevealTarget: () => ({ courseId: 1, title: 'Fake Exercise' }),
         currentNavToken: () => 0,
         openRevealSession: vi.fn(async () => true),
@@ -116,7 +116,7 @@ describe('full struggle-engine seam: getActiveProactiveLevel', () => {
         handle.coordinator.endExerciseSession();
         expect(handle.getActiveProactiveLevel()).toBe('less');
 
-        // Every read passes NO exercise id (the strip removed the argument).
+        // Every read passes NO exercise id.
         for (const call of getProactiveLevel.mock.calls) { expect(call).toEqual([]); }
     });
 

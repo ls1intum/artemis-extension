@@ -1,7 +1,6 @@
 /**
- * Task 3: slot debug snapshot, episode history, and coalesced notify.
- *
- * Tests getSlotDebugSnapshot(), getEpisodeHistory(), recordTerminalEpisode(),
+ * Slot debug snapshot, episode history, and coalesced notify:
+ * getSlotDebugSnapshot(), getEpisodeHistory(), recordTerminalEpisode(),
  * and notifySlotDebugChanged() on StruggleInterventionService.
  */
 import { describe, expect, it, vi } from 'vitest';
@@ -13,9 +12,7 @@ import { StruggleInterventionService } from '@extension/services/struggleInterve
 import type { IrisChatMessage } from '@extension/types';
 import { emptyDecisionTrace } from '@test/__shared__/tickRecordFixture';
 
-// ---------------------------------------------------------------------------
 // Shared helpers (mirrors the fakeDeps pattern from struggleInterventionService.test.ts)
-// ---------------------------------------------------------------------------
 
 function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterventionDeps {
     return {
@@ -48,7 +45,7 @@ function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): StruggleInterve
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: () => { /* no real timers in tests */ },
         reconcileOptimisticBubble: vi.fn(),
-        // #364: reveal navigation (behavior-preserving defaults; unused in this suite).
+        // Reveal navigation (defaults; unused in this suite).
         resolveRevealTarget: () => ({ courseId: 100, title: 'Fake Exercise' }),
         currentNavToken: () => 1,
         openRevealSession: vi.fn(async () => true),
@@ -140,10 +137,6 @@ async function drivePendingBackfill(svc: StruggleInterventionService): Promise<v
     await svc.applyEpisodeOutcome('ep-backfill', 'DISMISSED');
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe('StruggleInterventionService - slot debug snapshot + episode history', () => {
     it('snapshot reflects FREE slot', () => {
         const { svc } = makeService();
@@ -200,7 +193,7 @@ describe('StruggleInterventionService - slot debug snapshot + episode history', 
     });
 
     it('onTick on a FREE slot does not notify (no watchdog deadline to move)', async () => {
-        // Minor-fix lock: the onTick re-arm branch only notifies when a live watchdog exists.
+        // The onTick re-arm branch only notifies when a live watchdog exists.
         // On a free slot resetProgress is a no-op, so a calm low-sBase tick must NOT republish
         // an unchanged FREE snapshot every tick. tickRecord().sBase (0.5) is below reArmSBase (0.6).
         const onSlotChange = vi.fn();

@@ -2,12 +2,12 @@
  * Build-result delta classification (spec §2/§3): failed-test SET diff against
  * the last build WITH test information (compile-error builds have no test info
  * and never advance the baseline). The failed set uses the recorder-equivalent
- * derivation — detailText of feedbacks with positive === false — because the
+ * derivation (detailText of feedbacks with positive === false) because the
  * frozen reference compared exactly those strings (PR 2b plan, Decision 11).
  *
  * Port of build_episodes_for (02_event_tables.py) + the FM/improved
  * classification of build_inputs (engine_v2.py). FM fires on a failing build
- * with no progress; an improved-but-still-failing build no longer triggers.
+ * with no progress; an improved-but-still-failing build does not trigger it.
  */
 import type { ResultDTO } from '@extension/domain/submissions';
 import { SPEC } from '@extension/services/struggle/config';
@@ -21,8 +21,8 @@ export interface BuildClassification {
     readonly isFM: boolean;
     readonly improved: boolean;
     /** Passing/total test-case counts (from ResultDTO). Both null for a
-     *  compile-error build (buildFailed) — no test info — so a stale backend
-     *  count can never contaminate the Test-Stagnation add-on. */
+     *  compile-error build (buildFailed), which carries no test info, so a stale
+     *  backend count can never contaminate the Test-Stagnation add-on. */
     readonly passedTestCaseCount: number | null;
     readonly testCaseCount: number | null;
 }

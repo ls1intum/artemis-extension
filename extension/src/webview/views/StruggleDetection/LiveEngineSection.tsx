@@ -181,7 +181,6 @@ export function LiveEngineSection({ vscodeApi, collapsible, defaultCollapsed }: 
                                     strokeDasharray="4 4"
                                     label={{ value: `alert threshold ${theta.toFixed(2)}`, position: 'insideTopRight', fill: THETA_COLOR, fontSize: 11 }}
                                 />
-                                {/* urgency (the only curve). */}
                                 {/* A single tick draws no line segment; show a dot so the lone point is visible. */}
                                 <Line type="monotone" dataKey="urgency" stroke={URGENCY_COLOR} strokeWidth={2} dot={ticks.length === 1} isAnimationActive={false} />
                                 {/* Boundary markers (any tick with a pre-gate boundary). */}

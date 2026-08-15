@@ -6,8 +6,6 @@ import { SPEC } from '@extension/services/struggle/config';
 import { parseGoldenSession } from './goldenTypes';
 import { assertEveryChangeHasSnapshot, assertSpecConstants } from './invariants';
 
-// ── Minimal valid fixture ─────────────────────────────────────────────────────
-
 const MINIMAL_TICK = {
     t: 10,
     effectiveWindowS: 10,
@@ -51,8 +49,6 @@ const MINIMAL_SESSION = {
         pasteEventTimes: [],
     },
 };
-
-// ── parseGoldenSession ────────────────────────────────────────────────────────
 
 describe('parseGoldenSession', () => {
     it('accepts a minimal well-formed GoldenSession and returns pid intact', () => {
@@ -112,8 +108,6 @@ describe('parseGoldenSession', () => {
     });
 });
 
-// ── assertSpecConstants ───────────────────────────────────────────────────────
-
 describe('assertSpecConstants', () => {
     it('passes for theta=0.7 and graceS=32.94', () => {
         const session = parseGoldenSession(MINIMAL_SESSION);
@@ -139,8 +133,6 @@ describe('assertSpecConstants', () => {
     });
 });
 
-// ── assertEveryChangeHasSnapshot ──────────────────────────────────────────────
-
 describe('assertEveryChangeHasSnapshot', () => {
     it('passes for an empty event stream', () => {
         expect(() => assertEveryChangeHasSnapshot([])).not.toThrow();
@@ -164,7 +156,7 @@ describe('assertEveryChangeHasSnapshot', () => {
 
     it('throws when a changed URI has only a textDocumentOpen and no fileSnapshot', () => {
         // A textDocumentOpen carries no text, so the replay would reconstruct
-        // against an empty document — a fileSnapshot is required.
+        // against an empty document, so a fileSnapshot is required.
         const events: RecordedEvent[] = [
             { type: 'textDocumentOpen', timestamp: 500, uri: 'file:///a.java' },
             { type: 'textChange', timestamp: 1000, uri: 'file:///a.java', changes: [] },

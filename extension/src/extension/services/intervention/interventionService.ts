@@ -135,9 +135,8 @@ export class InterventionService implements vscode.Disposable {
         }
         else if (mode === 'parked') {
             // Reveal is one-shot: the parked hint moves into the chat, so retire the lamp.
-            // Focus is no longer fired here (#364 Task 2): the reveal-navigation
-            // (ChatWebviewProvider.revealProactiveSessionForExercise, wired in Task 3) is the
-            // single owner of focus.
+            // Focus is not fired here: ChatWebviewProvider.revealProactiveSessionForExercise
+            // is the single owner of focus.
             this._hide();
         }
         // 'none': nothing to do (the item is hidden then).

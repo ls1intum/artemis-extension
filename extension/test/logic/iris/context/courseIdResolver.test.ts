@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
 
-// The resolver reads the catalog's authoritative mapping now; the old
-// ContextStore lookup it used to take was removed with that architecture.
+// The resolver reads the catalog's authoritative mapping, so that is all the fake supplies.
 function fakeCatalog(courseId?: number) {
     return { authoritativeCourseIdFor: vi.fn(() => courseId) } as any;
 }

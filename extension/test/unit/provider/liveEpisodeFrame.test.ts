@@ -41,7 +41,7 @@ function buildProvider(): { provider: ChatWebviewProvider; sandbox: sinon.SinonS
         { state: 'authenticated', epoch: 0 } as never,
     );
     // postOptimisticBubble/postOfferBubble attribute the bubble to the OPEN
-    // conversation now (numeric server session), not to a local active session.
+    // conversation (numeric server session), not to a local active session.
     // Stub one so the AddMessage is emitted rather than dropped as unattributed.
     (provider as unknown as { _conversation: unknown })._conversation = {
         state: { snapshot: () => ({ currentSessionId: 4711 }) },

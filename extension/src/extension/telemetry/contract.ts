@@ -231,14 +231,13 @@ export interface StruggleEngineHandle {
      */
     getActiveProactiveLevel(): ProactiveLevel;
     /**
-     * Proactive control (AskIris Off/Less/More, spec §12.2). These are ABSENT in the clean (no-engine) build:
-     * extension.ts only assembles a `proactiveControl` capability when they are present, so the clean build never
-     * surfaces a control for a feature it doesn't ship.
-     */
-    /**
-     * Apply the transient effects of a level change: On marks the student present only
-     * when `exerciseId` is active; global Off clears the active exercise's live surfaces
-     * regardless of which exercise triggered it.
+     * Apply the transient effects of a level change (AskIris Off/Less/More, spec §12.2):
+     * On marks the student present only when `exerciseId` is active; global Off clears the
+     * active exercise's live surfaces regardless of which exercise triggered it.
+     * ABSENT in the clean (no-engine) build:
+     * extension.ts assembles the `proactiveControl` capability only when this and
+     * `getProactiveGateState` are present, so the clean build surfaces no control for a
+     * feature it does not ship.
      */
     setStudentProactive?(exerciseId: number, on: boolean): void;
     /**

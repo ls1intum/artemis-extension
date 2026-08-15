@@ -1,9 +1,5 @@
 import type { SlotGeneration } from './episode';
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 /** Wire values for the intent field (spec §17, snake_case on the wire). */
 export type Intent = 'decide' | 'confirm_close' | 'help_request';
 
@@ -26,10 +22,6 @@ export interface PendingStamp {
     /** Scoped-cancel uuid; forwarded to the server so it can cancel the exact job. */
     requestToken: string;
 }
-
-// ---------------------------------------------------------------------------
-// InFlightGuard
-// ---------------------------------------------------------------------------
 
 /**
  * Single-flight registry: tracks the LATEST outstanding request per intent.

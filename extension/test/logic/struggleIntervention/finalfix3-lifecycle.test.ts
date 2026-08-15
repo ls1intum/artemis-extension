@@ -5,11 +5,8 @@ import { StruggleInterventionService } from '@extension/services/struggleInterve
 
 import { fakeDeps, simulateDelivered } from './helpers';
 
-// ---------------------------------------------------------------------------
-// Fix B -- a non-accepted help_request POST result must give an honest note,
-// not leave the student with "accepted, no hint" (the offer already resolved to 'accept').
-// ---------------------------------------------------------------------------
-
+// A non-accepted help_request POST must give an honest note, not leave the student with
+// "accepted, no hint" (the offer already resolved to 'accept').
 describe('Fix B: honest note on a non-accepted help_request POST', () => {
     it('posts the honest note and clears the in-flight marker when postIntervention resolves non-accepted', async () => {
         const deps = fakeDeps({ postIntervention: vi.fn().mockResolvedValue('failed') });
@@ -43,11 +40,8 @@ describe('Fix B: honest note on a non-accepted help_request POST', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Fix C -- turning proactive Off mid-episode must clear an outstanding offer
-// AND suppress the Moment-3 "Still on this?" presence check.
-// ---------------------------------------------------------------------------
-
+// Turning proactive Off mid-episode must clear an outstanding offer AND suppress the
+// Moment-3 "Still on this?" presence check.
 describe('Fix C: opt-out (proactive Off) tears down an outstanding offer and suppresses Moment-3', () => {
     it('setStudentProactive(exerciseId, false) resolves + clears an outstanding offer', () => {
         const deps = fakeDeps();
@@ -86,11 +80,8 @@ describe('Fix C: opt-out (proactive Off) tears down an outstanding offer and sup
     });
 });
 
-// ---------------------------------------------------------------------------
-// Fix A -- an ignored in-session stuck offer (no countdown) must not block the
-// more-urgent Moment-3 presence check; supersede it instead.
-// ---------------------------------------------------------------------------
-
+// An ignored in-session stuck offer (no countdown) must not block the more-urgent
+// Moment-3 presence check; it is superseded instead.
 describe('Fix A: pre-abandon-warn supersedes a stale stuck offer', () => {
     it('resolves the stale stuck offer as timeout and raises a fresh abandon offer', () => {
         const deps = fakeDeps();   // default level 'more', in-session offers allowed
