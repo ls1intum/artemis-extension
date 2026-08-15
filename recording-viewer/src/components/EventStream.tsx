@@ -183,17 +183,16 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
     const [expandedTerminals, setExpandedTerminals] = useState<Set<string>>(new Set());
-    // One keyer per EventStream instance — stays in scope for the component
-    // lifetime so the WeakMap accumulates entries deterministically and
-    // older events fall out of the map naturally when GC'd from the live
-    // ringbuffer.
+    // One keyer per EventStream instance, in scope for the component lifetime
+    // so the WeakMap accumulates entries deterministically and older events
+    // fall out of the map naturally when GC'd from the live ringbuffer.
     const eventKey = useMemo(() => makeEventKeyer(), []);
     const [followPlayback, setFollowPlayback] = useState(false);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [atBottom, setAtBottom] = useState(true);
 
-    // Closest stream-item index to a given timestamp (binary-search over
-    // pre-sorted stream timestamps). Returns -1 if stream is empty.
+    // Closest stream-item index to a given timestamp. Returns -1 if the
+    // stream is empty.
     const findIndexForTimestamp = useCallback((stream: readonly StreamItem[], ts: number): number => {
         if (stream.length === 0) return -1;
         // Linear pass: stream is already sorted by timestamp (built below).
@@ -238,12 +237,10 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
         return items;
     }, [events, enabledTypes, annotations, showAnnotations, eventKey]);
 
-    // ── Scroll to a target timestamp ────────────────────────────────────
     // Both scrollToTimestamp (from external triggers) and followPlayback
     // (video sync) resolve to a stream index and call Virtuoso's
-    // scrollToIndex. No more DOM querySelectorAll on potentially thousands
-    // of rows. Stream is a useMemo dependency so the effects rebuild when
-    // it changes; useDeferredValue at the parent throttles that cadence.
+    // scrollToIndex. Stream is a useMemo dependency so the effects rebuild
+    // when it changes; useDeferredValue at the parent throttles that cadence.
     useEffect(() => {
         if (scrollToTimestamp == null) return;
         const idx = findIndexForTimestamp(stream, scrollToTimestamp);

@@ -22,7 +22,6 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         return;
     }
 
-    // List session folders
     const entries = fs.readdirSync(recordingsDir, { withFileTypes: true });
     const sessions: { id: string; metadata: SessionMetadata | null }[] = [];
 
@@ -45,10 +44,8 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         return;
     }
 
-    // Sort newest first
     sessions.sort((a, b) => (b.metadata?.startTime ?? 0) - (a.metadata?.startTime ?? 0));
 
-    // Build QuickPick items
     const items = sessions.map(s => {
         const date = s.metadata?.startTime
             ? new Date(s.metadata.startTime).toLocaleString()
@@ -77,7 +74,6 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         return;
     }
 
-    // Parse events (skip malformed lines)
     const lines = fs.readFileSync(eventsPath, 'utf-8')
         .split('\n')
         .filter(l => l.trim().length > 0);
@@ -87,7 +83,7 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         try {
             raw = JSON.parse(line);
         } catch {
-            continue; // Skip malformed JSON
+            continue;
         }
         const event = parseRecordedEvent(raw);
         if (event !== null) {
@@ -99,10 +95,8 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         // lines manifest as a shorter session in the picker.
     }
 
-    // Run replay
     const snapshots = replaySession(events);
 
-    // Write replay-eq.jsonl
     const outputPath = path.join(sessionDir, 'replay-eq.jsonl');
     const output = snapshots.map(s => JSON.stringify(s)).join('\n');
     fs.writeFileSync(outputPath, output + (output.length > 0 ? '\n' : ''), 'utf-8');

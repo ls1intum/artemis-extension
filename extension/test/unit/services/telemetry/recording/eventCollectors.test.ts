@@ -1,26 +1,7 @@
-/**
- * Unit tests for Block F — collectBuildResult
- *
- * Covers:
- *   1. Feedback positive:false, text:'TestFoo', detailText:'AssertionError'
- *      → failedTestDetails[0]={testName:'TestFoo', detail:'AssertionError'}
- *      → failedTests[0]='AssertionError' (legacy)
- *      → buildErrorFamilies[0]='build:TestFoo'
- *   2. Feedback positive:undefined → no entries in failedTests or failedTestDetails (predicate consistency)
- *   3. Feedback positive:true → not included in any list
- *   4. exerciseId, participationId, submissionId are populated when all fields set
- *   5. failedTestDetails is undefined when no failed tests
- *   6. buildErrorFamilies cutoff: text longer than 200 chars is truncated at 200 (not 50)
- *   7. Feedback positive:false, text undefined → testName='unknown' in failedTestDetails
- *   8. Feedback positive:false, detailText undefined → detail='' in failedTestDetails, failedTests[0]=''
- */
-
 import * as assert from 'assert';
 
 import type { ResultDTO } from '@extension/domain';
 import { collectBuildResult } from '@extension/services/telemetry/recording/eventCollectors';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeResult(overrides: Partial<ResultDTO> = {}): ResultDTO {
     return {
@@ -33,8 +14,6 @@ function makeResult(overrides: Partial<ResultDTO> = {}): ResultDTO {
         ...overrides,
     };
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 suite('collectBuildResult (Block F)', () => {
     test('1. positive:false → failedTestDetails and failedTests populated', () => {

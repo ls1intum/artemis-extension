@@ -57,8 +57,6 @@ export class ChatViewStatePresenter {
          * constructed (e.g. no ArtemisApiService). A GETTER, not a value: the
          * service is created in the provider's constructor, after the
          * presenter, so a plain value here would capture `undefined` forever.
-         * Same house pattern as `IrisWebSocketMessageHandler`'s conversation
-         * getter in `chatWebviewProvider.ts`.
          */
         private readonly _getConversation: () => IrisConversationService | undefined,
         /**
@@ -118,7 +116,7 @@ export class ChatViewStatePresenter {
 
         // Neither list is sorted here. `compareExercisesForPicker` and
         // `compareCoursesForPicker` reorder both in the webview, so a host-side
-        // order was only ever overwritten.
+        // order would just be overwritten.
         const config = vscode.workspace.getConfiguration('artemis');
         this._postMessage({
             type: ExtensionMsg.UpdateIrisState,
@@ -251,13 +249,13 @@ export class ChatViewStatePresenter {
             contentState: conversation.state.contentState(),
             sendInFlight: conversation.state.sendInFlight,
             navigationInFlight: conversation.navigationInFlight,
-            // The overview UNION the invisible cache (spec 5.4), deduplicated by
-            // session id. `knownInvisible` holds conversations the USER-scoped
-            // overview does not list, starting with the one you are in before
-            // it has a user message: without the union the open conversation is
-            // simply absent from its own history, so §5.4's checkmark has
-            // nothing to land on and pressing `+` then opening an older
-            // conversation makes the new one unreachable.
+            // The overview UNION the invisible cache, deduplicated by session
+            // id. `knownInvisible` holds conversations the USER-scoped overview
+            // does not list, starting with the one you are in before it has a
+            // user message: without the union the open conversation is absent
+            // from its own history, so its checkmark has nothing to land on and
+            // pressing `+` then opening an older conversation makes the new one
+            // unreachable.
             conversations: this._conversationRows(snapshot),
         };
     }

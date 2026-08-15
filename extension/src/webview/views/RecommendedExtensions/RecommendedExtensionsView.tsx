@@ -18,7 +18,6 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [isLoaded, setIsLoaded] = useState(false);
 
-    // Restore persisted state on mount
     useEffect(() => {
         const persistedState = vscodeApi.getState<RecommendedExtensionsPersistedState>();
         if (persistedState?.selectedCategory) {
@@ -26,14 +25,12 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
         }
     }, [vscodeApi]);
 
-    // Persist selectedCategory changes
     useEffect(() => {
         vscodeApi.setState<RecommendedExtensionsPersistedState>({
             selectedCategory
         });
     }, [selectedCategory, vscodeApi]);
 
-    // Message handler
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.RecommendedExtensionsInit) {
             setCategories(msg.categories);
@@ -53,12 +50,10 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
         postCommand(vscodeApi, 'searchMarketplace', { extensionId });
     };
 
-    // Filter categories based on selection
     const filteredCategories = selectedCategory === 'all'
         ? categories
         : categories.filter(cat => cat.id === selectedCategory);
 
-    // Loading state
     if (!isLoaded) {
         return (
             <div className={styles.recommendedExtensionsView}>
@@ -70,7 +65,6 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
         );
     }
 
-    // Empty state
     if (categories.length === 0) {
         return (
             <div className={styles.recommendedExtensionsView}>
@@ -111,7 +105,6 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
                 subtitle="Improve your Artemis workflow with curated VS Code extensions."
             />
 
-            {/* Filter controls */}
             {isLoaded && categories.length > 0 && (
                 <Container>
                     <div style={{
@@ -147,7 +140,6 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
                 </Container>
             )}
 
-            {/* Category sections */}
             {isLoaded && filteredCategories.map(category => (
                 <Container
                     key={category.id}
@@ -192,9 +184,6 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     );
 }
 
-/**
- * Extension card component composed from Phase 2 shared components.
- */
 function ExtensionCard({
     extension,
     onViewInMarketplace
@@ -214,7 +203,6 @@ function ExtensionCard({
             flexDirection: 'column',
             gap: '12px'
         }}>
-            {/* Header with name, publisher, and badges */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -256,7 +244,6 @@ function ExtensionCard({
                 </div>
             </div>
 
-            {/* Description */}
             <p style={{
                 margin: 0,
                 fontSize: '14px',
@@ -266,7 +253,6 @@ function ExtensionCard({
                 {extension.description}
             </p>
 
-            {/* Why we recommend it */}
             <div>
                 <div style={{
                     fontSize: '12px',
@@ -286,7 +272,6 @@ function ExtensionCard({
                 </p>
             </div>
 
-            {/* Action button */}
             <div>
                 <Button
                     variant="secondary"

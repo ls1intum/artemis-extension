@@ -9,7 +9,7 @@ interface ExerciseLike {
  * Decide whether a WebSocket `newResult` event should trigger a
  * server-driven problem-statement refresh.
  *
- * Pure function so we can unit-test the filter in isolation from
+ * Pure function so the filter is unit-testable in isolation from
  * {@link ArtemisWebviewProvider}.
  *
  * Rules:
@@ -17,10 +17,9 @@ interface ExerciseLike {
  *   - The current exercise must be known (have an id).
  *   - The result must carry a finite, defined participation id.
  *   - That participation id must match the participation the SSR
- *     coordinator currently renders (today: `studentParticipations[0]`).
- *     When the coordinator's selection logic is generalized in a
- *     follow-up (graded/practice repo aware), this comparison must be
- *     revisited so other-participation results trigger refreshes too.
+ *     coordinator currently renders (`studentParticipations[0]`).
+ *     TODO: once the coordinator's selection becomes graded/practice aware,
+ *     revisit this comparison so other-participation results refresh too.
  */
 export function shouldRefreshPSForResult(
     currentState: string,

@@ -85,7 +85,6 @@ suite('ConnectionLifecycle', () => {
         const { lifecycle } = makeLifecycle();
         const result = lifecycle.beginConnect({ clientInflight: true });
         assert.strictEqual(result.kind, 'reuse');
-        // The lifecycle should NOT have transitioned to 'connecting' or bumped generation
         assert.strictEqual(lifecycle.state, 'disconnected');
         assert.strictEqual(lifecycle.generation, 0);
     });

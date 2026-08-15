@@ -1,5 +1,3 @@
-// --- Iris Health Status ---
-
 export interface IrisRateLimitInfo {
     readonly currentMessageCount: number;
     readonly rateLimit: number;

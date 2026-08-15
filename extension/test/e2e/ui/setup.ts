@@ -4,14 +4,12 @@ import { ExTester, ReleaseQuality } from 'vscode-extension-tester';
 const STORAGE_FOLDER = path.resolve(__dirname, '..', '..', 'test-resources');
 
 /**
- * Programmatic setup for UI tests using ExTester API.
- * Downloads VS Code + ChromeDriver and installs the packaged extension.
+ * Programmatic setup for UI tests using the ExTester API: downloads VS Code
+ * and ChromeDriver, then installs the packaged extension.
  *
- * Usage (from project root):
- *   npx ts-node test/ui/setup.ts
+ * Usage, from the extension root: npx ts-node test/e2e/ui/setup.ts
  *
- * Normally you won't call this directly — the `extest setup-and-run` CLI
- * handles setup automatically. This file exists for cases where you need
+ * The `extest setup-and-run` CLI does this automatically; this file exists for
  * finer-grained control over the setup process.
  */
 async function main() {

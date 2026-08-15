@@ -2,10 +2,9 @@
  * E2E Test: Session Recorder (VS Code-only)
  *
  * Drives the SessionRecorder through a deterministic sequence of VS Code
- * actions and asserts on EXACT counts and payload content — not just
- * "something was recorded". The goal is to catch real bugs (wrong range,
- * wrong URI, listener removal, off-by-one, stale generation) — not just
- * the "nothing is broken enough to crash" level.
+ * actions and asserts on EXACT counts and payload content, not just
+ * "something was recorded", so real bugs (wrong range, wrong URI, listener
+ * removal, off-by-one, stale generation) surface.
  *
  * Does NOT depend on Artemis or Iris.
  *
@@ -68,7 +67,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         recorder = undefined;
         // Isolation: leave no editors, breakpoints, or terminals behind. Otherwise the
         // NEXT session's startup capture inherits them as incidental events and makes
-        // any exact-count assertion order-dependent (codex review finding).
+        // any exact-count assertion order-dependent.
         try { await vscode.commands.executeCommand('workbench.action.closeAllEditors'); } catch { /* best-effort */ }
         vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
         for (const t of vscode.window.terminals) { t.dispose(); }
@@ -91,9 +90,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         // Wait for startup phase to complete.
         await sleep(300);
 
-        // ── Action sequence (every action has a matching assertion below) ──
-
-        // 1. Create file A with initial content 'hello\n'.
         const fileA = vscode.Uri.file(path.join(workspaceDir, 'a.txt'));
         {
             const edit = new vscode.WorkspaceEdit();
@@ -106,7 +102,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await docA.save();
         await sleep(200);
 
-        // 2. Insert ' world' at line 0 char 5 → file becomes 'hello world\n'.
         const editApplied = await editorA.edit(eb => {
             eb.insert(new vscode.Position(0, 5), ' world');
         });
@@ -118,11 +113,9 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.ok(saveResult, 'docA.save() reports success');
         await sleep(200);
 
-        // 3. Selection (0,0)-(0,5) — 'hello'.
         editorA.selection = new vscode.Selection(0, 0, 0, 5);
         await sleep(400); // selection debounce = 200ms
 
-        // 4. Create file B.
         const fileB = vscode.Uri.file(path.join(workspaceDir, 'b.txt'));
         {
             const edit = new vscode.WorkspaceEdit();
@@ -134,7 +127,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await vscode.window.showTextDocument(docB);
         await sleep(200);
 
-        // 5. Rename A → C.
         const fileC = vscode.Uri.file(path.join(workspaceDir, 'c.txt'));
         {
             const edit = new vscode.WorkspaceEdit();
@@ -143,7 +135,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         }
         await sleep(200);
 
-        // 6. Delete B.
         {
             const edit = new vscode.WorkspaceEdit();
             edit.deleteFile(fileB, { ignoreIfNotExists: true });
@@ -151,21 +142,18 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         }
         await sleep(200);
 
-        // 7. Terminal: open + close. Terminal close events are not flushed on
-        // endSession (observationRegistry only flushes selection/visibleRange
-        // debounces), so wait long enough for onDidCloseTerminal to fire while
-        // phase is still `recording`.
+        // Terminal close events are not flushed on endSession (observationRegistry only
+        // flushes selection/visibleRange debounces), so wait long enough for
+        // onDidCloseTerminal to fire while phase is still `recording`.
         const terminal = vscode.window.createTerminal({ name: 'recorder-e2e-term' });
         terminal.show();
         await sleep(300);
         terminal.dispose();
         await sleep(800);
 
-        // ── End session ────────────────────────────────────────────────────
         const sessionEndWallclock = Date.now();
         await recorder.endSession();
 
-        // ── Read JSONL ─────────────────────────────────────────────────────
         const recordingsDir = path.join(storageDir, 'recordings');
         const sessionDirs = fs.readdirSync(recordingsDir).filter(d =>
             fs.statSync(path.join(recordingsDir, d)).isDirectory(),
@@ -178,7 +166,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         const events: RecordedEvent[] = raw.split('\n').map(l => JSON.parse(l) as RecordedEvent);
         const count = (type: RecordedEvent['type']) => events.filter(e => e.type === type).length;
 
-        // ── Exact-count assertions ─────────────────────────────────────────
         assert.strictEqual(count('sessionStart'), 1, 'exactly 1 sessionStart');
         assert.strictEqual(count('sessionEnd'), 1, 'exactly 1 sessionEnd');
         assert.strictEqual(count('startupPhaseComplete'), 1, 'exactly 1 startupPhaseComplete');
@@ -187,11 +174,9 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(count('fileRename'), 1, '1 fileRename (A→C)');
         assert.strictEqual(count('terminalOpenClose'), 2, '2 terminalOpenClose (opened + closed)');
 
-        // ── Ordering ───────────────────────────────────────────────────────
         assert.strictEqual(events[0].type, 'sessionStart', 'first event is sessionStart');
         assert.strictEqual(events.at(-1)?.type, 'sessionEnd', 'last event is sessionEnd');
 
-        // ── Session boundary timestamps ────────────────────────────────────
         const sessionStart = events[0] as SessionStartEvent;
         const sessionEnd = events.at(-1) as SessionEndEvent;
         assert.strictEqual(sessionStart.exerciseId, 1, 'sessionStart.exerciseId');
@@ -202,7 +187,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.ok(sessionStart.timestamp >= sessionStartWallclock - 1000, 'sessionStart.timestamp plausible');
         assert.ok(sessionEnd.timestamp <= sessionEndWallclock + 1000, 'sessionEnd.timestamp plausible');
 
-        // ── Timestamp monotonicity (critical invariant) ────────────────────
         for (let i = 1; i < events.length; i++) {
             assert.ok(
                 events[i].timestamp >= events[i - 1].timestamp,
@@ -211,7 +195,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             );
         }
 
-        // ── textChange: verify real payload for the ' world' insert ────────
         const textChanges = events.filter((e): e is TextChangeEvent => e.type === 'textChange');
         const worldInsert = textChanges.find(e =>
             e.uri === fileA.toString()
@@ -227,22 +210,19 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         );
         assert.ok(worldInsert, 'textChange for " world" insert captured with exact payload');
 
-        // ── save: at least one save for fileA MUST follow the " world" insert ─
-        // Tighter than "count >= 1": we verify the save semantically follows
-        // the edit it was supposed to persist. Catches a listener that fires
-        // but on the wrong URI, or a save captured from a different file.
+        // Tighter than "count >= 1": the save must semantically follow the edit it
+        // persists. Catches a listener that fires on the wrong URI, or a save
+        // captured from a different file.
         const saves = events.filter((e): e is SaveEvent => e.type === 'save');
         const worldInsertIdx = events.indexOf(worldInsert);
         const postInsertSaveA = events.slice(worldInsertIdx + 1).find(
             (e): e is SaveEvent => e.type === 'save' && e.uri === fileA.toString(),
         );
         assert.ok(postInsertSaveA, 'save for fileA AFTER " world" insert captured');
-        // And all save events must carry real URIs (no blank/malformed).
         for (const s of saves) {
             assert.ok(s.uri.length > 0 && s.uri.startsWith('file:'), `save uri well-formed: ${s.uri}`);
         }
 
-        // ── fileCreate: URIs are fileA and fileB (in either order) ─────────
         const fileCreates = events.filter((e): e is FileCreateEvent => e.type === 'fileCreate');
         assert.deepStrictEqual(
             new Set(fileCreates.map(e => e.uri)),
@@ -250,16 +230,13 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             'fileCreate URIs match A and B',
         );
 
-        // ── fileRename: exact oldUri/newUri ────────────────────────────────
         const fileRenames = events.filter((e): e is FileRenameEvent => e.type === 'fileRename');
         assert.strictEqual(fileRenames[0].oldUri, fileA.toString(), 'rename oldUri = fileA');
         assert.strictEqual(fileRenames[0].newUri, fileC.toString(), 'rename newUri = fileC');
 
-        // ── fileDelete: exact URI ──────────────────────────────────────────
         const fileDeletes = events.filter((e): e is FileDeleteEvent => e.type === 'fileDelete');
         assert.strictEqual(fileDeletes[0].uri, fileB.toString(), 'delete uri = fileB');
 
-        // ── selectionChange: our explicit (0,0)-(0,5) selection is there ───
         const selectionChanges = events.filter((e): e is SelectionChangeEvent => e.type === 'selectionChange');
         const ourSelection = selectionChanges.find(e =>
             e.uri === fileA.toString()
@@ -271,7 +248,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         );
         assert.ok(ourSelection, 'selectionChange (0,0)-(0,5) on fileA captured');
 
-        // ── terminalOpenClose: exact sequence ──────────────────────────────
         const terminalEvents = events.filter((e): e is TerminalOpenCloseEvent => e.type === 'terminalOpenClose');
         assert.deepStrictEqual(
             terminalEvents.map(e => ({ action: e.action, terminalName: e.terminalName })),
@@ -282,7 +258,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             'terminal sequence is exactly opened→closed with matching name',
         );
 
-        // ── Snapshot content verification ──────────────────────────────────
         const fileSnapshots = events.filter((e): e is FileSnapshotEvent => e.type === 'fileSnapshot');
         const snapshotA = fileSnapshots.find(e => e.uri === fileA.toString());
         assert.ok(snapshotA, 'fileSnapshot for fileA recorded');
@@ -291,14 +266,12 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         const snapshotAContent = fs.readFileSync(snapshotAAbs, 'utf-8');
         assert.strictEqual(snapshotAContent, 'hello\n', 'snapshot of fileA has initial content "hello\\n"');
 
-        // ── Reconstruction: replay textChanges appearing AFTER the fileSnapshot
-        // event in JSONL order — this is a conservative cut-point. (Semantic
-        // snapshot content is captured SYNC at getText() time but the
-        // fileSnapshot event is emitted POST async write; a change in that
-        // window can land in both snapshot content AND JSONL. The roundtrip
-        // CLI has a separate known bug — it replays ALL textChanges without a
-        // cut-point. In this test's deterministic timing, the " world" edit
-        // happens well after snapshot-write completes, so index-based works.)
+        // Replay only the textChanges after the fileSnapshot event, a conservative
+        // cut-point: snapshot content is captured synchronously at getText() time
+        // while the event is emitted after the async write, so a change in that
+        // window can land in both. The " world" edit happens well after the
+        // snapshot write here, so the index-based cut is safe. (The roundtrip CLI
+        // replays ALL textChanges without any cut-point.)
         const snapshotAIdx = events.indexOf(snapshotA);
         const aChangesAfterSnapshot = events
             .slice(snapshotAIdx + 1)
@@ -315,7 +288,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             `replaying post-snapshot textChanges must reconstruct "hello world\\n", got "${reconstructed}"`,
         );
 
-        // ── Metadata ───────────────────────────────────────────────────────
         const metaPath = path.join(sessionDir, 'metadata.json');
         const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as {
             schemaVersion: number;
@@ -334,11 +306,9 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(metadata.eventCount, events.length, 'metadata.eventCount matches jsonl lines');
         assert.ok(metadata.endTime !== undefined && metadata.endTime >= metadata.startTime, 'endTime >= startTime');
 
-        // ── CLI validation ─────────────────────────────────────────────────
         runCliCheck('validate-recording', sessionDir);
         runCliCheck('roundtrip-recording', sessionDir);
 
-        // ── Negative: post-endSession actions must not produce new events ──
         const eventCountBeforePost = events.length;
         const fileD = vscode.Uri.file(path.join(workspaceDir, 'd.txt'));
         {
@@ -359,15 +329,16 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             `no events recorded after endSession (was ${eventCountBeforePost}, now ${eventsAfter.length})`,
         );
 
-        // Cleanup the post-end probe file so suite teardown workspace stays clean.
+        // Drop the post-end probe file so the next session's startup capture does not
+        // inherit it (same isolation contract as teardown).
         try {
             await vscode.workspace.fs.delete(fileD);
         } catch { /* ignore */ }
     });
 
     test('after disable(), subsequent VS Code events are not recorded', async () => {
-        // Strong negative: exercise the real enable→start→end→disable FSM path.
-        // Bugs this catches that a "never-enabled" test could not:
+        // Exercises the real enable→start→end→disable FSM path. Bugs this catches
+        // that a "never-enabled" test could not:
         //   - Listeners that stay registered after disable()
         //   - Session created after disable() (phase gate broken)
         //   - New textChange/save events written to the ended session's JSONL
@@ -395,7 +366,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         recorder.disable();
         await sleep(100);
 
-        // Snapshot JSONL state pre-action.
         const recordingsDir = path.join(storageDir, 'recordings');
         const sessionDirs = fs.readdirSync(recordingsDir).filter(d =>
             fs.statSync(path.join(recordingsDir, d)).isDirectory(),
@@ -414,7 +384,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await probeDoc.save();
         await sleep(400);
 
-        // JSONL must not grow, no new session dir must appear.
         const lineCountAfter = fs.readFileSync(jsonlPath, 'utf-8').trim().split('\n').length;
         assert.strictEqual(lineCountAfter, lineCountBefore, 'JSONL did not grow after disable()');
         const sessionDirsAfter = fs.readdirSync(recordingsDir).filter(d =>
@@ -439,7 +408,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         recorder = new SessionRecorder(storageUri);
         recorder.enable();
 
-        // ── Session 1 ──────────────────────────────────────────────────────
         await recorder.startSession(10, 'session-1', workspaceUri.toString());
         await sleep(200);
         const file1 = vscode.Uri.file(path.join(workspaceDir, 'reuse-1.txt'));
@@ -452,7 +420,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await sleep(200);
         await recorder.endSession();
 
-        // ── Consent-cycle boundary: disable + re-enable on same instance ──
+        // Consent-cycle boundary: disable + re-enable on the same instance.
         // If disable()'s listener teardown is incomplete, enable() will
         // double-register and session 2 will show duplicate events (caught
         // by the "no duplicate fileCreate" assertion below).
@@ -472,7 +440,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         recorder.enable();
         await sleep(100);
 
-        // ── Session 2 ──────────────────────────────────────────────────────
         await recorder.startSession(20, 'session-2', workspaceUri.toString());
         await sleep(200);
         const file2 = vscode.Uri.file(path.join(workspaceDir, 'reuse-2.txt'));
@@ -485,19 +452,18 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await sleep(200);
         await recorder.endSession();
 
-        // ── Verify two distinct sessions with correctly attributed events ─
         const recordingsDir = path.join(storageDir, 'recordings');
         const sessionDirs = fs.readdirSync(recordingsDir)
             .filter(d => fs.statSync(path.join(recordingsDir, d)).isDirectory())
-            .sort(); // deterministic order
+            .sort();
         assert.strictEqual(sessionDirs.length, 2, 'exactly two session dirs');
 
         const readEvents = (dir: string): RecordedEvent[] =>
             fs.readFileSync(path.join(recordingsDir, dir, 'events.jsonl'), 'utf-8')
                 .trim().split('\n').map(l => JSON.parse(l) as RecordedEvent);
 
-        // Attribute sessions by their metadata (sort order is unstable across
-        // filesystems — session IDs are ULIDs, so we identify by exerciseId).
+        // Attribute sessions by their metadata: session IDs are ULIDs and sort order
+        // is unstable across filesystems, so identify by exerciseId.
         const metaOf = (dir: string) => JSON.parse(
             fs.readFileSync(path.join(recordingsDir, dir, 'metadata.json'), 'utf-8'),
         ) as { exerciseId: number; participantId: string | undefined };
@@ -511,7 +477,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(metaOf(s1Dir).participantId, 'session-1', 's1 participantId');
         assert.strictEqual(metaOf(s2Dir).participantId, 'session-2', 's2 participantId');
 
-        // Session 1 must contain fileCreate for file1, NOT for file2.
         const s1Events = readEvents(s1Dir);
         const s2Events = readEvents(s2Dir);
         const s1CreateURIs = s1Events.filter((e): e is FileCreateEvent => e.type === 'fileCreate').map(e => e.uri);
@@ -534,9 +499,9 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             'file2 fileCreate is not duplicated (listener registered once)',
         );
 
-        // ── Leak check: the file created between disable and enable must
-        // not appear in EITHER session's JSONL. If disable() leaves stale
-        // listeners, leakProbe's fileCreate would be recorded.
+        // The file created between disable and enable must not appear in EITHER
+        // session's JSONL. If disable() leaves stale listeners, leakProbe's
+        // fileCreate would be recorded.
         const allCreateURIs = [...s1CreateURIs, ...s2CreateURIs];
         assert.ok(
             !allCreateURIs.includes(leakProbe.toString()),
@@ -549,7 +514,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
     });
 
     test('breakpoint add/remove flows through the live listener into JSONL with exact payloads', async () => {
-        // vscode.debug.breakpoints is a persistent global — clear any leftover state first.
+        // vscode.debug.breakpoints is a persistent global, so clear leftover state first.
         vscode.debug.removeBreakpoints([...vscode.debug.breakpoints]);
         await sleep(150);
 
@@ -563,7 +528,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await sleep(300); // startup phase
 
         // One in-root breakpoint (recorded) + one out-of-root (must be filtered out).
-        // The files need not exist on disk — breakpoints carry a location regardless.
+        // The files need not exist on disk: breakpoints carry a location regardless.
         const inRootUri = vscode.Uri.file(path.join(workspaceDir, 'Bp.java'));
         const outOfRootUri = vscode.Uri.file(path.join(os.tmpdir(), `outside-bp-${process.pid}.java`));
         const inRootBp = new vscode.SourceBreakpoint(
@@ -577,7 +542,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         // Add both → onDidChangeBreakpoints{added} → listener filters to in-root only.
         vscode.debug.addBreakpoints([inRootBp, outOfRootBp]);
         await sleep(400);
-        // Remove the in-root one → onDidChangeBreakpoints{removed}.
         vscode.debug.removeBreakpoints([inRootBp]);
         await sleep(400);
 
@@ -607,7 +571,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         const addedIds = new Set(added.flatMap(e => e.breakpoints.map(bp => bp.id)));
         assert.deepStrictEqual([...addedIds], [inRootBp.id], 'only the in-root breakpoint is ever added (out-of-root filtered)');
 
-        // The in-root 'added' payload is exact.
         const addedInRoot = added.flatMap(e => e.breakpoints).find(bp => bp.id === inRootBp.id);
         assert.ok(addedInRoot, 'in-root breakpoint present in an added event');
         assert.strictEqual(addedInRoot.uri, inRootUri.toString(), 'added uri = in-root');
@@ -617,12 +580,11 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(addedInRoot.condition, 'x > 0', 'added condition preserved');
         assert.strictEqual(addedInRoot.logMessage, 'log here', 'added logMessage preserved');
 
-        // The out-of-root URI must never appear in any recorded breakpoint.
         const allUris = bpEvents.flatMap(e => e.breakpoints.map(bp => bp.uri));
         assert.ok(!allUris.includes(outOfRootUri.toString()), 'out-of-root breakpoint filtered everywhere');
 
-        // 'removed' references the in-root breakpoint by id, and only that one — with the
-        // full serialized payload (collectBreakpointChange serializes removed bps too).
+        // collectBreakpointChange serializes removed breakpoints too, so 'removed'
+        // carries the full payload, not just an id.
         const removedIds = new Set(removed.flatMap(e => e.breakpoints.map(bp => bp.id)));
         assert.deepStrictEqual([...removedIds], [inRootBp.id], 'only the in-root breakpoint is ever removed');
         const removedInRoot = removed.flatMap(e => e.breakpoints).find(bp => bp.id === inRootBp.id);
@@ -631,22 +593,18 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(removedInRoot.line, 9, 'removed line preserved');
         assert.strictEqual(removedInRoot.column, 4, 'removed column preserved');
 
-        // Timestamp monotonicity across the whole stream.
         for (let i = 1; i < events.length; i++) {
             assert.ok(events[i].timestamp >= events[i - 1].timestamp, `timestamp regression at event[${i}]`);
         }
 
-        // The recording validates clean (exit 0 = no error-severity issues).
-        // Run with --verbose so warnings print, then assert the validate-recording
-        // known-types sync (Task 2) actually took effect: no UNKNOWN_TYPE warning
-        // for the new event types. This is the ONLY assertion that verifies Task 2.
+        // The recording validates clean (exit 0 = no error-severity issues). --verbose
+        // makes warnings print, so an UNKNOWN_TYPE warning would prove validate-recording
+        // does not know these event types.
         const validate = runCliCheck('validate-recording', sessionDir, ['--verbose']);
         const validateOut = String(validate.stdout);
         assert.ok(!validateOut.includes("unknown event type 'breakpointChange'"), 'breakpointChange is a known validate-recording type');
         assert.ok(!validateOut.includes("unknown event type 'debugSession'"), 'debugSession is a known validate-recording type');
 
-        // The validated parser round-trips the new events (regression guard for the
-        // parseRecordedData gap this work closes).
         for (const e of bpEvents) {
             assert.deepStrictEqual(parseRecordedEvent(e), e, 'breakpointChange round-trips through parseRecordedEvent');
         }
@@ -655,7 +613,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
     });
 
     test('Class B record*() events persist with exact payloads, counts, and parser round-trip', async () => {
-        // B1: drive every public record*() method directly and verify the full
+        // Drives every public record*() method directly and verifies the full
         // recorder persistence pipeline (method -> buffer -> JSONL -> parser -> CLI).
         // These types are NOT startup-emitted by a bare SessionRecorder (no wiring /
         // startup contributors registered), so exact counts are deterministic.
@@ -668,7 +626,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await recorder.startSession(5, 'classB-test', workspaceUri.toString());
         await sleep(300); // startup settle
 
-        // ── Drive every Class B record*() method (fully-populated payloads) ──
         recorder.recordIrisChatSent('hello iris', 'm-sent', 's-1', 1700000001);
         recorder.recordIrisChatReceived('hi student', 'm-recv', 's-1', 1700000002);
         recorder.recordIrisChatSendAttempt('attempt body', 'failed', 'network down');
@@ -703,7 +660,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         const { sessionDir, events } = readSingleSession(storageDir);
         const count = (t: RecordedEvent['type']) => events.filter(e => e.type === t).length;
 
-        // ── Exact counts (Class B types are never startup-emitted here) ──
         assert.strictEqual(count('irisChatMessage'), 2, '2 irisChatMessage (sent + received)');
         assert.strictEqual(count('irisChatSendAttempt'), 1, '1 irisChatSendAttempt');
         assert.strictEqual(count('irisChatFeedback'), 1, '1 irisChatFeedback');
@@ -718,7 +674,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.strictEqual(count('taskFeedbackView'), 2, '2 taskFeedbackView');
         assert.strictEqual(count('submission'), 1, '1 submission');
 
-        // ── Exact-payload match: each expected object (minus timestamp) appears once ──
         const stripTs = (e: RecordedEvent): Record<string, unknown> => {
             const copy: Record<string, unknown> = { ...e };
             delete copy.timestamp;
@@ -754,7 +709,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             assert.strictEqual(n, 1, `exactly one event matching ${JSON.stringify(exp)} (found ${n})`);
         }
 
-        // ── Parser round-trip for every Class B event ──
         const classBTypes = new Set<RecordedEvent['type']>([
             'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback', 'eqSnapshot', 'eqEngineState',
             'intervention', 'viewNavigation', 'panelVisibility', 'configurationSnapshot', 'configurationChange',
@@ -764,7 +718,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             assert.deepStrictEqual(parseRecordedEvent(e), e, `round-trip ${e.type}`);
         }
 
-        // ── Timestamp monotonicity + CLI validation ──
         for (let i = 1; i < events.length; i++) {
             assert.ok(events[i].timestamp >= events[i - 1].timestamp, `timestamp regression at event[${i}]`);
         }
@@ -799,8 +752,8 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await vscode.window.showTextDocument(docY);
         await sleep(150);
 
-        // fileSwitch: switch active editor back to X. Capture the *current* editor —
-        // revealRange must target the active editor instance, not the stale first one.
+        // Capture the *current* editor: revealRange must target the active editor
+        // instance, not the stale first one.
         const editorXBack = await vscode.window.showTextDocument(docX);
         await sleep(200);
 
@@ -808,12 +761,10 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         editorXBack.revealRange(new vscode.Range(300, 0, 310, 0), vscode.TextEditorRevealType.InCenter);
         await sleep(800);
 
-        // diagnostics: push a real diagnostic on X.
         const dc = vscode.languages.createDiagnosticCollection('recorder-e2e-diag');
         dc.set(fileX, [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 4), 'recorder-e2e diagnostic', vscode.DiagnosticSeverity.Error)]);
         await sleep(300);
 
-        // textDocumentClose: close everything (attribute the close of X and Y).
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
         await sleep(1500);
 
@@ -822,17 +773,16 @@ suite('Session Recorder — E2E (VS Code only)', function () {
 
         const { sessionDir, events } = readSingleSession(storageDir);
 
-        // textDocumentOpen for X and Y.
         const opens = events.filter((e): e is TextDocumentOpenEvent => e.type === 'textDocumentOpen').map(e => e.uri);
         assert.ok(opens.includes(fileX.toString()), 'textDocumentOpen for X');
         assert.ok(opens.includes(fileY.toString()), 'textDocumentOpen for Y');
 
-        // fileSwitch: prove a real navigation, not just the initial open of X. In headless,
-        // onDidChangeActiveTextEditor fires an intermediate `undefined` editor between switches,
-        // so the recorder emits separate {to:…} and {from:…} fileSwitch events rather than one
-        // carrying both (a harness artifact, not a recorder bug — it records what the event
-        // reports). The deactivation `fromUri === Y` can ONLY come from `prev` tracking after we
-        // switched away from Y; the initial open of X only ever yields {to:X, from:undefined}.
+        // In headless, onDidChangeActiveTextEditor fires an intermediate `undefined` editor
+        // between switches, so the recorder emits separate {to:…} and {from:…} fileSwitch
+        // events rather than one carrying both (a harness artifact: the recorder records what
+        // the event reports). The deactivation `fromUri === Y` can ONLY come from `prev`
+        // tracking after switching away from Y, so it proves a real navigation. The initial
+        // open of X only ever yields {to:X, from:undefined}.
         const switches = events.filter((e): e is FileSwitchEvent => e.type === 'fileSwitch');
         assert.ok(switches.some(e => e.toUri === fileX.toString()), 'fileSwitch to X captured');
         assert.ok(
@@ -840,8 +790,8 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             'fileSwitch away from Y captured (proves prev-tracking / a real switch, not the initial open)',
         );
 
-        // visibleRangeChange: the headless editor DOES have a viewport (≈38 lines) and
-        // fires onDidChangeTextEditorVisibleRanges on revealRange — as long as reveal targets
+        // The headless editor DOES have a viewport (≈38 lines) and fires
+        // onDidChangeTextEditorVisibleRanges on revealRange, as long as reveal targets
         // the active editor on a doc longer than the viewport.
         const visRanges = events.filter((e): e is VisibleRangeChangeEvent => e.type === 'visibleRangeChange' && e.uri === fileX.toString());
         assert.ok(visRanges.length >= 1, 'visibleRangeChange for X captured');
@@ -853,7 +803,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             assert.deepStrictEqual(parseRecordedEvent(e), e, 'visibleRangeChange round-trips');
         }
 
-        // diagnostics for X carrying our exact message.
         const diags = events.filter((e): e is DiagnosticsEvent => e.type === 'diagnostics' && e.uri === fileX.toString());
         assert.ok(
             diags.some(e => e.diagnostics.some(d => d.message === 'recorder-e2e diagnostic' && d.severity === vscode.DiagnosticSeverity.Error)),
@@ -874,7 +823,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
             console.log('[recorder-e2e] textDocumentClose not driveable headless (docs not disposed); covered by unit tests');
         }
 
-        // Each attributed diagnostics event round-trips through the parser.
         for (const e of diags) {
             assert.deepStrictEqual(parseRecordedEvent(e), e, `round-trip ${e.type}`);
         }
@@ -904,8 +852,8 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         await sleep(250);
 
         // Stage a UNIQUE selection that enters the 200ms debounce, then downgrade before it
-        // fires. Confirm it is genuinely PENDING in the debounce map before disable() — that
-        // is what makes the "not on disk" assertion below prove DISCARD (not "never pending").
+        // fires. Confirming it is genuinely PENDING in the debounce map before disable() is
+        // what makes the "not on disk" assertion below prove DISCARD (not "never pending").
         const pendingSelections = (recorder as unknown as {
             _observation: { _pendingSelectionPayloads: Map<string, RecordedEvent> };
         })._observation._pendingSelectionPayloads;
@@ -918,7 +866,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         editorS.selection = new vscode.Selection(2, 1, 2, 4);
         for (let i = 0; i < 12 && !isStaged(); i++) { await sleep(10); } // < 200ms debounce flush
         assert.ok(isStaged(), 'staged selection is pending in the debounce map before disable()');
-        recorder.disable(); // consent downgrade — must DISCARD the pending payload
+        recorder.disable(); // consent downgrade: must DISCARD the pending payload
 
         // disable() finalizes via async queued writes; wait for the durable sessionEnd marker
         // rather than a fixed sleep (which can read before consentChange/sessionEnd land).
@@ -931,7 +879,6 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         assert.ok(endIdx > consentIdx, 'sessionEnd comes after consentChange');
         assert.deepStrictEqual(parseRecordedEvent(events[consentIdx]), events[consentIdx], 'consentChange round-trips');
 
-        // The staged (2,1)-(2,4) selection must NOT have reached disk (discarded, not flushed).
         const stagedLeak = events
             .filter((e): e is SelectionChangeEvent => e.type === 'selectionChange' && e.uri === docS.uri.toString())
             .find(e => e.selections.some(s => s.startLine === 2 && s.startCharacter === 1 && s.endLine === 2 && s.endCharacter === 4));
@@ -941,7 +888,7 @@ suite('Session Recorder — E2E (VS Code only)', function () {
     });
 
     test('every session emits a startup windowFocus event', async () => {
-        // The startup capture emits a windowFocus unconditionally — the event TYPE is
+        // The startup capture emits a windowFocus unconditionally, so the event TYPE is
         // deterministically coverable even though the runtime focus-toggle path is not.
         storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-storage-wf-'));
         const storageUri = vscode.Uri.file(storageDir);

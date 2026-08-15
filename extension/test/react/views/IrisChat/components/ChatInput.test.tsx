@@ -146,7 +146,6 @@ describe('ChatInput', () => {
 		render(<ChatInput onSend={onSend} disabled={true} />);
 
 		const textarea = screen.getByRole('textbox', { name: 'Chat input' });
-		// Even if we somehow type into disabled textarea, it shouldn't send
 		await userEvent.type(textarea, 'Hello{Enter}');
 
 		expect(onSend).not.toHaveBeenCalled();

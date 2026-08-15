@@ -5,11 +5,10 @@ import { InterventionBlockedReason, InterventionState, RecommendedAction, Sessio
  * Ensures interventions are appropriate and not overwhelming.
  */
 export class InterventionFilter implements SessionResettable {
-    /** Minimum time in exercise before first intervention (5 minutes) */
+    /** Warmup before the first intervention of an exercise. */
     private static readonly MIN_EXERCISE_TIME_MS = 5 * 60 * 1000;
-    /** Maximum interventions per session */
     private static readonly MAX_INTERVENTIONS_PER_SESSION = 3;
-    /** Grace period after progress (2 minutes) */
+    /** Silence after the student made progress. */
     private static readonly PROGRESS_GRACE_PERIOD_MS = 2 * 60 * 1000;
     /** EQ at/above which a proactive intervention is allowed even past the session limit */
     private static readonly SEVERE_EQ_PROACTIVE_OVERRIDE = 0.85;
@@ -18,28 +17,21 @@ export class InterventionFilter implements SessionResettable {
     private _lastProgressTime: number = 0;
 
     constructor() {
-        // Will be initialized when exercise is started
     }
 
-    /**
-     * Record when the exercise session started
-     */
     public setExerciseStartTime(timestamp: number = Date.now()): void {
         this._exerciseStartTime = timestamp;
     }
 
-    /**
-     * Record when the student made progress (e.g., fixed an error, passed a test)
-     */
+    /** Progress means e.g. a fixed error or a newly passing test. */
     public recordProgress(): void {
         this._lastProgressTime = Date.now();
     }
 
     /**
-     * Check if enough time has passed in the exercise.
-     * If the start time is unknown (session never initialized), be conservative
-     * and block interventions — the 5-minute warmup exists to prevent premature
-     * interventions, and "unknown" should not silently bypass it.
+     * An unknown start time (session never initialized) blocks interventions:
+     * the warmup exists to prevent premature interventions, and "unknown" must
+     * not silently bypass it.
      */
     private _hasEnoughExerciseTime(): boolean {
         if (this._exerciseStartTime === undefined) {
@@ -50,9 +42,6 @@ export class InterventionFilter implements SessionResettable {
         return elapsed >= InterventionFilter.MIN_EXERCISE_TIME_MS;
     }
 
-    /**
-     * Check if the student has made recent progress
-     */
     private _hasRecentProgress(): boolean {
         if (this._lastProgressTime === 0) {
             return false;
@@ -63,8 +52,8 @@ export class InterventionFilter implements SessionResettable {
     }
 
     /**
-     * EQ-based intervention check — applies pedagogical guardrails
-     * (exercise time, recent progress, session limit, dismiss behavior).
+     * EQ-based intervention check. Applies the pedagogical guardrails: exercise
+     * time, recent progress, session limit, dismiss behavior.
      */
     public shouldInterveneEQ(
         decision: { level: RecommendedAction; eq: number },
@@ -82,15 +71,13 @@ export class InterventionFilter implements SessionResettable {
             return { ok: false, reason: 'recent-progress' };
         }
 
-        // Session intervention limit
         if (state.sessionInterventionCount >= InterventionFilter.MAX_INTERVENTIONS_PER_SESSION) {
-            // Allow proactive even after limit for severe EQ
+            // A severe EQ still gets a proactive intervention past the limit.
             if (decision.level !== 'proactive' || decision.eq < InterventionFilter.SEVERE_EQ_PROACTIVE_OVERRIDE) {
                 return { ok: false, reason: 'session-limit' };
             }
         }
 
-        // Dismissed → only proactive allowed
         if (state.lastDismissed && decision.level !== 'proactive') {
             return { ok: false, reason: 'last-dismissed' };
         }
@@ -98,9 +85,6 @@ export class InterventionFilter implements SessionResettable {
         return { ok: true };
     }
 
-    /**
-     * SessionResettable — reset exercise start time when a new session begins.
-     */
     public onSessionStart(_context: SessionStartContext): void {
         this.setExerciseStartTime();
         this._lastProgressTime = 0;

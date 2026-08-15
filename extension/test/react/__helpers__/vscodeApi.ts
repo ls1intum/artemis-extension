@@ -2,11 +2,7 @@ import { vi } from 'vitest';
 
 import type { ExtensionToWebviewMessage, VsCodeApi } from '@shared/messageContracts';
 
-/**
- * Creates a mock VS Code API object for testing.
- * @param overrides - Optional partial overrides for the mock API
- * @returns A mock VsCodeApi object with Vitest spy functions
- */
+/** A mock VS Code API whose members are Vitest spies. */
 export function createMockVsCodeApi(overrides?: Partial<VsCodeApi>): VsCodeApi {
 	return {
 		postMessage: vi.fn(),
@@ -16,20 +12,13 @@ export function createMockVsCodeApi(overrides?: Partial<VsCodeApi>): VsCodeApi {
 	};
 }
 
-/**
- * Dispatches a message event to simulate extension-to-webview communication.
- * @param message - The message payload to dispatch
- */
+/** Dispatches a window message event, the way the extension host reaches the webview. */
 export function dispatchExtensionMessage(message: ExtensionToWebviewMessage | Record<string, unknown>): void {
 	const messageEvent = new MessageEvent('message', { data: message });
 	window.dispatchEvent(messageEvent);
 }
 
-/**
- * Convenience accessor for postMessage spy calls.
- * @param vscodeApi - The mock VS Code API object
- * @returns The mock.calls array from the postMessage spy
- */
+/** Convenience accessor for the postMessage spy's calls. */
 export function getPostMessageCalls(vscodeApi: VsCodeApi): unknown[][] {
 	return (vscodeApi.postMessage as ReturnType<typeof vi.fn>).mock.calls;
 }

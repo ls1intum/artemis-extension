@@ -13,17 +13,15 @@ import type {
 } from '@webview/views/IrisChat/types';
 
 /**
- * Webview-side connection status. Mirrors the extension's
- * {@link WebSocketDisplayStatus} plus a synthetic 'unknown' state used for
- * the very first render before any extension push has arrived. 'unknown'
- * intentionally renders nothing — it suppresses the cold-start banner flash.
+ * Mirrors the extension's {@link WebSocketDisplayStatus} plus a synthetic
+ * 'unknown' state for the first render, before any extension push has
+ * arrived. 'unknown' renders nothing, suppressing the cold-start banner flash.
  */
 type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
 
 /**
- * The wire shape, narrowed field-by-field below instead of duplicated by
- * hand, so a store field can never silently drift from the wire type it
- * mirrors.
+ * The wire shape, narrowed field-by-field below rather than duplicated by
+ * hand, so a store field cannot silently drift from the wire type it mirrors.
  */
 type WireIrisState = ExtMsg<'updateIrisState'>['state'];
 type ConversationTopic = NonNullable<WireIrisState['committedContext']>;
@@ -43,24 +41,20 @@ interface ChatState {
      * cold-start view tell "detection has not answered yet" and "detection
      * could not reach the server" apart from "there is genuinely nothing
      * open" (`courseId`/`currentSessionId`/`workspaceExerciseId` all null).
-     * Defaults to `'settled'`: a test double that never sends the field
-     * (every fixture predating this one) must keep behaving like a snapshot
-     * that has already resolved, not like a permanently-pending detection.
+     * Defaults to `'settled'` so a fixture that omits the field reads as an
+     * already-resolved snapshot, not a permanently-pending detection.
      */
     detectionState: DetectionUiState;
     /**
      * The host could not reach the server for the course list. Separates "you
      * have no courses" from "nobody could be asked", which an empty `courses`
-     * cannot tell apart on its own. Defaults to `false` for the same reason
-     * `detectionState` defaults to settled: a fixture predating the field must
-     * not read as a failure.
+     * cannot tell apart on its own. Defaults to `false` so a fixture that
+     * omits the field does not read as a failure.
      */
     coursesUnavailable: boolean;
     exercises: ContextItem[];
     courses: ContextItem[];
 
-    // `null` follows the file's existing "absent" convention (see
-    // `openSessionError`, `disabledMessage`) rather than `undefined`.
     /** The open conversation's course id (CoursePicker: marks the current course). */
     courseId: number | null;
     /** The open conversation's course title (header line 1, opens CoursePicker). */
@@ -71,10 +65,7 @@ interface ChatState {
     conversationTitle: string | null;
     /**
      * Displayed message count, excluding CTXSWAP rows (header line 2).
-     * Display only, never the ownership predicate. `0`, not `null`, is the
-     * absent value: it is a count, not an identity reference, so it follows
-     * `sendInFlight`/`navigationInFlight`'s "falsy default of its own type"
-     * convention rather than the `| null` one used for id/title fields.
+     * Display only, never the ownership predicate.
      */
     displayMessageCount: number;
     /** The conversation's persisted topic. */
@@ -91,14 +82,12 @@ interface ChatState {
     workspaceExerciseId: number | null;
     /**
      * An actionless informational banner (e.g. a server-initiated repoint).
-     * Cleared by the next `setIrisState` that actually NAVIGATES, matching
-     * "a notice is cleared by any navigation or course change" from the
-     * design. Clearing on every snapshot instead would kill the notice the
-     * host posts right after a navigation: the overview refresh that the same
-     * navigation fires emits another snapshot a round trip later.
+     * Cleared by the next `setIrisState` that actually NAVIGATES. Clearing on
+     * every snapshot would kill the notice the host posts right after a
+     * navigation, since the overview refresh that navigation fires emits
+     * another snapshot a round trip later.
      */
     notice: { text: string; tone?: 'info' | 'error' } | null;
-    /** Composer draft text, lifted out of `ChatInput`'s local `useState`. */
     composerText: string;
 
     /**
@@ -109,14 +98,12 @@ interface ChatState {
      */
     openSessionError: string | null;
 
-    // Messages
     messages: ChatMessage[];
     /**
      * The server's echo of a prompt we drew optimistically, held back until
-     * the POST names an id and settles whose message it is. Matching on text
-     * instead would fold another client's identical message into our bubble
-     * and delete it, so identity has to come from the id, which only the POST
-     * response can supply.
+     * the POST names an id and settles whose message it is. Identity has to
+     * come from the id: matching on text would fold another client's
+     * identical message into our bubble and delete it.
      *
      * `localId` names the bubble this echo is waiting on. A signal about any
      * other bubble (a stale rejection, a later send) says nothing about this
@@ -130,10 +117,9 @@ interface ChatState {
      */
     loadedSessionId: number | null;
 
-    // Streaming
     streaming: StreamingState;
 
-    // Run UI (streaming draft, activities, run state) — projected atomically
+    // Run UI (streaming draft, activities, run state), projected atomically
     // with the webview's active session/revision via applyRunUi/applyCommit.
     liveDraft: { runId: string; text: string } | null;
     activities: IrisActivityDTO[];
@@ -142,7 +128,6 @@ interface ChatState {
     /** Monotonic guard against out-of-order/stale run UI projections. */
     lastRunUiRevision: number;
 
-    // UI state
     isLoading: boolean;
     webSocketStatus: ChatWebSocketStatus;
     disabledMessage: string | null;   // Non-null = Iris disabled (reason as string)
@@ -157,16 +142,14 @@ interface ChatState {
     referencedFiles: ReferencedFilesData | null;
     showDiagnostics: boolean;
 
-    // Actions
     setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
     /** Replace the transcript with `sessionId`'s, and record the hydration. */
     applyLoadedMessages: (sessionId: number, messages: ChatMessage[]) => void;
     /**
      * Non-destructive counterpart to `applyLoadedMessages`, used by the
-     * reconnect reconciliation path: merges a persisted history snapshot
-     * into the live list instead of replacing it, so an in-flight optimistic
-     * bubble survives. Ignored if `sessionId` is no longer the open
-     * conversation (the reconcile landed after a navigation).
+     * reconnect reconciliation path: merges a persisted history snapshot into
+     * the live list instead of replacing it, so an in-flight optimistic bubble
+     * survives. Ignored once `sessionId` is no longer the open conversation.
      */
     mergeLoadedMessages: (sessionId: number, messages: ChatMessage[]) => void;
     /**
@@ -187,8 +170,7 @@ interface ChatState {
      * update, so the webview can never observe the draft cleared before the
      * committed message lands. The message's conversation is checked
      * independently of the projection's, since a projection-less commit
-     * (e.g. an error bubble) still must not land in a conversation we already
-     * left.
+     * (e.g. an error bubble) must not land in a conversation we already left.
      */
     applyCommit: (
         message: ChatMessage,
@@ -224,12 +206,10 @@ interface ChatState {
     flushPendingEcho: () => void;
     setOpenSessionError: (message: string | null) => void;
 
-    // Streaming actions
     startStreaming: () => void;
 
     resetTransientChatUi: () => void;
 
-    // UI actions
     setLoading: (loading: boolean) => void;
     setWebSocketStatus: (status: ChatWebSocketStatus) => void;
     setDisabledMessage: (message: string | null) => void;
@@ -238,7 +218,6 @@ interface ChatState {
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
     setShowDiagnostics: (show: boolean) => void;
 
-    /** Sets the composer's draft text (lifted out of `ChatInput`'s local state, see above). */
     setComposerText: (text: string) => void;
     /** Raises an actionless chat notice. Cleared by the next `setIrisState` call. */
     showNotice: (notice: { text: string; tone?: 'info' | 'error' }) => void;
@@ -264,12 +243,9 @@ function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessa
     // Anything else is a message this list does not have yet, including the
     // server's echo of a prompt we drew optimistically when that echo beats our
     // own POST response. It is appended, and `confirmSentMessage` resolves the
-    // two into one once the response names the id. Matching on the TEXT instead
-    // would fold another client's identical message into our bubble and delete
-    // it: identical text says nothing about identity. In practice `applyCommit`
-    // holds that echo in `pendingEcho` before it ever reaches here (see
-    // `echoOwner`), so this append is the fallback for when no bubble is
-    // waiting to claim it, not the primary path.
+    // two into one once the response names the id. `applyCommit` normally holds
+    // that echo in `pendingEcho` before it reaches here (see `echoOwner`), so
+    // this append is the fallback for when no bubble waits to claim it.
     return [...messages, message];
 }
 
@@ -292,12 +268,9 @@ function ownsPendingEcho(state: ChatState, localId: string): boolean {
 /**
  * The bubble `message` should be held against instead of being upserted
  * straight away, if any: a user message that already carries a server id,
- * while exactly one optimistic bubble is still waiting for one and nothing
- * is held yet. Used by `applyCommit`, the real path a wire `addMessage`
- * frame is routed through (IrisChatView.tsx:140-160) and the only place our
- * own echo can arrive on. The store's own `addMessage` never calls this: its
- * only production caller draws the optimistic bubble itself, which never
- * carries a server id.
+ * while exactly one optimistic bubble is still waiting for one and nothing is
+ * held yet. Only `applyCommit` calls this, since it is the path every wire
+ * `addMessage` frame is routed through and the only way our own echo arrives.
  */
 function echoOwner(state: ChatState, message: ChatMessage): ChatMessage | undefined {
     if (message.role !== 'user' || message.id === undefined || state.pendingEcho !== null) {
@@ -309,7 +282,6 @@ function echoOwner(state: ChatState, message: ChatMessage): ChatMessage | undefi
 export const useChatStore = create<ChatState>()(
     devtools(
         (set) => ({
-            // Initial state
             hasReceivedInitialIrisState: false,
             detectionState: 'settled',
             coursesUnavailable: false,
@@ -347,16 +319,14 @@ export const useChatStore = create<ChatState>()(
             referencedFiles: null,
             showDiagnostics: false,
 
-            // Actions
             setIrisState: (state) => {
                 set((previous) => ({
                     exercises: state.exercises,
                     courses: state.courses,
                     hasReceivedInitialIrisState: true,
                     // The wire type marks this required (the presenter always
-                    // fills it), but a fixture/test double predating this
-                    // field omits it, and the fallback keeps those behaving
-                    // like an already-settled snapshot rather than a
+                    // fills it); the fallback keeps a fixture that omits it
+                    // reading as an already-settled snapshot rather than a
                     // permanently-pending detection.
                     detectionState: state.detectionState ?? 'settled',
                     coursesUnavailable: state.coursesUnavailable ?? false,
@@ -372,10 +342,9 @@ export const useChatStore = create<ChatState>()(
                     navigationInFlight: state.navigationInFlight ?? false,
                     conversations: state.conversations ?? [],
                     workspaceExerciseId: state.workspaceExerciseId ?? null,
-                    // A notice is cleared by any navigation or course change
-                    // (the design's phrasing). A snapshot that moves neither
-                    // the conversation nor the course is not a navigation, so
-                    // it leaves the notice alone.
+                    // A notice is cleared by any navigation or course change.
+                    // A snapshot that moves neither the conversation nor the
+                    // course is not a navigation, so it leaves it alone.
                     notice: (state.currentSessionId ?? null) === previous.currentSessionId
                         && (state.courseId ?? null) === previous.courseId
                         ? previous.notice
@@ -429,15 +398,11 @@ export const useChatStore = create<ChatState>()(
                 const currentSessionId = useChatStore.getState().currentSessionId;
                 if (messageSessionId !== currentSessionId) { return; }
 
-                // The real path our own echo arrives on: IrisChatView routes
-                // every addMessage wire frame through applyCommit, never
-                // through the store's addMessage. A user echo never carries a
-                // projection (irisWebSocketMessageHandler.ts's
-                // _renderForeignUserMessage sends none), and a commit that
-                // DOES carry one must keep applying it atomically, which is
-                // this action's entire purpose, so the hold is scoped to the
-                // projection-less case only. This capture is non-terminal: it
-                // only ever adds to the buffer, never releases it.
+                // A user echo never carries a projection
+                // (irisWebSocketMessageHandler's _renderForeignUserMessage
+                // sends none), and a commit that does carry one must still be
+                // applied atomically, so the hold is scoped to the
+                // projection-less case only.
                 if (projection === undefined) {
                     const state = useChatStore.getState();
                     const owner = echoOwner(state, message);
@@ -477,15 +442,11 @@ export const useChatStore = create<ChatState>()(
                 if (!target || target.role !== 'user' || target.status !== 'sending') {
                     return false;
                 }
-                // Only past this point does the send actually get marked
-                // failed. It is over and will never name an id, so if it was
-                // the bubble the held echo was waiting on, whatever the echo
-                // is belongs to somebody else and must be shown now. Placed
-                // AFTER the guard above rather than before it: a call that
-                // does not actually mark anything failed (the bubble already
-                // left some other way, or was never a pending user send) must
-                // not release the buffer either, the same staleness rule the
-                // guard just enforced for the mark-failed itself.
+                // The send is over and will never name an id, so if it was the
+                // bubble the held echo was waiting on, that echo belongs to
+                // somebody else and must be shown now. Kept after the guard
+                // above: a call that marks nothing failed must not release the
+                // buffer either.
                 if (ownsPendingEcho(useChatStore.getState(), localId)) {
                     useChatStore.getState().flushPendingEcho();
                 }
@@ -500,20 +461,15 @@ export const useChatStore = create<ChatState>()(
             },
 
             removeMessage: (localId) => {
-                // Only when the bubble that was waiting is the one going away.
-                // A retry removes the PREVIOUS failed bubble first
-                // (IrisChatView.tsx:341), which must not release anything.
+                // Release only when the bubble that was waiting is the one
+                // going away. A retry removes the PREVIOUS failed bubble
+                // first, which must not release anything.
                 //
                 // Unlike `markMessageFailed`, this releases on `localId`
-                // ownership alone, without first checking the bubble is still
-                // in `messages`. That is safe rather than sloppy: a
-                // `pendingEcho` can only ever be armed for a bubble that WAS
-                // in `messages` at capture time (`echoOwner` reads it off
-                // `state.messages`), and every path that removes a bubble by
-                // some other means already clears `pendingEcho` itself
-                // (`applyLoadedMessages`), so there is no real route left by
-                // which `removeMessage` runs against a `localId` whose bubble
-                // is already gone while the echo is still held.
+                // ownership alone: a `pendingEcho` is only ever armed for a
+                // bubble that was in `messages` at capture time, and the only
+                // other path that removes a bubble (`applyLoadedMessages`)
+                // clears `pendingEcho` itself.
                 if (ownsPendingEcho(useChatStore.getState(), localId)) {
                     useChatStore.getState().flushPendingEcho();
                 }
@@ -543,11 +499,10 @@ export const useChatStore = create<ChatState>()(
                     // The id settles whose message it is. Equal means the
                     // bubble and the echo are one message and the echo is
                     // redundant; different means it was somebody else's and
-                    // has been waiting to be shown. Discarding it here rather
-                    // than flushing it means the coalescing below keeps the
-                    // LOCAL row as the survivor, where the old echo-in-messages
-                    // coalescing (the branch just below, for the case the echo
-                    // beat this call without a hold) kept the SERVER row instead.
+                    // has been waiting to be shown. Discarding rather than
+                    // flushing leaves the LOCAL row as the survivor, where the
+                    // branch below (echo already in `messages`, no hold) keeps
+                    // the SERVER row instead.
                     if (store.pendingEcho?.message.id === id) {
                         set({ pendingEcho: null }, false, 'discardEcho');
                     } else {
@@ -581,7 +536,6 @@ export const useChatStore = create<ChatState>()(
                 set({ openSessionError: message }, false, 'setOpenSessionError');
             },
 
-            // Streaming actions
             startStreaming: () => {
                 set({
                     streaming: { isStreaming: true },
@@ -599,7 +553,6 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'resetTransientChatUi');
             },
 
-            // UI actions
             setLoading: (loading) => {
                 set({ isLoading: loading }, false, 'setLoading');
             },
@@ -610,7 +563,7 @@ export const useChatStore = create<ChatState>()(
 
             setDisabledMessage: (message) => {
                 // Setting a real disabled reason clears any transient
-                // unavailable banner — disabled is a strictly more specific
+                // unavailable banner, since disabled is the more specific
                 // signal. Clearing (null) leaves unavailable untouched.
                 set(
                     message === null
@@ -623,7 +576,7 @@ export const useChatStore = create<ChatState>()(
 
             setUnavailableMessage: (message) => {
                 // Symmetric to setDisabledMessage: setting a real unavailable
-                // reason clears any stale disabled banner (defensive — the
+                // reason clears any stale disabled banner (defensive; the
                 // extension-side helper normally enforces this already).
                 set(
                     message === null
@@ -663,11 +616,9 @@ export const useChatStore = create<ChatState>()(
 
 /**
  * Whether the topic picker (and the chip's remove icon, and Ask-Iris) may be
- * used right now. Deliberately NOT a stored field: `contentState`,
- * `sendInFlight` and `navigationInFlight` are each written from a single
- * place today (`setIrisState`), but a hand-synced `canChangeTopic` field
- * would silently go stale the moment a second writer appears. Computing it
- * fresh on every read makes that impossible.
+ * used right now. Deliberately NOT a stored field: a hand-synced
+ * `canChangeTopic` would go stale the moment a second writer of
+ * `contentState`/`sendInFlight`/`navigationInFlight` appears.
  */
 export function selectCanChangeTopic(
     state: Pick<ChatState, 'contentState' | 'sendInFlight' | 'navigationInFlight'>,
@@ -680,13 +631,13 @@ export function selectCanChangeTopic(
  * through. Gate and label are ONE derivation so the greyed-out button and the
  * sentence explaining it can never disagree.
  *
- * The order is the host's own rejection order (`sendCoordinator.ts:80-81`), so
+ * The order mirrors the host's own rejection order (`sendCoordinator.ts`), so
  * whenever the host would refuse, the student reads the cause the host would
  * have named. Local `streaming` ranks LAST: it has no host counterpart and
  * covers only the window between the webview posting the command and the host
- * taking its lock. Ranking it higher would mislabel the combination
- * `streaming` + `navigationInFlight`, which is reachable during snapshot
- * races and which the host rejects for navigation.
+ * taking its lock. Ranking it higher would mislabel `streaming` +
+ * `navigationInFlight`, reachable during snapshot races, which the host
+ * rejects for navigation.
  */
 export function selectSendBlockedReason(
     state: Pick<ChatState, 'sendInFlight' | 'navigationInFlight' | 'streaming'>,

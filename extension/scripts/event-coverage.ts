@@ -6,7 +6,7 @@
  * against the full set of event types declared in the recorder's source
  * (extension/src/.../recording/types.ts). Flags:
  *   - expected types that did not appear (coverage gaps)
- *   - types that appeared but are not in the source (unknown — possibly stale schema)
+ *   - types that appeared but are not declared in the source (stale schema?)
  *
  * Useful after a comprehensive "trigger every feature" test session to prove
  * the recorder actually captured every category of event it should.
@@ -25,15 +25,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-// ──────────────────────────────────────────────────────────────────────
-// Extract event-type list from types.ts — single source of truth
-// ──────────────────────────────────────────────────────────────────────
-
 /**
  * Reads `extension/src/extension/services/telemetry/recording/types.ts` and
  * extracts every string literal used as `type: '...'` in the RecordedEvent
- * union. This avoids maintaining a duplicate list here — if a new event
- * type is added to the source, this tool picks it up automatically.
+ * union, so a new event type in the source is picked up here automatically
+ * instead of being duplicated in this tool.
  */
 function extractEventTypesFromSource(): string[] {
     const candidates = [
@@ -66,10 +62,6 @@ function extractEventTypesFromSource(): string[] {
     return Array.from(types).sort();
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Load + count events in a recording
-// ──────────────────────────────────────────────────────────────────────
-
 function countEventTypes(dir: string): Map<string, number> {
     const eventsPath = path.join(dir, 'events.jsonl');
     if (!fs.existsSync(eventsPath)) {
@@ -93,10 +85,6 @@ function countEventTypes(dir: string): Map<string, number> {
     }
     return counts;
 }
-
-// ──────────────────────────────────────────────────────────────────────
-// CLI
-// ──────────────────────────────────────────────────────────────────────
 
 function parseRequire(args: string[]): Set<string> | undefined {
     for (const a of args) {
@@ -146,7 +134,6 @@ function main(): void {
         (unknown.size > 0 ? `, unknown: ${unknown.size}` : ''),
     );
 
-    // Print counts (sorted by count desc)
     const sortedCounts = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
     if (verbose || !pass) {
         console.log('    === Event counts ===');

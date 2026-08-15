@@ -33,7 +33,7 @@ export interface PlatformCapabilities {
     readonly hasVscodeGitExtension: boolean;
 }
 
-/** The VS Code environment — no Theia-specific features active. */
+/** The VS Code environment, with no Theia-specific features active. */
 export const VSCODE_ENVIRONMENT: TheiaEnvironment = Object.freeze({
     isTheia: false,
     artemisUrl: undefined,

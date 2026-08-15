@@ -32,7 +32,6 @@ const EXTENSION_IMPORT_RE = /^import type \{([^}]+)\} from '@extension\/services
 const match = source.match(EXTENSION_IMPORT_RE);
 
 if (match) {
-    // Parse the imported names from the import block
     const importedNames = match[1]
         .split(',')
         .map(n => n.trim())

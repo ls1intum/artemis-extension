@@ -8,8 +8,6 @@ import type { StartupCapture, StartupContext } from '@extension/services/telemet
 import type { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
 import type { RecordedEvent, SessionMetadata } from '@extension/services/telemetry/recording/types';
 
-// ── RecorderLifecycleState ────────────────────────────────────────────────
-
 /**
  * Finite-state machine phases for the session recorder.
  *
@@ -61,8 +59,6 @@ export class RecorderLifecycleState {
     private _committedGeneration: number | undefined;
     private _activeSession: ActiveSessionState | null = null;
 
-    // ── Read-only views ───────────────────────────────────────────────
-
     get phase(): RecorderPhase {
         return this._phase;
     }
@@ -91,8 +87,6 @@ export class RecorderLifecycleState {
         return this._phase === 'recording';
     }
 
-    // ── Transitions ───────────────────────────────────────────────────
-
     /**
      * Transition `_phase` from one of the expected source states to the target
      * state. Throws if the current phase is not in `from`.
@@ -114,12 +108,9 @@ export class RecorderLifecycleState {
         this._phase = to;
     }
 
-    /** Increment and return the new requested generation. */
     bumpRequestedGeneration(): number {
         return ++this._requestedGeneration;
     }
-
-    // ── Session lifecycle ─────────────────────────────────────────────
 
     /**
      * Initialise an active session. Called inside `_doStart` sync prelude.
@@ -151,12 +142,7 @@ export class RecorderLifecycleState {
      * Atomically commit the generation and flip `sessionStartWritten`. Called
      * exactly once per session, inside the synchronous commit block that also
      * calls `writeLifecycleEvent({type:'sessionStart'})`. No await allowed
-     * between this call and the sessionStart write.
-     *
-     * Preconditions: `phase === 'starting'`, `activeSession !== null`,
-     * `activeSession.sessionStartWritten === false`.
-     * Effects: `currentGeneration := generation`, `committedGeneration := generation`,
-     * `activeSession.sessionStartWritten := true`. Phase stays `'starting'`.
+     * between this call and the sessionStart write. Phase stays `'starting'`.
      */
     markSessionStartWritten(generation: number): void {
         if (this._phase !== 'starting') {
@@ -178,14 +164,12 @@ export class RecorderLifecycleState {
         this.transitionPhase(['starting'], 'recording');
     }
 
-    /** Increment the per-session event counter. Sync. */
     incrementEventCount(): void {
         if (this._activeSession !== null) {
             this._activeSession.eventCount += 1;
         }
     }
 
-    /** Clear the commit boundary (sessionStartWritten + committedGeneration). */
     clearCommitAfterFinalize(): void {
         this._committedGeneration = undefined;
         if (this._activeSession !== null) {
@@ -206,7 +190,7 @@ export class RecorderLifecycleState {
         } else if (this._phase === 'disabling') {
             this._phase = 'disabled';
         } else if (this._phase === 'starting') {
-            // Pre-commit abort path - nothing was ever written. Fall back to idle.
+            // Pre-commit abort path: nothing was ever written, so fall back to idle.
             this._phase = 'idle';
         } else {
             throw new Error(
@@ -215,8 +199,6 @@ export class RecorderLifecycleState {
         }
     }
 }
-
-// ── LifecycleController ───────────────────────────────────────────────────
 
 interface RecordInternalOptions {
     allowDuringStartup?: boolean;
@@ -253,17 +235,11 @@ interface LifecycleControllerDeps {
  * - `_doFinalize(reason)` is the single finalization path shared by normal
  *   session end and consent-downgrade teardown; the two paths differ only in
  *   pre-conditions, the pre-sessionEnd marker, and the debounce policy.
- *
- * Re-check points in `_doStart` (pre-commit, post-snapshot, final) match
- * the invariant described in the plan v5 flow and preserve byte-exact
- * event ordering against the previous implementation.
  */
 export class LifecycleController {
     private _lifecyclePromise: Promise<void> = Promise.resolve();
 
     constructor(private readonly _deps: LifecycleControllerDeps) {}
-
-    // ── Enable / Disable ─────────────────────────────────────────────
 
     enable(): void {
         if (this._deps.state.phase !== 'disabled') {
@@ -298,8 +274,6 @@ export class LifecycleController {
         logger.info('SessionRecorder disable requested', LogCategory.TELEMETRY);
     }
 
-    // ── Session lifecycle ────────────────────────────────────────────
-
     async startSession(exerciseId: number, participantId?: string, exerciseRoot?: string): Promise<void> {
         const state = this._deps.state;
         if (state.phase === 'disabling' || state.phase === 'disabled') {
@@ -327,8 +301,6 @@ export class LifecycleController {
         }
     }
 
-    // ── Central sink + bypass ────────────────────────────────────────
-
     recordInternal(event: RecordedEvent, opts: RecordInternalOptions, gen?: number): void {
         const state = this._deps.state;
         if (gen !== undefined && gen !== state.currentGeneration) {
@@ -353,8 +325,6 @@ export class LifecycleController {
         this._deps.writer.appendEvent(event);
     }
 
-    // ── Private: Lifecycle mutex ─────────────────────────────────────
-
     private _enqueueLifecycle(label: string, op: () => Promise<void>): Promise<void> {
         this._lifecyclePromise = this._lifecyclePromise
             .catch(err => {
@@ -369,8 +339,6 @@ export class LifecycleController {
             });
         return this._lifecyclePromise;
     }
-
-    // ── Private: _doStart — commit BEFORE snapshots (plan v5) ────────
 
     private async _doStart(
         requestedGen: number,
@@ -497,8 +465,6 @@ export class LifecycleController {
         logger.info(`Recording session started: ${sessionId}`, LogCategory.TELEMETRY);
     }
 
-    // ── Private: _doFinalize ─────────────────────────────────────────
-
     private async _doFinalize(
         reason: TerminationReason,
         generationForDowngrade?: number,
@@ -564,9 +530,7 @@ export class LifecycleController {
         await this._deps.writer.writeMetadata(metadata);
         await this._deps.writer.endSession();
 
-        // Preserve the pre-unification logging: normal-end paths logged
-        // "Recording session ended", consent-downgrade finalization did not
-        // log at this point.
+        // Only normal-end paths log here; consent-downgrade stays silent.
         if (!isConsentDowngrade) {
             logger.info(
                 `Recording session ended (${reason}): ${active.sessionId} (${active.eventCount} events)`,
@@ -588,8 +552,6 @@ export class LifecycleController {
             this._deps.onStateChange();
         }
     }
-
-    // ── Private: _doDisable ──────────────────────────────────────────
 
     private async _doDisable(
         params: { shouldFinalize: boolean; generation: number | undefined },

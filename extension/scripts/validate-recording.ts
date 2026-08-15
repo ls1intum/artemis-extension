@@ -23,10 +23,6 @@ import * as path from 'node:path';
 
 import { KNOWN_EVENT_TYPES } from '@extension/services/telemetry/recording/parseRecordedData';
 
-// ──────────────────────────────────────────────────────────────────────
-// Types
-// ──────────────────────────────────────────────────────────────────────
-
 type Severity = 'error' | 'warn';
 
 interface ValidationIssue {
@@ -56,15 +52,11 @@ interface RecordedEvent {
     [key: string]: unknown;
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Core validator
-// ──────────────────────────────────────────────────────────────────────
-//
 // `KNOWN_EVENT_TYPES` is imported from the runtime parser (derived from its
 // EVENT_PARSERS dispatch table) so this script and `parseRecordedEvent` stay in
-// lock-step instead of maintaining two hand-synced lists that drift (see #215).
-// Unknown types produce warnings, not errors — lets the validator survive
-// additive schema changes gracefully.
+// lock-step instead of maintaining two hand-synced lists that drift. Unknown
+// types produce warnings, not errors, so the validator survives additive
+// schema changes.
 
 function validateRecording(dir: string): ValidationResult {
     const issues: ValidationIssue[] = [];
@@ -311,7 +303,6 @@ function validateRecording(dir: string): ValidationResult {
         }
     }
 
-    // Stats
     const startTs = typeof firstEvent.timestamp === 'number' ? firstEvent.timestamp : 0;
     const endTs = typeof last.timestamp === 'number' ? last.timestamp : startTs;
     const sessionIdValue = typeof firstEvent.sessionId === 'string' ? firstEvent.sessionId : '<unknown>';
@@ -327,10 +318,6 @@ function validateRecording(dir: string): ValidationResult {
 
     return { dir, stats, issues };
 }
-
-// ──────────────────────────────────────────────────────────────────────
-// CLI
-// ──────────────────────────────────────────────────────────────────────
 
 function formatDuration(ms: number): string {
     const s = Math.floor(ms / 1000);

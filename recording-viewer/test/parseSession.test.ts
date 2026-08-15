@@ -10,8 +10,6 @@ function readFixture(name: string, file: string): string {
     return readFileSync(join(FIXTURES, name, file), 'utf-8');
 }
 
-// ── resolveSchemaVersion ───────────────────────────────────────────────────────
-
 describe('resolveSchemaVersion', () => {
     it('returns metadata.schemaVersion when present (highest precedence)', () => {
         const meta = { sessionId: 's', exerciseId: 1, participantId: undefined, startTime: 0, endTime: undefined, eventCount: 0, schemaVersion: 2 };
@@ -39,8 +37,6 @@ describe('resolveSchemaVersion', () => {
         expect(resolveSchemaVersion(null, undefined)).toBe(1);
     });
 });
-
-// ── V1 fixture: no schemaVersion anywhere ─────────────────────────────────────
 
 describe('V1 basic fixture (no schemaVersion)', () => {
     it('parses all 6 events', () => {
@@ -72,8 +68,6 @@ describe('V1 basic fixture (no schemaVersion)', () => {
         expect(metadata.schemaVersion).toBeUndefined();
     });
 });
-
-// ── V2 fixture: new event types ───────────────────────────────────────────────
 
 describe('V2 basic fixture (schemaVersion 2, new event types)', () => {
     it('parses all 11 events', () => {
@@ -119,8 +113,6 @@ describe('V2 basic fixture (schemaVersion 2, new event types)', () => {
     });
 });
 
-// ── V2 without metadata: schemaVersion comes from sessionStart ────────────────
-
 describe('V2 no-metadata fixture (schemaVersion from sessionStart)', () => {
     it('parses 3 events', () => {
         const text = readFixture('v2-no-metadata', 'events.jsonl');
@@ -136,8 +128,6 @@ describe('V2 no-metadata fixture (schemaVersion from sessionStart)', () => {
     });
 });
 
-// ── Conflicting versions: metadata wins ───────────────────────────────────────
-
 describe('resolveSchemaVersion — conflicting metadata vs sessionStart', () => {
     it('metadata version 3 beats sessionStart version 2', () => {
         const meta = { sessionId: 's', exerciseId: 1, participantId: undefined, startTime: 0, endTime: undefined, eventCount: 0, schemaVersion: 3 };
@@ -151,8 +141,6 @@ describe('resolveSchemaVersion — conflicting metadata vs sessionStart', () => 
         expect(resolveSchemaVersion(meta, start)).toBe(1);
     });
 });
-
-// ── Malformed last line ───────────────────────────────────────────────────────
 
 describe('malformed-last-line fixture (partial-write crash simulation)', () => {
     beforeEach(() => {
@@ -188,8 +176,6 @@ describe('malformed-last-line fixture (partial-write crash simulation)', () => {
         expect(events[events.length - 1]?.type).toBe('save');
     });
 });
-
-// ── Legacy failedTests: string[] without failedTestDetails ────────────────────
 
 describe('legacy buildResult: failedTests as string[] without failedTestDetails', () => {
     it('parses a buildResult with failedTests array and no failedTestDetails', () => {

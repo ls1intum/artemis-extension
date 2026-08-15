@@ -444,8 +444,8 @@ describe('IrisChatView names the course chat on the composer', () => {
 
 describe('ContextPicker (topic picker)', () => {
     it('promises no conversation change, in either content state', () => {
-        // A pick always stages into the OPEN conversation now, so a warning
-        // about opening another one describes something that cannot happen.
+        // A pick always stages into the OPEN conversation, so a warning about
+        // opening another one describes something that cannot happen.
         for (const contentState of ['content', 'empty'] as const) {
             const { unmount } = render(<ContextPicker {...pickerProps({ contentState })} />);
             expect(screen.queryByText(/different conversation/)).toBeNull();
@@ -491,9 +491,9 @@ describe('ConversationHistory (conversation list)', () => {
 });
 
 describe('ChatMessageList (transcript)', () => {
-    // The brief's snippets pass three props. The component's live-run props
-    // are required on purpose (a caller that forgets `hasContext` must get a
-    // type error, not the wrong welcome copy), so the fixture supplies them.
+    // The component's props are required on purpose (a caller that forgets
+    // `hasContext` must get a type error, not the wrong welcome copy), so the
+    // fixture supplies all of them.
     const listProps = {
         streaming: { isStreaming: false },
         activities: [],
@@ -609,7 +609,6 @@ describe('ChatNotice', () => {
     });
 
     it('never renders an action, on any notice', () => {
-        // Cut 2: the notice is actionless in PR 1. Undo returns with PR 2.
         render(
             <ChatNotice notice={{ text: 'Your staged topic was discarded.' }} currentSessionId={1} onExpire={vi.fn()} />,
         );
@@ -700,9 +699,9 @@ describe('CoursePicker', () => {
     });
 });
 
-// The failure this pins is a WRITE-ONLY channel: three live host paths post
-// `openSessionError`, the store holds it, and nothing rendered it. A student
-// whose navigation failed saw a popover sitting there showing nothing.
+// Three host paths post `openSessionError` and the store holds it, so it must
+// also be rendered. Otherwise a student whose navigation failed is left with a
+// popover sitting there showing nothing.
 describe('IrisChatView surfaces a failed navigation', () => {
     const activeState = {
         exercises: [],
@@ -842,8 +841,8 @@ describe('IrisChatView surfaces a failed navigation', () => {
     });
 
     it('a fresh course picker does not inherit a send-path error', async () => {
-        // `reportError` names a send, not a course. Only `openHistory` used to
-        // clear the field, so a send-path error could ONLY ever surface here,
+        // `reportError` names a send, not a course. Opening the course picker
+        // has to clear the field too, or a send-path error surfaces here
         // wearing the wrong context entirely.
         render(<IrisChatView vscodeApi={createMockVsCodeApi()} />);
         dispatchExtensionMessage({ type: 'updateIrisState', state: activeState });
@@ -988,10 +987,8 @@ describe('IrisChatView header', () => {
     });
 
     describe('posts only conversation-first commands', () => {
-        // Every one of the four paths, not just the topic pick: the retired
-        // command names are gone from the contract, and a build that resurrected
-        // one would post a command no handler answers. This invariant has
-        // already been reversed twice, so all four are pinned.
+        // All four paths, not just the topic pick: each `neverPosts` name has
+        // no handler on the host side, so posting it is a silent no-op.
         const activeState = {
             ...hostShapeToday,
             courseId: 42,
@@ -1078,10 +1075,6 @@ describe('IrisChatView header', () => {
 });
 
 describe('IrisChatView cold start', () => {
-    // The brief writes this as `render(<IrisChatView state={{...}} />)`, which
-    // the component has never accepted: it reads the store and takes only
-    // `vscodeApi`. The state is therefore delivered the way the host delivers
-    // it, through an `updateIrisState` snapshot; the assertion is unchanged.
     const coldStartState = {
         exercises: [],
         courses: [],
@@ -1105,8 +1098,8 @@ describe('IrisChatView cold start', () => {
 });
 
 /**
- * Task 8: `isColdStart` used to fire the instant a snapshot said "nothing is
- * open", which is exactly when workspace detection is still running. These
+ * A snapshot saying "nothing is open" is also what workspace detection looks
+ * like while it is still running, so `isColdStart` must not fire on it. These
  * pin the two states that keep the chooser from appearing prematurely (or at
  * all, when the server cannot be reached), plus the guard that stops a failed
  * background detection from covering an unrelated course's own banner.
@@ -1161,7 +1154,7 @@ describe('IrisChatView waits for workspace detection before offering the course 
         });
 
         const retryButton = await screen.findByRole('button', { name: /^retry$/i });
-        // The chooser ITSELF (the picker dialog) must not be showing — the
+        // The chooser ITSELF (the picker dialog) must not be showing. The
         // outage screen also carries a "Choose a course instead" escape
         // hatch (see the dedicated test below), whose own label contains the
         // words "choose a course", so a text-based query is not precise
@@ -1169,10 +1162,9 @@ describe('IrisChatView waits for workspace detection before offering the course 
         expect(screen.queryByRole('dialog', { name: 'Select course' })).toBeNull();
         // The ordinary header must stay suppressed too: it falls back to a
         // "Choose a course" button whenever no course is open, which is not
-        // true yet while detection is still unavailable. Exact string, not a
-        // pattern: "Choose a course instead" (the outage screen's own escape
-        // hatch) must NOT satisfy this query, so a text-based match would
-        // hide a regression here behind that other button's presence.
+        // true yet while detection is unavailable. Exact string, not a
+        // pattern, so the outage screen's "Choose a course instead" button
+        // cannot satisfy this query.
         expect(screen.queryByRole('button', { name: 'Choose a course' })).toBeNull();
         // Same composer surface, same trap: without its own branch, the
         // `!hasConversation` fallback would say "Choose a course to start
@@ -1265,12 +1257,10 @@ describe('IrisChatView course refresh', () => {
         expect(screen.queryByText('No courses found')).toBeNull();
     });
 
-    // The cold-start effect asks unconditionally now, rather than only when
-    // the list happens to be empty. This is the case that distinguishes the
-    // two: the very first snapshot that flips the cold start on already
-    // carries courses, left over from an earlier dashboard fetch. Skipping the
-    // refresh there is exactly how a course deleted on the server survives in
-    // the chooser, which is the defect this branch exists to remove.
+    // The cold-start effect asks unconditionally, not only when the list
+    // happens to be empty: here the first snapshot already carries courses
+    // left over from an earlier dashboard fetch, and skipping the refresh
+    // there is how a course deleted on the server survives in the chooser.
     it('still asks the host for courses when the cold start opens with a list already in hand', async () => {
         const api = createMockVsCodeApi();
         render(<IrisChatView vscodeApi={api} />);
@@ -1499,17 +1489,12 @@ describe('IrisChatView transcript keying', () => {
         expect(screen.getAllByText('hello')).toHaveLength(1);
     });
 
-    // Both tests below drive the store directly (like the rest of this
-    // describe block's neighbours in useChatStore.test.ts) rather than
-    // through the composer. Their subject is the last-resort TIMER, not the
-    // send path (Task 3 covers that end to end), and driving through
-    // userEvent would additionally require working around a real, documented
-    // incompatibility between @testing-library/react's async helpers and
-    // Vitest fake timers (vitest-dev/vitest#3184: `waitFor`/`findBy*`/every
-    // userEvent call hangs forever under vi.useFakeTimers(), because RTL's
-    // internal drain only advances a global `jest.advanceTimersByTime` that
-    // Vitest never defines). Driving the store directly sidesteps that
-    // entirely, since plain `act()` does not go through that code path.
+    // Both tests below drive the store directly rather than through the
+    // composer: their subject is the last-resort TIMER, not the send path, and
+    // RTL's async helpers hang forever under vi.useFakeTimers()
+    // (vitest-dev/vitest#3184: RTL's drain advances a global
+    // `jest.advanceTimersByTime` that Vitest never defines). Plain `act()`
+    // does not go through that code path.
 
     it('shows a held echo again if the send never settles', async () => {
         vi.useFakeTimers();
@@ -1522,14 +1507,12 @@ describe('IrisChatView transcript keying', () => {
             store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, session);
             store.applyCommit({ id: 91, localId: 'echo', role: 'user', content: 'hi', timestamp: 2 }, undefined, session);
             expect(useChatStore.getState().pendingEcho?.message.id).toBe(91);
-            // Flush so the component actually renders with this hold and
-            // arms its own timer for it, rather than the effect never having
-            // mounted at all by the time the clock below is advanced. A
-            // plain synchronous act(() => {}) does not reliably force this
-            // component's pending update through (its state changes arrive
-            // via a Zustand subscription, not a React-owned event, so React
-            // schedules the commit on its normal, non-blocking scheduler);
-            // awaiting an async act() does.
+            // Flush so the component renders with this hold and arms its own
+            // timer before the clock below is advanced. A synchronous
+            // act(() => {}) does not reliably force the commit through (state
+            // arrives via a Zustand subscription, not a React-owned event, so
+            // React uses its normal non-blocking scheduler); awaiting an async
+            // act() does.
             await act(async () => {});
 
             // Neither a confirmation nor a rejection ever arrives.
@@ -1552,16 +1535,12 @@ describe('IrisChatView transcript keying', () => {
 
             store.addMessage({ localId: 'local-1', role: 'user', content: 'a', timestamp: 1, status: 'sending' }, session);
             store.applyCommit({ id: 91, localId: 'echo-a', role: 'user', content: 'a', timestamp: 2 }, undefined, session);
-            // Flush so the component actually renders with this hold and
-            // arms ITS OWN timer for it, rather than skipping straight to
-            // whatever pendingEcho happens to be by the time React next
-            // renders (which the two mutations below would otherwise let it
-            // do, defeating the point of this test). A plain synchronous
-            // act(() => {}) does not reliably force this component's pending
-            // update through (its state changes arrive via a Zustand
-            // subscription, not a React-owned event, so React schedules the
-            // commit on its normal, non-blocking scheduler); awaiting an
-            // async act() does.
+            // Flush so the component arms ITS OWN timer for this hold rather
+            // than skipping to whatever pendingEcho is by the next render
+            // (which the two mutations below would otherwise let it do,
+            // defeating the point of this test). A synchronous act(() => {})
+            // does not reliably force the commit through; awaiting an async
+            // act() does.
             await act(async () => {});
             await act(async () => { vi.advanceTimersByTime(64_000); });
 
@@ -1607,9 +1586,8 @@ describe('IrisChatView actions that used to read the old model', () => {
     }
 
     it('feedback resolves the Artemis session from the conversation', async () => {
-        // It used to look the id up in the old model's session list, which is
-        // empty now: every thumbs click was a silent no-op while the buttons
-        // stayed rendered.
+        // Resolving the id from anywhere but the open conversation makes every
+        // thumbs click a silent no-op while the buttons stay rendered.
         const api = createMockVsCodeApi();
         await openWithAnswer(api);
 
@@ -1637,8 +1615,8 @@ describe('IrisChatView actions that used to read the old model', () => {
             errorMessage: 'Please select a course or exercise context first.',
         });
 
-        // The old gate keyed on `store.context`, which nothing sets any more, so
-        // Retry was disabled forever.
+        // Retry must not be gated on `store.context`, which nothing sets: that
+        // leaves it disabled forever.
         expect(await screen.findByRole('button', { name: 'Retry sending this message' })).toBeEnabled();
     });
 
@@ -1744,9 +1722,8 @@ describe('IrisChatView actions that used to read the old model', () => {
 
         // The rows stay pickable, but the student is told they were not
         // confirmed: these are exactly the rows that can name a course they
-        // were removed from, which is the defect the live catalog exists to
-        // remove. Hiding them would be worse; presenting them as current
-        // would repeat the bug.
+        // were removed from. Hiding them would be worse; presenting them as
+        // current would be a lie.
         expect(await screen.findByText('Still Pickable')).toBeInTheDocument();
         expect(screen.getByText(/Could not refresh your courses/)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Retry loading courses' })).toBeEnabled();

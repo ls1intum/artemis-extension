@@ -12,15 +12,11 @@ import {
 import type { CourseDashboardEntry, CourseDashboardResponse } from '@extension/types';
 import { VSCODE_CONFIG } from '@extension/utils';
 
-// ── Result types ─────────────────────────────────────────────────────
-
 type StartPageResult =
     | { type: 'dashboard' }
     | { type: 'course-list'; coursesData: CourseDashboardResponse }
     | { type: 'workspace-exercise'; courseId: number; exerciseId: number; coursesData: CourseDashboardResponse; allCourses: CourseDashboardEntry[] }
     | { type: 'workspace-course'; courseId: number; coursesData: CourseDashboardResponse; allCourses: CourseDashboardEntry[] };
-
-// ── Resolver ─────────────────────────────────────────────────────────
 
 export class StartPageResolver {
     constructor(
@@ -29,8 +25,8 @@ export class StartPageResolver {
     ) {}
 
     /**
-     * Determine which start page to show based on user config and workspace state.
-     * Returns a typed result — the provider decides how to render it.
+     * Picks the start page from user config and workspace state. The provider
+     * decides how to render the returned result.
      */
     public async resolve(): Promise<StartPageResult> {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -41,7 +37,7 @@ export class StartPageResolver {
             if (coursesData?.courses) {
                 return { type: 'course-list', coursesData };
             }
-            // Course load failed — fall through to dashboard
+            // Course load failed; fall through to the dashboard.
         }
 
         if (value === 'workspace-exercise' || value === 'workspace-course') {
@@ -64,12 +60,10 @@ export class StartPageResolver {
         const allCourses = [...activeCourses];
         let detected: DetectedExercise | null = null;
 
-        // 1) Search active courses
         if (activeCourses.length > 0 && repoUrl) {
             detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources(activeCourses));
         }
 
-        // 2) Fallback: search archived courses
         if (!detected && repoUrl) {
             try {
                 const archivedEntry = await findWorkspaceCourseInArchive(this._artemisApi, activeCourses);
@@ -77,7 +71,7 @@ export class StartPageResolver {
                     detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources([archivedEntry]));
                     if (detected) { allCourses.push(archivedEntry); }
                 }
-            } catch { /* archived search failed — fall through */ }
+            } catch { /* archived search failed; fall through */ }
         }
 
         if (!detected?.courseId || !coursesData) { return null; }
@@ -105,8 +99,8 @@ export class StartPageResolver {
             const cached = await this._courseCatalog.fetch();
             if (cached) { return cached; }
         }
-        // Cache unavailable or returned undefined — should not happen in production
-        // since activate() always creates the cache before StartPageResolver is used.
+        // Should not happen in production: activate() always creates the cache
+        // before StartPageResolver is used.
         throw new Error('Course data unavailable');
     }
 }

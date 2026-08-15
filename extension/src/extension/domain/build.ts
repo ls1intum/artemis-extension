@@ -1,5 +1,3 @@
-// --- Build Log Types ---
-
 export interface BuildLogEntry {
     readonly id: number;
     readonly time: string;

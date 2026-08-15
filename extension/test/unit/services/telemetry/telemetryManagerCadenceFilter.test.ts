@@ -1,30 +1,26 @@
 /**
- * Unit tests for three thesis-relevant correctness fixes:
+ * Unit tests for three correctness invariants:
  *
- *   #1 / #2 — Adaptive-Cadence dismiss filter (TelemetryManager).
+ *   #1 / #2: Adaptive-Cadence dismiss filter (TelemetryManager).
  *     `onDidDismissIntervention` fires for four distinct reasons:
  *       'user-action', 'hidden', 'replaced', 'session-end'.
- *     Only 'user-action' represents an explicit user dismissal and is the
- *     signal Adaptive-Cadence is supposed to react to. Implicit lifecycle
- *     dismissals (subtle-hint replaced by a newer one, build success hiding
- *     the hint, session ending) must NOT increment the ignore counter.
- *     Additionally, a dismiss event without `triggerType` must skip the
- *     increment instead of falling back to 'idle'.
+ *     Only 'user-action' is an explicit user dismissal and the only signal
+ *     Adaptive-Cadence reacts to. Implicit lifecycle dismissals (subtle hint
+ *     replaced by a newer one, build success hiding the hint, session ending)
+ *     must NOT increment the ignore counter.
+ *     A dismiss event without `triggerType` skips the increment instead of
+ *     falling back to 'idle'.
  *
- *   #1b — Lifecycle dismissals must not mutate InterventionState.lastDismissed
+ *   #1b: Lifecycle dismissals must not mutate InterventionState.lastDismissed
  *     (InterventionService). `InterventionFilter` blocks subtle/notification
- *     deliveries when `lastDismissed=true`. Previously, an implicit 'replaced'
- *     or 'hidden' dismiss flipped that flag, suppressing the next real
- *     intervention even though the user never dismissed anything.
+ *     deliveries while `lastDismissed=true`, so an implicit 'replaced' or
+ *     'hidden' dismiss flipping it would suppress the next real intervention
+ *     even though the user never dismissed anything.
  *
- *   #5 — Single-path EQ snapshot intake (TelemetryManager).
- *     Build results historically went through two paths: an inline
- *     `addSnapshot` in `onNewResult` AND the `onDidEmitCompileEquivalent`
- *     listener (which filtered out build events to prevent double-counting).
- *     The fragile filter is gone; build events now flow through the listener
- *     just like save events. The `onDidCalculateEQ` event must carry
- *     `source: 'build'` for build-derived snapshots, not the previously
- *     hardcoded `'save'`.
+ *   #5: Single-path EQ snapshot intake (TelemetryManager).
+ *     Build events flow through the `onDidEmitCompileEquivalent` listener
+ *     just like save events, and `onDidCalculateEQ` carries `source: 'build'`
+ *     for build-derived snapshots.
  */
 
 import * as vscode from 'vscode';
@@ -277,7 +273,7 @@ suite('TelemetryManager — single-path EQ snapshot intake (#5)', () => {
     test('build snapshot intake flows exclusively through onDidEmitCompileEquivalent (single-path architecture)', () => {
         // Architectural regression guard: if anyone reintroduces a direct
         // `addSnapshot` call in `onNewResult`, silencing the emitter would no
-        // longer disable the intake — and this test would fail.
+        // longer disable the intake, and this test would fail.
         tm.startExerciseSession(44);
         type EmitterLike = {
             _onDidEmitCompileEquivalent: { fire: (e: unknown) => void };
@@ -325,7 +321,7 @@ suite('TelemetryManager.dispose() — idempotent', () => {
     test('calling dispose twice does not throw and does not re-run teardown', () => {
         const tm = new TelemetryManager();
         tm.dispose();
-        // No throw on the second call — VS Code disposes context.subscriptions
+        // No throw on the second call: VS Code disposes context.subscriptions
         // after extension.ts:deactivate has already disposed explicitly.
         assert.doesNotThrow(() => tm.dispose());
     });

@@ -206,8 +206,6 @@ suite('WebviewSSRCoordinator', () => {
         sinon.assert.calledOnce(themeDisposable.dispose);
     });
 
-    // ── refreshFromServer ────────────────────────────────────────────
-
     function makeDeferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: (e: unknown) => void } {
         let resolveFn!: (v: T) => void;
         let rejectFn!: (e: unknown) => void;
@@ -312,7 +310,6 @@ suite('WebviewSSRCoordinator', () => {
         const coordinator = new WebviewSSRCoordinator(deps);
         sandbox.stub(coordinator, 'scheduleRender').resolves();
 
-        // Two rapid calls
         coordinator.refreshFromServer({ exerciseId: 42 });
         coordinator.refreshFromServer({ exerciseId: 42 });
         await flushMicrotasks();
@@ -539,8 +536,8 @@ suite('WebviewSSRCoordinator', () => {
         const coordinator = new WebviewSSRCoordinator(deps);
         const scheduleSpy = sandbox.stub(coordinator, 'scheduleRender').resolves();
 
-        // First refresh fails — must NOT throw out of refreshFromServer (it returns void anyway,
-        // but the internal loop must not leave _refreshing in an inconsistent state).
+        // The first refresh fails. It must not throw out of refreshFromServer,
+        // and the internal loop must not leave _refreshing inconsistent.
         coordinator.refreshFromServer({ exerciseId: 42 });
         await flushMicrotasks();
         await flushMicrotasks();

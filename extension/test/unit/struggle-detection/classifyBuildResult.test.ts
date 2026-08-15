@@ -1,13 +1,3 @@
-/**
- * classifyBuildResult — Unit Tests
- *
- * Verifies correct classification of Artemis build results into
- * compiler-error, test-failure, or success for EQ pipeline consumption.
- *
- * Covers the NEW-3 fix: result.successful === false fallback prevents
- * genuinely failed builds from being silently classified as 'success'.
- */
-
 import * as assert from 'assert';
 
 import type { ResultDTO } from '@extension/domain/submissions';
@@ -21,8 +11,6 @@ function makeResult(overrides: Partial<ResultDTO> = {}): ResultDTO {
 }
 
 suite('classifyBuildResult', () => {
-
-    // ── Standard cases ──────────────────────────────────────────────
 
     test('buildFailed === true → compiler-error', () => {
         const result = makeResult({ submission: { buildFailed: true } });
@@ -52,8 +40,6 @@ suite('classifyBuildResult', () => {
         const result = makeResult({ successful: true });
         assert.strictEqual(classifyBuildResult(result), 'success');
     });
-
-    // ── NEW-3 fix: result.successful === false fallback ─────────────
 
     test('successful === false with missing buildFailed and no test counts → test-failure (not success)', () => {
         const result = makeResult({
@@ -87,8 +73,6 @@ suite('classifyBuildResult', () => {
             'when server provides no success/failure signal, default to success',
         );
     });
-
-    // ── Priority: buildFailed takes precedence over successful ──────
 
     test('buildFailed === true takes precedence over successful === false', () => {
         const result = makeResult({

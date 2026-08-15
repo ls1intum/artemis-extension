@@ -42,8 +42,8 @@ interface FakeCatalog {
 
 /**
  * Builds a provider with BOTH the API service and a websocket service, which
- * is what makes `_conversation` (and, from Task 14, the send coordinator)
- * actually get constructed. The websocket service is a bare event source: the
+ * is what makes `_conversation` and the send coordinator actually get
+ * constructed. The websocket service is a bare event source: the
  * conversation-first paths never touch anything else on it.
  */
 function buildHarness(): Harness {
@@ -135,7 +135,7 @@ async function resolveView(h: Harness): Promise<void> {
 /** Simulates the webview's own `ready` handshake message, white-box: the test
  *  webview stub never wires a real `onDidReceiveMessage` listener, so nothing
  *  drives `_onReady` (and therefore `_sendInitData`) on its own. This is the
- *  one signal that flushes the queued messages and runs init data — the path
+ *  one signal that flushes the queued messages and runs init data, the path
  *  a rehydrated transcript actually travels on a re-resolve. */
 function sendReady(provider: ChatWebviewProvider): void {
     (provider as unknown as { _handleMessage: (m: unknown) => void })._handleMessage({ type: 'ready' });
@@ -228,9 +228,8 @@ suite('ChatWebviewProvider: Ask Iris', () => {
     });
 
     test('Ask-Iris resolves the course when the payload omits it', async () => {
-        // The catalog is the ONLY source now: a bare numeric exercise id keyed
-        // into a store with no server identity is exactly the defect this
-        // migration removes (issue #376).
+        // The catalog is the ONLY source: a bare numeric exercise id carries no
+        // server identity of its own.
         h.courseCatalog.exercises.push({ id: 5, courseId: 42, title: 'BFS', pickable: true });
         h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
 
@@ -344,9 +343,7 @@ suite('ChatWebviewProvider: Ask Iris', () => {
 
 /**
  * Iris availability is a question about the COURSE the conversation is in, and
- * the student must not have to send a message to learn the answer. The old
- * model asked it as step 0 of every context load; the conversation-first
- * rewrite deleted every caller of that step.
+ * the student must not have to send a message to learn the answer.
  */
 suite('ChatWebviewProvider: availability is checked without a send', () => {
     let h: Harness;
@@ -387,12 +384,11 @@ suite('ChatWebviewProvider: availability is checked without a send', () => {
     test('re-opening the view re-asks even though the conversation did not change', async () => {
         // `_onConversationChanged` guards on the session id, so a re-install of
         // the SAME conversation posts no banner through that path at all: the
-        // re-check now comes from `resolveWebviewView` itself
+        // re-check comes from `resolveWebviewView` itself
         // (`_refreshAvailability`, unconditional), independent of the
-        // coordinator's one-shot `_acquireConversation`. Rewritten for the
-        // Task 7 cutover: acquisition no longer happens directly off a
-        // registered workspace exercise, so this drives it through a
-        // detection outcome instead, the way the real activation path does.
+        // coordinator's one-shot `_acquireConversation`. Acquisition runs off a
+        // detection outcome, not off a registered workspace exercise, so the
+        // test drives it the way the real activation path does.
         const detection = new vscode.EventEmitter<DetectionOutcome>();
         h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42 }));
@@ -438,9 +434,9 @@ suite('ChatWebviewProvider: availability is checked without a send', () => {
 });
 
 /**
- * Task 7: the cutover. `resolveWebviewView` no longer acquires a conversation
- * by itself; the coordinator does it once both the view and workspace
- * detection have settled, in either order.
+ * `resolveWebviewView` does not acquire a conversation by itself; the
+ * coordinator does it once both the view and workspace detection have settled,
+ * in either order.
  */
 suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => {
     let h: Harness;
@@ -450,9 +446,9 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
 
     test('resolving the view does not acquire a conversation on its own', async () => {
         // Both lines are load-bearing. Without a registered workspace exercise
-        // `_workspaceForStart()` (the old code path) answers undefined and
-        // `start(undefined)` deliberately issues no request, so the assertion
-        // would hold BEFORE the cutover too and prove nothing.
+        // `_workspaceForStart()` answers undefined and `start(undefined)`
+        // deliberately issues no request, so the assertion would hold even if
+        // `resolveWebviewView` did acquire, and prove nothing.
         h.provider.registerWorkspaceExercise({
             id: 5, title: 'BFS', courseId: 42,
         });
@@ -480,9 +476,9 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
     });
 
     test('a rejecting start still surfaces the unreachable banner, so the workspace-known Retry works', async () => {
-        // Carried over from Task 4's review: the coordinator consumes the
-        // startup latch BEFORE calling `start()`, and calls it as `void` with
-        // no rejection handling of its own. That is only safe because
+        // The coordinator consumes the startup latch BEFORE calling `start()`,
+        // and calls it as `void` with no rejection handling of its own. That
+        // is only safe because
         // `_acquireConversation` catches the failure itself and shows the
         // "Iris could not be reached" banner, whose Retry reloads the
         // now-known conversation. Without this test that recovery path is
@@ -506,13 +502,13 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
     });
 
     test('after a failed acquisition, re-resolving the view acquires again', async () => {
-        // The regression this fix round exists for: `resolveWebviewView` runs
-        // again whenever VS Code disposes and recreates the webview (the
-        // panel has no `retainContextWhenHidden`), which happens simply from
-        // collapsing and reopening the sidebar view. Without the latch coming
-        // back after a failed attempt, the student who hit one transient
-        // error is stuck on the cold-start chooser for good, with no banner
-        // and no automatic retry — only `artemis.resetIrisChat` recovers.
+        // `resolveWebviewView` runs again whenever VS Code disposes and
+        // recreates the webview (the panel has no `retainContextWhenHidden`),
+        // which happens simply from collapsing and reopening the sidebar view.
+        // Without the latch coming back after a failed attempt, the student who
+        // hit one transient error is stuck on the cold-start chooser for good,
+        // with no banner and no automatic retry: only `artemis.resetIrisChat`
+        // recovers.
         const detection = new vscode.EventEmitter<DetectionOutcome>();
         h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.onFirstCall().rejects(new Error('network down'));
@@ -538,10 +534,9 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
     /**
      * A course whose instructor switched Iris off answers the cold-start
      * acquisition with the same 403 `iris.course_disabled` that `switchCourse`
-     * already handles. Before this fix `start` let it propagate and
-     * `_acquireConversation` treated it like any other failure: the student
-     * got the "could not be reached" banner and a Retry that could only ever
-     * repeat the identical 403.
+     * already handles. Treated like any other failure it would give the student
+     * the "could not be reached" banner and a Retry that can only ever repeat
+     * the identical 403.
      */
     test('a disabled course at cold start shows the disabled banner, not the unreachable one', async () => {
         const detection = new vscode.EventEmitter<DetectionOutcome>();
@@ -603,9 +598,9 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
     });
 
     test('a different cold-start failure (500) still shows the unreachable banner and still re-arms', async () => {
-        // The regression guard for the fix above: only the exact 403
-        // `iris.course_disabled` answer may skip the unreachable banner and
-        // the re-arm. Everything else keeps today's behaviour.
+        // Only the exact 403 `iris.course_disabled` answer may skip the
+        // unreachable banner and the re-arm; every other failure takes the
+        // normal path.
         const detection = new vscode.EventEmitter<DetectionOutcome>();
         h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.onFirstCall().rejects(new ApiError('Request failed', 500, 'Internal Server Error'));
@@ -634,36 +629,20 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
     });
 
     test('re-resolving the view with an installed conversation republishes its transcript once ready', async () => {
-        // FINDING 1: `_acquireConversation` is a ONE-SHOT behind the startup
-        // latch (see `after a failed acquisition...` above for the failed-
-        // attempt half of that). `_deliverTranscript` is the ONLY producer of
-        // `loadMessages` (chatWebviewProvider.ts, its own doc comment), and
-        // the only place that currently calls it is `IrisConversationService`'s
-        // own `_install`/`onSubscriptionActive`, both reached only through an
-        // ACQUISITION or a reconnect. A re-resolve of an already-installed
-        // conversation triggers neither, so nothing on THAT path re-delivers
-        // the transcript. `_refreshAvailability` (unconditional on every
-        // resolve, see the sibling suite above) is not a substitute: it only
-        // ever posts a banner, never `loadMessages`.
+        // `loadMessages` comes only from `_deliverTranscript`, which only an
+        // acquisition or a reconnect reaches. A re-resolve of an already
+        // installed conversation triggers neither, so without an explicit
+        // republish the fresh webview gets `currentSessionId` but never a
+        // transcript, and its loading spinner never clears.
         //
         // The republish lives in `_sendInitData`, reached only through the
-        // webview's own `ready` handshake (`_onReady`), never from
+        // webview's `ready` handshake (`_onReady`), never from
         // `resolveWebviewView` directly: `_postMessageSafe` queues everything
-        // until `ready` arrives and flushes the WHOLE queue before
-        // `_onReady` runs, so anything posted synchronously inside
-        // `resolveWebviewView` would reach the real webview BEFORE the
-        // `updateIrisState` that names the session, and the webview's own
-        // guard (keyed on the session `updateIrisState` sets) would silently
-        // drop it. Hence `sendReady` below, not a second `resolveView` alone.
-        //
-        // Concretely: the student is in an exercise workspace, the chat
-        // auto-acquires a conversation, they switch the sidebar to Explorer
-        // and back. VS Code disposes and re-resolves the view (no
-        // `retainContextWhenHidden`, extension.ts), the fresh webview boots
-        // and signals `ready`. Without the republish it gets
-        // `currentSessionId` in its `updateIrisState` but no `loadMessages`
-        // ever, so its `loadedSessionId` never matches and the loading
-        // spinner never clears.
+        // until `ready` arrives and flushes the WHOLE queue before `_onReady`
+        // runs, so anything posted synchronously inside `resolveWebviewView`
+        // would arrive before the `updateIrisState` that names the session and
+        // the webview's session guard would drop it. Hence `sendReady` below,
+        // not a second `resolveView` alone.
         const detection = new vscode.EventEmitter<DetectionOutcome>();
         h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.resolves(detail({
@@ -687,8 +666,7 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         // The panel is collapsed and reopened: a fresh `WebviewView`, a fresh
         // resolve, and the fresh webview's own `ready` signal. No new
         // detection event and no new acquisition attempt (the latch is
-        // already consumed) — this is the "already installed" case, distinct
-        // from the failed-acquisition test above.
+        // already consumed), so this is the "already installed" case.
         await resolveView(h);
         sendReady(h.provider);
         await settle();
@@ -764,8 +742,8 @@ suite('ChatWebviewProvider: reload Iris chat', () => {
 });
 
 /**
- * Task 8: the startup-unavailable banner's own Retry. It must re-run
- * workspace DETECTION through the coordinator, never the conversation reload
+ * The startup-unavailable banner's own Retry. It must re-run workspace
+ * DETECTION through the coordinator, never the conversation reload
  * (`reloadIrisChat`) that `ReloadChatSession` uses: on this path there may be
  * no workspace exercise at all, so a reload would start whatever happens to
  * be left over, or nothing.
@@ -798,8 +776,8 @@ suite('ChatWebviewProvider: retryStartupDetection', () => {
 });
 
 /**
- * The dispatcher cut-over. A recording double stands in for the conversation
- * service so each test can assert WHICH navigation the host performed, and so
+ * A recording double stands in for the conversation service so each test can
+ * assert WHICH navigation the host performed, and so
  * the host's own gating can be told apart from the service's internal one
  * (both exist; only the host's is under test here).
  */
@@ -817,12 +795,9 @@ interface FakeConversation {
     startOutcome: StartOutcome;
     /**
      * The course `state.snapshot()` reports as current. Settable independently
-     * of `startOutcome` so a test can reproduce the exact case
-     * `_acquireConversation`'s `landedHere` guard exists for: `start()`
-     * resolves `ok` (its `_install` returned false, so the outcome is a lie
-     * about WHERE we landed) while a superseding navigation has already moved
-     * the conversation into a different course. Defaults to 42, the value
-     * every other test in this file already relies on implicitly.
+     * of `startOutcome` so a test can drive the two apart, which is what the
+     * `landedHere` tests below need. Defaults to 42, the value every other
+     * test in this file already relies on implicitly.
      */
     snapshotCourseId: number;
 }
@@ -840,8 +815,8 @@ function injectFakeConversation(provider: ChatWebviewProvider): FakeConversation
     };
     (provider as unknown as { _conversation: unknown })._conversation = {
         // The full surface the presenter reads: the provider posts a snapshot
-        // on every conversation change now, so a partial double makes
-        // postSnapshot throw rather than fail an assertion.
+        // on every conversation change, so a partial double makes postSnapshot
+        // throw rather than fail an assertion.
         state: {
             get sendInFlight() { return fake.sendInFlight; },
             snapshot: () => ({ currentSessionId: 1, courseId: fake.snapshotCourseId, courseSessions: [], knownInvisible: [] }),
@@ -938,7 +913,7 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
         // pick acquires the first conversation. Nothing was on screen to be
         // replaced, so announcing a switch would describe an event the student
         // never saw. A topic change on an OPEN conversation cannot reach this
-        // branch at all any more; it always stages.
+        // branch at all; it always stages.
         fake.topicOutcome = { kind: 'opened', sessionId: 12 };
 
         dispatch(h.provider, 'selectTopic', { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7 });
@@ -974,9 +949,9 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
     });
 
     test('switchCourse asks the service to acquire that course', async () => {
-        // Nothing mirrors the course any more: the conversation is the single
-        // source of truth for it, and `ChatWebviewProvider.currentCourseId`
-        // reads it from there.
+        // Nothing mirrors the course: the conversation is the single source of
+        // truth for it, and `ChatWebviewProvider.currentCourseId` reads it
+        // from there.
         dispatch(h.provider, 'switchCourse', { courseId: 43 });
         await settle();
 
@@ -1191,9 +1166,8 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
     });
 
     test('a retired command name reaches no handler and changes nothing', async () => {
-        // The contracts are gone, so a stale webview build posting one of the
-        // old names must fall through to the utility handler and be logged,
-        // never acted on.
+        // A stale webview build posting a retired command name must fall
+        // through to the utility handler and be logged, never acted on.
         dispatch(h.provider, 'createNewSession' as never);
         dispatch(h.provider, 'switchSession' as never, { sessionId: 'local-1' });
         dispatch(h.provider, 'openArtemisSession' as never, { courseId: 42, artemisSessionId: 5 });
@@ -1417,10 +1391,6 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
     });
 
     test('init acquires nothing on its own: one acquisition, one subscription', async () => {
-        // The old path imported the server's sessions on every init, skipped
-        // the empty one the conversation model had just acquired, created
-        // ANOTHER, resubscribed the socket to it, and left the source check
-        // dropping every frame of the first.
         h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
 
         await (h.provider as unknown as { _sendInitData: () => Promise<void> })._sendInitData();
@@ -1441,9 +1411,6 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
             .map(c => c.args[0] as { type?: string; state?: { courses: unknown[] } })
             .filter(m => m?.type === 'updateIrisState');
         assert.strictEqual(states.at(-1)?.state?.courses.length, 1, 'the picker still gets its list');
-        // Auto-select is what used to select a context, which the old
-        // acquisition then turned into a real server session while the webview
-        // was telling the student there was nothing to talk about.
         assert.strictEqual(h.api.getCurrentChat.callCount, 0);
     });
 });
@@ -1535,8 +1502,8 @@ suite('ChatWebviewProvider: startup admission', () => {
 });
 
 /**
- * Task 8, Step 5b: the chat records what it knows of the course/exercise it
- * just entered into the catalog's supplemental layer, so a header can keep
+ * The chat records what it knows of the course/exercise it just entered into
+ * the catalog's supplemental layer, so a header can keep
  * naming a course or exercise the dashboard later drops. This suite pins the
  * three call sites down directly, white-box, since the catalog write is a
  * side effect with no other externally observable trace.
@@ -1628,7 +1595,7 @@ suite('ChatWebviewProvider: naming what the chat enters, in the catalog', () => 
     });
 
     /**
-     * The crux case `landedHere` exists for (conversationService.ts:266): one
+     * The crux case `landedHere` exists for (conversationService.ts): one
      * `_install` path returns false (a superseding navigation won the race)
      * while `start()` still resolves `{ kind: 'ok' }` regardless, because
      * `ok` there means only "no error was thrown", never "we are now in the

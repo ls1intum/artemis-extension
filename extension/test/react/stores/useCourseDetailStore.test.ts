@@ -215,8 +215,6 @@ describe('useCourseDetailStore', () => {
 		expect(sorted[1].title).toBe('Zebra Exercise');
 	});
 
-	// --- error state ---
-
 	it('setError sets error and stops loading', () => {
 		const { result } = renderHook(() => useCourseDetailStore());
 

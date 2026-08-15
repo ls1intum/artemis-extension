@@ -105,9 +105,7 @@ export class IrisRunStateMachine {
      * bound its run yet, so `_currentRunId` still belongs to a PREVIOUS generation
      * (beginGeneration does not clear it). Resolving then would finalize the wrong
      * run and clear a pending flag a later generation relies on. The never-bound
-     * case therefore falls back to the manual reload rather than resolving here;
-     * this makes the Core boundary an invariant of the machine, not just a
-     * provider convention.
+     * case therefore falls back to the manual reload rather than resolving here.
      */
     public resolveCurrentRun(): void {
         if (this._pendingGeneration) { return; }

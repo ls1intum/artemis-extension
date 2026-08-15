@@ -4,12 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { usePopoverKeyDown } from '@webview/hooks/usePopoverKeyDown';
 
-/**
- * The shared popover key handler had no coverage of its own: every popover
- * suite tested Escape through its own component, and the Tab focus trap was
- * asserted nowhere at all, so it could be deleted outright with 117 tests
- * still green.
- */
 function Dialog({ onClose, disabledMiddle = false }: { onClose: () => void; disabledMiddle?: boolean }) {
     const ref = useRef<HTMLDivElement>(null);
     const handleKeyDown = usePopoverKeyDown(ref, onClose);

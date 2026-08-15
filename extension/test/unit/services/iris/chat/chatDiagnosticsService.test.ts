@@ -7,9 +7,7 @@ import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspac
 
 /**
  * The report is asked for when the chat is behaving oddly, and what it is
- * mostly asked about is the OPEN CONVERSATION. The deleted "Debug Sessions
- * (Raw)" command described the local session store that no longer exists, and
- * the decision to delete it rested on the diagnostics report covering the rest.
+ * mostly asked about is the OPEN CONVERSATION.
  */
 function fakeConversation(): IrisConversationService {
     return {
@@ -75,9 +73,9 @@ suite('ChatDiagnosticsService: the conversation section', () => {
 });
 
 /**
- * The identity line diagnostics gained in the live-catalog work: a support
- * request starts with "which account, which server, which generation", so
- * it has to be answered even when nothing else in the report is interesting.
+ * A support request starts with "which account, which server, which
+ * generation", so the identity line has to answer that even when nothing else
+ * in the report is interesting.
  */
 suite('ChatDiagnosticsService: session identity', () => {
     test('names the authenticated principal, server and epoch', () => {
@@ -110,8 +108,7 @@ suite('ChatDiagnosticsService: session identity', () => {
 });
 
 /**
- * The catalog is the live source now: nothing here is read off a persisted
- * snapshot any more.
+ * The catalog is the live source: nothing here is read off a persisted snapshot.
  */
 suite('ChatDiagnosticsService: catalog and workspace sections', () => {
     test('reports the workspace exercise from the tracker, not from any store', () => {

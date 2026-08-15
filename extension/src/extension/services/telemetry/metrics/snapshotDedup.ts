@@ -26,7 +26,7 @@ export function shouldDedupSnapshot(
         return true; // Both clean within window
     }
 
-    // Both have errors — check if families are identical
+    // Both have errors, so the families must match exactly.
     if (newSnapshot.errorFamilies.size !== lastSnapshot.errorFamilies.size) {
         return false;
     }

@@ -1,4 +1,4 @@
-// Accessibility tests for all 12 webview views (WCAG 2.1 AA via axe-core)
+// Accessibility tests for the webview views (WCAG 2.1 AA via axe-core)
 // Covers A11Y-01: Zero axe violations required across the entire view surface area.
 // Login view is tested pre-authentication; all other views require credentials.
 import * as assert from 'assert';
@@ -15,10 +15,6 @@ import {
     waitForElement,
 } from './helpers';
 
-// ---------------------------------------------------------------------------
-// Helper: assert zero axe violations inside the current frame.
-// Takes a failure screenshot and produces a descriptive error message.
-// ---------------------------------------------------------------------------
 async function assertNoAxeViolations(viewName: string, driver: WebDriver): Promise<void> {
 	const results = await runAxeInCurrentFrame(driver);
 	if (results.violations.length > 0) {
@@ -34,9 +30,6 @@ async function assertNoAxeViolations(viewName: string, driver: WebDriver): Promi
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Suite
-// ---------------------------------------------------------------------------
 describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 	let driver: WebDriver;
 	let hasCredentials = false;
@@ -51,7 +44,7 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			({ username, password } = getCredentials());
 			hasCredentials = true;
 		} catch {
-			// No credentials set — only the Login view (pre-auth) will be testable.
+			// No credentials set: only the Login view (pre-auth) is testable.
 		}
 	});
 
@@ -59,28 +52,21 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default frame — ignore.
+			// Already in the default frame.
 		}
 	});
 
-	// -------------------------------------------------------------------------
-	// View 1: Login (pre-authentication — always reachable without credentials)
-	// -------------------------------------------------------------------------
 	it('Login view should have zero axe violations', async function () {
 		this.timeout(30000);
 
 		// The Login view is only visible when NOT logged in.
-		// Since this test runs first (before any login in the nested describe),
-		// the view should always display the login form.
+		// This test runs before the nested describe logs in.
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 		await waitForElement(driver, 'form', 10000);
 		await assertNoAxeViolations('login', driver);
 	});
 
-	// -------------------------------------------------------------------------
-	// Views 2–12: authenticated views
-	// -------------------------------------------------------------------------
 	describe('Authenticated views', function () {
 		before(async function () {
 			this.timeout(30000);
@@ -89,7 +75,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				return;
 			}
 
-			// Log in once before this describe block.
 			await performLogin(driver, username, password);
 		});
 
@@ -104,9 +89,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			}
 		});
 
-		// -----------------------------------------------------------------------
-		// View 2: Dashboard
-		// -----------------------------------------------------------------------
 		it('Dashboard view should have zero axe violations', async function () {
 			this.timeout(30000);
 
@@ -116,16 +98,12 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('dashboard', driver);
 		});
 
-		// -----------------------------------------------------------------------
-		// View 3: CourseList (Dashboard → "Courses" button)
-		// -----------------------------------------------------------------------
 		it('CourseList view should have zero axe violations', async function () {
 			this.timeout(30000);
 
 			await openArtemisView();
 			await switchToWebviewFrame(driver);
 
-			// Wait for Dashboard to be ready.
 			try {
 				await waitForElement(driver, 'h1', 10000);
 			} catch {
@@ -134,7 +112,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				return;
 			}
 
-			// Navigate to CourseList via the "Courses" button.
 			try {
 				const coursesBtn = await driver.wait(
 					until.elementLocated(By.xpath("//button[.//span[contains(text(),'Courses')]]")),
@@ -143,16 +120,13 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				await coursesBtn.click();
 				await driver.sleep(2000);
 			} catch {
-				// Button not present on this server configuration — accept Dashboard state.
-				// Still run axe on whatever view is visible.
+				// Button not present on this server configuration. Run axe on whatever
+				// view is visible instead.
 			}
 
 			await assertNoAxeViolations('course-list', driver);
 		});
 
-		// -----------------------------------------------------------------------
-		// View 4: ServiceStatus (Dashboard → "Service Status" button)
-		// -----------------------------------------------------------------------
 		it('ServiceStatus view should have zero axe violations', async function () {
 			this.timeout(30000);
 
@@ -192,9 +166,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('service-status', driver);
 		});
 
-		// -----------------------------------------------------------------------
-		// View 5: GitCredentials (Dashboard → "Git" button)
-		// -----------------------------------------------------------------------
 		it('GitCredentials view should have zero axe violations', async function () {
 			this.timeout(30000);
 
@@ -239,9 +210,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('git-credentials', driver);
 		});
 
-		// -----------------------------------------------------------------------
-		// View 6: RecommendedExtensions (Dashboard → "Extension" button)
-		// -----------------------------------------------------------------------
 		it('RecommendedExtensions view should have zero axe violations', async function () {
 			this.timeout(30000);
 
@@ -286,9 +254,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('recommended-extensions', driver);
 		});
 
-		// -----------------------------------------------------------------------
-		// View 7: CourseDetail (Dashboard → course click) — deep nav, may skip
-		// -----------------------------------------------------------------------
 		it('CourseDetail view should have zero axe violations', async function () {
 			this.timeout(45000);
 
@@ -302,7 +267,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				return;
 			}
 
-			// Attempt to click a course card — skip gracefully if none found.
 			try {
 				const courseElement = await driver
 					.findElement(
@@ -338,9 +302,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('course-detail', driver);
 		});
 
-		// -----------------------------------------------------------------------
-		// View 8: ExerciseDetail (Dashboard → course → exercise click) — deep nav
-		// -----------------------------------------------------------------------
 		it('ExerciseDetail view should have zero axe violations', async function () {
 			this.timeout(60000);
 
@@ -355,7 +316,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			}
 
 			try {
-				// Navigate to a course.
 				const courseElement = await driver
 					.findElement(
 						By.xpath(
@@ -372,7 +332,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				await courseElement.click();
 				await driver.sleep(2000);
 
-				// Navigate to an exercise.
 				const exerciseElement = await driver
 					.findElement(
 						By.xpath(
@@ -389,7 +348,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				await exerciseElement.click();
 				await driver.sleep(2000);
 
-				// Wait for any container element.
 				await driver.wait(
 					() =>
 						driver
@@ -407,9 +365,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('exercise-detail', driver);
 		});
 
-		// -----------------------------------------------------------------------
-		// View 9: IrisChat (separate ActivityBar panel)
-		// -----------------------------------------------------------------------
 		it('IrisChat view should have zero axe violations', async function () {
 			this.timeout(30000);
 
@@ -430,7 +385,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 
 			try {
 				await switchToWebviewFrame(driver);
-				// Wait for a chat input or any textarea.
 				await waitForElement(driver, '[aria-label="Chat input"], textarea', 10000);
 			} catch {
 				await takeScreenshot(driver, 'a11y-skip-iris-chat');

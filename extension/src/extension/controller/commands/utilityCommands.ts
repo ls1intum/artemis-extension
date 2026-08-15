@@ -10,16 +10,11 @@ import { extractErrorMessage, resolveServerUrl } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
-/**
- * Open VS Code settings filtered by the given setting ID.
- */
 export async function openSettings(settingId: string): Promise<void> {
     await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
 }
 
-/**
- * Open a file in the workspace by path, falling back to a filename search.
- */
+/** Falls back to a workspace-wide filename search when the path does not resolve. */
 export async function openFileInWorkspace(filePath: string): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -140,13 +135,10 @@ export class UtilityCommandModule {
         }
     };
 
-    /**
-     * Handle opening external links with trusted domain confirmation
-     */
+    /** Untrusted domains require a confirmation dialog before the link opens. */
     private handleOpenExternalLink = async (message: WebviewToExtensionMessage): Promise<void> => {
         let url: string | undefined;
         try {
-            // Input validation
             const payload = getPayload<WebCmd<'openExternalLink'>>(message);
             url = payload.url;
             if (!url || typeof url !== 'string') {
@@ -154,7 +146,6 @@ export class UtilityCommandModule {
                 return;
             }
 
-            // Protocol validation
             if (!this.isAllowedProtocol(url)) {
                 logger.error('Invalid URL protocol', LogCategory.VIEW, { url });
                 const action = await vscode.window.showErrorMessage(
@@ -167,7 +158,6 @@ export class UtilityCommandModule {
                 return;
             }
 
-            // Domain extraction
             const domain = this.extractDomain(url);
             if (!domain) {
                 logger.error('Failed to extract domain', LogCategory.VIEW, { url });
@@ -181,17 +171,14 @@ export class UtilityCommandModule {
                 return;
             }
 
-            // Trusted domain check
             const trustedDomains = this.context.extensionContext.globalState.get<string[]>('artemis.trustedDomains', []);
             const validatedDomains = Array.isArray(trustedDomains) ? trustedDomains : [];
 
             if (validatedDomains.includes(domain)) {
-                // Domain is trusted, open directly
                 await vscode.env.openExternal(vscode.Uri.parse(url));
                 return;
             }
 
-            // Confirmation dialog for untrusted domain
             const truncatedUrl = this.truncateUrl(url);
             const result = await vscode.window.showInformationMessage(
                 `Open external link?\n\n${truncatedUrl}`,
@@ -203,7 +190,6 @@ export class UtilityCommandModule {
             if (result === 'Open') {
                 await vscode.env.openExternal(vscode.Uri.parse(url));
             } else if (result === 'Trust this domain') {
-                // Add domain to trusted list
                 const updatedDomains = [...validatedDomains, domain];
                 await this.context.extensionContext.globalState.update('artemis.trustedDomains', updatedDomains);
                 await vscode.env.openExternal(vscode.Uri.parse(url));
@@ -220,13 +206,10 @@ export class UtilityCommandModule {
         }
     };
 
-    /**
-     * Handle opening image previews (data URIs or remote URLs)
-     */
+    /** Handles both data URIs (written to a temp file) and remote URLs. */
     private handleOpenImagePreview = async (message: WebviewToExtensionMessage): Promise<void> => {
         let uri: string | undefined;
         try {
-            // Input validation
             const payload = getPayload<WebCmd<'openImagePreview'>>(message);
             uri = payload.uri;
             if (!uri || typeof uri !== 'string') {
@@ -234,7 +217,6 @@ export class UtilityCommandModule {
                 return;
             }
 
-            // Data URI handling
             if (uri.startsWith('data:')) {
                 const parsed = this.parseDataUri(uri);
                 if (!parsed) {
@@ -247,18 +229,12 @@ export class UtilityCommandModule {
                 const tempFileName = `image-${crypto.randomBytes(8).toString('hex')}${extension}`;
                 const tempFileUri = vscode.Uri.joinPath(this.context.extensionContext.globalStorageUri, tempFileName);
 
-                // Ensure directory exists
                 await vscode.workspace.fs.createDirectory(this.context.extensionContext.globalStorageUri);
-
-                // Write file
                 await vscode.workspace.fs.writeFile(tempFileUri, data);
-
-                // Open in VS Code viewer
                 await vscode.commands.executeCommand('vscode.open', tempFileUri);
                 return;
             }
 
-            // Remote URL handling
             if (!this.isAllowedProtocol(uri)) {
                 logger.error('Invalid image URL protocol', LogCategory.VIEW, { uri });
                 const action = await vscode.window.showErrorMessage(
@@ -271,7 +247,6 @@ export class UtilityCommandModule {
                 return;
             }
 
-            // Open remote image in default browser
             await vscode.env.openExternal(vscode.Uri.parse(uri));
         } catch (error: unknown) {
             logger.error('Open image preview error:', LogCategory.VIEW, error);
@@ -328,9 +303,6 @@ export class UtilityCommandModule {
         }
     };
 
-    /**
-     * Check if URL has an allowed protocol (http or https)
-     */
     private isAllowedProtocol(url: string): boolean {
         try {
             const parsed = new URL(url);
@@ -340,9 +312,6 @@ export class UtilityCommandModule {
         }
     }
 
-    /**
-     * Extract domain from URL
-     */
     private extractDomain(url: string): string | null {
         try {
             const parsed = new URL(url);
@@ -352,9 +321,6 @@ export class UtilityCommandModule {
         }
     }
 
-    /**
-     * Truncate URL for display
-     */
     private truncateUrl(url: string, maxLength: number = 80): string {
         if (url.length <= maxLength) {
             return url;
@@ -362,12 +328,9 @@ export class UtilityCommandModule {
         return url.slice(0, maxLength - 3) + '...';
     }
 
-    /**
-     * Parse data URI into mime type and decoded data
-     */
     private parseDataUri(dataUri: string): { mimeType: string; data: Buffer } | null {
         try {
-            // Strip "data:" prefix
+            // Strip the "data:" prefix.
             const dataContent = dataUri.slice(5);
             const commaIndex = dataContent.indexOf(',');
             if (commaIndex === -1) {
@@ -377,11 +340,9 @@ export class UtilityCommandModule {
             const metadata = dataContent.slice(0, commaIndex);
             const dataString = dataContent.slice(commaIndex + 1);
 
-            // Parse metadata
             const isBase64 = metadata.includes(';base64');
             let mimeType = metadata.split(';')[0] || 'image/png';
 
-            // Decode data
             let buffer: Buffer;
             if (isBase64) {
                 buffer = Buffer.from(dataString, 'base64');
@@ -395,9 +356,6 @@ export class UtilityCommandModule {
         }
     }
 
-    /**
-     * Get file extension from MIME type
-     */
     private getExtensionFromMime(mimeType: string): string {
         const mimeMap: Record<string, string> = {
             'image/png': '.png',

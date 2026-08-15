@@ -1,5 +1,3 @@
-// --- Core API Models ---
-
 export interface ArtemisFeedback {
     readonly id?: number;
     readonly text?: string;

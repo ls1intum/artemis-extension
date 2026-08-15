@@ -27,7 +27,6 @@ describe('LoginView', () => {
 			expect(mockApi.setState).toHaveBeenCalled();
 		});
 
-		// Check that setState was called with an object containing the username
 		const calls = (mockApi.setState as ReturnType<typeof vi.fn>).mock.calls;
 		const lastCall = calls[calls.length - 1][0];
 		expect(lastCall).toMatchObject({ username: 'testuser' });
@@ -45,7 +44,6 @@ describe('LoginView', () => {
 		await userEvent.type(passwordInput, 'testpass');
 		await userEvent.click(submitButton);
 
-		// Verify postMessage was called with login command
 		await waitFor(() => {
 			expect(mockApi.postMessage).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -64,10 +62,8 @@ describe('LoginView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<LoginView vscodeApi={mockApi} />);
 
-		// Initially form should be visible
 		expect(screen.getByTestId('login-form')).toBeInTheDocument();
 
-		// Dispatch showLoading message
 		dispatchExtensionMessage({
 			type: 'showLoading',
 			message: 'Checking credentials...',
@@ -93,7 +89,6 @@ describe('LoginView', () => {
 			expect(screen.getByText('Processing')).toBeInTheDocument();
 		});
 
-		// Hide loading
 		dispatchExtensionMessage({
 			type: 'hideLoading',
 		});

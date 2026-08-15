@@ -58,16 +58,12 @@ export class SendCoordinator {
         private readonly _deps: SendDeps,
     ) {}
 
-    // Takes the FULL SendInput. An earlier draft declared the parameter as
-    // `{ text, localId }` while the body read `input.sessionId`, which does not
-    // compile and, worse, would have silently dropped the origin-session check
-    // that this field exists for.
     public async send(input: SendInput): Promise<SendOutcome> {
         const state = this._conversation.state;
         // Host-enforced, not a disabled button: the webview's streaming state
         // resets on disconnect, so UI gating is not an invariant.
-        // Every early return fails the bubble, and against the ORIGIN session,
-        // not the current one. The webview drew its optimistic message while
+        // Every early return fails the bubble against the ORIGIN session, not
+        // the current one. The webview drew its optimistic message while
         // `input.sessionId` was open; addressing the current session instead
         // targets a bubble that may live in another conversation, and when there
         // is no current session it addresses nothing, so the bubble stays stuck
@@ -96,11 +92,11 @@ export class SendCoordinator {
         const captured = { sessionId, contextRevision: state.guard().contextRevision, ctx: pending };
 
         // The lock and the run generation are taken BEFORE the first await of
-        // any kind, file collection included. An earlier draft collected files
-        // first: two sends could both observe sendInFlight === false, both wait
-        // for collection, and both POST. A navigation could start in the same
-        // window, and a throw inside collection left no generation to abort even
-        // though the webview had already entered its streaming state.
+        // any kind, file collection included. Collecting first would let two
+        // sends both observe sendInFlight === false, both wait for collection
+        // and both POST; a navigation could start in the same window, and a
+        // throw inside collection would leave no generation to abort even
+        // though the webview has already entered its streaming state.
         state.beginSend();
         state.setOptimisticBubble(true);
 
@@ -111,11 +107,10 @@ export class SendCoordinator {
         let generation: number | undefined;
         let postStarted = false;
         try {
-            // The webview mirrors `sendInFlight` and gates its composer on it,
-            // but nothing published the ACQUISITION: the only other
-            // notifyChanged is in the finally below, so the flag could travel
-            // exclusively as `false`. Inside the try, after both mutations, for
-            // the same reason the try opens here: a listener that throws
+            // Publishes the ACQUISITION of `sendInFlight`, which the webview
+            // mirrors to gate its composer: the only other notifyChanged is in
+            // the finally below, so without this the flag would only ever
+            // travel as `false`. Inside the try because a listener that throws
             // synchronously must not skip the finally and latch the lock
             // forever. `beginGeneration` is run-lifecycle state and is not part
             // of the snapshot, so publishing ahead of it is safe.
@@ -134,13 +129,12 @@ export class SendCoordinator {
             const messageId = typeof persisted?.id === 'number' ? persisted.id : undefined;
             // Record the persisted message in STATE, not only in the webview.
             // Without this the conversation still reports `empty` once the
-            // optimistic flag clears, and everything keyed on that is wrong at
-            // once: the header's message count, the union that protects
-            // in-flight arrivals, and the marker handling that decides whether a
-            // staging is still live.
-            // Only into the conversation we actually sent to. Without this check
-            // a navigation that committed while the POST was open would have the
-            // OLD conversation's message written into the NEW one's transcript.
+            // optimistic flag clears, and everything keyed on that breaks: the
+            // header's message count, the union that protects in-flight
+            // arrivals, and the marker handling that decides whether a staging
+            // is still live. The session check keeps a navigation that committed
+            // while the POST was open from writing the OLD conversation's
+            // message into the NEW one's transcript.
             if (messageId !== undefined && state.snapshot().currentSessionId === captured.sessionId) {
                 state.upsertMessage({ ...persisted, id: messageId, sender: 'USER' });
             }
@@ -221,13 +215,11 @@ export class SendCoordinator {
             // context-revision guard exists to stop, reintroduced inside the
             // recovery path.
             const guard = state.beginLoad();
-            // A divergent staging is deliberately LEFT alone here. It used to be
-            // dropped whenever content existed, because a retry would then have
-            // rehomed that content; staging onto a conversation with content is
-            // the ordinary case now, so dropping it would only undo the topic
-            // the student picked and never sent. When the send did land,
-            // `installDetail` clears the staging by itself: the detail comes
-            // back already carrying it.
+            // A divergent staging is deliberately LEFT alone: staging onto a
+            // conversation with content is the ordinary case, so dropping it
+            // would only undo the topic the student picked and never sent. When
+            // the send did land, `installDetail` clears the staging by itself,
+            // because the detail comes back already carrying it.
             const detail = await this._api.getChatSessionById(courseId, captured.sessionId);
             state.installDetail(detail, guard);
         } catch {

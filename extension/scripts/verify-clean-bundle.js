@@ -6,10 +6,10 @@
 const fs = require('fs');
 const path = require('path');
 
-// Recorder feature entry points. Both recorder layouts are listed so the set stays
-// correct after the struggle-v3 rebase (dev nests it under services/telemetry/; the
-// struggle branch splits it into services/recording/). NOTE: services/sensing/ is the
-// SHARED SensorHub used by the Desktop struggle engine and is deliberately NOT here.
+// Recorder feature entry points. Both recorder layouts are listed (nested under
+// services/telemetry/ and split out into services/recording/) so the set holds either
+// way. NOTE: services/sensing/ is the SHARED SensorHub used by the Desktop struggle
+// engine and is deliberately NOT here.
 const RECORDER_FORBIDDEN = [
     'src/extension/services/telemetry/recording/',
     'src/extension/services/telemetry/replay/',
@@ -20,8 +20,8 @@ const RECORDER_FORBIDDEN = [
     'src/extension/dataCollection/recording.ts',
 ];
 
-// Struggle engine (Open VSX only). On dev the engine is the whole services/telemetry/
-// subtree (deny by default, allow types.ts); the struggle branch splits it out.
+// Struggle engine (Open VSX only). The whole services/telemetry/ subtree is denied by
+// default with types.ts allowed; the split-out struggle subtrees are denied outright.
 const TELEMETRY_SUBTREE = 'src/extension/services/telemetry/';
 const TELEMETRY_ALLOWED = ['src/extension/services/telemetry/types.ts'];
 const STRUGGLE_SUBTREES = [
@@ -32,7 +32,7 @@ const STRUGGLE_SUBTREES = [
 // The struggle-detection webview lives under this prefix. Only the alias stub and the
 // type/re-export files are allowed in the clean bundle; every OTHER file (view, hook,
 // nested module) is forbidden. Prefix+allowlist (not an explicit file list) so new view
-// files added on the struggle branch are still caught after the rebase.
+// files are still caught.
 const STRUGGLE_VIEW_PREFIX = 'src/webview/views/StruggleDetection/';
 const STRUGGLE_VIEW_ALLOWED = ['stub.tsx', 'types.ts', 'index.ts'];
 const STRUGGLE_MODULES = ['node_modules/recharts'];

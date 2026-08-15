@@ -35,8 +35,8 @@ export class AuthManager {
      * Returns the raw JWT string (without any "jwt=" cookie prefix), suitable
      * for use in a `Cookie: jwt=<value>` or `Authorization: Bearer <value>` header.
      *
-     * Intended for developer/debug commands only — normal code paths should use
-     * `getAuthHeaders()` instead so auth-mode handling stays centralized.
+     * Intended for developer/debug commands only. Normal code paths use
+     * `getAuthHeaders()` so auth-mode handling stays centralized.
      *
      * Returns `undefined` if not authenticated.
      */
@@ -51,11 +51,7 @@ export class AuthManager {
         return stored.startsWith(prefix) ? stored.substring(prefix.length) : stored;
     }
 
-    /**
-     * Returns the stored token string.
-     * In Desktop mode this is a cookie string ("jwt=<token>"),
-     * in Theia mode this is a raw JWT.
-     */
+    /** Cookie string ("jwt=<token>") in Desktop mode, raw JWT in Theia mode. */
     private async getStoredToken(): Promise<string | undefined> {
         if (this.memoryToken) {
             return this.memoryToken;

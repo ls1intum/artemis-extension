@@ -53,7 +53,6 @@ export function useAnnotationMutations(args: UseAnnotationMutationsArgs): Annota
         getFetcher: () => argsRef.current.fetcher,
     }));
 
-    // Dispose on unmount.
     useEffect(() => {
         return () => { controller.dispose(); };
     }, [controller]);

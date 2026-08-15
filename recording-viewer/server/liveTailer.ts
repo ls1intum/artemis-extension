@@ -63,7 +63,7 @@ export class LiveTailer {
     /**
      * Current line number the tailer has advanced past. Used by the SSE
      * handler to coordinate per-connection catch-up with the shared tailer's
-     * live broadcast position. Read-only — no per-subscriber seek is exposed.
+     * live broadcast position. Read-only: no per-subscriber seek is exposed.
      */
     currentLineNo(): number {
         return this._lineNo;

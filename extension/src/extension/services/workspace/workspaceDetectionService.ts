@@ -16,9 +16,7 @@ const execFileAsync = promisify(execFile);
 /** A workspace-detected exercise. Structurally identical to ExerciseRegistryEntry. */
 export type DetectedExercise = ExerciseRegistryEntry;
 
-/**
- * Source of exercises to search against
- */
+/** Source of exercises to search against. */
 export interface ExerciseSource {
     id: number;
     title: string;
@@ -35,11 +33,9 @@ export interface ExerciseSource {
  * Return the exercises for a CourseDashboardEntry, preferring the nested
  * `course.exercises` array and falling back to the flat `entry.exercises`.
  *
- * The length check is deliberate: in JavaScript `[] || fallback` evaluates
- * to `[]` (empty arrays are truthy), so a previous mix of `??` and `||`
- * across the codebase was effectively identical. The new behavior treats
- * a nested empty array as "look at flat next", which is what consumers
- * appear to assume in practice.
+ * The length check is deliberate: `[] || fallback` evaluates to `[]` (empty
+ * arrays are truthy), and consumers expect a nested empty array to mean
+ * "look at flat next".
  */
 export function getEntryExercises(entry: CourseDashboardEntry): ExerciseDetail[] {
     const nested = entry.course?.exercises;
@@ -49,8 +45,8 @@ export function getEntryExercises(entry: CourseDashboardEntry): ExerciseDetail[]
 /**
  * Map a raw `ExerciseDetail` (server response) to the narrow `ExerciseSource`
  * shape used by workspace detection. Returns null when the exercise is missing
- * a numeric id or a string title — those are the only fields the workspace
- * matching logic cannot tolerate.
+ * a numeric id or a string title, the only fields the workspace matching logic
+ * cannot tolerate missing.
  *
  * `courseId` is taken from the argument, not from any nested `course.id`,
  * because the surrounding traversal knows which course the exercise belongs to.
@@ -112,9 +108,8 @@ export function normalizeRepositoryUrl(url: string): string {
 }
 
 /**
- * Gets the git remote origin URL from a workspace folder.
- * @param workspaceFolder Optional workspace folder, defaults to first workspace folder
- * @returns The remote origin URL or null if not a git repository
+ * Gets the git remote origin URL from a workspace folder (defaults to the first
+ * workspace folder). Null when the folder is not a git repository.
  */
 export async function getWorkspaceRepositoryUrl(
     workspaceFolder?: vscode.WorkspaceFolder
@@ -138,9 +133,7 @@ export async function getWorkspaceRepositoryUrl(
     }
 }
 
-/**
- * Status of the current workspace relative to an expected exercise repository.
- */
+/** Status of the current workspace relative to an expected exercise repository. */
 interface WorkspaceStatus {
     isConnected: boolean;
     hasChanges: boolean;
@@ -150,9 +143,6 @@ interface WorkspaceStatus {
 /**
  * Checks whether the current workspace matches an expected exercise repository URL.
  * Combines URL comparison, practice-repo fallback, and file-change detection.
- * @param expectedRepoUri The exercise's expected repository URL
- * @param workspaceFolder Optional workspace folder, defaults to first workspace folder
- * @returns WorkspaceStatus with connection, changes, and practice-repo info
  */
 export async function getWorkspaceStatus(
     expectedRepoUri: string,
@@ -183,7 +173,6 @@ export async function getWorkspaceStatus(
         }
     }
 
-    // Direct match
     if (normalizedWorkspace === normalizedExpected) {
         const hasChanges = await getFileChanges();
         return { isConnected: true, hasChanges, isPracticeRepo: normalizedWorkspace.includes('-practice-') };
@@ -201,12 +190,7 @@ export async function getWorkspaceStatus(
     return disconnected;
 }
 
-/**
- * Finds an exercise that matches the given repository URL.
- * @param repositoryUrl The repository URL to match
- * @param exercises Array of exercises to search
- * @returns The matching exercise or null
- */
+/** Finds an exercise that matches the given repository URL. */
 export function findExerciseByRepositoryUrl(
     repositoryUrl: string,
     exercises: ExerciseSource[]
@@ -215,7 +199,6 @@ export function findExerciseByRepositoryUrl(
 
     // First pass: exact match
     for (const exercise of exercises) {
-        // Check direct repositoryUri on exercise
         if (exercise.repositoryUri) {
             if (normalizeRepositoryUrl(exercise.repositoryUri) === normalizedSearchUrl) {
                 const result: DetectedExercise = {
@@ -231,7 +214,6 @@ export function findExerciseByRepositoryUrl(
             }
         }
 
-        // Check participations
         const participations = exercise.studentParticipations || [];
         for (const participation of participations) {
             if (participation.repositoryUri) {
@@ -295,12 +277,7 @@ export function findExerciseByRepositoryUrl(
     return null;
 }
 
-/**
- * Detects the exercise that corresponds to the current workspace.
- * @param exercises Array of exercises to search
- * @param workspaceFolder Optional workspace folder, defaults to first workspace folder
- * @returns The detected exercise or null
- */
+/** Detects the exercise that corresponds to the current workspace. */
 export async function detectWorkspaceExercise(
     exercises: ExerciseSource[],
     workspaceFolder?: vscode.WorkspaceFolder
@@ -380,8 +357,8 @@ export async function searchArchivedCoursesForRepository(
 }
 
 /**
- * Searches archived courses for one whose exercises match the current workspace git remote.
- * @returns The matching CourseDashboardEntry, or null if not found / already in active courses.
+ * Searches archived courses for one whose exercises match the current workspace git
+ * remote. Null when nothing matches or the exercise is already in an active course.
  */
 export async function findWorkspaceCourseInArchive(
     artemisApi: ArtemisApiService,
@@ -392,7 +369,6 @@ export async function findWorkspaceCourseInArchive(
         return null;
     }
 
-    // Check if the exercise is already in active courses
     const allActiveExercises: ExerciseSource[] = activeCourseEntries.flatMap(entry =>
         getEntryExercises(entry)
             .map(ex => toExerciseSource(ex, entry.course?.id))
@@ -409,10 +385,6 @@ export async function findWorkspaceCourseInArchive(
     return result.entry ?? null;
 }
 
-/**
- * Detect workspace exercise with registry population fallback, then register it via callbacks.
- * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
- */
 interface WorkspaceRegistrationCallbacks {
     registerExercise: (input: {
         id: number;
@@ -444,9 +416,9 @@ export async function detectWorkspaceExerciseForRepository(
     let reachable = true;
 
     // If the registry is empty, ask the catalog to load. Detection deliberately
-    // does NOT write the registry itself: since Task 5 the registry is an index
-    // rebuilt from the catalog projection by the `onCoursesLoaded` subscription
-    // in `extension.ts`, and `EventEmitter.fire` is synchronous, so a successful
+    // does NOT write the registry itself: the registry is an index rebuilt from
+    // the catalog projection by the `onCoursesLoaded` subscription in
+    // `extension.ts`, and `EventEmitter.fire` is synchronous, so a successful
     // fetch has already rebuilt it by the time it resolves. A write here would
     // be a second source of truth, and one the epoch guard never sees.
     if (exercises.length === 0) {
@@ -468,7 +440,7 @@ export async function detectWorkspaceExerciseForRepository(
     }
 
     // findExerciseByRepositoryUrl, not detectWorkspaceExercise: the latter
-    // re-reads the git remote and would undo the whole point of the split.
+    // re-reads the git remote instead of using the URL passed in.
     let detected = findExerciseByRepositoryUrl(repositoryUrl, exercises);
 
     // Fallback: search archived courses if no match in active courses
@@ -494,12 +466,11 @@ export async function detectWorkspaceExerciseForRepository(
             // picker on the next refresh, and the archive probe never runs
             // again because the registry still matches the folder.
             //
-            // The catalog is the ONLY write. A direct `registerFromCourseData`
-            // here would put the archived course into the registry even when
-            // the line above just rejected it as belonging to another session,
-            // undoing the identity reset that had already cleared it. When the
-            // write is accepted, the rebuild has already run synchronously by
-            // the time `upsertSupplemental` returns.
+            // The catalog is the ONLY write: it is epoch-guarded, so a course
+            // belonging to a session that has since ended is rejected instead of
+            // undoing the identity reset. When the write is accepted, the
+            // rebuild has already run synchronously by the time
+            // `upsertSupplemental` returns.
             courseCatalog?.upsertSupplemental({ kind: 'course', entry: archive.entry }, epoch);
             detected = findExerciseByRepositoryUrl(repositoryUrl, registry.getAllExercises());
         }

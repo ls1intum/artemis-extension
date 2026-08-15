@@ -5,10 +5,6 @@ import type { ScoreInfoProps } from '@webview/views/ExerciseDetail/types';
 
 import styles from './ScoreInfo.module.css';
 
-/**
- * Extracted ScoreInfo component for Phase 5 reuse.
- * Renders score display with color-coded percentage indicators.
- */
 export function ScoreInfo({
     score,
     maxScore,
@@ -19,7 +15,6 @@ export function ScoreInfo({
     const scoreValue = score ?? 0;
     const scorePercentage = maxScore > 0 ? (scoreValue / maxScore) * 100 : 0;
 
-    // Determine score color class
     let scoreColorClass = styles.scoreError;
     if (scorePercentage >= 80) {
         scoreColorClass = styles.scoreSuccess;

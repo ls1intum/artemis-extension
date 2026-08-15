@@ -18,12 +18,10 @@ suite('StartupLatch', () => {
     });
 
     test('cancelling after consumption records the intent, and a later re-arm cannot undo it', () => {
-        // The old behaviour here was `cancel()` no-opping on a `consumed`
-        // latch, on the premise that `consumed` was terminal. It stopped
-        // being terminal the moment `reArmAfterFailedStart` existed: an
-        // intent arriving while the automatic attempt is still in flight
-        // (a real HTTP round trip, easily pending for hundreds of
-        // milliseconds) must still be recorded, or a later failure of that
+        // `consumed` is not terminal, because `reArmAfterFailedStart` can
+        // leave it. An intent arriving while the automatic attempt is still in
+        // flight (a real HTTP round trip, easily pending for hundreds of
+        // milliseconds) must therefore be recorded, or a later failure of that
         // very attempt hands the automatic path a second chance the student
         // had already refused.
         const latch = new StartupLatch();

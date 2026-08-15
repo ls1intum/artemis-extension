@@ -13,7 +13,6 @@ interface CourseListState {
     semesterFilter: string;
     sortBy: string;
 
-    // Actions
     setCourses: (courses: CourseDetailData[], archived?: ArchivedCourse[]) => void;
     setArchivedCourses: (archived: ArchivedCourse[]) => void;
     setLoading: (loading: boolean) => void;
@@ -25,7 +24,6 @@ interface CourseListState {
     loadCourses: (vscodeApi: VsCodeApi) => void;
     loadArchivedCourses: (vscodeApi: VsCodeApi) => void;
 
-    // Derived
     filteredCourses: () => { active: CourseDetailData[]; archived: ArchivedCourse[] };
 }
 
@@ -40,25 +38,19 @@ function parseSemester(semester: string): { type: string; year: number; sortKey:
     const ssMatch = cleanSemester.match(/^SS(\d{2,4})$/);
 
     if (wsMatch) {
-        // Winter semester: WS24/25 or WS24
         let year = parseInt(wsMatch[1]);
-        // Convert 2-digit years to 4-digit (24 -> 2024)
         if (year < 100) {
             year += 2000;
         }
-        // Winter semester starts in fall, so it's the later year
         return { type: 'WS', year: year, sortKey: year * 10 + 1 }; // +1 to make WS slightly later than SS of same year
     } else if (ssMatch) {
-        // Summer semester: SS25
         let year = parseInt(ssMatch[1]);
-        // Convert 2-digit years to 4-digit (25 -> 2025)
         if (year < 100) {
             year += 2000;
         }
         return { type: 'SS', year: year, sortKey: year * 10 };
     }
 
-    // Fallback for unknown formats
     return { type: 'UNKNOWN', year: 0, sortKey: 0 };
 }
 
@@ -68,8 +60,6 @@ function parseSemester(semester: string): { type: string; year: number; sortKey:
 function compareSemesters(a: string, b: string): number {
     const semesterA = parseSemester(a);
     const semesterB = parseSemester(b);
-
-    // Compare by sortKey (higher = newer)
     return semesterA.sortKey - semesterB.sortKey;
 }
 
@@ -145,7 +135,6 @@ export const useCourseListStore = create<CourseListState>()(
                 const state = get();
                 const { courses, archivedCourses, searchTerm, semesterFilter, sortBy } = state;
 
-                // Apply search and filters
                 const lowerSearchTerm = searchTerm.toLowerCase().trim();
 
                 const filteredActive = courses.filter((courseData) => {
@@ -154,12 +143,10 @@ export const useCourseListStore = create<CourseListState>()(
                     const semester = course.semester?.toLowerCase() || '';
                     const description = course.description?.toLowerCase() || '';
 
-                    // Search filter
                     if (lowerSearchTerm && !title.includes(lowerSearchTerm) && !semester.includes(lowerSearchTerm) && !description.includes(lowerSearchTerm)) {
                         return false;
                     }
 
-                    // Semester filter
                     if (semesterFilter !== 'all' && semester !== semesterFilter.toLowerCase()) {
                         return false;
                     }
@@ -171,12 +158,10 @@ export const useCourseListStore = create<CourseListState>()(
                     const title = course.title?.toLowerCase() || '';
                     const semester = course.semester?.toLowerCase() || '';
 
-                    // Search filter
                     if (lowerSearchTerm && !title.includes(lowerSearchTerm) && !semester.includes(lowerSearchTerm)) {
                         return false;
                     }
 
-                    // Semester filter
                     if (semesterFilter !== 'all' && semester !== semesterFilter.toLowerCase()) {
                         return false;
                     }
@@ -184,7 +169,6 @@ export const useCourseListStore = create<CourseListState>()(
                     return true;
                 });
 
-                // Sort courses
                 const sortedActive = [...filteredActive].sort((a, b) => {
                     const courseA = a.course;
                     const courseB = b.course;
@@ -230,7 +214,7 @@ export const useCourseListStore = create<CourseListState>()(
                         case 'semester-asc':
                             return compareSemesters(semesterA, semesterB); // oldest first
                         default:
-                            // For archived courses, default to semester-desc if exercises sort is selected
+                            // Archived courses have no exercise count to sort by.
                             if (sortBy.startsWith('exercises-')) {
                                 return compareSemesters(semesterB, semesterA);
                             }

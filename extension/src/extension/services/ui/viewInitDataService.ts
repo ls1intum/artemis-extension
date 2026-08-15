@@ -81,9 +81,6 @@ export class ViewInitDataService {
             return [{ courseData: detail, exercises: recentExercises }];
         });
 
-        // Collect typed ExerciseSource list across all courses for workspace detection.
-        // Replaces the previous `as ExerciseSource[]` cast at the detectWorkspaceExercise
-        // call site below.
         const allExerciseSources = collectExerciseSources(courses);
 
         // null = "no match" (shown to user), undefined = "still loading" (keeps skeleton).

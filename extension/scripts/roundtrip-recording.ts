@@ -26,10 +26,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
-// ──────────────────────────────────────────────────────────────────────
-// Types
-// ──────────────────────────────────────────────────────────────────────
-
 interface RecordedEvent {
     type: string;
     timestamp: number;
@@ -70,10 +66,6 @@ interface CompareResult {
     mismatched: Array<{ uri: string; reason: string }>;
     skipped: Array<{ uri: string; reason: string }>;
 }
-
-// ──────────────────────────────────────────────────────────────────────
-// Recording loading + grouping
-// ──────────────────────────────────────────────────────────────────────
 
 function loadEvents(dir: string): RecordedEvent[] {
     const eventsPath = path.join(dir, 'events.jsonl');
@@ -119,10 +111,6 @@ function groupByUri(events: RecordedEvent[]): {
     return { snapshots, textChanges };
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Core replay
-// ──────────────────────────────────────────────────────────────────────
-
 function replayUri(
     uri: string,
     snapshotEvent: RecordedEvent | undefined,
@@ -141,9 +129,9 @@ function replayUri(
             initialSource = 'empty';
         } else {
             content = fs.readFileSync(snapPath, 'utf-8');
-            // Strip the [TRUNCATED at 1MB] trailer if present — it's written by the
-            // recorder when a snapshot exceeded MAX_SNAPSHOT_BYTES. The trailer makes
-            // reconstruction meaningless for that file; flag it as a warning.
+            // Strip the [TRUNCATED at 1MB] trailer the recorder writes when a
+            // snapshot exceeded MAX_SNAPSHOT_BYTES. It makes reconstruction
+            // meaningless for that file, so flag it as a warning.
             if (content.endsWith('\n[TRUNCATED at 1MB]')) {
                 errors.push('initial snapshot was truncated at 1MB (reconstruction unreliable)');
                 content = content.slice(0, -'\n[TRUNCATED at 1MB]'.length);
@@ -151,8 +139,8 @@ function replayUri(
             initialSource = 'snapshot';
         }
     } else {
-        // No snapshot — treat as empty file. Valid for create-during-session or
-        // for text inputs that entered after the session started (e.g. VS Code
+        // No snapshot: treat as an empty file. Valid for create-during-session
+        // or for text inputs that entered after the session started (e.g. VS Code
         // outputs). If a large positive rangeOffset appears, we'll flag it.
         content = '';
         initialSource = textChanges.length > 0 ? 'empty' : 'empty';
@@ -208,10 +196,6 @@ function replayUri(
         initialContent,
     };
 }
-
-// ──────────────────────────────────────────────────────────────────────
-// Optional: compare against reference directory
-// ──────────────────────────────────────────────────────────────────────
 
 function uriToLocalFsPath(uri: string): string | undefined {
     try {
@@ -296,10 +280,6 @@ function firstDiff(a: string, b: string): { offset: number; expected: string; ac
     return { offset: -1, expected: '', actual: '' };
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Output writer
-// ──────────────────────────────────────────────────────────────────────
-
 function writeReconstruction(results: UriReplayResult[], outputDir: string): void {
     fs.mkdirSync(outputDir, { recursive: true });
     const manifest: Array<{ uri: string; file: string; bytes: number; errors: number }> = [];
@@ -328,10 +308,6 @@ function sanitizeForFilename(uri: string): string {
     const hashStr = (h >>> 0).toString(16).padStart(8, '0');
     return `${hashStr}_${safe}`;
 }
-
-// ──────────────────────────────────────────────────────────────────────
-// Orchestration + CLI
-// ──────────────────────────────────────────────────────────────────────
 
 function runRoundtrip(dir: string): RoundtripReport {
     const events = loadEvents(dir);
@@ -375,7 +351,6 @@ function printReport(report: RoundtripReport, opts: { verbose: boolean }): boole
         `replay failures: ${report.urisFailed}`,
     );
 
-    // Per-URI detail
     for (const r of report.results) {
         const status = r.replayErrors.length === 0 ? '    ✓' : '    ✗';
         if (opts.verbose || r.replayErrors.length > 0) {

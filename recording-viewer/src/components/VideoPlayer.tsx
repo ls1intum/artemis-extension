@@ -40,7 +40,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
 
     const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
-    // Convert between video time and session timestamp
     const videoTimeToSession = useCallback((videoTime: number) => {
         return sessionStartTime + (videoTime - videoTimeAtSessionStartSeconds) * 1000;
     }, [sessionStartTime, videoTimeAtSessionStartSeconds]);
@@ -77,9 +76,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         },
     }), [sessionToVideoTime, videoTimeToSession]);
 
-    // Frame callback: update videoTimeRef with current session timestamp.
-    // requestVideoFrameCallback is in lib.dom now but still missing on older
-    // Safari/Firefox at runtime, so cast to optional and feature-check.
+    // Frame callback: update videoTimeRef with the current session timestamp.
+    // requestVideoFrameCallback is typed in lib.dom but missing at runtime on
+    // older Safari/Firefox, so cast to optional and feature-check.
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
@@ -105,7 +104,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
             return () => cancelVfc(rafId);
         }
 
-        // Fallback: requestAnimationFrame
         const onFrame = () => {
             if (!isProgrammaticSeek.current) {
                 (videoTimeRef as React.MutableRefObject<number>).current = videoTimeToSession(video.currentTime);
@@ -117,7 +115,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         return () => cancelAnimationFrame(rafId);
     }, [videoTimeRef, videoTimeToSession]);
 
-    // Clear programmatic seek flag on seeked event
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
