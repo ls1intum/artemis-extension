@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Internal
+
+- **Code comments:** Removed comments that documented the history of the code rather than the code itself ("used to race", "the removed X command", "kept for backwards compat"), along with comments restating the line below them, JSDoc that only re-spelled the signature, and Arrange/Act/Assert labels in tests. Where a historical note carried a constraint that still holds, the constraint was rewritten in the present tense instead of deleted. Comments only, no behaviour change.
+
 ## [0.4.10] - 2026-08-09
 
 ### Changed
