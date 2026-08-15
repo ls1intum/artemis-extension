@@ -17,10 +17,11 @@ const launchArgs = ['--user-data-dir', userDataDir];
 
 export default defineConfig([
 	{
-		// Unit tests (default). Runs everything under out/test/unit/**
-		// (including the struggle-engine tests under
-		// out/test/unit/services/struggle/**); the former v1 'struggle' label
-		// was retired with the v1 decision path in PR 2c.
+		// Unit tests (default). Runs everything under out/test/unit/**, which
+		// includes the struggle-engine tests under
+		// out/test/unit/services/struggle/**. There is deliberately no separate
+		// 'struggle' label: the rest of the engine's tests are vitest suites
+		// under test/logic/struggle/** and run via `npm run test:react`.
 		label: 'unit',
 		launchArgs,
 		files: 'out/test/unit/**/*.test.js',
@@ -33,12 +34,6 @@ export default defineConfig([
 				mochaFile: './reports/mocha-results.xml',
 			},
 		},
-	},
-	{
-		// Struggle detection tests
-		label: 'struggle',
-		launchArgs,
-		files: 'out/test/unit/struggle-detection/**/*.test.js',
 	},
 	{
 		// E2E tests (requires running Artemis + Iris)
