@@ -795,12 +795,9 @@ interface FakeConversation {
     startOutcome: StartOutcome;
     /**
      * The course `state.snapshot()` reports as current. Settable independently
-     * of `startOutcome` so a test can reproduce the exact case
-     * `_acquireConversation`'s `landedHere` guard exists for: `start()`
-     * resolves `ok` (its `_install` returned false, so the outcome is a lie
-     * about WHERE we landed) while a superseding navigation has already moved
-     * the conversation into a different course. Defaults to 42, the value
-     * every other test in this file already relies on implicitly.
+     * of `startOutcome` so a test can drive the two apart, which is what the
+     * `landedHere` tests below need. Defaults to 42, the value every other
+     * test in this file already relies on implicitly.
      */
     snapshotCourseId: number;
 }

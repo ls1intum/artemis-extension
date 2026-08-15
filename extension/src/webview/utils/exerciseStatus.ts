@@ -137,9 +137,7 @@ export function transformFeedbacksToTestCases(feedbacks: FeedbackInput[]): TestC
 
 /**
  * Classification of a task's test outcome, mirroring the buckets the Artemis
- * web client uses (`ProgrammingExerciseInstructionService.testStatusForTask`)
- * plus the legacy-success fallback for older results without an explicit
- * feedback list.
+ * web client uses (`ProgrammingExerciseInstructionService.testStatusForTask`).
  *
  * Used by the per-task feedback modal to render differentiated empty states
  * instead of the generic "No tests in this task." message.

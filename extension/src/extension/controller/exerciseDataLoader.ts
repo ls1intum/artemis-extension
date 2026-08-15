@@ -44,10 +44,10 @@ function classifyEnrichmentError(err: unknown, context: string): Error | null {
  * Fetch exercise details and enrich all participations with pending submissions
  * and result feedbacks. This is the single source of truth for exercise data loading.
  *
- * Per-participation enrichment runs in parallel; auth (401/403) and malformed
- * responses are deferred until every per-participation task has settled, then
- * the first such fatal error is rethrown. Non-fatal failures (network, 5xx)
- * are logged and the load continues with whatever did succeed.
+ * Per-participation enrichment runs in parallel. Fatal errors (see the
+ * enrichment-error policy above) are deferred until every task has settled and
+ * the first one is then rethrown; non-fatal failures are logged and the load
+ * continues with whatever did succeed.
  *
  * Pending submissions are returned keyed by participation, never as a single
  * value: an exercise can have concurrent pending builds across participations,

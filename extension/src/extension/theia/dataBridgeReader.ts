@@ -28,13 +28,11 @@ export const KNOWN_BRIDGE_KEYS = [
 type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
 
 /**
- * Outcome of a {@link readEnvVarsViaDataBridge} call.
- *
- * The discriminator separates a genuine Desktop boot (`no-bridge`) from an
- * EduIDE boot where the bridge was expected but unreachable (`failure`).
- * Conflating them lets a broken EduIDE pod silently boot in Desktop-Cookie
- * mode, so auth attempts the wrong scheme. Auto-clone is handled by the
- * companion Scorpio extension.
+ * Outcome of a {@link readEnvVarsViaDataBridge} call. The discriminator
+ * separates a genuine Desktop boot (`no-bridge`) from an EduIDE boot where the
+ * bridge was expected but unreachable (`failure`); see that function's return
+ * semantics for what each kind obliges the caller to do. Auto-clone is handled
+ * by the companion Scorpio extension.
  */
 type ReadEnvResult<T extends string> =
     | { kind: 'no-bridge' }

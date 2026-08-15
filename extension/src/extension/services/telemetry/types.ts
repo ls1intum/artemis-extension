@@ -255,9 +255,9 @@ export type InterventionDismissReason = typeof INTERVENTION_DISMISS_REASONS[numb
  * (e.g. per-condition study mode) can extend it cleanly.
  *
  * Note: this is a SEPARATE concept from `InterventionBlockedReason`. Blocks come
- * from engine-internal gates (cooldown, warmup, session-limit, low-confidence)
- * and are rate-limited. Suppression comes from explicit user/config choice and
- * is NOT rate-limited so the per-opportunity signal stays intact.
+ * from engine-internal gates and are rate-limited. Suppression comes from
+ * explicit user/config choice and is NOT rate-limited, so the per-opportunity
+ * signal stays intact.
  */
 export const INTERVENTION_SUPPRESSION_REASONS = ['user-disabled'] as const;
 export type InterventionSuppressionReason = typeof INTERVENTION_SUPPRESSION_REASONS[number];

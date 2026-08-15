@@ -572,12 +572,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         } catch (error: unknown) {
             // A failed acquisition leaves no session and therefore no
             // transcript, so the loader would spin forever. The banner's Retry
-            // routes back through reloadIrisChat. Re-thrown (rather than
-            // swallowed) so the coordinator learns the attempt failed and can
-            // re-arm its latch: without that, a single transient 500 leaves
-            // the student stuck on the cold-start chooser forever, since the
-            // latch was already consumed before this call and nothing else
-            // ever gets another shot at it.
+            // routes back through reloadIrisChat. Re-thrown, not swallowed, so
+            // the coordinator can re-arm its latch.
             logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
                 type: ExtensionMsg.ShowUnavailableState,

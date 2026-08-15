@@ -160,9 +160,8 @@ export class IrisConversationService {
         //   load cannot install over a later one. A ticket taken here would
         //   reflect arrival order instead, which is exactly the wrong order.
         if (!this.state.installAcquired(detail, captured)) { return false; }
-        // SYNCHRONOUS declaration of intent; the transport converges in the
-        // background and owns latest-wins. It does NOT mean the STOMP
-        // subscription is live, which is why the reconciliation below exists.
+        // Declaring the intent does not mean the STOMP subscription is live,
+        // which is why `onSubscriptionActive` reconciles afterwards.
         this._deps.subscribeToSession(detail.sessionId);
         this._emit();
         // AFTER the emit, never before it. The webview keys an incoming
@@ -625,15 +624,9 @@ export class IrisConversationService {
      *
      * NOT wrapped in `_navigate`: this fires from the transport via
      * `onDidResubscribe` and can land in the middle of a real, user-visible
-     * navigation. Taking a token here would bump `_navRequestSeq` and make the
-     * outer navigation's `isCurrent()` permanently false, silently turning the
-     * user's own history open or topic switch into a no-op. `_navigate` never
-     * nests, and a reconciliation is not itself a user-visible navigation, so
+     * navigation, and `_navigate` never nests (see rule 2 there). A
+     * reconciliation is not itself a user-visible navigation, so
      * `installDetail`'s own guard tuple is what protects this call instead.
-     *
-     * Subscribes FIRST, then reads: a CTXSWAP that lands between the GET
-     * completing and the subscription going live would otherwise be lost with
-     * nothing left to repair it.
      *
      * A LOAD like any other (guard matrix: "reconnect detail"), so it goes
      * through `beginLoad` and `installDetail` directly and never merges:
@@ -647,7 +640,6 @@ export class IrisConversationService {
         if (snapshot.currentSessionId === undefined || snapshot.courseId === undefined) { return; }
         // Subscribe FIRST: a CTXSWAP between the GET completing and the
         // subscription becoming active would otherwise be lost entirely.
-        // Synchronous by contract (see IrisConversationDeps), so no await.
         this._deps.subscribeToSession(snapshot.currentSessionId);
         this.state.noteReconnect();
 
@@ -659,7 +651,6 @@ export class IrisConversationService {
         try {
             const detail = await this._api.getChatSessionById(snapshot.courseId, snapshot.currentSessionId);
             if (!this.state.installDetail(detail, captured)) {
-                // Something moved while we were fetching. Discard, do not merge.
                 return;
             }
             this._emit();

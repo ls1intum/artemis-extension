@@ -229,10 +229,9 @@ export class RecordingStorageWriter {
     }
 
     /**
-     * Awaitable shutdown. Guarantees all buffered events are written to disk
-     * before returning. Deliberately NOT named `dispose()`: it must be awaited
-     * for the durability guarantee to hold, so it must never be mistaken for a
-     * synchronous `vscode.Disposable.dispose()`.
+     * Awaitable shutdown (see the Durability Policy above). Deliberately NOT
+     * named `dispose()`: it must be awaited for that guarantee to hold, so it
+     * must never be mistaken for a synchronous `vscode.Disposable.dispose()`.
      *
      * An idle lane takes a synchronous fallback write for minimal latency. A
      * busy lane gets up to 5 seconds to drain, then a final flush plus a second
@@ -374,9 +373,8 @@ export class RecordingStorageWriter {
      * Generic lane-enqueue helper. Wraps any async `work` lambda in the
      * serialisation machinery (counters, error handling, flush-debounce).
      *
-     * Always resolves, never rejects: storage I/O errors are logged and counted
-     * so recording cannot impact IDE stability. The defensive try/catch around
-     * the non-work code keeps `_writeLane` out of a rejected state, which would
+     * Always resolves, never rejects. The defensive try/catch around the
+     * non-work code keeps `_writeLane` out of a rejected state, which would
      * hang all subsequent lane work silently.
      */
     private _enqueueLaneWork(
