@@ -7,24 +7,15 @@
 
 import { CategoryResult, ScenarioResult, TestSuiteReport } from './types';
 
-/**
- * Aggregates individual scenario results into a test suite report
- */
 export class EvaluationEngine {
     
-    /**
-     * Generate a full test suite report from scenario results
-     */
     generateReport(results: ScenarioResult[], startTime: Date): TestSuiteReport {
         const endTime = new Date();
         
-        // Calculate confusion matrix
         const confusionMatrix = this.calculateConfusionMatrix(results);
         
-        // Calculate ML metrics
         const metrics = this.calculateMLMetrics(confusionMatrix);
         
-        // Group by difficulty
         const byDifficulty = this.groupByDifficulty(results);
         
         return {
@@ -48,9 +39,6 @@ export class EvaluationEngine {
         };
     }
     
-    /**
-     * Calculate confusion matrix from results
-     */
     private calculateConfusionMatrix(results: ScenarioResult[]): {
         truePositive: number;
         trueNegative: number;
@@ -77,9 +65,6 @@ export class EvaluationEngine {
         return { truePositive: tp, trueNegative: tn, falsePositive: fp, falseNegative: fn };
     }
     
-    /**
-     * Calculate precision, recall, F1 score, and accuracy
-     */
     private calculateMLMetrics(cm: {
         truePositive: number;
         trueNegative: number;
@@ -93,22 +78,18 @@ export class EvaluationEngine {
     } {
         const { truePositive, trueNegative, falsePositive, falseNegative } = cm;
         
-        // Precision = TP / (TP + FP)
         const precision = truePositive + falsePositive > 0
             ? truePositive / (truePositive + falsePositive)
             : 0;
         
-        // Recall = TP / (TP + FN)
         const recall = truePositive + falseNegative > 0
             ? truePositive / (truePositive + falseNegative)
             : 0;
         
-        // F1 = 2 * (precision * recall) / (precision + recall)
         const f1Score = precision + recall > 0
             ? 2 * (precision * recall) / (precision + recall)
             : 0;
         
-        // Accuracy = (TP + TN) / total
         const total = truePositive + trueNegative + falsePositive + falseNegative;
         const accuracy = total > 0
             ? (truePositive + trueNegative) / total
@@ -117,9 +98,6 @@ export class EvaluationEngine {
         return { precision, recall, f1Score, accuracy };
     }
     
-    /**
-     * Group results by difficulty category
-     */
     private groupByDifficulty(results: ScenarioResult[]): {
         obvious: CategoryResult;
         subtle: CategoryResult;
@@ -147,9 +125,6 @@ export class EvaluationEngine {
         };
     }
     
-    /**
-     * Calculate stats for a category
-     */
     private calculateCategoryResult(results: ScenarioResult[]): CategoryResult {
         if (results.length === 0) {
             return { total: 0, passed: 0, failed: 0, avgScore: 0 };
@@ -166,9 +141,6 @@ export class EvaluationEngine {
         };
     }
     
-    /**
-     * Format report as console output
-     */
     formatConsoleReport(report: TestSuiteReport): string {
         const lines: string[] = [];
 
@@ -202,7 +174,6 @@ export class EvaluationEngine {
         lines.push(`║ Edge-case: ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} passed (avg EQ: ${report.byDifficulty['edge-case'].avgScore.toFixed(3)})`.padEnd(63) + '║');
         lines.push('╚══════════════════════════════════════════════════════════════╝');
 
-        // Failed scenarios
         const failed = report.results.filter(r => !r.passed);
         if (failed.length > 0) {
             lines.push('');
@@ -224,9 +195,6 @@ export class EvaluationEngine {
         return lines.join('\n');
     }
 
-    /**
-     * Format report as Markdown
-     */
     formatMarkdownReport(report: TestSuiteReport): string {
         const lines: string[] = [];
 
@@ -273,7 +241,6 @@ export class EvaluationEngine {
         lines.push(`| Edge-case | ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} | ${report.byDifficulty['edge-case'].failed} | ${report.byDifficulty['edge-case'].avgScore.toFixed(3)} |`);
         lines.push('');
 
-        // Failed scenarios
         const failed = report.results.filter(r => !r.passed);
         if (failed.length > 0) {
             lines.push('## Failed Scenarios');

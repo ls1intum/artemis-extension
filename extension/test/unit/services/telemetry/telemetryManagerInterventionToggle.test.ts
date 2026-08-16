@@ -1,17 +1,6 @@
 /**
- * Unit tests for the artemis.struggleDetection.showInterventions toggle.
- *
- * Covers:
- *  T1. Toggle off → onDidSuppressIntervention fires once (decision unchanged);
- *      onDidShowIntervention and onDidBlockIntervention do NOT fire.
- *  T2. Toggle off → no calls to vscode.window.show*Message or statusBarItem.show.
- *  T3. Toggle off → UI-delivery state does not advance.
- *  T4. Toggle off → suppression events are NOT rate-limited.
- *  T5. Toggle off → onDidCalculateEQ still fires.
- *  T6. Toggle on (default) → existing show path runs; no suppression event.
- *  T7. Live-toggle on→off with subtle visible → hideHint called; dismiss reason 'hidden'.
- *  T8. Live-toggle off→on → no spurious events.
- *  T9. Setting type guard: non-boolean falls back to true.
+ * Unit tests for the artemis.struggleDetection.showInterventions toggle: what the
+ * suppression path emits, what it must not surface, and how live toggling behaves.
  */
 
 import * as vscode from 'vscode';

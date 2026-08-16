@@ -38,7 +38,6 @@ export function IconButton({
   );
 }
 
-// Named preset exports
 interface CloseIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;

@@ -1,22 +1,16 @@
 /**
- * Central URI filter for the session recorder.
+ * Central URI filter for the session recorder. Every listener routes through
+ * `shouldRecordUri` rather than guarding on its own, which keeps two mistakes
+ * from creeping back in:
  *
- * ## Design rationale
+ *   1. Scheme disparity: subtly-different per-listener guards make it easy to
+ *      record git://, output:// or vscode-userdata:// documents by accident.
  *
- * Previously every listener performed its own `uri.scheme !== 'file'` check in
- * isolation. That scattered guard had two problems:
+ *   2. Prefix bug: a naive `startsWith(exerciseRoot)` test accepts
+ *      `/workspace/ex10/File.java` when the exercise root is `/workspace/ex1`.
  *
- *   1. **Scheme disparity** — different listeners could (and did) apply
- *      subtly-different guards, making it easy to accidentally record git://,
- *      output://, or vscode-userdata:// documents.
- *
- *   2. **Prefix-bug** — a naïve `startsWith(exerciseRoot)` test incorrectly
- *      accepts `/workspace/ex10/File.java` when the exercise root is
- *      `/workspace/ex1`, because `/workspace/ex10` starts-with `/workspace/ex1`.
- *
- * This module provides a single `shouldRecordUri` function that both guards are
- * folded into. V1 records only `file:` scheme URIs. Untitled, notebook, and
- * remote URIs are explicitly left as follow-up items (see plan).
+ * V1 records only `file:` scheme URIs. Untitled, notebook, and remote URIs are
+ * follow-up items.
  */
 
 import * as vscode from 'vscode';
@@ -46,18 +40,16 @@ const BLACKLIST_SCHEMES = new Set([
  *   2. Non-`file:` scheme → false (V1 only records file:// URIs).
  *   3. No exerciseRoot provided → true (accept all file-scheme URIs).
  *   4. Prefix-safe check: uri.fsPath must equal rootPath OR start with
- *      rootPath + path.sep (fixes the /ex1 vs /ex10 prefix-bug).
+ *      rootPath + path.sep (avoids the /ex1 vs /ex10 prefix bug).
  *
- * @param uri          The URI to evaluate.
- * @param exerciseRoot Optional exercise root URI. When omitted, no
- *                     directory-scoping is applied.
+ * @param exerciseRoot When omitted, no directory-scoping is applied.
  */
 export function shouldRecordUri(uri: vscode.Uri, exerciseRoot?: vscode.Uri): boolean {
     if (BLACKLIST_SCHEMES.has(uri.scheme)) {
         return false;
     }
-    // V1: only file: scheme. untitled, notebook, vscode-remote etc. are
-    // intentionally left as future follow-ups in the robustness plan.
+    // V1: only file: scheme. untitled, notebook and vscode-remote are
+    // deliberate follow-ups.
     if (uri.scheme !== 'file') {
         return false;
     }
@@ -70,16 +62,10 @@ export function shouldRecordUri(uri: vscode.Uri, exerciseRoot?: vscode.Uri): boo
 }
 
 /**
- * String-based variant for code paths where URIs are already serialized to
- * strings (e.g. replay / snapshot reconstruction code that works on JSONL
- * without a live VS Code editor context).
- *
- * Delegates to `shouldRecordUri` after parsing both strings through
- * `vscode.Uri.parse` so the same scheme-blacklist and prefix-bug-safe logic
- * applies consistently.
- *
- * @param uriString          Serialized URI string (e.g. "file:///workspace/ex1/Main.java").
- * @param exerciseRootString Optional serialized exercise root URI string.
+ * String-based variant for code paths where URIs are already serialized (e.g.
+ * replay / snapshot reconstruction working on JSONL without a live editor
+ * context). Parses both strings and delegates to `shouldRecordUri` so the same
+ * scheme blacklist and prefix-safe check apply.
  */
 export function shouldRecordUriString(uriString: string, exerciseRootString?: string): boolean {
     const uri = vscode.Uri.parse(uriString);

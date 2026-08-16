@@ -16,8 +16,6 @@ describe('BuildStatusStrip', () => {
         vi.useRealTimers();
     });
 
-    // ── Live states ──────────────────────────────────────────────────────
-
     it('renders nothing while the card is in view', () => {
         const { container } = render(
             <BuildStatusStrip status="building" cardInView onScrollToCard={() => undefined} />,
@@ -61,8 +59,6 @@ describe('BuildStatusStrip', () => {
         expect(screen.getByText('Build queued…')).toBeInTheDocument();
     });
 
-    // ── Arrow button ─────────────────────────────────────────────────────
-
     it('invokes onScrollToCard when the arrow is clicked', () => {
         const onScrollToCard = vi.fn();
         render(
@@ -72,8 +68,6 @@ describe('BuildStatusStrip', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Scroll to build status' }));
         expect(onScrollToCard).toHaveBeenCalledTimes(1);
     });
-
-    // ── Result flash ─────────────────────────────────────────────────────
 
     function renderBuildingThenComplete(
         completedProps: Partial<Parameters<typeof BuildStatusStrip>[0]> = {},

@@ -7,7 +7,7 @@ export interface LiveSessionState {
     latestEventTimestamp: number | null;
     error: string | null;
     /** Cumulative count of unique events received from the server since
-     *  this session connected. Strictly monotonic — does not decrease when
+     *  this session connected. Strictly monotonic: it does not decrease when
      *  the sliding window trims old events. */
     totalReceived: number;
 }
@@ -80,7 +80,7 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
             const ended = sessionEndPending;
             sessionEndPending = false;
 
-            // Snapshot for React — fresh array so identity-based memos see
+            // Snapshot for React: a fresh array so identity-based memos see
             // the change and don't reuse stale results.
             const snapshot = eventsBuf.slice();
             setState((s) => ({

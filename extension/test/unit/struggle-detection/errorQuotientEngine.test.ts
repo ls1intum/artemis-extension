@@ -37,10 +37,6 @@ suite('ErrorQuotientEngine', () => {
         engine = new ErrorQuotientEngine();
     });
 
-    // =========================================================================
-    // Basic EQ Calculation
-    // =========================================================================
-
     suite('Basic EQ Calculation', () => {
 
         test('empty engine returns EQ=0, confidence=insufficient', () => {
@@ -78,10 +74,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // Pair Scoring: all same error → EQ = 1.0
-    // =========================================================================
-
     suite('All Same Error (EQ = 1.0)', () => {
 
         test('two snapshots with same error → EQ=1.0 (11/11)', () => {
@@ -100,10 +92,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // Pair Scoring: all different errors → EQ = 8/11 ≈ 0.727
-    // =========================================================================
-
     suite('All Different Errors (EQ ≈ 8/11)', () => {
 
         test('two snapshots with different errors → EQ=8/11', () => {
@@ -121,10 +109,6 @@ suite('ErrorQuotientEngine', () => {
             assertApprox(eq, 8 / 11);
         });
     });
-
-    // =========================================================================
-    // Mixed: error-clean pairs score 0 → lowers EQ
-    // =========================================================================
 
     suite('Mixed Pairs', () => {
 
@@ -153,10 +137,6 @@ suite('ErrorQuotientEngine', () => {
             assertApprox(eq, expected);
         });
     });
-
-    // =========================================================================
-    // Confidence Levels
-    // =========================================================================
 
     suite('Confidence Levels (binary gate)', () => {
 
@@ -199,10 +179,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // Dedup
-    // =========================================================================
-
     suite('Dedup (5s window, same families)', () => {
 
         test('same snapshot within 5s → deduped', () => {
@@ -236,10 +212,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // Session Split (30min inactivity)
-    // =========================================================================
-
     suite('Session Split', () => {
 
         test('30min gap clears snapshots', () => {
@@ -263,10 +235,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // Session Reset
-    // =========================================================================
-
     suite('Session Reset', () => {
 
         test('resetSession clears everything', () => {
@@ -282,15 +250,11 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // Quantization Table from MVP Section 2.4
-    // At 7 events (6 pairs), verify discrete EQ values
-    // =========================================================================
+    // Quantization table from MVP Section 2.4: discrete EQ values at 7 events (6 pairs).
 
     suite('Quantization at 7 Events (6 Pairs)', () => {
 
         test('0 error pairs → EQ=0.000', () => {
-            // 7 clean snapshots
             for (let i = 0; i < 7; i++) {
                 engine.addSnapshot(makeSnapshot(1000 + i * 6000, false));
             }
@@ -329,10 +293,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // Multi-family snapshots
-    // =========================================================================
-
     suite('Multi-Family Snapshots', () => {
 
         test('shared subset counts as same type', () => {
@@ -353,10 +313,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 
-    // =========================================================================
-    // getState()
-    // =========================================================================
-
     suite('getState()', () => {
 
         test('returns correct state', () => {
@@ -372,11 +328,6 @@ suite('ErrorQuotientEngine', () => {
         });
     });
 });
-
-// =========================================================================
-// Boundary Tests for EQ-to-Intervention Thresholds (Plan Phase 4, Item 18)
-// Tests exact values at 0.15, 0.35, 0.60 and floating-point neighbors.
-// =========================================================================
 
 suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
 
@@ -399,8 +350,6 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         decisionEngine = new InterventionDecisionEngine(filter);
     });
 
-    // --- 0.15 boundary (none → subtle) ---
-
     test('EQ = 0.1499 → level = none', () => {
         const result = decisionEngine.evaluate(0.1499, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'none');
@@ -417,8 +366,6 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         assert.strictEqual(result.level, 'subtle');
     });
 
-    // --- 0.35 boundary (subtle → notification) ---
-
     test('EQ = 0.3499 → level = subtle', () => {
         const result = decisionEngine.evaluate(0.3499, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
@@ -433,8 +380,6 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         const result = decisionEngine.evaluate(0.3501, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'notification');
     });
-
-    // --- 0.60 boundary (notification → proactive) ---
 
     test('EQ = 0.5999 → level = notification', () => {
         const result = decisionEngine.evaluate(0.5999, 'sufficient', 'idle', defaultState);
@@ -451,12 +396,10 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         assert.strictEqual(result.level, 'proactive');
     });
 
-    // --- Confidence gate overrides EQ ---
-
     test('EQ = 1.0 but confidence = insufficient → no intervention (but level reflects severity)', () => {
-        // Block C: rawWanted separates severity from the gate decision.
-        // When confidence is insufficient, shouldIntervene is false but the level
-        // now reflects the EQ severity (not 'none') so the blocked reason can be reported.
+        // rawWanted separates severity from the gate decision: with insufficient
+        // confidence shouldIntervene is false while the level still reflects EQ
+        // severity (not 'none'), so the blocked reason can be reported.
         const result = decisionEngine.evaluate(1.0, 'insufficient', 'idle', defaultState);
         assert.strictEqual(result.shouldIntervene, false);
         assert.strictEqual(result.level, 'proactive', 'level reflects severity even when confidence gate blocks');
@@ -468,8 +411,6 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         const result = decisionEngine.evaluate(0.15, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
     });
-
-    // --- Floating-point edge: discrete EQ values from 6 pairs ---
 
     test('6 pairs: 1 same-error pair → EQ = 1/6 ≈ 0.1667 → subtle (just above 0.15)', () => {
         const engine = new ErrorQuotientEngine();
@@ -531,10 +472,6 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
     });
 });
 
-// =========================================================================
-// Guardrail Enforcement Tests (Fix Verification)
-// =========================================================================
-
 suite('Guardrail Enforcement — Subtle Hints Respect Filter (NEW-1 fix)', () => {
 
     let filter: InterventionFilter;
@@ -546,7 +483,7 @@ suite('Guardrail Enforcement — Subtle Hints Respect Filter (NEW-1 fix)', () =>
     });
 
     test('subtle level blocked during exercise warmup (< 5 min)', () => {
-        // Exercise just started — warmup not elapsed
+        // Exercise just started, so warmup has not elapsed.
         filter.setExerciseStartTime(Date.now());
         const state: InterventionState = {
             sessionInterventionCount: 0,
@@ -622,16 +559,13 @@ suite('InterventionFilter Session Isolation (NEW-4 fix)', () => {
         filter.setExerciseStartTime(Date.now() - 10 * 60 * 1000);
         filter.recordProgress();
 
-        // Verify: progress grace period is active
         const resultA = decisionEngine.evaluate(0.20, 'sufficient', 'idle', defaultState);
         assert.strictEqual(resultA.shouldIntervene, false, 'session A should be suppressed by progress');
 
-        // Session B starts
         filter.onSessionStart({ exerciseId: 999 });
         // Fast-forward past warmup
         (filter as any)._exerciseStartTime = Date.now() - 10 * 60 * 1000;
 
-        // Verify: progress grace period from session A is gone
         const resultB = decisionEngine.evaluate(0.20, 'sufficient', 'idle', defaultState);
         assert.strictEqual(resultB.shouldIntervene, true, 'session B must not be affected by session A progress');
     });
@@ -642,10 +576,6 @@ suite('InterventionFilter Session Isolation (NEW-4 fix)', () => {
         assert.strictEqual((filter as any)._lastProgressTime, 0);
     });
 });
-
-// =========================================================================
-// Helpers
-// =========================================================================
 
 function assertApprox(actual: number, expected: number, tolerance = 0.001): void {
     assert.ok(

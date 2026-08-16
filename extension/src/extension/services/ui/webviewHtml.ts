@@ -2,40 +2,26 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 
 /**
- * Generate a cryptographically secure nonce for Content Security Policy.
+ * Generate a Content Security Policy nonce: 16 CSPRNG bytes, i.e. the 128 bits
+ * of entropy the W3C CSP Level 2 spec requires, hex-encoded.
  *
- * Uses Node.js crypto.randomBytes() (CSPRNG) to produce 16 bytes (128 bits)
- * of entropy, encoded as a 32-character lowercase hex string.
- *
- * Per W3C CSP Level 2 spec, nonces must:
- * - Come from a cryptographically secure source
- * - Be at least 128 bits of entropy
- * - Be unique per HTML response (never reused or cached)
- * - Not appear in server logs or be sent back via postMessage
+ * The spec's other requirements bind the callers: a nonce must be unique per
+ * HTML response (never reused or cached) and must never reach a log or a
+ * postMessage payload.
  */
 function getNonce(): string {
     return crypto.randomBytes(16).toString('hex');
 }
 
 /**
- * Generate CSP-compliant HTML for React webview.
- *
- * Creates a secure HTML shell with:
- * - Nonce-based Content Security Policy (no relaxed directives, nonces only)
- * - Default-src 'none' (deny all by default)
- * - Proper webview URI resolution for scripts and styles
- * - React mount point (#root)
- *
- * @param webview - The VS Code webview instance (provides cspSource and asWebviewUri)
- * @param extensionUri - The extension's base URI for resolving bundle paths
- * @param viewName - Optional view name to set as data-view attribute on root element
- * @returns HTML string ready to be assigned to webview.html
+ * Generate the CSP-compliant HTML shell for a React webview: `default-src
+ * 'none'` plus a per-response nonce, with no relaxed script directives.
+ * `viewName` becomes the `data-view` attribute on the React mount point.
  */
 export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, viewName?: string): string {
     const nonce = getNonce();
 
-    // Build URIs for React bundle and CSS
-    // Note: base.css is bundled into webview-react.css via index.tsx import
+    // base.css is bundled into webview-react.css via the index.tsx import.
     const scriptUri = webview.asWebviewUri(
         vscode.Uri.joinPath(extensionUri, 'dist', 'webview-react.js')
     );

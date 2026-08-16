@@ -84,29 +84,25 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
     const [openTaskView, setOpenTaskView] = useState<OpenTaskViewState | null>(null);
 
-    // Sticky build-status strip (#280): track whether the SubmissionStatus
-    // card is visible; the strip only shows while it is scrolled out of view.
-    // Callback-ref state (not useRef): the card mounts only after the loading
-    // early-returns below resolve, so the observer must attach when the
-    // element appears, not on first render.
+    // Tracks whether the SubmissionStatus card is visible; the sticky strip
+    // only shows while it is scrolled out of view. Callback-ref state (not
+    // useRef): the card mounts only after the loading early-returns below
+    // resolve, so the observer must attach when the element appears, not on
+    // first render.
     const [submissionStatusEl, setSubmissionStatusEl] = useState<HTMLDivElement | null>(null);
     const submissionStatusInView = useInViewport(submissionStatusEl);
 
-    // Initialize WebSocket updates hook
     useWebSocketUpdates();
 
-    // Server-side rendered problem statement (progressive enhancement)
     const [serverRenderedPS, setServerRenderedPS] = useState<{
         html: string;
     } | null>(null);
-    // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
             if (!msg.exerciseData) { return; }
 
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
             setIsManagedEnvironment(msg.isManagedEnvironment ?? false);
-            // Use cached server render if available on init
             if (msg.serverRenderedProblemStatement) {
                 setServerRenderedPS(msg.serverRenderedProblemStatement);
             } else {
@@ -116,13 +112,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
         }
-        // Progressive upgrade: server-rendered problem statement arrived
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
             setServerRenderedPS({ html: msg.html });
         }
     }, [vscodeApi, setExerciseData, setError]);
 
-    // Listen for exercise-related extension messages
     useExerciseStatusMessages(vscodeApi);
 
     const handleBackToCourse = () => {
@@ -170,7 +164,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         }
     };
 
-    // Loading state
     if (isLoading) {
         return (
             <div className={styles.exerciseDetailView}>
@@ -180,7 +173,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         );
     }
 
-    // Error state
     if (error) {
         return (
             <div className={styles.exerciseDetailView}>
@@ -190,7 +182,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         );
     }
 
-    // No data state
     if (!exerciseData || !exerciseData.exercise) {
         return (
             <div className={styles.exerciseDetailView}>
@@ -211,8 +202,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
 
-    // Extract participation data
-    // Select participation matching the current workspace mode (practice vs graded)
+    // Select the participation matching the current workspace mode (practice vs graded).
     const isPractice = repoStatus?.isPracticeRepo ?? false;
     const allParticipations = exercise.studentParticipations ?? [];
     const participation = allParticipations.find(p => p.testRun === isPractice)
@@ -224,13 +214,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Pick the pending build entry that belongs to the participation we
     // actually surface in this view. The map can carry concurrent pending
     // builds for other participations (graded + practice) without their
-    // status leaking into the selected view (#168).
+    // status leaking into the selected view.
     const pendingSubmission = participationId !== undefined
         ? pendingSubmissionsByParticipationId[participationId] ?? null
         : null;
 
-    // Extract submission and result data
-    // In Artemis, "latest" = highest ID (not date-sorted)
+    // In Artemis, "latest" = highest ID (not date-sorted).
     const latestSubmission = getLatestById(participation?.submissions);
     // Results live on submission.results (not on participation directly)
     const latestResult = getLatestById(latestSubmission?.results);
@@ -308,8 +297,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: number[] }) => {
         if (!exerciseData?.exercise?.id) { return; }
         const classification = classifyTaskTests(testIds, displayResult);
-        // Telemetry: keep existing totalTests/passedTests/failedTests semantics
-        // (matched tests for this task). Add notExecutedTests as additive field.
+        // Telemetry: totalTests/passedTests/failedTests count only the tests
+        // matched to this task; notExecutedTests is reported separately.
         const { passedCount, failedCount, notExecutedCount } = countsForTelemetry(classification);
         const totalTestCount = passedCount + failedCount;
         const viewId = makeViewId();
@@ -338,13 +327,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // running build. No previous result -> no banner (first-build stays as-is).
     const buildRunning = pendingSubmission !== null && displayResult !== undefined;
 
-    // Determine submission status
     const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, latestSubmission);
 
-    // Determine participation status
     const participationStatus = determineParticipationStatus(hasParticipation, latestResult, latestSubmission);
 
-    // Exercise card data
     const maxPoints = exercise.maxPoints ?? 0;
     const bonusPoints = exercise.bonusPoints ?? 0;
     const dueDate = exercise.dueDate;
@@ -355,7 +341,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const semester = exercise.course?.semester;
     const filePattern = exercise.filePattern;
 
-    // Time remaining calculation
     let timeRemaining = '';
     let isDueSoon = false;
     if (dueDate) {
@@ -387,7 +372,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const isOverdue = dueDate ? new Date(dueDate).getTime() < Date.now() : false;
     const isPracticeAvailable = isProgramming && isOverdue && !hasParticipation;
 
-    // Workspace status derived from repoStatus
     const workspaceStatus = !repoStatus ? 'checking'
         : !repoStatus.isConnected ? 'disconnected'
         : repoStatus.hasChanges ? 'dirty' : 'clean';
@@ -398,7 +382,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     return (
         <div className={styles.exerciseDetailView}>
-            {/* Cloned repo notice */}
             {showClonedNotice && clonedNotice && (
                 <div className={styles.banner} data-variant="info">
                     <span>Repository cloned for "{clonedNotice.exerciseTitle}"</span>
@@ -414,7 +397,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 </>
             }>Back to Course</BackLink>
 
-            {/* Exercise Card */}
             <details className={styles.exerciseCard}>
                 <summary className={styles.exerciseSummary}>
                     <div className={styles.summaryContent}>
@@ -476,7 +458,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 </div>
             </details>
 
-            {/* Participation Section (covers ExerciseStarted state) */}
             <Container id="participation-section">
                 <ParticipationActions
                     exerciseType={exerciseType}
@@ -552,7 +533,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     }}
                 />
 
-                {/* Submission Status */}
                 {hasParticipation && (
                     <div ref={setSubmissionStatusEl}>
                         <SubmissionStatus
@@ -590,8 +570,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
             </Container>
 
-            {/* Sticky build status strip (#280) — fixed to the top of the
-                webview while a build runs and the card is out of view */}
+            {/* Fixed to the top of the webview while a build runs and the
+                SubmissionStatus card is out of view. */}
             {hasParticipation && isProgramming && (
                 <BuildStatusStrip
                     status={submissionStatus}
@@ -606,20 +586,17 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 />
             )}
 
-            {/* Ask Iris Section */}
             <AskIris
                 description="Open the Iris chat to discuss this exercise or get guidance."
                 onClick={handleAskIris}
             />
 
-            {/* Problem Statement */}
             <ProblemStatement
                 serverRenderedHtml={serverRenderedPS?.html}
                 onTaskClick={handleTaskOpen}
                 vscodeApi={vscodeApi}
             />
 
-            {/* Developer Tools */}
             {!hideDeveloperTools && (
                 <Container header={<h3>Developer Tools</h3>} variant="muted">
                     <div className={styles.devTools}>

@@ -1,8 +1,3 @@
-/**
- * GitCredentials view component.
- * Allows users to configure their Git identity (name and email) for commits.
- */
-
 import { useEffect, useRef, useState } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
@@ -14,32 +9,26 @@ import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsPersistedState, GitCredentialsViewProps } from './types';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
-    // Restore persisted state (form values only)
     const previousState = vscodeApi.getState<GitCredentialsPersistedState>();
     const [name, setName] = useState(previousState?.name || '');
     const [email, setEmail] = useState(previousState?.email || '');
 
-    // Loading state
     const [isLoaded, setIsLoaded] = useState(false);
 
-    // Transient state (NOT persisted)
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState<'success' | 'error' | 'warning' | 'info'>('info');
 
-    // Persist durable state only (form values)
+    // Only the form values are persisted; the status message is transient.
     useEffect(() => {
         vscodeApi.setState({ name, email });
     }, [name, email, vscodeApi]);
 
-    // Timer ref for status message auto-clear
     const statusTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-    // Cleanup timer on unmount
     useEffect(() => () => {
         if (statusTimerRef.current) {clearTimeout(statusTimerRef.current);}
     }, []);
 
-    // Message handler
     useExtensionMessage((msg) => {
         switch (msg.type) {
             case ExtensionMsg.GitIdentityInfo: {

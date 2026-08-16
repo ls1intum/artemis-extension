@@ -100,6 +100,6 @@ export const RECORDING_INFO_CATEGORIES: RecordingInfoCategory[] = [
     },
 ];
 
-/** Flat list of every badge shown in the panel — used to guard against drift
+/** Flat list of every badge shown in the panel, used to guard against drift
  *  from the recorder's ALL_EVENT_TYPES (see recordingInfo.test.ts). */
 export const RECORDING_INFO_BADGES: EventType[] = RECORDING_INFO_CATEGORIES.flatMap(c => c.items.map(i => i.badge));

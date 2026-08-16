@@ -18,7 +18,7 @@ export interface StartupContext {
 }
 
 /**
- * Synchronous producer of startup events. Must not perform async work —
+ * Synchronous producer of startup events. Must not perform async work:
  * emission order depends on deterministic sync iteration.
  */
 export type StartupContributor = (ctx: StartupContext) => RecordedEvent[];
@@ -37,19 +37,16 @@ interface StartupCaptureDeps {
  * events. Called by LifecycleController AFTER open-file snapshots and
  * post-snapshot re-checks, BEFORE the startupPhaseComplete lifecycle append.
  *
- * Narrowed per plan v5: does NOT touch snapshots and does NOT emit
- * startupPhaseComplete. Does not re-check phase/generation internally; the
- * caller (LifecycleController) re-checks immediately before and after this
- * call.
+ * Does NOT touch snapshots and does NOT emit startupPhaseComplete. Does not
+ * re-check phase/generation internally; the caller (LifecycleController)
+ * re-checks immediately before and after this call.
  */
 export class StartupCapture {
     private readonly _contributors: StartupContributor[] = [];
 
     constructor(private readonly _deps: StartupCaptureDeps) {}
 
-    /**
-     * Register a startup contributor. Returns a Disposable that deregisters.
-     */
+    /** Register a startup contributor. The returned Disposable deregisters it. */
     register(contributor: StartupContributor): vscode.Disposable {
         this._contributors.push(contributor);
         return new vscode.Disposable(() => {
@@ -61,7 +58,7 @@ export class StartupCapture {
     }
 
     /**
-     * Emit the full startup event sequence. Order matches current code:
+     * Emit the full startup event sequence, in order:
      *   1. initial diagnostics (one event per open doc with diagnostics)
      *   2. external contributors (in registration order)
      *   3. initial-state events (windowFocus, selection/visibleRange per
@@ -116,7 +113,6 @@ export class StartupCapture {
         exerciseRootUri: vscode.Uri | undefined,
         seedActiveEditor: (uri: string | undefined) => void,
     ): void {
-        // 1. Window focus.
         try {
             this._deps.record(
                 {
@@ -131,7 +127,6 @@ export class StartupCapture {
             logger.error('Failed to emit initial windowFocus', LogCategory.TELEMETRY, err);
         }
 
-        // 2. Selection + visible range for every visible file editor.
         for (const editor of vscode.window.visibleTextEditors) {
             if (!shouldRecordUri(editor.document.uri, exerciseRootUri)) {
                 continue;
@@ -152,7 +147,6 @@ export class StartupCapture {
             }
         }
 
-        // 3. fileSwitch for the active editor (if any).
         const activeUri = vscode.window.activeTextEditor?.document.uri;
         if (activeUri && shouldRecordUri(activeUri, exerciseRootUri)) {
             this._deps.record(
@@ -163,7 +157,6 @@ export class StartupCapture {
             seedActiveEditor(activeUri.toString());
         }
 
-        // 4. terminalOpenClose('opened') for every already-open terminal.
         for (const terminal of vscode.window.terminals) {
             this._deps.record(
                 {

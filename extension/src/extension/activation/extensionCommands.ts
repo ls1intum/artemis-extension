@@ -9,8 +9,6 @@ import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
 import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
 
-// ── Individual command registrations ─────────────────────────────────
-
 function registerLoginCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.login', () => {
         vscode.commands.executeCommand('artemis.loginView.focus');
@@ -25,8 +23,8 @@ function registerLogoutCommand(
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.logout', async () => {
         try {
-            // Best-effort server-side logout before clearing local state.
-            // Never throws — local cleanup proceeds regardless.
+            // Best-effort server-side logout before clearing local state. Never
+            // throws, so local cleanup proceeds regardless.
             await artemisApiService.logoutFromServer();
             await authManager.clear();
             await updateAuthContext(false);
@@ -40,11 +38,9 @@ function registerLogoutCommand(
 }
 
 function registerReloadIrisChatCommand(chatWebviewProvider: ChatWebviewProvider): vscode.Disposable {
-    // Kept as an escape hatch for a wedged client: drop everything local and
-    // re-read from the server. It no longer pretends to own conversations,
-    // which live on Artemis, so the command id stays (no keybinding breaks)
-    // while the modal confirmation goes: there is nothing destructive left to
-    // confirm.
+    // Escape hatch for a wedged client: drop everything local and re-read from
+    // the server. Conversations live on Artemis, so nothing here is
+    // destructive and no confirmation is needed.
     return vscode.commands.registerCommand('artemis.resetIrisChat', async () => {
         try {
             await vscode.window.withProgress({
@@ -191,9 +187,9 @@ async function collectWebSocketStatus(
             };
         }
     } catch (error) {
-        // Auth errors in diagnostics are non-fatal — the snapshot still shows
-        // 'hasCookie: false' which is the diagnostically useful signal. Log
-        // at warn so it shows up in the output channel during a diagnostics
+        // Auth errors in diagnostics are non-fatal: the snapshot still shows
+        // 'hasCookie: false', which is the diagnostically useful signal. Log at
+        // warn so it shows up in the output channel during a diagnostics
         // session (this code path runs only on explicit user request).
         logger.warn(`Auth header lookup failed during WS diagnostics: ${extractErrorMessage(error)}`, LogCategory.WEBSOCKET);
     }
@@ -530,8 +526,8 @@ function registerStruggleScoreCommand(telemetryManager: ITelemetryManager): vsco
  * setting both at the menu level (commandPalette `when` clause) and at runtime
  * (defense-in-depth against direct invocation via `vscode.commands.executeCommand`).
  *
- * The full token is NEVER shown in the UI or written to logs — only a masked
- * preview appears in the notification, and the full value lands in the clipboard.
+ * The full token is NEVER shown in the UI or written to logs. Only a masked
+ * preview appears in the notification; the full value lands in the clipboard.
  */
 function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.showJwtToken', async () => {
@@ -569,9 +565,9 @@ function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposabl
 }
 
 /**
- * Diagnostic command: dumps the detected Theia environment so we can verify
- * managed-deployment activation (esp. for #109). Token is masked, GIT_URI
- * is reduced to its host so embedded credentials never leak into the UI.
+ * Diagnostic command: dumps the detected Theia environment to verify
+ * managed-deployment activation. Token is masked and GIT_URI is reduced to its
+ * host so embedded credentials never leak into the UI.
  */
 function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.showTheiaEnvironment', async () => {
@@ -667,8 +663,6 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
         }
     });
 }
-
-// ── Aggregate registration ───────────────────────────────────────────
 
 interface CommandDeps {
     context: vscode.ExtensionContext;

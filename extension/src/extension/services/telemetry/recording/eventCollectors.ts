@@ -1,6 +1,6 @@
 /**
- * Pure extraction functions that convert VS Code event objects to RecordedEvent payloads.
- * All functions are stateless — they take an event and return a typed payload.
+ * Pure extraction functions that convert VS Code event objects to RecordedEvent
+ * payloads. All functions are stateless: event in, typed payload out.
  */
 
 import * as vscode from 'vscode';
@@ -24,8 +24,6 @@ import type {
     WindowFocusEvent,
 } from './types';
 
-// ── Serialization helpers ─────────────────────────────────────────────
-
 function serializeRange(range: vscode.Range): SerializedRange {
     return {
         startLine: range.start.line,
@@ -47,8 +45,6 @@ function serializeDiagnostic(diag: vscode.Diagnostic): SerializedDiagnostic {
         source: diag.source,
     };
 }
-
-// ── Collector functions ───────────────────────────────────────────────
 
 export function collectTextChange(event: vscode.TextDocumentChangeEvent): TextChangeEvent {
     return {
@@ -101,9 +97,8 @@ export function collectBuildResult(result: ResultDTO, activeExerciseId?: number)
         for (const fb of result.feedbacks) {
             // Unified predicate: explicit false only (undefined = not yet graded, positive = passing).
             if (fb.positive === false) {
-                // Legacy flat list: keep detailText for backwards compat consumers.
+                // Flat list, for consumers that read `failedTests`.
                 failedTests.push(fb.detailText ?? '');
-                // Structured details: carry both test name and failure message.
                 failedTestDetails.push({ testName: fb.text ?? 'unknown', detail: fb.detailText ?? '' });
             }
         }
@@ -160,8 +155,6 @@ export function collectVisibleRangeChange(editor: vscode.TextEditor): VisibleRan
         visibleRanges: editor.visibleRanges.map(serializeRange),
     };
 }
-
-// ── Debugger collectors ───────────────────────────────────────────────
 
 /**
  * Build a debugSession event. Session fields are populated from the session

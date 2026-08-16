@@ -54,11 +54,9 @@ interface ExerciseContextChangeEvent {
 type NavigationCommand = 'selectTopic' | 'openConversation' | 'switchCourse' | 'newConversation';
 
 /**
- * Generation-scoped baseline for missed-terminal-frame recovery. A bare id is
- * not enough: `generation` is the anti-stale key that lets a POST for an older
- * send be told apart from the still-current one.
- *
- * Keyed on the CONVERSATION, like everything else on this path.
+ * Baseline for missed-terminal-frame recovery. A bare id is not enough:
+ * `generation` is the anti-stale key that tells a POST for an older send apart
+ * from the still-current one.
  */
 interface RecoveryBaseline {
     generation: number;      // _runs.generation at dispatch; the anti-stale key
@@ -67,29 +65,25 @@ interface RecoveryBaseline {
 }
 
 /**
- * Wording for a navigation that could not be made. The course switch no longer
- * reaches this with a disabled course (the service enters it instead), but
- * opening a history row in one still can, and a "please try again" would
- * promise something no retry can deliver.
+ * Wording for a navigation that could not be made. Opening a history row in a
+ * disabled course reaches this, and a "please try again" would promise
+ * something no retry can deliver.
  */
 function navigationFailureMessage(error: unknown, fallback: string): string {
     return isIrisCourseDisabled(error) ? 'Iris chat is not enabled for that course.' : fallback;
 }
 
 export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
-    // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = 'iris.chatView';
 
-    // ── Instance properties ────────────────────────────────────────────
     private readonly _workspaceTracker: WorkspaceExerciseTracker;
     private readonly _viewStatePresenter: ChatViewStatePresenter;
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisWebSocketSessionClient;
     /**
-     * The Iris conversation service: the single owner of the open
-     * conversation. Optional because both `_artemisApiService` and
-     * `_irisSessionManager` are optional at baseline; every consumer must
-     * guard on it rather than assume it.
+     * The single owner of the open conversation. Optional because both
+     * `_artemisApiService` and `_irisSessionManager` are optional at baseline,
+     * so every consumer must guard on it.
      */
     private _conversation: IrisConversationService | undefined;
     /** The send path. Built next to `_conversation`. */
@@ -146,13 +140,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public readonly onDidSendIrisChatMessage = this._onDidSendIrisChatMessage.event;
 
     /**
-     * Fired at each stage of a send attempt:
-     *   - { status: 'pending' }   immediately before the API call
-     *   - { status: 'sent' }      after the API call succeeds
-     *   - { status: 'failed', errorMessage }  after the API call throws
-     *
-     * Consumers (e.g. sessionRecorderWiring) use this to record the full
-     * send lifecycle, including failed sends that never become irisChatMessage events.
+     * Fired immediately before the API call ('pending'), after it succeeds
+     * ('sent') and after it throws ('failed'). Consumers (e.g.
+     * sessionRecorderWiring) record the full send lifecycle, including failed
+     * sends that never become irisChatMessage events.
      */
     private readonly _onDidAttemptIrisChatSend = new vscode.EventEmitter<{
         content: string;
@@ -162,9 +153,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     public readonly onDidAttemptIrisChatSend = this._onDidAttemptIrisChatSend.event;
 
     /**
-     * Fired when the user submits helpful/unhelpful feedback for a message.
-     * The event is emitted AFTER the API call has been dispatched (fire-and-forget
-     * from the recording perspective — we don't wait for the server's ack).
+     * Fired when the user submits helpful/unhelpful feedback for a message,
+     * after the API call is dispatched and without waiting for the server ack.
      */
     private readonly _onDidProvideIrisChatFeedback = new vscode.EventEmitter<{
         messageId: string;
@@ -175,7 +165,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
-    // ── Constructor ────────────────────────────────────────────────────
     constructor(
         private readonly _extensionUri: vscode.Uri,
         _extensionContext: vscode.ExtensionContext,
@@ -186,11 +175,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _courseCatalog: CourseCatalog | undefined,
         private readonly _telemetryManager: ITelemetryManager | undefined,
         workspaceTracker: WorkspaceExerciseTracker,
-        /**
-         * The picker's course order. The one store that already scopes recency
-         * per server and per principal, so no second recency store has to be
-         * introduced for the chat.
-         */
+        /** The picker's course order. Scopes recency per server and per principal. */
         private readonly _courseAccess: CourseAccessStorageService,
         /** Diagnostics' first question: which account, which server, which generation. */
         private readonly _sessionIdentity: SessionIdentityReader,
@@ -230,21 +215,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             // A getter, not a value: `_conversation` is assigned further down
             // in this same constructor (and is `undefined` until then), so
             // capturing it by value here would capture `undefined` forever.
-            // Same reasoning as the `_websocketMessageHandler` getter below.
             () => this._conversation,
-            // A getter, not a value: `_detectionState` is mutated in place by
-            // `publishDetectionState` below (`ChatStartupCoordinator`'s only
-            // way to report progress), so capturing it by value here would
-            // freeze the snapshot at whatever it was when the presenter was
-            // constructed (always `'unsettled'`).
+            // A getter, not a value: `_detectionState` is reassigned by
+            // `publishDetectionState` below, so capturing it by value would
+            // freeze the snapshot at `'unsettled'`.
             () => this._detectionState,
         );
         if (this._courseCatalog) {
             // The picker's lists come from the catalog, so a catalog write has
-            // to repaint the chat directly. It used to ride on workspace
-            // detection republishing the detection state, which costs a
-            // git-remote read and an archived-course probe for a repaint, and
-            // does not happen at all while the session is still resolving.
+            // to repaint the chat directly: riding on workspace detection would
+            // not repaint at all while the session is still resolving.
             this._disposables.push(
                 this._courseCatalog.onCoursesLoaded(() => this._viewStatePresenter.postSnapshot()),
             );
@@ -366,11 +346,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         );
         return new SendCoordinator(this._artemisApiService, conversation, {
             runLifecycle: {
-                // Remembers the generation the coordinator opened. The reconnect
-                // marker needs it, and `SendOutcome` deliberately does not carry
-                // it: this callback is the provider's own, so recording it here
-                // costs nothing and keeps the recovery of a missed terminal
-                // frame (mergeSessionMessages) working after the cut-over.
+                // Remembers the generation the coordinator opened: the reconnect
+                // marker needs it and `SendOutcome` deliberately does not carry
+                // it, so recovery of a missed terminal frame records it here.
                 beginGeneration: () => {
                     const generation = runLifecycle.beginGeneration();
                     this._lastSendGeneration = generation;
@@ -430,13 +408,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
-    // ── Lifecycle ──────────────────────────────────────────────────────
-
     public dispose(): void {
         this._drainDisposables();
     }
-
-    // ── Reconnect recovery ─────────────────────────────────────────────
 
     /**
      * Reset the run machine AND the recovery baseline together so they can
@@ -448,8 +422,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /**
-     * THE path for a resubscribe: exactly one owner, for both halves of the
-     * repair.
+     * The single path for a resubscribe, covering both halves of the repair.
      *
      * `IrisConversationService.onSubscriptionActive` re-reads the conversation
      * and merges it (host state and, through `deliverTranscript`, the visible
@@ -561,7 +534,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
         this._viewDisposables.push(configListener);
 
-        // The coordinator owns the one-shot cold start now: it fires
+        // The coordinator owns the one-shot cold start: it fires
         // `_acquireConversation` only once the view AND workspace detection
         // have both settled, in whichever order they arrive.
         this._startupCoordinator.onViewResolved();
@@ -599,12 +572,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         } catch (error: unknown) {
             // A failed acquisition leaves no session and therefore no
             // transcript, so the loader would spin forever. The banner's Retry
-            // routes back through reloadIrisChat. Re-thrown (rather than
-            // swallowed) so the coordinator learns the attempt failed and can
-            // re-arm its latch: without that, a single transient 500 leaves
-            // the student stuck on the cold-start chooser forever, since the
-            // latch was already consumed before this call and nothing else
-            // ever gets another shot at it.
+            // routes back through reloadIrisChat. Re-thrown, not swallowed, so
+            // the coordinator can re-arm its latch.
             logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
             this._postMessageSafe({
                 type: ExtensionMsg.ShowUnavailableState,
@@ -670,8 +639,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
-    // ── Rendering ──────────────────────────────────────────────────────
-
     public render(): void {
         if (this._view) {
             this._resetReadyState();
@@ -679,87 +646,61 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
-    // ── Init data ──────────────────────────────────────────────────────
-
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
         // A conversation already installed (the webview was disposed and
-        // recreated while one was open — no `retainContextWhenHidden`, so
-        // collapsing and reopening the sidebar does exactly this) gets no
-        // other chance at its transcript: `_acquireConversation` is one-shot
-        // behind the startup latch, and the install that originally called
-        // `_deliverTranscript` addressed a webview instance that is gone.
-        // Kept immediately after the snapshot above, with no `await` between
-        // them: the webview's own guard keys an incoming transcript on the
-        // session the snapshot just named, so it has to follow it, never
-        // overtake it. `'load'` (not `'merge'`) on purpose — it is also the
-        // only mode that sets `loadedSessionId`, which is what clears the
-        // loader in the first place; `'merge'` never touches it.
+        // recreated while one was open, which is what collapsing and reopening
+        // the sidebar does without `retainContextWhenHidden`) gets no other
+        // chance at its transcript: `_acquireConversation` is one-shot behind
+        // the startup latch. Kept immediately after the snapshot above with no
+        // `await` between them, because the webview's guard keys an incoming
+        // transcript on the session the snapshot just named. `'load'`, not
+        // `'merge'`: only `'load'` sets `loadedSessionId`, which clears the
+        // loader.
         const detail = this._conversation?.state.snapshot().detail;
         if (detail) { this._deliverTranscript(detail, 'load'); }
         await this._populateAvailableContexts();
         // The snapshot above was posted against whatever the catalog held
-        // before the fetch, which on a cold webview is nothing. The per-entity
-        // repaints this replaces (`_registerCourse` and `_registerExercise`
-        // each ended in a snapshot) are gone, so without this the picker stays
-        // empty until some unrelated event happens to post again.
+        // before the fetch, which on a cold webview is nothing. Without this
+        // second post the picker stays empty until some unrelated event
+        // happens to post again.
         this._viewStatePresenter.postSnapshot();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
 
-        // Send current WebSocket connection status so the banner reflects reality
+        // A freshly mounted webview has no status yet, so the banner would sit
+        // blank until the next connection change.
         if (this._websocketService) {
             this._websocketMessageHandler.publishCurrentStatus();
         }
     }
 
-    // ── Public API ─────────────────────────────────────────────────────
-
-    /**
-     * Get current struggle context for Iris chat integration
-     */
     public getStruggleContext(): StruggleContext | undefined {
         return this._telemetryManager?.getStruggleContext();
     }
 
     /**
      * The course the open conversation is in, for anything outside the chat
-     * that has to name one (the Iris health check).
-     *
-     * Read from the conversation rather than a mirrored store: the
-     * conversation IS the course now, and a second copy could only ever be
-     * the one that is wrong. The mirror this replaces was written on the
-     * course-picker path alone, so on the normal path (a workspace exercise,
-     * acquired by `start`) the health check answered "select a course first"
-     * about a chat that was plainly showing one.
+     * that has to name one (the Iris health check). Read from the conversation
+     * rather than a mirrored store: the conversation IS the course, and a
+     * second copy could only ever be the one that is wrong.
      */
     public get currentCourseId(): number | undefined {
         return this._conversation?.state.snapshot().courseId;
     }
 
-    /**
-     * The coordinator's latest published detection state, also what the
-     * presenter puts on the wire in every `updateIrisState` snapshot.
-     */
     public get detectionState(): DetectionUiState {
         return this._detectionState;
     }
 
-    /**
-     * Access the WebSocket message handler for wiring up received-message events.
-     */
     public get websocketMessageHandler(): IrisWebSocketMessageHandler {
         return this._websocketMessageHandler;
     }
 
-    /**
-     * Check if AI assistance is disabled due to .noai file
-     */
     public isNoAiEnabled(): boolean {
         return this._noAiDetectionService.isNoAiEnabled;
     }
 
-    // ── Workspace detection sink ──────────────────────────────────────
     // Called by wireWorkspaceDetection at activation. The provider implements
     // the sink because it owns the presenter that has to repost the snapshot
     // when the workspace exercise changes.
@@ -817,8 +758,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         ));
     }
 
-    // ── Conversation-first entry points for the commands ───────────────
-
     /**
      * The Ask-Iris commands' single entry point: point the open conversation at
      * `target`, acquiring one when none is open. The course id must travel WITH
@@ -870,7 +809,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * The "Reload Iris chat" escape hatch behind `artemis.resetIrisChat`. Drops
      * every local cache and re-reads from the server: the open conversation
      * when there is one, the start path when there is none. Nothing is
-     * destroyed on Artemis, which is why the command no longer confirms.
+     * destroyed on Artemis, so the command does not confirm.
      */
     public async reloadIrisChat(): Promise<void> {
         if (!this._conversation) { return; }
@@ -894,7 +833,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const context = this._availabilityContext();
         if (!context) { return; }
         const availability = await this._availability.checkAndLoadIrisSettings(context);
-        // The check now runs on every navigation, so two can be open at once
+        // The check runs on every navigation, so two can be open at once
         // (course 42, then 43 before 42's settings answer). Publishing 42's
         // answer against 43 is precisely the stale banner `resetAvailability`
         // exists to prevent, so a check that outlived its conversation says
@@ -914,8 +853,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      * What the Iris availability check runs against: where the chat IS, which is
      * usually the open conversation and otherwise the course alone (a course
      * with Iris switched off is entered without one). Never a stored selection:
-     * asking Artemis about the previous course's settings after a switch is
-     * exactly the bug that used to cause.
+     * that asks Artemis about the previous course's settings after a switch.
      */
     private _availabilityContext(): AvailabilityContext | null {
         const conversation = this._conversation;
@@ -941,8 +879,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             courseId,
         };
     }
-
-    // ── BaseWebviewProvider hooks ──────────────────────────────────────
 
     protected _onReady(): void {
         this._sendInitData();
@@ -1004,8 +940,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     });
                     break;
                 case WebviewCmd.ResetChatSessions:
-                    // Nothing local owns conversations any more, so there is
-                    // nothing to reset: this is the reload escape hatch.
+                    // No local state owns conversations, so there is nothing to
+                    // reset: this is the reload escape hatch.
                     void this.reloadIrisChat().catch((err: unknown) => {
                         logger.error('Reset (reload) failed', LogCategory.IRIS_CHAT, err);
                     });
@@ -1081,16 +1017,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
-    // ── Private: Helpers ───────────────────────────────────────────────
-
     /**
      * Dispatch a synchronous send rejection back to the webview.
      *
-     * Keeps the existing collateral side-effects (NoAi banner, disabled
-     * banner) so visible chat state stays consistent, AND posts a
-     * targeted SendRejected so the webview can mark the optimistic user
-     * message as failed and clear its thinking indicator. Without that
-     * second post the thinking dots would loop forever (see #178).
+     * Runs the collateral side-effects (NoAi banner, disabled banner) so
+     * visible chat state stays consistent, AND posts a targeted SendRejected so
+     * the webview can mark the optimistic user message as failed and clear its
+     * thinking indicator. Without that second post the thinking dots loop
+     * forever.
      *
      * Without a `localId`/`sessionId` pair there is no bubble to fail, so the
      * reason is surfaced as a notification and the composer released through
@@ -1103,7 +1037,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     ): void {
         const errorMessage = this._friendlyRejectionMessage(result);
 
-        // Existing collateral side-effects per reason.
         switch (result.reason) {
             case 'no-ai':
                 this._postNoAiStatus(true);
@@ -1115,12 +1048,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             case 'iris-disabled':
             case 'iris-unavailable': {
                 // Persistent availability emit is gated on "captured context
-                // still matches the live active context". Without this gate,
-                // a slow checkAndLoadIrisSettings that returns after the
-                // user switched would mislabel the NEW context's banner
-                // state with the OLD context's classification (race surfaced
-                // by codex review). If they diverge, skip the banner — the
-                // SendRejected message-level signal is still delivered so
+                // still matches the live active context": a slow
+                // checkAndLoadIrisSettings returning after the user switched
+                // would mislabel the NEW context's banner state with the OLD
+                // context's classification. If they diverge, skip the banner.
+                // The SendRejected message-level signal is still delivered so
                 // the optimistic user message gets marked failed.
                 const live = this._availabilityContext();
                 const captured = result.capturedContext;
@@ -1170,9 +1102,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
-    /**
-     * Post .noai status to the webview
-     */
     private _postNoAiStatus(isNoAiDetected: boolean): void {
         this._postMessageSafe({
             type: ExtensionMsg.UpdateNoAiStatus,
@@ -1198,8 +1127,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             { modal: true, detail: IRIS_CHAT_HELP_MARKDOWN }
         );
     }
-
-    // ── Conversation-first navigation handlers (spec 7.3) ──────────────
 
     /**
      * Host-enforced navigation gate, returning the conversation a navigation
@@ -1265,10 +1192,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const conversation = this._conversationForNavigation('selectTopic');
         if (!conversation) { return; }
         const outcome = await conversation.resolveTopicChange(target);
-        // No notice on success, in any shape. A topic change stays in the open
-        // conversation, so there is no transcript replacement to explain, and
-        // the one remaining `opened` is the cold start, where the pick acquired
-        // the FIRST conversation: nothing was on screen to be replaced either.
+        // No notice on success: a topic change stays in the open conversation,
+        // so there is no transcript replacement to explain, and an `opened`
+        // means the cold start acquired the FIRST conversation, with nothing
+        // on screen to replace either.
         //
         // A `rejected` outcome is the service saying it did NOT do what was
         // asked (the cold-start acquisition threw, the target is in another
@@ -1555,7 +1482,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         const isHelpful = feedback === 'positive';
 
-        // Fire the recording event before the API call (fire-and-forget for recording).
+        // Recorded before the API call, so a submit that throws is still recorded.
         this._onDidProvideIrisChatFeedback.fire({
             messageId: String(messageId),
             helpful: isHelpful,

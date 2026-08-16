@@ -29,7 +29,6 @@ describe('Dashboard View UI Tests', function () {
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Log in once before all tests in this suite
 		await performLogin(driver, username, password);
 	});
 
@@ -42,7 +41,7 @@ describe('Dashboard View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context, ignore.
 		}
 	});
 
@@ -52,8 +51,7 @@ describe('Dashboard View UI Tests', function () {
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		// Assert a heading element is visible — smoke test proves the view mounted
-		// Use XPath to find any h1 element regardless of CSS module class
+		// XPath so the h1 is found regardless of its CSS module class.
 		const heading = await driver.wait(
 			() =>
 				driver

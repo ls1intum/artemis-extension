@@ -111,8 +111,6 @@ suite('SessionIdentityCoordinator', () => {
         assert.deepStrictEqual(seen, ['authenticated', 'anonymous']);
     });
 
-    // ── principal resolution, the coordinator's own job ──────────────
-
     test('resolves the principal without waiting for any webview', async () => {
         const coordinator = new SessionIdentityCoordinator(deps());
         await coordinator.resolvePrincipal();
@@ -226,8 +224,8 @@ suite('SessionIdentityCoordinator', () => {
         }));
         coordinator.setAuthenticated('https://a.example', 'id:1');
 
-        // What the server-URL listener does: reset first, then settle. The
-        // settle is the part its catch used to skip, leaving `resolving`.
+        // What the server-URL listener does: reset first, then settle. Its
+        // catch has to settle too, or the session is stranded in `resolving`.
         coordinator.beginResolving('https://b.example');
         coordinator.setAnonymous('https://b.example');
         assert.deepStrictEqual(coordinator.state, { kind: 'anonymous', serverKey: 'https://b.example' });
@@ -251,12 +249,10 @@ suite('SessionIdentityCoordinator', () => {
         coordinator.dispose();
     });
 
-    // ── recovery from a transient failure ────────────────────────────
-    //
     // Staying `resolving` is right (a credential is still held), but on its
     // own it is a dead end: nothing else in the shipped wiring re-attempts the
     // lookup for an already-logged-in student, so one failed request at
-    // activation used to cost the whole window. Two escapes, both here: a
+    // activation would cost the whole window. Two escapes, both here: a
     // bounded automatic re-attempt, and an announcement when those run out so
     // a UI can offer the student a Retry.
 

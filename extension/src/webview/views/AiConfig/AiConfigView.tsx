@@ -34,7 +34,6 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
         );
     }
 
-    // Group extensions by provider
     const groupedByProvider = extensions.reduce<Record<string, { color: string; extensions: AiExtensionItem[] }>>((acc, ext) => {
         if (!acc[ext.provider]) {
             acc[ext.provider] = { color: ext.providerColor, extensions: [] };

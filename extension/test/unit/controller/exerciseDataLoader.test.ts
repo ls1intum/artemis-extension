@@ -5,10 +5,6 @@
  *   5xx / network       → log warning, continue (exercise page must still open)
  *   Malformed JSON      → rethrow (schema/contract failure must not be hidden)
  *   404 / null body     → handled inside the API layer; loader sees `null`
- *
- * Previously every error was silently swallowed by an empty catch block,
- * which masked auth and contract failures and produced incorrect "no pending
- * submission" signals downstream.
  */
 
 import * as assert from 'assert';
@@ -201,21 +197,20 @@ suite('fetchAndEnrichExerciseDetails — per-participation pending submission ma
         const map = data.pendingSubmissionsByParticipationId ?? {};
         assert.ok(map[100], 'participation 100 must have a pending entry');
         assert.ok(map[200], 'participation 200 must have a pending entry');
-        // Neither entry should be silently lost (the pre-fix bug from #168
-        // would drop everything but the last iteration).
+        // Neither entry may be silently lost.
         assert.strictEqual(Object.keys(map).length, 2);
     });
 
     test('REST ProgrammingSubmission is normalized to a lean { participationId } DTO', async () => {
-        // The loader must not just stash the raw ProgrammingSubmission — the
+        // The loader must not just stash the raw ProgrammingSubmission. The
         // wire DTO is intentionally minimal because state + buildTimingInfo
         // only ever arrive via the WebSocket submissionProcessing path.
         const rawSubmission = {
             id: 7777,
             commitHash: 'abc123',
             submissionDate: '2026-05-21T10:00:00Z',
-            // Deliberately no state, no participationId at the top level —
-            // matches what parseProgrammingSubmission produces.
+            // Deliberately no state and no top-level participationId, matching
+            // what parseProgrammingSubmission produces.
         } as unknown as ProgrammingSubmission;
 
         const stub = makeApiStub({
@@ -250,10 +245,10 @@ suite('fetchAndEnrichExerciseDetails — per-participation pending submission ma
     });
 
     test('auth error on one participation\'s call still rethrows after all participations settle', async () => {
-        // Even with parallel enrichment, auth errors must still abort the
-        // load — they are not enrichment-recoverable. Promise.allSettled
-        // lets every sibling call settle first so background calls do not
-        // keep logging after the rejection.
+        // Even with parallel enrichment, auth errors must still abort the load;
+        // they are not enrichment-recoverable. Promise.allSettled lets every
+        // sibling call settle first so background calls do not keep logging
+        // after the rejection.
         const stub = makeApiStub({
             participations: [{ id: 100 }, { id: 200 }],
             perParticipation: {
@@ -266,8 +261,8 @@ suite('fetchAndEnrichExerciseDetails — per-participation pending submission ma
             () => fetchAndEnrichExerciseDetails(stub.api, 1),
             (err: unknown) => err instanceof ApiError && err.status === 401,
         );
-        // Both per-participation pending calls were attempted before the
-        // throw — verifies "settle, then rethrow" rather than "fail-fast".
+        // Both per-participation pending calls are attempted before the throw:
+        // "settle, then rethrow" rather than "fail-fast".
         assert.strictEqual(stub.pendingCalls, 2);
     });
 

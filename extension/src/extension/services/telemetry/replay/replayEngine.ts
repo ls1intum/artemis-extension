@@ -1,5 +1,5 @@
 /**
- * Replay Engine — feeds recorded events through the EQ detection pipeline.
+ * Replay engine: feeds recorded events through the EQ detection pipeline.
  *
  * Pure Node.js, no VS Code dependencies. Takes RecordedEvent[] and produces
  * ReplayEqSnapshot[] by simulating the CompileEquivalentEmitter + ErrorQuotientEngine
@@ -26,7 +26,7 @@ interface ReplayEqSnapshot {
     errorFamilies: string[];
 }
 
-/** Stabilization window — mirrors CompileEquivalentEmitter's 500ms setTimeout */
+/** Stabilization window; mirrors CompileEquivalentEmitter's 500ms setTimeout. */
 const LOOKAHEAD_WINDOW_MS = 500;
 
 /**
@@ -51,9 +51,6 @@ function applyLookaheadDiagnostics(
     }
 }
 
-/**
- * Deserialize an eqEngineState event's snapshots into ErrorSnapshot objects.
- */
 function deserializeEngineState(stateEvent: EqEngineStateEvent): ErrorSnapshot[] {
     return stateEvent.snapshots.map(s => ({
         timestamp: s.timestamp,

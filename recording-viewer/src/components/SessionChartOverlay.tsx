@@ -45,8 +45,7 @@ export function SessionChartOverlay({ xDomain, zoomedRange, videoTimeRef, sessio
             const [min, max] = xDomain;
             const range = max - min;
             // Hide while geometry is uninitialised, the domain is degenerate,
-            // or the video has not yet started. This matches the old recharts
-            // ReferenceLine behavior, which skipped render while ts was 0.
+            // or the video has not yet started (ts === 0).
             if (ts <= 0 || range <= 0 || width <= 0) {
                 el.style.display = 'none';
             } else {

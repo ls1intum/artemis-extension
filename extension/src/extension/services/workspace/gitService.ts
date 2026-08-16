@@ -14,9 +14,6 @@ interface GitIdentity {
 }
 
 export class GitService {
-    /**
-     * Check if git is installed and available
-     */
     public async isGitAvailable(): Promise<boolean> {
         try {
             await execFileAsync('git', ['--version']);
@@ -26,9 +23,6 @@ export class GitService {
         }
     }
 
-    /**
-     * Pull changes with rebase
-     */
     public async pullWithRebase(options: GitCommandOptions): Promise<void> {
         await execFileAsync('git', ['pull', '--rebase'], {
             cwd: options.cwd,
@@ -36,9 +30,6 @@ export class GitService {
         });
     }
 
-    /**
-     * Stage all changes
-     */
     public async addAll(options: GitCommandOptions): Promise<void> {
         await execFileAsync('git', ['add', '-A'], {
             cwd: options.cwd,
@@ -46,9 +37,6 @@ export class GitService {
         });
     }
 
-    /**
-     * Commit changes with a message
-     */
     public async commit(message: string, options: GitCommandOptions): Promise<void> {
         await execFileAsync('git', ['commit', '-m', message], {
             cwd: options.cwd,
@@ -56,9 +44,6 @@ export class GitService {
         });
     }
 
-    /**
-     * Push changes to remote
-     */
     public async push(options: GitCommandOptions): Promise<void> {
         await execFileAsync('git', ['push'], {
             cwd: options.cwd,
@@ -66,9 +51,6 @@ export class GitService {
         });
     }
 
-    /**
-     * Get a git config value (local or global)
-     */
     public async getConfigValue(key: string, options: GitCommandOptions, globalScope = false): Promise<string | undefined> {
         try {
             const args = globalScope
@@ -85,16 +67,10 @@ export class GitService {
         }
     }
 
-    /**
-     * Set a git config value globally
-     */
     public async setGlobalConfig(key: string, value: string): Promise<void> {
         await execFileAsync('git', ['config', '--global', key, value]);
     }
 
-    /**
-     * Get the current git identity (name and email)
-     */
     public async getIdentity(options: GitCommandOptions): Promise<GitIdentity | undefined> {
         const name = await this.getConfigValue('user.name', options);
         const email = await this.getConfigValue('user.email', options);
@@ -120,9 +96,6 @@ export class GitService {
         return { name, email };
     }
 
-    /**
-     * Set git identity globally
-     */
     public async setGlobalIdentity(identity: GitIdentity): Promise<void> {
         await this.setGlobalConfig('user.name', identity.name);
         await this.setGlobalConfig('user.email', identity.email);

@@ -1,14 +1,6 @@
 /**
- * Unit tests for Block H — Chat send-attempt, receive-metadata, feedback events.
- *
- * Covers:
- *   - recordIrisChatSendAttempt: pending/sent/failed events written with correct fields
- *   - recordIrisChatSent (extended): optional messageId/sessionId/sentAt pass-through
- *   - recordIrisChatReceived (extended): optional metadata pass-through
- *   - recordIrisChatFeedback: helpful/not-helpful event written with messageId
- *   - Phase guard: all new methods no-op outside 'recording' phase
- *   - Failed send: pending + failed events visible, no irisChatMessage event
- *   - Successful send: pending + sent attempt events AND separate irisChatMessage event
+ * Unit tests for chat send-attempt, receive-metadata and feedback events
+ * (Block H).
  */
 
 import * as vscode from 'vscode';
@@ -23,8 +15,6 @@ import type {
     IrisChatSendAttemptEvent,
     RecordedEvent,
 } from '@extension/services/telemetry/recording/types';
-
-// ── Minimal fake FS ───────────────────────────────────────────────────────────
 
 class FakeFs implements RecordingFs {
     appendedChunks: string[] = [];
@@ -56,8 +46,6 @@ class FakeFs implements RecordingFs {
     }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function collectWrittenEvents(fakeFs: FakeFs): RecordedEvent[] {
     const events: RecordedEvent[] = [];
     for (const chunk of [...fakeFs.appendedChunks, ...fakeFs.syncChunks]) {
@@ -85,8 +73,6 @@ function makeRecorder(): { recorder: SessionRecorder; fs: FakeFs } {
     return { recorder, fs };
 }
 
-// ── Suite ─────────────────────────────────────────────────────────────────────
-
 suite('SessionRecorder — Block H: Chat Recording', () => {
     let recorder: SessionRecorder;
     let fs: FakeFs;
@@ -102,8 +88,6 @@ suite('SessionRecorder — Block H: Chat Recording', () => {
     teardown(async () => {
         try { await recorder.shutdown(); } catch { /* ignore */ }
     });
-
-    // ── H.1: Send-attempt lifecycle ───────────────────────────────────────
 
     test('pending+sent attempt events are emitted on a successful send', async () => {
         recorder.recordIrisChatSendAttempt('hello iris', 'pending');
@@ -142,7 +126,7 @@ suite('SessionRecorder — Block H: Chat Recording', () => {
     test('failed send: no irisChatMessage event emitted', async () => {
         recorder.recordIrisChatSendAttempt('will fail', 'pending');
         recorder.recordIrisChatSendAttempt('will fail', 'failed', 'Timeout');
-        // Note: recordIrisChatSent is NOT called — mirroring what chatWebviewProvider does
+        // recordIrisChatSent is deliberately NOT called, mirroring chatWebviewProvider.
         await recorder.endSession();
 
         const events = collectWrittenEvents(fs);
@@ -170,8 +154,6 @@ suite('SessionRecorder — Block H: Chat Recording', () => {
         assert.strictEqual(chatMsgs[0].direction, 'sent');
         assert.strictEqual(chatMsgs[0].content, 'what is recursion?');
     });
-
-    // ── H.2: Received message metadata ───────────────────────────────────
 
     test('recordIrisChatReceived passes through messageId, sessionId, sentAt', async () => {
         const sentAt = Date.now() - 1000;
@@ -225,8 +207,6 @@ suite('SessionRecorder — Block H: Chat Recording', () => {
         assert.strictEqual(sent[0].sentAt, sentAt);
     });
 
-    // ── H.3: Feedback event ───────────────────────────────────────────────
-
     test('recordIrisChatFeedback emits helpful=true event', async () => {
         recorder.recordIrisChatFeedback('msg-55', true);
         await recorder.endSession();
@@ -254,8 +234,6 @@ suite('SessionRecorder — Block H: Chat Recording', () => {
         assert.strictEqual(feedback[0].helpful, false);
     });
 
-    // ── H.4: Phase guard ─────────────────────────────────────────────────
-
     test('recordIrisChatSendAttempt is a no-op when recorder is not in recording phase', async () => {
         // End the session to put recorder back in idle
         await recorder.endSession();
@@ -282,8 +260,6 @@ suite('SessionRecorder — Block H: Chat Recording', () => {
             'no event should be appended when recorder is idle',
         );
     });
-
-    // ── H.5: Existing recordIrisChatSent without metadata still works ─────
 
     test('recordIrisChatSent without metadata is backwards-compatible', async () => {
         recorder.recordIrisChatSent('plain message');

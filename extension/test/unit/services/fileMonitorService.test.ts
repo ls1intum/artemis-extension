@@ -150,12 +150,10 @@ suite('FileMonitorService', () => {
             await clock.tickAsync(2001);
             const callsBefore = checkWorkspaceFilesStub.callCount;
 
-            // First change goes through
             changeCallback({} as vscode.TextDocumentChangeEvent);
             await clock.tickAsync(0);
             assert.strictEqual(checkWorkspaceFilesStub.callCount, callsBefore + 1, 'First change should trigger');
 
-            // Rapid second change within 2s should be throttled
             await clock.tickAsync(500);
             changeCallback({} as vscode.TextDocumentChangeEvent);
             await clock.tickAsync(0);

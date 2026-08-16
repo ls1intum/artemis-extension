@@ -419,14 +419,11 @@ describe('ParticipationActions', () => {
 			);
 			const toggle = screen.getByRole('button', { name: /More options/ });
 
-			// Initially closed
 			expect(screen.queryByText('Pull Changes')).not.toBeInTheDocument();
 
-			// Open
 			await userEvent.click(toggle);
 			expect(screen.getByText('Pull Changes')).toBeInTheDocument();
 
-			// Close
 			await userEvent.click(toggle);
 			expect(screen.queryByText('Pull Changes')).not.toBeInTheDocument();
 		});

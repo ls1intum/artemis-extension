@@ -1,8 +1,8 @@
 /**
- * The one normalization for "which server" and "which person". Both were
- * private to `courseAccessStorageService.ts` and are moved here unchanged:
- * the session coordinator keys the same identity, and two implementations of
- * the same key are two ways to disagree about who the student is.
+ * The one normalization for "which server" and "which person". Shared by
+ * `courseAccessStorageService.ts` and the session coordinator, which key the
+ * same identity: two implementations of the same key are two ways to disagree
+ * about who the student is.
  */
 
 const COURSE_ACCESS_KEY_PREFIX = 'dashboard.courseAccess';

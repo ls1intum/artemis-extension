@@ -198,9 +198,9 @@ interface ExtensionMsgPayloads {
     // Iris Chat
     /**
      * The whole visible chat state, in one snapshot. Every field is REQUIRED:
-     * there is exactly one interface now, so a producer that cannot fill a
-     * field has to say so with an explicit `undefined`/`null` rather than by
-     * omitting a key the webview would then silently default.
+     * a producer that cannot fill a field has to say so with an explicit
+     * `undefined`/`null` rather than by omitting a key the webview would then
+     * silently default.
      */
     updateIrisState: {
         state: {
@@ -369,10 +369,9 @@ interface ExtensionMsgPayloads {
         localId: string;
         sessionId: number;
         /**
-         * Widened for the conversation-first send coordinator (Task 14): the
-         * new values name rejections `IrisConversationService`'s send path
-         * can produce, which the old model never did. The coordinator cannot
-         * report a reason the wire refuses to carry.
+         * Covers every rejection `IrisConversationService`'s send path can
+         * produce: the coordinator cannot report a reason the wire refuses to
+         * carry.
          */
         reason:
             | 'no-ai'
@@ -431,12 +430,11 @@ interface ExtensionMsgPayloads {
     problemStatementRendered: RenderedProblemStatementPayload;
 }
 
-/** Auto-generated discriminated union of all Extension->Webview messages */
+/** Discriminated union of all Extension->Webview messages. */
 export type ExtensionToWebviewMessage = {
     [K in ExtensionMsg]: ExtensionMsgPayloads[K] extends undefined
         ? { type: K }
         : { type: K } & ExtensionMsgPayloads[K]
 }[ExtensionMsg];
 
-/** Extract a specific Extension->Webview message type */
 export type ExtMsg<T extends ExtensionMsg> = Extract<ExtensionToWebviewMessage, { type: T }>;

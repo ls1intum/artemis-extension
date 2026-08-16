@@ -8,7 +8,7 @@ interface ChatStartupDeps {
     /**
      * Acquire the conversation for `workspace`. Resolves on success. Rejects
      * on failure, AFTER having already shown whatever banner the failure
-     * needs — the coordinator's only reaction to a rejection is re-arming its
+     * needs: the coordinator's only reaction to a rejection is re-arming its
      * latch, never a banner of its own.
      */
     start(workspace: { exerciseId: number; courseId: number }): Promise<void>;
@@ -21,8 +21,8 @@ interface ChatStartupDeps {
  *
  * Two things have to be true before the chat may acquire a conversation by
  * itself: the webview exists, and workspace detection has settled. They arrive
- * in either order and used to race, which is why a first-ever exercise folder
- * could land on the course chooser and stay there forever.
+ * in either order, so both have to be latched here; racing them strands a
+ * first-ever exercise folder on the course chooser forever.
  */
 export class ChatStartupCoordinator {
     private _latch = new StartupLatch();
@@ -57,15 +57,11 @@ export class ChatStartupCoordinator {
     }
 
     public admitExplicitIntent(reason: string): void {
-        // `wasEligible` still means exactly what it always did, even though
-        // `cancel()` now also acts on a `consumed` latch (an attempt in
-        // flight): `_uiStateFor` only ever publishes `unavailable` to the UI
-        // while the latch IS eligible (an `unavailable` outcome never
-        // consumes it — see `_maybeStart`'s early return below), so a
-        // `consumed` latch can never be carrying a live `unavailable` banner
-        // to clear here. Reading `wasEligible` before `cancel()` therefore
-        // still answers the only question that matters: was a dead-Retry
-        // banner actually on screen for this outcome.
+        // Read BEFORE `cancel()`: it answers whether an `unavailable` banner is
+        // actually on screen. `_uiStateFor` publishes `unavailable` only while
+        // the latch IS eligible (an `unavailable` outcome never consumes it,
+        // see `_maybeStart`'s early return), so a consumed latch never carries
+        // one.
         const wasEligible = this._latch.state === 'eligible';
         this._latch.cancel(reason);
         // The student is on their way somewhere. A startup-unavailable banner
@@ -112,14 +108,13 @@ export class ChatStartupCoordinator {
             exerciseId: this._outcome.exerciseId,
             courseId: this._outcome.courseId,
         }).catch(() => {
-            // The attempt itself failed (a transient network error, not a
-            // decision) — `start` has already shown whatever banner that
-            // needs. Re-arm rather than leave the latch spent: without this,
-            // a single failed acquisition strands the student on the
-            // cold-start chooser for good, since nothing else ever gets
-            // another shot at the latch. This does NOT resurrect a latch an
-            // explicit student intent already cancelled; `reArmAfterFailedStart`
-            // only moves `consumed` -> `eligible`.
+            // The attempt failed (a transient error, not a decision), and
+            // `start` has already shown its banner. Re-arm rather than leave
+            // the latch spent: nothing else ever gets another shot at it, so a
+            // single failed acquisition would strand the student on the
+            // cold-start chooser. `reArmAfterFailedStart` only moves
+            // `consumed` -> `eligible`, so a latch cancelled by explicit
+            // student intent stays cancelled.
             this._latch.reArmAfterFailedStart();
         });
     }

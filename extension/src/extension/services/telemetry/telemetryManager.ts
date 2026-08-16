@@ -29,32 +29,27 @@ import {
 } from './types';
 
 /**
- * Central orchestration service for EQ-based struggle detection.
- *
- * Replaces the old weighted-score system with:
- *   1. Error Quotient (EQ) — Jadud 2006 pair-scoring formula
- *   2. Subtask-Boundary Triggers — Pu et al. 2025
- *   3. Adaptive Cadence — escalating thresholds on ignore
+ * Central orchestration service for EQ-based struggle detection:
+ *   1. Error Quotient (EQ), Jadud 2006 pair-scoring formula
+ *   2. Subtask-Boundary Triggers, Pu et al. 2025
+ *   3. Adaptive Cadence (escalating thresholds on ignore)
  */
 export class TelemetryManager implements vscode.Disposable, WebSocketMessageHandler {
     private readonly _disposables: vscode.Disposable[] = [];
     private _disposed = false;
 
-    // Sub-services (kept from old system)
     private readonly _diagnosticService: DiagnosticPersistenceService;
     private readonly _inactivityService: InactivityService;
     private readonly _buildTracker: BuildResultTracker;
     private readonly _interventionService: InterventionService;
     private readonly _interventionFilter: InterventionFilter;
 
-    // New EQ system
     private readonly _eqEngine: ErrorQuotientEngine;
     private readonly _compileEmitter: CompileEquivalentEmitter;
     private readonly _triggerEmitter: BoundaryTriggerEmitter;
     private readonly _decisionEngine: InterventionDecisionEngine;
     private readonly _adaptiveCadence: AdaptiveCadence;
 
-    // State
     private _websocketService: ArtemisWebsocketService | undefined;
     private _isEnabled: boolean = true;
     private _showInterventions: boolean = true;
@@ -62,12 +57,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
     private readonly _exerciseRegistry: ExerciseRegistry | undefined;
-    // Debug mode
     private _debugMode: boolean = false;
     private readonly _debugDashboard: DebugDashboard;
     private readonly _outputChannel: vscode.OutputChannel;
 
-    // Events
     private readonly _onDidCalculateEQ = new vscode.EventEmitter<{
         eq: number;
         confidence: EQConfidence;
@@ -100,14 +93,12 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._outputChannel = vscode.window.createOutputChannel('Artemis Telemetry');
         this._disposables.push(this._outputChannel);
 
-        // Initialize kept services
         this._diagnosticService = new DiagnosticPersistenceService();
         this._inactivityService = new InactivityService();
         this._buildTracker = new BuildResultTracker();
         this._interventionService = new InterventionService();
         this._interventionFilter = new InterventionFilter();
 
-        // Initialize EQ system
         this._eqEngine = new ErrorQuotientEngine();
         this._compileEmitter = new CompileEquivalentEmitter();
         this._adaptiveCadence = new AdaptiveCadence();
@@ -117,7 +108,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         );
         this._decisionEngine = new InterventionDecisionEngine(this._interventionFilter);
 
-        // Debug UI
         this._debugDashboard = new DebugDashboard({
             eqEngine: this._eqEngine,
             inactivityService: this._inactivityService,
@@ -127,9 +117,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             getRecommendedAction: (eq, confidence) => this._getRecommendedAction(eq, confidence),
         });
 
-        // Collect all services that participate in exercise session lifecycle.
-        // TelemetryManager iterates this list on start/end instead of calling
-        // individual reset methods, ensuring no service is accidentally missed.
+        // Every service registered here receives centralized start/end dispatch
+        // instead of an individually called reset method.
         this._sessionServices = [
             this._eqEngine, this._compileEmitter, this._triggerEmitter,
             this._inactivityService, this._adaptiveCadence, this._interventionFilter,
@@ -137,7 +126,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._diagnosticService,
         ];
 
-        // Register disposables
         this._disposables.push(
             this._debugDashboard,
             this._diagnosticService,
@@ -188,11 +176,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._onDidSuppressIntervention.dispose();
     }
 
-    // ==================== WebSocket Message Handler ====================
-
     /**
-     * Handle new build result from WebSocket (implements WebSocketMessageHandler).
-     * Central dispatch ensures correct ordering (Edge Case 1):
+     * Handle a new build result from the WebSocket. The dispatch order matters:
      *   1. CompileEquivalentEmitter → snapshot → EQEngine
      *   2. BuildResultTracker processing
      *   3. Execution-error trigger (if not success)
@@ -206,38 +191,31 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // Step 1: EQ snapshot FIRST (synchronous).
-        // handleBuildResult fires onDidEmitCompileEquivalent — the listener
-        // registered in _setupEventHandlers adds the snapshot to the EQ engine.
-        // Single-path-snapshot: both save and build flow through the listener.
+        // Step 1: EQ snapshot FIRST (synchronous). handleBuildResult fires
+        // onDidEmitCompileEquivalent, whose listener in _setupEventHandlers
+        // adds the snapshot to the EQ engine. Both save and build flow through
+        // that one listener.
         this._compileEmitter.handleBuildResult(result);
 
-        // Step 2: Existing build tracker processing
+        // Step 2: build tracker processing
         this._buildTracker.onNewResult(result);
 
-        // Step 3: Fire execution-error trigger if build wasn't successful
+        // Step 3: execution-error trigger if the build was not successful
         const classification = classifyBuildResult(result);
         if (classification !== 'success') {
             this._triggerEmitter.fireExecutionErrorTrigger();
         }
     }
 
-    // ==================== Session Lifecycle ====================
-
-    /**
-     * Set the WebSocket service for receiving build results.
-     */
     public setWebsocketService(websocketService: ArtemisWebsocketService): void {
         this._websocketService = websocketService;
-
-        // Register ourselves as the message handler for build results
         websocketService.registerMessageHandler(this);
 
         logger.telemetry('WebSocket service connected (EQ system)');
     }
 
     /**
-     * Start a new exercise session — resets all state.
+     * Start a new exercise session, resetting all session state.
      */
     public startExerciseSession(exerciseId: number, exerciseRoot?: vscode.Uri): void {
         // Idempotent: skip if already tracking this exercise
@@ -245,7 +223,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // End previous session if any
         if (this._activeExerciseId !== undefined) {
             this.endExerciseSession();
         }
@@ -261,15 +238,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         logger.telemetry(`Exercise session started: ${exerciseId}`);
     }
 
-    /**
-     * End the current exercise session.
-     */
     public endExerciseSession(): void {
         if (this._activeExerciseId === undefined) {
             return;
         }
 
-        // Log final EQ for analytics
         const { eq, confidence } = this._eqEngine.getCurrentEQ();
         this._log(`Session ended for exercise ${this._activeExerciseId}. Final EQ: ${eq.toFixed(3)}, confidence: ${confidence}`);
 
@@ -281,24 +254,15 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._lastTriggerType = undefined;
     }
 
-    /**
-     * End the current session (called from dispose).
-     */
     public endCurrentSession(): void {
         this.endExerciseSession();
     }
 
-    /**
-     * Record that the student made progress.
-     */
     public recordProgress(): void {
         this._interventionFilter.recordProgress();
     }
 
-    // ==================== Event Handlers ====================
-
     private _setupEventHandlers(): void {
-        // Save event → CompileEquivalentEmitter
         const saveListener = vscode.workspace.onDidSaveTextDocument(doc => {
             if (this._isEnabled) {
                 this._compileEmitter.handleSaveEvent(doc);
@@ -306,7 +270,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         });
         this._disposables.push(saveListener);
 
-        // Text change → BoundaryTriggerEmitter (paste detection)
         const changeListener = vscode.workspace.onDidChangeTextDocument(event => {
             if (this._isEnabled) {
                 this._triggerEmitter.handleTextDocumentChange(event);
@@ -314,7 +277,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         });
         this._disposables.push(changeListener);
 
-        // Selection change → BoundaryTriggerEmitter (selection-maintained)
         const selectionListener = vscode.window.onDidChangeTextEditorSelection(event => {
             if (this._isEnabled) {
                 this._triggerEmitter.handleSelectionChange(event);
@@ -322,8 +284,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         });
         this._disposables.push(selectionListener);
 
-        // CompileEquivalentEmitter → EQEngine.
-        // Single source of truth for snapshot intake: handles both save and build events.
+        // Single source of truth for snapshot intake: both save and build
+        // events reach the EQ engine through here.
         this._compileEmitter.onDidEmitCompileEquivalent(event => {
             const accepted = this._eqEngine.addSnapshot(event.snapshot);
             if (accepted) {
@@ -332,12 +294,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
         });
 
-        // BoundaryTriggerEmitter → evaluate and intervene
         this._triggerEmitter.onDidFireTrigger(triggerType => {
             this._evaluateAndIntervene(triggerType);
         });
 
-        // Build success → record progress
         this._buildTracker.onDidReceiveBuildResult(result => {
             if (result.success) {
                 this.recordProgress();
@@ -345,7 +305,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
         });
 
-        // Diagnostics all resolved → record progress
+        // All diagnostics resolved counts as progress.
         this._diagnosticService.onDidUpdateDiagnostics(diagnostics => {
             const activeErrors = diagnostics.filter(d => !d.resolved);
             if (activeErrors.length === 0) {
@@ -353,9 +313,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
         });
 
-        // Intervention dismissed → increment adaptive cadence for the trigger that caused it.
-        // Only count explicit user dismissals: 'replaced', 'hidden', 'session-end' are
-        // implicit lifecycle dismissals and must NOT skew the cadence statistics.
+        // A dismissal escalates the adaptive cadence for the trigger that
+        // caused it. Only explicit user dismissals count: 'replaced', 'hidden'
+        // and 'session-end' are implicit lifecycle dismissals and must not
+        // skew the cadence statistics.
         this._interventionService.onDidDismissIntervention(decision => {
             if (decision.dismissReason !== 'user-action') {
                 return;
@@ -370,14 +331,13 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._adaptiveCadence.incrementIgnoreCount(decision.triggerType);
         });
 
-        // Intervention accepted → reset adaptive cadence
         this._interventionService.onDidAcceptIntervention(() => {
             this._adaptiveCadence.resetAll();
         });
 
-        // Window focus resume — log when window regains focus with active exercise.
-        // InactivityService will naturally pick up activity from subsequent user actions
-        // (text changes, saves, selections). No explicit recordActivity needed.
+        // Logging only. InactivityService picks up activity from the user's
+        // subsequent actions (text changes, saves, selections), so no explicit
+        // recordActivity is needed here.
         const windowStateListener = vscode.window.onDidChangeWindowState(state => {
             if (state.focused && this._activeExerciseId !== undefined) {
                 this._log('Window regained focus with active exercise session');
@@ -386,11 +346,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._disposables.push(windowStateListener);
     }
 
-    // ==================== Core Decision Logic ====================
-
-    /**
-     * Evaluate EQ and decide whether to intervene.
-     */
     private _evaluateAndIntervene(triggerType: TriggerType): void {
         if (!this._isEnabled) {
             return;
@@ -405,10 +360,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         if (decision.shouldIntervene) {
             if (!this._showInterventions) {
-                // UI suppressed by user setting. Decision-engine UI-delivery state is
-                // intentionally NOT advanced (no _recordIntervention) because no UI was
-                // shown. The recording layer subscribes to onDidSuppressIntervention so
-                // every eligible opportunity is captured for evaluation.
+                // UI suppressed by user setting. Decision-engine UI-delivery
+                // state is deliberately NOT advanced (no _recordIntervention)
+                // because no UI was shown. The recording layer subscribes to
+                // onDidSuppressIntervention so every eligible opportunity is
+                // still captured for evaluation.
                 this._onDidSuppressIntervention.fire({
                     decision,
                     reason: 'user-disabled',
@@ -431,17 +387,15 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
                     break;
             }
         } else if (decision.rawWanted) {
-            // EQ was above threshold but something blocked the intervention.
-            // Record it for telemetry (rate-limited internally).
+            // EQ above threshold but something blocked the intervention.
+            // Recorded for telemetry (rate-limited internally).
             this._interventionService.recordBlockedDecision(decision);
         }
-        // else: rawWanted=false → EQ below all thresholds, normal operation, no event.
+        // rawWanted=false means EQ below all thresholds: normal, no event.
     }
 
-    // ==================== Public API ====================
-
     /**
-     * Get current struggle context for Iris chat integration.
+     * Current struggle context for Iris chat integration.
      */
     public getStruggleContext(): StruggleContext {
         const { eq, confidence } = this._eqEngine.getCurrentEQ();
@@ -463,8 +417,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     public isEnabled(): boolean {
         return this._isEnabled;
     }
-
-    // ==================== Configuration ====================
 
     private _loadConfiguration(): void {
         const struggleConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
@@ -490,9 +442,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._log('Struggle detection enabled');
         }
 
-        // Live transition on->off for the UI toggle: clear any visible hint so a
-        // status-bar lightbulb / coloured remnant disappears immediately. We do
-        // NOT log on every load (only on transitions) to avoid noise.
+        // On a live on->off flip of the UI toggle, clear any visible hint so a
+        // status-bar lightbulb or coloured remnant disappears immediately.
+        // Logged on transitions only, to avoid noise on every config load.
         if (previousShowInterventions && !this._showInterventions) {
             this._interventionService.hideHint();
             this._log('Intervention UI suppressed by user setting');
@@ -516,16 +468,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         return this._decisionEngine.mapEQToLevel(eq);
     }
 
-    // ==================== DEBUG FEATURES ====================
-
-    /**
-     * Show detailed EQ dialog (called from command). Delegates to DebugDashboard.
-     */
     public async showStruggleScoreDialog(): Promise<void> {
         await this._debugDashboard.showStruggleScoreDialog();
     }
-
-    // ==================== Logging ====================
 
     private _log(message: string): void {
         const timestamp = new Date().toLocaleTimeString();

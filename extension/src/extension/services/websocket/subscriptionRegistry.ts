@@ -12,10 +12,10 @@ interface SubscriptionRegistryDeps {
 /**
  * Owns the STOMP subscriptions and the `WebSocketMessageHandler` fan-out.
  *
- * The registry does not own the STOMP client; the orchestrator attaches/
- * detaches the client at connect/disconnect time. Subscriptions made
- * without an attached client throw (Iris) or no-op (personal topics) — they
- * are never silently queued.
+ * The registry does not own the STOMP client; the orchestrator attaches and
+ * detaches it at connect/disconnect time. Subscriptions made without an
+ * attached client throw (Iris) or no-op (personal topics). They are never
+ * silently queued.
  */
 export class SubscriptionRegistry {
     private _client?: Client;

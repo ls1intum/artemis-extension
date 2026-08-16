@@ -14,7 +14,7 @@ interface CodeBlockProps {
     code?: string;
 }
 
-// Singleton highlighter instance (JS engine — no WASM, CSP-safe)
+// Singleton highlighter instance. The JS engine needs no WASM, so it is CSP-safe.
 let highlighterPromise: ReturnType<typeof createHighlighterCore> | null = null;
 
 const getHighlighter = () => {
@@ -46,7 +46,6 @@ const getHighlighter = () => {
                 import('shiki/langs/swift.mjs'),         // Swift
                 import('shiki/langs/typescript.mjs'),    // TypeScript
                 import('shiki/langs/vhdl.mjs'),          // VHDL
-                // SQL
                 import('shiki/langs/sql.mjs'),           // SQL
                 // Common markup/config languages (6)
                 import('shiki/langs/json.mjs'),          // JSON
@@ -98,7 +97,7 @@ export function CodeBlock({ language, children, code }: CodeBlockProps) {
             setCopyText('Copied!');
             setTimeout(() => setCopyText('Copy'), 2000);
         } catch {
-            // Silently fail - clipboard API may not be available
+            // The clipboard API is not always available in a webview.
             setCopyText('Failed');
             setTimeout(() => setCopyText('Copy'), 2000);
         }

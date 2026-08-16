@@ -126,10 +126,6 @@ export function parseGitStatusZ(stdout: string): string[] {
     return paths;
 }
 
-/**
- * Unified workspace file checker
- * Handles all file checking scenarios with configurable options
- */
 export async function checkWorkspaceFiles(
     workspaceFolder?: vscode.WorkspaceFolder,
     options: FileCheckOptions = {}
@@ -158,7 +154,6 @@ export async function checkWorkspaceFiles(
 
     const allFiles = new Set<string>();
 
-    // 1. Get dirty files from VS Code (if requested)
     if (includeDirty) {
         const dirtyFiles = dirtyFilesOverride ?? vscode.workspace.textDocuments
             .filter(doc => doc.isDirty && !doc.isUntitled && doc.uri.scheme === 'file')
@@ -179,7 +174,6 @@ export async function checkWorkspaceFiles(
                     const gitExports: unknown = gitExtension.exports;
                     let gitApi: unknown;
 
-                    // Type guard for exports with getAPI method
                     if (gitExports && typeof gitExports === 'object' && 'getAPI' in gitExports) {
                         const getAPI = (gitExports as { getAPI: unknown }).getAPI;
                         if (typeof getAPI === 'function') {
@@ -187,7 +181,6 @@ export async function checkWorkspaceFiles(
                         }
                     }
 
-                    // Type guard for Git API
                     if (gitApi && typeof gitApi === 'object' && 'repositories' in gitApi) {
                         const repositories = (gitApi as { repositories: unknown }).repositories;
 
@@ -202,11 +195,9 @@ export async function checkWorkspaceFiles(
                             if (repo && typeof repo === 'object' && 'status' in repo) {
                                 const repoWithStatus = repo as { status: (uri: vscode.Uri) => Promise<unknown> };
 
-                                // Check each dirty file to see if it's gitignored
                                 for (const file of dirtyFiles) {
                                     const fileUri = vscode.Uri.joinPath(folder.uri, file);
                                     try {
-                                        // Use Git API to check if file is ignored
                                         const isIgnored: boolean = await repoWithStatus.status(fileUri).then(
                                             () => false, // File is tracked, not ignored
                                             () => true   // File is not tracked (likely ignored)
@@ -223,15 +214,12 @@ export async function checkWorkspaceFiles(
                                     }
                                 }
                             } else {
-                                // No repo found, include all dirty files
                                 dirtyFiles.forEach(file => allFiles.add(file));
                             }
                         } else {
-                            // Git not available, include all dirty files
                             dirtyFiles.forEach(file => allFiles.add(file));
                         }
                     } else {
-                        // Git not available, include all dirty files
                         dirtyFiles.forEach(file => allFiles.add(file));
                     }
                 } catch (error) {
@@ -240,15 +228,13 @@ export async function checkWorkspaceFiles(
                     dirtyFiles.forEach(file => allFiles.add(file));
                 }
             } else {
-                // Git extension not available, include all dirty files
                 dirtyFiles.forEach(file => allFiles.add(file));
             }
         }
     }
 
-    // 2. Get files from git status.
     // The NUL-terminated porcelain format (-z) leaves paths unquoted and lists
-    // rename/copy destinations explicitly, which the old line+slice(3) parser mangled.
+    // rename/copy destinations explicitly, so paths with spaces survive intact.
     try {
         const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain=v1', '-z'], {
             cwd: folder.uri.fsPath,
@@ -267,7 +253,6 @@ export async function checkWorkspaceFiles(
         }
     }
 
-    // 3. Get unpushed commits (if requested)
     if (checkUnpushed) {
         try {
             const { stdout: diffOutput } = await execFileAsync('git', ['diff', '--name-only', '@{u}..HEAD'], {
@@ -286,13 +271,11 @@ export async function checkWorkspaceFiles(
         }
     }
 
-    // 4. Process all files
     const fileInfos: FileInfo[] = [];
 
     for (const relativePath of allFiles) {
         const fileInfo: FileInfo = { path: relativePath };
 
-        // Apply filters if requested
         if (applyFilters) {
             const exclusionReason = await shouldExcludeFile(folder, relativePath);
             if (exclusionReason) {
@@ -305,13 +288,11 @@ export async function checkWorkspaceFiles(
             }
         }
 
-        // File is included
         fileInfo.status = 'included';
         if (includeStatus) {
             fileInfo.reason = 'Will be sent';
         }
 
-        // Read content if requested
         if (includeContent) {
             try {
                 const absolutePath = vscode.Uri.joinPath(folder.uri, relativePath).fsPath;
@@ -338,12 +319,8 @@ export async function checkWorkspaceFiles(
     };
 }
 
-/**
- * Check if a file should be excluded based on filters
- * Returns exclusion reason or null if file should be included
- */
+/** Returns the exclusion reason, or null when the file should be included. */
 async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: string): Promise<string | null> {
-    // Check for excluded directories
     const pathParts = relativePath.split(/[/\\]/);
     for (const part of pathParts) {
         if (EXCLUDED_DIRECTORIES.has(part)) {
@@ -351,7 +328,6 @@ async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: s
         }
     }
 
-    // Whitelist check: only allow specific extensions
     const ext = relativePath.substring(relativePath.lastIndexOf('.')).toLowerCase();
 
     // Special case: files without extensions (like Dockerfile, Makefile, etc.)
@@ -369,7 +345,6 @@ async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: s
         return `File type not allowed (${ext || 'no extension'})`;
     }
 
-    // Check file size
     try {
         const absolutePath = vscode.Uri.joinPath(folder.uri, relativePath).fsPath;
         const stats = await statAsync(absolutePath);
@@ -395,5 +370,5 @@ async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: s
         return 'File not accessible';
     }
 
-    return null; // File should be included
+    return null;
 }

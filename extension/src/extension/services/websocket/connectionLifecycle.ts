@@ -20,9 +20,8 @@ export const MAX_CONNECTION_ATTEMPTS = 20;
 interface ConnectionLifecycleDeps {
     log(message: string): void;
     /**
-     * Fired on connect (immediately) and disconnect (after debounce or
-     * immediately on gave-up / intentional disconnect). Mirrors the prior
-     * EventEmitter exposed by the service.
+     * Fired on connect (immediately) and disconnect (after debounce, or
+     * immediately on gave-up / intentional disconnect).
      */
     onDidChangeConnectionState(evt: { connected: boolean; wasEverConnected: boolean }): void;
 }
@@ -31,10 +30,9 @@ interface BeginConnectOptions {
     /**
      * Set to true when the orchestrator detects a STOMP client mid-handshake
      * (`client?.active && !client.connected`). State-based gates are checked
-     * first: if the lifecycle is `connecting` we return reuse; if it's
-     * `disconnecting` or `gave-up` we throw, regardless of this flag. Only
-     * a `disconnected` state combined with this flag returns reuse, matching
-     * the original guard order.
+     * first: `connecting` returns reuse, `disconnecting` and `gave-up` throw,
+     * regardless of this flag. Only `disconnected` combined with this flag
+     * returns reuse.
      */
     clientInflight?: boolean;
 }
@@ -46,10 +44,8 @@ type BeginConnectResult =
 interface RecordDisconnectOptions {
     /**
      * True iff the orchestrator currently holds a STOMP `Client` instance.
-     * The lifecycle uses this to decide whether to bump the generation
-     * token when hitting `gave-up` (the original code only bumped when
-     * `this._client` was non-null, because the bump exists to invalidate
-     * STOMP callbacks before force-deactivation).
+     * The generation token is only bumped on `gave-up` when one exists, since
+     * the bump exists to invalidate STOMP callbacks before force-deactivation.
      */
     hasClient: boolean;
 }
@@ -91,9 +87,8 @@ export class ConnectionLifecycle {
     public get wasConnectedOnce(): boolean { return this._wasConnectedOnce; }
 
     /**
-     * Top of `connect()`. Handles all state-based gates (matches the original
-     * `_maybeReuseInflightConnect` guard order) FIRST, then falls through to
-     * `clientInflight` reuse, then to a fresh attempt.
+     * Top of `connect()`. Handles all state-based gates FIRST, then falls
+     * through to `clientInflight` reuse, then to a fresh attempt.
      */
     public beginConnect(opts: BeginConnectOptions): BeginConnectResult {
         if (this._state === 'connecting') {
@@ -106,7 +101,7 @@ export class ConnectionLifecycle {
         if (opts.clientInflight) {
             // STOMP client is mid-handshake while we are 'disconnected'. Join
             // the existing attempt without re-entering 'connecting' or bumping
-            // generation. Original behavior preserved.
+            // the generation.
             if (!this._connectDeferred) {
                 this._connectDeferred = createDeferred<void>();
                 this._startSafetyTimeout();
@@ -146,10 +141,8 @@ export class ConnectionLifecycle {
     }
 
     /**
-     * Called by the orchestrator when the WebSocket factory is about to
-     * open a new physical socket (per-attempt counter reset). Mirrors the
-     * original `_disconnectCountedThisAttempt = false` reset inside the
-     * `webSocketFactory`.
+     * Called by the orchestrator when the WebSocket factory is about to open a
+     * new physical socket, resetting the per-attempt disconnect counter.
      */
     public recordWebSocketReopened(): void {
         this._disconnectCountedThisAttempt = false;
@@ -198,10 +191,9 @@ export class ConnectionLifecycle {
             this._state = 'gave-up';
             this._deps.log(`MAX RECONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED`);
             if (opts.hasClient) {
-                // Matches old behavior: generation only bumps when a client
-                // exists to be force-deactivated. The bump exists to invalidate
-                // STOMP callbacks before the orchestrator calls
-                // `client.deactivate({ force: true })`.
+                // Bump only when a client exists to be force-deactivated: the
+                // bump invalidates STOMP callbacks before the orchestrator
+                // calls `client.deactivate({ force: true })`.
                 this._generation++;
             }
             if (!this._gaveUpEventFired) {
@@ -265,8 +257,8 @@ export class ConnectionLifecycle {
 
     /**
      * Called by the orchestrator when `disconnect()` runs but no client
-     * existed. Matches the original no-event-fired path. No counters
-     * touched (they were already at zero by definition).
+     * existed. Fires no event and touches no counters (they are already at
+     * zero by definition).
      */
     public completeDisconnectNoClient(): void {
         this._state = 'disconnected';

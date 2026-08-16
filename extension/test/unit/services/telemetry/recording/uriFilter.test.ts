@@ -1,35 +1,13 @@
-/**
- * Unit tests for uriFilter — Block I
- *
- * Covers:
- *   1. Prefix-bug fix: /workspace/ex1 root does NOT accept /workspace/ex10/File.java
- *   2. /workspace/ex1 root + /workspace/ex1/File.java → true
- *   3. Exact root match: /workspace/ex1 root + /workspace/ex1 (root itself) → true
- *   4. Blacklisted scheme: git:// → false
- *   5. Non-file scheme: vscode-remote:// with file-path inside root → false (V1: file: only)
- *   6. No exerciseRoot given, file:// URI → true
- *   7. Blacklisted scheme: vscode-userdata: → false
- *   8. shouldRecordUriString mirrors shouldRecordUri for string inputs
- *   9. All blacklisted schemes are rejected
- *  10. Non-file, non-blacklisted scheme (e.g. untitled:) → false (V1: file: only)
- */
-
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 
 import { shouldRecordUri, shouldRecordUriString } from '@extension/services/telemetry/uriFilter';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function fileUri(fsPath: string): vscode.Uri {
     return vscode.Uri.file(fsPath);
 }
 
-// ── shouldRecordUri ───────────────────────────────────────────────────────────
-
 suite('shouldRecordUri (Block I)', () => {
-    // ── Prefix-bug fix ────────────────────────────────────────────────────────
-
     test('1. prefix-bug: /workspace/ex10/File.java must NOT match root /workspace/ex1', () => {
         const root = fileUri('/workspace/ex1');
         const uri  = fileUri('/workspace/ex10/File.java');
@@ -60,8 +38,6 @@ suite('shouldRecordUri (Block I)', () => {
         const uri  = fileUri('/workspace/ex1-extra/Main.java');
         assert.strictEqual(shouldRecordUri(uri, root), false);
     });
-
-    // ── Blacklisted schemes ───────────────────────────────────────────────────
 
     test('4. git scheme is rejected', () => {
         const uri = vscode.Uri.parse('git:/some/file.java');
@@ -103,11 +79,9 @@ suite('shouldRecordUri (Block I)', () => {
         assert.strictEqual(shouldRecordUri(uri), false);
     });
 
-    // ── Non-file, non-blacklisted schemes (V1: file: only) ───────────────────
-
     test('5. vscode-remote scheme is rejected in V1 (file: scheme only)', () => {
-        // vscode-remote is not blacklisted but is not file: — V1 rejects it.
-        // Supporting remote URIs is a planned follow-up.
+        // vscode-remote is not blacklisted, but it is not the file: scheme
+        // either, and V1 records file: only.
         const root = fileUri('/workspace/ex1');
         const uri  = vscode.Uri.parse('vscode-remote://ssh-remote+host/workspace/ex1/file.java');
         assert.strictEqual(shouldRecordUri(uri, root), false,
@@ -119,8 +93,6 @@ suite('shouldRecordUri (Block I)', () => {
         assert.strictEqual(shouldRecordUri(uri), false);
     });
 
-    // ── No exerciseRoot ───────────────────────────────────────────────────────
-
     test('6. file:// URI is accepted when no exerciseRoot is given', () => {
         const uri = fileUri('/workspace/ex1/Main.java');
         assert.strictEqual(shouldRecordUri(uri), true);
@@ -131,8 +103,6 @@ suite('shouldRecordUri (Block I)', () => {
         assert.strictEqual(shouldRecordUri(uri), true);
     });
 });
-
-// ── shouldRecordUriString ─────────────────────────────────────────────────────
 
 suite('shouldRecordUriString (Block I)', () => {
     test('8a. prefix-bug: ex10 string not accepted under ex1 root string', () => {
@@ -161,8 +131,6 @@ suite('shouldRecordUriString (Block I)', () => {
     });
 
     test('8f. path.sep is correctly used — same result on current platform', () => {
-        // Regression guard: ensure that shouldRecordUri and shouldRecordUriString
-        // agree for the same input.
         const root = fileUri('/workspace/ex1');
         const uri  = fileUri('/workspace/ex1/sub/file.ts');
         assert.strictEqual(

@@ -30,17 +30,15 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         return resolved;
     }
 
-    // Live-tailer registry — shared across all SSE requests so multiple subscribers
-    // to the same session reuse one underlying file poller.
+    // Shared across all SSE requests so multiple subscribers to the same session
+    // reuse one underlying file poller.
     const tailerRegistry = new LiveTailerRegistry(recordingsDir);
 
-    // Track concurrent video uploads per session
     const uploadInProgress = new Map<string, boolean>();
 
-    // Track concurrent subtitle uploads per session (keyed by sessionId)
     const subtitleUploadInProgress = new Map<string, boolean>();
 
-    const MAX_SUBTITLE_BYTES = 5 * 1024 * 1024; // 5 MB
+    const MAX_SUBTITLE_BYTES = 5 * 1024 * 1024;
 
     // SRT timing line. Hours group is 1-2 digits; delimiter between seconds and ms is
     // comma (standard SRT) or period (some encoders). Anything after the end timestamp
@@ -97,7 +95,6 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         const method = req.method?.toUpperCase() ?? 'GET';
         const urlPath = (req.url ?? '').split('?')[0];
 
-        // ─── Auth endpoints ───────────────────────────────────────────────
         if (urlPath === '/api/auth/login' && method === 'POST') {
             void (async () => {
                 try {
@@ -166,7 +163,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // ─── Auth gate for /api/recordings and /api/live ──────────────────
+        // Auth gate for /api/recordings and /api/live.
         let session: ViewerSession | null = null;
         if (urlPath.startsWith('/api/recordings') || urlPath.startsWith('/api/live')) {
             const authRequired = Boolean(config.liveToken || config.researcherToken);
@@ -203,7 +200,6 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 return;
             }
 
-            // Researcher role: read-only. No POST/DELETE/PUT.
             if (session?.role === 'researcher' && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
                 sendJson(res, 403, { error: 'Researcher role cannot modify annotations.' });
                 return;
@@ -376,7 +372,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // GET /api/recordings/:sessionId/events/stream — SSE live tail
+        // GET /api/recordings/:sessionId/events/stream: SSE live tail
         // MUST come before the /events route below so it doesn't get shadowed.
         //
         // Catch-up sequence on connect:
@@ -385,8 +381,8 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         //   2. Read historical lines from disk according to Last-Event-ID
         //      header (resume), ?tail=N param (override), or default tail.
         //   3. Send the catch-up batch as SSE frames.
-        //   4. Read the "gap" — any lines that landed in the file between
-        //      catch-up read and tailer's current lineNo — and send those.
+        //   4. Read the "gap" (any lines that landed in the file between the
+        //      catch-up read and the tailer's current lineNo) and send those.
         //   5. Drain the live buffer, deduping by lineNo (a line could have
         //      been emitted both by the gap read and by the buffered tailer
         //      callback if it landed during step 4).
@@ -570,7 +566,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         // GET /api/recordings/:sessionId/events
         // Optional ?tail=N query: stream-read the file and return only the
         // last N events (memory O(N) regardless of file size). Without the
-        // param, returns the full archive — same as before, contract intact.
+        // param, returns the full archive.
         const eventsMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/events$/);
         if (eventsMatch) {
             const sessionDir = resolveSessionDir(eventsMatch[1]);
@@ -632,7 +628,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // GET /api/recordings/:sessionId/annotations/all — researcher: all rater lanes + legacy synthetic.
+        // GET /api/recordings/:sessionId/annotations/all: researcher view, all rater lanes plus legacy synthetic.
         {
             const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/all$/);
             if (m && method === 'GET') {
@@ -672,7 +668,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             }
         }
 
-        // GET /api/recordings/:sessionId/annotations — current rater's marks only.
+        // GET /api/recordings/:sessionId/annotations: current rater's marks only.
         {
             const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
             if (m && method === 'GET') {
@@ -699,19 +695,16 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             }
         }
 
-        // POST /api/recordings/:sessionId/annotations — append a single
-        // annotation. The timestamp is the server receive time unless the
-        // client sends an explicit `timestamp` field (used by the redo path
-        // to restore an annotation at its original moment).
-        //
-        // Legacy fields `referenceEventTimestamp` and `reactionDelayMs` are
-        // accepted in the body for backwards compatibility but ignored.
         const VALID_LABELS = new Set([
             'confident', 'light-struggle', 'medium-struggle', 'high-struggle', 'blocked',
             'idle', 'trial-error', 'reading', 'off-task', 'using-ai', 'iris-moment', 'reading-test-results', 'waiting-for-build-results',
         ]);
 
-        // POST /api/recordings/:sessionId/annotations — append `add` to current rater's file.
+        // POST /api/recordings/:sessionId/annotations: append `add` to the current
+        // rater's file. The timestamp is the server receive time unless the client
+        // sends an explicit `timestamp` field (the redo path restores an annotation
+        // at its original moment). Request bodies may also carry the legacy fields
+        // `referenceEventTimestamp` and `reactionDelayMs`; both are accepted and ignored.
         {
             const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
             if (m && method === 'POST') {
@@ -763,7 +756,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             }
         }
 
-        // DELETE /api/recordings/:sessionId/annotations/:id — tombstone in current rater's file.
+        // DELETE /api/recordings/:sessionId/annotations/:id: tombstone in current rater's file.
         {
             const m = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/([^/]+)$/);
             if (m && method === 'DELETE') {
@@ -875,7 +868,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // PUT /api/recordings/:sessionId/video — upload video file
+        // PUT /api/recordings/:sessionId/video: upload video file
         const videoUploadMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/video$/);
         if (videoUploadMatch && method === 'PUT') {
             const sessionId = videoUploadMatch[1];
@@ -920,8 +913,8 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             };
 
             // The write stream does async I/O, so an error (its lazy fd open
-            // losing a race with a concurrent directory removal — e.g. a test's
-            // afterEach cleanup — or a disk failure) must be handled. Left
+            // losing a race with a concurrent directory removal, e.g. a test's
+            // afterEach cleanup, or a disk failure) must be handled. Left
             // unhandled it crashes the process. Tear down and, if nothing has
             // responded yet, fail the upload.
             ws.on('error', () => {
@@ -951,7 +944,6 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                         respond(400, { error: `Invalid ${ext.toUpperCase()} file (bad magic bytes)` });
                         return;
                     }
-                    // Write accumulated header buffer
                     ws.write(headerBuffer);
                     return;
                 }
@@ -968,10 +960,8 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                         const altPath = path.join(sessionDir, `video.${altExt}`);
                         if (fs.existsSync(altPath)) fs.unlinkSync(altPath);
 
-                        // Rename tmp to final
                         fs.renameSync(tmpPath, finalPath);
 
-                        // Write or preserve video-sync.json
                         const syncPath = path.join(sessionDir, 'video-sync.json');
                         if (fs.existsSync(syncPath)) {
                             // Preserve existing offset, update extension
@@ -1009,7 +999,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             // Handle client disconnect/abort (close fires on ALL requests, not just aborts)
             req.on('close', () => {
                 if (rejected || requestEnded) return;
-                // Request closed before 'end' fired — this is a genuine abort
+                // Request closed before 'end' fired: a genuine abort.
                 rejected = true;
                 settled = true; // genuine abort; suppress any late error response
                 cleanup();
@@ -1018,7 +1008,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // GET /api/recordings/:sessionId/video — serve video with range support
+        // GET /api/recordings/:sessionId/video: serve video with range support
         const videoServeMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/video$/);
         if (videoServeMatch && (method === 'GET' || method === 'HEAD')) {
             const sessionDir = resolveSessionDir(videoServeMatch[1]);
@@ -1103,7 +1093,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // GET|HEAD /api/recordings/:sessionId/subtitles — serve WebVTT (convert SRT if needed)
+        // GET|HEAD /api/recordings/:sessionId/subtitles: serve WebVTT (convert SRT if needed)
         const subsGetMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/subtitles$/);
         if (subsGetMatch && (method === 'GET' || method === 'HEAD')) {
             const sessionDir = resolveSessionDir(subsGetMatch[1]);
@@ -1133,7 +1123,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
-        // PUT /api/recordings/:sessionId/subtitles — upload VTT or SRT, stored as video.vtt
+        // PUT /api/recordings/:sessionId/subtitles: upload VTT or SRT, stored as video.vtt
         const subsPutMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/subtitles$/);
         if (subsPutMatch && method === 'PUT') {
             const sessionId = subsPutMatch[1];

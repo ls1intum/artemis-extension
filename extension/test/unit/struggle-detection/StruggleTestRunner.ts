@@ -1,5 +1,5 @@
 /**
- * Struggle Detection Test Runner — EQ-based
+ * Struggle Detection Test Runner (EQ-based)
  *
  * Runs scenarios against the ErrorQuotientEngine.
  * Save events create ErrorSnapshots from active diagnostics.
@@ -24,17 +24,15 @@ import {
     StruggleScenario,
 } from './types';
 
-/** LINT_SOURCE_DENYLIST — matches the production code */
+/** Mirrors the lint-source denylist in the production code. */
 const LINT_SOURCE_DENYLIST = new Set([
     'eslint', 'tslint', 'stylelint', 'checkstyle', 'pmd', 'spotbugs', 'sonarlint',
 ]);
 
-/** EQ struggle threshold — matches TelemetryManager */
+/** Mirrors the EQ struggle threshold in TelemetryManager. */
 const EQ_STRUGGLE_THRESHOLD = 0.15;
 
-/**
- * EQ thresholds for recommended action — matches InterventionDecisionEngine.
- */
+/** Mirrors the recommended-action thresholds in InterventionDecisionEngine. */
 function getRecommendedAction(eq: number, confidence: EQConfidence): RecommendedAction {
     if (confidence === 'insufficient') {
         return 'none';
@@ -56,52 +54,42 @@ function isStruggling(eq: number, confidence: EQConfidence): boolean {
 export class StruggleTestRunner {
     private clock: sinon.SinonFakeTimers | undefined;
 
-    // Real EQ engine — instantiated fresh for each scenario
+    // Real EQ engine, instantiated fresh for each scenario
     private eqEngine: ErrorQuotientEngine | undefined;
 
-    // Active diagnostics state (simulated)
     private activeDiagnostics: Map<string, DiagnosticDefinition[]> = new Map();
 
-    /**
-     * Run a single scenario and return the result
-     */
     async runScenario(scenario: StruggleScenario): Promise<ScenarioResult> {
         const errors: string[] = [];
         const scoreSnapshots: ScoreSnapshot[] = [];
 
         try {
-            // 1. Setup: Install fake timers BEFORE creating services
+            // Install the fake timers BEFORE creating any service.
             this.clock = sinon.useFakeTimers({
                 now: 0,
                 toFake: ['Date', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'],
                 shouldClearNativeTimers: true,
             });
 
-            // 2. Initialize EQ engine
             this.eqEngine = new ErrorQuotientEngine();
             this.activeDiagnostics.clear();
 
-            // 3. Execute events and record EQ
             let currentTime = 0;
             for (const event of scenario.events) {
                 try {
-                    // For wait events, advance time by the duration
                     if (event.type === 'wait') {
                         this.clock.tick(event.duration);
                         currentTime += event.duration;
                     } else {
-                        // For other events, advance time to the event's timestamp
                         const eventTimestamp = (event as { timestamp?: number }).timestamp ?? currentTime;
                         if (eventTimestamp > currentTime) {
                             this.clock.tick(eventTimestamp - currentTime);
                             currentTime = eventTimestamp;
                         }
 
-                        // Apply the event
                         this.applyEvent(event);
                     }
 
-                    // Record EQ snapshot
                     const { eq, confidence } = this.eqEngine.getCurrentEQ();
                     const action = getRecommendedAction(eq, confidence);
                     scoreSnapshots.push({
@@ -119,7 +107,6 @@ export class StruggleTestRunner {
         } catch (err) {
             errors.push(`Scenario setup failed: ${err}`);
         } finally {
-            // Cleanup
             this.eqEngine?.dispose();
             this.eqEngine = undefined;
             this.activeDiagnostics.clear();
@@ -127,13 +114,9 @@ export class StruggleTestRunner {
             this.clock = undefined;
         }
 
-        // Evaluate result
         return this.evaluateScenario(scenario, scoreSnapshots, errors);
     }
 
-    /**
-     * Run multiple scenarios and return aggregated report
-     */
     async runScenarios(scenarios: StruggleScenario[]): Promise<ScenarioResult[]> {
         const results: ScenarioResult[] = [];
 
@@ -146,17 +129,13 @@ export class StruggleTestRunner {
         return results;
     }
 
-    /**
-     * Apply an event to the EQ engine
-     */
     private applyEvent(event: ScenarioEvent): void {
         switch (event.type) {
             case 'diagnostic':
                 this.applyDiagnosticEvent(event);
                 break;
             case 'edit':
-                // Edits don't directly affect EQ — they just change file state.
-                // Kept for backward compatibility with existing scenarios.
+                // Edits do not affect EQ; they only change file state.
                 break;
             case 'save':
                 this.applySaveEvent(event);
@@ -171,8 +150,8 @@ export class StruggleTestRunner {
     }
 
     /**
-     * Apply a diagnostic event — updates the active diagnostics state.
-     * Does NOT create an EQ snapshot; only a save or build event does.
+     * Updates the active diagnostics state. Does NOT create an EQ snapshot;
+     * only a save or build event does.
      */
     private applyDiagnosticEvent(event: DiagnosticEvent): void {
         if (event.action === 'clear') {
@@ -195,8 +174,8 @@ export class StruggleTestRunner {
     }
 
     /**
-     * Apply a save event — create ErrorSnapshot from active diagnostics and feed to EQ engine.
-     * This is the primary compile-equivalent event.
+     * Creates an ErrorSnapshot from the active diagnostics and feeds it to the
+     * EQ engine. This is the primary compile-equivalent event.
      */
     private applySaveEvent(_event: SaveEvent): void {
         const snapshot = this.createSnapshotFromDiagnostics();
@@ -204,7 +183,7 @@ export class StruggleTestRunner {
     }
 
     /**
-     * Apply a build event — create ErrorSnapshot from build classification.
+     * Creates an ErrorSnapshot from the build classification.
      * buildFailed → hasErrors=true (compiler error).
      * test-failure or success → hasErrors=false.
      */
@@ -220,7 +199,6 @@ export class StruggleTestRunner {
                 errorFamilies.add(`build:${err}`);
             }
         }
-        // If buildFailed but no specific errors listed, add a generic one
         if (buildFailed && errorFamilies.size === 0) {
             errorFamilies.add('build:compiler-error');
         }
@@ -265,9 +243,6 @@ export class StruggleTestRunner {
         };
     }
 
-    /**
-     * Evaluate scenario result against expected outcome
-     */
     private evaluateScenario(
         scenario: StruggleScenario,
         snapshots: ScoreSnapshot[],
@@ -289,9 +264,6 @@ export class StruggleTestRunner {
         };
     }
 
-    /**
-     * Calculate detailed metrics from EQ timeline
-     */
     private calculateMetrics(
         scenario: StruggleScenario,
         snapshots: ScoreSnapshot[]
@@ -316,7 +288,6 @@ export class StruggleTestRunner {
         const finalConfidence = finalSnapshot.confidence;
         const expected = scenario.expectedOutcome;
 
-        // Find time to detection
         let timeToDetection: number | null = null;
         for (const snapshot of snapshots) {
             if (isStruggling(snapshot.eq, snapshot.confidence)) {
@@ -325,7 +296,6 @@ export class StruggleTestRunner {
             }
         }
 
-        // Calculate false positive time
         let falsePositiveTime = 0;
         if (!expected.shouldDetectStruggle) {
             let lastTimestamp = 0;

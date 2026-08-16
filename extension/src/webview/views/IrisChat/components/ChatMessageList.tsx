@@ -63,7 +63,6 @@ export function ChatMessageList({
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
 
-    // Auto-scroll when new messages arrive
     useEffect(() => {
         scrollOnSend();
     }, [messages.length, scrollOnSend]);

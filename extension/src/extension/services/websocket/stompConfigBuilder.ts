@@ -15,15 +15,11 @@ interface BuildStompConfigDeps {
     wsUrl: string;
     /** Read at callback time, so the orchestrator can invalidate this attempt. */
     currentGeneration(): number;
-    /** Called when STOMP successfully connects. */
     onConnected(): void;
-    /** Called when STOMP reports a broker error frame. Receives a formatted message. */
     onStompError(message: string): void;
-    /** Called on lower-level WebSocket errors. Receives a formatted message. */
     onWebSocketError(message: string): void;
-    /** Called when STOMP or the underlying WebSocket disconnects. */
     onDisconnected(): void;
-    /** Called immediately before each WebSocket constructor invocation (used to reset per-attempt counters). */
+    /** Fires immediately before each WebSocket construction, to reset per-attempt counters. */
     onWebSocketBeforeOpen(): void;
     log(message: string): void;
 }

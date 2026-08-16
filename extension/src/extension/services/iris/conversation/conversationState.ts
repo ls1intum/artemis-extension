@@ -85,15 +85,12 @@ export class ConversationState {
     /**
      * Bumped by the service before each overview request, and compared by the
      * service when the response lands, so an older request cannot install over
-     * a newer one for the same course. It no longer stamps per-summary
-     * overlays; cut 7 removed those.
+     * a newer one for the same course.
      */
     public nextOverviewSeq(): number { return ++this._overviewSeq; }
     public get overviewSeq(): number { return this._overviewSeq; }
     private _sendInFlight = false;
     private _optimisticBubble = false;
-
-    // ---- guards -------------------------------------------------------
 
     /**
      * Captures the guard for a NON-load operation (a send, a subscription). Its
@@ -127,8 +124,6 @@ export class ConversationState {
             && captured.sendSeq === this._sendSeq
             && captured.loadTicket > this._lastInstalledTicket;
     }
-
-    // ---- navigation ---------------------------------------------------
 
     /**
      * Announces that we are moving to `sessionId`. Resets the per-session
@@ -180,14 +175,11 @@ export class ConversationState {
         this._courseSessions = [];
         this._knownInvisible.clear();
         // `_detail` deliberately SURVIVES until the fresh detail installs over
-        // it. Clearing it here opens a hole with no guard behind it:
-        // `upsertMessage` returns immediately when `_detail` is undefined, so a
-        // USER or LLM frame arriving during the reload GET is simply dropped,
-        // and the conversation would report `empty` while the student is
-        // looking at their own message. A failed reload would also leave
-        // `contentState` stuck at `unknown` forever. This "retain detail until a
-        // replacement installs" rule is what keeps the monotonic union of cut 6
-        // from ever producing a FALSE EMPTY, so it and its tests stay.
+        // it. `upsertMessage` returns immediately when `_detail` is undefined,
+        // so clearing it here would drop any USER or LLM frame arriving during
+        // the reload GET and report `empty` while the student is looking at
+        // their own message. A failed reload would also leave `contentState`
+        // stuck at `unknown` forever.
     }
 
     /**
@@ -212,8 +204,6 @@ export class ConversationState {
         this._knownInvisible.delete(sessionId);
     }
 
-    // ---- installs -----------------------------------------------------
-
     /**
      * Returns false when the guard failed and nothing was written. The guard is
      * checked unconditionally, including when `captured.sessionId` is
@@ -231,19 +221,17 @@ export class ConversationState {
         // still hold the previous course's sessions, so the history would offer
         // rows from the course we just left.
         this.setCourse(detail.courseId);
-        // MONOTONIC UNION by server message id (cut 6). A load reads a snapshot
-        // taken at request time, so a message that arrived AFTER the request
-        // began is newer than that snapshot even though it moved no guard
-        // counter; a replacing install would silently delete it. The union never
-        // removes, so that loss is impossible by construction and no per-message
-        // arrival bookkeeping is needed.
+        // MONOTONIC UNION by server message id. A load reads a snapshot taken at
+        // request time, so a message that arrived AFTER the request began is
+        // newer than that snapshot even though it moved no guard counter; a
+        // replacing install would silently delete it. The union never removes,
+        // so that loss is impossible by construction.
         //
         // The cost, accepted: a message the server deleted survives locally
         // until a reload or a restart. That error only ever makes a conversation
-        // look MORE full than it is, and the only decision left keyed on `empty`
-        // is the automatic staging on acquisition, which then simply does not
-        // happen. PR 2, which deletes superseded proactive messages, owns the
-        // sharper semantics.
+        // look MORE full than it is, and the only decision keyed on `empty` is
+        // the automatic staging on acquisition, which then simply does not
+        // happen.
         //
         // Spread, not replace: a locally known frame may be partial (a resend
         // that only attaches activities), and the response may carry fields it
@@ -347,12 +335,11 @@ export class ConversationState {
      * whole is the SERVICE's job (`_overviewSeq`); the only per-row rule left
      * here is that the response may not contradict the OPEN conversation.
      *
-     * Cut 7 removed the general per-summary overlay. A CTXSWAP can still land
-     * while an overview is in flight, and the response then describes the old
-     * topic, but for the current conversation the loaded detail is
-     * authoritative and simply re-derives its row. Other conversations are
-     * allowed to be briefly stale; that is how the cache learns about repoints
-     * it never saw.
+     * A CTXSWAP can land while an overview is in flight, and the response then
+     * describes the old topic, but for the current conversation the loaded
+     * detail is authoritative and simply re-derives its row. Other conversations
+     * are allowed to be briefly stale; that is how the cache learns about
+     * repoints it never saw.
      */
     public setOverview(summaries: SessionSummary[]): void {
         this._courseSessions = summaries;
@@ -426,8 +413,6 @@ export class ConversationState {
         this._detail = { ...this._detail, title };
         this.updateSummary({ ...summaryOfDetail(this._detail) });
     }
-
-    // ---- context ------------------------------------------------------
 
     public effectiveContext(): ServerContext | undefined {
         return this._pending?.ctx ?? this._committed;
@@ -508,14 +493,12 @@ export class ConversationState {
      *
      * Mirrors `applyContextSwap`: the detail and the cached summary must move
      * with it, or the history row keeps claiming the old topic while the chip
-     * shows the new one, and the next
-     * `refreshOverview` re-derives the open row from the stale detail and
-     * re-stamps the old topic. The window this closes is exactly the one
-     * before the server's own CTXSWAP frame arrives, which is precisely when
-     * the socket is down and this write-back is the only thing that ran.
-     * There is no marker message here (this is the coordinator's own
-     * write-back, not a persisted CTXSWAP row), so unlike `applyContextSwap`
-     * the cached summary's `lastActivity` is left as it already was.
+     * shows the new one, and the next `refreshOverview` re-derives the open row
+     * from the stale detail and re-stamps the old topic. This covers the window
+     * before the server's own CTXSWAP frame arrives, which is exactly the case
+     * when the socket is down and this write-back is all that runs. There is no
+     * marker message here, so unlike `applyContextSwap` the cached summary's
+     * `lastActivity` is left as it already was.
      */
     public commitContext(ctx: ServerContext): void {
         this._committed = ctx;
@@ -534,15 +517,11 @@ export class ConversationState {
         }
     }
 
-    // ---- sends --------------------------------------------------------
-
     public get sendInFlight(): boolean { return this._sendInFlight; }
     public beginSend(): void { this._sendInFlight = true; }
     /** Call once the send's result is FULLY processed, reconciliation included. */
     public endSend(): void { this._sendInFlight = false; this._sendSeq++; }
     public setOptimisticBubble(present: boolean): void { this._optimisticBubble = present; }
-
-    // ---- content ------------------------------------------------------
 
     public contentState(): ContentState {
         if (this._optimisticBubble) { return 'content'; }

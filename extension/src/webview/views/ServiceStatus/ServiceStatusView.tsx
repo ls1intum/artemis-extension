@@ -11,7 +11,6 @@ import styles from './ServiceStatusView.module.css';
 import type { HealthCheckResult, ServiceStatusPersistedState, ServiceStatusViewProps } from './types';
 
 export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
-    // Restore persisted state (serverUrl only)
     const persistedState = vscodeApi.getState<ServiceStatusPersistedState>();
     const [serverUrl, setServerUrl] = useState<string>(persistedState?.serverUrl || '');
     const [healthResults, setHealthResults] = useState<Record<string, HealthCheckResult>>({});
@@ -19,14 +18,12 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     const [isChecking, setIsChecking] = useState<boolean>(false);
     const [lastCheckTime, setLastCheckTime] = useState<Date | undefined>(undefined);
 
-    // Handle messages from extension
     useExtensionMessage((msg) => {
         switch (msg.type) {
             case ExtensionMsg.ServiceStatusInit: {
                 const url = msg.serverUrl ?? '';
                 setServerUrl(url);
                 setIsLoaded(true);
-                // Trigger health check if we have a server URL
                 if (url) {
                     setIsChecking(true);
                     postCommand(vscodeApi, 'performHealthChecks', { serverUrl: url });
@@ -42,19 +39,16 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
         }
     }, [vscodeApi, setServerUrl, setIsLoaded, setIsChecking, setHealthResults, setLastCheckTime]);
 
-    // Persist serverUrl when it changes
     useEffect(() => {
         if (serverUrl) {
             vscodeApi.setState<ServiceStatusPersistedState>({ serverUrl });
         }
     }, [serverUrl, vscodeApi]);
 
-    // Handle back navigation
     const handleBack = () => {
         postCommand(vscodeApi, 'backToDashboard');
     };
 
-    // Handle refresh
     const handleRefresh = () => {
         if (serverUrl) {
             setIsChecking(true);
@@ -71,7 +65,6 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
         );
     }
 
-    // Map health results to ServiceHealth component format
     const services: ServiceInfo[] = Object.entries(healthResults).map(([name, result]) => ({
         name: formatServiceName(name),
         status: result.status,

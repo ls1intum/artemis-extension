@@ -58,8 +58,8 @@ function describeError(error: unknown): string {
 
 /**
  * Owns the "is Iris usable here" question and the two banners that answer it.
- * Everything else the old `IrisChatSessionService` did (acquiring, importing
- * and switching local sessions) is `IrisConversationService`'s now.
+ * Acquiring, importing and switching sessions belongs to
+ * `IrisConversationService`.
  */
 export class IrisAvailabilityService {
     private _lastAvailability: LastAvailability = { kind: 'unknown' };
@@ -218,9 +218,8 @@ export class IrisAvailabilityService {
  *   - `MalformedResponseError` (subclass of ApiError) → unavailable
  *   - any other Error / network / `TypeError`        → unavailable
  *
- * No string-matching on `error.message.includes('403')`: the historical
- * fallback was inherited code with no good reason to keep it and could
- * misclassify unrelated errors whose message happened to contain '403'.
+ * Never string-match on `error.message.includes('403')`: that misclassifies
+ * unrelated errors whose message happens to contain '403'.
  */
 function classifyAvailabilityFromError(error: unknown): IrisAvailability {
     if (error instanceof MalformedResponseError) {

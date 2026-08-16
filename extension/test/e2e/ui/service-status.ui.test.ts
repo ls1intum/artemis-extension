@@ -30,7 +30,6 @@ describe('ServiceStatus View UI Tests', function () {
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Log in once before all tests in this suite
 		await performLogin(driver, username, password);
 	});
 
@@ -49,7 +48,7 @@ describe('ServiceStatus View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context, ignore.
 		}
 	});
 
@@ -59,7 +58,6 @@ describe('ServiceStatus View UI Tests', function () {
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		// Navigate from Dashboard by clicking "Service Status" button
 		try {
 			const serviceStatusButton = await driver.wait(
 				until.elementLocated(
@@ -70,13 +68,12 @@ describe('ServiceStatus View UI Tests', function () {
 			await serviceStatusButton.click();
 			await driver.sleep(2000);
 		} catch {
-			// Button not found — skip gracefully
+			// Button not found, skip gracefully.
 			await takeScreenshot(driver, 'service-status-smoke');
 			this.skip();
 			return;
 		}
 
-		// Assert the server URL input field is visible
 		let serverUrlInput: Awaited<ReturnType<typeof waitForElement>> | null = null;
 		try {
 			serverUrlInput = await waitForElement(driver, '#serverUrl', 10000);
