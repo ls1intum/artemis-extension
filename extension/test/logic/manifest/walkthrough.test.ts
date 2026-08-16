@@ -61,6 +61,13 @@ describe('contributes.walkthroughs', () => {
         }
     });
 
+    it('gives every step at least one command link, so there is always something to act on', () => {
+        for (const step of steps) {
+            const commands = [...step.description.matchAll(COMMAND_LINK_RE)];
+            expect(commands.length, `step "${step.id}" description has no command link`).toBeGreaterThan(0);
+        }
+    });
+
     it('references only media files that exist inside the packaged media directory', () => {
         const mediaRoot = join(EXTENSION_ROOT, 'media');
         for (const step of steps) {
@@ -144,5 +151,13 @@ describe('completion events', () => {
         const step = stepById.get('preferences');
         expect(step).toBeDefined();
         expect('completionEvents' in step!).toBe(false);
+
+        // Because this step has no completionEvents, the description's command link is its
+        // only path to completion; a missing or malformed link leaves it permanently stuck.
+        const commands = [...step!.description.matchAll(COMMAND_LINK_RE)].map(([, command]) => command);
+        expect(commands.length, 'preferences step has no command link to complete on').toBeGreaterThan(0);
+        for (const command of commands) {
+            expect(isKnownCommand(command), `preferences step links unknown command "${command}"`).toBe(true);
+        }
     });
 });
