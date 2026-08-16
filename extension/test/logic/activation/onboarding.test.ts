@@ -1,10 +1,15 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     maybeOpenGetStartedWalkthrough,
     type OnboardingDeps,
     type StartupAuthState,
+    WALKTHROUGH_ID,
 } from '@extension/activation/onboarding';
+
+const EXTENSION_ROOT = join(__dirname, '../../..');
 
 const CONTRIBUTED = [{ id: 'artemisGetStarted', steps: [] }];
 
@@ -76,5 +81,13 @@ describe('maybeOpenGetStartedWalkthrough', () => {
         const openWalkthrough = vi.fn(async () => { throw new Error('no such walkthrough'); });
         await expect(maybeOpenGetStartedWalkthrough(deps({ openWalkthrough }))).rejects.toThrow('no such walkthrough');
         expect(marked).toBe(1);
+    });
+
+    it('opens the id the real manifest actually contributes, not a copy that can drift from it', () => {
+        const manifest = JSON.parse(readFileSync(join(EXTENSION_ROOT, 'package.json'), 'utf8')) as {
+            contributes: { walkthroughs: { id: string }[] };
+        };
+        expect(manifest.contributes.walkthroughs).toHaveLength(1);
+        expect(WALKTHROUGH_ID).toBe(manifest.contributes.walkthroughs[0].id);
     });
 });

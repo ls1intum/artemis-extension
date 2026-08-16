@@ -1,5 +1,5 @@
 /** Walkthrough id as contributed in `package.json` under `contributes.walkthroughs`. */
-const WALKTHROUGH_ID = 'artemisGetStarted';
+export const WALKTHROUGH_ID = 'artemisGetStarted';
 
 /** `globalState` key recording that the first-run decision has been made. */
 export const WALKTHROUGH_SHOWN_KEY = 'artemis.walkthrough.shown';

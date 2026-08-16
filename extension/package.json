@@ -281,7 +281,7 @@
             "description": "Log in with your Artemis account. Your courses, exercises and build results all come from there.\n[Sign in](command:artemis.login)",
             "media": {
               "image": "media/artemis-logo.png",
-              "altText": "The Artemis sign-in view in the sidebar"
+              "altText": "The Artemis activity bar icon"
             },
             "completionEvents": [
               "onContext:iris:authenticated"
@@ -290,10 +290,10 @@
           {
             "id": "exerciseFolder",
             "title": "Choose where exercises land",
-            "description": "Pick one folder and every exercise you clone goes there, without being asked again. The folder has to exist already.\n[Choose folder](command:workbench.action.openSettings?%5B%22artemis.defaultClonePath%22%5D)",
+            "description": "Pick one folder and every exercise you clone goes there, without being asked again. The folder has to exist already, and a leading ~ will not work, so use the full path.\n[Choose folder](command:workbench.action.openSettings?%5B%22artemis.defaultClonePath%22%5D)",
             "media": {
               "image": "media/screenshots/dashboard.png",
-              "altText": "The Artemis course dashboard with exercises listed"
+              "altText": "The Artemis start page in VS Code, listing recent courses"
             },
             "completionEvents": [
               "onSettingChanged:artemis.defaultClonePath"

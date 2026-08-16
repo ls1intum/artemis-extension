@@ -11,6 +11,7 @@ type Walkthrough = { id: string; title: string; description: string; steps: Step
 const manifest = JSON.parse(readFileSync(join(EXTENSION_ROOT, 'package.json'), 'utf8')) as {
     contributes: {
         commands: { command: string }[];
+        configuration: { properties: Record<string, unknown> };
         views: Record<string, { id: string; type?: string }[]>;
         walkthroughs?: Walkthrough[];
     };
@@ -26,6 +27,15 @@ const walkthroughs = manifest.contributes.walkthroughs ?? [];
 const steps = walkthroughs.flatMap(w => w.steps);
 const contributedCommands = new Set(manifest.contributes.commands.map(c => c.command));
 const contributedViewIds = new Set(Object.values(manifest.contributes.views).flat().map(v => v.id));
+const contributedSettingKeys = new Set(Object.keys(manifest.contributes.configuration.properties));
+
+/** A command a completion event or a description link may reference: contributed, an allowed
+ * built-in, or a generated view-focus command. Shared so the two callers cannot drift apart. */
+function isKnownCommand(command: string): boolean {
+    const isViewFocus = command.endsWith('.focus')
+        && contributedViewIds.has(command.slice(0, -'.focus'.length));
+    return contributedCommands.has(command) || ALLOWED_BUILTIN_COMMANDS.has(command) || isViewFocus;
+}
 
 describe('contributes.walkthroughs', () => {
     it('contributes exactly the artemisGetStarted walkthrough', () => {
@@ -43,23 +53,10 @@ describe('contributes.walkthroughs', () => {
         expect(meetIris?.when).toBe('iris:authenticated == true');
     });
 
-    it('gives the server step both completion events, so confirming the default still completes it', () => {
-        const chooseServer = steps.find(s => s.id === 'chooseServer');
-        expect(chooseServer?.completionEvents).toEqual([
-            'onCommand:artemis.setServerUrl',
-            'onSettingChanged:artemis.serverUrl',
-        ]);
-    });
-
     it('only links commands that exist: contributed, an allowed built-in, or a generated view focus', () => {
         for (const step of steps) {
             for (const [, command] of step.description.matchAll(COMMAND_LINK_RE)) {
-                const isViewFocus = command.endsWith('.focus')
-                    && contributedViewIds.has(command.slice(0, -'.focus'.length));
-                expect(
-                    contributedCommands.has(command) || ALLOWED_BUILTIN_COMMANDS.has(command) || isViewFocus,
-                    `step "${step.id}" links unknown command "${command}"`,
-                ).toBe(true);
+                expect(isKnownCommand(command), `step "${step.id}" links unknown command "${command}"`).toBe(true);
             }
         }
     });
@@ -96,5 +93,56 @@ describe('contributes.walkthroughs', () => {
             const body = readFileSync(join(EXTENSION_ROOT, step.media.markdown), 'utf8');
             expect(body).not.toMatch(/\(command:/);
         }
+    });
+});
+
+// Each of these pins one step's completionEvents to its exact expected value, then decodes
+// that value and checks it against the real thing it names. A rename or typo on either side
+// fails the relevant test instead of leaving the step permanently uncompletable.
+describe('completion events', () => {
+    const stepById = new Map(steps.map(s => [s.id, s]));
+
+    it('gives the server step both completion events, so confirming the default still completes it', () => {
+        const step = stepById.get('chooseServer');
+        expect(step?.completionEvents).toEqual([
+            'onCommand:artemis.setServerUrl',
+            'onSettingChanged:artemis.serverUrl',
+        ]);
+        const [commandEvent, settingEvent] = step!.completionEvents!;
+        const commandId = commandEvent.slice('onCommand:'.length);
+        expect(isKnownCommand(commandId), `onCommand names unknown command "${commandId}"`).toBe(true);
+        const settingKey = settingEvent.slice('onSettingChanged:'.length);
+        expect(contributedSettingKeys.has(settingKey), `onSettingChanged names unknown setting "${settingKey}"`).toBe(true);
+    });
+
+    it('completes the sign-in step on the context key the extension actually sets on login', () => {
+        // Set by `vscode.commands.executeCommand('setContext', 'iris:authenticated', ...)`
+        // in `src/extension.ts` (auth-state-change handler and startup auth check).
+        const IRIS_AUTHENTICATED_CONTEXT_KEY = 'iris:authenticated';
+        const step = stepById.get('signIn');
+        expect(step?.completionEvents).toEqual([`onContext:${IRIS_AUTHENTICATED_CONTEXT_KEY}`]);
+    });
+
+    it('completes the exercise-folder step on the clone-path setting it links to', () => {
+        const step = stepById.get('exerciseFolder');
+        expect(step?.completionEvents).toEqual(['onSettingChanged:artemis.defaultClonePath']);
+        const settingKey = step!.completionEvents![0].slice('onSettingChanged:'.length);
+        expect(contributedSettingKeys.has(settingKey), `onSettingChanged names unknown setting "${settingKey}"`).toBe(true);
+    });
+
+    it('completes the meet-Iris step when the chat view it links to actually opens', () => {
+        const step = stepById.get('meetIris');
+        expect(step?.completionEvents).toEqual(['onView:iris.chatView']);
+        const viewId = step!.completionEvents![0].slice('onView:'.length);
+        expect(contributedViewIds.has(viewId), `onView names unknown view "${viewId}"`).toBe(true);
+    });
+
+    it('leaves the preferences step without completion events, so it completes via its own description link', () => {
+        // No `onView`/`onSettingChanged`/`onCommand` fits "opened the settings UI to the
+        // Artemis section"; VS Code falls back to completing the step when the description's
+        // own command link is clicked, which is the behaviour this step relies on.
+        const step = stepById.get('preferences');
+        expect(step).toBeDefined();
+        expect('completionEvents' in step!).toBe(false);
     });
 });

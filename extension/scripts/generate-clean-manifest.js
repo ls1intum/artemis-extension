@@ -1,7 +1,7 @@
 // Produce a clean package.json WITHOUT mutating the source manifest. Two fail-closed
 // profiles select what is dropped:
 //   desktop  drop the recorder group only (struggle detection stays)
-//   openvsx  drop recorder + struggle groups and apply cloud/Theia setting defaults
+//   openvsx  drop recorder + struggle + walkthrough groups and apply cloud/Theia setting defaults
 // CLI: generate-clean-manifest.js <out-path> --profile=desktop|openvsx. See docs/adr/002.
 const fs = require('fs');
 const path = require('path');
@@ -41,7 +41,10 @@ function dropStruggleGroup(m) {
 
 // Open VSX only. In EduIDE auth comes from the environment token and the workspace is
 // preprovisioned, so every step but "Meet Iris" asks the student to do something that
-// is already done for them.
+// is already done for them. This manifest is also what VSCodium and other Open VSX
+// clients install into ordinary desktop VS Code (see docs/adr/002), so the drop equally
+// means those desktop installs get no tour; `onboarding.ts` guards on whether this
+// manifest contributes the walkthrough rather than on `isTheia` alone for that reason.
 function dropWalkthroughGroup(m) {
     const c = m.contributes || {};
     delete c.walkthroughs;
