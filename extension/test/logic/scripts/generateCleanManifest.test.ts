@@ -152,6 +152,19 @@ describe('generate-clean-manifest: cleanManifest', () => {
             });
             expect(() => cleanManifest(m, 'desktop')).not.toThrow();
         });
+
+        it('still catches a dropped command when the link carries URI-encoded arguments', () => {
+            // Falsifiable in both directions, which the case above is not: if COMMAND_LINK_RE
+            // swallowed the `?...` payload, the extracted id would be
+            // `artemis.replaySession?%5B%22x%22%5D`, which is not in `removed`, and this would
+            // silently stop throwing.
+            const m = baseManifest();
+            m.contributes.walkthroughs![0].steps.push({
+                id: 'replayWithArgs',
+                description: 'x\n[Replay](command:artemis.replaySession?%5B%22x%22%5D)',
+            });
+            expect(() => cleanManifest(m, 'desktop')).toThrow(/dangling command refs/);
+        });
     });
 });
 
