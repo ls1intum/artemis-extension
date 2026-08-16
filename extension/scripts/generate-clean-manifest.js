@@ -39,6 +39,14 @@ function dropStruggleGroup(m) {
     dropCommandsAndMenuRefs(m, STRUGGLE_COMMANDS);
 }
 
+// Open VSX only. In EduIDE auth comes from the environment token and the workspace is
+// preprovisioned, so every step but "Meet Iris" asks the student to do something that
+// is already done for them.
+function dropWalkthroughGroup(m) {
+    const c = m.contributes || {};
+    delete c.walkthroughs;
+}
+
 function applyCloudDefaults(m) {
     const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
     for (const [key, value] of Object.entries(CLOUD_SETTING_DEFAULTS)) {
@@ -48,6 +56,10 @@ function applyCloudDefaults(m) {
         props[key].default = value;
     }
 }
+
+// `[label](command:some.command)` and `[label](command:some.command?%5B%22arg%22%5D)`.
+// The class stops at `?` so an argument payload is not read as part of the id.
+const COMMAND_LINK_RE = /\(command:([^)?\s]+)/g;
 
 // Fail-closed hardening: after dropping a command, no remaining menu/keybinding
 // contribution may still reference it. `removed` is the exact set that was dropped.
@@ -65,6 +77,13 @@ function assertNoDanglingCommandRefs(m, removed) {
     for (const kb of c.keybindings || []) {
         if (removed.has(kb.command)) { refs.push(`keybindings: ${kb.command}`); }
     }
+    for (const w of c.walkthroughs || []) {
+        for (const s of w.steps || []) {
+            for (const [, cmd] of String(s.description || '').matchAll(COMMAND_LINK_RE)) {
+                if (removed.has(cmd)) { refs.push(`walkthroughs.${w.id}.${s.id}: ${cmd}`); }
+            }
+        }
+    }
     if (refs.length) {
         throw new Error(`generate-clean-manifest: dangling command refs after drop: ${refs.join(', ')}`);
     }
@@ -80,6 +99,7 @@ function cleanManifest(m, profile) {
         case 'openvsx':
             dropRecorderGroup(m);
             dropStruggleGroup(m);
+            dropWalkthroughGroup(m);
             applyCloudDefaults(m);
             RECORDER_COMMANDS.forEach(c => removed.add(c));
             STRUGGLE_COMMANDS.forEach(c => removed.add(c));
