@@ -11,5 +11,4 @@ export interface CourseListPersistedState {
     sortBy?: string;
 }
 
-// Re-export types from messageContracts
 export type { CourseDetailData };

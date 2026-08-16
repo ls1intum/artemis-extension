@@ -12,7 +12,7 @@ import { shouldRecordUriString } from '@extension/services/telemetry/uriFilter';
 
 /**
  * Check if a serialized diagnostic is a compiler diagnostic (not lint).
- * Mirrors isCompilerDiagnostic — severity 0 = vscode.DiagnosticSeverity.Error.
+ * Mirrors isCompilerDiagnostic; severity 0 is vscode.DiagnosticSeverity.Error.
  */
 export function isCompilerDiagnosticSerialized(d: SerializedDiagnostic): boolean {
     const source = (d.source ?? '').toLowerCase();
@@ -21,7 +21,7 @@ export function isCompilerDiagnosticSerialized(d: SerializedDiagnostic): boolean
 
 /**
  * Get error family string from a serialized diagnostic.
- * Mirrors getErrorFamily — returns "source:code".
+ * Mirrors getErrorFamily; returns "source:code".
  */
 export function getErrorFamilySerialized(d: SerializedDiagnostic): string {
     const source = d.source ?? 'unknown';
@@ -29,10 +29,7 @@ export function getErrorFamilySerialized(d: SerializedDiagnostic): string {
     return `${source}:${code}`;
 }
 
-/**
- * Build an ErrorSnapshot from accumulated diagnostic state.
- * Iterates all URIs in the diagnostic state map, filtering for compiler errors.
- */
+/** Build an ErrorSnapshot from accumulated diagnostic state, compiler errors only. */
 export function createSnapshotFromDiagnosticState(
     state: Map<string, SerializedDiagnostic[]>,
     timestamp: number,
@@ -62,9 +59,8 @@ export function createSnapshotFromDiagnosticState(
 }
 
 /**
- * Build an ErrorSnapshot from a recorded BuildResultEvent.
- * buildFailed=true → compiler-error (hasErrors=true).
- * Otherwise → hasErrors=false (test-failure or success).
+ * Build an ErrorSnapshot from a recorded BuildResultEvent. `buildFailed` means
+ * compiler error (hasErrors=true); anything else is a test failure or a success.
  */
 export function createSnapshotFromBuildEvent(event: BuildResultEvent): ErrorSnapshot {
     if (event.buildFailed) {

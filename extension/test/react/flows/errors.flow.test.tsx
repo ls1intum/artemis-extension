@@ -1,8 +1,6 @@
 /**
  * Error suite: error boundaries, ServiceHealth degraded/disconnected states,
  * ReconnectBanner connection loss, and API error handling.
- *
- * Separate from happy-path flows per CONTEXT.md decision.
  */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -11,10 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorMessage } from '@webview/components/ErrorMessage/ErrorMessage';
 import type { ServiceInfo } from '@webview/components/ServiceHealth/ServiceHealth';
 import { ServiceHealth } from '@webview/components/ServiceHealth/ServiceHealth';
-
-// ============================================================================
-// Error Boundary
-// ============================================================================
 
 class ErrorBoundary extends React.Component<
     { children: React.ReactNode; fallback?: React.ReactNode },
@@ -50,10 +44,6 @@ function ThrowingComponent({ shouldThrow }: { shouldThrow: boolean }) {
     return <div>Component rendered successfully</div>;
 }
 
-// ============================================================================
-// Error Boundary Tests
-// ============================================================================
-
 describe('Error suite: error boundary', () => {
     // Suppress React error boundary console output during tests
     beforeEach(() => {
@@ -82,7 +72,6 @@ describe('Error suite: error boundary', () => {
             </ErrorBoundary>
         );
 
-        // Message should be readable prose, not a JS stack trace
         const fallback = screen.getByRole('alert');
         expect(fallback.textContent).not.toContain('at ThrowingComponent');
         expect(fallback.textContent).not.toContain('Error:');
@@ -110,10 +99,6 @@ describe('Error suite: error boundary', () => {
         expect(screen.getByText('Custom error UI')).toBeInTheDocument();
     });
 });
-
-// ============================================================================
-// ServiceHealth error state tests
-// ============================================================================
 
 const degradedServices: ServiceInfo[] = [
     {
@@ -176,7 +161,6 @@ describe('Error suite: ServiceHealth degraded states', () => {
     it('shows all services as disconnected when all are offline', () => {
         render(<ServiceHealth services={allOfflineServices} />);
 
-        // All three services should show "Connection refused"
         const messages = screen.getAllByText('Connection refused');
         expect(messages).toHaveLength(3);
     });
@@ -203,10 +187,6 @@ describe('Error suite: ServiceHealth degraded states', () => {
     });
 });
 
-// ============================================================================
-// API error responses in views
-// ============================================================================
-
 describe('Error suite: API error responses in views', () => {
     it('ErrorMessage component shows error text and retry button', () => {
         const handleRetry = vi.fn();
@@ -225,10 +205,6 @@ describe('Error suite: API error responses in views', () => {
         expect(handleRetry).toHaveBeenCalledOnce();
     });
 });
-
-// ============================================================================
-// Multiple concurrent error states
-// ============================================================================
 
 describe('Error suite: multiple concurrent error states', () => {
     it('renders multiple ServiceHealth items in error state without interference', () => {
@@ -263,7 +239,6 @@ describe('Error suite: multiple concurrent error states', () => {
 
         render(<ServiceHealth services={twoOffline} />);
 
-        // Expand only Service A
         await userEvent.click(screen.getByText('Service A'));
 
         expect(screen.getByText('https://a.example.com')).toBeInTheDocument();

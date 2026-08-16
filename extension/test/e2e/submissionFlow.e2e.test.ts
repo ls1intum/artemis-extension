@@ -18,25 +18,17 @@ import * as path from 'path';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 
-// =============================================================================
-// CONFIGURATION
-// =============================================================================
-
 const CONFIG = {
     artemisUrl: process.env.ARTEMIS_URL || 'http://localhost:8080',
     username: process.env.ARTEMIS_USER || 'artemis_admin',
     password: process.env.ARTEMIS_PASSWORD || 'artemis_admin',
-    // Canonical name is ARTEMIS_EXERCISE_ID (matches the UI test); accept
-    // the legacy unprefixed EXERCISE_ID as fallback for back-compat. See #198.
+    // ARTEMIS_EXERCISE_ID is the canonical name (matches the UI test); the
+    // unprefixed EXERCISE_ID is accepted as a fallback.
     exerciseId: parseInt(process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '1'),
     pollIntervalMs: 3000,
     buildTimeoutMs: 120_000,
     suiteTimeoutMs: 180_000,
 };
-
-// =============================================================================
-// ARTEMIS API CLIENT (Direct HTTP, cookie-based auth)
-// =============================================================================
 
 import { ArtemisTestClient as ArtemisTestClientBase } from './helpers/artemisTestClient';
 
@@ -90,7 +82,6 @@ class ArtemisTestClient extends ArtemisTestClientBase {
     }
 
     async getVcsAccessToken(participationId: number): Promise<string> {
-        // Try GET first, fallback to PUT (create token)
         let response = await fetch(
             `${this.baseUrl}/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
             { method: 'GET', headers: this.getHeaders() },
@@ -157,10 +148,6 @@ class ArtemisTestClient extends ArtemisTestClientBase {
     }
 }
 
-// =============================================================================
-// GIT HELPERS
-// =============================================================================
-
 function gitClone(url: string, dest: string): void {
     execSync(`git clone "${url}" "${dest}"`, { stdio: 'pipe', timeout: 60_000 });
 }
@@ -192,7 +179,6 @@ function makeCodeChange(repoDir: string): string {
     const extensions = ['.java', '.py', '.c'];
     const timestamp = new Date().toISOString();
 
-    // Walk the repo to find a source file
     function findSourceFile(dir: string): string | null {
         for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
             if (entry.name.startsWith('.')) { continue; }
@@ -217,24 +203,15 @@ function makeCodeChange(repoDir: string): string {
         return sourceFile;
     }
 
-    // Fallback: create marker file
     const markerPath = path.join(repoDir, 'e2e-marker.txt');
     fs.writeFileSync(markerPath, `E2E submission test: ${timestamp}\n`);
     logger.info('[E2E-Sub] Created fallback e2e-marker.txt', LogCategory.TEST);
     return markerPath;
 }
 
-// =============================================================================
-// POLL HELPER
-// =============================================================================
-
 async function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-
-// =============================================================================
-// TEST SUITE
-// =============================================================================
 
 suite('E2E: Student Submission Flow', function () {
     this.timeout(CONFIG.suiteTimeoutMs);
@@ -252,8 +229,6 @@ suite('E2E: Student Submission Flow', function () {
     let finalResult: { id: number; score: number; completionDate: string };
     let suiteReady = false;
 
-    // ─── Setup ───────────────────────────────────────────────────────────
-
     suiteSetup(async function () {
         logger.info('\n========================================', LogCategory.TEST);
         logger.info('E2E Test: Student Submission Flow', LogCategory.TEST);
@@ -265,7 +240,6 @@ suite('E2E: Student Submission Flow', function () {
         logger.info(`  Exercise ID: ${CONFIG.exerciseId}`, LogCategory.TEST);
         logger.info('', LogCategory.TEST);
 
-        // Health check — skip entire suite if Artemis is offline
         try {
             const health = await fetch(CONFIG.artemisUrl);
             if (!health.ok) { throw new Error(`Artemis returned ${health.status}`); }
@@ -277,7 +251,6 @@ suite('E2E: Student Submission Flow', function () {
 
         logger.info('[E2E-Sub] Artemis is running', LogCategory.TEST);
 
-        // Authenticate in suiteSetup — skip entire suite if login fails
         client = new ArtemisTestClient(CONFIG.artemisUrl);
         const loggedIn = await client.login(CONFIG.username, CONFIG.password);
         if (!loggedIn) {
@@ -298,16 +271,12 @@ suite('E2E: Student Submission Flow', function () {
         logger.info(`[E2E-Sub] Authenticated as: ${username}`, LogCategory.TEST);
     });
 
-    // ─── Test 1: Authenticate (validates setup completed) ────────────────
-
     test('1. authenticate with Artemis', function () {
         if (!suiteReady) { this.skip(); return; }
         assert.ok(client, 'Client should be initialized');
         assert.ok(username, 'Username should be set');
         logger.info(`[E2E-Sub] Auth verified: ${username}`, LogCategory.TEST);
     });
-
-    // ─── Test 2: Fetch exercise details ──────────────────────────────────
 
     test('2. fetch exercise details and resolve participation', async function () {
         if (!suiteReady) { this.skip(); return; }
@@ -323,12 +292,10 @@ suite('E2E: Student Submission Flow', function () {
 
         let participations = details.exercise.studentParticipations;
 
-        // If no participation exists, start one
         if (!participations || participations.length === 0) {
             logger.info('[E2E-Sub] No participation found — starting one...', LogCategory.TEST);
             await client.startParticipation(CONFIG.exerciseId);
 
-            // Re-fetch details to get the newly created participation
             details = await client.getExerciseDetails(CONFIG.exerciseId);
             participations = details.exercise!.studentParticipations;
         }
@@ -353,8 +320,6 @@ suite('E2E: Student Submission Flow', function () {
         logger.info(`[E2E-Sub] Initial result count: ${initialResultCount}`, LogCategory.TEST);
     });
 
-    // ─── Test 3: Obtain VCS token ────────────────────────────────────────
-
     test('3. obtain VCS access token', async function () {
         if (!participation) { this.skip(); return; }
         vcsToken = await client.getVcsAccessToken(participation.id);
@@ -363,13 +328,10 @@ suite('E2E: Student Submission Flow', function () {
         logger.info(`[E2E-Sub] VCS token obtained (${vcsToken.length} chars)`, LogCategory.TEST);
     });
 
-    // ─── Test 4: Clone repository ────────────────────────────────────────
-
     test('4. clone repository', function () {
         if (!participation || !vcsToken) { this.skip(); return; }
         clonePath = fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-e2e-'));
 
-        // Build clone URL with embedded credentials
         const url = new URL(participation.repositoryUri);
         url.username = username;
         url.password = vcsToken;
@@ -377,7 +339,6 @@ suite('E2E: Student Submission Flow', function () {
         const repoDir = path.join(clonePath, 'repo');
         gitClone(url.toString(), repoDir);
 
-        // Update clonePath to point to the actual repo directory
         clonePath = repoDir;
 
         assert.ok(fs.existsSync(path.join(clonePath, '.git')), '.git directory should exist after clone');
@@ -387,8 +348,6 @@ suite('E2E: Student Submission Flow', function () {
         logger.info(`[E2E-Sub] Cloned to: ${clonePath}`, LogCategory.TEST);
     });
 
-    // ─── Test 5: Make change ────────────────────────────────────────────
-
     test('5. make code change', function () {
         if (!clonePath || !fs.existsSync(path.join(clonePath, '.git'))) { this.skip(); return; }
         const modifiedFile = makeCodeChange(clonePath);
@@ -396,8 +355,6 @@ suite('E2E: Student Submission Flow', function () {
 
         logger.info(`[E2E-Sub] File modified (not yet committed)`, LogCategory.TEST);
     });
-
-    // ─── Test 6: Detect uncommitted changes ──────────────────────────────
 
     test('6. detect uncommitted changes', function () {
         if (!clonePath || !fs.existsSync(path.join(clonePath, '.git'))) { this.skip(); return; }
@@ -437,7 +394,6 @@ suite('E2E: Student Submission Flow', function () {
         const excluded: { file: string; reason: string }[] = [];
 
         for (const file of changedFiles) {
-            // Check excluded directories
             const parts = file.split(/[/\\]/);
             const inExcludedDir = parts.some(p => EXCLUDED_DIRECTORIES.has(p));
             if (inExcludedDir) {
@@ -445,7 +401,6 @@ suite('E2E: Student Submission Flow', function () {
                 continue;
             }
 
-            // Check allowed extensions
             const ext = path.extname(file).toLowerCase();
             const fileName = parts[parts.length - 1];
             const isSpecialFile = !fileName.includes('.') && ['dockerfile', 'makefile', 'rakefile', 'gradlew', 'mvnw'].includes(fileName.toLowerCase());
@@ -454,7 +409,6 @@ suite('E2E: Student Submission Flow', function () {
                 continue;
             }
 
-            // Check file size + binary
             const absPath = path.join(clonePath, file);
             if (fs.existsSync(absPath)) {
                 const stats = fs.statSync(absPath);
@@ -498,8 +452,6 @@ suite('E2E: Student Submission Flow', function () {
         logger.info(`[E2E-Sub] Collected ${fileContents.size} file(s) with content — ready for Iris`, LogCategory.TEST);
     });
 
-    // ─── Test 7: Push changes ────────────────────────────────────────────
-
     test('7. commit and push', function () {
         if (!clonePath || !fs.existsSync(path.join(clonePath, '.git'))) { this.skip(); return; }
 
@@ -508,8 +460,6 @@ suite('E2E: Student Submission Flow', function () {
 
         logger.info(`[E2E-Sub] Pushed commit: "${commitMsg}"`, LogCategory.TEST);
     });
-
-    // ─── Test 8: Poll for build result ───────────────────────────────────
 
     test('8. poll for build result', async function () {
         if (!participation) { this.skip(); return; }
@@ -545,8 +495,6 @@ suite('E2E: Student Submission Flow', function () {
         assert.fail(`Build did not complete within ${CONFIG.buildTimeoutMs / 1000}s. Initial results: ${initialResultCount}, current: ${results!.length}`);
     });
 
-    // ─── Test 9: Verify result details ───────────────────────────────────
-
     test('9. verify result details and feedbacks', async function () {
         if (!finalResult) { this.skip(); return; }
         const details = await client.getResultDetails(participation.id, finalResult.id);
@@ -564,10 +512,7 @@ suite('E2E: Student Submission Flow', function () {
         }
     });
 
-    // ─── Teardown ────────────────────────────────────────────────────────
-
     suiteTeardown(function () {
-        // Clean up cloned repository
         if (clonePath && fs.existsSync(clonePath)) {
             fs.rmSync(clonePath, { recursive: true, force: true });
             logger.info(`[E2E-Sub] Cleaned up: ${clonePath}`, LogCategory.TEST);

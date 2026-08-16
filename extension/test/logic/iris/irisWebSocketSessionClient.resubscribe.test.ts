@@ -135,9 +135,9 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
         const nowSpy = vi.spyOn(Date, 'now');
 
         nowSpy.mockReturnValue(1_000_000);
-        // The first subscribe: `subscribeToSession` is the only acquisition
-        // path now, so the flap below has to be forced through the throttle
-        // against a subscription this call established.
+        // `subscribeToSession` is the only acquisition path, so the flap below
+        // has to be forced through the throttle against a subscription this
+        // call established.
         client.subscribeToSession(42);
 
         // Simulate a rapid reconnect flap well within the rate-limit window
@@ -156,10 +156,9 @@ describe('IrisWebSocketSessionClient: onDidResubscribe', () => {
 });
 
 /**
- * `_converge` replaces the old "attempt or drop" `_subscribeIfConnected` with
- * "record the desired session, converge towards it". These tests exercise
- * the new transport-level semantics: latest-wins on a fast switch, forced
- * reconvergence on any connection-state event (not only a preceding
+ * `_converge` records the desired session and converges towards it. These
+ * tests exercise the transport-level semantics: latest-wins on a fast switch,
+ * forced reconvergence on any connection-state event (not only a preceding
  * `false`), retry-on-throw instead of leaving zero subscriptions, and that
  * the `onDidResubscribe` feedback edge into `IrisConversationService`
  * (onSubscriptionActive -> reconcileCurrent -> subscribeToSession ->
@@ -289,7 +288,7 @@ describe('IrisWebSocketSessionClient: _converge (latest-wins subscription)', () 
     });
 
     it('a listener that re-enters subscribeToSession from inside onDidResubscribe does not recurse', () => {
-        // Task 5's real wiring is onDidResubscribe -> onSubscriptionActive ->
+        // The real wiring is onDidResubscribe -> onSubscriptionActive ->
         // reconcileCurrent -> subscribeToSession, called SYNCHRONOUSLY from
         // inside the fire, for the SAME session id that just resubscribed.
         // Two sequential top-level `subscribeToSession(7)` calls do not

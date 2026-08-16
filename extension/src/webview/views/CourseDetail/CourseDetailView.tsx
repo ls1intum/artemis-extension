@@ -44,7 +44,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         filteredExercises,
     } = useCourseDetailStore();
 
-    // Restore persisted state on mount
     useEffect(() => {
         const persistedState = vscodeApi.getState<CourseDetailPersistedState>();
         if (persistedState) {
@@ -53,7 +52,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         }
     }, [vscodeApi, setExerciseSearchTerm, setExerciseSortBy]);
 
-    // Listen for courseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.CourseDetailInit) {
             setCourseData(msg.courseData, msg.workspaceExerciseId, msg.hideDeveloperTools);
@@ -63,7 +61,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         }
     }, [vscodeApi, setCourseData, setError]);
 
-    // Persist search/sort state whenever it changes
     useEffect(() => {
         const state: CourseDetailPersistedState = {
             exerciseSearchTerm,
@@ -123,7 +120,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         }
     };
 
-    // Sort options for exercises
     const sortOptions: DropdownOption[] = [
         { value: 'id-desc', label: 'Latest Added' },
         { value: 'id-asc', label: 'Oldest Added' },
@@ -143,7 +139,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         </>
     );
 
-    // Loading state (no data yet)
     if (isLoading && !courseData) {
         return (
             <div className={styles.courseDetailContainer}>
@@ -153,7 +148,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         );
     }
 
-    // Error state
     if (error) {
         return (
             <div className={styles.courseDetailContainer}>
@@ -163,7 +157,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         );
     }
 
-    // Empty state
     if (!courseData || !courseData.course) {
         return (
             <div className={styles.courseDetailContainer}>
@@ -185,7 +178,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         <div className={styles.courseDetailContainer}>
             <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
 
-            {/* Course Header */}
             <PageHeader
                 title={course.title}
                 subtitle={course.description}
@@ -207,13 +199,11 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                 </div>
             </PageHeader>
 
-            {/* Ask Iris Section */}
             <AskIris
                 description="Open the Iris chat to discuss this course or get guidance."
                 onClick={handleAskIris}
             />
 
-            {/* Exercises Section */}
             <Container
                 header={
                     <div className={styles.sectionHeader}>
@@ -290,7 +280,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                 )}
             </Container>
 
-            {/* Developer Tools (conditional) */}
             {showDeveloperTools && (
                 <Container>
                     <div className={styles.actionButtons}>

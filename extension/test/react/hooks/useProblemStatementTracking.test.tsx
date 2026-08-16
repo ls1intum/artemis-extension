@@ -5,8 +5,8 @@ import type { VsCodeApi } from '@shared/messageContracts';
 
 import { useProblemStatementTracking } from '@webview/hooks/useProblemStatementTracking';
 
-// happy-dom lacks ResizeObserver — stub with a regular function (arrow fns
-// are not constructable with `new`). Tests can trigger observed callbacks
+// happy-dom lacks ResizeObserver, so stub one with a regular function (arrow
+// fns are not constructable with `new`). Tests can trigger observed callbacks
 // via the captured instances.
 type ROCallback = (entries: unknown[], observer: unknown) => void;
 const roInstances: { callback: ROCallback; observed: Element[] }[] = [];
@@ -62,8 +62,6 @@ describe('useProblemStatementTracking', () => {
         vi.unstubAllGlobals();
         document.body.innerHTML = '';
     });
-
-    // ── Scroll + baseline ───────────────────────────────────────────────
 
     it('emits a baseline scroll payload after mount (debounced)', () => {
         const { api, postMessage } = makeVsCodeApi();
@@ -212,8 +210,6 @@ describe('useProblemStatementTracking', () => {
         expect(postedPayloads(postMessage, 'problemStatementScroll')).toHaveLength(1);
     });
 
-    // ── Selection ───────────────────────────────────────────────────────
-
     function stubSelection(el: HTMLElement, text: string, rect: Partial<DOMRect> = {}) {
         const range = {
             getBoundingClientRect: () => ({
@@ -313,7 +309,7 @@ describe('useProblemStatementTracking', () => {
         stubSelection(el, 'pending selection');
         act(() => {
             document.dispatchEvent(new Event('selectionchange'));
-            // no timer advance — emit stays pending
+            // no timer advance, so emit stays pending
         });
         el.remove(); // detach → isConnected false
         unmount();

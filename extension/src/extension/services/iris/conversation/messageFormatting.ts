@@ -22,11 +22,11 @@ function toActivities(message: IrisChatMessage) {
 /**
  * Projects a loaded conversation's messages onto the wire.
  *
- * Unlike the old model's `formatIrisMessages`, a CTXSWAP row is classified as
- * its own role rather than being mapped to `assistant`: the transcript renders
- * it as a divider, and calling it an assistant message puts an unreadable JSON
- * blob in the conversation. `SessionDetail.messages` carries every persisted
- * sender, markers included, so this is the only place that can tell them apart.
+ * A CTXSWAP row gets its own role rather than `assistant`: the transcript
+ * renders it as a divider, and calling it an assistant message puts an
+ * unreadable JSON blob in the conversation. `SessionDetail.messages` carries
+ * every persisted sender, markers included, so this is the only place that can
+ * tell them apart.
  */
 export function toWireMessages(messages: IrisChatMessage[] | undefined): WireMessage[] {
     return (messages ?? []).map((message) => {

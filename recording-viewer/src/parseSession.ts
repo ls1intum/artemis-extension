@@ -5,9 +5,9 @@ import type { LoadedSession } from './types';
  * Resolve the schema version for a session.
  *
  * Precedence (highest to lowest):
- *   1. metadata.schemaVersion  — written by storageWriter at flush time
- *   2. firstSessionStartEvent.schemaVersion — written inline by recorder
- *   3. 1 — legacy recordings that pre-date versioning
+ *   1. metadata.schemaVersion (written by storageWriter at flush time)
+ *   2. firstSessionStartEvent.schemaVersion (written inline by the recorder)
+ *   3. 1 (legacy recordings that pre-date versioning)
  */
 export function resolveSchemaVersion(
     metadata: SessionMetadata | undefined | null,

@@ -38,10 +38,10 @@ interface ChatInputProps {
     disabledPlaceholder?: string;
     /**
      * Controlled draft text. Supplying it hands the composer's state to the
-     * caller (the store's `composerText`, Task 11), which is what lets the
-     * draft survive a re-render triggered from outside this component, e.g. a
-     * topic change that repaints the chip while the student is typing.
-     * Omitted, the component keeps its own local state as before.
+     * caller (the store's `composerText`), which is what lets the draft survive
+     * a re-render triggered from outside this component, e.g. a topic change
+     * that repaints the chip while the student is typing. Omitted, the
+     * component keeps its own local state.
      */
     value?: string;
     onValueChange?: (text: string) => void;
@@ -76,7 +76,6 @@ export function ChatInput({
     const canSend = value.trim().length > 0 && !disabled && !sendDisabled;
 
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-        // Enter without Shift sends message
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
@@ -96,7 +95,7 @@ export function ChatInput({
         // Restoring the draft from inside the funnel cannot work instead,
         // because this line runs after `onSend` returns and would wipe it.
         if (onSend(value.trim())) {
-            setValue(''); // Clear input immediately (optimistic)
+            setValue('');
         }
     };
 

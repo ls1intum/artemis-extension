@@ -14,9 +14,8 @@ export interface WorkspaceExercise {
 }
 
 /**
- * Memory-only, one record, re-derived per activation. This is the whole of
- * what the persisted tracked-item store was actually needed for; everything
- * else it held is re-fetched from the server now.
+ * Memory-only, one record, re-derived per activation. Nothing else about the
+ * exercise is cached here; the rest is fetched from the server.
  */
 export class WorkspaceExerciseTracker implements vscode.Disposable {
     private _current: WorkspaceExercise | undefined;

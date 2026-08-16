@@ -14,36 +14,30 @@ import styles from './LoginView.module.css';
 import type { LoginPersistedState, LoginViewProps, LoginViewState } from './types';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {
-    // Load persisted state
     const persistedState = vscodeApi.getState<LoginPersistedState>();
 
-    // View state (discriminated)
     const [viewState, setViewState] = useState<LoginViewState>('form');
 
     // Stage 0: Enter username, Stage 1: Enter password / OIDC
     const [stage, setStage] = useState<0 | 1>(0);
 
-    // Form state (persisted — password excluded for security)
+    // Form state, persisted. The password is deliberately not stored.
     const [username, setUsername] = useState(persistedState?.username || '');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(persistedState?.rememberMe ?? true);
 
-    // Get the login options
     const [loginMethod, setLoginMethod] = useState<'PASSWORD' | 'OIDC' | 'SAML2'>('PASSWORD');
     const [idpName, setIdpName] = useState<string>('TUM Login');
     const [isCheckingOptions, setIsCheckingOptions] = useState<boolean>(false);
 
-    // Transient status messages
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
 
-    // Loading state
     const [loadingMessage, setLoadingMessage] = useState('Checking authentication...');
     const [loadingSubtext, setLoadingSubtext] = useState('Please wait while we verify your credentials');
     const [loadingVisible, setLoadingVisible] = useState(false);
     const [loadingHiding, setLoadingHiding] = useState(false);
 
-    // Map loading messages to subtexts
     const loadingSubtexts: Record<string, string> = {
         'Checking stored credentials...': 'Looking for saved authentication data',
         'Validating authentication...': 'Verifying your login credentials',
@@ -52,19 +46,15 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         'Checking authentication...': 'Please wait while we verify your credentials',
     };
 
-    // Server URL for health checks
     const [serverUrl, setServerUrl] = useState('');
 
-    // Health check state
     const [showHealthChecks, setShowHealthChecks] = useState(false);
     const [healthServices, setHealthServices] = useState<ServiceInfo[]>([]);
     const [isHealthChecking, setIsHealthChecking] = useState(false);
     const [lastHealthCheck, setLastHealthCheck] = useState<Date | undefined>(undefined);
 
-    // Form submission state
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Persist form state changes
     useEffect(() => {
         vscodeApi.setState<LoginPersistedState>({
             username,
@@ -72,15 +62,14 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         });
     }, [username, rememberMe, vscodeApi]);
 
-    // Timer ref for hide-loading animation
     const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Cleanup timer on unmount
     useEffect(() => () => {
-        if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); }
+        if (hideTimerRef.current) {
+            clearTimeout(hideTimerRef.current);
+        }
     }, []);
 
-    // Message handler for extension-to-webview messages
     useExtensionMessage((msg) => {
         switch (msg.type) {
             case ExtensionMsg.ShowLoading: {
@@ -164,14 +153,14 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         }
     }, [viewState, serverUrl]);
 
-    // Perform health checks
     const performHealthChecks = () => {
-        if (!serverUrl) { return; }
+        if (!serverUrl) {
+            return;
+        }
         setIsHealthChecking(true);
         postCommand(vscodeApi, 'performHealthChecks', { serverUrl });
     };
 
-    // Check login options and move to stage 1
     const handleCheckLogin = () => {
         const trimmedUsername = username.trim();
         if (!trimmedUsername) {
@@ -182,25 +171,21 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
         setStatusMessage('');
         setIsCheckingOptions(true);
-
         postCommand(vscodeApi, 'checkLoginOptions', { username: trimmedUsername });
     };
 
-    // Start the oidc authentication routine
     const handleOidcLogin = () => {
         postCommand(vscodeApi, 'startOidcLogin', { username: username.trim(), rememberMe });
-		setStatusMessage(`Redirecting to ${idpName}. Please complete the sign-in process in your browser.`);
-    	setStatusType('info');
+        setStatusMessage(`Redirecting to ${idpName}. Please complete the sign-in process in your browser.`);
+        setStatusType('info');
     };
 
-    // Return to stage 0 to change username
     const handleBack = () => {
         setPassword('');
         setStatusMessage('');
         setStage(0);
     };
 
-    // Handle form submission
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
 
@@ -231,7 +216,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         });
     };
 
-    // Handle quick links
     const handleOpenWebsite = () => {
         postCommand(vscodeApi, 'openWebsite');
     };
@@ -242,7 +226,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
     return (
         <div className={styles.loginView}>
-            {/* Header */}
             <div style={{ marginBottom: '32px', textAlign: 'center' }}>
                 <h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
                     Artemis Login
@@ -252,7 +235,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 </p>
             </div>
 
-            {/* Loading indicator */}
             {loadingVisible && (
                 <div className={`${styles.loadingIndicator} ${loadingHiding ? styles.loadingIndicatorHiding : ''}`}>
                     <div className={styles.loadingSpinner} />
@@ -268,7 +250,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 </div>
             )}
 
-            {/* Login form */}
             {(viewState === 'form' || viewState === 'loading') && (
                 <Container
                     header={
@@ -323,7 +304,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                     </div>
                                 )}
 
-                                {/* Чекбокс Remember Me показывается на шаге 1 ДЛЯ ВСЕХ способов входа */}
                                 <div style={{ marginTop: '16px', marginBottom: '16px' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                                         <input
@@ -351,7 +331,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                             </div>
                         )}
 
-                        {/* Control buttons */}
                         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {stage === 0 ? (
                                 <Button
@@ -402,7 +381,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                             )}
                         </div>
 
-                        {/* Quick links */}
                         <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <Button variant="link" onClick={handleOpenWebsite}>
                                 Open Artemis in Browser →
@@ -415,7 +393,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 </Container>
             )}
 
-            {/* Health checks section (shown on error) */}
             {showHealthChecks && healthServices.length > 0 && (
                 <div style={{ marginTop: '24px' }}>
                     <ServiceHealth

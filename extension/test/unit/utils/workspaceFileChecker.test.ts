@@ -13,7 +13,6 @@ suite('Workspace File Checker Test Suite', () => {
 
     setup(() => {
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-test-'));
-        // Init git repo
         try {
             execSync('git init', { cwd: tempDir });
         } catch (e) {
@@ -247,8 +246,8 @@ suite('Workspace File Checker Test Suite', () => {
         });
 
         test('preserves leading and trailing whitespace in file names', () => {
-            // The old line-based parser called .trim(), which corrupted names that
-            // legitimately begin or end with a space. -z carries them verbatim.
+            // -z carries names verbatim, so leading and trailing spaces must survive
+            // (a .trim() on the parsed line would corrupt them).
             const out = '?? trailing .java\0??  leading.java\0';
             assert.deepStrictEqual(parseGitStatusZ(out), ['trailing .java', ' leading.java']);
         });
@@ -287,7 +286,6 @@ suite('Workspace File Checker Test Suite', () => {
     test('should include files from unpushed commits', async () => {
         const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-remote-'));
 
-        // Configure git user for commits
         execSync('git config user.email "test@example.com"', { cwd: tempDir });
         execSync('git config user.name "Test User"', { cwd: tempDir });
 

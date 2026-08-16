@@ -69,8 +69,6 @@ suite('BuildLogParser Test Suite', () => {
     });
 
     test('should handle Windows paths in logs', () => {
-        // Simulate a log that might come from a Windows runner (though usually logs are standardized)
-        // But our path normalizer handles backslashes
         const log = 'src/com/example/Test.java:5: error: message';
         const entries = [createLogEntry(log)];
         

@@ -2,8 +2,8 @@
  * Shared guard for filtering incoming WebSocket build results.
  *
  * Both TelemetryManager and SessionRecorder receive every WebSocket result for
- * the authenticated user — not just results for the currently active exercise.
- * This helper centralises the filtering logic so neither component duplicates it.
+ * the authenticated user, not just results for the currently active exercise.
+ * This helper centralises the filtering so neither component duplicates it.
  *
  * Policy:
  *   - Skip when no exercise session is active (activeExerciseId === undefined).
@@ -22,12 +22,10 @@ export function shouldAcceptBuildResult(
     activeExerciseId: number | undefined,
     exerciseRegistry: ExerciseRegistry | undefined,
 ): boolean {
-    // Guard 1: no active session → drop everything.
     if (activeExerciseId === undefined) {
         return false;
     }
 
-    // Guard 2: known participation mapped to a different exercise → drop.
     const resultParticipationId = result.participation?.id;
     if (resultParticipationId !== undefined && exerciseRegistry !== undefined) {
         const mappedExerciseId = exerciseRegistry.getExerciseIdByParticipation(resultParticipationId);

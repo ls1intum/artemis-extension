@@ -1,9 +1,7 @@
-// Test helpers
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
-// Fixture factories
 import {
     createCourseDetailPayload,
     createCourseListPayload,
@@ -14,11 +12,9 @@ import {
     createRecommendedExtensionsPayload,
     createServiceStatusPayload,
 } from '@test/react/fixtures';
-// View components
 import { useChatStore } from '@webview/stores/useChatStore';
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
-// Zustand stores
 import { useDashboardStore } from '@webview/stores/useDashboardStore';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
@@ -33,19 +29,16 @@ import { ServiceStatusView } from '@webview/views/ServiceStatus/ServiceStatusVie
 /**
  * Store hydration flow integration tests.
  *
- * Verifies that each of the 12 Init message types correctly hydrates the
- * corresponding Zustand store (or local React state for views 1–4) when
- * dispatched after the view is mounted and its message listener is registered.
+ * Verifies that each Init message type hydrates its Zustand store (or the
+ * view's local React state) when dispatched after the view is mounted and its
+ * message listener is registered.
  *
  * Pattern:
- *  1. render(<View vscodeApi={mockApi} />)   — registers the message listener
- *  2. await act(async () => { dispatchExtensionMessage(...) })  — triggers state update + React flush
+ *  1. render(<View vscodeApi={mockApi} />) registers the message listener.
+ *  2. await act(async () => { dispatchExtensionMessage(...) }) triggers the
+ *     state update and the React flush.
  *  3. assert on store.getState() or DOM content
  */
-
-// ============================================================================
-// 1. gitIdentityInfo → GitCredentialsView local state
-// ============================================================================
 
 describe('gitIdentityInfo hydrates GitCredentialsView local state', () => {
     it('renders pre-filled name and email after init message', async () => {
@@ -66,10 +59,6 @@ describe('gitIdentityInfo hydrates GitCredentialsView local state', () => {
     });
 });
 
-// ============================================================================
-// 2. serviceStatusInit → ServiceStatusView local state
-// ============================================================================
-
 describe('serviceStatusInit hydrates ServiceStatusView local state', () => {
     it('renders server URL after init message', async () => {
         const mockApi = createMockVsCodeApi();
@@ -84,10 +73,6 @@ describe('serviceStatusInit hydrates ServiceStatusView local state', () => {
         expect(screen.getByDisplayValue('https://artemis.test.example')).toBeInTheDocument();
     });
 });
-
-// ============================================================================
-// 3. recommendedExtensionsInit → RecommendedExtensionsView local state
-// ============================================================================
 
 describe('recommendedExtensionsInit hydrates RecommendedExtensionsView local state', () => {
     it('renders extension category name after init message', async () => {
@@ -123,14 +108,6 @@ describe('recommendedExtensionsInit hydrates RecommendedExtensionsView local sta
     });
 });
 
-// ============================================================================
-// 4. showLoggedIn → LoginView local state
-// ============================================================================
-
-// ============================================================================
-// 5. dashboardInit → useDashboardStore
-// ============================================================================
-
 describe('dashboardInit hydrates useDashboardStore', () => {
     it('sets recentCourses and isLoading=false on init', async () => {
         const mockApi = createMockVsCodeApi();
@@ -162,10 +139,6 @@ describe('dashboardInit hydrates useDashboardStore', () => {
     });
 });
 
-// ============================================================================
-// 6. courseListInit → useCourseListStore
-// ============================================================================
-
 describe('courseListInit hydrates useCourseListStore', () => {
     it('sets courses and isLoading=false on init', async () => {
         const mockApi = createMockVsCodeApi();
@@ -188,10 +161,6 @@ describe('courseListInit hydrates useCourseListStore', () => {
         expect(state.isLoading).toBe(false);
     });
 });
-
-// ============================================================================
-// 7. courseDetailInit → useCourseDetailStore
-// ============================================================================
 
 describe('courseDetailInit hydrates useCourseDetailStore', () => {
     it('sets courseData and isLoading=false on init', async () => {
@@ -220,10 +189,6 @@ describe('courseDetailInit hydrates useCourseDetailStore', () => {
     });
 });
 
-// ============================================================================
-// 8. exerciseDetailInit → useExerciseDetailStore
-// ============================================================================
-
 describe('exerciseDetailInit hydrates useExerciseDetailStore', () => {
     it('sets exerciseData and isLoading=false on init', async () => {
         const mockApi = createMockVsCodeApi();
@@ -246,10 +211,6 @@ describe('exerciseDetailInit hydrates useExerciseDetailStore', () => {
         expect(state.isLoading).toBe(false);
     });
 });
-
-// ============================================================================
-// 12. updateIrisState → useChatStore
-// ============================================================================
 
 describe('updateIrisState hydrates useChatStore', () => {
     it('sets the open conversation, its course and the picker lists on init', async () => {

@@ -33,7 +33,6 @@ describe('Skeleton', () => {
 describe('SkeletonList', () => {
 	it('renders the default number of skeleton items (5)', () => {
 		const { container } = render(<SkeletonList />);
-		// Default count is 5, each item has aria-busy skeletons
 		const skeletons = container.querySelectorAll('[aria-busy="true"]');
 		// Each list item has 3 skeletons (1 circular + 2 content lines)
 		expect(skeletons.length).toBe(15);

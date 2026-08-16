@@ -3,14 +3,10 @@ import { render } from '@testing-library/react';
 import type { RecordedEvent } from '../src/types';
 import { eventSummary, eventDetail } from '../src/utils/eventDisplay';
 
-// #243: the event-stream detail row (eventDetail) and the timeline tooltip
-// (eventSummary) had drifted on a handful of fields. The differences below were
-// classified as accidental and harmonized so the tooltip surfaces the same
-// information as the detail row. Each test asserts both views surface the
-// harmonized field (and, where the field is conditional, that it's omitted when
-// it should be). This guards the specific fields fixed here against re-drift; it
-// is not a full-string equality check — the two views intentionally differ in
-// styling and verbosity.
+// The event-stream detail row (eventDetail) and the timeline tooltip
+// (eventSummary) must surface the same information for the fields below, and
+// omit the conditional ones together. This is not a full-string equality
+// check: the two views intentionally differ in styling and verbosity.
 
 const detailText = (e: RecordedEvent) => render(<>{eventDetail(e)}</>).container.textContent ?? '';
 const summaryText = (e: RecordedEvent) => render(<>{eventSummary(e, 0)}</>).container.textContent ?? '';

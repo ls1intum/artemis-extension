@@ -6,7 +6,7 @@ import { normalizeRelativePath } from '@extension/utils';
 interface TrackedBuildError {
     /**
      * Immutable build-result snapshot. Its `.line` is the original build-time
-     * line and goes stale after edits — use the outer `line` field for the
+     * line and goes stale after edits. Use the outer `line` field for the
      * current position.
      */
     readonly error: ParsedBuildError;
@@ -14,10 +14,7 @@ interface TrackedBuildError {
     line: number;
 }
 
-/**
- * CodeLens provider for displaying build errors above the affected line
- * Shows errors in the style of "X references" or "Run Test"
- */
+/** Displays Artemis build errors as a CodeLens above the affected line. */
 export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
     private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
@@ -31,11 +28,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vsco
         );
     }
 
-    /**
-     * Set build errors for a specific file
-     * @param filePath Relative file path (e.g., "src/Main.java")
-     * @param errors Array of build errors for this file
-     */
+    /** `filePath` is relative to the workspace root, e.g. "src/Main.java". */
     public setErrors(filePath: string, errors: ParsedBuildError[]): void {
         const normalizedPath = normalizeRelativePath(filePath);
         if (!normalizedPath) {
@@ -48,18 +41,11 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vsco
         this._onDidChangeCodeLenses.fire();
     }
 
-    /**
-     * Clear all build errors
-     */
     public clearErrors(): void {
         this.buildErrors.clear();
         this._onDidChangeCodeLenses.fire();
     }
 
-    /**
-     * Clear errors for a specific file
-     * @param filePath Relative file path
-     */
     public clearFileErrors(filePath: string): void {
         const normalizedPath = normalizeRelativePath(filePath);
         if (!normalizedPath) {
@@ -69,9 +55,6 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vsco
         this._onDidChangeCodeLenses.fire();
     }
 
-    /**
-     * Get relative path for a document
-     */
     protected getRelativePath(document: vscode.TextDocument): string | null {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -82,9 +65,6 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vsco
         return normalizeRelativePath(relativePath);
     }
 
-    /**
-     * Provide CodeLens items for a document
-     */
     public provideCodeLenses(
         document: vscode.TextDocument,
         _token: vscode.CancellationToken
@@ -96,13 +76,11 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vsco
             return codeLenses;
         }
 
-        // Get errors for this file
         const errors = this.buildErrors.get(relativePath);
         if (!errors || errors.length === 0) {
             return codeLenses;
         }
 
-        // Create a CodeLens for each error
         for (const tracked of errors) {
             const line = Math.max(0, tracked.line - 1); // Convert to 0-based
             const range = new vscode.Range(line, 0, line, 0);
@@ -156,9 +134,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vsco
         }
     }
 
-    /**
-     * Resolve a CodeLens (optional, we provide everything in provideCodeLenses)
-     */
+    /** Pass-through: `provideCodeLenses` already fills in everything. */
     public resolveCodeLens?(
         codeLens: vscode.CodeLens,
         _token: vscode.CancellationToken
@@ -190,7 +166,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider, vsco
  *
  * Scope: line-level only. An edit on the error's own line after column 0 (e.g.
  * splitting the line) does not move the column-0 anchor. That is acceptable for
- * a line-anchored CodeLens; the bug being fixed is line insertion/removal.
+ * a line-anchored CodeLens; only line insertion/removal has to be tracked.
  */
 function shiftAnchorLine(
     line: number,

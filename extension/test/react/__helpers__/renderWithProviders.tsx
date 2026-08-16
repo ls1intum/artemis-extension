@@ -5,21 +5,14 @@ import { VsCodeApi } from '@shared/messageContracts';
 
 import { createMockVsCodeApi } from './vscodeApi';
 
-/**
- * Custom render options that extend React Testing Library's RenderOptions.
- */
 export interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
 	/** Custom VS Code API mock (defaults to createMockVsCodeApi()) */
 	vscodeApi?: VsCodeApi;
 }
 
 /**
- * Custom render function that wraps React Testing Library's render
- * with VS Code webview API support.
- *
- * @param ui - The React element to render
- * @param options - Optional render options including custom vscodeApi
- * @returns Render result with vscodeApi attached
+ * Wraps React Testing Library's render with VS Code webview API support.
+ * The returned result carries the `vscodeApi` that was used.
  */
 export function renderWithProviders(
 	ui: ReactElement,
@@ -35,8 +28,7 @@ export function renderWithProviders(
 	};
 }
 
-// Re-export everything from React Testing Library
 export * from '@testing-library/react';
 
-// Re-export userEvent from @testing-library/user-event
+// Re-exported as a named export so tests can `import { userEvent }` from here.
 export { default as userEvent } from '@testing-library/user-event';

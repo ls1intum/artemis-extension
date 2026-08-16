@@ -1,5 +1,3 @@
-// --- API Error ---
-
 export class ApiError extends Error {
     constructor(
         message: string,
@@ -19,9 +17,9 @@ export class ApiError extends Error {
 
 /**
  * Thrown when an API response cannot be parsed or violates its declared schema.
- * Subclass of `ApiError` so existing `instanceof ApiError` checks keep working;
- * callers that want to distinguish contract/schema failures from transport
- * failures use `instanceof MalformedResponseError` directly.
+ * Subclass of `ApiError` so `instanceof ApiError` checks still match; callers
+ * that need to tell contract/schema failures from transport failures use
+ * `instanceof MalformedResponseError` directly.
  */
 export class MalformedResponseError extends ApiError {
     constructor(message: string, status: number, detail?: string) {

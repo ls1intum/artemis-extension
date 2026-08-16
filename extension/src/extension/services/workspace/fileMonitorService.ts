@@ -48,20 +48,17 @@ export class FileMonitorService implements vscode.Disposable {
     private _startFileMonitoring(): void {
         logger.fileMonitor('Starting file monitoring...');
 
-        // Listen to document save events
         const saveListener = vscode.workspace.onDidSaveTextDocument(() => {
             logger.fileMonitor('Document saved, updating...');
             void this._updateReferencedFilesDisplay();
         });
         this._disposables.push(saveListener);
 
-        // Listen to document change events (throttled)
         const changeListener = vscode.workspace.onDidChangeTextDocument(() => {
             this._scheduleFileUpdate();
         });
         this._disposables.push(changeListener);
 
-        // Listen to Git changes
         const gitExtension = vscode.extensions.getExtension('vscode.git');
         if (gitExtension) {
             Promise.resolve(gitExtension.activate()).then(() => {
@@ -72,7 +69,6 @@ export class FileMonitorService implements vscode.Disposable {
                 const git = exports.getAPI?.(1) as { repositories?: Array<{ state: { onDidChange: (listener: () => void) => vscode.Disposable } }> } | undefined;
                 if (git?.repositories) {
                     logger.fileMonitor(`Git API available, watching ${git.repositories.length} repositories`);
-                    // Listen to repository state changes
                     git.repositories.forEach((repo) => {
                         const repoListener = repo.state.onDidChange(() => {
                             logger.fileMonitor('Git state changed, updating...');
@@ -86,19 +82,16 @@ export class FileMonitorService implements vscode.Disposable {
             });
         }
 
-        // Periodic update (every 5 seconds) as a fallback
         this._fileUpdateTimer = setInterval(() => {
             logger.fileMonitor('Periodic update...');
             void this._updateReferencedFilesDisplay();
         }, FileMonitorService.PERIODIC_UPDATE_INTERVAL_MS);
 
-        // Initial update
         logger.fileMonitor('Running initial update...');
         void this._updateReferencedFilesDisplay();
     }
 
     private _scheduleFileUpdate(): void {
-        // Throttle updates to avoid excessive calls while typing
         const now = Date.now();
         if (now - this._lastFileUpdate < FileMonitorService.THROTTLE_INTERVAL_MS) {
             return;
@@ -112,7 +105,6 @@ export class FileMonitorService implements vscode.Disposable {
     }
 
     private async _updateReferencedFilesDisplay(): Promise<void> {
-        // Check if feature is enabled
         const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
         if (!sendUncommittedChanges) {
             logger.fileMonitor('Feature disabled, clearing display');
@@ -131,11 +123,10 @@ export class FileMonitorService implements vscode.Disposable {
                 return;
             }
 
-            // Use unified workspace file checker with filters and status
             const result = await checkWorkspaceFiles(workspaceFolder, {
                 includeContent: false,
-                applyFilters: true,      // Apply filters to show only what will be sent
-                includeStatus: true      // Include status/reason for all files
+                applyFilters: true,
+                includeStatus: true
             });
 
             if (!result.hasChanges) {
@@ -153,7 +144,6 @@ export class FileMonitorService implements vscode.Disposable {
             logger.fileMonitor(`Changed files from git: ${JSON.stringify(result.files.map(f => f.path))}`);
             logger.fileMonitor(`Found ${result.totalCount} changed files (${result.includedCount} will be sent, ${result.excludedCount} excluded)`);
 
-            // Separate included and excluded files with reasons
             const includedFiles = result.files
                 .filter(f => f.status === 'included')
                 .map(f => f.path);
@@ -168,7 +158,7 @@ export class FileMonitorService implements vscode.Disposable {
                 totalCount: result.totalCount
             });
         } catch (error) {
-            // Silently fail for live updates - don't show errors to user
+            // Live updates fail silently; no error is shown to the user.
             logger.fileMonitorError('Error updating referenced files display:', error);
         }
     }

@@ -6,11 +6,9 @@
  * the expected side effects (state-manager calls, websocket interactions,
  * post-message routing, render/init callbacks).
  *
- * For openExerciseDetails we stub the standalone
- * `fetchAndEnrichExerciseDetails` via a sinon stub on the namespace import
- * from `@extension/controller/exerciseDataLoader`. If the property descriptor
- * is non-configurable in a future tsconfig change, we have a documented
- * fallback: inject a `fetchExerciseDetails` callback through the facade deps.
+ * For openExerciseDetails the standalone `fetchAndEnrichExerciseDetails` is
+ * stubbed through the namespace import from
+ * `@extension/controller/exerciseDataLoader`.
  */
 
 import * as vscode from 'vscode';
@@ -197,8 +195,6 @@ suite('WebviewNavigationFacade', () => {
         sandbox.restore();
     });
 
-    // ── showLogin ──────────────────────────────────────────────────
-
     test('showLogin: calls appStateManager.showLogin', () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
@@ -231,8 +227,6 @@ suite('WebviewNavigationFacade', () => {
         }));
     });
 
-    // ── showDashboard ──────────────────────────────────────────────
-
     test('showDashboard: calls appStateManager.showDashboard, render, sendInitData', async () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
@@ -264,8 +258,6 @@ suite('WebviewNavigationFacade', () => {
         // No user-facing error message is shown for the suggestion path.
         sinon.assert.notCalled(showErrorMessage);
     });
-
-    // ── navigateToStartPage ────────────────────────────────────────
 
     test('navigateToStartPage: dashboard branch routes to showDashboard', async () => {
         const { deps, stubs } = buildDeps({
@@ -346,8 +338,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledWith(fetchAndEnrichStub, deps.artemisApi, 42);
         sinon.assert.calledWith(stubs.appStateManager.showExerciseDetail, exerciseData);
     });
-
-    // ── openExerciseDetails ────────────────────────────────────────
 
     test('openExerciseDetails: happy path calls fetch, render, websocket connect, exerciseOpeningService', async () => {
         const exerciseData: ExerciseDetailsResponse = {
@@ -521,8 +511,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.notCalled(stubs.appStateManager.showExerciseDetail);
     });
 
-    // ── showCourseList ─────────────────────────────────────────────
-
     test('showCourseList: with courseCatalog, fetches and renders', async () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
@@ -544,8 +532,6 @@ suite('WebviewNavigationFacade', () => {
 
         sinon.assert.calledOnce(stubs.appStateManager.showCourseList);
     });
-
-    // ── Simple delegating methods ──────────────────────────────────
 
     test('showAiConfig: delegates to appStateManager.showAiConfig and renders', () => {
         const { deps, stubs } = buildDeps();
@@ -597,8 +583,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.called(stubs.render);
     });
 
-    // ── showCourseDetail ───────────────────────────────────────────
-
     test('showCourseDetail: stores state, writes the catalog, renders', () => {
         const { deps, stubs } = buildDeps({
             // Deliberately different from the epoch passed in below: the
@@ -628,8 +612,6 @@ suite('WebviewNavigationFacade', () => {
         assert.doesNotThrow(() => facade.showCourseDetail(courseData, 0));
         sinon.assert.called(stubs.render);
     });
-
-    // ── Fullscreen delegations ─────────────────────────────────────
 
     test('openExerciseFullscreen: delegates to fullscreenPanelManager', async () => {
         const { deps, stubs } = buildDeps();
@@ -681,8 +663,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(stubs.fullscreenPanelManager.openCourseListFullscreen);
     });
 
-    // ── openJsonInEditor ───────────────────────────────────────────
-
     test('openJsonInEditor: opens JSON document and shows it', async () => {
         const { deps } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
@@ -692,8 +672,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(openTextDocument);
         sinon.assert.calledOnce(showTextDocument);
     });
-
-    // ── render / sendInitData wiring ───────────────────────────────
 
     test('render / sendInitData / backgroundRenderProblemStatement forward to deps callbacks', () => {
         const { deps, stubs } = buildDeps();
@@ -708,8 +686,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(stubs.backgroundRenderProblemStatement);
     });
 
-    // ── hideLoadingAndSendServerUrl (used by AuthFlowHandler) ──────
-
     test('hideLoadingAndSendServerUrl: posts HideLoading then SetServerUrl', () => {
         const { deps, stubs } = buildDeps({
             getServerUrl: sandbox.stub().returns('https://srv/'),
@@ -718,7 +694,6 @@ suite('WebviewNavigationFacade', () => {
 
         facade.hideLoadingAndSendServerUrl();
 
-        // Two messages: HideLoading first, then SetServerUrl.
         assert.strictEqual(stubs.postMessage.callCount, 2);
         sinon.assert.calledWith(stubs.postMessage.firstCall, sinon.match({ type: ExtensionMsg.HideLoading }));
         sinon.assert.calledWith(stubs.postMessage.secondCall, sinon.match({

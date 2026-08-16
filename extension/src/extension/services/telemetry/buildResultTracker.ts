@@ -12,7 +12,6 @@ export class BuildResultTracker implements vscode.Disposable, SessionResettable 
     private readonly _buildHistory: BuildResult[] = [];
     private _consecutiveFailures: number = 0;
 
-    /** Maximum number of builds to keep in history */
     private static readonly HISTORY_SIZE = 10;
 
     private readonly _onDidReceiveBuildResult = new vscode.EventEmitter<BuildResult>();
@@ -30,9 +29,6 @@ export class BuildResultTracker implements vscode.Disposable, SessionResettable 
         this._processResult(result);
     }
 
-    /**
-     * Process a build result from Artemis
-     */
     private _processResult(result: ResultDTO): void {
         const buildResult: BuildResult = {
             timestamp: Date.now(),
@@ -47,9 +43,6 @@ export class BuildResultTracker implements vscode.Disposable, SessionResettable 
         this._addBuildResult(buildResult);
     }
 
-    /**
-     * Extract failed test names from result
-     */
     private _extractFailedTests(result: ResultDTO): string[] {
         const failedTests: string[] = [];
 
@@ -64,19 +57,13 @@ export class BuildResultTracker implements vscode.Disposable, SessionResettable 
         return failedTests;
     }
 
-    /**
-     * Add a build result to history
-     */
     private _addBuildResult(result: BuildResult): void {
-        // Add to history
         this._buildHistory.push(result);
 
-        // Maintain history size
         while (this._buildHistory.length > BuildResultTracker.HISTORY_SIZE) {
             this._buildHistory.shift();
         }
 
-        // Update consecutive failures count
         if (result.success) {
             this._consecutiveFailures = 0;
         } else {
@@ -86,23 +73,14 @@ export class BuildResultTracker implements vscode.Disposable, SessionResettable 
         this._onDidReceiveBuildResult.fire(result);
     }
 
-    /**
-     * Get number of consecutive build failures
-     */
     public getConsecutiveFailures(): number {
         return this._consecutiveFailures;
     }
 
-    /**
-     * SessionResettable — reset build history when a new exercise session starts.
-     */
     public onSessionStart(_context: SessionStartContext): void {
         this.reset();
     }
 
-    /**
-     * Reset tracking state
-     */
     public reset(): void {
         this._buildHistory.length = 0;
         this._consecutiveFailures = 0;

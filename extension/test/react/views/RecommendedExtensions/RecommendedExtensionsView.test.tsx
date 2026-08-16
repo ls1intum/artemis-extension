@@ -191,7 +191,6 @@ describe('RecommendedExtensionsView', () => {
 			expect(screen.getByText('Ext Two')).toBeInTheDocument();
 		});
 
-		// Filter to Category 1 only
 		await userEvent.click(screen.getByRole('button', { name: 'Category 1' }));
 
 		expect(screen.getByText('Ext One')).toBeInTheDocument();

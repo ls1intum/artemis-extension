@@ -97,14 +97,12 @@ describe('useDashboardStore', () => {
 	it('clears workspace exercise with null', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
-		// First set an exercise
 		act(() => {
 			result.current.setWorkspaceExercise({ id: 1, title: 'Ex 1' });
 		});
 
 		expect(result.current.workspaceExercise).toEqual({ id: 1, title: 'Ex 1' });
 
-		// Then clear it
 		act(() => {
 			result.current.setWorkspaceExercise(null);
 		});

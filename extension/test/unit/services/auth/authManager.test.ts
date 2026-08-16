@@ -73,8 +73,6 @@ suite('AuthManager Test Suite', () => {
         assert.deepStrictEqual(headers, {});
     });
 
-    // --- hasAuthToken ---
-
     test('hasAuthToken returns false when no credentials are stored', async () => {
         const result = await authManager.hasAuthToken();
         assert.strictEqual(result, false);
@@ -99,14 +97,10 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(result, false);
     });
 
-    // --- getAuthHeaders ---
-
     test('getAuthHeaders returns empty when no credentials stored', async () => {
         const result = await authManager.getAuthHeaders();
         assert.deepStrictEqual(result, {});
     });
-
-    // --- clear: error path ---
 
     test('clear swallows errors from secrets.delete', async () => {
         const sandbox = sinon.createSandbox();

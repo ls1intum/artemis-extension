@@ -122,7 +122,6 @@ export class ArtemisApiService {
                 throw new ApiError('Authentication failed. Please log in again.', 401);
             }
 
-            // Try to extract detailed error message from response body
             let errorMessage = `API request failed: ${response.status}`;
             let errorDetail: string | undefined;
             let errorKey: string | undefined;
@@ -160,7 +159,6 @@ export class ArtemisApiService {
         return response;
     }
 
-    // Get current user information
     async getCurrentUser(): Promise<ArtemisUser> {
         const response = await this.makeRequest('/api/core/public/account');
         const body = (await response.text()).trim();
@@ -217,21 +215,19 @@ export class ArtemisApiService {
         );
     }
 
-    // Get courses with comprehensive dashboard data (exercises, participations, scores)
+    // Dashboard data carries exercises, participations and scores.
     async getCoursesForDashboard(): Promise<CourseDashboardResponse> {
         const response = await this.makeRequest('/api/core/courses/for-dashboard');
         return parseApiObject<CourseDashboardResponse>('CourseDashboardResponse', await response.json());
     }
 
-    // Get a single course with exercises and participations for dashboard
     async getCourseForDashboard(courseId: number): Promise<CourseDashboardEntry> {
         const response = await this.makeRequest(`/api/core/courses/${courseId}/for-dashboard`);
         return parseApiObject<CourseDashboardEntry>('CourseDashboardEntry', await response.json());
     }
 
-    // Get exercise details for a specific exercise.
-    // The backend always includes studentParticipations with submissions and results —
-    // no query parameters needed (the endpoint accepts none).
+    // The backend always includes studentParticipations with submissions and
+    // results. The endpoint accepts no query parameters.
     async getExerciseDetails(exerciseId: number): Promise<ExerciseDetailsResponse> {
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/details`
@@ -239,7 +235,6 @@ export class ArtemisApiService {
         return parseApiObject<ExerciseDetailsResponse>('ExerciseDetailsResponse', await response.json());
     }
 
-    // Get latest pending submission for a participation.
     // A pending submission is one that has NO result yet (build in progress).
     //
     // Artemis returns 200+null body when no submission is pending and 404 when
@@ -276,10 +271,9 @@ export class ArtemisApiService {
         }
     }
 
-    // Get the latest result with feedbacks for a programming exercise participation.
-    // Same endpoint the Artemis webapp uses — returns a full Result with feedbacks embedded,
-    // no need to know the resultId upfront.
-    // Backend may return 200 with a null body when results are hidden, so this returns null in that case.
+    // Same endpoint the Artemis webapp uses: it returns a full Result with
+    // feedbacks embedded, so the resultId is not needed upfront. The backend
+    // returns 200 with a null body when results are hidden.
     async getLatestResultWithFeedbacks(participationId: number): Promise<ResultSummary | null> {
         const response = await this.makeRequest(
             `/api/programming/programming-exercise-participations/${participationId}/latest-result-with-feedbacks?withSubmission=false`
@@ -305,7 +299,6 @@ export class ArtemisApiService {
         );
     }
 
-    // Get build logs for a participation (optionally for a specific result)
     async getBuildLogs(participationId: number, resultId?: number): Promise<BuildLogEntry[]> {
         let endpoint = `/api/programming/participations/${participationId}/buildlogs`;
         if (resultId !== undefined) {
@@ -315,7 +308,6 @@ export class ArtemisApiService {
         return expectArray('build logs', await response.json(), parseBuildLogEntry);
     }
 
-    // Get VCS access token for a specific participation (per-exercise token)
     async getVcsAccessToken(participationId: number): Promise<string> {
         const response = await this.makeRequest(
             `/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
@@ -324,7 +316,6 @@ export class ArtemisApiService {
         return response.text();
     }
 
-    // Create VCS access token (if one does not already exist)
     async createVcsAccessToken(participationId: number): Promise<string> {
         const response = await this.makeRequest(
             `/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
@@ -333,7 +324,6 @@ export class ArtemisApiService {
         return response.text();
     }
 
-    // Get or create VCS access token helper.
     // Falls back to creation only when the server explicitly signals "no token
     // exists yet" (404). Other errors (401/403/5xx, network) propagate so the
     // caller does not retry on top of an already-failed auth state.
@@ -348,7 +338,6 @@ export class ArtemisApiService {
         }
     }
 
-    // Start participation in an exercise (create a new participation)
     async startExerciseParticipation(exerciseId: number): Promise<ArtemisParticipation> {
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/participations`,
@@ -357,7 +346,6 @@ export class ArtemisApiService {
         return parseArtemisParticipation(await response.json());
     }
 
-    // Start practice participation in an exercise
     async startPracticeParticipation(exerciseId: number): Promise<ArtemisParticipation> {
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/participations/practice`,
@@ -366,7 +354,6 @@ export class ArtemisApiService {
         return parseArtemisParticipation(await response.json());
     }
 
-    // Authenticate user with username and password
     async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<AuthenticationResult> {
         const url = `${this.getServerUrl()}${CONFIG.API.ENDPOINTS.AUTHENTICATE}`;
 
@@ -428,7 +415,7 @@ export class ArtemisApiService {
             throw new Error('Authentication succeeded but no JWT token received');
         }
 
-        // Store as cookie string — Desktop auth sends Cookie header, not Bearer
+        // Store as cookie string: Desktop auth sends a Cookie header, not Bearer.
         await this.authManager.storeArtemisCredentials(jwtCookie, rememberMe);
 
         return { success: true };
@@ -441,25 +428,20 @@ export class ArtemisApiService {
      * must always clear local state regardless of the server response,
      * so any failure here is logged and swallowed.
      *
-     * Uses a direct fetch instead of `makeRequest()` so a non-2xx
-     * response does not trigger the shared 401 handler (which would
-     * re-clear auth and fire the auth-expired callback — both
-     * pointless and confusing during an intentional logout).
+     * Uses a direct fetch instead of `makeRequest()` so a non-2xx response does
+     * not trigger the shared 401 handler, which would re-clear auth and fire the
+     * auth-expired callback during an intentional logout.
      *
-     * Note: Artemis uses strictly stateless JWTs — verified 2026-04-05 both
-     * empirically (tokens stayed valid on /api/core/public/account after
-     * multiple explicit logout calls) and via source: Artemis'
-     * PublicUserJwtResource.logout() (core/web/open/PublicUserJwtResource.java)
-     * only builds a Set-Cookie: jwt=; Max-Age=0 response header — no blacklist,
-     * no audit log, no server-side token invalidation. This Extension manages
-     * the JWT via VS Code secrets (not a cookie jar), so the Set-Cookie header
-     * is discarded by fetch(). The call is kept for protocol symmetry with
-     * the Artemis webapp.
+     * Artemis JWTs are strictly stateless: `PublicUserJwtResource.logout()` only
+     * sets `Set-Cookie: jwt=; Max-Age=0`, with no blacklist and no server-side
+     * invalidation. The extension keeps the JWT in VS Code secrets rather than a
+     * cookie jar, so fetch() discards that header. The call exists purely for
+     * protocol symmetry with the Artemis webapp.
      */
     async logoutFromServer(): Promise<void> {
         const headers = await this.authManager.getAuthHeaders();
         if (Object.keys(headers).length === 0) {
-            // Not authenticated — nothing to tell the server.
+            // Not authenticated, so there is nothing to tell the server.
             return;
         }
 
@@ -489,34 +471,29 @@ export class ArtemisApiService {
         }
     }
 
-    // Check Iris health status (course-scoped)
     async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);
         return parseIrisHealthStatus(await response.json());
     }
 
-    // Get server profile information (includes activeProfiles to check if Iris is globally enabled)
+    // activeProfiles reveals whether Iris is globally enabled.
     async getProfileInfo(): Promise<ProfileInfo> {
         const response = await this.makeRequest('/management/info');
         return parseProfileInfo(await response.json());
     }
 
-    // Check if Iris is active on the server (module feature or legacy profile)
+    // Module feature is the current signal, profile the legacy fallback.
     isIrisProfileActive(profileInfo: ProfileInfo): boolean {
         return profileInfo.activeModuleFeatures?.includes(PROFILE_IRIS)
             || profileInfo.activeProfiles?.includes(PROFILE_IRIS)
             || false;
     }
 
-    // ============ IRIS CHAT API ============
-
-    // Get Iris settings for a course
     async getIrisCourseChatSettings(courseId: number): Promise<IrisSettingsResponse> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/iris-settings`);
         return parseApiObject<IrisSettingsResponse>('IrisSettingsResponse', await response.json());
     }
 
-    // Get messages for a chat session
     async getChatMessages(sessionId: number): Promise<IrisChatMessage[]> {
         const response = await this.makeRequest(`/api/iris/sessions/${sessionId}/messages`);
         return expectArray<IrisChatMessage>(
@@ -526,7 +503,6 @@ export class ArtemisApiService {
         );
     }
 
-    // Send a message to Iris
     async sendChatMessage(
         sessionId: number,
         content: string,
@@ -572,7 +548,6 @@ export class ArtemisApiService {
         }
     }
 
-    // Mark a message as helpful
     async markMessageHelpful(sessionId: number, messageId: number, helpful: boolean): Promise<void> {
         await this.makeRequest(
             `/api/iris/sessions/${sessionId}/messages/${messageId}/helpful`,
@@ -606,7 +581,6 @@ export class ArtemisApiService {
         };
     }
 
-    // Unified Iris chat session endpoints (Artemis develop, PR #12504).
     async getCurrentChat(mode: IrisChatMode, entityId: number, courseId: number): Promise<SessionDetail> {
         const params = new URLSearchParams({ mode, entityId: String(entityId) });
         const response = await this.makeRequest(`/api/iris/chat/sessions/current?${params.toString()}`, { method: 'POST' });
@@ -614,9 +588,8 @@ export class ArtemisApiService {
     }
 
     /**
-     * Creates (or reuses) an EMPTY course session. Artemis PR #12696 removed the
-     * mode/entityId parameters: every session is born COURSE_CHAT and is repointed
-     * later by a message's pendingContext.
+     * Creates (or reuses) an EMPTY course session. Every session is born
+     * COURSE_CHAT and is repointed later by a message's pendingContext.
      */
     async createCourseSession(courseId: number): Promise<SessionDetail> {
         const params = new URLSearchParams({ courseId: String(courseId) });
@@ -648,8 +621,6 @@ export class ArtemisApiService {
             };
         });
     }
-
-    // ── Problem Statement Rendering ──
 
     async renderProblemStatement(request: ProblemStatementRenderRequest): Promise<RenderedProblemStatementDTO> {
         const response = await this.makeRequest(

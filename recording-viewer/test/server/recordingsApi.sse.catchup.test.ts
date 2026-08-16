@@ -88,7 +88,6 @@ describe('SSE catch-up + Last-Event-ID', () => {
             const ok = await waitFor(() => extractLineNos(captured.written).length >= 5);
             expect(ok).toBe(true);
             const ids = extractLineNos(captured.written);
-            // Should contain only lines 46-50, in order
             expect(ids).toEqual([46, 47, 48, 49, 50]);
         } finally {
             triggerClose();
@@ -106,7 +105,6 @@ describe('SSE catch-up + Last-Event-ID', () => {
             const ok = await waitFor(() => extractLineNos(captured.written).length >= 3);
             expect(ok).toBe(true);
             const ids = extractLineNos(captured.written);
-            // Should contain only lines 48, 49, 50
             expect(ids).toEqual([48, 49, 50]);
         } finally {
             triggerClose();
@@ -174,7 +172,6 @@ describe('SSE catch-up + Last-Event-ID', () => {
             const ok = await waitFor(() => extractLineNos(captured.written).length >= 3);
             expect(ok).toBe(true);
             const ids = extractLineNos(captured.written);
-            // No duplicates
             expect(new Set(ids).size).toBe(ids.length);
         } finally {
             triggerClose();

@@ -250,7 +250,6 @@ suite('WorkspaceDetectionService', () => {
                 createExercise(2, 'Practice Exercise', 'https://artemis.example.com/git/course/exercise-practice-student.git'),
             ];
 
-            // Should match the practice exercise exactly, not fallback to graded
             const result = findExerciseByRepositoryUrl(
                 'https://artemis.example.com/git/course/exercise-practice-student.git',
                 exercises
@@ -282,7 +281,6 @@ suite('WorkspaceDetectionService', () => {
                 createExercise(1, 'Exercise 1', 'https://artemis.example.com/git/course/exercise-student.git'),
             ];
 
-            // URL without '-practice-' should not match
             const result = findExerciseByRepositoryUrl(
                 'https://artemis.example.com/git/course/different-exercise-student.git',
                 exercises
@@ -294,17 +292,14 @@ suite('WorkspaceDetectionService', () => {
 
     suite('getWorkspaceRepositoryUrl', () => {
         test('should return null when no workspace folder exists', async () => {
-            // The function checks vscode.workspace.workspaceFolders
-            // In test environment, there may or may not be workspace folders
-            // We test the function can be called without throwing
+            // The test environment may or may not have a workspace folder, so
+            // both outcomes are valid; this only pins that the call does not throw.
             const result = await getWorkspaceRepositoryUrl();
 
-            // Result is either null (no workspace) or a string (workspace exists)
             assert.ok(result === null || typeof result === 'string');
         });
 
         test('should accept custom workspace folder parameter', async () => {
-            // Create a mock workspace folder pointing to a non-git directory
             const mockWorkspaceFolder: vscode.WorkspaceFolder = {
                 uri: vscode.Uri.file('/tmp/non-existent-test-folder'),
                 name: 'test',
@@ -335,10 +330,8 @@ suite('WorkspaceDetectionService', () => {
                 createExercise(1, 'Exercise 1', 'https://github.com/user/repo1.git'),
             ];
 
-            // In test environment without a matching workspace, should return null
             const result = await detectWorkspaceExercise(exercises);
 
-            // Either null (no workspace or no match) or a DetectedExercise
             assert.ok(result === null || (result && typeof result.id === 'number'));
         });
 
@@ -383,7 +376,7 @@ suite('detectWorkspaceExerciseForRepository: archive path records the catalog', 
         };
         registry = new ExerciseRegistry();
         // A REAL catalog, wired to the registry exactly as `extension.ts` wires
-        // it. Detection no longer writes the registry itself, so a stubbed
+        // it. Detection does not write the registry itself, so a stubbed
         // catalog with no event would leave the registry empty and say nothing
         // about production. `spy` rather than `stub`: the real write still has
         // to run for the rebuild to happen.
@@ -569,7 +562,6 @@ suite('toExerciseSource', () => {
 
 suite('collectExerciseSources', () => {
     test('handles entries with nested-only, flat-only, and both', () => {
-        // import collectExerciseSources locally to avoid the global suite reorg
         const { collectExerciseSources } = require('@extension/services/workspace/workspaceDetectionService');
         const entries: CourseDashboardEntry[] = [
             { course: { id: 1, exercises: [{ id: 11, title: 'nested' }] } },

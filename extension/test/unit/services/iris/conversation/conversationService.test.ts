@@ -126,7 +126,6 @@ async function startedWithContent() {
     return service;
 }
 
-/** Same helper as Task 3's ConversationState tests and Task 7's sendCoordinator tests. */
 const swapMessage = (id: number, attributes: unknown) =>
     ({ id, sender: 'CTXSWAP', content: [{ type: 'json', attributes }] });
 
@@ -367,8 +366,8 @@ suite('IrisConversationService', () => {
 
     test('a websocket message arriving during a same-session reload survives it', async () => {
         // The service-level path, not just ConversationState: _install calls
-        // beginNavigation, and an earlier draft cleared the detail there, so the
-        // merge had nothing to carry and this message was lost.
+        // beginNavigation, which must keep the detail so the merge still has
+        // something to carry this message into.
         const service = await startedWithContent();
         const reloading = service.reload();
         service.state.upsertMessage({ id: 77, sender: 'LLM' } as never);
@@ -397,9 +396,8 @@ suite('IrisConversationService', () => {
 
     test('an older overview response does not install over a newer one for the same course', async () => {
         // A1 starts, the student switches to B and back to A, A2 starts, and A1
-        // only THEN answers. The requests genuinely overlap; an earlier version
-        // of this test resolved A1 before starting A2, so the sequence guard it
-        // claims to be about was never exercised.
+        // only THEN answers. The requests must genuinely overlap, or the
+        // sequence guard under test is never exercised.
         const service = await started();
         const a1 = service.refreshOverview();                       // A1, seq n
         const switched = service.switchCourse(43);
@@ -445,9 +443,9 @@ suite('IrisConversationService', () => {
     });
 
     test('a navigateTo racing a resolveTopicChange leaves exactly one winner', async () => {
-        // The topic change no longer issues a request, but it still takes a
-        // navigation token, so it is still the LAST intent. The history open it
-        // raced must not install on top of the staging.
+        // With a conversation open the topic change issues no request, but it
+        // still takes a navigation token, so it is still the LAST intent. The
+        // history open it raced must not install on top of the staging.
         const service = await startedWithContent();
         const nav = service.navigateTo({ courseId: 42, sessionId: 3 });
         await service.resolveTopicChange(EX7);
@@ -458,11 +456,10 @@ suite('IrisConversationService', () => {
     });
 
     test('a failed reload keeps the history it already had', async () => {
-        // The caches used to be dropped BEFORE the re-read, which is right for
-        // the escape-hatch command (a wedged client must be able to start over)
-        // and wrong for everything else: a transient outage then costs the
-        // student the whole conversation list, and the reload that would refill
-        // it is exactly the thing that just failed.
+        // The caches are dropped only AFTER the re-read succeeds. Dropping them
+        // first would let a transient outage cost the student the whole
+        // conversation list, and the reload that would refill it is exactly the
+        // thing that just failed.
         const service = await startedWithContent();
         service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
 
@@ -474,9 +471,9 @@ suite('IrisConversationService', () => {
     });
 
     test('a reload superseded by a navigation clears nothing', async () => {
-        // The reset used to run as soon as the GET answered, before either guard
-        // was checked, so a stale reload wiped the caches of the navigation that
-        // had won. That is precisely what the navigation token exists to stop.
+        // The reset runs only after both guards pass. Resetting as soon as the
+        // GET answers would let a stale reload wipe the caches of the navigation
+        // that won, which is precisely what the navigation token exists to stop.
         const service = await startedWithContent();
         service.state.setOverview([{ sessionId: 9, courseId: 42, context: EX7, lastActivity: 100 }]);
 
@@ -553,8 +550,8 @@ suite('IrisConversationService', () => {
     });
 
     test('navigateTo stages nothing at all', async () => {
-        // Cut 2 removed savedPending with undo. navigateTo is now purely
-        // "open this conversation and adopt what the server says".
+        // navigateTo is purely "open this conversation and adopt what the
+        // server says".
         const service = await started();
         service.state.stagePending(EX7);
         const opened = service.navigateTo({ courseId: 42, sessionId: 9 });
@@ -591,11 +588,10 @@ suite('IrisConversationService', () => {
     });
 
     test('reconcileCurrent does not block a concurrent navigateTo from installing', async () => {
-        // Regression for the bug fixed in 69f0fe12: reconcileCurrent used to be
-        // wrapped in _navigate, which bumps the shared _navRequestSeq. A resubscribe
-        // signal landing mid-navigation would then make the navigateTo's own
-        // isCurrent() permanently false, and its install would be silently
-        // skipped. reconcileCurrent must not take a navigation token.
+        // reconcileCurrent must not take a navigation token. Bumping the shared
+        // _navRequestSeq would make a resubscribe signal landing mid-navigation
+        // turn the navigateTo's own isCurrent() permanently false, silently
+        // skipping its install.
         const service = await started();
         const nav = service.navigateTo({ courseId: 42, sessionId: 9 });
         void service.reconcileCurrent();
@@ -605,10 +601,10 @@ suite('IrisConversationService', () => {
     });
 
     test('resolveTopicChange reports failed rather than rejecting when the acquisition 500s', async () => {
-        // The dispatcher acts on a TopicChangeOutcome, not an exception: Task 14
-        // writes `const outcome = await resolveTopicChange(...)`, so a server 500
-        // must resolve to a rejected outcome, not throw. With no conversation
-        // open this is the only branch of the path that still issues a request.
+        // The dispatcher acts on a TopicChangeOutcome, not an exception, so a
+        // server 500 must resolve to a rejected outcome rather than throw. With
+        // no conversation open this is the only branch of the path that still
+        // issues a request.
         const { api, rejectCall } = makeApi();
         const service = new IrisConversationService(api as never, deps().deps);
         const change = service.resolveTopicChange(EX7, 42);
@@ -620,18 +616,9 @@ suite('IrisConversationService', () => {
 });
 
 /**
- * Task 8: `reconcileCurrent` and its trigger `onSubscriptionActive` were both
- * authored in Task 5 (the trigger cannot compile without the method), and two
- * of the brief's cases already exist above under their own names:
- *  - "subscribes before adopting the snapshot" === 'reconcileCurrent subscribes
- *    before the detail GET resolves'.
- *  - "a signal for a session we already left is ignored" === 'onSubscriptionActive
- *    ignores a signal for a session that is no longer current'.
- * This suite adds only the cases neither of those cover: onSubscriptionActive's
- * full accept path (not just the reject path), a genuine context CHANGE on
- * reconcile (the existing test above resolves with the SAME context), the
- * CTXSWAP-during-reconcile race, the send/reconnect ordering race, and the
- * knownInvisible non-interference case.
+ * Covers the reconciliation cases the suites above do not: onSubscriptionActive's
+ * accept path, a genuine context CHANGE on reconcile, the CTXSWAP-during-reconcile
+ * race, the send/reconnect ordering race, and knownInvisible non-interference.
  */
 suite('subscription reconciliation', () => {
     test('a delayed first subscription still triggers a reconciliation', async () => {

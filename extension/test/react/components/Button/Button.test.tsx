@@ -55,8 +55,8 @@ describe('Button', () => {
 		);
 
 		const button = screen.getByRole('button');
-		// Disabled buttons have pointer-events: none, so userEvent can't click them
-		// This is correct behavior - we verify the button is disabled
+		// Disabled buttons have pointer-events: none, so userEvent cannot click
+		// them; assert the disabled state instead.
 		expect(button).toBeDisabled();
 		expect(handleClick).not.toHaveBeenCalled();
 	});

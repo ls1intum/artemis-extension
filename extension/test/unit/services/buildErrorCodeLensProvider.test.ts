@@ -73,7 +73,6 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
             { filePath: 'src\\Main.java', line: 10, message: 'Error' }
         ];
 
-        // Should normalize backslashes
         provider.setErrors('src\\Main.java', errors);
 
         // Check with forward slash path

@@ -53,7 +53,6 @@ export function Button({
   if (width) {inlineStyles.width = width;}
   if (height) {inlineStyles.height = height;}
 
-  // Icon-only button
   if (isIconOnly) {
     return (
       <button
@@ -70,7 +69,6 @@ export function Button({
     );
   }
 
-  // Button with icon and label
   if (hasIconAndLabel) {
     return (
       <button
@@ -87,7 +85,6 @@ export function Button({
     );
   }
 
-  // Button with label only
   return (
     <button
       type={type}

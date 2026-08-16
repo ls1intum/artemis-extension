@@ -6,9 +6,6 @@ import type { AdaptiveCadence } from './intervention/adaptiveCadence';
 import type { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
 import { EQConfidence, RecommendedAction } from './types';
 
-/**
- * Dependencies injected into DebugDashboard from TelemetryManager.
- */
 interface DebugDashboardDeps {
     eqEngine: ErrorQuotientEngine;
     inactivityService: InactivityService;
@@ -21,9 +18,8 @@ interface DebugDashboardDeps {
 /**
  * Developer-mode debug UI for the EQ-based struggle detection system.
  *
- * Shows a live status bar item with current EQ score, provides a QuickPick
+ * Shows a live status bar item with the current EQ score, provides a QuickPick
  * detail dialog, and logs telemetry state to a dedicated output channel.
- * Extracted from TelemetryManager to separate debug UI from orchestration.
  */
 export class DebugDashboard implements vscode.Disposable {
     private static readonly DEBUG_UPDATE_INTERVAL_MS = 5 * 1000;
@@ -46,11 +42,6 @@ export class DebugDashboard implements vscode.Disposable {
         this._statusBarItem.dispose();
     }
 
-    // ==================== Lifecycle ====================
-
-    /**
-     * Start periodic debug status bar updates.
-     */
     public start(): void {
         this._update();
         this._statusBarItem.show();
@@ -60,9 +51,6 @@ export class DebugDashboard implements vscode.Disposable {
         }, DebugDashboard.DEBUG_UPDATE_INTERVAL_MS);
     }
 
-    /**
-     * Stop debug updates and hide the status bar item.
-     */
     public stop(): void {
         if (this._updateTimer) {
             clearInterval(this._updateTimer);
@@ -71,11 +59,6 @@ export class DebugDashboard implements vscode.Disposable {
         this._statusBarItem.hide();
     }
 
-    // ==================== Public API ====================
-
-    /**
-     * Show detailed EQ dialog (called from command).
-     */
     public async showStruggleScoreDialog(): Promise<void> {
         const { eq, confidence } = this._deps.eqEngine.getCurrentEQ();
         const state = this._deps.eqEngine.getState();
@@ -126,9 +109,6 @@ export class DebugDashboard implements vscode.Disposable {
         }
     }
 
-    /**
-     * Log current telemetry state to the output channel.
-     */
     public logCurrentState(): void {
         const { eq, confidence } = this._deps.eqEngine.getCurrentEQ();
         const state = this._deps.eqEngine.getState();
@@ -156,8 +136,6 @@ export class DebugDashboard implements vscode.Disposable {
         this._deps.outputChannel.appendLine('═══════════════════════════════════════');
         this._deps.outputChannel.appendLine('');
     }
-
-    // ==================== Private Helpers ====================
 
     private _update(): void {
         const { eq, confidence } = this._deps.eqEngine.getCurrentEQ();

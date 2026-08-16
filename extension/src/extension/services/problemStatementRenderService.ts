@@ -39,14 +39,10 @@ interface RenderOptions {
     readonly darkModeOverride?: boolean;
 }
 
-// ── Internal types ──
-
 interface ServerRenderResult {
     html: string;
     contentHash: string;
 }
-
-// ── Cache internals ──
 
 interface CacheEntry {
     exerciseId: number;
@@ -60,8 +56,6 @@ const MAX_CACHE_SIZE = 10;
 // Match Artemis ProblemStatementRenderRequestDTO validation on `markdown`:
 // @Size(max = 100_000) and a null-byte pattern reject.
 const MAX_MARKDOWN_LENGTH = 100_000;
-
-// ── Service ──
 
 export class ProblemStatementRenderService implements vscode.Disposable {
     private readonly api: ArtemisApiService;
@@ -117,7 +111,6 @@ export class ProblemStatementRenderService implements vscode.Disposable {
             inlineImages: true,
         };
 
-        // Cache check
         const serverUrl = this.getServerUrl();
         const inputHash = computeInputHash(request, serverUrl);
         const cached = this.cache.get(exerciseId);
@@ -162,8 +155,6 @@ export class ProblemStatementRenderService implements vscode.Disposable {
 
     invalidateAll(): void { this.cache.clear(); }
 
-    // ── Private helpers ──
-
     private putCache(exerciseId: number, inputHash: string, result: ServerRenderResult): void {
         if (this.cache.size >= MAX_CACHE_SIZE && !this.cache.has(exerciseId)) {
             let oldestKey: number | undefined;
@@ -185,8 +176,6 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         return resolveServerUrl();
     }
 }
-
-// ── Mapping functions ──
 
 // Match Artemis ProblemStatementRenderRequestDTO + TestFeedbackInputDTO validation:
 // testResults @Size(max=100), testName @Size(max=500), message @Size(max=5000),
@@ -215,8 +204,6 @@ function mapFeedbacksToTestInputs(feedbacks: FeedbackLike[]): TestFeedbackInput[
     }
     return result;
 }
-
-// ── Utility functions ──
 
 function containsNullByte(s: string): boolean {
     return s.indexOf(String.fromCharCode(0)) !== -1;

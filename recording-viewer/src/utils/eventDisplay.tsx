@@ -1,9 +1,7 @@
 import type { RecordedEvent } from '../types';
 import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from './format';
 
-// Single source of truth for rendering a recorded event.
-
-/** "45% | statement 20–80% visible" — page scroll percent + visible slice of the statement. */
+/** "45% | statement 20–80% visible": page scroll percent + visible slice of the statement. */
 function describeStatementScroll(e: {
     scrollTop: number; scrollHeight: number; viewportHeight: number;
     statementTop: number; statementHeight: number;
@@ -23,7 +21,7 @@ function describeStatementScroll(e: {
 
 const SELECTION_PREVIEW_CHARS = 60;
 
-/** '"implement the…" (25 chars)' — preview + uncapped length. */
+/** '"implement the…" (25 chars)': preview + uncapped length. */
 function describeStatementSelection(e: { selectedText: string; selectionLength: number }): string {
     const preview = e.selectedText.length > SELECTION_PREVIEW_CHARS
         ? `${e.selectedText.slice(0, SELECTION_PREVIEW_CHARS)}…`

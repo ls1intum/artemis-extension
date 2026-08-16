@@ -44,9 +44,6 @@ import Upload from 'lucide-react/dist/esm/icons/upload';
 import X from 'lucide-react/dist/esm/icons/x';
 import XCircle from 'lucide-react/dist/esm/icons/x-circle';
 
-/**
- * Typed icon map - all exercise and UI icons
- */
 const ICONS = {
   default: CircleDot,
   programming: Code2,
@@ -89,9 +86,6 @@ const ICONS = {
   bug: Bug,
 } as const satisfies Record<string, LucideIcon>;
 
-/**
- * Type representing all available icon keys
- */
 type IconKey = keyof typeof ICONS;
 
 function isIconKey(key: string): key is IconKey {
@@ -101,17 +95,8 @@ function isIconKey(key: string): key is IconKey {
 }
 
 /**
- * Get an icon component by type string
- * Normalizes input (lowercase, replace underscores) and falls back to default icon
- *
- * @param type - Icon type string (e.g., "programming", "QUIZ", "file_upload")
- * @returns Lucide icon component
- *
- * @example
- * ```tsx
- * const Icon = getIcon('programming');
- * return <Icon size={16} />;
- * ```
+ * Lowercases the type and turns underscores into hyphens before the lookup, so
+ * "QUIZ" and "file_upload" both resolve. Unknown types fall back to `default`.
  */
 export function getIcon(type: string | undefined): LucideIcon {
   const normalizedType = type?.toLowerCase().replace(/_/g, '-') || 'default';

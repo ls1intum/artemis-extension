@@ -6,9 +6,8 @@ import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { useExtensionMessage } from './useExtensionMessage';
 
 /**
- * Shared hook that listens for exercise status extension messages
- * (UpdateRepoStatus, ShowClonedRepoNotice, UpdateDirtyPagesStatus)
- * and updates the exercise detail store accordingly.
+ * Listens for exercise status extension messages and updates the exercise
+ * detail store.
  */
 export function useExerciseStatusMessages(vscodeApi: VsCodeApi): void {
     const { setRepoStatus, setClonedNotice, setDirtyPagesStatus } = useExerciseDetailStore();

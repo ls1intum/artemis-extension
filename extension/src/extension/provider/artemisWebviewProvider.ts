@@ -48,19 +48,16 @@ import { WebviewSSRCoordinator } from './webviewSSRCoordinator';
 /**
  * Main webview provider for the Artemis sidebar panel.
  *
- * After #206 this class is the thin coordinator that owns the
- * `vscode.WebviewView` and wires services together. Navigation actions live in
- * `WebviewNavigationFacade`; background problem-statement SSR (including the
- * theme-change listener that invalidates the render cache) lives in
- * `WebviewSSRCoordinator`. Provider keeps `showLogin()` as a public delegation
- * so external callers in `extension.ts` and `extensionCommands.ts` do not need
- * to know about the facade.
+ * A thin coordinator that owns the `vscode.WebviewView` and wires services
+ * together. Navigation actions live in `WebviewNavigationFacade`; background
+ * problem-statement SSR (including the theme-change listener that invalidates
+ * the render cache) lives in `WebviewSSRCoordinator`. `showLogin()` stays a
+ * public delegation so external callers in `extension.ts` and
+ * `extensionCommands.ts` do not need to know about the facade.
  */
 export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IArtemisWebviewProvider {
-    // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
-    // ── Instance properties ────────────────────────────────────────────
     private readonly _extensionUri: vscode.Uri;
     private readonly _extensionContext: vscode.ExtensionContext;
     private readonly _authManager: AuthManager;
@@ -107,7 +104,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     public readonly onDidProblemStatementScroll = this._onDidProblemStatementScroll.event;
     public readonly onDidProblemStatementSelection = this._onDidProblemStatementSelection.event;
 
-    // ── Constructor ────────────────────────────────────────────────────
     constructor(deps: ArtemisWebviewProviderDeps) {
         super();
         this._extensionUri = deps.extensionUri;
@@ -121,44 +117,39 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._courseCatalog = deps.courseCatalog;
         const buildErrorCodeLensProvider = deps.buildErrorCodeLensProvider;
 
-        // 1. AppStateManager — depends on nothing.
         this._appStateManager = new AppStateManager();
         if (this._courseCatalog) {
             this._appStateManager.setCourseCatalog(this._courseCatalog);
         }
 
-        // 2. CourseAccessStorage: built by activation, where the session
-        //    coordinator that keys its scope lives.
+        // Built by activation, where the session coordinator that keys its
+        // scope lives.
         this._courseAccessStorage = deps.courseAccessStorage;
 
-        // 3. SSR render service.
         this._renderService = new ProblemStatementRenderService(this._artemisApi);
         this._disposables.push(this._renderService);
 
-        // 4. Build diagnostics — wires the build-error code lens.
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
 
-        // 5. Exercise opening side-effects (catalog, telemetry).
         this._exerciseOpeningService = new ExerciseOpeningService(
             this._courseCatalog,
             this._telemetryManager,
             this._courseAccessStorage,
         );
 
-        // 6. Start page resolver.
         this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseCatalog);
 
-        // 7. Fullscreen panel manager — only stores the getter, safe before _messageHandler exists.
+        // Only stores the getter, so it is safe before _messageHandler exists.
         this._fullscreenPanelManager = new FullscreenPanelManager(
             this._extensionUri,
             this._extensionContext,
             () => this._messageHandler,
         );
 
-        // 7b. SSR coordinator — owns the theme listener and background SSR.
-        //     Must be built BEFORE the navigation facade because the facade's
-        //     backgroundRenderProblemStatement callback routes through it.
+        // Owns the theme listener and background SSR. Must be built BEFORE the
+        // navigation facade, whose backgroundRenderProblemStatement callback
+        // routes through it.
         this._ssrCoordinator = new WebviewSSRCoordinator({
             appStateManager: this._appStateManager,
             renderService: this._renderService,
@@ -167,8 +158,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         });
         this._disposables.push(this._ssrCoordinator);
 
-        // 8. Navigation facade — constructed BEFORE the message handler because
-        //    the message handler receives the facade as its actionHandler.
+        // Constructed BEFORE the message handler, which receives the facade as
+        // its actionHandler.
         this._navigationFacade = new WebviewNavigationFacade({
             appStateManager: this._appStateManager,
             artemisApi: this._artemisApi,
@@ -185,7 +176,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             getServerUrl: () => resolveServerUrl(),
         });
 
-        // 9. Webview message handler — now routes commands through the facade.
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
             this._artemisApi,
@@ -200,7 +190,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
 
-        // 10. Init data service — depends on the message handler being ready.
+        // Depends on the message handler being ready.
         this._viewInitDataService = new ViewInitDataService(
             this._appStateManager,
             this._telemetryManager,
@@ -209,16 +199,15 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseAccessStorage,
         );
 
-        // 11. Submission WS handler — fans build results into diagnostics
-        //     and, for results on the currently-rendered participation, triggers
-        //     a re-fetch + PS re-render so test-case checkmarks stay current.
+        // Fans build results into diagnostics and, for results on the
+        // currently-rendered participation, triggers a re-fetch plus PS
+        // re-render so test-case checkmarks stay current.
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
             (result) => this._buildDiagnosticsService.handleBuildResult(result),
             (result) => this._onResultForPSRefresh(result),
         );
 
-        // 12. Auth flow handler — callbacks route through the navigation facade.
         this._authFlowHandler = new AuthFlowHandler(
             this._authManager,
             this._artemisApi,
@@ -230,11 +219,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             },
         );
 
-        // 13. Wire WebSocket subscription handler
         this._websocketHandler = this._submissionWsHandler.createHandler();
         this._websocketService.registerMessageHandler(this._websocketHandler);
 
-        // 14. Forward state changes as view navigation events.
         this._appStateManager.onStateChange = (from, to) => {
             this._onDidChangeViewNavigation.fire({ from, to });
         };
@@ -251,8 +238,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._onDidProblemStatementSelection,
         );
     }
-
-    // ── Lifecycle ──────────────────────────────────────────────────────
 
     public dispose(): void {
         this._messageHandler.dispose();
@@ -273,7 +258,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._resetReadyState();
 
         webviewView.webview.options = {
-            // Allow scripts in the webview
             enableScripts: true,
 
             localResourceRoots: [
@@ -284,26 +268,22 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         webviewView.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, webviewView.webview);
 
-        // Set up message sender for the message handler (using safe posting)
         this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
             this._postMessageSafe(message);
         });
 
-        // Check for existing authentication and auto-login if valid
         this._authFlowHandler.checkExistingAuthentication();
 
-        // Handle messages from the webview using the message handler
         const messageListener = webviewView.webview.onDidReceiveMessage(message => {
             this._handleMessage(message);
         });
         this._viewDisposables.push(messageListener);
 
-        // Handle visibility changes - resend data when panel becomes visible
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             this._onDidChangePanelVisibility.fire(webviewView.visible);
             if (webviewView.visible) {
                 void (async () => {
-                    // Check if auth expired while panel was hidden
+                    // Auth can expire while the panel is hidden.
                     const hasAuth = await this._authManager.hasAuthToken();
                     const currentState = this._appStateManager.currentState;
                     if (!hasAuth && currentState !== 'login') {
@@ -312,9 +292,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                         return;
                     }
 
-                    // Re-fetch exercise data to capture any WebSocket updates missed while hidden.
-                    // Swallow fetch errors only - state-transition errors (invariant breaches)
-                    // must propagate so latent bugs don't get hidden by this refresh path.
+                    // Re-fetch exercise data to capture WebSocket updates missed while hidden.
+                    // Swallow fetch errors only: state-transition errors (invariant breaches)
+                    // must propagate so latent bugs are not hidden by this refresh path.
                     if (currentState === 'exercise-detail') {
                         const exerciseData = this._appStateManager.currentExerciseData;
                         const exerciseId = exerciseData?.exercise?.id;
@@ -345,7 +325,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         });
         this._viewDisposables.push(visibilityListener);
 
-        // Listen for configuration changes to re-render when settings change
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
                 this.refreshTheme();
@@ -354,19 +333,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._viewDisposables.push(configListener);
     }
 
-    // ── Rendering ──────────────────────────────────────────────────────
-
-    /**
-     * Helper method to render the webview HTML
-     */
     public render(): void {
         if (this._view) {
             this._resetReadyState();
             this._view.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, this._view.webview);
         }
     }
-
-    // ── Init data ──────────────────────────────────────────────────────
 
     /**
      * Send current view data to the webview without re-rendering.
@@ -375,8 +347,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     public sendInitData(): void {
         this._viewInitDataService.sendInitData();
     }
-
-    // ── IArtemisWebviewProvider: fire methods ──────────────────────────
 
     public fireTestResultsOverviewOpened(payload: TestResultsOverviewOpenedPayload): void {
         this._onDidOpenTestResultsOverview.fire(payload);
@@ -406,8 +376,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._onDidProblemStatementSelection.fire(payload);
     }
 
-    // ── Public API: navigation delegation ──────────────────────────────
-
     /**
      * Send a message to the webview safely.
      */
@@ -431,8 +399,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._navigationFacade.showLogin();
     }
 
-    // ── BaseWebviewProvider hooks ──────────────────────────────────────
-
     protected _onReady(): void {
         this.sendInitData();
     }
@@ -440,8 +406,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
         this._messageHandler.handleMessage(message);
     }
-
-    // ── Private: Helpers ───────────────────────────────────────────────
 
     /**
      * Called for every WebSocket newResult event. Delegates the decision

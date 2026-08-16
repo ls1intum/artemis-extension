@@ -12,7 +12,6 @@ const EX5: ServerContext = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 };
 const EX7: ServerContext = { mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 7 };
 const COURSE42: ServerContext = { mode: 'COURSE_CHAT', entityId: 42 };
 
-/** Same helper as Task 3's ConversationState tests. */
 const swapMessage = (id: number, attributes: unknown) =>
     ({ id, sender: 'CTXSWAP', content: [{ type: 'json', attributes }] });
 
@@ -22,8 +21,7 @@ const tick = () => new Promise((r) => setImmediate(r));
 // `settled` is load-bearing, not bookkeeping: a helper that merely scanned by
 // call name could answer the same one twice if two requests under the same
 // name were open at once. Every helper below therefore picks an OUTSTANDING
-// deferred and marks it settled. Mirrors Task 5's makeApi (conversationService.test.ts),
-// extended with sendChatMessage.
+// deferred and marks it settled.
 type Deferred = {
     call: string;
     settled: boolean;
@@ -347,9 +345,9 @@ suite('SendCoordinator', () => {
     });
 
     test('every topic change is rejected while a send is unresolved', async () => {
-        // Local finding 6: the alternative ("a newer pending staged mid-request
-        // survives") conflicts with invariant 4, because a successful send gives
-        // the conversation content. One rule, applied to every consumer.
+        // Letting a newer pending staged mid-request survive would conflict
+        // with invariant 4, because a successful send gives the conversation
+        // content. One rule, applied to every consumer.
         const c = coordinatorWith({ committed: COURSE42 });
         const sending = c.send({ text: 'a', localId: 'l1', sessionId: 1 });
         const rejected = await c.conversation.resolveTopicChange(EX7);
@@ -424,8 +422,8 @@ suite('SendCoordinator', () => {
         // Another client wrote a message; ours never arrived. The staging must
         // stay: the student picked that topic and has not sent anything yet, so
         // dropping it would silently undo their pick. Staging onto a
-        // conversation with content is the normal case now, and the retry
-        // commits it with a CTXSWAP marker exactly as a first send would.
+        // conversation with content is the normal case, and the retry commits
+        // it with a CTXSWAP marker exactly as a first send would.
         const c = coordinatorWith({ committed: COURSE42, pending: EX5 });
         const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
         await tick();
@@ -437,8 +435,8 @@ suite('SendCoordinator', () => {
     });
 
     test('a failed reconciliation releases the lock, clears the bubble and bumps sendSeq', async () => {
-        // Local finding 9: "change nothing" would leave the send lock latched
-        // and the optimistic bubble stuck in `sending` forever.
+        // Doing nothing here would leave the send lock latched and the
+        // optimistic bubble stuck in `sending` forever.
         const c = coordinatorWith({ committed: COURSE42 });
         const before = c.state.guard().sendSeq;
         const sent = c.send({ text: 'hallo', localId: 'l1', sessionId: 1 });
@@ -523,8 +521,8 @@ suite('SendCoordinator', () => {
     test('publishes the lock when it is taken, not only when it is released', async () => {
         const c = coordinatorWith({ committed: COURSE42 });
         // Record the flag AS EACH EVENT FIRES. Reading the state afterwards
-        // would pass without the notification, because the old code already
-        // sets the field; only the emission is new.
+        // would pass even without the notification, since the field is set
+        // either way; the emission is what this pins.
         const seen: boolean[] = [];
         c.conversation.onDidChange(() => { seen.push(c.state.sendInFlight); });
 

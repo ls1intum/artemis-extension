@@ -20,11 +20,10 @@ describe('Login View UI Tests', function () {
 	});
 
 	afterEach(async function () {
-		// Always try to switch back to main context after each test
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context, so ignore.
 		}
 	});
 

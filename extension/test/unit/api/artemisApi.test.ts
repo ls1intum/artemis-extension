@@ -7,7 +7,6 @@ import { ApiError, MalformedResponseError } from '@extension/types';
 import { CONFIG } from '@extension/utils';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
-// Mock fetch
 const originalFetch = global.fetch;
 let mockFetch: any;
 
@@ -26,12 +25,10 @@ suite('Artemis API Service Test Suite', () => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
 
-        // Mock AuthManager.getAuthHeaders
         authManager.getAuthHeaders = async () => ({ 'Authorization': 'Bearer test-token' });
 
         apiService = new TestableArtemisApiService(authManager);
 
-        // Mock fetch
         mockFetch = async (_url: string, _options: any) => {
             return {
                 ok: true,
@@ -166,8 +163,8 @@ suite('Artemis API Service Test Suite', () => {
     test('should get exercise details', async () => {
         const exerciseId = 123;
         global.fetch = async (url: any) => {
-            // The backend always includes studentParticipations with submissions and results —
-            // no query parameters needed (the endpoint accepts none).
+            // The backend always includes studentParticipations with submissions
+            // and results, and the endpoint accepts no query parameters.
             assert.ok(url.includes(`/api/exercise/exercises/${exerciseId}/details`));
             return {
                 ok: true,
@@ -363,8 +360,8 @@ suite('Artemis API Service Test Suite', () => {
         const mockCookie = 'jwt=jwt-token; Path=/; Secure; HttpOnly';
 
         global.fetch = async (url: any, options: any) => {
-            // The actual implementation uses CONFIG.API.ENDPOINTS.AUTHENTICATE which might be different
-            // Let's check if it contains 'authenticate' at least
+            // The path comes from CONFIG.API.ENDPOINTS.AUTHENTICATE, so only the
+            // substring is pinned here.
             assert.ok(url.includes('authenticate'));
             assert.strictEqual(options.method, 'POST');
             const body = JSON.parse(options.body);
@@ -479,7 +476,6 @@ suite('Artemis API Service Test Suite', () => {
         global.fetch = async (_url: any, options: any) => {
             attempt++;
             if (attempt === 1) {
-                // First attempt with files fails
                 const body = JSON.parse(options.body);
                 assert.ok(body.uncommittedFiles);
                 return {
@@ -488,7 +484,6 @@ suite('Artemis API Service Test Suite', () => {
                     text: async () => 'Bad Request',
                 } as any;
             } else {
-                // Second attempt without files succeeds
                 const body = JSON.parse(options.body);
                 assert.strictEqual(body.uncommittedFiles, undefined);
                 return {

@@ -27,8 +27,8 @@ export class AuthFlowHandler {
             try {
                 hasAuth = await this._authManager.hasAuthToken();
             } catch (error) {
-                // Reading the stored token failed — clearing it would be pointless
-                // and destructive, so just fall back to the login UI.
+                // Reading the stored token failed. Clearing it would be
+                // pointless and destructive, so fall back to the login UI.
                 logger.error('Error reading stored authentication state', LogCategory.AUTH, error);
                 this._callbacks.hideLoadingAndSendServerUrl();
                 return;
@@ -46,10 +46,10 @@ export class AuthFlowHandler {
             try {
                 user = await this._artemisApi.getCurrentUser();
             } catch (userError) {
-                // Only a 401 means the stored token is actually invalid. A timeout,
-                // network error, or 5xx is a transient reachability problem — keep
-                // the credentials so a blip (e.g. slow network at startup) does not
-                // log the user out.
+                // Only a 401 means the stored token is actually invalid. A
+                // timeout, network error or 5xx is a transient reachability
+                // problem, so keep the credentials: a blip (e.g. slow network
+                // at startup) must not log the user out.
                 if (userError instanceof ApiError && userError.status === 401) {
                     logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
                     await this._authManager.clear();
@@ -76,10 +76,10 @@ export class AuthFlowHandler {
                 user: user
             });
         } catch (error) {
-            // Safety net: never strand the startup loading UI. Crucially this does
-            // NOT clear credentials — a transient or post-auth failure must not log
-            // the user out (the only credential-clearing path is the inline 401
-            // branch above, which runs before reaching here).
+            // Safety net: never strand the startup loading UI. Crucially this
+            // does NOT clear credentials, because a transient or post-auth
+            // failure must not log the user out. The only credential-clearing
+            // path is the inline 401 branch above.
             logger.error('Startup authentication did not complete (credentials kept)', LogCategory.AUTH, error);
             this._callbacks.hideLoadingAndSendServerUrl();
         }

@@ -82,7 +82,7 @@ const FLASH_ICON_CLASS: Record<FlashStatus, string> = {
 /**
  * Slim fixed strip pinned to the top of the Exercise Detail webview. Shows
  * the build countdown + progress bar while a build runs and the full
- * SubmissionStatus card is scrolled out of view (issue #280).
+ * SubmissionStatus card is scrolled out of view.
  *
  * Also flashes the build result for 5 s when the build finishes out of view,
  * then disappears automatically.
@@ -110,7 +110,7 @@ export function BuildStatusStrip({
     prevCardInViewRef.current = cardInView;
 
     if (isLive(status)) {
-      // A new build started — any lingering flash is stale.
+      // A new build started, so any lingering flash is stale.
       setFlashStatus(null);
       return;
     }

@@ -29,7 +29,6 @@ describe('CourseList View UI Tests', function () {
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Log in once before all tests in this suite
 		await performLogin(driver, username, password);
 	});
 
@@ -42,7 +41,7 @@ describe('CourseList View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context, ignore.
 		}
 	});
 
@@ -52,8 +51,7 @@ describe('CourseList View UI Tests', function () {
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		// Try clicking a button or link containing "Courses" text to navigate to CourseList
-		// CSS module classes are hashed — use XPath text content selectors only
+		// CSS module classes are hashed, so use XPath text content selectors only.
 		const coursesButton = await driver
 			.findElement(
 				By.xpath(
@@ -63,8 +61,8 @@ describe('CourseList View UI Tests', function () {
 			.catch(() => null);
 
 		if (!coursesButton) {
-			// No "Courses" navigation button found — accept Dashboard as a pass
-			// (some server configs may not show this button)
+			// No "Courses" navigation button: accept Dashboard as a pass, since some
+			// server configs do not show this button.
 			console.warn('CourseList smoke: no "Courses" navigation button found; accepting Dashboard state as pass');
 			await takeScreenshot(driver, 'course-list-smoke-dashboard-fallback');
 			assert.ok(true, 'CourseList navigation not available; Dashboard rendered successfully after login');
@@ -73,7 +71,6 @@ describe('CourseList View UI Tests', function () {
 
 		await coursesButton.click();
 
-		// Wait for CourseList content to load
 		const element = await driver
 			.wait(
 				() =>

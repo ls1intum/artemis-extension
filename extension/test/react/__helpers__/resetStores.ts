@@ -6,7 +6,7 @@ import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 
 import { createMockVsCodeApi } from './vscodeApi';
 
-// Capture initial state of each store at module import time — before any test runs
+// Capture initial state of each store at module import time, before any test runs
 // and before any mutations occur. Direct reference is safe because Zustand uses
 // immutable updates (new object on every setState call).
 const storeEntries = [
