@@ -112,6 +112,18 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
 
+            case ExtensionMsg.LoginOptionsError: {
+                setIsCheckingOptions(false);
+                setIsSubmitting(false);
+                setStatusMessage(msg.error ?? 'Failed to reach Artemis server. Please check your connection or server URL.');
+                setStatusType('error');
+                setShowHealthChecks(true);
+                if (serverUrl) {
+                    performHealthChecks();
+                }
+                break;
+            }
+
             case ExtensionMsg.LoginSuccess:
                 setViewState('form');
                 setStatusMessage('');
