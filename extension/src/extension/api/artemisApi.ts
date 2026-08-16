@@ -182,12 +182,20 @@ export class ArtemisApiService {
             // if request is empty, the problem lies on the server side
             throw new ApiError('Server error', 500);
         }
-        const data: LoginOptionsResponse = JSON.parse(body)
-        return data;
+        return (JSON.parse(body) as unknown) as LoginOptionsResponse;
     }
 
-    public async exchangeCodeForToken(code: string): Promise<string> {
-        const response = await this.makeRequest(`/api/core/public/exchange-code?code=${encodeURIComponent(code)}`);
+    public async exchangeCodeForToken(code: string, codeVerifier: string): Promise<string> {
+        const response = await this.makeRequest('/api/core/public/exchange-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                code: code,
+                codeVerifier: codeVerifier,
+            }),
+        });
 
         if (!response.ok) {
             if (response.status === 404 || response.status === 401) {
@@ -196,8 +204,7 @@ export class ArtemisApiService {
             throw new Error(`Server returned status ${response.status} during code exchange.`);
         }
 
-        const jwtToken = await response.text();
-        return jwtToken;
+        return response.text();
     }
 
     // Get archived courses (inactive courses from previous semesters)

@@ -1075,12 +1075,20 @@ suite('Artemis API Service Test Suite', () => {
         }
     });
 
-    test('should exchange code for JWT token', async () => {
+   test('should exchange code and codeVerifier for JWT token via POST', async () => {
         const code = 'valid-code-123';
+        const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk_valid_verifier';
         const mockJwt = 'mock.jwt.token.string';
 
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/core/public/exchange-code?code=${code}`));
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/core/public/exchange-code'));
+            assert.strictEqual(options?.method, 'POST');
+            assert.strictEqual(options?.headers?.['Content-Type'], 'application/json');
+
+            const body = JSON.parse(options?.body);
+            assert.strictEqual(body.code, code);
+            assert.strictEqual(body.codeVerifier, verifier);
+
             return {
                 ok: true,
                 status: 200,
@@ -1088,15 +1096,22 @@ suite('Artemis API Service Test Suite', () => {
             } as any;
         };
 
-        const token = await apiService.exchangeCodeForToken(code);
+        const token = await apiService.exchangeCodeForToken(code, verifier);
         assert.strictEqual(token, mockJwt);
     });
 
-    test('should properly URL-encode special characters in exchange code', async () => {
+    test('should properly serialize JSON body containing special characters', async () => {
         const codeWithSpecialChars = 'code+with/special=chars';
+        const verifierWithSpecialChars = 'verifier-with_special~chars.12345678901234567890';
 
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`code=${encodeURIComponent(codeWithSpecialChars)}`));
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/core/public/exchange-code'));
+            assert.strictEqual(options?.method, 'POST');
+
+            const body = JSON.parse(options?.body);
+            assert.strictEqual(body.code, codeWithSpecialChars);
+            assert.strictEqual(body.code_verifier, verifierWithSpecialChars);
+
             return {
                 ok: true,
                 status: 200,
@@ -1104,7 +1119,8 @@ suite('Artemis API Service Test Suite', () => {
             } as any;
         };
 
-        await apiService.exchangeCodeForToken(codeWithSpecialChars);
+        const token = await apiService.exchangeCodeForToken(codeWithSpecialChars, verifierWithSpecialChars);
+        assert.strictEqual(token, 'jwt-token');
     });
 
     test('should throw error when exchange code is expired or invalid (401/404)', async () => {
@@ -1115,8 +1131,21 @@ suite('Artemis API Service Test Suite', () => {
         } as any);
 
         await assert.rejects(
-            () => apiService.exchangeCodeForToken('expired-code'),
+            () => apiService.exchangeCodeForToken('expired-code', 'verifier-12345678901234567890123456789012345'),
             (err: unknown) => err instanceof Error && err.message.includes('expired or is invalid'),
+        );
+    });
+
+    test('should throw error on server error status (500)', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 500,
+            text: async () => 'Internal Server Error',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('valid-code', 'verifier-12345678901234567890123456789012345'),
+            (err: unknown) => err instanceof Error && err.message.includes('status 500'),
         );
     });
 });

@@ -15,7 +15,7 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
-import type { ResultDTO } from '@extension/domain';
+import type { ArtemisUser, ResultDTO } from '@extension/domain';
 import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
@@ -415,7 +415,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._postMessageSafe(message);
     }
 
-    public async navigateToStartPage(user?: any): Promise<void> {
+    public async navigateToStartPage(user?: ArtemisUser): Promise<void> {
         const serverUrl = resolveServerUrl();
         await this._navigationFacade.navigateToStartPage({
             username: user?.login ?? '',

@@ -5,6 +5,7 @@ import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { CONFIG, VSCODE_CONFIG } from '@extension/utils/constants';
+import { generateCodeChallenge, generateCodeVerifier } from '@extension/utils/pkce';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -44,26 +45,34 @@ export class AuthCommandModule {
 
     // Redirects user to /oauth2/authorization/oidc?redirect=vscode and starts the OIDC authentication
     private handleStartOidcLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
-    try {
-        const payload = getPayload<WebCmd<'startOidcLogin'>>(message);
-        const rememberMe = payload.rememberMe ?? true;
+        try {
+            const payload = getPayload<WebCmd<'startOidcLogin'>>(message);
+            const rememberMe = payload.rememberMe ?? true;
 
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
 
-        const oidcUrl = `${serverUrl}/oauth2/authorization/oidc?redirect=vscode&rememberMe=${rememberMe}`;
+            // 1. Generate PKCE verifier and challenge (RFC 7636 S256)
+            const codeVerifier = generateCodeVerifier();
+            const codeChallenge = generateCodeChallenge(codeVerifier);
 
-        await vscode.env.openExternal(vscode.Uri.parse(oidcUrl));
-    } catch (error: unknown) {
-        logger.error('Failed to start OIDC login:', LogCategory.AUTH, error);
-        vscode.window.showErrorMessage('Failed to open login page in browser.');
+            // 2. Temporarily store verifier for the callback exchange step
+            this.context.authManager.setPendingCodeVerifier(codeVerifier);
 
-        this.context.sendMessage({
-            type: ExtensionMsg.LoginError,
-            error: 'Failed to open browser for TUM Login.',
-        });
-    }
-};
+            // 3. Open browser with redirect=vscode and code_challenge parameter
+            const oidcUrl = `${serverUrl}/oauth2/authorization/oidc?redirect=vscode&rememberMe=${rememberMe}&code_challenge=${encodeURIComponent(codeChallenge)}`;
+
+            await vscode.env.openExternal(vscode.Uri.parse(oidcUrl));
+        } catch (error: unknown) {
+            logger.error('Failed to start OIDC login:', LogCategory.AUTH, error);
+            vscode.window.showErrorMessage('Failed to open login page in browser.');
+
+            this.context.sendMessage({
+                type: ExtensionMsg.LoginError,
+                error: 'Failed to open browser for TUM Login.',
+            });
+        }
+    };
 
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
