@@ -270,10 +270,9 @@
           {
             "id": "chooseServer",
             "title": "Choose your Artemis server",
-            "description": "The extension talks to https://artemis.tum.de out of the box. TUM students can confirm that and move on; everyone else can point it at a different Artemis instance.\n[Choose or confirm server](command:artemis.setServerUrl)",
+            "description": "The extension talks to **https://artemis.tum.de** out of the box. TUM students can confirm that and move on; everyone else can point it at a different Artemis instance.\n[Choose or confirm server](command:artemis.setServerUrl)",
             "media": {
-              "image": "media/artemis-blue.png",
-              "altText": "The Artemis logo"
+              "markdown": "media/walkthrough/blank.md"
             },
             "completionEvents": [
               "onCommand:artemis.setServerUrl",
@@ -285,8 +284,7 @@
             "title": "Sign in",
             "description": "Log in with your Artemis account. Your courses, exercises and build results all come from there.\n[Sign in](command:artemis.login)",
             "media": {
-              "image": "media/artemis-blue.png",
-              "altText": "The Artemis logo"
+              "markdown": "media/walkthrough/blank.md"
             },
             "completionEvents": [
               "onContext:iris:authenticated"
@@ -297,8 +295,7 @@
             "title": "Choose where exercises land",
             "description": "Pick one folder and every exercise you clone goes there, without being asked again.\n[Choose folder](command:artemis.setDefaultClonePath)",
             "media": {
-              "image": "media/screenshots/dashboard.png",
-              "altText": "The Artemis start page in VS Code, listing recent courses"
+              "markdown": "media/walkthrough/blank.md"
             },
             "completionEvents": [
               "onSettingChanged:artemis.defaultClonePath"
@@ -309,8 +306,7 @@
             "title": "Meet Iris",
             "description": "Iris is the Artemis tutor. Ask it about the exercise you are working on and it answers with your code and your build results in view.\n[Open Iris](command:iris.chatView.focus)",
             "media": {
-              "image": "media/iris-logo-big-left.png",
-              "altText": "The Iris logo, a pair of eyes on a blue field"
+              "markdown": "media/walkthrough/blank.md"
             },
             "when": "iris:authenticated == true",
             "completionEvents": [
@@ -322,7 +318,7 @@
             "title": "Review Artemis and Iris preferences",
             "description": "Iris may read your uncommitted files by default, and the extension can offer help on its own when you look stuck. Both are settings you own.\n[Open Artemis settings](command:workbench.action.openSettings?%5B%22%40ext%3Aaet-tum.iris-thaumantias%22%5D)",
             "media": {
-              "markdown": "media/walkthrough/preferences.md"
+              "markdown": "media/walkthrough/blank.md"
             }
           }
         ]

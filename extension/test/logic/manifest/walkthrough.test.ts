@@ -94,6 +94,17 @@ describe('contributes.walkthroughs', () => {
         }
     });
 
+    it('uses no image media, because the panel upscales whatever it is given', () => {
+        // The media panel stretches its image to the full panel width. Every asset this
+        // extension ships is a small square logo, so an image here renders as a heavily
+        // upscaled shape taller than the step list beside it. The schema still requires
+        // `media` on every step, hence the blank markdown panel.
+        for (const step of steps) {
+            expect(step.media?.image, `step "${step.id}" would be rendered upscaled`).toBeUndefined();
+            expect(step.media?.svg, `step "${step.id}" would be rendered upscaled`).toBeUndefined();
+        }
+    });
+
     it('keeps command links out of step markdown media, which the manifest scanner cannot see', () => {
         for (const step of steps) {
             if (!step.media?.markdown) { continue; }
