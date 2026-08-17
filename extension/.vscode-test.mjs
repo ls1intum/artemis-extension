@@ -17,12 +17,19 @@ const launchArgs = ['--user-data-dir', userDataDir];
 
 export default defineConfig([
 	{
-		// Unit tests (default)
+		// Unit tests (default). The glob covers EVERYTHING under out/test/unit,
+		// struggle-detection included. This used to carry an
+		// `exclude: ['out/test/unit/struggle-detection/**']`, which never did
+		// anything: @vscode/test-cli only honours ignore patterns passed as the
+		// CLI's `--ignore` flag and drops a config-level `exclude` on the floor
+		// (node_modules/@vscode/test-cli/out/cli/gatherFiles.mjs). Those tests
+		// therefore always ran here, and running the 'struggle' label alongside
+		// this one just executed them a second time. Do not re-add it: if a
+		// future release starts honouring `exclude`, the suite would silently
+		// shrink by 138 tests, which is the exact rot issue #424 is about.
 		label: 'unit',
 		launchArgs,
 		files: 'out/test/unit/**/*.test.js',
-		// Exclude struggle-detection tests (run via test:struggle script)
-		exclude: ['out/test/unit/struggle-detection/**'],
 		coverage: {
 			exclude: ['**/test/**', '**/out/test/**'],
 		},
@@ -33,7 +40,8 @@ export default defineConfig([
 		// its report, so .mocharc.ui.yml keeps the junit reporter.)
 	},
 	{
-		// Struggle detection tests
+		// Struggle detection tests. A focused subset of the 'unit' label above,
+		// for iterating on the engine alone. CI runs 'unit', which covers these.
 		label: 'struggle',
 		launchArgs,
 		files: 'out/test/unit/struggle-detection/**/*.test.js',

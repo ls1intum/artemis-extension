@@ -750,7 +750,7 @@ Hooks are stored in `.husky/pre-commit`.
 | `npm run build:analyze` | Build + analyze in one command |
 | `npm run check-types` | Run TypeScript type checker without emitting |
 | `npm run lint` | Run ESLint on `src/` and `test/` |
-| `npm run test:vscode` | Run the extension host tests (what CI runs) |
+| `npm run test:vscode` | Run all extension host tests (what CI runs) |
 | `npm run test:unit:coverage` | Run the `unit` suite with a coverage report |
 | `npm run clean` | Remove `dist/`, `out/`, and `.vsix` files |
 
@@ -798,9 +798,8 @@ npm run coverage:all
 **Specific test suite:**
 
 ```bash
-npm run test:vscode    # Both extension host suites, exactly what CI runs
-npm run test:unit      # Extension host tests without struggle detection
-npm run test:struggle  # Struggle detection tests only
+npm run test:vscode    # All extension host tests, exactly what CI runs
+npm run test:struggle  # Struggle detection tests only (a subset of the above)
 npm run test:react     # React component tests only
 npm run test:e2e       # E2E tests only
 ```

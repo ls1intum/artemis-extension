@@ -354,7 +354,7 @@
     "lint:src": "eslint src",
     "test:unit": "vscode-test --label unit",
     "test:unit:coverage": "vscode-test --label unit --coverage",
-    "test:vscode": "vscode-test --label unit --label struggle --fail-zero",
+    "test:vscode": "vscode-test --label unit --fail-zero",
     "test:react": "vitest run",
     "test:react:watch": "vitest",
     "test:react:coverage": "vitest run --coverage",
