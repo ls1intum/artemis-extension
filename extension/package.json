@@ -125,6 +125,10 @@
           "when": "!iris:managedEnvironment"
         },
         {
+          "command": "artemis.setDefaultClonePath",
+          "when": "!iris:theia"
+        },
+        {
           "command": "artemis.showJwtToken",
           "when": "config.artemis.developerMode"
         },

@@ -12,6 +12,7 @@ const manifest = JSON.parse(readFileSync(join(EXTENSION_ROOT, 'package.json'), '
     contributes: {
         commands: { command: string }[];
         configuration: { properties: Record<string, unknown> };
+        menus?: { commandPalette?: { command: string; when?: string }[] };
         views: Record<string, { id: string; type?: string }[]>;
         walkthroughs?: Walkthrough[];
     };
@@ -92,6 +93,19 @@ describe('contributes.walkthroughs', () => {
                 expect(step.media.altText, `step "${step.id}" image has no altText`).toBeTruthy();
             }
         }
+    });
+
+    it('keeps the folder command out of the palette in Theia, where a stored path wins over the workspace root', () => {
+        // `artemis.setDefaultClonePath` exists for the folder step, and the openvsx manifest
+        // strips the walkthrough but not the command, so the palette is the one place it stays
+        // reachable in Theia. It must not be: `_selectFolder` sends Theia to the workspace root
+        // (repositoryCloneCommands.ts), but `_resolveCloneDestination` returns a valid configured
+        // `artemis.defaultClonePath` before ever reaching that short-circuit. A student who used
+        // this command in Theia would silently redirect every later clone away from the workspace.
+        const entry = (manifest.contributes.menus?.commandPalette ?? [])
+            .find(e => e.command === 'artemis.setDefaultClonePath');
+        expect(entry, 'artemis.setDefaultClonePath has no commandPalette rule').toBeDefined();
+        expect(entry?.when).toBe('!iris:theia');
     });
 
     it('uses no image media, because the panel upscales whatever it is given', () => {

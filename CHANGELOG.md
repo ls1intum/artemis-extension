@@ -7,7 +7,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Added
 
 - **Get Started tour:** A new "Get Started with Artemis" walkthrough guides you through choosing your Artemis server, signing in, picking where exercises are cloned to, and meeting the Iris tutor, with a final step for reviewing Iris and Artemis preferences. It opens once on your first run of the extension and is reachable afterwards from VS Code's own Get Started page. It is not included in the Open VSX build.
-- **Set Default Exercise Folder:** A new command opens a folder picker and stores the result as your default clone location, so you can set it without typing a path. The Get Started tour uses it, and it is available from the command palette.
+- **Set Default Exercise Folder:** A new command opens a folder picker and stores the result as your default clone location, so you can set it without typing a path. The Get Started tour uses it, and on desktop it is also available from the command palette.
 
 ### Changed
 
