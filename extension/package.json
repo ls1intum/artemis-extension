@@ -91,6 +91,11 @@
         "icon": "$(server)"
       },
       {
+        "command": "artemis.setDefaultClonePath",
+        "title": "Artemis: Set Default Exercise Folder",
+        "icon": "$(folder)"
+      },
+      {
         "command": "artemis.clearTrustedDomains",
         "title": "Artemis: Clear Trusted Domains"
       },
@@ -280,8 +285,8 @@
             "title": "Sign in",
             "description": "Log in with your Artemis account. Your courses, exercises and build results all come from there.\n[Sign in](command:artemis.login)",
             "media": {
-              "image": "media/artemis-logo.png",
-              "altText": "The Artemis activity bar icon"
+              "image": "media/artemis-blue.png",
+              "altText": "The Artemis logo"
             },
             "completionEvents": [
               "onContext:iris:authenticated"
@@ -290,7 +295,7 @@
           {
             "id": "exerciseFolder",
             "title": "Choose where exercises land",
-            "description": "Pick one folder and every exercise you clone goes there, without being asked again. The folder has to exist already, and a leading ~ will not work, so use the full path.\n[Choose folder](command:workbench.action.openSettings?%5B%22artemis.defaultClonePath%22%5D)",
+            "description": "Pick one folder and every exercise you clone goes there, without being asked again.\n[Choose folder](command:artemis.setDefaultClonePath)",
             "media": {
               "image": "media/screenshots/dashboard.png",
               "altText": "The Artemis start page in VS Code, listing recent courses"
@@ -304,8 +309,8 @@
             "title": "Meet Iris",
             "description": "Iris is the Artemis tutor. Ask it about the exercise you are working on and it answers with your code and your build results in view.\n[Open Iris](command:iris.chatView.focus)",
             "media": {
-              "image": "media/screenshots/iris-chat.png",
-              "altText": "A conversation with the Iris tutor"
+              "image": "media/iris-logo-big-left.png",
+              "altText": "The Iris logo, a pair of eyes on a blue field"
             },
             "when": "iris:authenticated == true",
             "completionEvents": [

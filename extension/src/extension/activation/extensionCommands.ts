@@ -421,6 +421,72 @@ const KNOWN_SERVERS: ReadonlyArray<{ label: string; url: string }> = [
     { label: 'Local Development (localhost:8080)',                   url: 'http://localhost:8080' },
 ];
 
+const CURRENTLY_SELECTED_DETAIL = '$(check) Currently selected';
+
+/**
+ * Shows the server list with the row the user is already on highlighted.
+ *
+ * `showQuickPick` always opens on the first row, which is the production server. Someone
+ * working against a test instance would find their own server further down and could
+ * switch themselves to production by reflex. `createQuickPick` is the only way to set the
+ * initially active row, which costs this promise wrapper.
+ */
+function pickServer(
+    items: vscode.QuickPickItem[],
+    currentItem: vscode.QuickPickItem | undefined,
+    currentUrl: string,
+): Promise<vscode.QuickPickItem | undefined> {
+    return new Promise(resolve => {
+        const quickPick = vscode.window.createQuickPick();
+        quickPick.title = 'Select Artemis Server';
+        quickPick.placeholder = `Current: ${currentUrl || 'not set'}`;
+        quickPick.items = items;
+        if (currentItem) {
+            quickPick.activeItems = [currentItem];
+        }
+        quickPick.onDidAccept(() => {
+            resolve(quickPick.selectedItems[0]);
+            quickPick.hide();
+        });
+        // Also the accept path's second half: hiding after an accept re-resolves a settled
+        // promise, which is a no-op, and disposing here covers cancellation too.
+        quickPick.onDidHide(() => {
+            resolve(undefined);
+            quickPick.dispose();
+        });
+        quickPick.show();
+    });
+}
+
+/**
+ * Sets `artemis.defaultClonePath` from a folder dialog.
+ *
+ * The dialog options match the "Set Default Folder" branch of the clone flow, so both
+ * routes to this setting look the same to a student. Going through a dialog also means the
+ * stored path is always absolute, which the setting requires: it is used verbatim, so a
+ * hand-typed `~/exercises` reaches the filesystem unexpanded and fails at clone time.
+ */
+function registerSetDefaultClonePathCommand(): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.setDefaultClonePath', async () => {
+        const folderUri = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Set as Default',
+            title: 'Select default folder for all exercise repositories',
+        });
+
+        const folderPath = folderUri?.[0]?.fsPath;
+        if (!folderPath) {
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        await config.update(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, folderPath, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`✓ All exercises will now be cloned to: ${folderPath}`);
+    });
+}
+
 function registerSetServerUrlCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.setServerUrl', async () => {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -428,6 +494,9 @@ function registerSetServerUrlCommand(): vscode.Disposable {
         const hasCustomCurrent = currentUrl.length > 0 && !KNOWN_SERVERS.some(s => s.url === currentUrl);
 
         const items: vscode.QuickPickItem[] = [];
+        // Tracked while the list is built rather than searched for afterwards, so the
+        // highlighted row is decided by the URL itself and not by matching on a label.
+        let currentItem: vscode.QuickPickItem | undefined;
 
         if (hasCustomCurrent) {
             let hostname = currentUrl;
@@ -436,31 +505,33 @@ function registerSetServerUrlCommand(): vscode.Disposable {
             } catch {
                 // Fall back to the raw value if it fails to parse.
             }
+            currentItem = {
+                label: `Custom (${hostname})`,
+                description: currentUrl,
+                detail: CURRENTLY_SELECTED_DETAIL,
+            };
             items.push(
-                {
-                    label: `Custom (${hostname})`,
-                    description: currentUrl,
-                    detail: '$(check) Currently selected',
-                },
+                currentItem,
                 { label: '', kind: vscode.QuickPickItemKind.Separator },
             );
         }
 
-        items.push(...KNOWN_SERVERS.map(server => ({
+        const knownItems = KNOWN_SERVERS.map(server => ({
             label: server.label,
             description: server.url,
-            detail: server.url === currentUrl ? '$(check) Currently selected' : undefined,
-        })));
+            detail: server.url === currentUrl ? CURRENTLY_SELECTED_DETAIL : undefined,
+        }));
+        items.push(...knownItems);
+        if (!currentItem) {
+            currentItem = knownItems.find(item => item.description === currentUrl);
+        }
 
         items.push(
             { label: '', kind: vscode.QuickPickItemKind.Separator },
             { label: '$(edit) Enter custom URL...', description: 'Use your own Artemis server URL' },
         );
 
-        const selection = await vscode.window.showQuickPick(items, {
-            title: 'Select Artemis Server',
-            placeHolder: `Current: ${currentUrl || 'not set'}`,
-        });
+        const selection = await pickServer(items, currentItem, currentUrl);
 
         if (!selection) {
             return;
@@ -685,6 +756,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerGoToSourceErrorCommand(),
         registerSetServerUrlCommand(),
+        registerSetDefaultClonePathCommand(),
         registerClearTrustedDomainsCommand(deps.context),
         registerStruggleScoreCommand(deps.telemetryManager),
         registerShowJwtTokenCommand(deps.authManager),
