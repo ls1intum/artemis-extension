@@ -96,6 +96,7 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
     public get isConnectingState(): boolean { return this._lifecycleState() === 'connecting'; }
     public get isDisconnectingState(): boolean { return this._lifecycleState() === 'disconnecting'; }
     public get connectionGaveUpState(): boolean { return this._lifecycleState() === 'gave-up'; }
+    public get lifecycleState(): string { return this._lifecycleState(); }
 
     public get reconnectAttemptsCount(): number {
         return ((this as any)._lifecycle._reconnectAttempts) as number;
@@ -982,15 +983,16 @@ suite('WebSocket Race Condition Fixes', () => {
         };
 
         // A new connect() deactivates the existing client, which now throws.
-        try {
-            const p2 = wsService.connect();
-            await new Promise(resolve => setTimeout(resolve, 0));
-            await p2;
-        } catch {
-            // Expected: deactivate threw.
-        }
+        // Await the rejection immediately: handing the rejected promise a
+        // handler only after a macrotask hop leaves it unhandled long enough
+        // for the extension host to report it, and a swallow-all catch would
+        // let this test pass even if connect() resolved.
+        const p2 = wsService.connect();
+        await assert.rejects(p2, /deactivate failed/);
 
         assert.strictEqual(wsService.isDisconnectingState, false,
             '_isDisconnecting should be reset even when deactivate() throws');
+        assert.strictEqual(wsService.lifecycleState, 'disconnected',
+            'failed reconnect must land in disconnected, not stay in connecting');
     });
 });

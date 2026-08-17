@@ -21,8 +21,11 @@ Then open the repository in VS Code and press `F5` to launch the Extension Devel
    ```bash
    npm run check-types   # type-check
    npm run lint          # ESLint
-   npm run test:all      # unit + React tests
+   npm run test:all      # extension host + React tests
    ```
+
+   `test:all` does not build first. Run `npm run compile-tests` and
+   `node esbuild.js` beforehand, or use `npm run pretest` to do both plus lint.
 5. **Open a Pull Request** against `dev` with a clear description.
 
 All commands run from the `extension/` directory.
