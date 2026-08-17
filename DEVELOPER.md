@@ -87,9 +87,11 @@ Run from `extension/`:
 | `npm run package:vsix` | Build and package the full marketplace `.vsix` |
 | `npm run lint` | ESLint over `src` and `test` |
 | `npm run check-types` | Type-check without emitting |
-| `npm run test:unit` | Extension host unit tests (vscode-test) |
+| `npm run test:vscode` | Both extension host suites (vscode-test). What CI runs |
+| `npm run test:unit` | Extension host tests without struggle detection |
+| `npm run test:struggle` | Struggle detection tests only |
 | `npm run test:react` | React component tests (vitest) |
-| `npm run test:all` | Unit + React tests |
+| `npm run test:all` | Extension host + React tests |
 
 ## Running Locally
 
