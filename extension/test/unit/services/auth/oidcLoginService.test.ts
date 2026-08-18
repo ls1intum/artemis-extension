@@ -17,9 +17,16 @@ suite('OidcLoginService Test Suite', () => {
     let api: ArtemisApiService;
     let service: OidcLoginService;
     let sandbox: sinon.SinonSandbox;
+    let configuredServerUrl: string;
 
     setup(() => {
         sandbox = sinon.createSandbox();
+        configuredServerUrl = 'https://artemis.tum.de';
+        // resolveServerUrl() reads this every time it runs, which is exactly the behaviour the
+        // server-switch test needs to drive.
+        sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+            get: (_key: string, fallback?: unknown) => configuredServerUrl ?? fallback,
+        } as unknown as vscode.WorkspaceConfiguration);
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
         api = new ArtemisApiService(authManager);
@@ -30,7 +37,7 @@ suite('OidcLoginService Test Suite', () => {
     teardown(() => sandbox.restore());
 
     async function writePending(overrides: Record<string, unknown> = {}): Promise<void> {
-        const serverUrl = 'https://artemis.tum.de';
+        const serverUrl = configuredServerUrl;
         await context.secrets.store(PENDING_KEY, JSON.stringify({
             attemptId: 'attempt-1',
             codeVerifier: VALID_VERIFIER,
@@ -85,14 +92,16 @@ suite('OidcLoginService Test Suite', () => {
         await assert.rejects(() => service.complete('code'), /no longer valid/);
     });
 
-    test('complete rejects an attempt that has reached the server side time limit', async () => {
-        await writePending({ startedAt: Date.now() - 5 * 60 * 1000 });
+    test('complete rejects an attempt that has been abandoned for too long', async () => {
+        await writePending({ startedAt: Date.now() - 30 * 60 * 1000 });
 
         await assert.rejects(() => service.complete('code'), /no longer valid/);
     });
 
-    test('complete accepts an attempt just inside the time limit', async () => {
-        await writePending({ startedAt: Date.now() - (5 * 60 * 1000 - 1000) });
+    test('a slow identity provider login is still redeemable locally', async () => {
+        // The local window starts when the browser opens, the server's five minutes only once the identity
+        // provider is done, so matching the two would reject codes the server still accepts.
+        await writePending({ startedAt: Date.now() - 10 * 60 * 1000 });
         sandbox.stub(api, 'exchangeCodeForToken').resolves('raw-jwt');
         sandbox.stub(api, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
 
@@ -158,6 +167,36 @@ suite('OidcLoginService Test Suite', () => {
         await service.cancel();
 
         await assert.rejects(() => service.complete('code'), /no longer valid/);
+    });
+
+    test('a logout during the exchange stops the commit', async () => {
+        await writePending();
+        sandbox.stub(api, 'exchangeCodeForToken').callsFake(async () => {
+            // The user logs out while the browser callback is still being redeemed.
+            await service.cancel();
+            return 'raw-jwt';
+        });
+        sandbox.stub(api, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
+
+        await assert.rejects(() => service.complete('code'), /was cancelled/);
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+            'consuming the record is not enough: a later cancel has nothing left to delete');
+    });
+
+    test('switching server during the exchange stops the commit', async () => {
+        await writePending();
+        sandbox.stub(api, 'exchangeCodeForToken').resolves('raw-jwt');
+        sandbox.stub(api, 'getCurrentUserWithToken').callsFake(async () => {
+            // The setting changes while the candidate is being checked against the old server.
+            configuredServerUrl = 'https://artemis.example.org';
+            return { id: 1, login: 'student' } as never;
+        });
+
+        await assert.rejects(() => service.complete('code'), /different Artemis server/);
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+            "a token from the previous server must not be stored against the new one");
     });
 
     test('a code can only be redeemed once', async () => {

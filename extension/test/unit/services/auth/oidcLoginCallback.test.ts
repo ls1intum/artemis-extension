@@ -54,13 +54,36 @@ suite('OIDC login callback Test Suite', () => {
     });
 
     test('a failure after the commit is not reported as a failed login', async () => {
-        sandbox.stub(service, 'complete').resolves({ id: 1, login: 'student' } as never);
+        // complete() is stubbed, so commit the credential here too. Without it the test would pass even
+        // if nothing had been stored, which is the very thing it claims to be protecting.
+        sandbox.stub(service, 'complete').callsFake(async () => {
+            await authManager.storeArtemisCredentials('jwt=fresh', true);
+            return { id: 1, login: 'student' } as never;
+        });
 
         await build({ navigateToStartPage: async () => { throw new Error('view disposed'); } }).onCode('code');
 
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=fresh',
+            'the credential survives a failure in the wiring that follows it');
         assert.deepStrictEqual(authContextUpdates, [true]);
         assert.deepStrictEqual(messages.map(m => m.type), ['loginSuccess'],
             'the user is signed in at this point, so a broken view must not claim the login failed');
+    });
+
+    test('a failure in the auth context still tells the view the login succeeded', async () => {
+        sandbox.stub(service, 'complete').resolves({ id: 1, login: 'student' } as never);
+        const callback = createOidcLoginCallback({
+            oidcLoginService: service,
+            updateAuthContext: async () => { throw new Error('context command failed'); },
+            postMessage: message => { messages.push(message); },
+            navigateToStartPage: async () => {},
+        });
+
+        await callback.onCode('code');
+
+        // The view clears its pending state only on a success or an error, so staying silent here would
+        // leave it waiting on a login that actually worked.
+        assert.deepStrictEqual(messages.map(m => m.type), ['loginSuccess']);
     });
 
     test('a browser side error discards the pending attempt and tells the view', async () => {

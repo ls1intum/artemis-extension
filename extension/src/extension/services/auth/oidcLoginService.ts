@@ -11,9 +11,15 @@ import { generateCodeChallenge, generateCodeVerifier } from '@extension/utils/pk
 import type { AuthManager } from './authManager';
 
 /**
- * The server drops an exchange code after five minutes, so a pending attempt cannot outlive that.
+ * How long a pending attempt stays redeemable locally.
+ *
+ * Deliberately longer than the server's five minute exchange window, because the two clocks start at
+ * different moments: this one when the browser opens, the server's only once the identity provider is
+ * done. Matching five to five would reject a code the server still considers fresh whenever the sign-in
+ * itself took a few minutes. The server remains the authority on whether a code is still good; this bound
+ * only stops an abandoned attempt lingering indefinitely.
  */
-const PENDING_TTL_MS = 5 * 60 * 1000;
+const PENDING_TTL_MS = 30 * 60 * 1000;
 
 /** RFC 7636 section 4.1, and the pattern the Artemis server validates against. */
 const CODE_VERIFIER_PATTERN = /^[a-zA-Z0-9\-._~]{43,128}$/;
@@ -57,6 +63,15 @@ function isPendingOidcLogin(value: unknown): value is PendingOidcLogin {
  *   is therefore not proof that no callback can arrive.
  */
 export class OidcLoginService {
+    /**
+     * Bumped by every cancellation. `complete()` captures it up front and refuses to commit if it moved,
+     * because consuming the record is not enough on its own: once `complete()` has taken it, a later
+     * `cancel()` has nothing left to delete, and the exchange still in flight would sign the user back in
+     * after they logged out. In-memory is the right scope, since logging out and switching server happen
+     * in the window that is doing the completing.
+     */
+    private cancelGeneration = 0;
+
     constructor(
         private readonly context: vscode.ExtensionContext,
         private readonly authManager: AuthManager,
@@ -104,6 +119,14 @@ export class OidcLoginService {
      * a logout, which means callers must not read a resolved call as a guarantee.
      */
     public async cancel(): Promise<void> {
+        // Only a real cancellation moves the generation. Consuming a record on the way to redeeming it
+        // deletes the same key but is emphatically not the user changing their mind.
+        this.cancelGeneration++;
+        await this.deletePendingRecord();
+    }
+
+    /** Remove the stored record without declaring the attempt cancelled. Best effort by design. */
+    private async deletePendingRecord(): Promise<void> {
         try {
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.OIDC_PENDING_LOGIN);
         } catch (error) {
@@ -119,24 +142,40 @@ export class OidcLoginService {
      * login and being logged out by one.
      */
     public async complete(code: string): Promise<ArtemisUser> {
+        // Captured before anything is awaited, so a cancellation racing the exchange is still noticed.
+        const generation = this.cancelGeneration;
+
         const pending = await this.consumePending();
         if (!pending) {
             throw new Error('This sign-in is no longer valid. Please start the login again.');
         }
-
-        const rawServerUrl = resolveServerUrl();
-        const currentServerUrl = normalizeServerUrl(rawServerUrl) ?? rawServerUrl;
-        if (pending.serverUrl !== currentServerUrl) {
-            throw new Error('This sign-in belongs to a different Artemis server. Please start the login again.');
-        }
+        this.assertStillWanted(generation, pending.serverUrl);
 
         const rawToken = await this.artemisApi.exchangeCodeForToken(code, pending.codeVerifier);
         const token = this.authManager.formatToken(rawToken);
 
         const user = await this.artemisApi.getCurrentUserWithToken(token);
+
+        // Re-checked immediately before the commit rather than only up front. Both calls above resolve the
+        // server URL when they run, so without this a token from the previous server could be stored
+        // against the new one, and a logout during the exchange would be undone.
+        this.assertStillWanted(generation, pending.serverUrl);
         await this.authManager.storeArtemisCredentials(token, pending.rememberMe);
 
         return user;
+    }
+
+    /** Throws unless this attempt is still the one the user is waiting for, on the server they are on. */
+    private assertStillWanted(generation: number, attemptServerUrl: string): void {
+        if (this.cancelGeneration !== generation) {
+            throw new Error('This sign-in was cancelled. Please start the login again.');
+        }
+
+        const rawServerUrl = resolveServerUrl();
+        const currentServerUrl = normalizeServerUrl(rawServerUrl) ?? rawServerUrl;
+        if (attemptServerUrl !== currentServerUrl) {
+            throw new Error('This sign-in belongs to a different Artemis server. Please start the login again.');
+        }
     }
 
     /** Read and remove the pending record. Anything malformed or expired counts as absent. */
@@ -145,7 +184,7 @@ export class OidcLoginService {
         if (!stored) {
             return undefined;
         }
-        await this.cancel();
+        await this.deletePendingRecord();
 
         let parsed: unknown;
         try {
@@ -180,6 +219,6 @@ export class OidcLoginService {
         } catch {
             // An unreadable record is worth removing regardless.
         }
-        await this.cancel();
+        await this.deletePendingRecord();
     }
 }

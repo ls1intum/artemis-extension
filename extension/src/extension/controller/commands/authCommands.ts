@@ -78,7 +78,10 @@ export class AuthCommandModule {
             const password = payload.password;
             const rememberMe = payload.rememberMe || false;
 
-            const { token } = await this.context.artemisApi.authenticate(username, password, rememberMe);
+            const result = await this.context.artemisApi.authenticate(username, password, rememberMe);
+            // The server hands back a cookie string. Bearer mode stores the bare JWT, so without this the
+            // header would come out as `Authorization: Bearer jwt=<token>`.
+            const token = this.context.authManager.formatToken(result.token);
 
             // Check the candidate before it becomes the stored credential. Until this succeeds nothing has
             // been committed, so a failure here cannot disturb a session the user already had.
@@ -98,13 +101,15 @@ export class AuthCommandModule {
 
         // Past this point the credential is committed and the user is signed in. A failure while wiring up
         // the UI is worth logging, but reporting it as a login error would contradict that.
+        // Sent first: everything below can fail, and the view clears its pending state only on a success
+        // or an error. Announcing afterwards would leave it spinning on a login that actually worked.
+        this.context.sendMessage({
+            type: ExtensionMsg.LoginSuccess,
+            username: user.login || username,
+        });
+
         try {
             await this.context.updateAuthContext(true);
-
-            this.context.sendMessage({
-                type: ExtensionMsg.LoginSuccess,
-                username: user.login || username,
-            });
 
             vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || username}`);
 

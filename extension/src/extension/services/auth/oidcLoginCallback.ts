@@ -50,9 +50,12 @@ export function createOidcLoginCallback(deps: OidcLoginCallbackDeps): {
             return;
         }
 
+        // Sent first, for the same reason as the password path: the view clears its pending state only on
+        // a success or an error, so a failure in the wiring below must not leave it waiting.
+        deps.postMessage({ type: ExtensionMsg.LoginSuccess, username: user.login || 'User' });
+
         try {
             await deps.updateAuthContext(true);
-            deps.postMessage({ type: ExtensionMsg.LoginSuccess, username: user.login || 'User' });
             await deps.navigateToStartPage(user);
             vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || 'User'}`);
         } catch (error) {
