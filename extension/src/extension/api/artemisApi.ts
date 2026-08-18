@@ -183,11 +183,22 @@ export class ArtemisApiService {
         return (JSON.parse(body) as unknown) as LoginOptionsResponse;
     }
 
+    /**
+     * Redeem a single-use OIDC exchange code for a JWT, proving ownership with the PKCE verifier.
+     *
+     * Deliberately bypasses `makeRequest()`, exactly like `logoutFromServer()` and for the same reason:
+     * `makeRequest` throws on any non-2xx, which would make the status mapping below unreachable, and its
+     * 401 branch clears the stored credentials and fires the auth-expired callback. A rejected login code
+     * must never disturb a session the user already has. The endpoint is public, so no auth header is sent.
+     */
     public async exchangeCodeForToken(code: string, codeVerifier: string): Promise<string> {
-        const response = await this.makeRequest('/api/core/public/exchange-code', {
+        const url = `${this.getServerUrl()}/api/core/public/exchange-code`;
+
+        const response = await fetchWithTimeout(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'User-Agent': getUserAgent(),
             },
             body: JSON.stringify({
                 code: code,
@@ -202,7 +213,11 @@ export class ArtemisApiService {
             throw new Error(`Server returned status ${response.status} during code exchange.`);
         }
 
-        return response.text();
+        const token = (await response.text()).trim();
+        if (!token) {
+            throw new Error('The server returned an empty token during code exchange.');
+        }
+        return token;
     }
 
     // Get archived courses (inactive courses from previous semesters)

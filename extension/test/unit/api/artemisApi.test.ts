@@ -1079,6 +1079,8 @@ suite('Artemis API Service Test Suite', () => {
             assert.ok(url.includes('/api/core/public/exchange-code'));
             assert.strictEqual(options?.method, 'POST');
             assert.strictEqual(options?.headers?.['Content-Type'], 'application/json');
+            assert.strictEqual(options?.headers?.['Authorization'], undefined,
+                'the exchange endpoint is public, sending credentials would be pointless and leaky');
 
             const body = JSON.parse(options?.body);
             assert.strictEqual(body.code, code);
@@ -1105,7 +1107,7 @@ suite('Artemis API Service Test Suite', () => {
 
             const body = JSON.parse(options?.body);
             assert.strictEqual(body.code, codeWithSpecialChars);
-            assert.strictEqual(body.code_verifier, verifierWithSpecialChars);
+            assert.strictEqual(body.codeVerifier, verifierWithSpecialChars);
 
             return {
                 ok: true,
@@ -1128,6 +1130,19 @@ suite('Artemis API Service Test Suite', () => {
         await assert.rejects(
             () => apiService.exchangeCodeForToken('expired-code', 'verifier-12345678901234567890123456789012345'),
             (err: unknown) => err instanceof Error && err.message.includes('expired or is invalid'),
+        );
+    });
+
+    test('should throw when the exchange returns an empty body', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '   ',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('valid-code', 'verifier-12345678901234567890123456789012345'),
+            (err: unknown) => err instanceof Error && err.message.includes('empty token'),
         );
     });
 
