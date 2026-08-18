@@ -13,7 +13,8 @@ import { formatServiceName } from '@webview/utils/formatServiceName';
 import styles from './LoginView.module.css';
 import type { LoginPersistedState, LoginViewProps, LoginViewState } from './types';
 
-const DEFAULT_IDP_NAME = 'TUM Login';
+// Used wherever the server named no provider, so the UI never claims one it was not told about.
+const GENERIC_IDP_NAME = 'your identity provider';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {
     const persistedState = vscodeApi.getState<LoginPersistedState>();
@@ -202,7 +203,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         }
         setIsOidcPending(true);
         postCommand(vscodeApi, 'startOidcLogin', { rememberMe });
-        setStatusMessage(`Redirecting to ${idpName ?? DEFAULT_IDP_NAME}. Please complete the sign-in process in your browser.`);
+        setStatusMessage(`Redirecting to ${idpName ?? GENERIC_IDP_NAME}. Please complete the sign-in process in your browser.`);
         setStatusType('info');
     };
 
@@ -339,14 +340,14 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                         <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
                                             {idpName
                                                 ? `This account signs in through ${idpName}, which the extension cannot complete yet.`
-                                                : 'This account signs in through an external identity provider, which the extension cannot complete yet.'}
+                                                : `This account signs in through ${GENERIC_IDP_NAME}, which the extension cannot complete yet.`}
                                             {' '}Please log in on the Artemis website instead.
                                         </p>
                                     </div>
                                 ) : (
                                     <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
                                         <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
-                                            You will be redirected to complete authentication via {idpName ?? 'your identity provider'}.
+                                            You will be redirected to complete authentication via {idpName ?? GENERIC_IDP_NAME}.
                                         </p>
                                     </div>
                                 )}
@@ -412,7 +413,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                             onClick={handleOidcLogin}
                                             testId="login-oidc-submit"
                                         >
-                                            {isOidcPending ? 'Waiting for your browser...' : `Sign in with ${idpName ?? DEFAULT_IDP_NAME}`}
+                                            {isOidcPending ? 'Waiting for your browser...' : `Sign in with ${idpName ?? GENERIC_IDP_NAME}`}
                                         </Button>
                                     )}
 

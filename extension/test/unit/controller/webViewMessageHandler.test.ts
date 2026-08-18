@@ -128,6 +128,20 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
                 'an unchecked candidate must never be committed');
         });
 
+        test('in bearer mode the candidate is checked as a bare JWT, not as a cookie string', async () => {
+            // Theia sends `Authorization: Bearer <jwt>`. The server hands back a cookie string, so without
+            // formatting it first the header would read `Bearer jwt=<token>` and nothing would authenticate.
+            mockAuthManager.enableBearerAuth();
+            sandbox.stub(mockApiService, 'authenticate').resolves({ success: true, token: 'jwt=candidate' } as never);
+            const validate = sandbox.stub(mockApiService, 'getCurrentUserWithToken')
+                .resolves({ id: 1, login: 'student' } as never);
+
+            await handler.handleMessageWithSender(loginMessage(), sandbox.stub());
+
+            assert.strictEqual(validate.firstCall.args[0], 'candidate',
+                'the cookie prefix must be stripped before the token reaches a bearer header');
+        });
+
         test('a failure after the commit is not reported as a failed login', async () => {
             sandbox.stub(mockApiService, 'authenticate').resolves({ success: true, token: 'jwt=candidate' } as never);
             sandbox.stub(mockApiService, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
