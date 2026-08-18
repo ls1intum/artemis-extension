@@ -49,6 +49,30 @@ suite('Artemis URI Handler Test Suite', () => {
         assert.match(errors[3], /Authentication failed in browser/);
     });
 
+    test('redeems a callback whose windowId marker folded into the path', async () => {
+        // What asExternalUri can produce on the way back. A strict path comparison rejected exactly this
+        // shape once before, and the sign-in then failed with no visible reason.
+        await handler.handleUri(callbackUri('/auth-callback?windowId=3', 'code=test_code_123'));
+
+        assert.deepStrictEqual(codes, ['test_code_123']);
+        assert.deepStrictEqual(errors, []);
+    });
+
+    test('reads the code out of the path when the whole query folded into it', async () => {
+        await handler.handleUri(callbackUri('/auth-callback?windowId=3&code=folded_code', ''));
+
+        assert.deepStrictEqual(codes, ['folded_code']);
+        assert.deepStrictEqual(errors, []);
+    });
+
+    test('a path that merely starts like the callback is still ignored', async () => {
+        await handler.handleUri(callbackUri('/auth-callback-elsewhere', 'code=test_code_123'));
+        await handler.handleUri(callbackUri('/auth-callback-elsewhere?windowId=3', 'code=test_code_123'));
+
+        assert.deepStrictEqual(codes, [], 'stripping the query must not turn a near miss into a match');
+        assert.deepStrictEqual(errors, []);
+    });
+
     test('reports a callback that carries neither a code nor an error', async () => {
         await handler.handleUri(callbackUri('/auth-callback', ''));
 
