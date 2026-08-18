@@ -1,7 +1,7 @@
 import type * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { AuthManager } from '@extension/services/auth';
+import type { AuthManager, OidcLoginService } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ITelemetryManager } from '@extension/services/telemetry';
@@ -15,6 +15,7 @@ export interface ArtemisWebviewProviderDeps {
     extensionContext: vscode.ExtensionContext;
     authManager: AuthManager;
     artemisApi: ArtemisApiService;
+    oidcLoginService: OidcLoginService;
     providerRegistry: IProviderRegistry;
     websocketService: ArtemisWebsocketService;
     buildErrorCodeLensProvider: BuildErrorCodeLensProvider;

@@ -8,6 +8,7 @@ import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthManager } from '@extension/services/auth';
+import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
@@ -91,6 +92,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         handler = new WebViewMessageHandler(
             mockAuthManager,
             mockApiService,
+            new OidcLoginService(mockContext, mockAuthManager, mockApiService),
             mockStateManager,
             actionHandler,
             mockContext,

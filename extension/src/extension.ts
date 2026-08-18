@@ -11,7 +11,7 @@ import {
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
-import { AuthManager } from '@extension/services/auth';
+import { AuthManager, OidcLoginService } from '@extension/services/auth';
 import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
@@ -157,11 +157,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
 
+	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
+
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
+		oidcLoginService,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
@@ -175,22 +178,27 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	const uriHandler = new ArtemisUriHandler(async (code: string) => {
+		let user;
 		try {
-			// 1. Consume the stored PKCE code_verifier
-			const codeVerifier = authManager.consumePendingCodeVerifier();
-			if (!codeVerifier) {
-				throw new Error('No pending PKCE code verifier found. Please try logging in again.');
-			}
+			user = await oidcLoginService.complete(code);
+		} catch (error) {
+			// Everything up to here happens before any credential is committed, so the session the user
+			// already had is untouched. Clearing it would turn a failed login into being logged out.
+			logger.error('Failed to complete OIDC login from URI callback:', LogCategory.AUTH, error);
 
-			// 2. Exchange code and verifier for the JWT token via POST
-			const rawToken = await artemisApiService.exchangeCodeForToken(code, codeVerifier);
+			const errorMessage = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
+			vscode.window.showErrorMessage(`Artemis Login failed: ${errorMessage}`);
 
-			// 3. Format and store the token
-			const formattedToken = rawToken.startsWith('jwt=') ? rawToken : `jwt=${rawToken}`;
-			await authManager.storeArtemisCredentials(formattedToken, true);
+			artemisWebviewProvider.postMessage({
+				type: ExtensionMsg.LoginError,
+				error: errorMessage,
+			});
+			return;
+		}
 
-			// 4. Fetch user data and navigate
-			const user = await artemisApiService.getCurrentUser();
+		// Past this point the user IS signed in. A failure while wiring up the UI is worth logging, but
+		// reporting it as a login error would contradict the credential that was just committed.
+		try {
 			await updateAuthContext(true);
 
 			artemisWebviewProvider.postMessage({
@@ -202,18 +210,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || 'User'}`);
 		} catch (error) {
-			logger.error('Failed to complete OIDC login from URI callback:', LogCategory.AUTH, error);
-
-			await authManager.clear();
-			await updateAuthContext(false);
-
-			const errorMessage = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
-			vscode.window.showErrorMessage(`Artemis Login failed: ${errorMessage}`);
-
-			artemisWebviewProvider.postMessage({
-				type: ExtensionMsg.LoginError,
-				error: 'Authentication failed. Please try again.',
-			});
+			logger.error('OIDC login succeeded but the UI could not be updated', LogCategory.AUTH, error);
 		}
 	});
 
@@ -395,6 +392,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
 			try {
+				// Before the early return below: a pending attempt belongs to the previous server, and an
+				// unauthenticated user can have one just as easily as an authenticated one.
+				await oidcLoginService.cancel();
+
 				if (!(await authManager.hasAuthToken())) {
 					sessionIdentity.setAnonymous(serverKey);
 					return;

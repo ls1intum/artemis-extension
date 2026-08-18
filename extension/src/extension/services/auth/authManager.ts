@@ -10,8 +10,6 @@ export class AuthManager {
     private memoryToken?: string;
     private context: vscode.ExtensionContext;
     private _useBearerAuth = false;
-    // Used to obtain jwtToken from server side after successful OIDC authentication
-    private pendingCodeVerifier: string | null = null;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -137,13 +135,4 @@ export class AuthManager {
         }
     }
 
-    public setPendingCodeVerifier(verifier: string): void {
-        this.pendingCodeVerifier = verifier;
-    }
-
-    public consumePendingCodeVerifier(): string | null {
-        const verifier = this.pendingCodeVerifier;
-        this.pendingCodeVerifier = null;
-        return verifier;
-    }
 }

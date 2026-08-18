@@ -5,7 +5,6 @@ import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { CONFIG, VSCODE_CONFIG } from '@extension/utils/constants';
-import { generateCodeChallenge, generateCodeVerifier } from '@extension/utils/pkce';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -43,26 +42,13 @@ export class AuthCommandModule {
         }
     };
 
-    // Redirects user to /oauth2/authorization/oidc?redirect=vscode and starts the OIDC authentication
+    // Hands the user to the browser for OIDC; OidcLoginService owns the attempt from here on.
     private handleStartOidcLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'startOidcLogin'>>(message);
             const rememberMe = payload.rememberMe ?? true;
 
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-
-            // 1. Generate PKCE verifier and challenge (RFC 7636 S256)
-            const codeVerifier = generateCodeVerifier();
-            const codeChallenge = generateCodeChallenge(codeVerifier);
-
-            // 2. Temporarily store verifier for the callback exchange step
-            this.context.authManager.setPendingCodeVerifier(codeVerifier);
-
-            // 3. Open browser with redirect=vscode and code_challenge parameter
-            const oidcUrl = `${serverUrl}/oauth2/authorization/oidc?redirect=vscode&rememberMe=${rememberMe}&code_challenge=${encodeURIComponent(codeChallenge)}`;
-
-            await vscode.env.openExternal(vscode.Uri.parse(oidcUrl));
+            await this.context.oidcLoginService.start(rememberMe);
         } catch (error: unknown) {
             logger.error('Failed to start OIDC login:', LogCategory.AUTH, error);
             vscode.window.showErrorMessage('Failed to open login page in browser.');
@@ -116,6 +102,9 @@ export class AuthCommandModule {
         try {
             // Best-effort server-side logout before clearing local state. It
             // never throws, so local cleanup proceeds regardless.
+            // A pending OIDC attempt has to go first: a callback arriving after the logout would
+            // otherwise redeem its code and sign the user straight back in.
+            await this.context.oidcLoginService.cancel();
             await this.context.artemisApi.logoutFromServer();
             await this.context.authManager.clear();
             await this.context.updateAuthContext(false);
