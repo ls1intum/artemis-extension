@@ -172,6 +172,37 @@ export class ArtemisApiService {
         return parseArtemisUser(JSON.parse(body));
     }
 
+    /**
+     * Fetch the account behind a candidate token without installing that token first.
+     *
+     * This is what lets a login commit only after the credential has been shown to work. It bypasses
+     * `makeRequest()` on purpose: that helper reads the *stored* credential and, on a 401, clears it and
+     * fires the auth-expired callback. Checking a candidate must never touch the session the user has.
+     */
+    async getCurrentUserWithToken(token: string): Promise<ArtemisUser> {
+        const url = `${this.getServerUrl()}/api/core/public/account`;
+
+        const response = await fetchWithTimeout(url, {
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': getUserAgent(),
+                ...this.authManager.buildAuthHeadersFor(token),
+            },
+        });
+
+        if (!response.ok) {
+            throw new ApiError(`Could not load the account for this token: ${response.status}`, response.status);
+        }
+
+        const body = (await response.text()).trim();
+        if (!body) {
+            // The endpoint is public, so an unusable token yields a 200 with an empty body rather than a
+            // 401. Same rule as getCurrentUser(): treat it as not authenticated.
+            throw new ApiError('Not authenticated', 401);
+        }
+        return parseArtemisUser(JSON.parse(body));
+    }
+
     // Get the login option (OIDC or password) for given username
     async getLoginOptions(username: string): Promise<LoginOptionsResponse> {
         const response = await this.makeRequest(`/api/core/public/login-options?usernameOrEmail=${encodeURIComponent(username)}`);
