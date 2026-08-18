@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 
-import { ExtensionMsg } from '@shared/messageContracts/extensionMessages';
-
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import {
     maybeOpenGetStartedWalkthrough,
@@ -13,6 +11,7 @@ import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
 import { AuthManager, OidcLoginService } from '@extension/services/auth';
 import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
+import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -177,42 +176,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const uriHandler = new ArtemisUriHandler(async (code: string) => {
-		let user;
-		try {
-			user = await oidcLoginService.complete(code);
-		} catch (error) {
-			// Everything up to here happens before any credential is committed, so the session the user
-			// already had is untouched. Clearing it would turn a failed login into being logged out.
-			logger.error('Failed to complete OIDC login from URI callback:', LogCategory.AUTH, error);
-
-			const errorMessage = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
-			vscode.window.showErrorMessage(`Artemis Login failed: ${errorMessage}`);
-
-			artemisWebviewProvider.postMessage({
-				type: ExtensionMsg.LoginError,
-				error: errorMessage,
-			});
-			return;
-		}
-
-		// Past this point the user IS signed in. A failure while wiring up the UI is worth logging, but
-		// reporting it as a login error would contradict the credential that was just committed.
-		try {
-			await updateAuthContext(true);
-
-			artemisWebviewProvider.postMessage({
-				type: ExtensionMsg.LoginSuccess,
-				username: user.login || 'User',
-			});
-
-			await artemisWebviewProvider.navigateToStartPage(user);
-
-			vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || 'User'}`);
-		} catch (error) {
-			logger.error('OIDC login succeeded but the UI could not be updated', LogCategory.AUTH, error);
-		}
+	const oidcCallback = createOidcLoginCallback({
+		oidcLoginService,
+		updateAuthContext,
+		postMessage: message => artemisWebviewProvider.postMessage(message),
+		navigateToStartPage: user => artemisWebviewProvider.navigateToStartPage(user),
 	});
+	const uriHandler = new ArtemisUriHandler(oidcCallback.onCode, oidcCallback.onError);
 
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
