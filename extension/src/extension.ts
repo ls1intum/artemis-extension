@@ -3,10 +3,17 @@ import * as vscode from 'vscode';
 import type { ProactiveLevel } from '@shared/messageContracts';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
+import {
+    maybeOpenGetStartedWalkthrough,
+    type StartupAuthState,
+    WALKTHROUGH_SHOWN_KEY,
+} from '@extension/activation/onboarding';
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
-import { AuthManager } from '@extension/services/auth';
+import { AuthManager, OidcLoginService } from '@extension/services/auth';
+import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
+import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -288,11 +295,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
 
+	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
+
 	artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
+		oidcLoginService,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		noAiDetectionService,
@@ -341,6 +351,16 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 	);
 	context.subscriptions.push(struggleAlertStatusBar);
+
+	const oidcCallback = createOidcLoginCallback({
+		oidcLoginService,
+		updateAuthContext,
+		postMessage: message => artemisWebviewProvider.postMessage(message),
+		navigateToStartPage: user => artemisWebviewProvider.navigateToStartPage(user),
+	});
+	const uriHandler = new ArtemisUriHandler(oidcCallback.onCode, oidcCallback.onError);
+
+	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
 	// Drop the `iris.contextStore` key: an unbounded, unscoped list of every
 	// course and exercise this installation ever saw, orphaned in globalState.
@@ -486,8 +506,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	void sessionIdentity.resolvePrincipal();
 
 	// Initial auth state: checks both memory (Theia) and SecretStorage (VS Code).
+	let startupAuthState: StartupAuthState = 'unknown';
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
+		startupAuthState = isAuthenticated ? 'has-credentials' : 'no-credentials';
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
@@ -504,6 +526,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
 		websocketStatusBarService.setAuthenticated(false);
 	}
+
+	// Runs here and not earlier: the decision reads the credential state, and above is
+	// the first point where that state has actually settled.
+	void maybeOpenGetStartedWalkthrough({
+		authState: startupAuthState,
+		contributedWalkthroughs: (context.extension.packageJSON as { contributes?: { walkthroughs?: unknown } })
+			.contributes?.walkthroughs,
+		extensionId: context.extension.id,
+		isTheia: theiaEnv.isTheia,
+		wasShown: () => context.globalState.get<boolean>(WALKTHROUGH_SHOWN_KEY, false),
+		markShown: () => context.globalState.update(WALKTHROUGH_SHOWN_KEY, true),
+		openWalkthrough: walkthroughId =>
+			vscode.commands.executeCommand('workbench.action.openWalkthrough', walkthroughId),
+	}).catch(error => {
+		logger.error('Failed to open the Get Started walkthrough', LogCategory.GENERAL, error);
+	});
 
 	// Data collection (consent + recorder + recording commands). Noop for both shipped
 	// variants (Desktop full + Open VSX) via the @dataCollection alias swap; real only
@@ -557,6 +595,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
 			try {
+				// Before the early return below: a pending attempt belongs to the previous server, and an
+				// unauthenticated user can have one just as easily as an authenticated one.
+				await oidcLoginService.cancel();
+
 				if (!(await authManager.hasAuthToken())) {
 					sessionIdentity.setAnonymous(serverKey);
 					return;

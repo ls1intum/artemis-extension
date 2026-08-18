@@ -3,6 +3,7 @@ export const CONFIG = {
     AUTH_COOKIE_NAME: 'jwt',
     SECRET_KEYS: {
         ARTEMIS_TOKEN: 'artemis-auth-token',
+        OIDC_PENDING_LOGIN: 'artemis-oidc-pending-login',
     },
     WEBVIEW: {
         VIEW_TYPE: 'artemis.loginView',

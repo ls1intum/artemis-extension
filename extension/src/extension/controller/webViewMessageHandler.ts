@@ -4,7 +4,7 @@ import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shar
 import { getCommand } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api';
-import { AuthManager } from '@extension/services/auth';
+import { AuthManager, OidcLoginService } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -46,6 +46,7 @@ export class WebViewMessageHandler {
     constructor(
         private readonly authManager: AuthManager,
         private readonly artemisApi: ArtemisApiService,
+        private readonly oidcLoginService: OidcLoginService,
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
         extensionContext: vscode.ExtensionContext,
@@ -62,6 +63,7 @@ export class WebViewMessageHandler {
         const context: CommandContext = {
             authManager: this.authManager,
             artemisApi: this.artemisApi,
+            oidcLoginService: this.oidcLoginService,
             appStateManager: this.appStateManager,
             actionHandler: this.actionHandler,
             sendMessage: (message: ExtensionToWebviewMessage) => this._sendMessage(message),

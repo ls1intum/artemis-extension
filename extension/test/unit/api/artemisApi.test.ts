@@ -206,6 +206,80 @@ suite('Artemis API Service Test Suite', () => {
         assert.deepStrictEqual(dashboard, mockDashboard);
     });
 
+    test('getCurrentUserWithToken checks a candidate without installing it', async () => {
+        const mockUser = { id: 7, login: 'candidate' };
+        await authManager.storeArtemisCredentials('jwt=existing-session', true);
+        authManager.getAuthHeaders = async () => ({ 'Cookie': 'jwt=existing-session' });
+
+        global.fetch = async (url: any, options: any) => {
+            assert.strictEqual(url, 'https://artemis.example.com/api/core/public/account');
+            assert.strictEqual(options.headers['Cookie'], 'jwt=candidate-token');
+            return { ok: true, status: 200, text: async () => JSON.stringify(mockUser) } as any;
+        };
+
+        const user = await apiService.getCurrentUserWithToken('jwt=candidate-token');
+
+        assert.strictEqual(user.login, 'candidate');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Cookie': 'jwt=existing-session' },
+            'checking a candidate must not replace the stored session');
+    });
+
+    test('getCurrentUserWithToken rejects an empty body as unauthenticated', async () => {
+        global.fetch = async () => ({ ok: true, status: 200, text: async () => '' } as any);
+
+        await assert.rejects(
+            () => apiService.getCurrentUserWithToken('jwt=bad'),
+            (err: unknown) => err instanceof ApiError && err.status === 401,
+        );
+    });
+
+    test('getCurrentUserWithToken maps a non-OK response to ApiError and keeps the session', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing-session', true);
+
+        for (const status of [401, 500]) {
+            global.fetch = async () => ({ ok: false, status, text: async () => 'nope' } as any);
+
+            await assert.rejects(
+                () => apiService.getCurrentUserWithToken('jwt=candidate'),
+                (err: unknown) => err instanceof ApiError && err.status === status,
+            );
+        }
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=existing-session',
+            'a rejected candidate must never clear the stored credential');
+    });
+
+    test('should fetch login options for a given username', async () => {
+        const username = 'testuser';
+        const mockOptions = { loginMethod: 'OIDC', idpName: 'TUM Login' };
+
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/core/public/login-options?usernameOrEmail=${username}`));
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify(mockOptions),
+            } as any;
+        };
+
+        const result = await apiService.getLoginOptions(username);
+        assert.strictEqual(result.loginMethod, 'OIDC');
+        assert.strictEqual(result.idpName, 'TUM Login');
+    });
+
+    test('should throw ApiError 500 if getLoginOptions returns empty body', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLoginOptions('testuser'),
+            (err: unknown) => err instanceof ApiError && err.status === 500,
+        );
+    });
+
     test('should get single course for dashboard', async () => {
         const courseId = 1;
         const mockCourseData = { course: { id: 1, title: 'Course 1', exercises: [] } };
@@ -350,6 +424,10 @@ suite('Artemis API Service Test Suite', () => {
         const result = await apiService.authenticate('user', 'pass');
         assert.ok(result);
         assert.strictEqual(result.success, true);
+        assert.strictEqual(result.token, mockCookie.split(';')[0],
+            'the candidate is handed back for the caller to validate and commit');
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+            'authenticate must not commit a credential it has not had checked');
     });
 
     test('should check Iris health', async () => {
@@ -1075,5 +1153,94 @@ suite('Artemis API Service Test Suite', () => {
     test('postStruggleIntervention: 500 → failed (silent)', async () => {
         global.fetch = async () => ({ ok: false, status: 500, statusText: 'Internal Server Error' } as any);
         assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'failed');
+    });
+
+   test('should exchange code and codeVerifier for JWT token via POST', async () => {
+        const code = 'valid-code-123';
+        const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk_valid_verifier';
+        const mockJwt = 'mock.jwt.token.string';
+
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/core/public/exchange-code'));
+            assert.strictEqual(options?.method, 'POST');
+            assert.strictEqual(options?.headers?.['Content-Type'], 'application/json');
+            assert.strictEqual(options?.headers?.['Authorization'], undefined,
+                'the exchange endpoint is public, sending credentials would be pointless and leaky');
+
+            const body = JSON.parse(options?.body);
+            assert.strictEqual(body.code, code);
+            assert.strictEqual(body.codeVerifier, verifier);
+
+            return {
+                ok: true,
+                status: 200,
+                text: async () => mockJwt,
+            } as any;
+        };
+
+        const token = await apiService.exchangeCodeForToken(code, verifier);
+        assert.strictEqual(token, mockJwt);
+    });
+
+    test('should properly serialize JSON body containing special characters', async () => {
+        const codeWithSpecialChars = 'code+with/special=chars';
+        const verifierWithSpecialChars = 'verifier-with_special~chars.12345678901234567890';
+
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/core/public/exchange-code'));
+            assert.strictEqual(options?.method, 'POST');
+
+            const body = JSON.parse(options?.body);
+            assert.strictEqual(body.code, codeWithSpecialChars);
+            assert.strictEqual(body.codeVerifier, verifierWithSpecialChars);
+
+            return {
+                ok: true,
+                status: 200,
+                text: async () => 'jwt-token',
+            } as any;
+        };
+
+        const token = await apiService.exchangeCodeForToken(codeWithSpecialChars, verifierWithSpecialChars);
+        assert.strictEqual(token, 'jwt-token');
+    });
+
+    test('should throw error when exchange code is expired or invalid (401/404)', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 404,
+            text: async () => 'Not Found',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('expired-code', 'verifier-12345678901234567890123456789012345'),
+            (err: unknown) => err instanceof Error && err.message.includes('expired or is invalid'),
+        );
+    });
+
+    test('should throw when the exchange returns an empty body', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '   ',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('valid-code', 'verifier-12345678901234567890123456789012345'),
+            (err: unknown) => err instanceof Error && err.message.includes('empty token'),
+        );
+    });
+
+    test('should throw error on server error status (500)', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 500,
+            text: async () => 'Internal Server Error',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('valid-code', 'verifier-12345678901234567890123456789012345'),
+            (err: unknown) => err instanceof Error && err.message.includes('status 500'),
+        );
     });
 });

@@ -237,6 +237,8 @@ export const ExtensionMsg = {
     LoginSuccess: 'loginSuccess',
     LoginError: 'loginError',
     SetServerUrl: 'setServerUrl',
+    LoginOptionsResult: 'loginOptionsResult',
+    LoginOptionsError: 'loginOptionsError',
 
     // Loading
     ShowLoading: 'showLoading',
@@ -400,6 +402,14 @@ interface ExtensionMsgPayloads {
     loginSuccess: { username: string };
     loginError: { error: string };
     setServerUrl: { serverUrl: string };
+    loginOptionsResult: {
+        loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';
+        /** Null for password accounts; the view falls back to its own label. */
+        idpName?: string | null;
+    };
+    loginOptionsError: {
+        error?: string;
+    };
 
     // Loading
     showLoading: { message: string };

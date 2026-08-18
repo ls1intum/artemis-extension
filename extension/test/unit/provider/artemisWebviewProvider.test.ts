@@ -8,6 +8,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
+import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
 import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
@@ -144,6 +145,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
+            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             noAiDetectionService: fakeNoAi,
@@ -215,6 +217,7 @@ suite('Panel hide/show state persistence', () => {
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
+            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             noAiDetectionService: fakeNoAi,
@@ -394,6 +397,7 @@ suite('Nudge banner replay and cache-clear', () => {
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
+            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
             courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
             artemisApi: mockApiService,
             providerRegistry: createProviderRegistry(),

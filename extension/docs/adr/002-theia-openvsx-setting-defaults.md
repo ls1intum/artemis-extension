@@ -10,7 +10,7 @@
 The extension ships in two build variants (see `esbuild.js`, `scripts/package-openvsx.js`):
 
 - **`full`** — published to the VS Code Marketplace, used by local VS Code Desktop installs. Bundles the recorder / data-collection / replay subtree (runtime-consent-gated).
-- **`openvsx`** — the "clean" variant published to Open-VSX. `EduIDE/eduide` bundles it into the managed Theia (`images/base-ide/package.json.patch`, e.g. `aet-tum/iris-thaumantias/<ver>`). The clean variant aliases `@dataCollection` to `noop.ts` and tree-shakes recording (`__IRIS_RECORDING__=false`); `scripts/generate-clean-manifest.js` additionally strips the consent setting, the recording commands, and the prepublish hook from the manifest.
+- **`openvsx`** — the "clean" variant published to Open-VSX. `EduIDE/eduide` bundles it into the managed Theia (`images/base-ide/package.json.patch`, e.g. `aet-tum/iris-thaumantias/<ver>`). The clean variant aliases `@dataCollection` to `noop.ts` and tree-shakes recording (`__IRIS_RECORDING__=false`); `scripts/generate-clean-manifest.js` additionally strips the consent setting, the recording commands, the Get Started walkthrough, and the prepublish hook from the manifest.
 
 In the managed Theia (cloud) the desired out-of-the-box behaviour differs from a local VS Code install:
 

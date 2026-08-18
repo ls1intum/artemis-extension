@@ -16,8 +16,8 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
-import type { ResultDTO } from '@extension/domain';
-import { AuthFlowHandler, AuthManager } from '@extension/services/auth';
+import type { ArtemisUser, ResultDTO } from '@extension/domain';
+import { AuthFlowHandler, AuthManager, OidcLoginService } from '@extension/services/auth';
 import type { CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -70,6 +70,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _extensionContext: vscode.ExtensionContext;
     private readonly _authManager: AuthManager;
     private readonly _artemisApi: ArtemisApiService;
+    private readonly _oidcLoginService: OidcLoginService;
     private readonly _providerRegistry: IProviderRegistry;
     private readonly _courseCatalog?: CourseCatalog;
     private _appStateManager: AppStateManager;
@@ -150,6 +151,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._extensionContext = deps.extensionContext;
         this._authManager = deps.authManager;
         this._artemisApi = deps.artemisApi;
+        this._oidcLoginService = deps.oidcLoginService;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
         this._noAiDetectionService = deps.noAiDetectionService;
@@ -266,6 +268,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
             this._artemisApi,
+            this._oidcLoginService,
             this._appStateManager,
             this._navigationFacade,
             this._extensionContext,
@@ -503,6 +506,22 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public fireProblemStatementSelection(payload: ProblemStatementSelectionPayload): void {
         this._onDidProblemStatementSelection.fire(payload);
+    }
+
+    /**
+     * Send a message to the webview safely.
+     */
+    public postMessage(message: ExtensionToWebviewMessage): void {
+        this._postMessageSafe(message);
+    }
+
+    public async navigateToStartPage(user?: ArtemisUser): Promise<void> {
+        const serverUrl = resolveServerUrl();
+        await this._navigationFacade.navigateToStartPage({
+            username: user?.login ?? '',
+            serverUrl,
+            user,
+        });
     }
 
     /**

@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,93 +13,118 @@ import { LoginView } from '@webview/views/Login/LoginView';
  * including postMessage round-trips (outbound + inbound).
  */
 describe('Auth Flow', () => {
-	beforeEach(() => {
-	});
+    beforeEach(() => {
+        // Clean any lingering message listeners between tests
+    });
 
-	it('shows error message when login fails with invalid credentials', async () => {
-		const user = userEvent.setup();
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+    it('shows error message when login fails with invalid credentials', async () => {
+        const user = userEvent.setup();
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		await user.type(screen.getByTestId('login-username'), 'wronguser');
-		await user.type(screen.getByTestId('login-password'), 'wrongpass');
-		await user.click(screen.getByTestId('login-submit'));
+        // Stage 0: Enter username and proceed
+        await user.type(screen.getByTestId('login-username'), 'wronguser');
+        await user.click(screen.getByTestId('login-next'));
 
-		dispatchExtensionMessage({
-			type: 'showLoading',
-			message: 'Checking credentials...',
-		});
+        // Transition to Stage 1
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'PASSWORD',
+            idpName: 'TUM Login',
+        });
 
-		// Component strips trailing "..." from loading text
-		await waitFor(() => {
-			expect(screen.getByText('Checking credentials')).toBeInTheDocument();
-		});
+        // Stage 1: Enter password and submit
+        const passwordInput = await screen.findByTestId('login-password');
+        await user.type(passwordInput, 'wrongpass');
+        await user.click(screen.getByTestId('login-submit'));
 
-		dispatchExtensionMessage({
-			type: 'loginError',
-			error: 'Invalid username or password',
-		});
+        // Simulate loading
+        dispatchExtensionMessage({
+            type: 'showLoading',
+            message: 'Checking credentials...',
+        });
 
-		await waitFor(() => {
-			expect(screen.getByTestId('login-status')).toHaveTextContent('Invalid username or password');
-		});
-		expect(screen.getByTestId('login-form')).toBeInTheDocument();
-	});
+        // Component strips trailing "..." from loading text
+        await waitFor(() => {
+            expect(screen.getByText('Checking credentials')).toBeInTheDocument();
+        });
 
-	it('shows loading state when receiving showLoading message', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+        // Simulate login error response
+        dispatchExtensionMessage({
+            type: 'loginError',
+            error: 'Invalid username or password',
+        });
 
-		expect(screen.getByTestId('login-form')).toBeInTheDocument();
+        // Verify error displayed and form re-shown
+        await waitFor(() => {
+            expect(screen.getByTestId('login-status')).toHaveTextContent('Invalid username or password');
+        });
+        expect(screen.getByTestId('login-form')).toBeInTheDocument();
+    });
 
-		dispatchExtensionMessage({
-			type: 'showLoading',
-			message: 'Checking authentication...',
-		});
+    it('shows loading state when receiving showLoading message', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		// Component strips trailing "..." from loading text
-		await waitFor(() => {
-			expect(screen.getByText('Checking authentication')).toBeInTheDocument();
-		});
-	});
+        expect(screen.getByTestId('login-form')).toBeInTheDocument();
 
-	it('restores persisted form state from getState on mount (password never persisted)', () => {
-		const mockApi = createMockVsCodeApi({
-			getState: <T = unknown>() =>
-				({
-					username: 'persisted-user',
-					rememberMe: true,
-				}) as T | undefined,
-		});
+        dispatchExtensionMessage({
+            type: 'showLoading',
+            message: 'Checking authentication...',
+        });
 
-		render(<LoginView vscodeApi={mockApi} />);
+        // Component strips trailing "..." from loading text
+        await waitFor(() => {
+            expect(screen.getByText('Checking authentication')).toBeInTheDocument();
+        });
+    });
 
-		const usernameInput = screen.getByTestId('login-username') as HTMLInputElement;
-		const passwordInput = screen.getByTestId('login-password') as HTMLInputElement;
+    it('restores persisted form state from getState on mount (password never persisted)', async () => {
+        const mockApi = createMockVsCodeApi({
+            getState: <T = unknown>() =>
+                ({
+                    username: 'persisted-user',
+                    rememberMe: true,
+                }) as T | undefined,
+        });
 
-		expect(usernameInput.value).toBe('persisted-user');
-		expect(passwordInput.value).toBe('');
-	});
+        render(<LoginView vscodeApi={mockApi} />);
 
-	it('prevents form submission when username or password is empty', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+        const usernameInput = screen.getByTestId('login-username') as HTMLInputElement;
+        expect(usernameInput.value).toBe('persisted-user');
 
-		// Use fireEvent.submit to bypass HTML5 browser validation in happy-dom
-		const form = screen.getByTestId('login-form');
-		fireEvent.submit(form);
+        // Transition to Stage 1 to check password input
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'PASSWORD',
+            idpName: 'TUM Login',
+        });
 
-		const calls = (mockApi.postMessage as ReturnType<typeof import('vitest').vi.fn>).mock.calls;
-		const loginCalls = calls.filter(
-			(call) =>
-				typeof call[0] === 'object' &&
-				call[0] !== null &&
-				(call[0] as Record<string, unknown>).command === 'login'
-		);
-		expect(loginCalls).toHaveLength(0);
+        const passwordInput = (await screen.findByTestId('login-password')) as HTMLInputElement;
+        expect(passwordInput.value).toBe('');
+    });
 
-		await waitFor(() => {
-			expect(screen.getByTestId('login-status')).toBeInTheDocument();
-		});
-	});
+    it('prevents form submission when username or password is empty', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        // Use fireEvent.submit to bypass HTML5 browser validation in happy-dom
+        const form = screen.getByTestId('login-form');
+        fireEvent.submit(form);
+
+        // Verify no login postMessage sent
+        const calls = (mockApi.postMessage as ReturnType<typeof import('vitest').vi.fn>).mock.calls;
+        const loginCalls = calls.filter(
+            (call) =>
+                typeof call[0] === 'object' &&
+                call[0] !== null &&
+                (call[0] as Record<string, unknown>).command === 'login'
+        );
+        expect(loginCalls).toHaveLength(0);
+
+        // Verify error message displayed for empty username
+        await waitFor(() => {
+            expect(screen.getByTestId('login-status')).toHaveTextContent('Please enter your username.');
+        });
+    });
 });

@@ -28,14 +28,14 @@ export default defineConfig([
 		coverage: {
 			exclude: ['**/test/**', '**/out/test/**'],
 		},
-		mocha: {
-			reporter: 'mocha-junit-reporter',
-			reporterOptions: {
-				mochaFile: './reports/mocha-results.xml',
-			},
-		},
+		// Deliberately no reporter override: mocha's default `spec` reporter is
+		// what makes a failure readable in the CI log. `mocha-junit-reporter`
+		// writes XML and nothing else unless `toConsole` is set, and no tooling
+		// here reads that XML. (The UI suite is different: run-tests.sh parses
+		// its report, so .mocharc.ui.yml keeps the junit reporter.)
 	},
 	{
+
 		// E2E tests (requires running Artemis + Iris)
 		label: 'e2e',
 		launchArgs,

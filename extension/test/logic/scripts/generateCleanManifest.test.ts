@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 type ConfigProp = { type?: string; default?: unknown };
+type WalkthroughStep = { id: string; description: string };
 type Manifest = {
     contributes: {
         configuration: { properties: Record<string, ConfigProp> };
         commands: { command: string }[];
         menus?: { commandPalette?: { command: string; when?: string }[] };
+        walkthroughs?: { id: string; steps: WalkthroughStep[] }[];
     };
     scripts: Record<string, string>;
 };
@@ -41,6 +43,14 @@ function baseManifest(): Manifest {
                     { command: 'artemis.login' },
                 ],
             },
+            walkthroughs: [
+                {
+                    id: 'artemisGetStarted',
+                    steps: [
+                        { id: 'signIn', description: 'go\n[Sign in](command:artemis.login)' },
+                    ],
+                },
+            ],
         },
         scripts: { 'vscode:prepublish': 'npm run package', package: 'noop' },
     };
@@ -106,6 +116,49 @@ describe('generate-clean-manifest: cleanManifest', () => {
             { command: 'artemis.login', alt: 'artemis.replaySession' },
         ];
         expect(() => cleanManifest(m, 'desktop')).toThrow(/dangling command refs/);
+    });
+
+    describe('walkthroughs', () => {
+        it('desktop keeps the walkthrough', () => {
+            const m = cleanManifest(baseManifest(), 'desktop');
+            expect(m.contributes.walkthroughs?.map(w => w.id)).toEqual(['artemisGetStarted']);
+        });
+
+        it('openvsx drops the walkthrough entirely', () => {
+            const m = cleanManifest(baseManifest(), 'openvsx');
+            expect(m.contributes.walkthroughs).toBeUndefined();
+        });
+
+        it('throws when a surviving walkthrough step links a dropped command', () => {
+            const m = baseManifest();
+            m.contributes.walkthroughs![0].steps.push({
+                id: 'replay',
+                description: 'x\n[Replay](command:artemis.replaySession)',
+            });
+            expect(() => cleanManifest(m, 'desktop')).toThrow(/dangling command refs/);
+        });
+
+        it('does not trip on a step link that carries URI-encoded arguments', () => {
+            const m = baseManifest();
+            m.contributes.walkthroughs![0].steps.push({
+                id: 'settings',
+                description: 'x\n[Open](command:workbench.action.openSettings?%5B%22artemis.startPage%22%5D)',
+            });
+            expect(() => cleanManifest(m, 'desktop')).not.toThrow();
+        });
+
+        it('still catches a dropped command when the link carries URI-encoded arguments', () => {
+            // Falsifiable in both directions, which the case above is not: if COMMAND_LINK_RE
+            // swallowed the `?...` payload, the extracted id would be
+            // `artemis.replaySession?%5B%22x%22%5D`, which is not in `removed`, and this would
+            // silently stop throwing.
+            const m = baseManifest();
+            m.contributes.walkthroughs![0].steps.push({
+                id: 'replayWithArgs',
+                description: 'x\n[Replay](command:artemis.replaySession?%5B%22x%22%5D)',
+            });
+            expect(() => cleanManifest(m, 'desktop')).toThrow(/dangling command refs/);
+        });
     });
 });
 
@@ -193,4 +246,10 @@ describe('generate-clean-manifest against the real package.json', () => {
             expect(shipped.filter(c => dropped.includes(c))).toEqual([]);
         });
     }
+
+    it('openvsx: drops the walkthrough, desktop keeps it', () => {
+        expect(cleanManifest(realManifest(), 'openvsx').contributes.walkthroughs).toBeUndefined();
+        expect(cleanManifest(realManifest(), 'desktop').contributes.walkthroughs?.[0].id)
+            .toBe('artemisGetStarted');
+    });
 });

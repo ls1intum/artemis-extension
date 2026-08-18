@@ -122,9 +122,9 @@ Run from `extension/`:
 | `npm run lint` | ESLint over `src` and `test` |
 | `npm run check-types` | Type-check without emitting |
 | `npm run knip` | Dead-code / unused-export check (its own CI job) |
-| `npm run test:unit` | Extension host tests (vscode-test) |
+| `npm run test:vscode` | All extension host tests (vscode-test). What CI runs |
 | `npm run test:react` | vitest: `test/react/` **and** `test/logic/` |
-| `npm run test:all` | `test:unit` + `test:react` |
+| `npm run test:all` | `test:vscode` + `test:react` |
 | `npm run test:golden-replay` | Replay recorded sessions against the pinned engine output |
 | `npm run test:e2e` | End-to-end suite in an Extension Development Host |
 | `npm run coverage:all` | Coverage for both main suites |

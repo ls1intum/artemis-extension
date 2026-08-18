@@ -1,7 +1,7 @@
 // Produce a clean package.json WITHOUT mutating the source manifest. Two fail-closed
 // profiles select what is dropped:
 //   desktop  drop the recorder group only (struggle detection stays)
-//   openvsx  drop recorder + struggle command groups and apply cloud/Theia setting defaults
+//   openvsx  drop recorder + struggle + walkthrough groups and apply cloud/Theia setting defaults
 // CLI: generate-clean-manifest.js <out-path> --profile=desktop|openvsx. See docs/adr/002 + 003.
 const fs = require('fs');
 const path = require('path');
@@ -47,6 +47,17 @@ function dropStruggleGroup(m) {
     dropCommandsAndMenuRefs(m, STRUGGLE_COMMANDS);
 }
 
+// Open VSX only. In EduIDE auth comes from the environment token and the workspace is
+// preprovisioned, so every step but "Meet Iris" asks the student to do something that
+// is already done for them. This manifest is also what VSCodium and other Open VSX
+// clients install into ordinary desktop VS Code (see docs/adr/002), so the drop equally
+// means those desktop installs get no tour; `onboarding.ts` guards on whether this
+// manifest contributes the walkthrough rather than on `isTheia` alone for that reason.
+function dropWalkthroughGroup(m) {
+    const c = m.contributes || {};
+    delete c.walkthroughs;
+}
+
 function applyCloudDefaults(m) {
     const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
     for (const [key, value] of Object.entries(CLOUD_SETTING_DEFAULTS)) {
@@ -56,6 +67,10 @@ function applyCloudDefaults(m) {
         props[key].default = value;
     }
 }
+
+// `[label](command:some.command)` and `[label](command:some.command?%5B%22arg%22%5D)`.
+// The class stops at `?` so an argument payload is not read as part of the id.
+const COMMAND_LINK_RE = /\(command:([^)?\s]+)/g;
 
 // Fail-closed hardening: after dropping a command, no remaining menu/keybinding
 // contribution may still reference it. `removed` is the exact set that was dropped.
@@ -73,6 +88,13 @@ function assertNoDanglingCommandRefs(m, removed) {
     for (const kb of c.keybindings || []) {
         if (removed.has(kb.command)) { refs.push(`keybindings: ${kb.command}`); }
     }
+    for (const w of c.walkthroughs || []) {
+        for (const s of w.steps || []) {
+            for (const [, cmd] of String(s.description || '').matchAll(COMMAND_LINK_RE)) {
+                if (removed.has(cmd)) { refs.push(`walkthroughs.${w.id}.${s.id}: ${cmd}`); }
+            }
+        }
+    }
     if (refs.length) {
         throw new Error(`generate-clean-manifest: dangling command refs after drop: ${refs.join(', ')}`);
     }
@@ -88,6 +110,7 @@ function cleanManifest(m, profile) {
         case 'openvsx':
             dropRecorderGroup(m);
             dropStruggleGroup(m);
+            dropWalkthroughGroup(m);
             applyCloudDefaults(m);
             RECORDER_COMMANDS.forEach(c => removed.add(c));
             STRUGGLE_COMMANDS.forEach(c => removed.add(c));

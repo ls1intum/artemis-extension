@@ -613,6 +613,26 @@ describe('Message contracts: type guards', () => {
         const msg = { type: 'command', command: 'newConversation' };
         expect(isWebviewMessage(msg)).toBe(true);
     });
+
+    it('isWebviewMessage rejects the OIDC login commands when their payload is missing', () => {
+        // Both carry a payload the handler reads, so a payload-less message must be stopped by the guard
+        // rather than blowing up later inside getPayload().
+        expect(isWebviewMessage({ type: 'command', command: 'checkLoginOptions' })).toBe(false);
+        expect(isWebviewMessage({ type: 'command', command: 'startOidcLogin' })).toBe(false);
+    });
+
+    it('isWebviewMessage accepts the OIDC login commands with their payload', () => {
+        expect(isWebviewMessage({
+            type: 'command', command: 'checkLoginOptions', payload: { username: 'student' },
+        })).toBe(true);
+        expect(isWebviewMessage({
+            type: 'command', command: 'startOidcLogin', payload: { rememberMe: true },
+        })).toBe(true);
+    });
+
+    it('isWebviewMessage accepts cancelOidcLogin without payload', () => {
+        expect(isWebviewMessage({ type: 'command', command: 'cancelOidcLogin' })).toBe(true);
+    });
 });
 
 describe('Message contracts: runtime shape validation', () => {
