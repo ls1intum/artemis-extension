@@ -1,133 +1,175 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { LoginView } from '@webview/views/Login/LoginView';
 
-describe('LoginView', () => {
-	it('renders login form by default', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+describe('LoginView - Two-Stage & OIDC Flow', () => {
+    it('starts on Stage 0 with username field and Continue button', () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		expect(screen.getByTestId('login-username')).toBeInTheDocument();
-		expect(screen.getByTestId('login-password')).toBeInTheDocument();
-		expect(screen.getByTestId('login-submit')).toBeInTheDocument();
-	});
+        expect(screen.getByTestId('login-username')).toBeInTheDocument();
+        expect(screen.getByTestId('login-next')).toBeInTheDocument();
+        expect(screen.queryByTestId('login-password')).not.toBeInTheDocument();
+    });
 
-	it('persists form state via setState', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+    it('sends checkLoginOptions command on Stage 0 submit', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		const usernameInput = screen.getByTestId('login-username');
-		await userEvent.type(usernameInput, 'testuser');
+        const usernameInput = screen.getByTestId('login-username');
+        await userEvent.type(usernameInput, 'teststudent');
+        await userEvent.click(screen.getByTestId('login-next'));
 
-		// Wait for the useEffect that calls setState to fire
-		await waitFor(() => {
-			expect(mockApi.setState).toHaveBeenCalled();
-		});
+        await waitFor(() => {
+            expect(mockApi.postMessage).toHaveBeenCalledWith({
+                type: 'command',
+                command: 'checkLoginOptions',
+                payload: { username: 'teststudent' },
+            });
+        });
+    });
 
-		const calls = (mockApi.setState as ReturnType<typeof vi.fn>).mock.calls;
-		const lastCall = calls[calls.length - 1][0];
-		expect(lastCall).toMatchObject({ username: 'testuser' });
-	});
+    it('transitions to Stage 1 with password input when loginMethod is PASSWORD', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-	it('sends login command on form submit', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'PASSWORD',
+            idpName: 'TUM Login',
+        });
 
-		const usernameInput = screen.getByTestId('login-username');
-		const passwordInput = screen.getByTestId('login-password');
-		const submitButton = screen.getByTestId('login-submit');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-password')).toBeInTheDocument();
+            expect(screen.getByTestId('login-submit')).toHaveTextContent('Login to Artemis');
+        });
+    });
 
-		await userEvent.type(usernameInput, 'testuser');
-		await userEvent.type(passwordInput, 'testpass');
-		await userEvent.click(submitButton);
+    it('transitions to Stage 1 with OIDC button and text when loginMethod is OIDC', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		await waitFor(() => {
-			expect(mockApi.postMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: 'command',
-					command: 'login',
-					payload: expect.objectContaining({
-						username: 'testuser',
-						password: 'testpass',
-					}),
-				})
-			);
-		});
-	});
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'OIDC',
+            idpName: 'TUM Login',
+        });
 
-	it('shows loading state when receiving showLoading message', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+        await waitFor(() => {
+            expect(screen.queryByTestId('login-password')).not.toBeInTheDocument();
+            expect(screen.getByTestId('login-oidc-submit')).toHaveTextContent('Sign in with TUM Login');
+            expect(screen.getByText(/You will be redirected to complete authentication via TUM Login/i)).toBeInTheDocument();
+        });
+    });
 
-		expect(screen.getByTestId('login-form')).toBeInTheDocument();
+    it('sends startOidcLogin command with rememberMe flag on OIDC button click', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		dispatchExtensionMessage({
-			type: 'showLoading',
-			message: 'Checking credentials...',
-		});
+        const usernameInput = screen.getByTestId('login-username');
+        await userEvent.type(usernameInput, 'teststudent');
 
-		// Wait for loading UI to appear (component strips trailing "..." from loading text)
-		await waitFor(() => {
-			expect(screen.getByText('Checking credentials')).toBeInTheDocument();
-		});
-	});
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'OIDC',
+            idpName: 'TUM Login',
+        });
 
-	it('returns to form on hideLoading message', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+        await waitFor(() => {
+            expect(screen.getByTestId('login-oidc-submit')).toBeInTheDocument();
+        });
 
-		// Show loading (component strips trailing "..." from loading text)
-		dispatchExtensionMessage({
-			type: 'showLoading',
-			message: 'Processing...',
-		});
+        await userEvent.click(screen.getByTestId('login-oidc-submit'));
 
-		await waitFor(() => {
-			expect(screen.getByText('Processing')).toBeInTheDocument();
-		});
+        await waitFor(() => {
+            expect(mockApi.postMessage).toHaveBeenCalledWith({
+                type: 'command',
+                command: 'startOidcLogin',
+                payload: {
+                    rememberMe: true,
+                },
+            });
+            expect(screen.getByTestId('login-status')).toHaveTextContent(/Redirecting to TUM Login/i);
+        });
+    });
+    it('offers no sign-in for SAML2 and does not start OIDC on submit', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		dispatchExtensionMessage({
-			type: 'hideLoading',
-		});
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'SAML2',
+            idpName: 'TUM Login',
+        });
 
-		// Wait for loading indicator to disappear (300ms animation delay)
-		await waitFor(() => {
-			expect(screen.queryByText('Processing')).not.toBeInTheDocument();
-		});
-	});
+        await waitFor(() => {
+            expect(screen.getByText(/cannot\s+complete yet/i)).toBeInTheDocument();
+        });
+        expect(screen.queryByTestId('login-oidc-submit')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('login-submit')).not.toBeInTheDocument();
 
-	it('restores persisted state from getState', () => {
-		const mockApi = createMockVsCodeApi({
-			getState: <T = unknown>() => ({
-				username: 'saved-user',
-				rememberMe: true,
-			}) as T | undefined,
-		});
+        fireEvent.submit(screen.getByTestId('login-form'));
 
-		render(<LoginView vscodeApi={mockApi} />);
+        const started = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+            call => (call[0] as Record<string, unknown>).command === 'startOidcLogin'
+        );
+        expect(started).toHaveLength(0);
+    });
 
-		const usernameInput = screen.getByTestId('login-username') as HTMLInputElement;
-		const passwordInput = screen.getByTestId('login-password') as HTMLInputElement;
+    it('sends startOidcLogin only once however often the button is clicked', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
 
-		expect(usernameInput.value).toBe('saved-user');
-		expect(passwordInput.value).toBe('');
-	});
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'OIDC',
+            idpName: 'TUM Login',
+        });
 
-	it('displays error message on loginError', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
+        const button = await screen.findByTestId('login-oidc-submit');
+        await userEvent.click(button);
 
-		dispatchExtensionMessage({
-			type: 'loginError',
-			error: 'Invalid credentials',
-		});
+        // The button is out of reach once an attempt is in flight, so a real second click is impossible.
+        expect(button).toBeDisabled();
+        // Belt and braces: the handler refuses a re-entrant call too, since every start replaces the
+        // pending attempt on the extension side and would strand the browser tab already open.
+        fireEvent.click(button);
+        fireEvent.submit(screen.getByTestId('login-form'));
 
-		await waitFor(() => {
-			expect(screen.getByTestId('login-status')).toHaveTextContent('Invalid credentials');
-		});
-	});
+        const started = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+            call => (call[0] as Record<string, unknown>).command === 'startOidcLogin'
+        );
+        expect(started).toHaveLength(1);
+    });
 
+    it('Back stays usable during a browser sign-in and retracts the attempt', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        dispatchExtensionMessage({
+            type: 'loginOptionsResult',
+            loginMethod: 'OIDC',
+            idpName: 'TUM Login',
+        });
+
+        await userEvent.click(await screen.findByTestId('login-oidc-submit'));
+        await userEvent.click(screen.getByRole('button', { name: /Back/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('login-username')).toBeInTheDocument();
+        });
+        const cancelled = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+            call => (call[0] as Record<string, unknown>).command === 'cancelOidcLogin'
+        );
+        expect(cancelled).toHaveLength(1);
+
+        // The next account may well be a password one, so the previous method must not linger.
+        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'PASSWORD', idpName: null });
+        await waitFor(() => {
+            expect(screen.getByTestId('login-password')).toBeInTheDocument();
+        });
+    });
 });

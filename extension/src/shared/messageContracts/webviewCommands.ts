@@ -13,6 +13,9 @@ export const WebviewCmd = {
     // Auth
     Login: 'login',
     Logout: 'logout',
+    CheckLoginOptions: 'checkLoginOptions',
+    StartOidcLogin: 'startOidcLogin',
+    CancelOidcLogin: 'cancelOidcLogin',
 
     // Navigation
     BackToDashboard: 'backToDashboard',
@@ -127,6 +130,9 @@ interface WebviewCmdPayloads {
     // Auth
     login: { username: string; password: string; rememberMe: boolean };
     logout: undefined;
+    checkLoginOptions: { username: string };
+    startOidcLogin: { rememberMe: boolean };
+    cancelOidcLogin: undefined;
 
     // Navigation
     backToDashboard: undefined;
@@ -282,6 +288,8 @@ interface WebviewCmdPayloads {
 /** Commands that require a non-undefined payload object. */
 export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.Login,
+    WebviewCmd.CheckLoginOptions,
+    WebviewCmd.StartOidcLogin,
     WebviewCmd.ViewCourseDetails,
     WebviewCmd.OpenExercise,
     WebviewCmd.OpenExerciseDetails,

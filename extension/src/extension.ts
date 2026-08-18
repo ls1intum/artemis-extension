@@ -9,7 +9,9 @@ import {
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
-import { AuthManager } from '@extension/services/auth';
+import { AuthManager, OidcLoginService } from '@extension/services/auth';
+import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
+import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -154,11 +156,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
 
+	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
+
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
+		oidcLoginService,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
@@ -170,6 +175,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
+
+	const oidcCallback = createOidcLoginCallback({
+		oidcLoginService,
+		updateAuthContext,
+		postMessage: message => artemisWebviewProvider.postMessage(message),
+		navigateToStartPage: user => artemisWebviewProvider.navigateToStartPage(user),
+	});
+	const uriHandler = new ArtemisUriHandler(oidcCallback.onCode, oidcCallback.onError);
+
+	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
 	// Drop the `iris.contextStore` key: an unbounded, unscoped list of every
 	// course and exercise this installation ever saw, orphaned in globalState.
@@ -346,6 +361,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
 			try {
+				// Before the early return below: a pending attempt belongs to the previous server, and an
+				// unauthenticated user can have one just as easily as an authenticated one.
+				await oidcLoginService.cancel();
+
 				if (!(await authManager.hasAuthToken())) {
 					sessionIdentity.setAnonymous(serverKey);
 					return;
