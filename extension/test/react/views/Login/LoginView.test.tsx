@@ -89,7 +89,6 @@ describe('LoginView - Two-Stage & OIDC Flow', () => {
                 type: 'command',
                 command: 'startOidcLogin',
                 payload: {
-                    username: 'teststudent',
                     rememberMe: true,
                 },
             });

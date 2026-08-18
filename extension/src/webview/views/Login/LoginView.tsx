@@ -187,7 +187,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     const handleOidcLogin = () => {
-        postCommand(vscodeApi, 'startOidcLogin', { username: username.trim(), rememberMe });
+        postCommand(vscodeApi, 'startOidcLogin', { rememberMe });
         setStatusMessage(`Redirecting to ${idpName}. Please complete the sign-in process in your browser.`);
         setStatusType('info');
     };

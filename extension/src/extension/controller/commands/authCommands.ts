@@ -17,6 +17,7 @@ export class AuthCommandModule {
             [WebviewCmd.Logout]: this.handleLogout,
             [WebviewCmd.CheckLoginOptions]: this.handleCheckLoginOptions,
             [WebviewCmd.StartOidcLogin]: this.handleStartOidcLogin,
+            [WebviewCmd.CancelOidcLogin]: this.handleCancelOidcLogin,
         };
     }
 
@@ -60,18 +61,44 @@ export class AuthCommandModule {
         }
     };
 
+    // The user backed out of the browser sign-in, so the attempt must not stay redeemable.
+    private handleCancelOidcLogin = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        await this.context.oidcLoginService.cancel();
+    };
+
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+
+        let username: string;
+        let user;
         try {
             const payload = getPayload<WebCmd<'login'>>(message);
-            const username = payload.username;
+            username = payload.username;
             const password = payload.password;
             const rememberMe = payload.rememberMe || false;
 
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-            await this.context.artemisApi.authenticate(username, password, rememberMe);
-            const user = await this.context.artemisApi.getCurrentUser();
+            const { token } = await this.context.artemisApi.authenticate(username, password, rememberMe);
 
+            // Check the candidate before it becomes the stored credential. Until this succeeds nothing has
+            // been committed, so a failure here cannot disturb a session the user already had.
+            user = await this.context.artemisApi.getCurrentUserWithToken(token);
+            await this.context.authManager.storeArtemisCredentials(token, rememberMe);
+        } catch (error: unknown) {
+            logger.error('Login error:', LogCategory.AUTH, error);
+            const friendlyError = this.formatLoginError(error);
+            vscode.window.showErrorMessage(friendlyError);
+
+            this.context.sendMessage({
+                type: ExtensionMsg.LoginError,
+                error: friendlyError
+            });
+            return;
+        }
+
+        // Past this point the credential is committed and the user is signed in. A failure while wiring up
+        // the UI is worth logging, but reporting it as a login error would contradict that.
+        try {
             await this.context.updateAuthContext(true);
 
             this.context.sendMessage({
@@ -87,14 +114,7 @@ export class AuthCommandModule {
                 user: user
             });
         } catch (error: unknown) {
-            logger.error('Login error:', LogCategory.AUTH, error);
-            const friendlyError = this.formatLoginError(error);
-            vscode.window.showErrorMessage(friendlyError);
-
-            this.context.sendMessage({
-                type: ExtensionMsg.LoginError,
-                error: friendlyError
-            });
+            logger.error('Login succeeded but the UI could not be updated', LogCategory.AUTH, error);
         }
     };
 

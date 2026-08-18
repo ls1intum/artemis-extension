@@ -424,6 +424,10 @@ suite('Artemis API Service Test Suite', () => {
         const result = await apiService.authenticate('user', 'pass');
         assert.ok(result);
         assert.strictEqual(result.success, true);
+        assert.strictEqual(result.token, mockCookie.split(';')[0],
+            'the candidate is handed back for the caller to validate and commit');
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+            'authenticate must not commit a credential it has not had checked');
     });
 
     test('should check Iris health', async () => {

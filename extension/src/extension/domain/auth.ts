@@ -24,6 +24,8 @@ export function parseProfileInfo(data: unknown): ProfileInfo {
 
 export interface AuthenticationResult {
     readonly success: boolean;
+    /** The cookie string the server issued, for the caller to validate and then commit. */
+    readonly token: string;
 }
 export type LoginMethod = 'PASSWORD' | 'OIDC' | 'SAML2'
 export interface LoginOptionsResponse {

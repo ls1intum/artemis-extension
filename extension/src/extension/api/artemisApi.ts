@@ -400,6 +400,10 @@ export class ArtemisApiService {
         return parseArtemisParticipation(await response.json());
     }
 
+    /**
+     * Exchange username and password for a JWT. The token is returned, not stored: committing it is the
+     * caller's job, once it has been shown to work.
+     */
     async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<AuthenticationResult> {
         const url = `${this.getServerUrl()}${CONFIG.API.ENDPOINTS.AUTHENTICATE}`;
 
@@ -461,10 +465,9 @@ export class ArtemisApiService {
             throw new Error('Authentication succeeded but no JWT token received');
         }
 
-        // Store as cookie string: Desktop auth sends a Cookie header, not Bearer.
-        await this.authManager.storeArtemisCredentials(jwtCookie, rememberMe);
-
-        return { success: true };
+        // Hand the candidate back rather than installing it. The caller checks it against the server and
+        // commits only then, so a login that falls over halfway cannot leave a half-applied session behind.
+        return { success: true, token: jwtCookie };
     }
 
     /**

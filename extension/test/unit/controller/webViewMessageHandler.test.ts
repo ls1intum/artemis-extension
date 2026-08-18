@@ -9,6 +9,7 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthManager } from '@extension/services/auth';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
+import { CONFIG } from '@extension/utils/constants';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
@@ -102,6 +103,45 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
 
     teardown(() => {
         sandbox.restore();
+    });
+
+    suite('password login commits only after the token has been checked', () => {
+        function loginMessage() {
+            return {
+                type: 'command' as const,
+                command: 'login' as const,
+                payload: { username: 'student', password: 'pw', rememberMe: true },
+            };
+        }
+
+        test('a failure before the commit reports a login error and stores nothing', async () => {
+            sandbox.stub(mockApiService, 'authenticate').resolves({ success: true, token: 'jwt=candidate' } as never);
+            sandbox.stub(mockApiService, 'getCurrentUserWithToken').rejects(new Error('account unreachable'));
+            const sender = sandbox.stub();
+
+            await handler.handleMessageWithSender(loginMessage(), sender);
+
+            const sent = sender.getCalls().map(call => call.args[0].type);
+            assert.ok(sent.includes('loginError'), 'the user has to be told the login did not work');
+            assert.ok(!sent.includes('loginSuccess'));
+            assert.strictEqual(await mockContext.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+                'an unchecked candidate must never be committed');
+        });
+
+        test('a failure after the commit is not reported as a failed login', async () => {
+            sandbox.stub(mockApiService, 'authenticate').resolves({ success: true, token: 'jwt=candidate' } as never);
+            sandbox.stub(mockApiService, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
+            (actionHandler.navigateToStartPage as sinon.SinonStub).rejects(new Error('view disposed'));
+            const sender = sandbox.stub();
+
+            await handler.handleMessageWithSender(loginMessage(), sender);
+
+            const sent = sender.getCalls().map(call => call.args[0].type);
+            assert.ok(sent.includes('loginSuccess'));
+            assert.ok(!sent.includes('loginError'),
+                'the credential is stored at this point, so a broken view must not claim the login failed');
+            assert.strictEqual(await mockContext.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=candidate');
+        });
     });
 
     suite('sender swap mechanism', () => {
