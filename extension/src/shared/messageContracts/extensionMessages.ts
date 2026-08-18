@@ -184,7 +184,8 @@ interface ExtensionMsgPayloads {
     setServerUrl: { serverUrl: string };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';
-        idpName?: string;
+        /** Null for password accounts; the view falls back to its own label. */
+        idpName?: string | null;
     };
     loginOptionsError: {
         error?: string;

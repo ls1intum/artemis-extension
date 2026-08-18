@@ -206,6 +206,49 @@ suite('Artemis API Service Test Suite', () => {
         assert.deepStrictEqual(dashboard, mockDashboard);
     });
 
+    test('getCurrentUserWithToken checks a candidate without installing it', async () => {
+        const mockUser = { id: 7, login: 'candidate' };
+        await authManager.storeArtemisCredentials('jwt=existing-session', true);
+        authManager.getAuthHeaders = async () => ({ 'Cookie': 'jwt=existing-session' });
+
+        global.fetch = async (url: any, options: any) => {
+            assert.strictEqual(url, 'https://artemis.example.com/api/core/public/account');
+            assert.strictEqual(options.headers['Cookie'], 'jwt=candidate-token');
+            return { ok: true, status: 200, text: async () => JSON.stringify(mockUser) } as any;
+        };
+
+        const user = await apiService.getCurrentUserWithToken('jwt=candidate-token');
+
+        assert.strictEqual(user.login, 'candidate');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Cookie': 'jwt=existing-session' },
+            'checking a candidate must not replace the stored session');
+    });
+
+    test('getCurrentUserWithToken rejects an empty body as unauthenticated', async () => {
+        global.fetch = async () => ({ ok: true, status: 200, text: async () => '' } as any);
+
+        await assert.rejects(
+            () => apiService.getCurrentUserWithToken('jwt=bad'),
+            (err: unknown) => err instanceof ApiError && err.status === 401,
+        );
+    });
+
+    test('getCurrentUserWithToken maps a non-OK response to ApiError and keeps the session', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing-session', true);
+
+        for (const status of [401, 500]) {
+            global.fetch = async () => ({ ok: false, status, text: async () => 'nope' } as any);
+
+            await assert.rejects(
+                () => apiService.getCurrentUserWithToken('jwt=candidate'),
+                (err: unknown) => err instanceof ApiError && err.status === status,
+            );
+        }
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=existing-session',
+            'a rejected candidate must never clear the stored credential');
+    });
+
     test('should fetch login options for a given username', async () => {
         const username = 'testuser';
         const mockOptions = { loginMethod: 'OIDC', idpName: 'TUM Login' };
@@ -381,6 +424,10 @@ suite('Artemis API Service Test Suite', () => {
         const result = await apiService.authenticate('user', 'pass');
         assert.ok(result);
         assert.strictEqual(result.success, true);
+        assert.strictEqual(result.token, mockCookie.split(';')[0],
+            'the candidate is handed back for the caller to validate and commit');
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+            'authenticate must not commit a credential it has not had checked');
     });
 
     test('should check Iris health', async () => {
@@ -1079,6 +1126,8 @@ suite('Artemis API Service Test Suite', () => {
             assert.ok(url.includes('/api/core/public/exchange-code'));
             assert.strictEqual(options?.method, 'POST');
             assert.strictEqual(options?.headers?.['Content-Type'], 'application/json');
+            assert.strictEqual(options?.headers?.['Authorization'], undefined,
+                'the exchange endpoint is public, sending credentials would be pointless and leaky');
 
             const body = JSON.parse(options?.body);
             assert.strictEqual(body.code, code);
@@ -1105,7 +1154,7 @@ suite('Artemis API Service Test Suite', () => {
 
             const body = JSON.parse(options?.body);
             assert.strictEqual(body.code, codeWithSpecialChars);
-            assert.strictEqual(body.code_verifier, verifierWithSpecialChars);
+            assert.strictEqual(body.codeVerifier, verifierWithSpecialChars);
 
             return {
                 ok: true,
@@ -1128,6 +1177,19 @@ suite('Artemis API Service Test Suite', () => {
         await assert.rejects(
             () => apiService.exchangeCodeForToken('expired-code', 'verifier-12345678901234567890123456789012345'),
             (err: unknown) => err instanceof Error && err.message.includes('expired or is invalid'),
+        );
+    });
+
+    test('should throw when the exchange returns an empty body', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '   ',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('valid-code', 'verifier-12345678901234567890123456789012345'),
+            (err: unknown) => err instanceof Error && err.message.includes('empty token'),
         );
     });
 

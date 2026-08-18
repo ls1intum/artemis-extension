@@ -50,6 +50,55 @@ suite('AuthManager Test Suite', () => {
         assert.deepStrictEqual(headers, { 'Cookie': jwt }); // Should be in memory
     });
 
+    test('formatToken produces the cookie form on desktop, from prefixed or bare input', () => {
+        assert.strictEqual(authManager.formatToken('raw-jwt'), 'jwt=raw-jwt');
+        assert.strictEqual(authManager.formatToken('jwt=raw-jwt'), 'jwt=raw-jwt');
+    });
+
+    test('formatToken produces the bare JWT in bearer mode, even from a prefixed input', () => {
+        authManager.enableBearerAuth();
+
+        assert.strictEqual(authManager.formatToken('raw-jwt'), 'raw-jwt');
+        // The regression that matters: a cookie string reaching bearer mode must not become
+        // `Authorization: Bearer jwt=<token>`.
+        assert.strictEqual(authManager.formatToken('jwt=raw-jwt'), 'raw-jwt');
+    });
+
+    test('declining to be remembered removes an earlier persisted secret', async () => {
+        await authManager.storeArtemisCredentials('jwt=remembered', true);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=remembered');
+
+        await authManager.storeArtemisCredentials('jwt=session-only', false);
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined);
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Cookie': 'jwt=session-only' });
+    });
+
+    test('bearer mode never touches SecretStorage, so Theia cannot delete a desktop secret', async () => {
+        await authManager.storeArtemisCredentials('jwt=desktop-secret', true);
+
+        authManager.enableBearerAuth();
+        await authManager.storeArtemisCredentials('theia-env-token', false);
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=desktop-secret',
+            'Theia activation must leave an existing desktop secret alone');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Authorization': 'Bearer theia-env-token' });
+    });
+
+    test('a failing secret write leaves no half-applied credential', async () => {
+        await authManager.storeArtemisCredentials('jwt=old', true);
+        const failure = new Error('secret storage unavailable');
+        const stub = sinon.stub(context.secrets, 'store').rejects(failure);
+
+        try {
+            await assert.rejects(() => authManager.storeArtemisCredentials('jwt=new', true), /secret storage unavailable/);
+            // Memory is only updated once the persistent side has settled.
+            assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Cookie': 'jwt=old' });
+        } finally {
+            stub.restore();
+        }
+    });
+
     test('should return correct auth headers', async () => {
         const jwt = 'jwt=token';
         await authManager.storeArtemisCredentials(jwt, false);

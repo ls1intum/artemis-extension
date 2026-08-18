@@ -172,6 +172,37 @@ export class ArtemisApiService {
         return parseArtemisUser(JSON.parse(body));
     }
 
+    /**
+     * Fetch the account behind a candidate token without installing that token first.
+     *
+     * This is what lets a login commit only after the credential has been shown to work. It bypasses
+     * `makeRequest()` on purpose: that helper reads the *stored* credential and, on a 401, clears it and
+     * fires the auth-expired callback. Checking a candidate must never touch the session the user has.
+     */
+    async getCurrentUserWithToken(token: string): Promise<ArtemisUser> {
+        const url = `${this.getServerUrl()}/api/core/public/account`;
+
+        const response = await fetchWithTimeout(url, {
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': getUserAgent(),
+                ...this.authManager.buildAuthHeadersFor(token),
+            },
+        });
+
+        if (!response.ok) {
+            throw new ApiError(`Could not load the account for this token: ${response.status}`, response.status);
+        }
+
+        const body = (await response.text()).trim();
+        if (!body) {
+            // The endpoint is public, so an unusable token yields a 200 with an empty body rather than a
+            // 401. Same rule as getCurrentUser(): treat it as not authenticated.
+            throw new ApiError('Not authenticated', 401);
+        }
+        return parseArtemisUser(JSON.parse(body));
+    }
+
     // Get the login option (OIDC or password) for given username
     async getLoginOptions(username: string): Promise<LoginOptionsResponse> {
         const response = await this.makeRequest(`/api/core/public/login-options?usernameOrEmail=${encodeURIComponent(username)}`);
@@ -183,11 +214,22 @@ export class ArtemisApiService {
         return (JSON.parse(body) as unknown) as LoginOptionsResponse;
     }
 
+    /**
+     * Redeem a single-use OIDC exchange code for a JWT, proving ownership with the PKCE verifier.
+     *
+     * Deliberately bypasses `makeRequest()`, exactly like `logoutFromServer()` and for the same reason:
+     * `makeRequest` throws on any non-2xx, which would make the status mapping below unreachable, and its
+     * 401 branch clears the stored credentials and fires the auth-expired callback. A rejected login code
+     * must never disturb a session the user already has. The endpoint is public, so no auth header is sent.
+     */
     public async exchangeCodeForToken(code: string, codeVerifier: string): Promise<string> {
-        const response = await this.makeRequest('/api/core/public/exchange-code', {
+        const url = `${this.getServerUrl()}/api/core/public/exchange-code`;
+
+        const response = await fetchWithTimeout(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'User-Agent': getUserAgent(),
             },
             body: JSON.stringify({
                 code: code,
@@ -202,7 +244,11 @@ export class ArtemisApiService {
             throw new Error(`Server returned status ${response.status} during code exchange.`);
         }
 
-        return response.text();
+        const token = (await response.text()).trim();
+        if (!token) {
+            throw new Error('The server returned an empty token during code exchange.');
+        }
+        return token;
     }
 
     // Get archived courses (inactive courses from previous semesters)
@@ -354,6 +400,10 @@ export class ArtemisApiService {
         return parseArtemisParticipation(await response.json());
     }
 
+    /**
+     * Exchange username and password for a JWT. The token is returned, not stored: committing it is the
+     * caller's job, once it has been shown to work.
+     */
     async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<AuthenticationResult> {
         const url = `${this.getServerUrl()}${CONFIG.API.ENDPOINTS.AUTHENTICATE}`;
 
@@ -415,10 +465,9 @@ export class ArtemisApiService {
             throw new Error('Authentication succeeded but no JWT token received');
         }
 
-        // Store as cookie string: Desktop auth sends a Cookie header, not Bearer.
-        await this.authManager.storeArtemisCredentials(jwtCookie, rememberMe);
-
-        return { success: true };
+        // Hand the candidate back rather than installing it. The caller checks it against the server and
+        // commits only then, so a login that falls over halfway cannot leave a half-applied session behind.
+        return { success: true, token: jwtCookie };
     }
 
     /**

@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 
-import { ExtensionMsg } from '@shared/messageContracts/extensionMessages';
-
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import {
     maybeOpenGetStartedWalkthrough,
@@ -11,8 +9,9 @@ import {
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
-import { AuthManager } from '@extension/services/auth';
+import { AuthManager, OidcLoginService } from '@extension/services/auth';
 import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
+import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -157,11 +156,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
 
+	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
+
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
+		oidcLoginService,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
@@ -174,54 +176,18 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const uriHandler = new ArtemisUriHandler(async (code: string) => {
-		try {
-			// 1. Consume the stored PKCE code_verifier
-			const codeVerifier = authManager.consumePendingCodeVerifier();
-			if (!codeVerifier) {
-				throw new Error('No pending PKCE code verifier found. Please try logging in again.');
-			}
-
-			// 2. Exchange code and verifier for the JWT token via POST
-			const rawToken = await artemisApiService.exchangeCodeForToken(code, codeVerifier);
-
-			// 3. Format and store the token
-			const formattedToken = rawToken.startsWith('jwt=') ? rawToken : `jwt=${rawToken}`;
-			await authManager.storeArtemisCredentials(formattedToken, true);
-
-			// 4. Fetch user data and navigate
-			const user = await artemisApiService.getCurrentUser();
-			await updateAuthContext(true);
-
-			artemisWebviewProvider.postMessage({
-				type: ExtensionMsg.LoginSuccess,
-				username: user.login || 'User',
-			});
-
-			await artemisWebviewProvider.navigateToStartPage(user);
-
-			vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || 'User'}`);
-		} catch (error) {
-			logger.error('Failed to complete OIDC login from URI callback:', LogCategory.AUTH, error);
-
-			await authManager.clear();
-			await updateAuthContext(false);
-
-			const errorMessage = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
-			vscode.window.showErrorMessage(`Artemis Login failed: ${errorMessage}`);
-
-			artemisWebviewProvider.postMessage({
-				type: ExtensionMsg.LoginError,
-				error: 'Authentication failed. Please try again.',
-			});
-		}
+	const oidcCallback = createOidcLoginCallback({
+		oidcLoginService,
+		updateAuthContext,
+		postMessage: message => artemisWebviewProvider.postMessage(message),
+		navigateToStartPage: user => artemisWebviewProvider.navigateToStartPage(user),
 	});
+	const uriHandler = new ArtemisUriHandler(oidcCallback.onCode, oidcCallback.onError);
 
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
-	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
-	// data, an unbounded, unscoped list of every course and exercise this
-	// installation ever saw, sitting in globalState forever.
+	// Drop the `iris.contextStore` key: an unbounded, unscoped list of every
+	// course and exercise this installation ever saw, orphaned in globalState.
 	void context.globalState.update('iris.contextStore', undefined);
 
 	const workspaceTracker = new WorkspaceExerciseTracker();
@@ -395,6 +361,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
 			try {
+				// Before the early return below: a pending attempt belongs to the previous server, and an
+				// unauthenticated user can have one just as easily as an authenticated one.
+				await oidcLoginService.cancel();
+
 				if (!(await authManager.hasAuthToken())) {
 					sessionIdentity.setAnonymous(serverKey);
 					return;

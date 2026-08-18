@@ -6,6 +6,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
+import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
@@ -140,6 +141,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
+            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,
@@ -205,6 +207,7 @@ suite('Panel hide/show state persistence', () => {
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
+            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,

@@ -3,28 +3,56 @@ import * as assert from 'assert';
 
 import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
 
+function callbackUri(path: string, query: string): vscode.Uri {
+    return { path, query } as vscode.Uri;
+}
+
 suite('Artemis URI Handler Test Suite', () => {
-    test('should pass code to handler when code parameter is present', async () => {
-        let capturedCode: string | null = null;
-        const handler = new ArtemisUriHandler(async (code: string) => {
-            capturedCode = code;
-        });
+    let codes: string[];
+    let errors: string[];
+    let handler: ArtemisUriHandler;
 
-        const uri = { query: 'code=test_code_123' } as vscode.Uri;
-        await handler.handleUri(uri);
-
-        assert.strictEqual(capturedCode, 'test_code_123');
+    setup(() => {
+        codes = [];
+        errors = [];
+        handler = new ArtemisUriHandler(
+            async code => { codes.push(code); },
+            async message => { errors.push(message); },
+        );
     });
 
-    test('should handle error parameter without calling code handler', async () => {
-        let called = false;
-        const handler = new ArtemisUriHandler(async () => {
-            called = true;
-        });
+    test('passes the code on for the auth callback path', async () => {
+        await handler.handleUri(callbackUri('/auth-callback', 'code=test_code_123'));
 
-        const uri = { query: 'error=deactivated' } as vscode.Uri;
-        await handler.handleUri(uri);
+        assert.deepStrictEqual(codes, ['test_code_123']);
+        assert.deepStrictEqual(errors, []);
+    });
 
-        assert.strictEqual(called, false);
+    test('ignores a deep link meant for something else', async () => {
+        await handler.handleUri(callbackUri('/some-other-feature', 'code=test_code_123'));
+
+        assert.deepStrictEqual(codes, [], 'a foreign path must not be redeemed as a login');
+        assert.deepStrictEqual(errors, []);
+    });
+
+    test('reports the errors the server actually sends, without redeeming a code', async () => {
+        await handler.handleUri(callbackUri('/auth-callback', 'error=deactivated'));
+        await handler.handleUri(callbackUri('/auth-callback', 'error=invalid_request'));
+        await handler.handleUri(callbackUri('/auth-callback', 'error=server_error'));
+        await handler.handleUri(callbackUri('/auth-callback', 'error=something_new'));
+
+        assert.deepStrictEqual(codes, []);
+        assert.strictEqual(errors.length, 4);
+        assert.match(errors[0], /deactivated in Artemis/);
+        assert.match(errors[1], /could not verify this sign-in/);
+        assert.match(errors[2], /could not complete the sign-in/);
+        assert.match(errors[3], /Authentication failed in browser/);
+    });
+
+    test('reports a callback that carries neither a code nor an error', async () => {
+        await handler.handleUri(callbackUri('/auth-callback', ''));
+
+        assert.deepStrictEqual(codes, []);
+        assert.strictEqual(errors.length, 1);
     });
 });

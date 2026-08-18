@@ -5,7 +5,6 @@ import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { CONFIG, VSCODE_CONFIG } from '@extension/utils/constants';
-import { generateCodeChallenge, generateCodeVerifier } from '@extension/utils/pkce';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -18,6 +17,7 @@ export class AuthCommandModule {
             [WebviewCmd.Logout]: this.handleLogout,
             [WebviewCmd.CheckLoginOptions]: this.handleCheckLoginOptions,
             [WebviewCmd.StartOidcLogin]: this.handleStartOidcLogin,
+            [WebviewCmd.CancelOidcLogin]: this.handleCancelOidcLogin,
         };
     }
 
@@ -43,26 +43,13 @@ export class AuthCommandModule {
         }
     };
 
-    // Redirects user to /oauth2/authorization/oidc?redirect=vscode and starts the OIDC authentication
+    // Hands the user to the browser for OIDC; OidcLoginService owns the attempt from here on.
     private handleStartOidcLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'startOidcLogin'>>(message);
             const rememberMe = payload.rememberMe ?? true;
 
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-
-            // 1. Generate PKCE verifier and challenge (RFC 7636 S256)
-            const codeVerifier = generateCodeVerifier();
-            const codeChallenge = generateCodeChallenge(codeVerifier);
-
-            // 2. Temporarily store verifier for the callback exchange step
-            this.context.authManager.setPendingCodeVerifier(codeVerifier);
-
-            // 3. Open browser with redirect=vscode and code_challenge parameter
-            const oidcUrl = `${serverUrl}/oauth2/authorization/oidc?redirect=vscode&rememberMe=${rememberMe}&code_challenge=${encodeURIComponent(codeChallenge)}`;
-
-            await vscode.env.openExternal(vscode.Uri.parse(oidcUrl));
+            await this.context.oidcLoginService.start(rememberMe);
         } catch (error: unknown) {
             logger.error('Failed to start OIDC login:', LogCategory.AUTH, error);
             vscode.window.showErrorMessage('Failed to open login page in browser.');
@@ -74,32 +61,32 @@ export class AuthCommandModule {
         }
     };
 
+    // The user backed out of the browser sign-in, so the attempt must not stay redeemable.
+    private handleCancelOidcLogin = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        await this.context.oidcLoginService.cancel();
+    };
+
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+
+        let username: string;
+        let user;
         try {
             const payload = getPayload<WebCmd<'login'>>(message);
-            const username = payload.username;
+            username = payload.username;
             const password = payload.password;
             const rememberMe = payload.rememberMe || false;
 
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-            await this.context.artemisApi.authenticate(username, password, rememberMe);
-            const user = await this.context.artemisApi.getCurrentUser();
+            const result = await this.context.artemisApi.authenticate(username, password, rememberMe);
+            // The server hands back a cookie string. Bearer mode stores the bare JWT, so without this the
+            // header would come out as `Authorization: Bearer jwt=<token>`.
+            const token = this.context.authManager.formatToken(result.token);
 
-            await this.context.updateAuthContext(true);
-
-            this.context.sendMessage({
-                type: ExtensionMsg.LoginSuccess,
-                username: user.login || username,
-            });
-
-            vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || username}`);
-
-            await this.context.actionHandler.navigateToStartPage({
-                username: user.login || username,
-                serverUrl: serverUrl,
-                user: user
-            });
+            // Check the candidate before it becomes the stored credential. Until this succeeds nothing has
+            // been committed, so a failure here cannot disturb a session the user already had.
+            user = await this.context.artemisApi.getCurrentUserWithToken(token);
+            await this.context.authManager.storeArtemisCredentials(token, rememberMe);
         } catch (error: unknown) {
             logger.error('Login error:', LogCategory.AUTH, error);
             const friendlyError = this.formatLoginError(error);
@@ -109,6 +96,30 @@ export class AuthCommandModule {
                 type: ExtensionMsg.LoginError,
                 error: friendlyError
             });
+            return;
+        }
+
+        // Past this point the credential is committed and the user is signed in. A failure while wiring up
+        // the UI is worth logging, but reporting it as a login error would contradict that.
+        // Sent first: everything below can fail, and the view clears its pending state only on a success
+        // or an error. Announcing afterwards would leave it spinning on a login that actually worked.
+        this.context.sendMessage({
+            type: ExtensionMsg.LoginSuccess,
+            username: user.login || username,
+        });
+
+        try {
+            await this.context.updateAuthContext(true);
+
+            vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || username}`);
+
+            await this.context.actionHandler.navigateToStartPage({
+                username: user.login || username,
+                serverUrl: serverUrl,
+                user: user
+            });
+        } catch (error: unknown) {
+            logger.error('Login succeeded but the UI could not be updated', LogCategory.AUTH, error);
         }
     };
 
@@ -116,6 +127,9 @@ export class AuthCommandModule {
         try {
             // Best-effort server-side logout before clearing local state. It
             // never throws, so local cleanup proceeds regardless.
+            // A pending OIDC attempt has to go first: a callback arriving after the logout would
+            // otherwise redeem its code and sign the user straight back in.
+            await this.context.oidcLoginService.cancel();
             await this.context.artemisApi.logoutFromServer();
             await this.context.authManager.clear();
             await this.context.updateAuthContext(false);
