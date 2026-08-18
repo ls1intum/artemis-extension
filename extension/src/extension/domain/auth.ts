@@ -27,8 +27,10 @@ export interface AuthenticationResult {
     /** The cookie string the server issued, for the caller to validate and then commit. */
     readonly token: string;
 }
-export type LoginMethod = 'PASSWORD' | 'OIDC' | 'SAML2'
+export type LoginMethod = 'PASSWORD' | 'OIDC' | 'SAML2';
+
 export interface LoginOptionsResponse {
     loginMethod: LoginMethod;
-    idpName: string;
+    /** Null for accounts that sign in with a password, so the client supplies its own label. */
+    idpName: string | null;
 }

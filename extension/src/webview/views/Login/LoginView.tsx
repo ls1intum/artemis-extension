@@ -13,6 +13,8 @@ import { formatServiceName } from '@webview/utils/formatServiceName';
 import styles from './LoginView.module.css';
 import type { LoginPersistedState, LoginViewProps, LoginViewState } from './types';
 
+const DEFAULT_IDP_NAME = 'TUM Login';
+
 export function LoginView({ vscodeApi }: LoginViewProps) {
     const persistedState = vscodeApi.getState<LoginPersistedState>();
 
@@ -27,8 +29,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     const [rememberMe, setRememberMe] = useState(persistedState?.rememberMe ?? true);
 
     const [loginMethod, setLoginMethod] = useState<'PASSWORD' | 'OIDC' | 'SAML2'>('PASSWORD');
-    const [idpName, setIdpName] = useState<string>('TUM Login');
+    // The server sends null for accounts that use a password, so the label is only ever a fallback.
+    const [idpName, setIdpName] = useState<string>(DEFAULT_IDP_NAME);
     const [isCheckingOptions, setIsCheckingOptions] = useState<boolean>(false);
+    // Kept apart from isSubmitting on purpose: that flag also disables Back, which is the only way out of
+    // a browser sign-in the user has changed their mind about.
+    const [isOidcPending, setIsOidcPending] = useState<boolean>(false);
 
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
@@ -105,9 +111,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             case ExtensionMsg.LoginOptionsResult: {
                 setIsCheckingOptions(false);
                 setLoginMethod(msg.loginMethod);
-                if (msg.idpName) {
-                    setIdpName(msg.idpName);
-                }
+                // Falling back rather than keeping the previous provider: a password account answers with
+                // null, and carrying over the last identity provider's name would be a lie.
+                setIdpName(msg.idpName ?? DEFAULT_IDP_NAME);
                 setStage(1);
                 break;
             }
@@ -128,6 +134,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 setViewState('form');
                 setStatusMessage('');
                 setIsSubmitting(false);
+                setIsOidcPending(false);
                 setShowHealthChecks(false);
                 break;
 
@@ -136,6 +143,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 setStatusMessage(msg.error ?? 'Login failed');
                 setStatusType('error');
                 setIsSubmitting(false);
+                setIsOidcPending(false);
                 setShowHealthChecks(true);
                 if (serverUrl) {
                     performHealthChecks();
@@ -187,6 +195,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     const handleOidcLogin = () => {
+        // Guarded here as well as on the button: every start replaces the pending attempt on the extension
+        // side, so a second one would quietly strand the browser tab the user is already looking at.
+        if (isOidcPending) {
+            return;
+        }
+        setIsOidcPending(true);
         postCommand(vscodeApi, 'startOidcLogin', { rememberMe });
         setStatusMessage(`Redirecting to ${idpName}. Please complete the sign-in process in your browser.`);
         setStatusType('info');
@@ -195,7 +209,13 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     const handleBack = () => {
         setPassword('');
         setStatusMessage('');
+        setIsOidcPending(false);
+        setLoginMethod('PASSWORD');
+        setIdpName(DEFAULT_IDP_NAME);
         setStage(0);
+        // Retract the attempt, otherwise a callback from the abandoned browser tab could still sign the
+        // user in, possibly under the name they just backed away from.
+        postCommand(vscodeApi, 'cancelOidcLogin');
     };
 
     const handleSubmit = (e: FormEvent) => {
@@ -206,8 +226,14 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
-        if (loginMethod !== 'PASSWORD') {
+        if (loginMethod === 'OIDC') {
             handleOidcLogin();
+            return;
+        }
+
+        if (loginMethod === 'SAML2') {
+            // Nothing to submit: SAML2 has no flow in the extension, and sending it down the OIDC path
+            // would open an endpoint this server does not serve.
             return;
         }
 
@@ -308,6 +334,13 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                         fullWidth
                                         testId="login-password"
                                     />
+                                ) : loginMethod === 'SAML2' ? (
+                                    <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
+                                        <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
+                                            This account signs in through {idpName}, which the extension cannot
+                                            complete yet. Please log in on the Artemis website instead.
+                                        </p>
+                                    </div>
                                 ) : (
                                     <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
                                         <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
@@ -357,7 +390,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                 </Button>
                             ) : (
                                 <>
-                                    {loginMethod === 'PASSWORD' ? (
+                                    {loginMethod === 'PASSWORD' && (
                                         <Button
                                             type="submit"
                                             variant="primary"
@@ -367,16 +400,17 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                         >
                                             {isSubmitting ? 'Logging in...' : 'Login to Artemis'}
                                         </Button>
-                                    ) : (
+                                    )}
+                                    {loginMethod === 'OIDC' && (
                                         <Button
                                             type="button"
                                             variant="primary"
                                             fullWidth
-                                            disabled={isSubmitting}
+                                            disabled={isSubmitting || isOidcPending}
                                             onClick={handleOidcLogin}
                                             testId="login-oidc-submit"
                                         >
-                                            {`Sign in with ${idpName}`}
+                                            {isOidcPending ? 'Waiting for your browser...' : `Sign in with ${idpName}`}
                                         </Button>
                                     )}
 
@@ -384,7 +418,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                         type="button"
                                         variant="secondary"
                                         fullWidth
-                                        disabled={isSubmitting}
                                         onClick={handleBack}
                                     >
                                         ← Back
