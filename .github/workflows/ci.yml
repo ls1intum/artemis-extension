@@ -67,11 +67,13 @@ jobs:
       - run: npm ci
       - run: npx vitest run
 
-  # The @vscode/test-cli suites ('unit' + 'struggle'), which drive a real VS Code
-  # instance. They need more than `npm ci`: `out/` from compile-tests, `dist/`
-  # because some tests activate the real extension, and a display on Linux.
-  # No VS Code version is pinned, so this job tracks the latest stable release
-  # and can therefore go red for reasons unrelated to the PR.
+  # The @vscode/test-cli suites, which drive a real VS Code instance. They need
+  # more than `npm ci`: `out/` from compile-tests, `dist/` because some tests
+  # activate the real extension, and a display on Linux.
+  # The VS Code build is pinned to `engines.vscode` (see .vscode-test.mjs), so
+  # this job neither resolves a version over the network nor changes underfoot
+  # when a new stable ships. It therefore does not notice a break on a NEW VS
+  # Code; that would need a separate scheduled run against 'stable'.
   test-vscode:
     name: Extension host tests
     runs-on: ubuntu-latest
