@@ -392,8 +392,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             username: user?.login ?? '',
             serverUrl,
             user,
-    });
-}
+        });
+    }
+
     /**
      * Thin delegation so external callers (extension.ts, extensionCommands.ts)
      * do not need to reach into the facade.

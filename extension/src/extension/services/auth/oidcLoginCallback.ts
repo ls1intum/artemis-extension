@@ -8,7 +8,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 
 import type { OidcLoginService } from './oidcLoginService';
 
-export interface OidcLoginCallbackDeps {
+interface OidcLoginCallbackDeps {
     oidcLoginService: OidcLoginService;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
     postMessage: (message: ExtensionToWebviewMessage) => void;

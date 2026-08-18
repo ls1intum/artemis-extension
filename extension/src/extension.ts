@@ -186,9 +186,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
-	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
-	// data, an unbounded, unscoped list of every course and exercise this
-	// installation ever saw, sitting in globalState forever.
+	// Drop the `iris.contextStore` key: an unbounded, unscoped list of every
+	// course and exercise this installation ever saw, orphaned in globalState.
 	void context.globalState.update('iris.contextStore', undefined);
 
 	const workspaceTracker = new WorkspaceExerciseTracker();
