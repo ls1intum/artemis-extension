@@ -30,12 +30,23 @@ export class ArtemisUriHandler implements vscode.UriHandler {
     ) {}
 
     async handleUri(uri: vscode.Uri): Promise<void> {
-        if (uri.path !== AUTH_CALLBACK_PATH) {
+        // A callback built with `asExternalUri` carries a `?windowId=N` marker so it comes back to the
+        // window that started the sign-in. Depending on how it round-trips through the server's redirect,
+        // that marker can end up folded into `uri.path` ("/auth-callback?windowId=3") instead of staying
+        // in `uri.query`. This codebase has already paid for that once: a strict path comparison then
+        // rejects every real callback and the code is never redeemed. Today's server hardcodes the URI
+        // and appends nothing, so this only guards the day someone adopts `asExternalUri`, which is also
+        // the way to give a callback back to the right window.
+        const pathQueryIndex = uri.path.indexOf('?');
+        const path = pathQueryIndex === -1 ? uri.path : uri.path.slice(0, pathQueryIndex);
+        const pathQuery = pathQueryIndex === -1 ? '' : uri.path.slice(pathQueryIndex + 1);
+
+        if (path !== AUTH_CALLBACK_PATH) {
             // Some other feature's deep link, or a malformed one. Not ours to interpret.
             return;
         }
 
-        const queryParams = new URLSearchParams(uri.query);
+        const queryParams = new URLSearchParams([uri.query, pathQuery].filter(Boolean).join('&'));
         const code = queryParams.get('code');
         const error = queryParams.get('error');
 
