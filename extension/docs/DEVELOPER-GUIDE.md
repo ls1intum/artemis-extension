@@ -750,8 +750,8 @@ Hooks are stored in `.husky/pre-commit`.
 | `npm run build:analyze` | Build + analyze in one command |
 | `npm run check-types` | Run TypeScript type checker without emitting |
 | `npm run lint` | Run ESLint on `src/` and `test/` |
-| `npm run test` | Run unit tests |
-| `npm run test:coverage` | Run tests with coverage report |
+| `npm run test:vscode` | Run all extension host tests (what CI runs) |
+| `npm run test:unit:coverage` | Run the `unit` suite with a coverage report |
 | `npm run clean` | Remove `dist/`, `out/`, and `.vsix` files |
 
 ---
@@ -782,25 +782,31 @@ test/
 **All tests:**
 
 ```bash
-npm test
+npm run test:all       # extension host (vscode-test) + React (vitest)
 ```
+
+Note that `test:all` does not build first. Run `npm run compile-tests` (for
+`out/`) and `node esbuild.js` (for `dist/`, which the tests that activate the
+real extension need) beforehand, or the extension host suite fails.
 
 **With coverage:**
 
 ```bash
-npm run test:coverage
+npm run coverage:all
 ```
 
 **Specific test suite:**
 
 ```bash
-npm run test:struggle  # Struggle detection tests only
+npm run test:vscode    # All extension host tests, exactly what CI runs
+npm run test:struggle  # Struggle detection tests only (a subset of the above)
+npm run test:react     # React component tests only
 npm run test:e2e       # E2E tests only
 ```
 
 **Watch mode:**
 
-Tests do not have a watch mode. Use `npm run watch-tests` to recompile tests on change, then run `npm test`.
+Tests do not have a watch mode. Use `npm run watch-tests` to recompile tests on change, then run `npm run test:vscode`.
 
 ### Writing Tests
 
@@ -833,7 +839,7 @@ Use `MockExtensionContext` from `test/mocks/vscodeMocks.ts` for extension contex
 Run tests with coverage:
 
 ```bash
-npm run test:coverage
+npm run coverage:all
 ```
 
 Coverage reports are generated in `coverage/` directory. This directory is excluded from VSIX packaging.

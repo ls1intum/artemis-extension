@@ -3,6 +3,11 @@ import * as vscode from 'vscode';
 import { ExtensionMsg } from '@shared/messageContracts/extensionMessages';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
+import {
+    maybeOpenGetStartedWalkthrough,
+    type StartupAuthState,
+    WALKTHROUGH_SHOWN_KEY,
+} from '@extension/activation/onboarding';
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
@@ -306,8 +311,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	void sessionIdentity.resolvePrincipal();
 
 	// Initial auth state: checks both memory (Theia) and SecretStorage (VS Code).
+	let startupAuthState: StartupAuthState = 'unknown';
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
+		startupAuthState = isAuthenticated ? 'has-credentials' : 'no-credentials';
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
@@ -320,6 +327,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
 		websocketStatusBarService.setAuthenticated(false);
 	}
+
+	// Runs here and not earlier: the decision reads the credential state, and above is
+	// the first point where that state has actually settled.
+	void maybeOpenGetStartedWalkthrough({
+		authState: startupAuthState,
+		contributedWalkthroughs: (context.extension.packageJSON as { contributes?: { walkthroughs?: unknown } })
+			.contributes?.walkthroughs,
+		extensionId: context.extension.id,
+		isTheia: theiaEnv.isTheia,
+		wasShown: () => context.globalState.get<boolean>(WALKTHROUGH_SHOWN_KEY, false),
+		markShown: () => context.globalState.update(WALKTHROUGH_SHOWN_KEY, true),
+		openWalkthrough: walkthroughId =>
+			vscode.commands.executeCommand('workbench.action.openWalkthrough', walkthroughId),
+	}).catch(error => {
+		logger.error('Failed to open the Get Started walkthrough', LogCategory.GENERAL, error);
+	});
 
 	// Data collection (consent + recorder + recording commands). Noop for both shipped
 	// variants (Desktop full + Open VSX) via the @dataCollection alias swap; real only
