@@ -9,7 +9,7 @@ import {
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
-import { AuthManager, OidcLoginService } from '@extension/services/auth';
+import { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
 import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
 import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
@@ -157,6 +157,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	}));
 
 	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
+	const authCancellation = new AuthCancellationService(oidcLoginService);
 
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
@@ -164,6 +165,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		authManager,
 		artemisApi: artemisApiService,
 		oidcLoginService,
+		authCancellation,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
