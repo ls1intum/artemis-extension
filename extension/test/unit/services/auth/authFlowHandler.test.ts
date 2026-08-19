@@ -4,6 +4,8 @@ import { ArtemisApiService } from '@extension/api';
 import { AuthFlowHandler } from '@extension/services/auth/authFlowHandler';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { ApiError } from '@extension/types';
+import { CONFIG } from '@extension/utils';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 suite('AuthFlowHandler.checkExistingAuthentication', () => {
     interface HarnessOpts {
@@ -11,6 +13,7 @@ suite('AuthFlowHandler.checkExistingAuthentication', () => {
         getCurrentUser: () => Promise<unknown>;
         onAuthenticated?: (info: unknown) => Promise<void>;
         updater?: (isAuthenticated: boolean) => Promise<void>;
+        authManager?: AuthManager;
     }
 
     function makeHandler(opts: HarnessOpts) {
@@ -20,10 +23,12 @@ suite('AuthFlowHandler.checkExistingAuthentication', () => {
             authenticatedWith: undefined as unknown,
             updaterCalledWith: undefined as boolean | undefined,
         };
-        const authManager = {
+        const authManager = opts.authManager ?? ({
             hasAuthToken: opts.hasAuthToken ?? (async () => true),
             clear: async () => { state.cleared = true; },
-        } as unknown as AuthManager;
+            currentCredentialRevision: () => 0,
+            clearIfUnchanged: async () => { state.cleared = true; return true; },
+        } as unknown as AuthManager);
         const artemisApi = { getCurrentUser: opts.getCurrentUser } as unknown as ArtemisApiService;
         const updater = opts.updater ?? (async (isAuthenticated: boolean) => { state.updaterCalledWith = isAuthenticated; });
         const handler = new AuthFlowHandler(
@@ -108,5 +113,28 @@ suite('AuthFlowHandler.checkExistingAuthentication', () => {
         assert.strictEqual(payload.username, 'alice');
         assert.strictEqual(payload.user.login, 'alice', 'must forward the fetched user');
         assert.ok(payload.serverUrl, 'must include the resolved server URL');
+    });
+
+    test('a 401 during the startup check spares a credential acquired since it started', async () => {
+        const context = new MockExtensionContext();
+        const authManager = new AuthManager(context);
+        await authManager.storeArtemisCredentials('jwt=stored', true);
+
+        let release!: () => void;
+        const { handler } = makeHandler({
+            authManager,
+            getCurrentUser: async () => {
+                await new Promise<void>(resolve => { release = resolve; });
+                throw new ApiError('Not authenticated', 401);
+            },
+        });
+
+        const running = handler.checkExistingAuthentication();
+        await Promise.resolve();
+        await authManager.storeArtemisCredentials('jwt=interactive', true);
+        release();
+        await running;
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=interactive');
     });
 });

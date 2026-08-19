@@ -42,6 +42,8 @@ export class AuthFlowHandler {
             this._postMessage({ type: ExtensionMsg.ShowLoading, message: 'Checking stored credentials...' });
             this._postMessage({ type: ExtensionMsg.UpdateLoading, message: 'Loading user information...' });
 
+            const revision = this._authManager.currentCredentialRevision();
+
             let user;
             try {
                 user = await this._artemisApi.getCurrentUser();
@@ -52,7 +54,12 @@ export class AuthFlowHandler {
                 // at startup) must not log the user out.
                 if (userError instanceof ApiError && userError.status === 401) {
                     logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
-                    await this._authManager.clear();
+                    const cleared = await this._authManager.clearIfUnchanged(revision);
+                    if (!cleared) {
+                        // The user signed in again while this check was running. Its verdict is about a
+                        // credential that no longer exists, so nothing below it should run.
+                        return;
+                    }
 
                     const updater = this._getAuthContextUpdater();
                     if (updater) {
