@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
+import { LoginCancelledError } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { normalizeServerUrl } from '@extension/services/session/identityKeys';
 import { resolveServerUrl } from '@extension/utils';
@@ -68,6 +69,11 @@ export class AuthCommandModule {
 
             await this.context.oidcLoginService.start(rememberMe);
         } catch (error: unknown) {
+            if (error instanceof LoginCancelledError) {
+                logger.info('OIDC login cancelled before the browser was opened', LogCategory.AUTH);
+                return;
+            }
+
             logger.error('Failed to start OIDC login:', LogCategory.AUTH, error);
             vscode.window.showErrorMessage('Failed to open login page in browser.');
 

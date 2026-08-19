@@ -6,6 +6,7 @@ import { ExtensionMsg } from '@shared/messageContracts';
 import type { ArtemisUser } from '@extension/domain';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
+import { LoginCancelledError } from './loginCancelledError';
 import type { OidcLoginService } from './oidcLoginService';
 
 interface OidcLoginCallbackDeps {
@@ -18,12 +19,14 @@ interface OidcLoginCallbackDeps {
 /**
  * Adapts a browser callback to the rest of the extension, and owns the user-facing messaging for it.
  *
- * Extracted from `activate()` so its two rules can actually be tested:
+ * Extracted from `activate()` so its rules can actually be tested:
  *
  * - A failure is never allowed to clear credentials. Everything that can fail before the commit happens
  *   inside `complete()`, which leaves an existing session untouched, so there is nothing to undo.
  * - A failure after the commit is not a login failure. The user is signed in at that point; reporting an
  *   error would contradict the credential that was just stored, and would land after the success message.
+ * - A cancellation is never reported as a failure. The user caused it; an error toast would contradict
+ *   their own action.
  */
 export function createOidcLoginCallback(deps: OidcLoginCallbackDeps): {
     onCode: (code: string) => Promise<void>;
@@ -42,6 +45,11 @@ export function createOidcLoginCallback(deps: OidcLoginCallbackDeps): {
         try {
             user = await deps.oidcLoginService.complete(code);
         } catch (error) {
+            if (error instanceof LoginCancelledError) {
+                logger.info('OIDC login cancelled by the user', LogCategory.AUTH);
+                return;
+            }
+
             logger.error('Failed to complete OIDC login from URI callback', LogCategory.AUTH, error);
 
             const message = error instanceof Error ? error.message : 'Authentication failed. Please try again.';

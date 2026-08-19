@@ -6,6 +6,7 @@ import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api/artemisApi';
 import { AuthManager } from '@extension/services/auth/authManager';
+import { LoginCancelledError } from '@extension/services/auth/loginCancelledError';
 import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CONFIG } from '@extension/utils/constants';
@@ -84,6 +85,15 @@ suite('OIDC login callback Test Suite', () => {
         // The view clears its pending state only on a success or an error, so staying silent here would
         // leave it waiting on a login that actually worked.
         assert.deepStrictEqual(messages.map(m => m.type), ['loginSuccess']);
+    });
+
+    test('a cancelled sign-in is not reported as a failure', async () => {
+        sandbox.stub(service, 'complete').rejects(new LoginCancelledError());
+
+        await build().onCode('code');
+
+        assert.deepStrictEqual(messages, [], 'the user cancelled; an error would contradict their own action');
+        assert.ok((vscode.window.showErrorMessage as sinon.SinonStub).notCalled);
     });
 
     test('a browser side error discards the pending attempt and tells the view', async () => {
