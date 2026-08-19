@@ -161,3 +161,151 @@ suite('AuthManager Test Suite', () => {
         }
     });
 });
+
+suite('AuthManager credential transaction', () => {
+    let context: MockExtensionContext;
+    let authManager: AuthManager;
+
+    setup(() => {
+        context = new MockExtensionContext();
+        authManager = new AuthManager(context);
+    });
+
+    test('a predicate that is already false stores nothing', async () => {
+        const committed = await authManager.storeArtemisCredentials('jwt=candidate', true, () => false);
+
+        assert.strictEqual(committed, false);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined);
+    });
+
+    test('a cancellation during the write restores the previous credential', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing', true);
+        const revisionBefore = authManager.currentCredentialRevision();
+
+        let cancelled = false;
+        const originalStore = context.secrets.store.bind(context.secrets);
+        // The cancellation is flipped from INSIDE the write, which is the only way to be sure it lands
+        // after the pre-write check has already passed. Flipping it in the test body instead would let
+        // an implementation that only checks before the write pass this test.
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            cancelled = true;
+        };
+
+        const commit = authManager.storeArtemisCredentials('jwt=candidate', true, () => !cancelled);
+
+        assert.strictEqual(await commit, false);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=existing');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Cookie': 'jwt=existing' });
+        assert.strictEqual(authManager.currentCredentialRevision(), revisionBefore,
+            'a refused commit must not move the revision, or a logout barrier would think it was superseded');
+    });
+
+    test('a cancellation during the write leaves no credential when there was none before', async () => {
+        let cancelled = false;
+        const originalStore = context.secrets.store.bind(context.secrets);
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            cancelled = true;
+        };
+
+        const commit = authManager.storeArtemisCredentials('jwt=candidate', true, () => !cancelled);
+
+        assert.strictEqual(await commit, false);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined);
+    });
+
+    test('a cancellation during the delete branch restores the earlier opt-in', async () => {
+        // persist: false deletes rather than stores, so the restore has to put the old secret back.
+        await authManager.storeArtemisCredentials('jwt=remembered', true);
+
+        let cancelled = false;
+        const originalDelete = context.secrets.delete.bind(context.secrets);
+        // Only the first delete is the transaction's own write; the restore path deletes too, and
+        // cancelling again there would make the test meaningless.
+        let deletes = 0;
+        context.secrets.delete = async (key: string) => {
+            await originalDelete(key);
+            if (++deletes === 1) {
+                cancelled = true;
+            }
+        };
+
+        const commit = authManager.storeArtemisCredentials('jwt=candidate', false, () => !cancelled);
+
+        assert.strictEqual(await commit, false);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=remembered');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Cookie': 'jwt=remembered' });
+    });
+
+    test('clearIfUnchanged clears its own credential and spares a newer one', async () => {
+        await authManager.storeArtemisCredentials('jwt=first', true);
+        const revision = authManager.currentCredentialRevision();
+
+        assert.strictEqual(await authManager.clearIfUnchanged(revision), true);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined);
+
+        await authManager.storeArtemisCredentials('jwt=second', true);
+        assert.strictEqual(await authManager.clearIfUnchanged(revision), false,
+            'a logout must not delete a session the user started after it');
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=second');
+    });
+
+    test('a rejected mutation does not strand the operations queued behind it', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing', true);
+        // `secrets` is an instance field, so there is no prototype method to restore from. Keep the
+        // original bound method and put it back by hand.
+        const originalStore = context.secrets.store.bind(context.secrets);
+        context.secrets.store = async () => { throw new Error('keychain unavailable'); };
+
+        await assert.rejects(() => authManager.storeArtemisCredentials('jwt=candidate', true));
+
+        context.secrets.store = originalStore;
+        await authManager.clear();
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined);
+    });
+
+    test('getAuthContext reports the headers and the revision they belong to', async () => {
+        await authManager.storeArtemisCredentials('jwt=live', true);
+
+        const { headers, revision } = await authManager.getAuthContext();
+
+        assert.deepStrictEqual(headers, { 'Cookie': 'jwt=live' });
+        assert.strictEqual(revision, authManager.currentCredentialRevision());
+    });
+
+    test('bearer mode commits in memory, moves the revision, and never touches SecretStorage', async () => {
+        await context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, 'jwt=desktop-leftover');
+        authManager.enableBearerAuth();
+        const revisionBefore = authManager.currentCredentialRevision();
+
+        assert.strictEqual(await authManager.storeArtemisCredentials('raw-jwt', false), true);
+
+        assert.notStrictEqual(authManager.currentCredentialRevision(), revisionBefore,
+            'without this a logout barrier would erase a newer Theia credential');
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=desktop-leftover');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), { 'Authorization': 'Bearer raw-jwt' });
+    });
+
+    test('bearer mode without a memory token is unauthenticated, not the Desktop secret', async () => {
+        await context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, 'jwt=desktop-leftover');
+        authManager.enableBearerAuth();
+
+        const { headers } = await authManager.getAuthContext();
+
+        assert.deepStrictEqual(headers, {},
+            'reading the Desktop secret here would send it as "Authorization: Bearer jwt=<token>"');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), {});
+    });
+
+    test('bearer mode clears in memory without deleting the Desktop secret', async () => {
+        await context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, 'jwt=desktop-leftover');
+        authManager.enableBearerAuth();
+        await authManager.storeArtemisCredentials('raw-jwt', false);
+
+        await authManager.clearIfUnchanged(authManager.currentCredentialRevision());
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=desktop-leftover');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), {});
+    });
+});
