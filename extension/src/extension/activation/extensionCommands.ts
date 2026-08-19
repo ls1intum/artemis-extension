@@ -23,6 +23,8 @@ function registerLogoutCommand(
     authCancellation: AuthCancellationService,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.logout', async () => {
+        // Both captured before the first await. A sign-in racing this logout must be stopped now, and
+        // the credential this logout is entitled to remove is the one that exists at this moment.
         const revision = authManager.currentCredentialRevision();
         const cancelled = authCancellation.cancelAll();
 

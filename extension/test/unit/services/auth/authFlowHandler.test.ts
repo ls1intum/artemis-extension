@@ -121,7 +121,7 @@ suite('AuthFlowHandler.checkExistingAuthentication', () => {
         await authManager.storeArtemisCredentials('jwt=stored', true);
 
         let release!: () => void;
-        const { handler } = makeHandler({
+        const { handler, state } = makeHandler({
             authManager,
             getCurrentUser: async () => {
                 await new Promise<void>(resolve => { release = resolve; });
@@ -136,5 +136,49 @@ suite('AuthFlowHandler.checkExistingAuthentication', () => {
         await running;
 
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=interactive');
+        assert.strictEqual(state.hideCalled, true, 'must recover the UI even when the 401 verdict is stale');
+    });
+
+    test('a genuine 401 releases the loading view even though the request layer clears first', async () => {
+        // Uses the real ArtemisApiService (not a stub of getCurrentUser), so the request layer's own
+        // 401 handling in makeRequest() runs and clears the credential before this handler's catch
+        // block gets a chance to. That is what makes this handler's own clearIfUnchanged() see a
+        // revision that has already moved and report false, which is the exact case this test guards.
+        const context = new MockExtensionContext();
+        const authManager = new AuthManager(context);
+        await authManager.storeArtemisCredentials('jwt=stale', true);
+
+        const originalFetch = global.fetch;
+        global.fetch = (async () => ({ ok: false, status: 401, text: async () => '' })) as unknown as typeof fetch;
+
+        const artemisApi = new ArtemisApiService(authManager);
+        const state = {
+            hideCalled: false,
+            updaterCalledWith: undefined as boolean | undefined,
+        };
+        const updater = async (isAuthenticated: boolean) => { state.updaterCalledWith = isAuthenticated; };
+        const handler = new AuthFlowHandler(
+            authManager,
+            artemisApi,
+            () => updater,
+            () => { /* postMessage */ },
+            {
+                onAuthenticated: async () => { throw new Error('must not auto-authenticate on a real 401'); },
+                hideLoadingAndSendServerUrl: () => { state.hideCalled = true; },
+            },
+        );
+
+        try {
+            await handler.checkExistingAuthentication();
+        } finally {
+            global.fetch = originalFetch;
+        }
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+            'the stale credential must still end up cleared');
+        assert.strictEqual(state.hideCalled, true,
+            'a genuine 401 must not strand the startup loading view, even though makeRequest cleared first');
+        assert.strictEqual(state.updaterCalledWith, undefined,
+            "this handler's own clearIfUnchanged() lost the race, so it must not also claim the context update");
     });
 });

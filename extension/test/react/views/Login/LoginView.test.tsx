@@ -306,7 +306,7 @@ describe('LoginView - progress indicator and ownership', () => {
         expect(screen.queryByTestId('login-oidc-submit')).not.toBeInTheDocument();
     });
 
-    it('keeps ownership through the teardown, so a late startup hide cannot touch it', async () => {
+    it('keeps ownership through the teardown, so a late startup updateLoading cannot touch it', async () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
@@ -428,11 +428,15 @@ describe('LoginView - progress indicator and ownership', () => {
             fireEvent.click(screen.getByTestId('login-secondary'));
             act(() => { vi.advanceTimersByTime(300); });
 
-            // The extension had already answered the attempt the user has since retracted.
-            dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+            // The extension had already answered the attempt the user has since retracted. A loginError
+            // (not loginSuccess) is used deliberately: cancelAttempt() already clears everything a
+            // loginSuccess would set, so only a message type that touches state cancelAttempt leaves
+            // alone (statusMessage, the health-check panel) can actually prove the guard is doing anything.
+            act(() => { dispatchExtensionMessage({ type: 'loginError', error: 'stale attempt error', attemptId }); });
 
             expect(screen.queryByTestId('login-progress')).not.toBeInTheDocument();
             expect(screen.getByTestId('login-password')).toBeEnabled();
+            expect(screen.queryByTestId('login-status')).not.toBeInTheDocument();
         } finally {
             vi.useRealTimers();
         }

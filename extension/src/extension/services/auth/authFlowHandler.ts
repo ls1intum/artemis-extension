@@ -53,17 +53,19 @@ export class AuthFlowHandler {
                 // problem, so keep the credentials: a blip (e.g. slow network
                 // at startup) must not log the user out.
                 if (userError instanceof ApiError && userError.status === 401) {
-                    logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
+                    // The request layer (ArtemisApiService.makeRequest) also reacts to a 401 and may
+                    // already have cleared this exact credential itself, which moves the revision and
+                    // makes this clearIfUnchanged() report false even though nothing here is stale. Either
+                    // that clear landed or a newer sign-in superseded it; either way the credential this
+                    // check started with is gone, so only the update below is conditional on which one
+                    // happened - releasing the loading view below is not.
                     const cleared = await this._authManager.clearIfUnchanged(revision);
-                    if (!cleared) {
-                        // The user signed in again while this check was running. Its verdict is about a
-                        // credential that no longer exists, so nothing below it should run.
-                        return;
-                    }
-
-                    const updater = this._getAuthContextUpdater();
-                    if (updater) {
-                        await updater(false);
+                    if (cleared) {
+                        logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
+                        const updater = this._getAuthContextUpdater();
+                        if (updater) {
+                            await updater(false);
+                        }
                     }
                 } else {
                     logger.warn('Could not verify stored credentials (server unreachable?); keeping them', LogCategory.AUTH, userError);
