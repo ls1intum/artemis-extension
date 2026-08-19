@@ -9,6 +9,7 @@ import { ArtemisApiService } from '@extension/api/artemisApi';
 import { AuthCommandModule } from '@extension/controller/commands/authCommands';
 import type { CommandContext } from '@extension/controller/commands/types';
 import type { ArtemisUser, AuthenticationResult } from '@extension/domain';
+import type { LoginOptionsResponse } from '@extension/domain/auth';
 import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
 import { AuthManager } from '@extension/services/auth/authManager';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
@@ -81,6 +82,13 @@ suite('AuthCommandModule Test Suite', () => {
 
     const dispatchCancel = (): Promise<void> => dispatch(WebviewCmd.CancelLogin);
     const dispatchLogout = (): Promise<void> => dispatch(WebviewCmd.Logout);
+
+    function dispatchCheckLoginOptions(overrides: { attemptId?: number } = {}): Promise<void> {
+        return dispatch(WebviewCmd.CheckLoginOptions, {
+            username: 'ab12cde',
+            attemptId: overrides.attemptId ?? 1,
+        });
+    }
 
     test('a successful login names both steps before it reports success', async () => {
         api.authenticate.resolves({ success: true, token: 'jwt=fresh' } as AuthenticationResult);
@@ -254,5 +262,28 @@ suite('AuthCommandModule Test Suite', () => {
         await dispatchCancel();
 
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=fresh');
+    });
+
+    test('the login-options result carries the attempt it answers', async () => {
+        api.getLoginOptions.resolves({ loginMethod: 'PASSWORD', idpName: null });
+
+        await dispatchCheckLoginOptions({ attemptId: 3 });
+
+        assert.strictEqual(sent[0].type, 'loginOptionsResult');
+        assert.strictEqual(sent[0].attemptId, 3);
+    });
+
+    test('cancelling the login-options lookup reports nothing', async () => {
+        const gate = deferred<LoginOptionsResponse>();
+        api.getLoginOptions.returns(gate.promise);
+
+        const check = dispatchCheckLoginOptions({});
+        await Promise.resolve();
+        await dispatchCancel();
+        gate.resolve({ loginMethod: 'PASSWORD', idpName: null });
+        await check;
+
+        assert.deepStrictEqual(sent.map(m => m.type), [],
+            'the user retracted the question; answering it would move them to a stage they left');
     });
 });

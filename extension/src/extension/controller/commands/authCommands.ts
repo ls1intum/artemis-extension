@@ -23,24 +23,40 @@ export class AuthCommandModule {
     }
 
     private handleCheckLoginOptions = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'checkLoginOptions'>>(message);
-            const username = payload.username;
+        const payload = getPayload<WebCmd<'checkLoginOptions'>>(message);
+        const attemptId = payload.attemptId;
 
-            const options = await this.context.artemisApi.getLoginOptions(username);
+        const controller = new AbortController();
+        this.context.authCancellation.register(controller);
+
+        try {
+            const options = await this.context.artemisApi.getLoginOptions(payload.username, controller.signal);
+            if (controller.signal.aborted) {
+                // Answering now would move the user to a stage they have already left.
+                return;
+            }
 
             this.context.sendMessage({
                 type: ExtensionMsg.LoginOptionsResult,
                 loginMethod: options.loginMethod,
                 idpName: options.idpName,
+                attemptId,
             });
         } catch (error: unknown) {
+            if (controller.signal.aborted) {
+                logger.info('Login options lookup cancelled by the user', LogCategory.AUTH);
+                return;
+            }
+
             logger.error('Failed to check login options:', LogCategory.AUTH, error);
 
             this.context.sendMessage({
                 type: ExtensionMsg.LoginOptionsError,
                 error: error instanceof Error ? error.message : 'Failed to determine login method',
+                attemptId,
             });
+        } finally {
+            this.context.authCancellation.release(controller);
         }
     };
 
