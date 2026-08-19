@@ -15,7 +15,7 @@ export const WebviewCmd = {
     Logout: 'logout',
     CheckLoginOptions: 'checkLoginOptions',
     StartOidcLogin: 'startOidcLogin',
-    CancelOidcLogin: 'cancelOidcLogin',
+    CancelLogin: 'cancelLogin',
 
     // Navigation
     BackToDashboard: 'backToDashboard',
@@ -128,11 +128,11 @@ export type WebviewCmd = (typeof WebviewCmd)[keyof typeof WebviewCmd];
 /** Payload definitions -- undefined means no payload */
 interface WebviewCmdPayloads {
     // Auth
-    login: { username: string; password: string; rememberMe: boolean };
+    login: { username: string; password: string; rememberMe: boolean; attemptId: number };
     logout: undefined;
-    checkLoginOptions: { username: string };
+    checkLoginOptions: { username: string; attemptId: number };
     startOidcLogin: { rememberMe: boolean };
-    cancelOidcLogin: undefined;
+    cancelLogin: undefined;
 
     // Navigation
     backToDashboard: undefined;

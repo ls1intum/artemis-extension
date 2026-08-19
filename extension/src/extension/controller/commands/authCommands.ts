@@ -17,7 +17,7 @@ export class AuthCommandModule {
             [WebviewCmd.Logout]: this.handleLogout,
             [WebviewCmd.CheckLoginOptions]: this.handleCheckLoginOptions,
             [WebviewCmd.StartOidcLogin]: this.handleStartOidcLogin,
-            [WebviewCmd.CancelOidcLogin]: this.handleCancelOidcLogin,
+            [WebviewCmd.CancelLogin]: this.handleCancelLogin,
         };
     }
 
@@ -62,7 +62,7 @@ export class AuthCommandModule {
     };
 
     // The user backed out of the browser sign-in, so the attempt must not stay redeemable.
-    private handleCancelOidcLogin = async (_message: WebviewToExtensionMessage): Promise<void> => {
+    private handleCancelLogin = async (_message: WebviewToExtensionMessage): Promise<void> => {
         await this.context.oidcLoginService.cancel();
     };
 

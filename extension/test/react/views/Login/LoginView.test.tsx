@@ -27,7 +27,7 @@ describe('LoginView - Two-Stage & OIDC Flow', () => {
             expect(mockApi.postMessage).toHaveBeenCalledWith({
                 type: 'command',
                 command: 'checkLoginOptions',
-                payload: { username: 'teststudent' },
+                payload: { username: 'teststudent', attemptId: expect.any(Number) },
             });
         });
     });
@@ -162,7 +162,7 @@ describe('LoginView - Two-Stage & OIDC Flow', () => {
             expect(screen.getByTestId('login-username')).toBeInTheDocument();
         });
         const cancelled = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
-            call => (call[0] as Record<string, unknown>).command === 'cancelOidcLogin'
+            call => (call[0] as Record<string, unknown>).command === 'cancelLogin'
         );
         expect(cancelled).toHaveLength(1);
 

@@ -192,7 +192,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
         setStatusMessage('');
         setIsCheckingOptions(true);
-        postCommand(vscodeApi, 'checkLoginOptions', { username: trimmedUsername });
+        postCommand(vscodeApi, 'checkLoginOptions', { username: trimmedUsername, attemptId: 0 });
     };
 
     const handleOidcLogin = () => {
@@ -216,7 +216,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         setStage(0);
         // Retract the attempt, otherwise a callback from the abandoned browser tab could still sign the
         // user in, possibly under the name they just backed away from.
-        postCommand(vscodeApi, 'cancelOidcLogin');
+        postCommand(vscodeApi, 'cancelLogin');
     };
 
     const handleSubmit = (e: FormEvent) => {
@@ -252,6 +252,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             username: trimmedUsername,
             password,
             rememberMe,
+            attemptId: 0,
         });
     };
 

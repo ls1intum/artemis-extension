@@ -110,7 +110,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             return {
                 type: 'command' as const,
                 command: 'login' as const,
-                payload: { username: 'student', password: 'pw', rememberMe: true },
+                payload: { username: 'student', password: 'pw', rememberMe: true, attemptId: 0 },
             };
         }
 
