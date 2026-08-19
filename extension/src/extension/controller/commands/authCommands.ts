@@ -166,14 +166,24 @@ export class AuthCommandModule {
     };
 
     private handleLogout = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        // Both captured before the first await. A sign-in racing this logout must be stopped now, and
+        // the credential this logout is entitled to remove is the one that exists at this moment.
+        const revision = this.context.authManager.currentCredentialRevision();
+        const cancelled = this.context.authCancellation.cancelAll();
+
         try {
-            // Best-effort server-side logout before clearing local state. It
-            // never throws, so local cleanup proceeds regardless.
-            // A pending OIDC attempt has to go first: a callback arriving after the logout would
-            // otherwise redeem its code and sign the user straight back in.
-            await this.context.oidcLoginService.cancel();
+            await cancelled;
+            // Best-effort server-side logout before clearing local state. It never throws, so local
+            // cleanup proceeds regardless.
             await this.context.artemisApi.logoutFromServer();
-            await this.context.authManager.clear();
+            const cleared = await this.context.authManager.clearIfUnchanged(revision);
+            if (!cleared) {
+                // The user signed in again while the server was being told about the logout. The new
+                // session survives in storage, so tearing down its UI here would strand them: signed in,
+                // looking at a login form.
+                logger.info('Logout superseded by a newer sign-in', LogCategory.AUTH);
+                return;
+            }
             await this.context.updateAuthContext(false);
 
             vscode.window.showInformationMessage('Successfully logged out of Artemis');

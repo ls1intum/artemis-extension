@@ -237,7 +237,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerAllCommands({
 		context, authManager, artemisApiService, artemisWebsocketService,
 		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		updateAuthContext,
+		updateAuthContext, authCancellation,
 	}));
 
 	// Defensive safety net for future when-clause gating; no view reads this key.
@@ -363,16 +363,29 @@ export async function activate(context: vscode.ExtensionContext) {
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
 			try {
+				const revision = authManager.currentCredentialRevision();
+
 				// Before the early return below: a pending attempt belongs to the previous server, and an
 				// unauthenticated user can have one just as easily as an authenticated one.
-				await oidcLoginService.cancel();
+				await authCancellation.cancelAll();
 
-				if (!(await authManager.hasAuthToken())) {
+				// A queued read, so it cannot catch a commit halfway through and mistake a transaction's
+				// temporary delete for "there is no credential".
+				const { headers } = await authManager.getAuthContext();
+				if (Object.keys(headers).length === 0) {
 					sessionIdentity.setAnonymous(serverKey);
 					return;
 				}
+
 				logger.info('Artemis server URL changed; clearing credentials stored for the previous server', LogCategory.CONFIG);
-				await authManager.clear();
+				const cleared = await authManager.clearIfUnchanged(revision);
+				if (!cleared) {
+					// A login for the new server committed while this was running. Its credential survives,
+					// so tearing down its UI here would leave the user signed in behind a login form.
+					logger.info('Server change superseded by a newer sign-in', LogCategory.CONFIG);
+					sessionIdentity.setAnonymous(serverKey);
+					return;
+				}
 				await updateAuthContext(false);
 				artemisWebviewProvider.showLogin();
 				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');

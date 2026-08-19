@@ -80,6 +80,7 @@ suite('AuthCommandModule Test Suite', () => {
     }
 
     const dispatchCancel = (): Promise<void> => dispatch(WebviewCmd.CancelLogin);
+    const dispatchLogout = (): Promise<void> => dispatch(WebviewCmd.Logout);
 
     test('a successful login names both steps before it reports success', async () => {
         api.authenticate.resolves({ success: true, token: 'jwt=fresh' } as AuthenticationResult);
@@ -178,5 +179,80 @@ suite('AuthCommandModule Test Suite', () => {
             }
             await initializeTheiaContext();
         }
+    });
+
+    test('logging out does not lose a session started while the server logout was still running', async () => {
+        await authManager.storeArtemisCredentials('jwt=old', true);
+        // Two levers, so the fresh login provably happens while the server logout is pending. A bare
+        // `await Promise.resolve()` would only prove that some microtask ran.
+        const reachedServerLogout = deferred<void>();
+        const releaseServerLogout = deferred<void>();
+        api.logoutFromServer.callsFake(async () => {
+            reachedServerLogout.resolve();
+            await releaseServerLogout.promise;
+        });
+
+        const logout = dispatchLogout();
+        await reachedServerLogout.promise;
+        await authManager.storeArtemisCredentials('jwt=new', true);
+        releaseServerLogout.resolve();
+        await logout;
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=new',
+            'the trailing clear belongs to the credential the logout started with, not to this one');
+    });
+
+    test('logging out removes the credential it was asked to remove', async () => {
+        await authManager.storeArtemisCredentials('jwt=old', true);
+
+        await dispatchLogout();
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined);
+    });
+
+    test('a cancel during the deferred SecretStorage commit does not leave the user signed in', async () => {
+        // The cancel is issued from inside the write. Issuing it from the test body would land before
+        // the transaction's pre-write check and prove nothing about the rollback.
+        const originalStore = context.secrets.store.bind(context.secrets);
+        let cancelDuringWrite: Promise<void> | undefined;
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            cancelDuringWrite = dispatchCancel();
+            await cancelDuringWrite;
+        };
+        api.authenticate.resolves({ success: true, token: 'jwt=fresh' } as AuthenticationResult);
+        api.getCurrentUserWithToken.resolves({ id: 1, login: 'student' } as ArtemisUser);
+
+        await dispatchLogin({});
+        await cancelDuringWrite;
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+            'the write had already landed, so only a rollback can make this true');
+        assert.deepStrictEqual(sent.map(m => m.type), ['updateLoading'],
+            'a retracted attempt reports no success');
+    });
+
+    test('a server change overtaken by a login for the new server leaves that login alone', async () => {
+        // The listener lives in extension.ts, so drive its two collaborators directly: this pins the
+        // contract the listener has to honour, which is the part that can regress.
+        await authManager.storeArtemisCredentials('jwt=old-server', true);
+        const revision = authManager.currentCredentialRevision();
+        await authManager.storeArtemisCredentials('jwt=new-server', true);
+
+        const cleared = await authManager.clearIfUnchanged(revision);
+
+        assert.strictEqual(cleared, false,
+            'the listener keys its whole teardown off this boolean; if it lies, the user ends up signed in behind a login form');
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=new-server');
+    });
+
+    test('a cancel arriving after the login finished is a no-op', async () => {
+        api.authenticate.resolves({ success: true, token: 'jwt=fresh' } as AuthenticationResult);
+        api.getCurrentUserWithToken.resolves({ id: 1, login: 'student' } as ArtemisUser);
+        await dispatchLogin({});
+
+        await dispatchCancel();
+
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=fresh');
     });
 });
