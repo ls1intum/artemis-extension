@@ -349,4 +349,104 @@ describe('LoginView - progress indicator and ownership', () => {
             vi.useRealTimers();
         }
     });
+
+    it('offers Cancel while a password login is in flight and Back otherwise', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        // handleSubmit's password branch validates both fields, so a username is needed for the submit
+        // below to actually go anywhere, even though the dispatch skips checkLoginOptions to reach stage 1.
+        await userEvent.type(screen.getByTestId('login-username'), 'teststudent');
+        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'PASSWORD', idpName: null });
+        await userEvent.type(await screen.findByTestId('login-password'), 'secret');
+        expect(screen.getByTestId('login-secondary')).toHaveTextContent('← Back');
+
+        await userEvent.click(screen.getByTestId('login-submit'));
+
+        expect(screen.getByTestId('login-secondary')).toHaveTextContent('Cancel');
+        expect(screen.getByTestId('login-secondary')).toBeEnabled();
+    });
+
+    it('cancelling unlocks the form and stays on the password step', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        await submitPasswordLogin(mockApi);
+
+        // Only now: the interaction above needed real timers for `findBy*`/`userEvent` to resolve at all.
+        // The click itself uses `fireEvent`, not `userEvent`, so the `setTimeout` it schedules (inside
+        // `hideProgress`) is the one fake timers below actually control.
+        vi.useFakeTimers();
+        try {
+            fireEvent.click(screen.getByTestId('login-secondary'));
+
+            expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'cancelLogin' });
+            act(() => { vi.advanceTimersByTime(300); });
+            expect(screen.queryByTestId('login-progress')).not.toBeInTheDocument();
+            expect(screen.getByTestId('login-password')).toBeEnabled();
+            expect(screen.getByTestId('login-password')).toHaveValue('secret');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('offers Cancel while the username step is checking', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        await userEvent.type(screen.getByTestId('login-username'), 'ab12cde');
+        await userEvent.click(screen.getByTestId('login-next'));
+
+        await userEvent.click(await screen.findByTestId('login-secondary'));
+
+        expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'cancelLogin' });
+        expect(screen.getByTestId('login-username')).toBeEnabled();
+    });
+
+    it('ignores a loginOptionsResult belonging to a stage 0 lookup the user has since retracted', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        await userEvent.type(screen.getByTestId('login-username'), 'teststudent');
+        await userEvent.click(screen.getByTestId('login-next'));
+        const attemptId = currentAttemptId(mockApi);
+
+        await userEvent.click(await screen.findByTestId('login-secondary'));
+
+        // The extension had already answered the lookup the user has since retracted.
+        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'PASSWORD', idpName: null, attemptId });
+
+        expect(screen.queryByTestId('login-password')).not.toBeInTheDocument();
+        expect(screen.getByTestId('login-username')).toBeInTheDocument();
+    });
+
+    it('ignores a result belonging to an attempt that was retracted', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+
+        // Only now, for the same reason as the test above: the click below uses `fireEvent` so its
+        // `setTimeout` is the one fake timers control.
+        vi.useFakeTimers();
+        try {
+            fireEvent.click(screen.getByTestId('login-secondary'));
+            act(() => { vi.advanceTimersByTime(300); });
+
+            // The extension had already answered the attempt the user has since retracted.
+            dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+
+            expect(screen.queryByTestId('login-progress')).not.toBeInTheDocument();
+            expect(screen.getByTestId('login-password')).toBeEnabled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('a second submit while one is in flight posts nothing', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        await submitPasswordLogin(mockApi);
+
+        const postMessage = mockApi.postMessage as ReturnType<typeof vi.fn>;
+        const before = postMessage.mock.calls.length;
+        fireEvent.submit(screen.getByTestId('login-form'));
+
+        expect(postMessage.mock.calls.length).toBe(before);
+    });
 });

@@ -165,10 +165,13 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
             case ExtensionMsg.LoginOptionsResult: {
                 // Gated on the whole case, not just the indicator: a stale answer for a retracted attempt
-                // must not move the form to stage 1 either, while a different attempt is now active.
-                if (!ownsProgress(msg.attemptId)) {
+                // must not move the form to stage 1 either, while a different attempt is now active. An
+                // undefined attemptId cannot happen for this message in practice, but is let through rather
+                // than rejected, matching the other three result handlers below.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
                     break;
                 }
+                setActiveAttemptId(null);
                 hideProgress();
                 setIsCheckingOptions(false);
                 setLoginMethod(msg.loginMethod);
@@ -181,9 +184,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
             case ExtensionMsg.LoginOptionsError: {
                 // Gated for the same reason as LoginOptionsResult above.
-                if (!ownsProgress(msg.attemptId)) {
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
                     break;
                 }
+                setActiveAttemptId(null);
                 hideProgress();
                 setIsCheckingOptions(false);
                 setIsSubmitting(false);
@@ -196,22 +200,34 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
 
-            case ExtensionMsg.LoginSuccess:
-                // Unconditional, like the rest of this handler's resets: an OIDC attempt outlives the
-                // webview and its result carries no attemptId to check ownership against.
+            case ExtensionMsg.LoginSuccess: {
+                // An OIDC success carries no attemptId at all (that attempt outlives the webview, so there
+                // is no counter to check it against) and is accepted unconditionally; an interactive one is
+                // checked against the attempt the user is still waiting on, not a retracted one.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
                 hideProgress();
                 setStatusMessage('');
                 setIsSubmitting(false);
+                setIsCheckingOptions(false);
                 setIsOidcPending(false);
                 setShowHealthChecks(false);
                 break;
+            }
 
             case ExtensionMsg.LoginError: {
-                // Unconditional for the same reason as LoginSuccess above.
+                // Gated for the same reason as LoginSuccess above.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
                 hideProgress();
                 setStatusMessage(msg.error ?? 'Login failed');
                 setStatusType('error');
                 setIsSubmitting(false);
+                setIsCheckingOptions(false);
                 setIsOidcPending(false);
                 setShowHealthChecks(true);
                 if (serverUrl) {
@@ -283,16 +299,25 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         setStatusType('info');
     };
 
+    /** Retracts whatever attempt is in flight and unlocks the form, without moving off the current step. */
+    const cancelAttempt = () => {
+        setActiveAttemptId(null);
+        setIsSubmitting(false);
+        setIsCheckingOptions(false);
+        setIsOidcPending(false);
+        hideProgress();
+        postCommand(vscodeApi, 'cancelLogin');
+    };
+
     const handleBack = () => {
+        // Retract the attempt too, otherwise a callback from the abandoned browser tab or a late server
+        // answer could still sign the user in, possibly under the name they just backed away from.
+        cancelAttempt();
         setPassword('');
         setStatusMessage('');
-        setIsOidcPending(false);
         setLoginMethod('PASSWORD');
         setIdpName(null);
         setStage(0);
-        // Retract the attempt, otherwise a callback from the abandoned browser tab could still sign the
-        // user in, possibly under the name they just backed away from.
-        postCommand(vscodeApi, 'cancelLogin');
     };
 
     const handleSubmit = (e: FormEvent) => {
@@ -467,16 +492,29 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
                     <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {stage === 0 ? (
-                            <Button
-                                type="button"
-                                variant="primary"
-                                fullWidth
-                                disabled={isSubmitting || isCheckingOptions}
-                                testId="login-next"
-                                onClick={handleCheckLogin}
-                            >
-                                {isCheckingOptions ? 'Checking options...' : 'Continue'}
-                            </Button>
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    fullWidth
+                                    disabled={isSubmitting || isCheckingOptions}
+                                    testId="login-next"
+                                    onClick={handleCheckLogin}
+                                >
+                                    {isCheckingOptions ? 'Checking options...' : 'Continue'}
+                                </Button>
+                                {isCheckingOptions && (
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        fullWidth
+                                        testId="login-secondary"
+                                        onClick={cancelAttempt}
+                                    >
+                                        Cancel
+                                    </Button>
+                                )}
+                            </>
                         ) : (
                             <>
                                 {loginMethod === 'PASSWORD' && (
@@ -507,13 +545,13 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                     type="button"
                                     variant="secondary"
                                     fullWidth
-                                    // Blocked while a password login is in flight, as before, but
-                                    // deliberately NOT while waiting on the browser: that wait is the
-                                    // one the user needs a way out of.
-                                    disabled={isSubmitting}
-                                    onClick={handleBack}
+                                    // Not disabled while a password login is in flight: that wait is
+                                    // exactly the one the user needs a way out of, so the button stays
+                                    // live and switches meaning to Cancel instead.
+                                    testId="login-secondary"
+                                    onClick={isSubmitting ? cancelAttempt : handleBack}
                                 >
-                                    ← Back
+                                    {isSubmitting ? 'Cancel' : '← Back'}
                                 </Button>
                             </>
                         )}
