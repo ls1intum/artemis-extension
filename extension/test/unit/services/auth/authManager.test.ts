@@ -310,4 +310,94 @@ suite('AuthManager credential transaction', () => {
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=desktop-leftover');
         assert.deepStrictEqual(await authManager.getAuthHeaders(), {});
     });
+
+    test('getAuthHeaders called mid-write never observes a candidate that is later rolled back', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing', true);
+
+        let cancelled = false;
+        let concurrentRead: Promise<Record<string, string>> | undefined;
+        const originalStore = context.secrets.store.bind(context.secrets);
+        // The read is started (not awaited) from INSIDE the write, right where the un-queued version of
+        // getAuthHeaders() used to be able to see the candidate before the post-write predicate rolled it
+        // back. Awaiting it here would deadlock now that it is queued behind this very operation.
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            concurrentRead = authManager.getAuthHeaders();
+            cancelled = true;
+        };
+
+        const commit = authManager.storeArtemisCredentials('jwt=candidate', true, () => !cancelled);
+
+        assert.strictEqual(await commit, false);
+        assert.ok(concurrentRead, 'the write must have run before the transaction settled');
+        assert.deepStrictEqual(await concurrentRead, { 'Cookie': 'jwt=existing' },
+            'a read started mid-write must see the restored credential, never the rolled-back candidate');
+    });
+
+    test('hasAuthToken called mid-write never observes a candidate that is later rolled back', async () => {
+        let cancelled = false;
+        let concurrentRead: Promise<boolean> | undefined;
+        const originalStore = context.secrets.store.bind(context.secrets);
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            concurrentRead = authManager.hasAuthToken();
+            cancelled = true;
+        };
+
+        const commit = authManager.storeArtemisCredentials('jwt=candidate', true, () => !cancelled);
+
+        assert.strictEqual(await commit, false);
+        assert.ok(concurrentRead, 'the write must have run before the transaction settled');
+        assert.strictEqual(await concurrentRead, false,
+            'a read started mid-write must see that there was no credential before this attempt, never the rolled-back candidate');
+    });
+
+    test('getRawJwt called mid-write never observes a candidate that is later rolled back', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing', true);
+
+        let cancelled = false;
+        let concurrentRead: Promise<string | undefined> | undefined;
+        const originalStore = context.secrets.store.bind(context.secrets);
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            concurrentRead = authManager.getRawJwt();
+            cancelled = true;
+        };
+
+        const commit = authManager.storeArtemisCredentials('jwt=candidate', true, () => !cancelled);
+
+        assert.strictEqual(await commit, false);
+        assert.ok(concurrentRead, 'the write must have run before the transaction settled');
+        assert.strictEqual(await concurrentRead, 'existing',
+            'a read started mid-write must see the restored credential, never the rolled-back candidate');
+    });
+
+    test('two queued reads and a mutation issued together resolve in submission order without deadlocking', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing', true);
+
+        const order: string[] = [];
+        // All three are called synchronously, in this order, before anything is awaited: each call
+        // registers its place in the queue the instant it is made, so the order below is the order these
+        // three lines run in, not the order their promises happen to settle in.
+        const readBefore = authManager.getAuthHeaders().then(headers => {
+            order.push('read-before');
+            return headers;
+        });
+        const write = authManager.storeArtemisCredentials('jwt=new', true).then(committed => {
+            order.push('write');
+            return committed;
+        });
+        const readAfter = authManager.hasAuthToken().then(hasToken => {
+            order.push('read-after');
+            return hasToken;
+        });
+
+        const [headersBefore, committed, hasTokenAfter] = await Promise.all([readBefore, write, readAfter]);
+
+        assert.deepStrictEqual(order, ['read-before', 'write', 'read-after']);
+        assert.deepStrictEqual(headersBefore, { 'Cookie': 'jwt=existing' },
+            'a read submitted before the write must not see the new credential');
+        assert.strictEqual(committed, true);
+        assert.strictEqual(hasTokenAfter, true);
+    });
 });

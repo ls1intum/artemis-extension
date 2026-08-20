@@ -44,15 +44,22 @@ export class AuthManager {
         this._useBearerAuth = true;
     }
 
+    /**
+     * Queued so this can never land in the window between a transaction's SecretStorage write and its
+     * post-write predicate check, where a candidate that is about to be rolled back would otherwise be
+     * visible as if it were live.
+     */
     public async hasAuthToken(): Promise<boolean> {
-        if (this.memoryToken) {
-            return true;
-        }
-        if (this._useBearerAuth) {
-            return false;
-        }
-        const stored = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        return !!stored;
+        return this.enqueue(async () => {
+            if (this.memoryToken) {
+                return true;
+            }
+            if (this._useBearerAuth) {
+                return false;
+            }
+            const stored = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
+            return !!stored;
+        });
     }
 
     /**
@@ -63,16 +70,22 @@ export class AuthManager {
      * `getAuthHeaders()` so auth-mode handling stays centralized.
      *
      * Returns `undefined` if not authenticated.
+     *
+     * Queued for the same reason as `hasAuthToken()`: an un-queued read could otherwise observe a
+     * candidate credential mid-transaction, before its post-write predicate check has had a chance to
+     * roll it back.
      */
     public async getRawJwt(): Promise<string | undefined> {
-        const stored = await this.getStoredToken();
-        if (!stored) {
-            return undefined;
-        }
-        // Desktop mode stores the token as "jwt=<value>" (cookie string).
-        // Theia mode stores the raw JWT directly. Strip the prefix if present.
-        const prefix = `${CONFIG.AUTH_COOKIE_NAME}=`;
-        return stored.startsWith(prefix) ? stored.substring(prefix.length) : stored;
+        return this.enqueue(async () => {
+            const stored = await this.getStoredToken();
+            if (!stored) {
+                return undefined;
+            }
+            // Desktop mode stores the token as "jwt=<value>" (cookie string).
+            // Theia mode stores the raw JWT directly. Strip the prefix if present.
+            const prefix = `${CONFIG.AUTH_COOKIE_NAME}=`;
+            return stored.startsWith(prefix) ? stored.substring(prefix.length) : stored;
+        });
     }
 
     /** Cookie string ("jwt=<token>") in Desktop mode, raw JWT in Theia mode. */
@@ -90,14 +103,12 @@ export class AuthManager {
         return this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
     }
 
+    /**
+     * Delegates to the already-queued `getAuthContext()` so this can never land in the window between a
+     * transaction's SecretStorage write and its post-write predicate check.
+     */
     public async getAuthHeaders(): Promise<Record<string, string>> {
-        const token = await this.getStoredToken();
-
-        if (!token) {
-            return {};
-        }
-
-        return this.buildAuthHeadersFor(token);
+        return (await this.getAuthContext()).headers;
     }
 
     /**
