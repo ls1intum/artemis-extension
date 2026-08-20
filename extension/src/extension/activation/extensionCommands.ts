@@ -471,9 +471,7 @@ function pickServer(
  * Sets `artemis.defaultClonePath` from a folder dialog.
  *
  * The dialog options match the "Set Default Folder" branch of the clone flow, so both
- * routes to this setting look the same to a student. Going through a dialog also means the
- * stored path is always absolute, which the setting requires: it is used verbatim, so a
- * hand-typed `~/exercises` reaches the filesystem unexpanded and fails at clone time.
+ * routes to this setting look the same to a student.
  */
 function registerSetDefaultClonePathCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.setDefaultClonePath', async () => {
