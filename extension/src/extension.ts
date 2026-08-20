@@ -340,18 +340,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		// On Desktop the server URL is freely configurable. When it actually changes
 		// while the user is logged in, clear the stored credentials and return to the
 		// login view: a token issued by the previous server is not valid on a different
-		// one. The last URL is tracked so a no-op settings save does not log the user out.
-		let lastServerUrl = resolveServerUrl();
+		// one. Server identity is compared by normalized key (protocol, host, non-default
+		// port, path), so trailing slashes and default ports do not trigger a logout.
+		let lastServerKey = normalizeServerUrl(resolveServerUrl()) ?? resolveServerUrl();
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
 			if (!event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
 				return;
 			}
 			const newServerUrl = resolveServerUrl();
-			if (newServerUrl === lastServerUrl) {
+			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
+			if (serverKey === lastServerKey) {
 				return;
 			}
-			lastServerUrl = newServerUrl;
-			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
+			lastServerKey = serverKey;
 			// Before the credential check on purpose: a server change while logged
 			// out must still drop the previous server's courses from every
 			// in-memory component.
