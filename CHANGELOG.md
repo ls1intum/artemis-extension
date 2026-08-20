@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-20
+
 ### Added
 
 - **Get Started tour:** A new "Get Started with Artemis" walkthrough guides you through choosing your Artemis server, signing in, picking where exercises are cloned to, and meeting the Iris tutor, with a final step for reviewing Iris and Artemis preferences. It opens once on your first run of the extension and is reachable afterwards from VS Code's own Get Started page. It is not included in the Open VSX build.
