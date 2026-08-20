@@ -15,7 +15,7 @@ import {
     cloneRepositoryProgrammatic as defaultCloneRepositoryProgrammatic,
     getTheiaEnvironment as defaultGetTheiaEnvironment,
 } from '@extension/theia';
-import { extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
+import { expandHomePath, extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -139,7 +139,7 @@ export class RepositoryCloneCommands {
      */
     private async _resolveCloneDestination(exerciseTitle: string): Promise<string | undefined> {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const defaultClonePath = config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim();
+        const defaultClonePath = expandHomePath(config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim());
         const showPrompt = config.get<boolean>(VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY, true);
 
         if (defaultClonePath) {
