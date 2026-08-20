@@ -362,8 +362,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			// change never intends to preserve authentication, so it publishes
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
+			let revision: number | undefined;
 			try {
-				const revision = authManager.currentCredentialRevision();
+				revision = authManager.currentCredentialRevision();
 
 				// Before the early return below: a pending attempt belongs to the previous server, and an
 				// unauthenticated user can have one just as easily as an authenticated one.
@@ -394,6 +395,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');
 			} catch (error) {
 				logger.error('Failed to clear credentials after server URL change', LogCategory.AUTH, error);
+				// If a newer credential has landed since this listener started, don't interfere:
+				// that login's own `updateAuthContext(true)` already handles principal resolution,
+				// and calling `setAnonymous` here would either overwrite it or bump the attempt counter.
+				if (revision !== undefined && authManager.currentCredentialRevision() !== revision) {
+					logger.info('Server change superseded by a newer sign-in', LogCategory.CONFIG);
+					return;
+				}
 				// `anonymous`, not the `resolving` this catch would otherwise
 				// leave behind. `resolvePrincipal` may stay `resolving` on a
 				// failed token read because a later login retries it; nothing
