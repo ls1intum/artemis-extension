@@ -11,8 +11,9 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Changed
 
-- **Login:** Signing in now shows what it is doing. A spinner names the current step instead of the form sitting there looking untouched, and a slow sign-in is no longer a dead end: a Cancel button stops the attempt, at both the username and the password step. Cancelling, going back or logging out is no longer quietly undone by a sign-in that was already on its way, and logging out no longer forgets a session you started right after it. A server that does not answer in time now says so instead of reporting a raw timeout.
 - **Login:** Signing in now starts with your username on its own. Artemis then decides how you continue: accounts it manages itself get the password field as before, and accounts managed by an identity provider get a "Sign in with TUM Login" button that finishes the sign-in in your browser. If you go back, the browser sign-in is cancelled rather than left able to log you in afterwards, and declining "Remember me on this device" now really does forget an earlier session instead of leaving it stored.
+- **Login:** Signing in now shows what it is doing. A spinner names the current step instead of the form sitting there looking untouched, and a slow sign-in is no longer a dead end: a Cancel button stops the attempt, at both the username and the password step. Cancelling, going back or logging out is no longer quietly undone by a sign-in that was already on its way, and logging out no longer forgets a session you started right after it. A server that does not answer in time now says so instead of reporting a raw timeout.
+- **Server setting:** Correcting the Artemis server address by adding a trailing slash, or by spelling out the default port, no longer signs you out. The address is now recognised by which server it means rather than by its exact text.
 - **Server picker:** Selecting an Artemis server now opens on the server you are currently using instead of always on production, so confirming your choice does not mean scrolling to find it first.
 
 ### Internal
