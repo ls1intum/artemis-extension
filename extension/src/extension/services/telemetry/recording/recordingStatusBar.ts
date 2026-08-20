@@ -44,13 +44,10 @@ export class RecordingStatusBarService implements vscode.Disposable {
             }),
         );
 
-        // Sync initial state
         this._isEnabled = this._sessionRecorder.isEnabled;
         this._isRecording = this._sessionRecorder.isRecording;
         this._updateAppearance();
     }
-
-    // ── Private ───────────────────────────────────────────────────────
 
     private _updateAppearance(): void {
         if (!this._isEnabled) {
@@ -88,8 +85,6 @@ export class RecordingStatusBarService implements vscode.Disposable {
         await this._sessionRecorder.startSession(exerciseId, undefined, exerciseRoot);
         logger.info('Recording started by user', LogCategory.TELEMETRY);
     }
-
-    // ── Disposable ────────────────────────────────────────────────────
 
     dispose(): void {
         this._statusBarItem.dispose();

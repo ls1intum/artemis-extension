@@ -9,7 +9,7 @@ import {
 
 /**
  * EQ-to-Intervention thresholds.
- * [NOT paper-validated] — Jadud gives no intervention thresholds.
+ * [NOT paper-validated]: Jadud gives no intervention thresholds.
  * Initial estimates based on EQ distribution in the paper.
  *
  * See MVP Section 2.4:
@@ -61,12 +61,12 @@ export class InterventionDecisionEngine {
         triggerType: TriggerType | undefined,
         interventionState: InterventionState,
     ): InterventionDecision {
-        // 1. Map EQ to intervention level (severity only, no confidence gate here).
+        // Severity only, no confidence gate here.
         const level = this.mapEQToLevel(eq);
         const rawWanted = level !== 'none';
 
-        // 2. Confidence gate: insufficient → block with reason 'low-confidence'
-        //    ✅ Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
+        // Confidence gate.
+        // ✅ Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
         if (confidence === 'insufficient') {
             return {
                 rawWanted,
@@ -90,8 +90,8 @@ export class InterventionDecisionEngine {
             };
         }
 
-        // 3. Apply guardrails via InterventionFilter, which reports the exact
-        //    blocking reason (warmup / recent-progress / session-limit / last-dismissed).
+        // InterventionFilter reports the exact blocking reason
+        // (warmup / recent-progress / session-limit / last-dismissed).
         const { ok: shouldIntervene, reason } = this._filter.shouldInterveneEQ(
             { level, eq },
             interventionState,
@@ -108,10 +108,7 @@ export class InterventionDecisionEngine {
         };
     }
 
-    /**
-     * Map EQ score to recommended action level.
-     * Single source of truth for EQ-to-action mapping.
-     */
+    /** Single source of truth for the EQ-to-action mapping. */
     public mapEQToLevel(eq: number): RecommendedAction {
         if (eq >= this._thresholds.proactive) {
             return 'proactive';

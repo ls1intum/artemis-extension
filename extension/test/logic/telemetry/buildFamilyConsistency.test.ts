@@ -6,8 +6,7 @@ import { createSnapshotFromBuildEvent } from '@extension/services/telemetry/repl
 import type { ResultDTO } from '@extension/types';
 
 /**
- * Regression guard for the live/recording/replay build-error-family divergence:
- * the recording collector and the replay reconstructor must yield exactly the
+ * The recording collector and the replay reconstructor must yield exactly the
  * families produced by the single shared builder (which the live EQ path also uses).
  */
 function failedBuild(feedbacks: { positive?: boolean; text?: string }[]): ResultDTO {

@@ -1,5 +1,5 @@
 /**
- * Struggle Detection Test Suite — EQ-based
+ * Struggle Detection Test Suite (EQ-based)
  *
  * Entry point for running all struggle detection scenarios.
  * Uses the real ErrorQuotientEngine with Sinon.js time simulation.
@@ -30,7 +30,6 @@ suite('Struggle Detection Test Suite (EQ)', () => {
         evaluator = new EvaluationEngine();
         reportGenerator = new ReportGenerator();
 
-        // Ensure reports directory exists
         const reportsDir = path.join(projectRoot, 'test', 'struggle-detection', 'reports');
         if (!fs.existsSync(reportsDir)) {
             fs.mkdirSync(reportsDir, { recursive: true });
@@ -40,10 +39,6 @@ suite('Struggle Detection Test Suite (EQ)', () => {
     suiteTeardown(() => {
         runner.dispose();
     });
-
-    // =========================================================================
-    // Full Suite Test (runs all scenarios)
-    // =========================================================================
 
     test('Full Suite - All Scenarios', async function() {
         this.timeout(120000);
@@ -74,10 +69,6 @@ suite('Struggle Detection Test Suite (EQ)', () => {
         console.log(`\nPass rate: ${(passRate * 100).toFixed(1)}%`);
         console.log(`   Full report: test/struggle-detection/reports/LATEST-REPORT.md`);
     });
-
-    // =========================================================================
-    // Category Tests
-    // =========================================================================
 
     suite('Obvious Struggle Scenarios', () => {
         test('should detect obvious struggle', async function() {
@@ -143,10 +134,6 @@ suite('Struggle Detection Test Suite (EQ)', () => {
             }
         });
     });
-
-    // =========================================================================
-    // Inline Scenarios (quick EQ tests without scenario files)
-    // =========================================================================
 
     suite('Inline EQ Scenarios', () => {
         test('All-clean saves → EQ = 0.0', async function() {

@@ -12,12 +12,9 @@ function dueMs(item: ContextItem): number | null {
  * first, then by due date ascending (soonest first), then no/invalid due
  * date, then alphabetical by title.
  *
- * A 2026-07-21 revision of this doc had justified descending order as
- * consistency with the Artemis web client's `sortExercises`, but that
- * function belongs to the course-overview sidebar, a different screen; the
- * Artemis chat picker itself does not sort at all. Ascending is the right
- * default here: the exercise due next should surface first, not sink to the
- * bottom.
+ * Ascending on purpose: the exercise due next surfaces first. The Artemis web
+ * client's descending `sortExercises` is not a precedent; it drives the
+ * course-overview sidebar, and the web chat picker does not sort at all.
  */
 export function compareExercisesForPicker(a: ContextItem, b: ContextItem): number {
     const aWs = a.isWorkspace ? 1 : 0;

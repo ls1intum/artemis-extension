@@ -1,5 +1,4 @@
 // Covers E2EV-11: RecommendedExtensions view E2E smoke test
-// (E2EV-11 remapped from ProblemStatement — RecommendedExtensions is the 11th actual standalone view)
 import assert from 'assert';
 import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
@@ -30,7 +29,6 @@ describe('RecommendedExtensions View UI Tests', function () {
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
 
-		// Log in once before all tests in this suite
 		await performLogin(driver, username, password);
 	});
 
@@ -49,7 +47,7 @@ describe('RecommendedExtensions View UI Tests', function () {
 		try {
 			await switchBackFromWebview(driver);
 		} catch {
-			// Already in default context — ignore
+			// Already in the default context, so ignore.
 		}
 	});
 
@@ -70,7 +68,7 @@ describe('RecommendedExtensions View UI Tests', function () {
 			await extensionsButton.click();
 			await driver.sleep(2000);
 		} catch {
-			// Button not found — skip gracefully
+			// Button not found, so skip gracefully.
 			await takeScreenshot(driver, 'recommended-extensions-smoke');
 			this.skip();
 			return;

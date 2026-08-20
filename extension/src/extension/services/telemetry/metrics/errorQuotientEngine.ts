@@ -11,7 +11,7 @@ import {
 import { shouldDedupSnapshot } from './snapshotDedup';
 
 /**
- * Error Quotient (EQ) Engine — pure calculation based on Jadud 2006 [P3].
+ * Error Quotient (EQ) Engine: pure calculation based on Jadud 2006 [P3].
  *
  * Implements the pair-scoring formula:
  *   score(eᵢ, eᵢ₊₁) = 11 if both have errors AND share an error family
@@ -96,30 +96,21 @@ export class ErrorQuotientEngine implements SessionResettable {
         return { eq: totalNormalizedScore / pairCount, confidence };
     }
 
-    /**
-     * SessionResettable — delegates to existing resetSession().
-     */
     public onSessionStart(_context: SessionStartContext): void {
         this.resetSession();
     }
 
-    /**
-     * Full reset — for exercise switch.
-     */
+    /** Full reset, for an exercise switch. */
     public resetSession(): void {
         this._snapshots = [];
     }
 
-    /**
-     * Clear snapshots only — for 30min inactivity split.
-     */
+    /** Clears snapshots only, for the 30min inactivity split. */
     public splitSubSession(): void {
         this._snapshots = [];
     }
 
-    /**
-     * Get current engine state for debugging/display.
-     */
+    /** Current engine state, for debugging and display. */
     public getState(): EQState {
         const { eq, confidence } = this.getCurrentEQ();
         return {
@@ -131,16 +122,13 @@ export class ErrorQuotientEngine implements SessionResettable {
     }
 
     /**
-     * Seed the engine with pre-existing snapshots (for replay).
-     * Replaces current state — call before processing any events.
+     * Seed the engine with pre-existing snapshots (replay). Replaces current
+     * state, so call it before processing any events.
      */
     public seedSnapshots(snapshots: ErrorSnapshot[]): void {
         this._snapshots = [...snapshots];
     }
 
-    /**
-     * Check if two sets have any common elements.
-     */
     private _hasIntersection(a: Set<string>, b: Set<string>): boolean {
         // Iterate over the smaller set for efficiency
         const [smaller, larger] = a.size <= b.size ? [a, b] : [b, a];

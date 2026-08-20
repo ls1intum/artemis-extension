@@ -1,13 +1,9 @@
 import type { ArtemisFeedback, ArtemisParticipation, ArtemisResult } from './core';
 import { parseArtemisFeedback, parseArtemisParticipation, parseArtemisResult } from './core';
 
-// --- Submission State ---
-
 export enum ProgrammingSubmissionState {
     BUILDING = 'BUILDING',
 }
-
-// --- WebSocket/STOMP Message Types ---
 
 export interface BuildTimingInfo {
     readonly buildStartDate?: string;

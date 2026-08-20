@@ -16,11 +16,6 @@ export class BuildLogParser {
     // Swift pattern: Sources/path/File.swift:10:5: error: message
     private static readonly SWIFT_ERROR_REGEX = /(Sources\/[^:]+\.swift):(\d+):(\d+):\s*error:\s*(.+)/i;
 
-    /**
-     * Parse build logs and extract the first error found
-     * @param logs Array of build log entries
-     * @returns Parsed error information or null if no error found
-     */
     public static parseFirstError(logs: BuildLogEntry[]): ParsedBuildError | null {
         for (const entry of logs) {
             const error = this.parseLogEntry(entry.log);
@@ -31,11 +26,7 @@ export class BuildLogParser {
         return null;
     }
 
-    /**
-     * Parse build logs and extract all errors found
-     * @param logs Array of build log entries
-     * @returns Array of all parsed errors
-     */
+    /** Deduplicates by file, line and message. */
     public static parseAllErrors(logs: BuildLogEntry[]): ParsedBuildError[] {
         const errors: ParsedBuildError[] = [];
         const seen = new Set<string>();
@@ -52,11 +43,6 @@ export class BuildLogParser {
         return errors;
     }
 
-    /**
-     * Parse a single log entry for error information
-     * @param logText The log text to parse
-     * @returns Parsed error or null
-     */
     private static parseLogEntry(logText: string): ParsedBuildError | null {
         // Try Gradle pattern first (most common)
         let match = logText.match(this.GRADLE_ERROR_REGEX);
@@ -68,7 +54,6 @@ export class BuildLogParser {
             };
         }
 
-        // Try Maven pattern
         match = logText.match(this.MAVEN_ERROR_REGEX);
         if (match) {
             return {
@@ -79,7 +64,6 @@ export class BuildLogParser {
             };
         }
 
-        // Try Swift pattern
         match = logText.match(this.SWIFT_ERROR_REGEX);
         if (match) {
             return {
@@ -93,11 +77,6 @@ export class BuildLogParser {
         return null;
     }
 
-    /**
-     * Format error for display in build log
-     * @param error Parsed error information
-     * @returns Formatted string
-     */
     public static formatError(error: ParsedBuildError): string {
         const location = error.column 
             ? `${error.filePath}:${error.line}:${error.column}`

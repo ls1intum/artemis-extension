@@ -178,7 +178,7 @@ export async function listRaterIds(sessionDir: string): Promise<string[]> {
 
 /**
  * Return the first non-empty `raterName` written to the rater's file, scanning
- * in insertion order — including records that were later tombstoned. This is
+ * in insertion order, including records that were later tombstoned. This is
  * the spec §3.8 lane-naming rule for the researcher view: the lane keeps the
  * original display name even after the rater deletes all their marks.
  */

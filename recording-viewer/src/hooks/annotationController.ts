@@ -88,11 +88,10 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
             const tempId = makeTempId();
             // The optimistic temp annotation always uses referenceTs for LOCAL display,
             // positioning it on the timeline at the clicked/playhead moment while the
-            // POST is in-flight. For LIVE adds (no persistTimestamp) we omit `timestamp`
-            // from the POST so the server stamps the annotation at its own receive time.
-            // For OFFLINE/archival adds (persistTimestamp: true) we send referenceTs as
-            // the authoritative timestamp so the marker persists at the clicked/playhead
-            // position instead of snapping to the server's receive time.
+            // POST is in flight. LIVE adds (no persistTimestamp) omit `timestamp` from
+            // the POST so the server stamps its own receive time; OFFLINE/archival adds
+            // (persistTimestamp: true) send referenceTs so the marker persists at the
+            // clicked position instead of snapping to the receive time.
             const optimistic: Annotation = {
                 id: tempId,
                 timestamp: referenceTs ?? Date.now(),
@@ -120,8 +119,8 @@ export function createAnnotationController(args: AnnotationControllerArgs): Anno
                 args.onToast({ kind: 'add', label, at: Date.now() });
             } catch {
                 if (capturedGen !== gen) return;
-                // Failed add: pull the temp out. Subsequent undo will pick the
-                // previous real annotation — documented behavior.
+                // Failed add: pull the temp out. A later undo then picks the
+                // previous real annotation (documented behavior).
                 annotations = annotations.filter(a => a.id !== tempId);
                 emit();
                 args.onError('Failed to add marker');

@@ -8,6 +8,9 @@ import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthManager } from '@extension/services/auth';
+import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
+import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
+import { CONFIG } from '@extension/utils/constants';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
@@ -54,13 +57,11 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
     setup(() => {
         sandbox = sinon.createSandbox();
 
-        // Stub vscode.window.showErrorMessage to prevent UI side effects
+        // Stub the real VS Code surfaces so the tests cause no UI side effects.
         sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
 
-        // Stub vscode.window.showInformationMessage to prevent UI side effects
         sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
 
-        // Stub vscode.commands.executeCommand to prevent side effects
         sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
 
         mockContext = new MockExtensionContext();
@@ -90,9 +91,12 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             navigateToStartPage: sandbox.stub().resolves(),
         };
 
+        const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         handler = new WebViewMessageHandler(
             mockAuthManager,
             mockApiService,
+            oidcLoginService,
+            new AuthCancellationService(oidcLoginService),
             mockStateManager,
             actionHandler,
             mockContext,
@@ -104,9 +108,61 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         sandbox.restore();
     });
 
+    suite('password login commits only after the token has been checked', () => {
+        function loginMessage() {
+            return {
+                type: 'command' as const,
+                command: 'login' as const,
+                payload: { username: 'student', password: 'pw', rememberMe: true, attemptId: 0 },
+            };
+        }
+
+        test('a failure before the commit reports a login error and stores nothing', async () => {
+            sandbox.stub(mockApiService, 'authenticate').resolves({ success: true, token: 'jwt=candidate' } as never);
+            sandbox.stub(mockApiService, 'getCurrentUserWithToken').rejects(new Error('account unreachable'));
+            const sender = sandbox.stub();
+
+            await handler.handleMessageWithSender(loginMessage(), sender);
+
+            const sent = sender.getCalls().map(call => call.args[0].type);
+            assert.ok(sent.includes('loginError'), 'the user has to be told the login did not work');
+            assert.ok(!sent.includes('loginSuccess'));
+            assert.strictEqual(await mockContext.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
+                'an unchecked candidate must never be committed');
+        });
+
+        test('in bearer mode the candidate is checked as a bare JWT, not as a cookie string', async () => {
+            // Theia sends `Authorization: Bearer <jwt>`. The server hands back a cookie string, so without
+            // formatting it first the header would read `Bearer jwt=<token>` and nothing would authenticate.
+            mockAuthManager.enableBearerAuth();
+            sandbox.stub(mockApiService, 'authenticate').resolves({ success: true, token: 'jwt=candidate' } as never);
+            const validate = sandbox.stub(mockApiService, 'getCurrentUserWithToken')
+                .resolves({ id: 1, login: 'student' } as never);
+
+            await handler.handleMessageWithSender(loginMessage(), sandbox.stub());
+
+            assert.strictEqual(validate.firstCall.args[0], 'candidate',
+                'the cookie prefix must be stripped before the token reaches a bearer header');
+        });
+
+        test('a failure after the commit is not reported as a failed login', async () => {
+            sandbox.stub(mockApiService, 'authenticate').resolves({ success: true, token: 'jwt=candidate' } as never);
+            sandbox.stub(mockApiService, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
+            (actionHandler.navigateToStartPage as sinon.SinonStub).rejects(new Error('view disposed'));
+            const sender = sandbox.stub();
+
+            await handler.handleMessageWithSender(loginMessage(), sender);
+
+            const sent = sender.getCalls().map(call => call.args[0].type);
+            assert.ok(sent.includes('loginSuccess'));
+            assert.ok(!sent.includes('loginError'),
+                'the credential is stored at this point, so a broken view must not claim the login failed');
+            assert.strictEqual(await mockContext.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=candidate');
+        });
+    });
+
     suite('sender swap mechanism', () => {
         test('uses provided sender during call', async () => {
-            // Inject a test handler that calls sendMessage
             const overrideSender = sandbox.stub();
             const originalSender = sandbox.stub();
             handler.setMessageSender(originalSender);
@@ -114,7 +170,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             // Inject a custom handler that captures which sender was active during the call
             let senderAtCallTime: ((msg: ExtensionToWebviewMessage) => void) | null = null;
             (handler as any).commandHandlers.set('testSenderCapture', async (_msg: WebviewToExtensionMessage) => {
-                // Grab current _sendMessage and call it
                 senderAtCallTime = (handler as any)._sendMessage;
                 (handler as any)._sendMessage({ type: 'sendMessageInit' } as any);
             });
@@ -124,7 +179,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
                 overrideSender
             );
 
-            // The override sender should have been used during the call
             assert.ok(overrideSender.calledOnce, 'Override sender should be called once during handleMessageWithSender');
             assert.ok(!originalSender.called, 'Original sender should not be called during the override');
             assert.strictEqual(senderAtCallTime, overrideSender, 'The active sender during call should be the override sender');
@@ -135,7 +189,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             const overrideSender = sandbox.stub();
             handler.setMessageSender(originalSender);
 
-            // Inject a no-op handler
             (handler as any).commandHandlers.set('noop', async () => { });
 
             await handler.handleMessageWithSender(
@@ -143,7 +196,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
                 overrideSender
             );
 
-            // After the call, _sendMessage should be restored to the original
             assert.strictEqual(
                 (handler as any)._sendMessage,
                 originalSender,
@@ -185,11 +237,9 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             resolveA!();
             await Promise.all([promiseA, promiseB]);
 
-            // A should run fully before B starts (serialized)
             assert.deepStrictEqual(activeSenders, ['A', 'A', 'B'],
                 'Calls should be serialized: A runs to completion, then B');
 
-            // Original sender restored
             assert.strictEqual(
                 (handler as any)._sendMessage,
                 originalSender,
@@ -202,7 +252,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             const overrideSender = sandbox.stub();
             handler.setMessageSender(originalSender);
 
-            // Inject a failing handler
             (handler as any).commandHandlers.set('failCmd', async () => {
                 throw new Error('test error');
             });
@@ -213,7 +262,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
                 overrideSender
             );
 
-            // After the call (error was swallowed by handleMessage), _sendMessage should be restored
             assert.strictEqual(
                 (handler as any)._sendMessage,
                 originalSender,
@@ -248,7 +296,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         });
 
         test('unknown command does not crash — logs warning and returns gracefully', async () => {
-            // This should not throw even though the command does not exist
             let threw = false;
             try {
                 await handler.handleMessageWithSender(
@@ -297,32 +344,24 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         test('registered handlers include representative commands from all 11 modules', () => {
             const registeredHandlers = (handler as any).commandHandlers as Map<string, unknown>;
 
-            // Must have entries
             assert.ok(registeredHandlers.size > 0, 'Command handler map should not be empty');
 
-            // Auth module commands
             assert.ok(registeredHandlers.has('login'), 'Should have "login" handler (AuthCommandModule)');
             assert.ok(registeredHandlers.has('logout'), 'Should have "logout" handler (AuthCommandModule)');
 
-            // Navigation module commands
             assert.ok(registeredHandlers.has('showAllCourses'), 'Should have "showAllCourses" handler (NavigationCommandModule)');
             assert.ok(registeredHandlers.has('viewCourseDetails'), 'Should have "viewCourseDetails" handler (NavigationCommandModule)');
 
-            // Repository module commands
             assert.ok(registeredHandlers.has('cloneRepository'), 'Should have "cloneRepository" handler (RepositoryCloneCommands)');
             assert.ok(registeredHandlers.has('submitExercise'), 'Should have "submitExercise" handler (RepositorySubmitCommands)');
 
-            // Iris module commands
             assert.ok(registeredHandlers.has('askIrisAboutExercise'), 'Should have "askIrisAboutExercise" handler (IrisCommandModule)');
         });
 
         test('context.recheckRepoStatus is wired to the status module and routes setRepositoryContext through it', async () => {
-            // The handler builds the context, constructs the status module, then assigns
-            // context.recheckRepoStatus = () => statusModule.recheckCurrentRepoStatus().
-            // We verify two things in one test:
-            //   1. context.recheckRepoStatus is non-null (callback wired)
-            //   2. Calling it actually reaches the status module (routes via setRepositoryContext)
-
+            // The handler assigns context.recheckRepoStatus = () =>
+            // statusModule.recheckCurrentRepoStatus(). This checks both that the callback
+            // is wired and that calling it reaches the status module.
             const statusModule = (handler as any).repositoryStatusModule;
             assert.ok(statusModule, 'WebViewMessageHandler should expose repositoryStatusModule');
 

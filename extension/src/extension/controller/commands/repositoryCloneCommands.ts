@@ -15,7 +15,7 @@ import {
     cloneRepositoryProgrammatic as defaultCloneRepositoryProgrammatic,
     getTheiaEnvironment as defaultGetTheiaEnvironment,
 } from '@extension/theia';
-import { extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
+import { expandHomePath, extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -31,11 +31,11 @@ const MAX_CLONED_REPO_CACHE_SIZE = 10;
  * Helper functions injected via the constructor so tests can substitute
  * deterministic doubles. The defaults wire up to the production modules.
  *
- * (This injection seam was added because the production helpers are
- * re-exported through `@extension/services/workspace` and `@extension/theia`
- * barrel modules, where the TS-emitted descriptors are non-configurable
- * getters that sinon cannot stub. Direct namespace stubbing fails with
- * "descriptor is not configurable", so we inject the callables instead.)
+ * The seam is required: the production helpers are re-exported through the
+ * `@extension/services/workspace` and `@extension/theia` barrels, whose
+ * TS-emitted descriptors are non-configurable getters. Namespace stubbing
+ * fails there with "descriptor is not configurable", so the callables are
+ * injected instead.
  */
 export interface RepositoryCloneCommandsDeps {
     getWorkspaceRepositoryUrl: typeof defaultGetWorkspaceRepositoryUrl;
@@ -139,7 +139,7 @@ export class RepositoryCloneCommands {
      */
     private async _resolveCloneDestination(exerciseTitle: string): Promise<string | undefined> {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const defaultClonePath = config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim();
+        const defaultClonePath = expandHomePath(config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim());
         const showPrompt = config.get<boolean>(VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY, true);
 
         if (defaultClonePath) {
@@ -181,7 +181,7 @@ export class RepositoryCloneCommands {
             return this._pickFolderOrCancelClone('Select Folder', `Where should "${exerciseTitle}" be cloned?`);
         }
 
-        // ESC / dismissed modal — abort.
+        // ESC or a dismissed modal aborts.
         vscode.window.showInformationMessage('Clone cancelled.');
         return undefined;
     }
@@ -212,8 +212,6 @@ export class RepositoryCloneCommands {
     /**
      * Insert a freshly cloned repository into the per-participation cache,
      * evicting the oldest entry by insertion order when the cap is reached.
-     * (FIFO, not LRU — sufficient for the current "open cloned repo" notice
-     * usage, which doesn't depend on recency-of-access semantics.)
      */
     private _rememberClonedRepo(participationId: number, repoPath: string, title: string): void {
         if (this.clonedRepositoriesByParticipationId.size >= MAX_CLONED_REPO_CACHE_SIZE
@@ -251,10 +249,9 @@ export class RepositoryCloneCommands {
 
             // Run git clone as an awaitable child process (same for Theia and
             // VS Code Desktop). A terminal-based fire-and-forget clone cannot
-            // reliably signal success or failure back to the extension, which
-            // caused the "Open Folder" prompt to appear even when the clone
-            // errored out. Using the programmatic clone, a thrown error lands
-            // in the outer catch and the prompt is only reached on success.
+            // signal success or failure back, so the "Open Folder" prompt would
+            // appear even on a failed clone. Here a thrown error lands in the
+            // outer catch and the prompt is reached only on success.
             await this.deps.cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
 
             this._rememberClonedRepo(participationId, repoPath, exerciseTitle);
@@ -348,18 +345,15 @@ export class RepositoryCloneCommands {
                 vscode.window.showWarningMessage('No repository URL available.');
                 return;
             }
-            // Try to open the repository folder if it's already cloned in the workspace
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (workspaceFolder) {
                 const wsUrl = await this.deps.getWorkspaceRepositoryUrl(workspaceFolder);
                 if (wsUrl && this.deps.normalizeRepositoryUrl(wsUrl) === this.deps.normalizeRepositoryUrl(repositoryUri)) {
-                    // Already in the correct workspace — just reveal the explorer
                     await vscode.commands.executeCommand('workbench.view.explorer');
                     return;
                 }
             }
 
-            // Open the URL externally as a fallback
             await vscode.env.openExternal(vscode.Uri.parse(repositoryUri));
         } catch (error: unknown) {
             logger.error('Open repository error:', LogCategory.SUBMISSION, error);

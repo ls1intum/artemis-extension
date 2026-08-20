@@ -1,10 +1,17 @@
 import * as vscode from 'vscode';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
+import {
+    maybeOpenGetStartedWalkthrough,
+    type StartupAuthState,
+    WALKTHROUGH_SHOWN_KEY,
+} from '@extension/activation/onboarding';
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
-import { AuthManager } from '@extension/services/auth';
+import { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
+import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
+import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -61,7 +68,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// ── Phase A2: synchronous service construction & provider registration ──
 	// All service constructors below are synchronous. Registering the webview
 	// providers before yielding back to the event loop ensures that any
-	// view-resolution attempt — including Theia's layout-restore — finds a
+	// view-resolution attempt (including Theia's layout-restore) finds a
 	// registered provider with the correct environment already in place.
 	const artemisApiService = new ArtemisApiService(authManager);
 
@@ -134,7 +141,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// than `sessionIdentity.epoch`: every call site captures its epoch from the
 	// catalog, and the coordinator can bump its own generation before `attach`
 	// installs the first one here, which would make every recency write look
-	// stale. One source, shared with the catalog writes these calls sit next to.
+	// stale.
 	const courseAccessStorage = new CourseAccessStorageService(
 		context.globalState,
 		() => sessionIdentity.accessScope(),
@@ -144,17 +151,21 @@ export async function activate(context: vscode.ExtensionContext) {
 	const providerRegistry = createProviderRegistry();
 
 	context.subscriptions.push(courseCatalog.onCoursesLoaded(() => {
-		// The registry is an INDEX over the catalog now. Rebuilding rather than
-		// adding is what makes a deleted exercise stop answering repository
-		// matches; `registerFromCourseData` could only ever grow it.
+		// The registry is an INDEX over the catalog. Rebuilding rather than adding
+		// is what makes a deleted exercise stop answering repository matches.
 		exerciseRegistry.replaceAll(toRegistryEntries(courseCatalog.projection()));
 	}));
+
+	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
+	const authCancellation = new AuthCancellationService(oidcLoginService);
 
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
 		authManager,
 		artemisApi: artemisApiService,
+		oidcLoginService,
+		authCancellation,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
@@ -167,9 +178,18 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	// `iris.contextStore` is gone. Removing the key stops a deleted feature's
-	// data, an unbounded, unscoped list of every course and exercise this
-	// installation ever saw, sitting in globalState forever.
+	const oidcCallback = createOidcLoginCallback({
+		oidcLoginService,
+		updateAuthContext,
+		postMessage: message => artemisWebviewProvider.postMessage(message),
+		navigateToStartPage: user => artemisWebviewProvider.navigateToStartPage(user),
+	});
+	const uriHandler = new ArtemisUriHandler(oidcCallback.onCode, oidcCallback.onError);
+
+	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
+
+	// Drop the `iris.contextStore` key: an unbounded, unscoped list of every
+	// course and exercise this installation ever saw, orphaned in globalState.
 	void context.globalState.update('iris.contextStore', undefined);
 
 	const workspaceTracker = new WorkspaceExerciseTracker();
@@ -217,11 +237,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerAllCommands({
 		context, authManager, artemisApiService, artemisWebsocketService,
 		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		updateAuthContext,
+		updateAuthContext, authCancellation,
 	}));
 
-	// Kept as a defensive safety net for any future when-clause gating.
-	// The login view itself no longer depends on this context key.
+	// Defensive safety net for future when-clause gating; no view reads this key.
 	void vscode.commands.executeCommand('setContext', 'iris:extensionReady', true);
 
 	// ── Phase B: async initialization (UI already responsive) ────────
@@ -259,9 +278,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	// the Iris chat alone never resolves it.
 	void sessionIdentity.resolvePrincipal();
 
-	// Initial auth state — checks both memory (Theia) and SecretStorage (VS Code)
+	// Initial auth state: checks both memory (Theia) and SecretStorage (VS Code).
+	let startupAuthState: StartupAuthState = 'unknown';
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
+		startupAuthState = isAuthenticated ? 'has-credentials' : 'no-credentials';
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
@@ -274,6 +295,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
 		websocketStatusBarService.setAuthenticated(false);
 	}
+
+	// Runs here and not earlier: the decision reads the credential state, and above is
+	// the first point where that state has actually settled.
+	void maybeOpenGetStartedWalkthrough({
+		authState: startupAuthState,
+		contributedWalkthroughs: (context.extension.packageJSON as { contributes?: { walkthroughs?: unknown } })
+			.contributes?.walkthroughs,
+		extensionId: context.extension.id,
+		isTheia: theiaEnv.isTheia,
+		wasShown: () => context.globalState.get<boolean>(WALKTHROUGH_SHOWN_KEY, false),
+		markShown: () => context.globalState.update(WALKTHROUGH_SHOWN_KEY, true),
+		openWalkthrough: walkthroughId =>
+			vscode.commands.executeCommand('workbench.action.openWalkthrough', walkthroughId),
+	}).catch(error => {
+		logger.error('Failed to open the Get Started walkthrough', LogCategory.GENERAL, error);
+	});
 
 	// Data collection (consent + recorder + recording commands). Noop for both shipped
 	// variants (Desktop full + Open VSX) via the @dataCollection alias swap; real only
@@ -303,21 +340,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		// On Desktop the server URL is freely configurable. When it actually changes
 		// while the user is logged in, clear the stored credentials and return to the
 		// login view: a token issued by the previous server is not valid on a different
-		// one. The last URL is tracked so a no-op settings save does not log the user out.
-		let lastServerUrl = resolveServerUrl();
+		// one. Server identity is compared by normalized key (protocol, host, non-default
+		// port, path), so trailing slashes and default ports do not trigger a logout.
+		let lastServerKey = normalizeServerUrl(resolveServerUrl()) ?? resolveServerUrl();
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
 			if (!event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
 				return;
 			}
 			const newServerUrl = resolveServerUrl();
-			if (newServerUrl === lastServerUrl) {
+			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
+			if (serverKey === lastServerKey) {
 				return;
 			}
-			lastServerUrl = newServerUrl;
-			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
-			// Before the credential check on purpose. The old code only acted when
-			// a token existed, so changing the server while logged out left every
-			// in-memory component holding the previous server's courses.
+			lastServerKey = serverKey;
+			// Before the credential check on purpose: a server change while logged
+			// out must still drop the previous server's courses from every
+			// in-memory component.
 			//
 			// Deliberately NOT `resolvePrincipal()`: the stored token is global
 			// rather than per server, so a lookup started here would read the OLD
@@ -325,18 +363,46 @@ export async function activate(context: vscode.ExtensionContext) {
 			// change never intends to preserve authentication, so it publishes
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
+			let revision: number | undefined;
 			try {
-				if (!(await authManager.hasAuthToken())) {
+				revision = authManager.currentCredentialRevision();
+
+				// Before the early return below: a pending attempt belongs to the previous server, and an
+				// unauthenticated user can have one just as easily as an authenticated one.
+				await authCancellation.cancelAll();
+
+				// A queued read, so it cannot catch a commit halfway through and mistake a transaction's
+				// temporary delete for "there is no credential".
+				const { headers } = await authManager.getAuthContext();
+				if (Object.keys(headers).length === 0) {
 					sessionIdentity.setAnonymous(serverKey);
 					return;
 				}
+
 				logger.info('Artemis server URL changed; clearing credentials stored for the previous server', LogCategory.CONFIG);
-				await authManager.clear();
+				const cleared = await authManager.clearIfUnchanged(revision);
+				if (!cleared) {
+					// A login for the new server committed while this was running. Its credential survives,
+					// so tearing down its UI here would leave the user signed in behind a login form.
+					// Session identity is left untouched for the same reason: that login's own
+					// `updateAuthContext(true)` already resolves the principal (or is in the middle of
+					// doing so), and calling `setAnonymous` here would either overwrite the result it just
+					// produced or bump `_attempt` and make it discard its own answer when it lands.
+					logger.info('Server change superseded by a newer sign-in', LogCategory.CONFIG);
+					return;
+				}
 				await updateAuthContext(false);
 				artemisWebviewProvider.showLogin();
 				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');
 			} catch (error) {
 				logger.error('Failed to clear credentials after server URL change', LogCategory.AUTH, error);
+				// If a newer credential has landed since this listener started, don't interfere:
+				// that login's own `updateAuthContext(true)` already handles principal resolution,
+				// and calling `setAnonymous` here would either overwrite it or bump the attempt counter.
+				if (revision !== undefined && authManager.currentCredentialRevision() !== revision) {
+					logger.info('Server change superseded by a newer sign-in', LogCategory.CONFIG);
+					return;
+				}
 				// `anonymous`, not the `resolving` this catch would otherwise
 				// leave behind. `resolvePrincipal` may stay `resolving` on a
 				// failed token read because a later login retries it; nothing

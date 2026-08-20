@@ -40,39 +40,26 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
         this._trackedDiagnostics.clear();
     }
 
-    /**
-     * Generate a unique ID for a diagnostic based on file, line, and code
-     */
     private _generateDiagnosticId(uri: vscode.Uri, diagnostic: vscode.Diagnostic): string {
         const data = `${uri.toString()}:${diagnostic.range.start.line}:${diagnostic.code ?? 'unknown'}`;
         return crypto.createHash('md5').update(data).digest('hex').substring(0, 16);
     }
 
-    /**
-     * Start listening to diagnostic changes
-     */
     private _startTracking(): void {
         const diagnosticListener = vscode.languages.onDidChangeDiagnostics(event => {
             this._handleDiagnosticChange(event);
         });
         this._disposables.push(diagnosticListener);
 
-        // Process existing diagnostics on startup
         this._processAllWorkspaceDiagnostics();
     }
 
-    /**
-     * Start periodic cleanup of resolved diagnostics
-     */
     private _startCleanupTimer(): void {
         this._cleanupTimer = setInterval(() => {
             this._cleanupResolvedDiagnostics();
         }, DiagnosticPersistenceService.CLEANUP_INTERVAL_MS);
     }
 
-    /**
-     * Process all diagnostics in the workspace
-     */
     private _processAllWorkspaceDiagnostics(): void {
         const allDiagnostics = vscode.languages.getDiagnostics();
         for (const [uri, diagnostics] of allDiagnostics) {
@@ -80,30 +67,22 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
         }
     }
 
-    /**
-     * Handle diagnostic change events
-     */
     private _handleDiagnosticChange(event: vscode.DiagnosticChangeEvent): void {
         for (const uri of event.uris) {
             const diagnostics = vscode.languages.getDiagnostics(uri);
             this._updateDiagnosticsForUri(uri, diagnostics);
         }
 
-        // Mark diagnostics that no longer exist as resolved
         this._markMissingDiagnosticsResolved(event.uris);
 
         this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
     }
 
-    /**
-     * Update tracked diagnostics for a specific URI
-     */
     private _updateDiagnosticsForUri(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void {
         const now = Date.now();
         const currentIds = new Set<string>();
 
         for (const diagnostic of diagnostics) {
-            // Only track errors and warnings
             if (diagnostic.severity > vscode.DiagnosticSeverity.Warning) {
                 continue;
             }
@@ -113,12 +92,10 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
 
             const existing = this._trackedDiagnostics.get(id);
             if (existing) {
-                // Update existing diagnostic
                 existing.lastSeen = now;
                 existing.occurrences++;
                 existing.resolved = false;
             } else {
-                // Track new diagnostic
                 const tracked: TrackedDiagnostic = {
                     id,
                     uri: uri.toString(),
@@ -140,7 +117,6 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
             }
         }
 
-        // Mark diagnostics from this URI that are no longer present as resolved
         for (const [id, tracked] of this._trackedDiagnostics) {
             if (tracked.uri === uri.toString() && !currentIds.has(id) && !tracked.resolved) {
                 tracked.resolved = true;
@@ -148,15 +124,11 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
         }
     }
 
-    /**
-     * Mark diagnostics that are no longer present as resolved
-     */
     private _markMissingDiagnosticsResolved(changedUris: readonly vscode.Uri[]): void {
         const changedUriStrings = new Set(changedUris.map(u => u.toString()));
 
         for (const [id, tracked] of this._trackedDiagnostics) {
             if (changedUriStrings.has(tracked.uri) && !tracked.resolved) {
-                // Check if this diagnostic still exists
                 const uri = vscode.Uri.parse(tracked.uri);
                 const currentDiagnostics = vscode.languages.getDiagnostics(uri);
                 const stillExists = currentDiagnostics.some(d =>
@@ -170,9 +142,6 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
         }
     }
 
-    /**
-     * Cleanup resolved diagnostics after delay
-     */
     private _cleanupResolvedDiagnostics(): void {
         const now = Date.now();
         const toRemove: string[] = [];
@@ -189,36 +158,26 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
     }
 
     /**
-     * SessionResettable — drop pre-session workspace diagnostics and re-read
-     * the current workspace snapshot.
+     * Drops pre-session workspace diagnostics and re-reads the current
+     * snapshot. On the first session of an extension lifetime the map still
+     * holds diagnostics the constructor collected at activation; those stale
+     * entries can auto-resolve mid-session and trigger a false recordProgress()
+     * via TelemetryManager's all-errors-resolved handler.
      *
-     * Why: when the very first session of the extension lifetime starts,
-     * endExerciseSession() was never called, so the map still contains
-     * diagnostics that the constructor collected at extension activation.
-     * Those stale entries can auto-resolve mid-session and trigger a false
-     * recordProgress() via TelemetryManager's all-errors-resolved handler.
-     *
-     * We intentionally do NOT fire onDidUpdateDiagnostics here — firing a
-     * fresh empty/clean snapshot would itself trigger the same false-progress
-     * path. Consumers observe the updated state on the next real diagnostic
-     * change event.
+     * Deliberately does NOT fire onDidUpdateDiagnostics: a fresh clean snapshot
+     * would trigger that same false-progress path. Consumers observe the new
+     * state on the next real diagnostic change event.
      */
     public onSessionStart(_context: SessionStartContext): void {
         this._trackedDiagnostics.clear();
         this._processAllWorkspaceDiagnostics();
     }
 
-    /**
-     * SessionResettable — clear stale diagnostics when the exercise session ends.
-     */
     public onSessionEnd(): void {
         this.reset();
     }
 
-    /**
-     * Reset tracked diagnostics for a new exercise session.
-     * Clears all state so stale diagnostics from the previous exercise don't leak.
-     */
+    /** Clears all state so diagnostics from the previous exercise do not leak. */
     public reset(): void {
         this._trackedDiagnostics.clear();
         this._onDidUpdateDiagnostics.fire([]);

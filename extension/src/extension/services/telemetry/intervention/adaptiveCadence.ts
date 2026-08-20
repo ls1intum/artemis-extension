@@ -8,7 +8,7 @@ import {
 } from '@extension/services/telemetry/types';
 
 /**
- * Adaptive Cadence — manages escalating thresholds for idle/selection triggers.
+ * Adaptive Cadence: escalating thresholds for idle/selection triggers.
  *
  * Paper reference: Pu et al. (2025). "Assistance or Disruption?" CHI '25. [P11, Section 4]
  *   - Idle: 30s initial, +30s per ignore, cap at 180s
@@ -50,32 +50,23 @@ export class AdaptiveCadence implements SessionResettable {
         return Math.min(threshold, this._config.SELECTION_MAX_THRESHOLD_MS);
     }
 
-    /**
-     * Increment ignore count for a trigger type (user dismissed/ignored intervention).
-     */
+    /** Counts one dismissed or ignored intervention for a trigger type. */
     public incrementIgnoreCount(type: TriggerType): void {
         this._state.ignoreCounts[type]++;
     }
 
-    /**
-     * Reset all ignore counts (e.g., user accepted help).
-     */
+    /** Resets all ignore counts, e.g. after the user accepted help. */
     public resetAll(): void {
         for (const key of Object.keys(this._state.ignoreCounts) as TriggerType[]) {
             this._state.ignoreCounts[key] = 0;
         }
     }
 
-    /**
-     * SessionResettable — reset all cadence state when a new exercise session starts.
-     */
     public onSessionStart(_context: SessionStartContext): void {
         this.resetAll();
     }
 
-    /**
-     * Get current adaptive state for debugging.
-     */
+    /** Current adaptive state, for debugging. */
     public getState(): AdaptiveState {
         return { ignoreCounts: { ...this._state.ignoreCounts } };
     }

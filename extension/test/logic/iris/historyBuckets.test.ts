@@ -12,9 +12,8 @@ describe('bucketHistoryByTime', () => {
     it('has five buckets, in order, regardless of input order', () => {
         const now = Date.parse('2026-07-29T12:00:00+02:00');
         // Deliberately not in bucket order, and each timestamp is an explicit
-        // calendar date/time literal rather than `now - N * DAY_MS`, so this
-        // fixture doesn't quietly lean on the fixed-24h-span assumption the
-        // fix removes from the source.
+        // calendar date/time literal rather than `now - N * DAY_MS`, so the
+        // fixture does not lean on a fixed 24h day span.
         const entries = [
             entry(Date.parse('2026-07-10T09:00:00+02:00'), 4), // last30
             entry(Date.parse('2026-07-29T09:30:00+02:00'), 1), // today
@@ -45,8 +44,8 @@ describe('bucketHistoryByTime', () => {
     });
 
     it('places an entry one millisecond before the last7 lower boundary in last30', () => {
-        // Under the old bucket taxonomy (no last30) this landed in older;
-        // last30 now sits between last7 and older, so it belongs here instead.
+        // last30 sits between last7 and older, so an entry just past the last7
+        // lower boundary belongs there rather than in older.
         const now = Date.parse('2026-07-29T12:00:00+02:00');
         const startOfLast7 = Date.parse('2026-07-22T00:00:00+02:00');
         expect(bucketOf(startOfLast7 - 1, now)).toBe('last30');
@@ -70,10 +69,10 @@ describe('bucketHistoryByTime', () => {
     it('is correct across a spring-forward DST boundary', () => {
         // 2026-03-29 is a 23-hour day in Europe/Berlin (clocks jump 02:00 CET
         // -> 03:00 CEST). Subtracting a fixed 24 * 60 * 60 * 1000 from local
-        // midnight of the 30th lands the "yesterday" boundary an hour EARLIER
-        // than true local midnight of the 29th, so this entry (23:30 CET on
-        // the 28th, 30 minutes before the true boundary) was wrongly pulled
-        // into "yesterday" instead of "last7".
+        // midnight of the 30th would put the "yesterday" boundary an hour
+        // EARLIER than true local midnight of the 29th, pulling this entry
+        // (23:30 CET on the 28th, 30 minutes before the true boundary) into
+        // "yesterday" instead of "last7".
         const now = Date.parse('2026-03-30T12:00:00+02:00');
         expect(bucketOf(Date.parse('2026-03-28T23:30:00+01:00'), now)).toBe('last7');
     });
@@ -81,10 +80,10 @@ describe('bucketHistoryByTime', () => {
     it('is correct across a fall-back DST boundary', () => {
         // 2026-10-25 is a 25-hour day (clocks fall back 03:00 CEST -> 02:00
         // CET). Subtracting a fixed 24 * 60 * 60 * 1000 from local midnight of
-        // the 26th lands the "yesterday" boundary an hour LATER than true
-        // local midnight of the 25th, so this entry (00:30 CEST on the 25th,
-        // 30 minutes after the true boundary) was wrongly pushed out to
-        // "last7" instead of "yesterday".
+        // the 26th would put the "yesterday" boundary an hour LATER than true
+        // local midnight of the 25th, pushing this entry (00:30 CEST on the
+        // 25th, 30 minutes after the true boundary) out to "last7" instead of
+        // "yesterday".
         const now = Date.parse('2026-10-26T12:00:00+01:00');
         expect(bucketOf(Date.parse('2026-10-25T00:30:00+02:00'), now)).toBe('yesterday');
     });

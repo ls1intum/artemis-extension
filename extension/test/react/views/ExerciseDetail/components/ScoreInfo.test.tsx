@@ -28,7 +28,7 @@ describe('ScoreInfo', () => {
 
 	it('renders perfect score (100%)', () => {
 		render(<ScoreInfo score={100} maxScore={100} />);
-		// Both score value and max score are "100" — use getAllByText
+		// Both the score and the max score render as "100", so use getAllByText.
 		const hundredElements = screen.getAllByText('100');
 		expect(hundredElements).toHaveLength(2);
 		expect(screen.getByText('(100.0%)')).toBeInTheDocument();

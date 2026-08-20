@@ -4,10 +4,7 @@ export interface CourseDetailViewProps {
     vscodeApi: VsCodeApi;
 }
 
-/**
- * Persisted state for CourseDetail view.
- * This state is preserved across tab cycles.
- */
+/** CourseDetail state that survives tab cycles. */
 export interface CourseDetailPersistedState {
     exerciseSearchTerm?: string;
     exerciseSortBy?: string;

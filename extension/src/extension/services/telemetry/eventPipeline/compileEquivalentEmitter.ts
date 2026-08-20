@@ -51,22 +51,18 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         this._onDidEmitCompileEquivalent.dispose();
     }
 
-    /**
-     * Handle a save event — delays 500ms for LS to update diagnostics,
-     * then creates an ErrorSnapshot from current diagnostics.
-     */
+    /** Snapshots diagnostics after the LS settle delay. */
     public handleSaveEvent(doc: vscode.TextDocument): void {
-        // Only handle recordable documents (file: scheme, not git/output/etc.)
+        // Recordable documents only (file: scheme, not git/output/etc.).
         if (!shouldRecordUri(doc.uri)) {
             return;
         }
 
-        // Clear any pending save timeout (coalesce rapid saves)
+        // Coalesce rapid saves.
         if (this._saveTimeout) {
             clearTimeout(this._saveTimeout);
         }
 
-        // 500ms delay for Language Server to process [Engineering choice]
         this._saveTimeout = setTimeout(() => {
             this._saveTimeout = undefined;
             const snapshot = this.createErrorSnapshotFromDiagnostics();
@@ -81,10 +77,7 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         }, CompileEquivalentEmitter.LS_SETTLE_DELAY_MS);
     }
 
-    /**
-     * Handle a build result from Artemis WebSocket. Fires onDidEmitCompileEquivalent
-     * when the snapshot is novel; subscribers are the sole consumers.
-     */
+    /** Fires only when the resulting snapshot is novel (not deduped). */
     public handleBuildResult(result: ResultDTO): void {
         const snapshot = this.createErrorSnapshotFromBuildResult(result);
         if (!this._shouldAddSnapshot(snapshot)) {
@@ -99,24 +92,16 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         });
     }
 
-    /**
-     * Set exercise root for diagnostic scoping.
-     */
+    /** Scopes diagnostic collection to this root. */
     public setExerciseRoot(uri: vscode.Uri | undefined): void {
         this._exerciseRoot = uri;
     }
 
-    /**
-     * SessionResettable — resets state and updates exercise root.
-     */
     public onSessionStart(context: SessionStartContext): void {
         this.reset();
         this.setExerciseRoot(context.exerciseRoot);
     }
 
-    /**
-     * Reset state for exercise switch.
-     */
     public reset(): void {
         this._lastSnapshot = undefined;
         if (this._saveTimeout) {
@@ -126,8 +111,7 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
     }
 
     /**
-     * Create an ErrorSnapshot from current VS Code diagnostics.
-     * Filters to exercise files, severity=Error, and excludes lint sources.
+     * Counts only exercise files, severity=Error, and non-lint sources.
      */
     public createErrorSnapshotFromDiagnostics(): ErrorSnapshot {
         const allDiagnostics = vscode.languages.getDiagnostics();
@@ -135,7 +119,6 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         let errorCount = 0;
 
         for (const [uri, diagnostics] of allDiagnostics) {
-            // Exercise scoping: only include URIs that pass the central filter.
             if (!shouldRecordUri(uri, this._exerciseRoot)) {
                 continue;
             }
@@ -166,10 +149,9 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         const classification = classifyBuildResult(result);
 
         if (classification === 'compiler-error') {
-            // Build failed → treat as having errors. Families come from the shared
-            // builder so the live EQ matches the recorded/replayed families.
+            // Families come from the shared builder so the live EQ matches the
+            // recorded/replayed families.
             const errorFamilies = new Set<string>(buildErrorFamiliesFromFeedbacks(result.feedbacks));
-            // At minimum, mark as having a build error
             if (errorFamilies.size === 0) {
                 errorFamilies.add('build:compiler-error');
             }
@@ -191,9 +173,7 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         };
     }
 
-    /**
-     * Check dedup: skip if within window AND same error families.
-     */
+    /** Skips a snapshot inside the dedup window with the same error families. */
     private _shouldAddSnapshot(newSnapshot: ErrorSnapshot): boolean {
         if (!this._lastSnapshot) {
             return true;
@@ -202,41 +182,26 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
     }
 }
 
-// ============================================================================
-// Constants
-// ============================================================================
-
 /** Character threshold above which a replaced range is likely formatter/refactoring, not paste */
 const FORMATTER_CHAR_THRESHOLD = 1000;
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Classify a build result as compiler-error, test-failure, or success.
- * Uses ResultDTO fields from src/types/artemis.ts.
- */
 export function classifyBuildResult(result: ResultDTO): BuildResultClassification {
-    // 1. Compiler-error: build failed completely
     if (result.submission?.buildFailed === true) {
         return 'compiler-error';
     }
 
-    // 2. Test-failure: build compiled but tests failed
     if (result.testCaseCount !== undefined && result.passedTestCaseCount !== undefined) {
         if (result.passedTestCaseCount < result.testCaseCount) {
             return 'test-failure';
         }
     }
 
-    // 3. Fallback: if server reports failure but buildFailed/testCases are missing,
-    //    treat as test-failure to avoid silent false-success classification
+    // Server reports failure but buildFailed/testCases are missing: treat as
+    // test-failure to avoid a silent false-success classification.
     if (result.successful === false) {
         return 'test-failure';
     }
 
-    // 4. Success
     return 'success';
 }
 
@@ -263,9 +228,7 @@ function getErrorFamily(d: vscode.Diagnostic): string {
 
 /**
  * Detect if a text change is likely a manual paste (not formatter/copilot/snippet).
- * [Engineering heuristic — not paper-validated]
- *
- * From MVP Edge Case 3 (lines 739-758).
+ * [Engineering heuristic, not paper-validated]
  */
 export function isLikelyManualPaste(
     change: vscode.TextDocumentContentChangeEvent,

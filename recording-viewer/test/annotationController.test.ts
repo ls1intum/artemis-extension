@@ -181,12 +181,10 @@ describe('temp-id race (codex r2 critical)', () => {
         // Enqueue undo BEFORE resolving the POST.
         h.ctrl.undoLast();
 
-        // Resolve add POST with real id.
         h.pending[0].resolve(jsonResponse({ annotation: annot('real-A', { timestamp: 1_300 }) }));
 
-        // Let the chain advance: post-add map happens, then undo body runs and
-        // captures the now-real `last`.
-        // Wait for the DELETE request to be issued.
+        // Let the chain advance: the post-add map happens, then the undo body
+        // runs and captures the now-real `last`, which issues the DELETE.
         for (let i = 0; i < 20 && h.pending.length < 2; i++) {
             await new Promise(r => setTimeout(r, 0));
         }
@@ -209,7 +207,7 @@ describe('undoLast', () => {
     it('removes last annotation and pushes to redo on success', async () => {
         h.ctrl.undoLast();
         await Promise.resolve(); await Promise.resolve();
-        // Optimistic remove already applied.
+        // The remove is optimistic: it lands before the DELETE resolves below.
         expect(h.annotations.map(a => a.id)).toEqual(['a1', 'a2']);
         expect(h.pending[0].url).toBe('/api/recordings/sess-1/annotations/a3');
         expect(h.pending[0].init?.method).toBe('DELETE');
@@ -246,13 +244,11 @@ describe('failed-undo-then-redo (codex r2 critical)', () => {
         // Enqueue redo before undo fails.
         h.ctrl.redoLast();
         await Promise.resolve(); await Promise.resolve();
-        // Fail the undo's DELETE.
         h.pending[0].resolve(new Response('boom', { status: 500 }));
-        // Drain.
         await h.ctrl.drain();
         // Undo restored a2; redo body found stack empty and was a no-op.
         expect(h.annotations.map(a => a.id)).toEqual(['a1', 'a2']);
-        // Only the failed DELETE — no extra POST from redo.
+        // Only the failed DELETE; redo issued no POST of its own.
         expect(h.pending).toHaveLength(1);
         expect(h.onError).toHaveBeenCalledTimes(1);
         expect(h.onError).toHaveBeenCalledWith('Failed to undo marker');
@@ -306,14 +302,12 @@ describe('redo invalidation on intent', () => {
         await h.ctrl.drain();
         expect(h.ctrl.hasRedo()).toBe(true);
 
-        // New add: this should clear redo BEFORE POST.
         h.ctrl.addLabel('blocked', 5_000);
         await Promise.resolve(); await Promise.resolve();
         expect(h.ctrl.hasRedo()).toBe(false); // cleared at queue body entry
         h.pending[1].resolve(jsonResponse({ annotation: annot('new-1') }));
         await h.ctrl.drain();
 
-        // Subsequent redo is a no-op.
         h.ctrl.redoLast();
         await h.ctrl.drain();
         expect(h.pending).toHaveLength(2);
@@ -329,16 +323,13 @@ describe('reset and generation counter', () => {
     });
 
     it('reset mid-flight (queued not started): later queued add does no UI work', async () => {
-        // Send two adds back-to-back. The first one is currently running its body.
         h.ctrl.addLabel('confident', 100);
         h.ctrl.addLabel('blocked', 200);
-        // Reset before the first one even gets to its optimistic insert? Not
-        // quite: enqueue schedules the body via Promise.then, which fires in
-        // the next microtask. Reset NOW bumps gen — both queued bodies will
-        // see stale gen and bail.
+        // enqueue schedules the body via Promise.then, so neither has run yet.
+        // Resetting here bumps gen, so both queued bodies see a stale gen and
+        // bail.
         h.ctrl.reset([annot('seed-1')]);
 
-        // Drain.
         await h.ctrl.drain();
         // The seeded state is intact; no POST was issued because the queue
         // bodies bailed at the gen check (before doing optimistic inserts or
@@ -377,8 +368,7 @@ describe('serialization', () => {
         h.ctrl.undoLast();
         h.ctrl.undoLast();
 
-        // Process: drain by resolving each pending request in order.
-        // Wait for first POST.
+        // Resolve each pending request in the order the queue issues them.
         for (let i = 0; i < 20 && h.pending.length < 1; i++) await new Promise(r => setTimeout(r, 0));
         h.pending[0].resolve(jsonResponse({ annotation: annot('real-1', { label: 'confident', timestamp: 100 }) }));
         for (let i = 0; i < 20 && h.pending.length < 2; i++) await new Promise(r => setTimeout(r, 0));

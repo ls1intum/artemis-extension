@@ -17,10 +17,9 @@ const swapMessage = (id: number, attributes: unknown) =>
     ({ id, sender: 'CTXSWAP', content: [{ type: 'json', attributes }] });
 
 /**
- * Installs through the SAME entry point the service uses. An earlier draft did
- * beginNavigation + installDetail here, which is exactly the sequence
- * installAcquired exists to replace, so the helper proved nothing about the
- * production path.
+ * Installs through the SAME entry point the service uses. A
+ * `beginNavigation` + `installDetail` pair would bypass `installAcquired` and
+ * prove nothing about the production path.
  */
 const install = (state: ConversationState, d: SessionDetail) =>
     state.installAcquired(d, state.beginLoad());
@@ -258,7 +257,7 @@ describe('ConversationState pending', () => {
 /**
  * The topic a stored row claims for a session, read the way production reads
  * it: the presenter merges both collections into the history. There is no
- * lookup by context any more, so the index is asserted where it is consumed.
+ * lookup by context, so the index is asserted where it is consumed.
  */
 const storedContext = (state: ConversationState, sessionId: number) =>
     [...state.snapshot().courseSessions, ...state.snapshot().knownInvisible]
@@ -313,13 +312,13 @@ describe('ConversationState knownInvisible', () => {
     });
 
     it('keeps a message that arrived DURING a load (monotonic union)', () => {
-        // Cut 6: the union never removes. Message 12 arrived while the GET was
-        // in flight and must survive it, which is the loss the merge exists to
-        // prevent. Message 10 predates the load and is absent from the response;
-        // under the union it survives too. That is the accepted conservative
-        // error: a server-deleted message can make an empty conversation look
-        // non-empty, so we create a duplicate rather than rehome. Never the
-        // reverse. PR 2 owns deletion semantics.
+        // The union never removes. Message 12 arrived while the GET was in
+        // flight and must survive it, which is the loss the merge exists to
+        // prevent. Message 10 predates the load and is absent from the
+        // response; under the union it survives too. That is the accepted
+        // conservative error: a server-deleted message can make an empty
+        // conversation look non-empty, so we create a duplicate rather than
+        // rehome, never the reverse.
         install(state, detail({ sessionId: 1, messages: [{ id: 10, sender: 'LLM' }] }));
         const g = state.beginLoad();
         state.upsertMessage({ id: 12, sender: 'LLM' });
@@ -374,11 +373,10 @@ describe('ConversationState knownInvisible', () => {
     });
 
     it('an overview response cannot contradict the OPEN conversation', () => {
-        // Cut 7 replaces the general request-scoped overlay with one narrow
-        // rule: the current conversation's row is derived from the loaded
-        // detail, in the canonical collection the history reads. A late overview
-        // may still be stale about other conversations; it may never be stale
-        // about the one on screen.
+        // One narrow rule: the current conversation's row is derived from the
+        // loaded detail, in the canonical collection the history reads. A late
+        // overview may still be stale about other conversations; it may never
+        // be stale about the one on screen.
         install(state, detail({ sessionId: 9, context: EX7 }));
         state.setOverview([{ sessionId: 9, courseId: 42, context: EX5, lastActivity: 100 }]);
         expect(storedContext(state, 9)).toEqual(EX7);

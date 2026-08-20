@@ -10,10 +10,10 @@ import { isLikelyManualPaste } from './compileEquivalentEmitter';
  * Emits boundary trigger events based on Pu et al. 2025 [P11, Section 4].
  *
  * Triggers:
- *   1. Execution Error — 0% disruption rate, 66.7% effective [P11, Fig. 4]
- *   2. Multi-line Paste — 73.1% effective (highest!) [P11, Fig. 4]
- *   3. Idle — 30s adaptive threshold, one-shot state machine [P11, Section 4]
- *   4. Selection Maintained — 15s adaptive threshold [P11, Section 4]
+ *   1. Execution Error: 0% disruption rate, 66.7% effective [P11, Fig. 4]
+ *   2. Multi-line Paste: 73.1% effective (highest) [P11, Fig. 4]
+ *   3. Idle: 30s adaptive threshold, one-shot state machine [P11, Section 4]
+ *   4. Selection Maintained: 15s adaptive threshold [P11, Section 4]
  *
  * Idle trigger uses a one-shot state machine (paper model: "User has been idle" → intervene once):
  *   [Activity] → _armIdleTimer(threshold)
@@ -51,10 +51,8 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
         this._adaptiveCadence = adaptiveCadence;
         this._config = config;
 
-        // Arm the idle timer initially
         this._armIdleTimer();
 
-        // Re-arm when user resumes activity after being idle
         const resumeListener = this._inactivityService.onDidResumeActivity(() => {
             this._armIdleTimer();
         });
@@ -76,10 +74,7 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
         this._onDidFireTrigger.dispose();
     }
 
-    /**
-     * Fire an execution-error trigger (called after a failed build).
-     * Has cooldown check (60s between triggers of same type).
-     */
+    /** Called after a failed build. Subject to the per-type cooldown. */
     public fireExecutionErrorTrigger(): void {
         if (!this._checkCooldown('execution-error')) {
             return;
@@ -88,9 +83,7 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
         this._onDidFireTrigger.fire('execution-error');
     }
 
-    /**
-     * Handle text document change — check for multi-line paste.
-     */
+    /** Checks a document change for a multi-line paste. */
     public handleTextDocumentChange(event: vscode.TextDocumentChangeEvent): void {
         if (event.document.uri.scheme !== 'file') {
             return;
@@ -109,15 +102,14 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
     }
 
     /**
-     * Handle selection change — start a timer to fire selection-maintained trigger.
-     * Paper (P11): "If insignificant selection, no response." — only range selections
-     * start the timer; empty cursor clicks cancel any running timer.
+     * Starts the timer that fires the selection-maintained trigger.
+     * Paper (P11): "If insignificant selection, no response." Only range
+     * selections start the timer; empty cursor clicks cancel a running one.
      */
     public handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
         const hasNonEmptySelection = event.selections.some(s => !s.isEmpty);
 
         if (!hasNonEmptySelection) {
-            // Empty selection (cursor click) — cancel any running timer
             if (this._selectionTimer) {
                 clearTimeout(this._selectionTimer);
                 this._selectionTimer = undefined;
@@ -125,7 +117,6 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
             return;
         }
 
-        // Non-empty (range) selection — restart timer
         if (this._selectionTimer) {
             clearTimeout(this._selectionTimer);
         }
@@ -142,16 +133,11 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
         }, threshold);
     }
 
-    /**
-     * SessionResettable — delegates to existing reset().
-     */
     public onSessionStart(_context: SessionStartContext): void {
         this.reset();
     }
 
-    /**
-     * Full reset for exercise switch.
-     */
+    /** Full reset for an exercise switch. */
     public reset(): void {
         if (this._idleTimer) {
             clearTimeout(this._idleTimer);
@@ -168,19 +154,16 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
             'selection-maintained': 0,
         };
 
-        // Re-arm idle timer for the new exercise
         this._armIdleTimer();
     }
 
     /**
-     * Arm the one-shot idle timer.
-     * Accounts for time already spent idle (e.g., when re-arming after resume).
-     * On fire: verifies user is actually still idle. If activity happened in between,
-     * re-arms with remaining time instead of firing.
-     * Fires 'idle' exactly once, then waits for onDidResumeActivity to re-arm.
+     * Arms the one-shot idle timer, discounting time already spent idle. On
+     * fire it re-checks idleness and re-arms with the remaining time if
+     * activity happened in between. Fires 'idle' exactly once, then waits for
+     * onDidResumeActivity to re-arm.
      */
     private _armIdleTimer(): void {
-        // Clear any existing timer
         if (this._idleTimer) {
             clearTimeout(this._idleTimer);
             this._idleTimer = undefined;
@@ -192,11 +175,10 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
 
         this._idleTimer = setTimeout(() => {
             this._idleTimer = undefined;
-            // Verify user is actually idle — activity during the timer resets idle clock
+            // Activity during the timer resets the idle clock, so re-check.
             const currentIdle = this._inactivityService.getTimeSinceLastActivity();
             const currentThreshold = this._adaptiveCadence.getIdleThreshold();
             if (currentIdle < currentThreshold) {
-                // Activity happened since arming — re-arm with remaining time
                 this._armIdleTimer();
                 return;
             }
@@ -206,10 +188,7 @@ export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResetta
         }, delay);
     }
 
-    /**
-     * Check cooldown for a trigger type.
-     * Note: idle uses one-shot state machine and does not need cooldown.
-     */
+    /** Idle never calls this: its one-shot state machine already spaces the firings. */
     private _checkCooldown(type: TriggerType): boolean {
         const lastTime = this._lastTriggerTimestamps[type];
         return (Date.now() - lastTime) >= this._config.TRIGGER_COOLDOWN_MS;

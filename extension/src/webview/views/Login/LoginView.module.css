@@ -101,3 +101,12 @@
         transform: translateY(-10px) scale(0.95);
     }
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .loadingIndicator,
+    .loadingIndicatorHiding,
+    .loadingSpinner,
+    .loadingDots::after {
+        animation: none;
+    }
+}

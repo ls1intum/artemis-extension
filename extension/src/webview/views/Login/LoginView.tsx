@@ -11,311 +11,575 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { formatServiceName } from '@webview/utils/formatServiceName';
 
 import styles from './LoginView.module.css';
-import type { LoginPersistedState, LoginViewProps, LoginViewState } from './types';
+import type { LoginPersistedState, LoginViewProps } from './types';
+
+// Used wherever the server named no provider, so the UI never claims one it was not told about.
+const GENERIC_IDP_NAME = 'your identity provider';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {
-	// Load persisted state
-	const persistedState = vscodeApi.getState<LoginPersistedState>();
+    const persistedState = vscodeApi.getState<LoginPersistedState>();
 
-	// View state (discriminated)
-	const [viewState, setViewState] = useState<LoginViewState>('form');
+    // Stage 0: Enter username, Stage 1: Enter password / OIDC
+    const [stage, setStage] = useState<0 | 1>(0);
 
-	// Form state (persisted — password excluded for security)
-	const [username, setUsername] = useState(persistedState?.username || '');
-	const [password, setPassword] = useState('');
-	const [rememberMe, setRememberMe] = useState(persistedState?.rememberMe ?? true);
+    // Form state, persisted. The password is deliberately not stored.
+    const [username, setUsername] = useState(persistedState?.username || '');
+    const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(persistedState?.rememberMe ?? true);
 
-	// Transient status messages
-	const [statusMessage, setStatusMessage] = useState('');
-	const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
+    const [loginMethod, setLoginMethod] = useState<'PASSWORD' | 'OIDC' | 'SAML2'>('PASSWORD');
+    // Null whenever the server named no provider, so the UI can decline to attribute one.
+    const [idpName, setIdpName] = useState<string | null>(null);
+    const [isCheckingOptions, setIsCheckingOptions] = useState<boolean>(false);
+    // Kept apart from isSubmitting on purpose: that flag also disables Back, which is the only way out of
+    // a browser sign-in the user has changed their mind about.
+    const [isOidcPending, setIsOidcPending] = useState<boolean>(false);
 
-	// Loading state
-	const [loadingMessage, setLoadingMessage] = useState('Checking authentication...');
-	const [loadingSubtext, setLoadingSubtext] = useState('Please wait while we verify your credentials');
-	const [loadingVisible, setLoadingVisible] = useState(false);
-	const [loadingHiding, setLoadingHiding] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('');
+    const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
 
-	// Map loading messages to subtexts
-	const loadingSubtexts: Record<string, string> = {
-		'Checking stored credentials...': 'Looking for saved authentication data',
-		'Validating authentication...': 'Verifying your login credentials',
-		'Loading user information...': 'Fetching your profile and preferences',
-		'Connecting to Artemis...': 'Establishing secure connection',
-		'Checking authentication...': 'Please wait while we verify your credentials',
-	};
+    interface LoginProgress {
+        message: string;
+        subtext: string;
+        /** The interactive attempt this belongs to, or null for the startup credential check. */
+        attemptId: number | null;
+        hiding: boolean;
+    }
 
-	// Server URL for health checks
-	const [serverUrl, setServerUrl] = useState('');
+    const [progress, setProgress] = useState<LoginProgress | null>(null);
 
-	// Health check state
-	const [showHealthChecks, setShowHealthChecks] = useState(false);
-	const [healthServices, setHealthServices] = useState<ServiceInfo[]>([]);
-	const [isHealthChecking, setIsHealthChecking] = useState(false);
-	const [lastHealthCheck, setLastHealthCheck] = useState<Date | undefined>(undefined);
+    // Monotone, and never reused. `postMessage` gives no delivery guarantee, so a result for a retracted
+    // attempt can still be in flight; the id is how the view knows the answer is not to its question.
+    const nextAttemptId = useRef(0);
+    const [activeAttemptId, setActiveAttemptId] = useState<number | null>(null);
 
-	// Form submission state
-	const [isSubmitting, setIsSubmitting] = useState(false);
+    const loadingSubtexts: Record<string, string> = {
+        'Checking stored credentials...': 'Looking for saved authentication data',
+        'Validating authentication...': 'Verifying your login credentials',
+        'Loading user information...': 'Fetching your profile and preferences',
+        'Connecting to Artemis...': 'Establishing secure connection',
+        'Checking authentication...': 'Please wait while we verify your credentials',
+    };
 
-	// Persist form state changes
-	useEffect(() => {
-		vscodeApi.setState<LoginPersistedState>({
-			username,
-			rememberMe,
-		});
-	}, [username, rememberMe, vscodeApi]);
+    const [serverUrl, setServerUrl] = useState('');
 
-	// Timer ref for hide-loading animation
-	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showHealthChecks, setShowHealthChecks] = useState(false);
+    const [healthServices, setHealthServices] = useState<ServiceInfo[]>([]);
+    const [isHealthChecking, setIsHealthChecking] = useState(false);
+    const [lastHealthCheck, setLastHealthCheck] = useState<Date | undefined>(undefined);
 
-	// Cleanup timer on unmount
-	useEffect(() => () => {
-		if (hideTimerRef.current) {clearTimeout(hideTimerRef.current);}
-	}, []);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-	// Message handler for extension-to-webview messages
-	useExtensionMessage((msg) => {
-		switch (msg.type) {
-			case ExtensionMsg.ShowLoading: {
-				setViewState('loading');
-				setLoadingHiding(false);
-				setLoadingVisible(true);
-				const showMsg = msg.message ?? 'Checking authentication...';
-				setLoadingMessage(showMsg);
-				setLoadingSubtext(loadingSubtexts[showMsg] ?? 'Please wait while we process your request');
-				break;
-			}
+    useEffect(() => {
+        vscodeApi.setState<LoginPersistedState>({
+            username,
+            rememberMe,
+        });
+    }, [username, rememberMe, vscodeApi]);
 
-			case ExtensionMsg.HideLoading:
-				if (viewState === 'loading') {
-					setLoadingHiding(true);
-					hideTimerRef.current = setTimeout(() => {
-						setLoadingVisible(false);
-						setLoadingHiding(false);
-						setViewState('form');
-						setLoadingMessage('');
-						setLoadingSubtext('');
-					}, 300);
-				}
-				break;
+    const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-			case ExtensionMsg.UpdateLoading: {
-				const updateMsg = msg.message ?? 'Processing...';
-				setLoadingMessage(updateMsg);
-				setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
-				break;
-			}
+    useEffect(() => () => {
+        if (hideTimerRef.current) {
+            clearTimeout(hideTimerRef.current);
+        }
+    }, []);
 
-			case ExtensionMsg.LoginSuccess:
-				setViewState('form');
-				setStatusMessage('');
-				setIsSubmitting(false);
-				setShowHealthChecks(false);
-				break;
+    const clearHideTimer = () => {
+        if (hideTimerRef.current) {
+            clearTimeout(hideTimerRef.current);
+            hideTimerRef.current = null;
+        }
+    };
 
-			case ExtensionMsg.LoginError: {
-				setViewState('form');
-				setStatusMessage(msg.error ?? 'Login failed');
-				setStatusType('error');
-				setIsSubmitting(false);
-				setShowHealthChecks(true);
-				if (serverUrl) {
-					performHealthChecks();
-				}
-				break;
-			}
+    const showProgress = (message: string, subtext: string, attemptId: number | null) => {
+        // A hide already scheduled would otherwise fire against this new indicator and take it away.
+        clearHideTimer();
+        setProgress({ message, subtext, attemptId, hiding: false });
+    };
 
-			case ExtensionMsg.SetServerUrl: {
-				setServerUrl(msg.serverUrl ?? '');
-				break;
-			}
+    const hideProgress = () => {
+        clearHideTimer();
+        setProgress(current => (current ? { ...current, hiding: true } : null));
+        // Ownership is released here, in the callback, rather than when the hide is scheduled: for these
+        // 300ms the indicator is still on screen, and an unowned message arriving in that window would
+        // otherwise be free to change it.
+        hideTimerRef.current = setTimeout(() => {
+            hideTimerRef.current = null;
+            setProgress(null);
+        }, 300);
+    };
 
-			case ExtensionMsg.HealthCheckResults: {
-				const services: ServiceInfo[] = Object.entries(msg.results).map(([serviceName, data]) => ({
-					name: formatServiceName(serviceName),
-					status: data.status,
-					message: data.message ?? '',
-					endpoint: data.endpoint ?? '',
-					httpStatus: data.httpStatus !== null ? String(data.httpStatus) : undefined,
-					response: data.response ?? undefined,
-				}));
-				setHealthServices(services);
-				setIsHealthChecking(false);
-				setLastHealthCheck(new Date());
-				break;
-			}
-		}
-	}, [viewState, serverUrl]);
+    /** Whether a message may touch the indicator: its own attempt's, or anyone's while nobody owns it. */
+    const ownsProgress = (attemptId: number | undefined): boolean => {
+        if (!progress) {
+            return true;
+        }
+        if (progress.attemptId === null) {
+            // The startup check owns it, and only unowned startup messages may touch it.
+            return attemptId === undefined;
+        }
+        // Matching the indicator is not enough: after a Cancel it is still fading out under its old
+        // owner, and a late message naming that owner must not be able to revive it.
+        return attemptId === progress.attemptId && attemptId === activeAttemptId;
+    };
 
-	// Perform health checks
-	const performHealthChecks = () => {
-		if (!serverUrl) {return;}
-		setIsHealthChecking(true);
-		postCommand(vscodeApi, 'performHealthChecks', { serverUrl });
-	};
+    useExtensionMessage((msg) => {
+        switch (msg.type) {
+            case ExtensionMsg.ShowLoading: {
+                // showLoading never carries an attemptId: it is exclusively the startup credential check.
+                if (!ownsProgress(undefined)) {
+                    break;
+                }
+                const showMsg = msg.message ?? 'Checking authentication...';
+                showProgress(showMsg, loadingSubtexts[showMsg] ?? 'Please wait while we process your request', null);
+                break;
+            }
 
-	// Handle form submission
-	const handleSubmit = (e: FormEvent) => {
-		e.preventDefault();
+            case ExtensionMsg.HideLoading:
+                if (!ownsProgress(undefined)) {
+                    break;
+                }
+                hideProgress();
+                break;
 
-		const trimmedUsername = username.trim();
-		if (!trimmedUsername || !password) {
-			setStatusMessage('Please enter both username and password.');
-			setStatusType('error');
-			return;
-		}
+            case ExtensionMsg.UpdateLoading: {
+                if (!ownsProgress(msg.attemptId)) {
+                    break;
+                }
+                const message = msg.message ?? 'Processing...';
+                setProgress(current => {
+                    // Re-checked against the state the updater actually sees. `ownsProgress` reads the
+                    // render's `progress`, which can be one step behind a hide that has just started.
+                    if (!current || current.attemptId !== (msg.attemptId ?? null)) {
+                        return current;
+                    }
+                    return {
+                        ...current,
+                        message,
+                        subtext: msg.subtext ?? loadingSubtexts[message] ?? 'Please wait while we process your request',
+                    };
+                });
+                break;
+            }
 
-		setStatusMessage('');
-		setIsSubmitting(true);
+            case ExtensionMsg.LoginOptionsResult: {
+                // Gated on the whole case, not just the indicator: a stale answer for a retracted attempt
+                // must not move the form to stage 1 either, while a different attempt is now active. An
+                // undefined attemptId cannot happen for this message in practice, but is let through rather
+                // than rejected, matching the other three result handlers below.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
+                setIsCheckingOptions(false);
+                setLoginMethod(msg.loginMethod);
+                // Replaced rather than kept: a password account answers with null, and carrying over the
+                // last identity provider's name would attribute the wrong one.
+                setIdpName(msg.idpName ?? null);
+                setStage(1);
+                break;
+            }
 
-		postCommand(vscodeApi, 'login', {
-			username: trimmedUsername,
-			password,
-			rememberMe,
-		});
-	};
+            case ExtensionMsg.LoginOptionsError: {
+                // Gated for the same reason as LoginOptionsResult above.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
+                setIsCheckingOptions(false);
+                setIsSubmitting(false);
+                setStatusMessage(msg.error ?? 'Failed to reach Artemis server. Please check your connection or server URL.');
+                setStatusType('error');
+                setShowHealthChecks(true);
+                if (serverUrl) {
+                    performHealthChecks();
+                }
+                break;
+            }
 
-	// Handle quick links
-	const handleOpenWebsite = () => {
-		postCommand(vscodeApi, 'openWebsite');
-	};
+            case ExtensionMsg.LoginSuccess: {
+                // An OIDC success carries no attemptId at all (that attempt outlives the webview, so there
+                // is no counter to check it against) and is accepted unconditionally; an interactive one is
+                // checked against the attempt the user is still waiting on, not a retracted one.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
+                setStatusMessage('');
+                setIsSubmitting(false);
+                setIsCheckingOptions(false);
+                setIsOidcPending(false);
+                setShowHealthChecks(false);
+                break;
+            }
 
-	const handleOpenSettings = () => {
-		postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
-	};
+            case ExtensionMsg.LoginError: {
+                // Gated for the same reason as LoginSuccess above.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
+                setStatusMessage(msg.error ?? 'Login failed');
+                setStatusType('error');
+                setIsSubmitting(false);
+                setIsCheckingOptions(false);
+                setIsOidcPending(false);
+                setShowHealthChecks(true);
+                if (serverUrl) {
+                    performHealthChecks();
+                }
+                break;
+            }
 
-	return (
-		<div className={styles.loginView}>
-			{/* Header */}
-			<div style={{ marginBottom: '32px', textAlign: 'center' }}>
-				<h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
-					Artemis Login
-				</h1>
-				<p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '14px', margin: 0 }}>
-					VS Code Extension for the Artemis Learning Platform
-				</p>
-			</div>
+            case ExtensionMsg.SetServerUrl: {
+                setServerUrl(msg.serverUrl ?? '');
+                break;
+            }
 
-			{/* Loading indicator */}
-			{loadingVisible && (
-				<div className={`${styles.loadingIndicator} ${loadingHiding ? styles.loadingIndicatorHiding : ''}`}>
-					<div className={styles.loadingSpinner} />
-					<div className={styles.loadingContent}>
-						<div className={styles.loadingText}>
-							{loadingMessage.replace(/\.\.\.$/, '')}
-							<span className={styles.loadingDots} />
-						</div>
-						<div className={styles.loadingSubtext}>
-							{loadingSubtext}
-						</div>
-					</div>
-				</div>
-			)}
+            case ExtensionMsg.HealthCheckResults: {
+                const services: ServiceInfo[] = Object.entries(msg.results).map(([serviceName, data]) => ({
+                    name: formatServiceName(serviceName),
+                    status: data.status,
+                    message: data.message ?? '',
+                    endpoint: data.endpoint ?? '',
+                    httpStatus: data.httpStatus !== null ? String(data.httpStatus) : undefined,
+                    response: data.response ?? undefined,
+                }));
+                setHealthServices(services);
+                setIsHealthChecking(false);
+                setLastHealthCheck(new Date());
+                break;
+            }
+        }
+        // `activeAttemptId` and `progress` are read from the closure by `ownsProgress`, not through refs,
+        // so a stale render here would let the handler decide ownership off an outdated indicator.
+    }, [serverUrl, activeAttemptId, progress]);
 
-			{/* Login form */}
-			{(viewState === 'form' || viewState === 'loading') && (
-				<Container
-					header={
-						<div>
-							<div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
-								Login to Artemis
-							</div>
-							<div style={{ fontSize: '13px', opacity: 0.8 }}>
-								Use your TUM credentials to continue
-							</div>
-						</div>
-					}
-				>
-					<form onSubmit={handleSubmit} data-testid="login-form">
-						<TextInput
-							id="username"
-							label="Username"
-							type="text"
-							placeholder="Enter your TUM username"
-							value={username}
-							onChange={setUsername}
-							disabled={isSubmitting}
-							required
-							autocomplete="username"
-							fullWidth
-							testId="login-username"
-						/>
+    const performHealthChecks = () => {
+        if (!serverUrl) {
+            return;
+        }
+        setIsHealthChecking(true);
+        postCommand(vscodeApi, 'performHealthChecks', { serverUrl });
+    };
 
-						<TextInput
-							id="password"
-							label="Password"
-							type="password"
-							placeholder="Enter your password"
-							value={password}
-							onChange={setPassword}
-							disabled={isSubmitting}
-							required
-							autocomplete="current-password"
-							fullWidth
-							testId="login-password"
-						/>
+    const handleCheckLogin = () => {
+        if (isCheckingOptions) {
+            return;
+        }
+        const trimmedUsername = username.trim();
+        if (!trimmedUsername) {
+            setStatusMessage('Please enter your username.');
+            setStatusType('error');
+            return;
+        }
 
-						<div style={{ marginBottom: '16px' }}>
-							<label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-								<input
-									type="checkbox"
-									checked={rememberMe}
-									onChange={(e) => setRememberMe(e.target.checked)}
-									disabled={isSubmitting}
-									style={{ cursor: 'pointer' }}
-								/>
-								<span style={{ color: 'var(--vscode-foreground)', fontSize: '13px' }}>
-									Remember me on this device
-								</span>
-							</label>
-						</div>
+        const attemptId = ++nextAttemptId.current;
+        setActiveAttemptId(attemptId);
+        setStatusMessage('');
+        setIsCheckingOptions(true);
+        showProgress('Checking how you sign in', 'Asking Artemis which login this account uses', attemptId);
+        postCommand(vscodeApi, 'checkLoginOptions', { username: trimmedUsername, attemptId });
+    };
 
-						{statusMessage && (
-							<div style={{ marginBottom: '16px' }}>
-								<StatusMessage
-									message={statusMessage}
-									type={statusType}
-									data-testid="login-status"
-								/>
-							</div>
-						)}
+    const handleOidcLogin = () => {
+        // Guarded here as well as on the button: every start replaces the pending attempt on the extension
+        // side, so a second one would quietly strand the browser tab the user is already looking at.
+        if (isOidcPending) {
+            return;
+        }
+        setIsOidcPending(true);
+        postCommand(vscodeApi, 'startOidcLogin', { rememberMe });
+        setStatusMessage(`Redirecting to ${idpName ?? GENERIC_IDP_NAME}. Please complete the sign-in process in your browser.`);
+        setStatusType('info');
+    };
 
-						<Button
-							type="submit"
-							variant="primary"
-							fullWidth
-							disabled={isSubmitting}
-							testId="login-submit"
-						>
-							{isSubmitting ? 'Logging in...' : 'Login to Artemis'}
-						</Button>
+    /** Retracts whatever attempt is in flight and unlocks the form, without moving off the current step. */
+    const cancelAttempt = () => {
+        setActiveAttemptId(null);
+        setIsSubmitting(false);
+        setIsCheckingOptions(false);
+        setIsOidcPending(false);
+        hideProgress();
+        postCommand(vscodeApi, 'cancelLogin');
+    };
 
-						{/* Quick links */}
-						<div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-							<Button variant="link" onClick={handleOpenWebsite}>
-								Open Artemis in Browser →
-							</Button>
-							<Button variant="link" onClick={handleOpenSettings}>
-								Open Artemis Settings →
-							</Button>
-						</div>
-					</form>
-				</Container>
-			)}
+    const handleBack = () => {
+        // Retract the attempt too, otherwise a callback from the abandoned browser tab or a late server
+        // answer could still sign the user in, possibly under the name they just backed away from.
+        cancelAttempt();
+        setPassword('');
+        setStatusMessage('');
+        setLoginMethod('PASSWORD');
+        setIdpName(null);
+        setStage(0);
+    };
 
-			{/* Health checks section (shown on error) */}
-			{showHealthChecks && healthServices.length > 0 && (
-				<div style={{ marginTop: '24px' }}>
-					<ServiceHealth
-						services={healthServices}
-						onRefresh={performHealthChecks}
-						isRefreshing={isHealthChecking}
-						lastCheckTime={lastHealthCheck}
-						compact
-						showTitle
-					/>
-				</div>
-			)}
+    const handleSubmit = (e: FormEvent) => {
+        e.preventDefault();
 
-		</div>
-	);
+        if (stage === 0) {
+            handleCheckLogin();
+            return;
+        }
+
+        if (loginMethod === 'OIDC') {
+            handleOidcLogin();
+            return;
+        }
+
+        if (loginMethod === 'SAML2') {
+            // Nothing to submit: SAML2 has no flow in the extension, and sending it down the OIDC path
+            // would open an endpoint this server does not serve.
+            return;
+        }
+
+        if (isSubmitting) {
+            return;
+        }
+        const trimmedUsername = username.trim();
+        if (!trimmedUsername || !password) {
+            setStatusMessage('Please enter both username and password.');
+            setStatusType('error');
+            return;
+        }
+
+        const attemptId = ++nextAttemptId.current;
+        setActiveAttemptId(attemptId);
+        setStatusMessage('');
+        setIsSubmitting(true);
+        showProgress('Verifying your credentials', 'Checking your username and password', attemptId);
+
+        postCommand(vscodeApi, 'login', {
+            username: trimmedUsername,
+            password,
+            rememberMe,
+            attemptId,
+        });
+    };
+
+    const handleOpenWebsite = () => {
+        postCommand(vscodeApi, 'openWebsite');
+    };
+
+    const handleOpenSettings = () => {
+        postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
+    };
+
+    return (
+        <div className={styles.loginView}>
+            <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+                <h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
+                    Artemis Login
+                </h1>
+                <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '14px', margin: 0 }}>
+                    VS Code Extension for the Artemis Learning Platform
+                </p>
+            </div>
+
+            {progress && (
+                <div
+                    className={`${styles.loadingIndicator} ${progress.hiding ? styles.loadingIndicatorHiding : ''}`}
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    data-testid="login-progress"
+                >
+                    <div className={styles.loadingSpinner} aria-hidden="true" />
+                    <div className={styles.loadingContent}>
+                        <div className={styles.loadingText}>
+                            {progress.message.replace(/\.\.\.$/, '')}
+                            <span className={styles.loadingDots} />
+                        </div>
+                        <div className={styles.loadingSubtext}>{progress.subtext}</div>
+                    </div>
+                </div>
+            )}
+
+            <Container
+                header={
+                    <div>
+                        <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
+                            Login to Artemis
+                        </div>
+                        <div style={{ fontSize: '13px', opacity: 0.8 }}>
+                            {stage === 0
+                                ? 'Enter your TUM username to continue'
+                                : `Logging in as ${username}`}
+                        </div>
+                    </div>
+                }
+            >
+                <form onSubmit={handleSubmit} data-testid="login-form">
+                    {stage === 0 ? (
+                        <TextInput
+                            id="username"
+                            label="Username"
+                            type="text"
+                            placeholder="Enter your TUM username"
+                            value={username}
+                            onChange={setUsername}
+                            disabled={isSubmitting || isCheckingOptions}
+                            required
+                            autocomplete="username"
+                            fullWidth
+                            testId="login-username"
+                        />
+                    ) : (
+                        <>
+                            {loginMethod === 'PASSWORD' ? (
+                                <TextInput
+                                    id="password"
+                                    label="Password"
+                                    type="password"
+                                    placeholder="Enter your password"
+                                    value={password}
+                                    onChange={setPassword}
+                                    disabled={isSubmitting}
+                                    required
+                                    autocomplete="current-password"
+                                    fullWidth
+                                    testId="login-password"
+                                />
+                            ) : loginMethod === 'SAML2' ? (
+                                <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
+                                        {idpName
+                                            ? `This account signs in through ${idpName}, which the extension cannot complete yet.`
+                                            : `This account signs in through ${GENERIC_IDP_NAME}, which the extension cannot complete yet.`}
+                                        {' '}Please log in on the Artemis website instead.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
+                                        You will be redirected to complete authentication via {idpName ?? GENERIC_IDP_NAME}.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        disabled={isSubmitting}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    <span style={{ color: 'var(--vscode-foreground)', fontSize: '13px' }}>
+                                        Remember me on this device
+                                    </span>
+                                </label>
+                            </div>
+                        </>
+                    )}
+
+                    {statusMessage && (
+                        <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                            <StatusMessage
+                                message={statusMessage}
+                                type={statusType}
+                                data-testid="login-status"
+                            />
+                        </div>
+                    )}
+
+                    <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {stage === 0 ? (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    fullWidth
+                                    disabled={isSubmitting || isCheckingOptions}
+                                    testId="login-next"
+                                    onClick={handleCheckLogin}
+                                >
+                                    {isCheckingOptions ? 'Checking options...' : 'Continue'}
+                                </Button>
+                                {isCheckingOptions && (
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        fullWidth
+                                        testId="login-secondary"
+                                        onClick={cancelAttempt}
+                                    >
+                                        Cancel
+                                    </Button>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {loginMethod === 'PASSWORD' && (
+                                    <Button
+                                        type="submit"
+                                        variant="primary"
+                                        fullWidth
+                                        disabled={isSubmitting}
+                                        testId="login-submit"
+                                    >
+                                        {isSubmitting ? 'Logging in...' : 'Login to Artemis'}
+                                    </Button>
+                                )}
+                                {loginMethod === 'OIDC' && (
+                                    <Button
+                                        type="button"
+                                        variant="primary"
+                                        fullWidth
+                                        disabled={isSubmitting || isOidcPending}
+                                        onClick={handleOidcLogin}
+                                        testId="login-oidc-submit"
+                                    >
+                                        {isOidcPending ? 'Waiting for your browser...' : `Sign in with ${idpName ?? GENERIC_IDP_NAME}`}
+                                    </Button>
+                                )}
+
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    fullWidth
+                                    // Not disabled while a password login is in flight: that wait is
+                                    // exactly the one the user needs a way out of, so the button stays
+                                    // live and switches meaning to Cancel instead.
+                                    testId="login-secondary"
+                                    onClick={isSubmitting ? cancelAttempt : handleBack}
+                                >
+                                    {isSubmitting ? 'Cancel' : '← Back'}
+                                </Button>
+                            </>
+                        )}
+                    </div>
+
+                    <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <Button variant="link" onClick={handleOpenWebsite}>
+                            Open Artemis in Browser →
+                        </Button>
+                        <Button variant="link" onClick={handleOpenSettings}>
+                            Open Artemis Settings →
+                        </Button>
+                    </div>
+                </form>
+            </Container>
+
+            {showHealthChecks && healthServices.length > 0 && (
+                <div style={{ marginTop: '24px' }}>
+                    <ServiceHealth
+                        services={healthServices}
+                        onRefresh={performHealthChecks}
+                        isRefreshing={isHealthChecking}
+                        lastCheckTime={lastHealthCheck}
+                        compact
+                        showTitle
+                    />
+                </div>
+            )}
+        </div>
+    );
 }

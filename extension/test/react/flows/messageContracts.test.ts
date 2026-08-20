@@ -9,17 +9,11 @@
  * - TypeScript satisfies operator for compile-time shape verification
  * - Runtime shape assertions for key contracts
  * - Union membership checks to verify all required types exist
- *
- * Per CONTEXT.md: dedicated tests for type-safe contract verification.
  */
 import { describe, expect, it } from 'vitest';
 
 import type { ExtensionToWebviewMessage, ExtMsg, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { isExtensionMessage, isWebviewMessage } from '@shared/messageContracts';
-
-// ============================================================================
-// Extension → Webview message types exist and have correct shape
-// ============================================================================
 
 describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('LoginSuccessMessage has required type and payload fields', () => {
@@ -190,12 +184,10 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect('runUi' in msg).toBe(false);
     });
 
-    // ------------------------------------------------------------------
     // The conversation-shaped wire. Every field is REQUIRED, so these are
     // mostly compile-time `satisfies` guards: the meaningful failure mode is
     // a field being narrowed, renamed or dropped, which shows up as a
     // TypeScript error rather than a runtime assertion failure.
-    // ------------------------------------------------------------------
 
     it('UpdateIrisStateMessage carries the whole conversation state, every field required', () => {
         const msg = {
@@ -301,10 +293,6 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     });
 });
 
-// ============================================================================
-// Webview → Extension message types exist and have correct shape
-// ============================================================================
-
 describe('Message contracts: WebviewToExtensionMessage types', () => {
     it('ReadyMessage has type=ready', () => {
         const msg = {
@@ -322,6 +310,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 username: 'student1',
                 password: 'secret',
                 rememberMe: true,
+                attemptId: 0,
             },
         } satisfies WebCmd<'login'>;
 
@@ -459,12 +448,6 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         expect(msg.command).toBe('reconnectWebSocket');
     });
 
-    // ------------------------------------------------------------------
-    // Task 10: conversation-first commands. Added alongside the existing
-    // Iris Chat commands (SelectChatContext, SwitchSession, etc.), which
-    // stay until Task 15. Nothing dispatches these yet (Task 14).
-    // ------------------------------------------------------------------
-
     it('SelectTopicCommand has mode, entityId and optional name payload', () => {
         const msg = {
             type: 'command' as const,
@@ -507,10 +490,6 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         expect('payload' in msg).toBe(false);
     });
 });
-
-// ============================================================================
-// Type guards: isExtensionMessage and isWebviewMessage
-// ============================================================================
 
 describe('Message contracts: type guards', () => {
     it('isExtensionMessage accepts valid extension→webview message', () => {
@@ -606,12 +585,10 @@ describe('Message contracts: type guards', () => {
         expect(isWebviewMessage(msg)).toBe(false);
     });
 
-    // ------------------------------------------------------------------
-    // Task 10: the three payload-bearing conversation-first commands must
-    // be registered in COMMANDS_REQUIRING_PAYLOAD; newConversation must not
-    // (it has no payload). This is genuinely runtime-checkable: dropping an
-    // entry from that set is exactly the regression these tests catch.
-    // ------------------------------------------------------------------
+    // The three payload-bearing conversation-first commands must be
+    // registered in COMMANDS_REQUIRING_PAYLOAD; newConversation must not (it
+    // has no payload). Dropping an entry from that set is exactly the
+    // regression these tests catch.
 
     it('isWebviewMessage rejects selectTopic command without payload', () => {
         const msg = { type: 'command', command: 'selectTopic' };
@@ -637,15 +614,34 @@ describe('Message contracts: type guards', () => {
         const msg = { type: 'command', command: 'newConversation' };
         expect(isWebviewMessage(msg)).toBe(true);
     });
-});
 
-// ============================================================================
-// Runtime shape validation: required fields present in key contracts
-// ============================================================================
+    it('isWebviewMessage rejects the OIDC login commands when their payload is missing', () => {
+        // Both carry a payload the handler reads, so a payload-less message must be stopped by the guard
+        // rather than blowing up later inside getPayload().
+        expect(isWebviewMessage({ type: 'command', command: 'checkLoginOptions' })).toBe(false);
+        expect(isWebviewMessage({ type: 'command', command: 'startOidcLogin' })).toBe(false);
+    });
+
+    it('isWebviewMessage accepts the OIDC login commands with their payload', () => {
+        expect(isWebviewMessage({
+            type: 'command', command: 'checkLoginOptions', payload: { username: 'student' },
+        })).toBe(true);
+        expect(isWebviewMessage({
+            type: 'command', command: 'startOidcLogin', payload: { rememberMe: true },
+        })).toBe(true);
+    });
+
+    it('isWebviewMessage accepts cancelLogin without payload', () => {
+        expect(isWebviewMessage({ type: 'command', command: 'cancelLogin' })).toBe(true);
+    });
+
+    it('isWebviewMessage rejects the retired cancelOidcLogin command', () => {
+        expect(isWebviewMessage({ type: 'command', command: 'cancelOidcLogin' })).toBe(false);
+    });
+});
 
 describe('Message contracts: runtime shape validation', () => {
     it('ExtensionToWebviewMessage union accepts all expected type discriminators', () => {
-        // Spot-check that key types are assignable to the union
         const loginSuccess: ExtensionToWebviewMessage = {
             type: 'loginSuccess',
             username: 'test',
@@ -670,12 +666,11 @@ describe('Message contracts: runtime shape validation', () => {
     });
 
     it('WebviewToExtensionMessage union accepts all expected command types', () => {
-        // Spot-check command messages are assignable to the union
         const ready: WebviewToExtensionMessage = { type: 'ready' };
         const login: WebviewToExtensionMessage = {
             type: 'command',
             command: 'login',
-            payload: { username: 'u', password: 'p', rememberMe: false },
+            payload: { username: 'u', password: 'p', rememberMe: false, attemptId: 0 },
         };
         const reload: WebviewToExtensionMessage = {
             type: 'command',
@@ -693,7 +688,6 @@ describe('Message contracts: runtime shape validation', () => {
     });
 
     it('postMessage payload shapes satisfy contract for login flow', () => {
-        // Simulate complete login flow: webview sends login, extension responds
         const loginMsg: WebviewToExtensionMessage = {
             type: 'command',
             command: 'login',
@@ -701,6 +695,7 @@ describe('Message contracts: runtime shape validation', () => {
                 username: 'student@tum.de',
                 password: 'mypassword',
                 rememberMe: true,
+                attemptId: 0,
             },
         };
 
@@ -720,7 +715,6 @@ describe('Message contracts: runtime shape validation', () => {
     });
 
     it('postMessage payload shapes satisfy contract for course navigation flow', () => {
-        // Simulate course load flow
         const reloadCmd: WebviewToExtensionMessage = {
             type: 'command',
             command: 'reloadCourses',
@@ -739,7 +733,6 @@ describe('Message contracts: runtime shape validation', () => {
     });
 
     it('dispatchExtensionMessage payloads match contract shapes for websocket status', () => {
-        // Verify websocket status contracts are well-formed
         const disconnectedMsg: ExtensionToWebviewMessage = { type: 'updateWebSocketStatus', status: 'disconnected' };
         const connectedMsg: ExtensionToWebviewMessage = { type: 'updateWebSocketStatus', status: 'connected' };
 
@@ -748,7 +741,6 @@ describe('Message contracts: runtime shape validation', () => {
     });
 
     it('optional fields in contracts are genuinely optional', () => {
-        // CourseListInitMessage.archivedCourses is optional
         const withArchived: ExtensionToWebviewMessage = {
             type: 'courseListInit',
             courses: [],
@@ -760,7 +752,6 @@ describe('Message contracts: runtime shape validation', () => {
             courses: [],
         };
 
-        // Both are valid — optional fields work correctly
         expect(withArchived.type).toBe('courseListInit');
         expect(withoutArchived.type).toBe('courseListInit');
     });

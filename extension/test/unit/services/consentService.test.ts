@@ -12,14 +12,12 @@ suite('ConsentService', () => {
     setup(() => {
         sandbox = sinon.createSandbox();
 
-        // Mock workspace configuration
         mockConfig = {
             get: sandbox.stub().returns('pending'),
             update: sandbox.stub().resolves(),
         };
         sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
 
-        // Mock onDidChangeConfiguration
         sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').returns({
             dispose: () => { },
         } as vscode.Disposable);

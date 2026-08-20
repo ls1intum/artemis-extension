@@ -1,22 +1,6 @@
 /**
- * Unit tests for Block C — Interventions FSM
- *
- * Tests cover:
- *   1. Subtle-Show → StatusBar-Click → onDidAcceptIntervention with same decision
- *   2. Subtle-Show → hideHint() → onDidDismissIntervention with reason 'hidden'
- *   3. rawWanted=true, shouldIntervene=false, blockedReason='cooldown' → recordBlockedDecision
- *      called (not showXxxEQ), 1 onDidBlock event
- *   4. rawWanted=true, shouldIntervene=false, blockedReason='low-confidence' → 1 onDidBlock event
- *   5. Five blocks within 60s (same triggerType+reason) → only 1 event (rate-limit)
- *   6. Five blocks, each 70s apart → 5 events
- *   7. rawWanted=false → neither show nor block, no event
- *   8. rawWanted=true, shouldIntervene=true → 'shown' event, no 'blocked'
- *   9. TelemetryManager dispatch: shouldIntervene=false && rawWanted=false → no recordBlockedDecision
- *
- * Additional:
- *  10. InterventionDecisionEngine: confidence=insufficient with EQ above threshold → rawWanted=true, blockedReason='low-confidence'
- *  11. InterventionDecisionEngine: EQ below all thresholds → rawWanted=false, no blockedReason
- *  12. Subtle-Show → second show → first decision dismissed as 'replaced'
+ * Unit tests for the intervention FSM: InterventionService show/accept/dismiss
+ * paths, blocked-decision rate limiting, and InterventionDecisionEngine gating.
  */
 
 import * as vscode from 'vscode';
@@ -27,8 +11,6 @@ import { InterventionDecisionEngine } from '@extension/services/telemetry/decisi
 import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
 import { InterventionService } from '@extension/services/telemetry/interventionService';
 import type { InterventionDecision, InterventionState } from '@extension/services/telemetry/types';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeDecision(overrides: Partial<InterventionDecision> = {}): InterventionDecision {
     return {
@@ -65,8 +47,6 @@ function makeDateStub(sandbox: sinon.SinonSandbox): { advance(ms: number): void 
     };
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 suite('Block C — InterventionService: subtle accept/dismiss', () => {
     let service: InterventionService;
     let sandbox: sinon.SinonSandbox;
@@ -85,7 +65,6 @@ suite('Block C — InterventionService: subtle accept/dismiss', () => {
         sandbox.restore();
     });
 
-    // Test 1: Subtle-Show → status bar click (handleAcceptSubtle) → onDidAcceptIntervention with same decision
     test('subtle show → handleAcceptSubtle (status bar click handler) → onDidAcceptIntervention fires with same decision', () => {
         const decision = makeDecision({ level: 'subtle', eq: 0.3, triggerType: 'execution-error' });
         const accepted: InterventionDecision[] = [];
@@ -103,7 +82,6 @@ suite('Block C — InterventionService: subtle accept/dismiss', () => {
         assert.strictEqual(accepted[0].triggerType, decision.triggerType, 'accept event should carry triggerType');
     });
 
-    // Test 1b: handleAcceptSubtle with no active subtle decision → fallback to open chat, no accept event
     test('handleAcceptSubtle with no active subtle decision → no accept event (just opens chat)', () => {
         const accepted: InterventionDecision[] = [];
         const sub = service.onDidAcceptIntervention(d => accepted.push(d));
@@ -116,7 +94,6 @@ suite('Block C — InterventionService: subtle accept/dismiss', () => {
         assert.strictEqual(accepted.length, 0, 'no accept event when no subtle hint is active');
     });
 
-    // Test 2: Subtle-Show → hideHint() → onDidDismissIntervention with reason 'hidden'
     test('subtle show → hideHint → onDidDismissIntervention fires with dismissReason=hidden', () => {
         const decision = makeDecision({ level: 'subtle' });
         const dismissed: Array<{ eq: number; dismissReason: string }> = [];
@@ -132,7 +109,6 @@ suite('Block C — InterventionService: subtle accept/dismiss', () => {
         assert.strictEqual(dismissed[0].eq, decision.eq, 'dismiss event should carry the original eq');
     });
 
-    // Test 2b: hideHint() when no subtle hint active → no dismiss event
     test('hideHint with no active subtle hint → no dismiss event', () => {
         const dismissed: unknown[] = [];
         const sub = service.onDidDismissIntervention(p => dismissed.push(p));
@@ -144,7 +120,6 @@ suite('Block C — InterventionService: subtle accept/dismiss', () => {
         assert.strictEqual(dismissed.length, 0, 'no dismiss event should fire when no hint is active');
     });
 
-    // Test 12: second showSubtleHintEQ while one is active → first dismissed as 'replaced'
     test('second subtle show while first active → first dismissed as replaced', () => {
         const decision1 = makeDecision({ eq: 0.2 });
         const decision2 = makeDecision({ eq: 0.4 });
@@ -177,7 +152,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         sandbox.restore();
     });
 
-    // Test 3: rawWanted=true, shouldIntervene=false, blockedReason='cooldown' → 1 onDidBlock event
     test('recordBlockedDecision → fires onDidBlockIntervention with blockedReason', () => {
         const decision = makeDecision({
             rawWanted: true,
@@ -198,7 +172,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(blocks[0].triggerType, 'execution-error');
     });
 
-    // Test 4: blockedReason='low-confidence' (EQ high but confidence insufficient)
     test('blocked with low-confidence → 1 onDidBlock event with blockedReason=low-confidence', () => {
         const decision = makeDecision({
             rawWanted: true,
@@ -220,7 +193,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(blocks[0], 'low-confidence');
     });
 
-    // Test 5: Five blocks within 60s for same (triggerType, blockedReason) → only 1 event
     test('five blocks within 60s for same combination → rate-limited to 1 event', () => {
         const clock = makeDateStub(sandbox);
         const decision = makeDecision({
@@ -244,7 +216,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(blocks.length, 1, 'rate-limit should suppress 4 of 5 events');
     });
 
-    // Test 6: Five blocks, each 70s apart → 5 events
     test('five blocks each 70s apart → all 5 events fire (window expires between each)', () => {
         const clock = makeDateStub(sandbox);
         const decision = makeDecision({
@@ -267,18 +238,13 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(blocks.length, 5, 'each block should fire after window expires');
     });
 
-    // Test 7: rawWanted=false → recordBlockedDecision is not the right call, but also: no show, no block
     test('recordBlockedDecision not called when rawWanted=false → no block event fires', () => {
-        // This tests that the service correctly acts on what's passed to it.
-        // With rawWanted=false we should not call recordBlockedDecision at all —
-        // but even if we did, verify no event fires for an empty call (we don't call it here).
         const blocks: unknown[] = [];
         const shown: unknown[] = [];
         const sub1 = service.onDidBlockIntervention(() => blocks.push(null));
         const sub2 = service.onDidShowIntervention(() => shown.push(null));
 
-        // Do NOT call any service method — simulating TelemetryManager not
-        // dispatching when rawWanted=false
+        // No service method is called: TelemetryManager does not dispatch when rawWanted=false.
         sub1.dispose();
         sub2.dispose();
 
@@ -286,7 +252,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(shown.length, 0, 'no show event when rawWanted=false');
     });
 
-    // Test 8: rawWanted=true, shouldIntervene=true → shown event, no blocked
     test('rawWanted=true, shouldIntervene=true → showSubtleHintEQ fires shown, no blocked', () => {
         const decision = makeDecision({ rawWanted: true, shouldIntervene: true, level: 'subtle' });
         const shown: unknown[] = [];
@@ -303,7 +268,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(blocks.length, 0, 'no block event should fire');
     });
 
-    // Test: showNotificationEQ blocked by cooldown fires onDidBlockIntervention with reason 'cooldown'
     test('showNotificationEQ blocked by cooldown fires onDidBlockIntervention with cooldown reason', async () => {
         const clock = makeDateStub(sandbox);
         // Stub showInformationMessage so the first show completes immediately without user interaction.
@@ -322,10 +286,10 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         const s1 = service.onDidShowIntervention(() => shown.push(null));
         const s2 = service.onDidBlockIntervention(({ decision: d }) => blocks.push(d));
 
-        // First show — succeeds (sets lastInterventionTime to now)
+        // First show succeeds and sets lastInterventionTime to now.
         await service.showNotificationEQ(decision);
 
-        // Second show — immediately after (still within 5min cooldown)
+        // Second show immediately after, still within the 5min cooldown.
         await service.showNotificationEQ(decision);
 
         s1.dispose();
@@ -339,7 +303,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         void clock; // clock used to make Date.now() controllable; advance not needed here
     });
 
-    // Test: showProactiveHelpEQ blocked by cooldown fires onDidBlockIntervention with reason 'cooldown'
     test('showProactiveHelpEQ blocked by cooldown fires onDidBlockIntervention with cooldown reason', async () => {
         sandbox.stub(require('vscode').window, 'showWarningMessage').resolves(undefined);
 
@@ -356,10 +319,10 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         const s1 = service.onDidShowIntervention(() => shown.push(null));
         const s2 = service.onDidBlockIntervention(({ decision: d }) => blocks.push(d));
 
-        // First show — succeeds
+        // First show succeeds.
         await service.showProactiveHelpEQ(decision);
 
-        // Second show — still within 5min cooldown
+        // Second show, still within the 5min cooldown.
         await service.showProactiveHelpEQ(decision);
 
         s1.dispose();
@@ -371,7 +334,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(blocks[0].shouldIntervene, false, 'shouldIntervene should be false on the block event');
     });
 
-    // Test: repeated cooldown-blocked showNotificationEQ within 60s only fires one block event (rate-limit)
     test('repeated cooldown-blocked showNotificationEQ within 60s only fires one block event', async () => {
         const clock = makeDateStub(sandbox);
         sandbox.stub(require('vscode').window, 'showInformationMessage').resolves(undefined);
@@ -387,7 +349,7 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         const blocks: unknown[] = [];
         const sub = service.onDidBlockIntervention(() => blocks.push(null));
 
-        // First show — succeeds, sets lastInterventionTime
+        // First show succeeds and sets lastInterventionTime.
         await service.showNotificationEQ(decision);
 
         // Three more shows within the 60s block-event rate-limit window (advance 5s between each)
@@ -403,7 +365,6 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
         assert.strictEqual(blocks.length, 1, 'rate-limit should suppress 2 of the 3 cooldown-block events');
     });
 
-    // Rate-limit: different (triggerType, blockedReason) combinations are tracked independently
     test('different (triggerType, reason) combinations are rate-limited independently', () => {
         const clock = makeDateStub(sandbox);
         const decisionA = makeDecision({
@@ -446,7 +407,6 @@ suite('Block C — InterventionDecisionEngine: rawWanted and blockedReason', () 
         engine = new InterventionDecisionEngine(filter);
     });
 
-    // Test 10: EQ above threshold, confidence=insufficient → rawWanted=true, blockedReason='low-confidence'
     test('EQ above notification threshold + insufficient confidence → rawWanted=true, blockedReason=low-confidence', () => {
         const state = makeState();
         const result = engine.evaluate(0.5, 'insufficient', 'idle', state);
@@ -456,7 +416,6 @@ suite('Block C — InterventionDecisionEngine: rawWanted and blockedReason', () 
         assert.strictEqual(result.blockedReason, 'low-confidence', 'blockedReason should be low-confidence');
     });
 
-    // Test 11: EQ below all thresholds (< 0.15) → rawWanted=false, no blockedReason
     test('EQ below all thresholds → rawWanted=false, shouldIntervene=false, no blockedReason', () => {
         const state = makeState();
         const result = engine.evaluate(0.05, 'sufficient', 'idle', state);
@@ -467,7 +426,6 @@ suite('Block C — InterventionDecisionEngine: rawWanted and blockedReason', () 
         assert.strictEqual(result.blockedReason, undefined, 'no blockedReason when rawWanted=false');
     });
 
-    // EQ above threshold + sufficient confidence + no guardrails → shouldIntervene=true
     test('EQ above threshold + sufficient confidence + no guardrails → shouldIntervene=true, rawWanted=true', () => {
         const state = makeState();
         const result = engine.evaluate(0.25, 'sufficient', 'idle', state);
@@ -477,7 +435,6 @@ suite('Block C — InterventionDecisionEngine: rawWanted and blockedReason', () 
         assert.strictEqual(result.blockedReason, undefined, 'no blockedReason when shouldIntervene=true');
     });
 
-    // Session-limit blocked → rawWanted=true, blockedReason='session-limit'
     test('session-limit exceeded → rawWanted=true, shouldIntervene=false, blockedReason=session-limit', () => {
         const state = makeState({ sessionInterventionCount: 3 }); // MAX_INTERVENTIONS_PER_SESSION = 3
         const result = engine.evaluate(0.5, 'sufficient', 'idle', state);
@@ -487,7 +444,6 @@ suite('Block C — InterventionDecisionEngine: rawWanted and blockedReason', () 
         assert.strictEqual(result.blockedReason, 'session-limit');
     });
 
-    // Warmup-blocked → rawWanted=true, blockedReason='warmup' (exercise start too recent)
     test('warmup not elapsed → rawWanted=true, shouldIntervene=false, blockedReason=warmup', () => {
         // Create a fresh filter with start time = now (no time has passed)
         const freshFilter = new InterventionFilter();
@@ -502,7 +458,6 @@ suite('Block C — InterventionDecisionEngine: rawWanted and blockedReason', () 
         assert.strictEqual(result.blockedReason, 'warmup');
     });
 
-    // Insufficient confidence with EQ *below* threshold → rawWanted=false, no blockedReason
     test('EQ below threshold + insufficient confidence → rawWanted=false, no blockedReason', () => {
         const state = makeState();
         const result = engine.evaluate(0.05, 'insufficient', 'idle', state);
@@ -524,7 +479,6 @@ suite('Block C — TelemetryManager dispatch routing', () => {
         sandbox.restore();
     });
 
-    // Test 9: shouldIntervene=false && rawWanted=false → no block event
     // We test this via InterventionDecisionEngine + InterventionService integration
     // since TelemetryManager._evaluateAndIntervene is private.
     test('decision with rawWanted=false does not fire onDidBlockIntervention', () => {
@@ -551,7 +505,6 @@ suite('Block C — TelemetryManager dispatch routing', () => {
         assert.strictEqual(blocks.length, 0, 'no block event when rawWanted=false');
     });
 
-    // Test: rawWanted=true + shouldIntervene=false → recordBlockedDecision should be called
     test('decision with rawWanted=true + shouldIntervene=false routes to recordBlockedDecision', () => {
         const service = new InterventionService();
 

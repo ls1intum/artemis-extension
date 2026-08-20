@@ -67,6 +67,30 @@ jobs:
       - run: npm ci
       - run: npx vitest run
 
+  # The @vscode/test-cli suites, which drive a real VS Code instance. They need
+  # more than `npm ci`: `out/` from compile-tests, `dist/` because some tests
+  # activate the real extension, and a display on Linux.
+  # The VS Code build is pinned to `engines.vscode` (see .vscode-test.mjs), so
+  # this job neither resolves a version over the network nor changes underfoot
+  # when a new stable ships. It therefore does not notice a break on a NEW VS
+  # Code; that would need a separate scheduled run against 'stable'.
+  test-vscode:
+    name: Extension host tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npm run compile-tests
+      - name: Build extension bundle (tests activate the real extension)
+        run: node esbuild.js
+      - run: xvfb-run -a npm run test:vscode
+
   knip:
     name: Dead code (knip)
     runs-on: ubuntu-latest
@@ -153,7 +177,7 @@ jobs:
 
   ci-gate:
     name: CI gate
-    needs: [typecheck, lint, test, knip, build, viewer-lint, viewer-test, viewer-build]
+    needs: [typecheck, lint, test, test-vscode, knip, build, viewer-lint, viewer-test, viewer-build]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     if: always()

@@ -16,9 +16,9 @@ interface ChatNoticeProps {
 /**
  * One muted line above the composer, 10 s then gone.
  *
- * Actionless in PR 1: it carries text and nothing else. The undo button and
- * the saved-staging restoration rules are PR 2, and a button that promises to
- * undo something it cannot yet restore is worse than no button.
+ * Actionless: it carries text and nothing else. An undo button would have to
+ * restore saved staging, which nothing implements yet, and a button that
+ * promises an undo it cannot perform is worse than no button.
  *
  * A notice is cleared by ANY navigation, not only by its own timeout: it
  * describes something the system did to your situation, and once the situation
@@ -44,8 +44,8 @@ export function ChatNotice({ notice, currentSessionId, onExpire }: ChatNoticePro
     // Likewise for the callback. Callers pass an inline arrow, so it is a new
     // function on every parent render; depending on it would clear and restart
     // the timeout below on each one, and the parent re-renders on every store
-    // change (every keystroke, now that the composer is store-backed). The
-    // notice would then never expire while the student is typing, which is
+    // change (the composer is store-backed, so that means every keystroke).
+    // The notice would then never expire while the student is typing, which is
     // exactly when it is in the way.
     const onExpireRef = useRef(onExpire);
     onExpireRef.current = onExpire;

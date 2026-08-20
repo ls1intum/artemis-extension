@@ -8,12 +8,10 @@ import { normalizePrincipal } from './identityKeys';
 /**
  * Who the extension is talking to, and on whose behalf.
  *
- * `resolving` is not decoration. A two-field `{ serverKey, principal? }`
- * cannot tell "logged out" from "activation has not finished checking the
- * token yet", and that distinction decides whether work may start: without it
- * activation runs an anonymous workspace detection, reports that this folder
- * has no exercise, and then has to reset and repeat it the moment the
- * principal arrives.
+ * `resolving` separates "logged out" from "the token has not been checked
+ * yet", which decides whether work may start. Without it activation runs an
+ * anonymous workspace detection, reports that the folder has no exercise, and
+ * has to reset and repeat it once the principal arrives.
  */
 export type SessionState =
     | { kind: 'resolving'; serverKey: string }
@@ -33,12 +31,11 @@ export interface SessionResetTargets {
      * Close the struggle detector's exercise session.
      *
      * Its own target rather than a line inside `clearWorkspaceTracker`: the
-     * tracker's clear event is deliberately ignored by the telemetry bridge
-     * (a clear announces no new exercise), so nothing else would ever end the
-     * session, and `startExerciseSession` is a no-op when the next identity's
-     * exercise happens to carry the same numeric id. A session spanning two
-     * accounts is corrupt research data, so this is a first-class step in the
-     * inventory rather than a side effect of forgetting the folder's exercise.
+     * telemetry bridge ignores the tracker's clear event (a clear announces no
+     * new exercise), so nothing else ends the session, and
+     * `startExerciseSession` is a no-op when the next identity's exercise
+     * carries the same numeric id. A session spanning two accounts is corrupt
+     * research data.
      */
     endTelemetrySession(): void;
     clearWorkspaceTracker(): void;
@@ -114,11 +111,9 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
      * re-attempt is pending.
      *
      * Deliberately NOT a fourth `SessionState`: the session really is still
-     * resolving (a credential is held, nobody has been logged out), and giving
-     * `resolving` a second meaning would make every consumer of the state
-     * machine reason about two things at once. This is a separate signal for
-     * the one consumer that needs it, so a UI stuck behind an unresolved
-     * identity can say so and offer a way out instead of spinning forever.
+     * resolving (a credential is held, nobody has been logged out). A separate
+     * signal keeps that state single-meaning while letting the one UI that
+     * waits on an identity offer a way out instead of spinning forever.
      */
     private readonly _onDidStallResolution = new vscode.EventEmitter<void>();
     public readonly onDidStallResolution = this._onDidStallResolution.event;
@@ -138,14 +133,11 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
      */
     public async resolvePrincipal(): Promise<void> {
         // Deliberately does NOT refill the retry budget. The budget belongs to
-        // an unresolved-identity EPISODE, not to a call: it is refilled when
-        // the identity actually settles (see `_transition`). Refilling here
-        // would treat the chat's Retry exactly like an unattended activation,
-        // so a click against a server that is still down would replace the
-        // outage screen, and with it the Retry and the course chooser, with an
-        // un-actionable spinner for the whole length of the budget. A student
-        // who clicked is watching, and can click again; they should get an
-        // answer, not another round of silent waiting.
+        // an unresolved-identity EPISODE, not to a call, and is refilled when
+        // the identity settles (see `_transition`). Refilling here would treat
+        // the chat's Retry like an unattended activation: a click against a
+        // server that is still down would replace the outage screen, the Retry
+        // and the course chooser with a spinner for the whole budget.
         this._cancelPendingRetry();
         await this._attemptResolve();
     }

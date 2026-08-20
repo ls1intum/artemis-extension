@@ -333,10 +333,10 @@ suite('wireWorkspaceDetection', () => {
         handle.dispose();
     });
 
-    // The startup dead end this pair exists for: a transient `getCurrentUser`
-    // failure leaves the session `resolving`, the branch above publishes
-    // nothing, and the chat used to sit on its startup spinner for the rest of
-    // the window with no Retry anywhere.
+    // The startup dead end this pair guards: a transient `getCurrentUser`
+    // failure leaves the session `resolving` and the branch above publishes
+    // nothing, so without the stall signal the chat sits on its startup spinner
+    // for the rest of the window with no Retry anywhere.
     test('a stalled identity resolution settles unavailable', async () => {
         const { session, stallEmitter } = makeSession('resolving');
         const outcomes: DetectionOutcome[] = [];

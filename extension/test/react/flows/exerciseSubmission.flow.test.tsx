@@ -15,7 +15,7 @@ import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetail
  * Exercises the complete component-store-message pipeline with postMessage round-trips.
  */
 
-// Mock useWebSocketUpdates — not under test here
+// useWebSocketUpdates is not under test here.
 vi.mock('@webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
@@ -137,7 +137,6 @@ describe('Exercise Submission Flow', () => {
 			expect(screen.getByText('Start Exercise')).toBeInTheDocument();
 		});
 
-		// Verify no Submit button yet
 		expect(screen.queryByText('Submit')).not.toBeInTheDocument();
 	});
 
@@ -156,7 +155,6 @@ describe('Exercise Submission Flow', () => {
 			expect(screen.getByText('Start Exercise')).toBeInTheDocument();
 		});
 
-		// OUTBOUND: click start exercise
 		await user.click(screen.getByText('Start Exercise'));
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
@@ -172,7 +170,6 @@ describe('Exercise Submission Flow', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		// Simulate exercise with participation (started)
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
@@ -201,7 +198,6 @@ describe('Exercise Submission Flow', () => {
 			expect(screen.getByText('Submit')).toBeInTheDocument();
 		});
 
-		// OUTBOUND: click submit
 		await user.click(screen.getByText('Submit'));
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
@@ -217,7 +213,6 @@ describe('Exercise Submission Flow', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		// Simulate exercise with pending submission (building)
 		const dataWithPending = {
 			...makeExerciseDataWithParticipation(),
 			pendingSubmissionsByParticipationId: { 99: { participationId: 99 } },
@@ -234,8 +229,7 @@ describe('Exercise Submission Flow', () => {
 			expect(screen.getByText('Binary Search Tree')).toBeInTheDocument();
 		});
 
-		// The exercise is in building state — verify the store reflects this,
-		// keyed by participation.id (#168 fix).
+		// The store keys the pending submission by participation id.
 		const storeState = useExerciseDetailStore.getState();
 		expect(storeState.pendingSubmissionsByParticipationId[99]).toBeTruthy();
 	});
@@ -244,8 +238,7 @@ describe('Exercise Submission Flow', () => {
 		// Exercise has both a graded (testRun=false) and a practice (testRun=true)
 		// participation. Only the practice one has a pending build. With the
 		// graded repo selected as workspace, the view must NOT show the building
-		// indicator — its participation has no pending entry. This is the
-		// regression the singleton field used to permit.
+		// indicator: its participation has no pending entry.
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
@@ -312,7 +305,6 @@ describe('Exercise Submission Flow', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		// Step 1: Load exercise with participation (already started)
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
@@ -324,10 +316,8 @@ describe('Exercise Submission Flow', () => {
 			expect(screen.getByText('Submit')).toBeInTheDocument();
 		});
 
-		// Step 2: Submit solution
 		await user.click(screen.getByText('Submit'));
 
-		// OUTBOUND: verify submitExercise postMessage
 		await waitFor(() => {
 			expect(mockApi.postMessage).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -338,7 +328,7 @@ describe('Exercise Submission Flow', () => {
 			);
 		});
 
-		// Step 3: Simulate build started — use fake timers for progress delays
+		// Fake timers from here on, for the build-progress delays.
 		vi.useFakeTimers();
 
 		dispatchExtensionMessage({
@@ -352,7 +342,6 @@ describe('Exercise Submission Flow', () => {
 
 		await vi.advanceTimersByTimeAsync(100);
 
-		// Step 4: Simulate build complete with results
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithResults(),
@@ -363,7 +352,6 @@ describe('Exercise Submission Flow', () => {
 
 		vi.useRealTimers();
 
-		// Step 5: INBOUND — verify store has result data
 		const storeState = useExerciseDetailStore.getState();
 		const participations = storeState.exerciseData?.exercise?.studentParticipations;
 		expect(participations).toHaveLength(1);
@@ -383,11 +371,10 @@ describe('Exercise Submission Flow', () => {
 		});
 
 		await waitFor(() => {
-			// ScoreInfo component should display score data
 			expect(screen.getByText('Binary Search Tree')).toBeInTheDocument();
 		});
 
-		// Verify results data in store (results live on submission.results)
+		// Results live on submission.results, not on the participation.
 		const storeState = useExerciseDetailStore.getState();
 		const latestSub = storeState.exerciseData?.exercise?.studentParticipations?.[0]?.submissions?.[0];
 		expect(latestSub?.results?.[0]?.score).toBe(75);

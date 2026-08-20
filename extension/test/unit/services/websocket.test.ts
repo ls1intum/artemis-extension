@@ -8,26 +8,17 @@ import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWe
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
 
 /**
- * Flush the microtask queue so that connect() progresses past its async
- * operations (await getAuthHeaders()) and reaches _createClient().
+ * Flush the microtask queue so connect() progresses past its `await` points and
+ * reaches _createClient(). One yield per `await`, hence the loop.
  *
- * Why multiple yields: connect() has several `await` points before
- * _createClient(). Each `await` schedules a microtask continuation.
- * We chain enough Promise.resolve() calls to let all of them run.
- *
- * Uses Promise.resolve() chaining instead of setTimeout/setImmediate
- * so it works even when sinon.useFakeTimers() is active (sinon fakes
- * setTimeout and setImmediate but NOT Promise microtasks).
+ * Promise.resolve() chaining rather than setTimeout/setImmediate, so it also
+ * works under sinon.useFakeTimers() (sinon fakes timers, not microtasks).
  */
 async function flushMicrotasks(): Promise<void> {
     for (let i = 0; i < 10; i++) {
         await Promise.resolve();
     }
 }
-
-// ============================================================================
-// Mock STOMP Client
-// ============================================================================
 
 class MockStompClient {
     public config: StompConfig;
@@ -61,7 +52,6 @@ class MockStompClient {
         };
     }
 
-    // Test helpers
     simulateConnect(): void {
         this.connected = true;
         if (this.config.onConnect) {
@@ -97,21 +87,16 @@ class MockStompClient {
     }
 }
 
-// ============================================================================
-// Testable WebSocket Service (exposes internals for testing)
-// ============================================================================
-
 class TestableArtemisWebsocketService extends ArtemisWebsocketService {
     public mockClient?: MockStompClient;
     public connectCallCount: number = 0;
 
-    // Expose private fields for testing via getters. After the
-    // ConnectionLifecycle extraction, state and counters live on
-    // `_lifecycle`; we reach in via `as any` to keep the same public
-    // testing surface.
+    // State and counters live on the private `_lifecycle`; the getters reach in
+    // via `as any` to expose a stable testing surface.
     public get isConnectingState(): boolean { return this._lifecycleState() === 'connecting'; }
     public get isDisconnectingState(): boolean { return this._lifecycleState() === 'disconnecting'; }
     public get connectionGaveUpState(): boolean { return this._lifecycleState() === 'gave-up'; }
+    public get lifecycleState(): string { return this._lifecycleState(); }
 
     public get reconnectAttemptsCount(): number {
         return ((this as any)._lifecycle._reconnectAttempts) as number;
@@ -129,21 +114,18 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
         return (this as any)._lifecycle._state as string;
     }
 
-    // Override client creation to use mock
     protected _createClient(config: StompConfig): Client {
         this.mockClient = new MockStompClient(config);
         return this.mockClient as unknown as Client;
     }
 
-    // Override connect to track call count
     public async connect(): Promise<void> {
         this.connectCallCount++;
         return super.connect();
     }
 
-    // Helper to directly set internal state for testing.
-    // Maps legacy boolean flags to the ConnectionState enum.
-    // Priority: gave-up > disconnecting > connecting > (no change for false-only flags)
+    // Maps boolean flags onto the ConnectionState enum.
+    // Priority: gave-up > disconnecting > connecting.
     public setInternalState(state: {
         isConnecting?: boolean;
         isDisconnecting?: boolean;
@@ -162,17 +144,11 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
         if (state.reconnectAttempts !== undefined) { lc._reconnectAttempts = state.reconnectAttempts; }
     }
 
-    // Helper to trigger onDisconnected (now routed through the orchestrator's
-    // STOMP callback which delegates to the lifecycle).
     public triggerOnDisconnected(): void {
         (this as any)._onStompDisconnected();
     }
 
 }
-
-// ============================================================================
-// Test Suite: ArtemisWebsocketService Safety Features
-// ============================================================================
 
 suite('ArtemisWebsocketService Safety Features', () => {
     let wsService: TestableArtemisWebsocketService;
@@ -194,51 +170,38 @@ suite('ArtemisWebsocketService Safety Features', () => {
         sinon.restore();
     });
 
-    // ========================================================================
-    // Test 1: Connection Mutex
-    // ========================================================================
     test('Connection Mutex: should block connect() when _isConnecting=true', async () => {
-        // Start a connect but DON'T simulateConnect — keeps state as 'connecting'
-        // with an in-flight _connectPromise
+        // No simulateConnect here, so the state stays 'connecting' with an
+        // in-flight _connectPromise.
         const p = wsService.connect();
         await flushMicrotasks();
         const firstClient = wsService.mockClient;
 
-        // Second connect() while first is still in progress — should piggyback on same promise
+        // A second connect() while the first is in progress piggybacks on the same promise.
         const p2 = wsService.connect();
         await flushMicrotasks();
 
-        // Should NOT replace the client (same reference — _createClient not called again)
         assert.strictEqual(wsService.mockClient, firstClient, 'Should not create new client when already connecting');
 
-        // Resolve the shared promise
         wsService.mockClient!.simulateConnect();
         await p;
         await p2;
     });
 
-    // ========================================================================
-    // Test 3: Max Attempts
-    // ========================================================================
     test('Max Attempts: should set _connectionGaveUp=true after 20 failed attempts', async () => {
-        // First connect to get a client
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // After connect, reconnectAttempts is 0. Set it to 19 to simulate 19 failed reconnects
+        // 19 failed reconnects, so the disconnect below is the 20th and gives up.
         wsService.setInternalState({ reconnectAttempts: 19 });
 
-        // This disconnect (the 20th attempt) should trigger gaveUp.
-        // The state transitions: connected -> disconnected -> gave-up -> disconnecting -> disconnected
-        // because _onDisconnected deactivates the client after hitting max attempts.
         wsService.triggerOnDisconnected();
         await flushMicrotasks();
 
-        // reconnectAttempts is now 20 (19 + 1), which blocked further connections.
-        // The connect() guard checks _connectionState === 'gave-up', so verify
-        // that subsequent connection attempts are blocked:
+        // The connect() guard checks for the 'gave-up' state, so the block is
+        // observed through a rejected connect() rather than a flag.
         assert.strictEqual(wsService.reconnectAttemptsCount, 20, 'Should have 20 reconnect attempts');
         try {
             await wsService.connect();
@@ -264,37 +227,27 @@ suite('ArtemisWebsocketService Safety Features', () => {
         assert.strictEqual(wsService.mockClient, undefined, 'Should not create client after giving up');
     });
 
-    // ========================================================================
-    // Test 4: Disconnect Mutex
-    // ========================================================================
     test('Disconnect Mutex: should ignore onDisconnected during intentional disconnect', async () => {
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // Track state change events
         const states: boolean[] = [];
         wsService.onDidChangeConnectionState(({ connected: isConnected }) => {
             states.push(isConnected);
         });
 
-        // Start disconnect (this sets _isDisconnecting = true)
         const disconnectPromise = wsService.disconnect();
 
-        // The disconnect handler should be ignored during intentional disconnect
-        // This is tested implicitly - no reconnection loop occurs
+        // The disconnect handler is ignored during an intentional disconnect.
+        // Tested implicitly: no reconnection loop occurs.
         await disconnectPromise;
 
-        // After intentional disconnect, state should be clean
         assert.strictEqual(wsService.isConnectingState, false);
         assert.strictEqual(wsService.isDisconnectingState, false);
     });
 });
-
-// ============================================================================
-// Test Suite: ArtemisWebsocketService Connection State Management
-// ============================================================================
 
 suite('ArtemisWebsocketService Connection State Management', () => {
     let wsService: TestableArtemisWebsocketService;
@@ -319,9 +272,6 @@ suite('ArtemisWebsocketService Connection State Management', () => {
         sinon.restore();
     });
 
-    // ========================================================================
-    // Test 7: Debounced Notifications
-    // ========================================================================
     test('Debounced Notifications: disconnect should delay notification by 5s', async () => {
         clock = sinon.useFakeTimers();
 
@@ -335,20 +285,16 @@ suite('ArtemisWebsocketService Connection State Management', () => {
             states.push(isConnected);
         });
 
-        // Clear initial connected event fired by simulateConnect above
+        // Drop the connected event fired by simulateConnect above.
         states.length = 0;
 
-        // Trigger disconnect
         wsService.triggerOnDisconnected();
 
-        // Immediately after disconnect, callback should NOT be called yet
         assert.strictEqual(states.length, 0, 'Should not notify immediately');
 
-        // Advance time by 4 seconds - still not notified
         clock.tick(4000);
         assert.strictEqual(states.length, 0, 'Should not notify before 5s');
 
-        // Advance time to 5 seconds - now should be notified
         clock.tick(1000);
         assert.strictEqual(states.length, 1, 'Should notify after 5s');
         assert.strictEqual(states[0], false, 'Should notify as disconnected');
@@ -367,33 +313,25 @@ suite('ArtemisWebsocketService Connection State Management', () => {
             states.push(isConnected);
         });
 
-        // Clear initial connected event
+        // Drop the connected event fired by simulateConnect above.
         states.length = 0;
 
-        // Trigger disconnect
         wsService.triggerOnDisconnected();
 
-        // Advance 3 seconds
         clock.tick(3000);
 
-        // Reconnect before 5s grace period ends
+        // Reconnect before the 5s grace period ends.
         wsService.mockClient!.simulateConnect();
 
-        // Should get connected notification immediately
         assert.ok(states.includes(true), 'Should notify of reconnection immediately');
 
-        // Advance past the 5s mark
+        // Past the 5s mark.
         clock.tick(3000);
 
-        // Should NOT have received a false notification (it was cancelled)
         const falseNotifications = states.filter(s => s === false);
         assert.strictEqual(falseNotifications.length, 0, 'Disconnect notification should be cancelled');
     });
 });
-
-// ============================================================================
-// Test Suite: ArtemisWebsocketService Reconnection Logic
-// ============================================================================
 
 suite('ArtemisWebsocketService Reconnection Logic', () => {
     let wsService: TestableArtemisWebsocketService;
@@ -414,24 +352,17 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
         sinon.restore();
     });
 
-    // ========================================================================
-    // Test 9: Reset Connection State
-    // ========================================================================
     test('Reset Connection State: should reset all counters', async () => {
-        // Set up a "bad" state
         wsService.setInternalState({
             reconnectAttempts: 15,
             connectionGaveUp: true
         });
 
-        // Verify bad state
         assert.strictEqual(wsService.reconnectAttemptsCount, 15);
         assert.strictEqual(wsService.connectionGaveUpState, true);
 
-        // Reset
         wsService.resetConnectionState();
 
-        // Verify reset
         assert.strictEqual(wsService.reconnectAttemptsCount, 0, 'Attempts should be reset to 0');
         assert.strictEqual(wsService.connectionGaveUpState, false, 'gaveUp should be reset to false');
     });
@@ -440,10 +371,8 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
         const clock = sinon.useFakeTimers();
 
         try {
-            // Give up
             wsService.setInternalState({ connectionGaveUp: true });
 
-            // Can't connect while given up - should throw
             try {
                 await wsService.connect();
                 assert.fail('connect() should have thrown while given up');
@@ -452,10 +381,8 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
                 assert.ok(error.message.includes('Max attempts reached'));
             }
 
-            // Reset
             wsService.resetConnectionState();
 
-            // Now should be able to connect
             const p2 = wsService.connect();
             await flushMicrotasks();
             wsService.mockClient!.simulateConnect();
@@ -467,22 +394,16 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
         }
     });
 
-    // ========================================================================
-    // Test 10: No connect() in onDisconnected
-    // ========================================================================
     test('No connect() in onDisconnected: disconnect handler should NOT call connect()', async () => {
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // Record call count after initial connect
         const callCountAfterConnect = wsService.connectCallCount;
 
-        // Trigger disconnect handler
         wsService.triggerOnDisconnected();
 
-        // connect() should NOT have been called again
         assert.strictEqual(
             wsService.connectCallCount,
             callCountAfterConnect,
@@ -490,10 +411,6 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
         );
     });
 });
-
-// ============================================================================
-// Test Suite: IrisWebSocketSessionClient Safety Features
-// ============================================================================
 
 suite('IrisWebSocketSessionClient Safety Features', () => {
     let wsService: TestableArtemisWebsocketService;
@@ -509,8 +426,6 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
 
         wsService = new TestableArtemisWebsocketService(authManager);
 
-
-        // Connect WebSocket first
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -532,34 +447,25 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
         sinon.restore();
     });
 
-    // ========================================================================
-    // Test 1: Latest-wins subscription for IrisWebSocketSessionClient
-    // ========================================================================
-    // The old 3s "attempt or drop" rate limiter was replaced by `_converge`
-    // (Task 6): a deliberate `subscribeToSession` call is never rate-limited,
-    // it converges towards the desired session immediately. See
-    // `test/logic/iris/irisWebSocketSessionClient.resubscribe.test.ts` for the
-    // full coverage of `_converge`'s latest-wins semantics; this test only
-    // checks the two scenarios visible through this suite's real STOMP mock.
+    // A deliberate `subscribeToSession` call is never rate-limited: `_converge`
+    // moves to the desired session immediately.
+    // `test/logic/iris/irisWebSocketSessionClient.resubscribe.test.ts` covers
+    // the latest-wins semantics in full; this test only checks the two
+    // scenarios visible through this suite's STOMP mock.
     test('Latest-wins: resubscribing to the same session is a no-op, a different one switches immediately', async () => {
-        // Initialize session (this calls subscribeToSession and subscribes)
-        // API returns { id: 123 }, so topic will be /user/topic/iris/123
         sessionManager.subscribeToSession(123);
 
-        const topic123 = '/user/topic/iris/123';  // API returns 123, not 100!
+        const topic123 = '/user/topic/iris/123';
 
-        // Verify initial subscription exists
         assert.ok(wsService.mockClient!.subscriptions.has(topic123), 'Initial subscription exists');
 
-        // Resubscribing to the SAME session is a no-op: already subscribed to
-        // what is desired, so nothing is torn down or recreated.
+        // Resubscribing to the same session tears nothing down.
         const subscriptionCountBefore = wsService.mockClient!.subscriptions.size;
         sessionManager.subscribeToSession(123);
         assert.strictEqual(wsService.mockClient!.subscriptions.size, subscriptionCountBefore,
             'Resubscribing to the same session should not change subscriptions');
 
-        // A deliberate switch to a DIFFERENT session is NOT rate-limited: it
-        // must take effect immediately, without any wait.
+        // Switching to a different session takes effect without any wait.
         sessionManager.subscribeToSession(456);
         const topic456 = '/user/topic/iris/456';
         assert.ok(wsService.mockClient!.subscriptions.has(topic456),
@@ -568,54 +474,34 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
             'Old session subscription should be torn down');
     });
 
-    // ========================================================================
-    // Test 2: No connect() Calls from IrisWebSocketSessionClient
-    // ========================================================================
     test('No connect() Calls: _converge should NEVER call connect()', async () => {
-        // Disconnect WebSocket
         await wsService.disconnect();
 
-        // SPY on connect() to verify it's never called
         const connectSpy = sinon.spy(wsService, 'connect');
 
-        // Create new session manager (constructor registers callback)
+        // The constructor registers the connection-state callback.
         const newSessionManager = new IrisWebSocketSessionClient(wsService);
 
-        // Try to initialize session (WebSocket not connected)
         newSessionManager.subscribeToSession(123);
-
-        // Try to subscribe directly
         newSessionManager.subscribeToSession(100);
 
-        // connect() should NEVER have been called
         assert.strictEqual(connectSpy.callCount, 0, 'IrisWebSocketSessionClient should NEVER call connect()');
         sinon.assert.notCalled(connectSpy);
 
         newSessionManager.dispose();
     });
 
-    // ========================================================================
-    // Test 3: Proper Cleanup on dispose
-    // ========================================================================
     test('Proper Cleanup: dispose() should dispose connection state subscription', async () => {
-        // IrisWebSocketSessionClient subscribes to onDidChangeConnectionState in constructor.
-        // We verify dispose() does not throw and the subscription is cleaned up.
+        // The constructor subscribes to onDidChangeConnectionState.
         const tempManager = new IrisWebSocketSessionClient(wsService);
 
-        // Dispose should not throw
         tempManager.dispose();
 
-        // Verify the manager no longer reacts to state changes by simulating
-        // a reconnect. If dispose() didn't clean up, the callback would fire
-        // and try to resubscribe (which would fail or cause side-effects).
-        // We verify indirectly: after dispose, no error is thrown on disconnect/reconnect.
+        // If dispose() left the callback registered, this state change would
+        // make the manager try to resubscribe and throw.
         wsService.triggerOnDisconnected();
     });
 });
-
-// ============================================================================
-// Test Suite: IrisWebSocketSessionClient Subscription Management
-// ============================================================================
 
 suite('IrisWebSocketSessionClient Subscription Management', () => {
     let wsService: TestableArtemisWebsocketService;
@@ -646,11 +532,7 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         sinon.restore();
     });
 
-    // ========================================================================
-    // Test 4: Subscribe when connected
-    // ========================================================================
     test('Subscribe when connected: should subscribe only if WebSocket is connected', async () => {
-        // Connect first
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -658,10 +540,8 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
 
         sessionManager = new IrisWebSocketSessionClient(wsService);
 
-        // Initialize session - should subscribe
         sessionManager.subscribeToSession(123);
 
-        // Check subscription exists
         const topic = '/user/topic/iris/123';
         assert.ok(
             wsService.mockClient!.subscriptions.has(topic),
@@ -670,24 +550,20 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
     });
 
     test('Subscribe when connected: should NOT subscribe if WebSocket is disconnected', async () => {
-        // Don't connect WebSocket
+        // The WebSocket is deliberately never connected.
         sessionManager = new IrisWebSocketSessionClient(wsService);
 
-        // Initialize session - should NOT throw, but also not subscribe
+        // Must not throw, and must not subscribe either.
         sessionManager.subscribeToSession(123);
 
-        // No mock client exists when not connected
+        // No client is created while disconnected.
         assert.strictEqual(wsService.mockClient, undefined, 'Should not have subscribed');
     });
 
-    // ========================================================================
-    // Test 5: Resubscribe on reconnect
-    // ========================================================================
     test('Resubscribe on reconnect: should automatically resubscribe when WebSocket reconnects', async () => {
-        // Start clock with a non-zero time to avoid rate limiting issues
+        // Non-zero start time, otherwise the rate limiter sees timestamp 0.
         clock = sinon.useFakeTimers(Date.now());
 
-        // Connect and subscribe
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -696,42 +572,32 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         sessionManager = new IrisWebSocketSessionClient(wsService);
         sessionManager.subscribeToSession(123);
 
-        // API returns { id: 123 }, so subscription is for session 123
         const topic = '/user/topic/iris/123';
-        
-        // Check initial subscription exists in the mock client
+
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Initial subscription');
 
-        // Manually unsubscribe to clear the active subscription
         sessionManager.unsubscribe();
-        
-        // Simulate disconnect - this clears the SERVICE's subscriptions map
+
+        // Clears the SERVICE's subscriptions map.
         wsService.triggerOnDisconnected();
-        
-        // Clear the mock client's subscriptions to simulate what happens in real life
+
+        // A real broker drops the client's subscriptions too.
         wsService.mockClient!.subscriptions.clear();
 
-        // Verify mock subscriptions are cleared
         assert.strictEqual(wsService.mockClient!.subscriptions.size, 0, 'Mock subscriptions cleared on disconnect');
 
-        // Advance time past rate limit
+        // Past the rate limit.
         clock.tick(3100);
 
-        // Simulate reconnect - this triggers onDidChangeConnectionState event
-        // which will call _converge if conditions are met
+        // Fires onDidChangeConnectionState, which drives _converge.
         wsService.mockClient!.simulateConnect();
 
-        // Should have resubscribed (the session manager resubscribes on reconnect)
-        // Plus the 3 auto-subscriptions from _onConnected
         assert.ok(
             wsService.mockClient!.subscriptions.has(topic),
             'Should resubscribe on reconnect'
         );
     });
 
-    // ========================================================================
-    // Test 6: Unsubscribe cleanup
-    // ========================================================================
     test('Unsubscribe cleanup: unsubscribe() should remove subscription', async () => {
         const p = wsService.connect();
         await flushMicrotasks();
@@ -744,10 +610,8 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         const topic = '/user/topic/iris/123';
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Should be subscribed');
 
-        // Unsubscribe
         sessionManager.unsubscribe();
 
-        // Subscription should be removed
         assert.strictEqual(
             wsService.mockClient!.subscriptions.has(topic),
             false,
@@ -767,10 +631,8 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         const topic = '/user/topic/iris/123';
         assert.ok(wsService.mockClient!.subscriptions.has(topic));
 
-        // Dispose
         sessionManager.dispose();
 
-        // Subscription should be removed
         assert.strictEqual(
             wsService.mockClient!.subscriptions.has(topic),
             false,
@@ -778,10 +640,6 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         );
     });
 });
-
-// ============================================================================
-// Test Suite: Integration Tests
-// ============================================================================
 
 suite('WebSocket Integration Tests', () => {
     let wsService: TestableArtemisWebsocketService;
@@ -813,41 +671,35 @@ suite('WebSocket Integration Tests', () => {
     });
 
     test('Full lifecycle: connect -> subscribe -> receive message -> disconnect', async () => {
-        // Start clock with current time to avoid rate limiting issues
+        // Non-zero start time, otherwise the rate limiter sees timestamp 0.
         clock = sinon.useFakeTimers(Date.now());
 
-        // 1. Connect
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
         assert.strictEqual(wsService.isConnected(), true);
 
-        // 2. Create session manager and subscribe
         sessionManager = new IrisWebSocketSessionClient(wsService);
         sessionManager.subscribeToSession(123);
 
-        // 3. Register message handler
         const receivedMessages: any[] = [];
         sessionManager.onDidReceiveMessage((msg) => {
             receivedMessages.push(msg);
         });
 
-        // 4. Simulate receiving a message (API returns { id: 123 })
         const testMessage = { content: 'Hello from Iris', sender: 'IRIS' };
         wsService.mockClient!.simulateMessage('/user/topic/iris/123', testMessage);
 
-        // 5. Verify message received, wrapped with its source session id
+        // Messages arrive wrapped with their source session id.
         assert.strictEqual(receivedMessages.length, 1);
         assert.deepStrictEqual(receivedMessages[0], { frame: testMessage, sourceSessionId: 123 });
 
-        // 6. Disconnect
         await wsService.disconnect();
         assert.strictEqual(wsService.isConnected(), false);
     });
 
     test('Connection state propagation: WebSocket state changes should propagate to IrisWebSocketSessionClient', async () => {
-        // Start clock with current time
         clock = sinon.useFakeTimers(Date.now());
 
         const p = wsService.connect();
@@ -855,32 +707,24 @@ suite('WebSocket Integration Tests', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // Create session manager - it will immediately receive the connected state
-        // via onDidChangeConnectionState event from WebSocket service
         sessionManager = new IrisWebSocketSessionClient(wsService);
 
-        // Register our listener AFTER session manager is created
+        // The listener is registered after the manager, so the initial 'true'
+        // has already been fired. Only a fresh state change is observable here.
         const connectionStates: boolean[] = [];
         sessionManager.onDidConnectionStateChange((isConnected) => {
             connectionStates.push(isConnected);
         });
 
-        // Note: The initial 'true' state was already fired before we registered our listener.
-        // This is expected behavior - we need to trigger a state change to see it.
-        
-        // Simulate disconnect - this will eventually fire 'false' (after debounce)
         wsService.triggerOnDisconnected();
 
-        // Wait for debounce (5 seconds)
+        // The 'false' notification is debounced by 5s.
         clock.tick(5100);
 
-        // Should have received disconnected state
         assert.ok(connectionStates.includes(false), 'Should report disconnected state');
 
-        // Now simulate reconnect to get a 'true' state
         wsService.mockClient!.simulateConnect();
 
-        // Should have received connected state
         assert.ok(connectionStates.includes(true), 'Should report reconnected state');
     });
 
@@ -892,24 +736,17 @@ suite('WebSocket Integration Tests', () => {
 
         sessionManager = new IrisWebSocketSessionClient(wsService);
 
-        // Subscribe repeatedly
         for (let i = 0; i < 5; i++) {
             sessionManager.subscribeToSession(123 + i);
         }
 
-        // The session manager registers its connection state listener only once
-        // (in the constructor). Multiple subscribeToSession calls should not add
-        // more listeners. We verify indirectly: after dispose, a state change
-        // should not trigger any side-effects from the manager.
+        // The connection-state listener is registered once, in the constructor;
+        // repeated subscribeToSession calls add no more. Verified indirectly:
+        // after dispose, a state change triggers nothing and throws nothing.
         sessionManager.dispose();
         wsService.triggerOnDisconnected();
-        // No assertion needed beyond "no error thrown"
     });
 });
-
-// ============================================================================
-// Test Suite: WebSocket Race Condition Fixes
-// ============================================================================
 
 suite('WebSocket Race Condition Fixes', () => {
     let wsService: TestableArtemisWebsocketService;
@@ -934,20 +771,13 @@ suite('WebSocket Race Condition Fixes', () => {
         sinon.restore();
     });
 
-    // ========================================================================
-    // Bug 1 + 3C: concurrent connect() should share the same promise
-    // ========================================================================
     test('concurrent connect() should share the same promise', async () => {
-        // Start first connect
         const p1 = wsService.connect();
-
-        // Start concurrent connect() — should return the pending promise
         const p2 = wsService.connect();
 
-        // Flush microtasks so first connect() finishes creating the client
+        // Let the first connect() get as far as creating the client.
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        // Simulate successful connection — resolves the shared promise
         wsService.mockClient!.simulateConnect();
 
         await p1;
@@ -956,57 +786,45 @@ suite('WebSocket Race Condition Fixes', () => {
         assert.strictEqual(wsService.isConnected(), true);
     });
 
-    // ========================================================================
-    // Bug 3A: max reconnect should notify only once
-    // ========================================================================
     test('max reconnect should notify only once', async () => {
         clock = sinon.useFakeTimers();
 
-        // Connect first
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // Track disconnect notifications
         const states: boolean[] = [];
         wsService.onDidChangeConnectionState(({ connected: isConnected }) => {
             states.push(isConnected);
         });
-        // Clear initial connected event
+        // Drop the connected event fired by simulateConnect above.
         states.length = 0;
 
-        // Set attempts to 19 so next disconnect is the 20th (triggers give-up)
+        // 19 attempts, so the disconnect below is the 20th and gives up.
         wsService.setInternalState({ reconnectAttempts: 19 });
 
-        // Trigger disconnect — this would previously schedule a debounced notification
-        // AND fire an immediate notification when max reached
         wsService.triggerOnDisconnected();
 
-        // Advance past the 5s debounce period
+        // Past the 5s debounce period.
         clock.tick(6000);
 
-        // Should have exactly 1 false notification (the immediate one from give-up),
-        // NOT 2 (debounce timer should have been cancelled)
+        // Exactly one false notification: giving up notifies immediately and
+        // cancels the debounce timer.
         const falseNotifications = states.filter(s => s === false);
         assert.strictEqual(falseNotifications.length, 1,
             `Expected exactly 1 disconnect notification, got ${falseNotifications.length}`);
     });
 
-    // ========================================================================
-    // Bug 3B: WebSocket close during handshake should reject connect()
-    // ========================================================================
     test('WebSocket close during handshake should reject connect()', async () => {
-        // Start connect
         const p = wsService.connect();
 
-        // Flush microtasks so connect() creates the client
+        // Let connect() get as far as creating the client.
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        // Simulate WebSocket close BEFORE onConnect fires (during handshake)
+        // Close BEFORE onConnect fires, i.e. mid-handshake.
         wsService.mockClient!.simulateWebSocketClose();
 
-        // The connect promise should reject
         try {
             await p;
             assert.fail('connect() should have rejected');
@@ -1017,23 +835,19 @@ suite('WebSocket Race Condition Fixes', () => {
         }
     });
 
-    // ========================================================================
-    // Bug 1: disconnect() during connect() aborts connection
-    // ========================================================================
     test('disconnect() during connect() aborts connection via generation token', async () => {
-        // Start connect
         const p = wsService.connect();
         const genAfterConnect = wsService.connectionGeneration;
 
-        // Flush microtasks so connect() creates the client
+        // Let connect() get as far as creating the client.
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        // disconnect() should increment generation, invalidating the in-flight connect
+        // disconnect() increments the generation, invalidating the in-flight connect.
         await wsService.disconnect();
         assert.ok(wsService.connectionGeneration > genAfterConnect,
             'disconnect() should increment connection generation');
 
-        // The original connect promise was rejected by disconnect's _rejectConnect
+        // disconnect()'s _rejectConnect settles the original promise.
         try {
             await p;
             assert.fail('connect() should have been rejected by disconnect');
@@ -1042,17 +856,12 @@ suite('WebSocket Race Condition Fixes', () => {
         }
     });
 
-    // ========================================================================
-    // Bug 2: handshake failures increment reconnect attempts
-    // ========================================================================
     test('handshake failures increment reconnect attempts', async () => {
-        // Start connect
         const p = wsService.connect();
         await new Promise(resolve => setTimeout(resolve, 0));
 
         assert.strictEqual(wsService.reconnectAttemptsCount, 0, 'Should start at 0');
 
-        // Simulate WebSocket close during handshake
         wsService.mockClient!.simulateWebSocketClose();
 
         try { await p; } catch { /* expected rejection */ }
@@ -1061,9 +870,6 @@ suite('WebSocket Race Condition Fixes', () => {
             'Handshake failure should increment reconnect attempts');
     });
 
-    // ========================================================================
-    // Bug 3: connect() throws when blocked (no in-flight promise)
-    // ========================================================================
     test('connect() throws when blocked and no in-flight promise', async () => {
         wsService.setInternalState({ connectionGaveUp: true });
 
@@ -1077,11 +883,7 @@ suite('WebSocket Race Condition Fixes', () => {
         }
     });
 
-    // ========================================================================
-    // Bug 4: intentional disconnect notifies consumers
-    // ========================================================================
     test('intentional disconnect notifies consumers', async () => {
-        // Connect first
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
@@ -1091,13 +893,11 @@ suite('WebSocket Race Condition Fixes', () => {
         wsService.onDidChangeConnectionState(({ connected: isConnected, wasEverConnected }) => {
             states.push({ connected: isConnected, wasEverConnected });
         });
-        // Clear initial connected event
+        // Drop the connected event fired by simulateConnect above.
         states.length = 0;
 
-        // Intentional disconnect
         await wsService.disconnect();
 
-        // Should have received a (false, true) notification
         assert.ok(states.length >= 1, 'Should have received at least one notification');
         const disconnectNotification = states.find(s => !s.connected);
         assert.ok(disconnectNotification, 'Should have received disconnect notification');
@@ -1105,16 +905,12 @@ suite('WebSocket Race Condition Fixes', () => {
             'wasEverConnected should be true during disconnect notification');
     });
 
-    // ========================================================================
-    // Concurrent connect() awaiters are not orphaned when the catch path fires
-    // ========================================================================
-    //
     // While the first connect() awaits `_client.deactivate()`, a parallel
-    // `connect()` call observes the 'connecting' state at the top of the
-    // method and returns the existing `_connectDeferred.promise`. If the
-    // catch path then throws (deactivate failed, auth headers empty, etc.)
-    // without settling the deferred, every concurrent awaiter hangs forever.
-    // The fix routes the catch through `_settleDeferred(error)`.
+    // `connect()` call observes the 'connecting' state at the top of the method
+    // and returns the existing `_connectDeferred.promise`. The catch path
+    // (deactivate failed, auth headers empty, etc.) must therefore settle that
+    // deferred via `_settleDeferred(error)`, or every concurrent awaiter hangs
+    // forever.
     test('concurrent connect() awaiters reject when catch path fires', async () => {
         // Hold deactivate open so a second connect() can attach as an awaiter
         // before the first call's catch block runs.
@@ -1141,20 +937,15 @@ suite('WebSocket Race Condition Fixes', () => {
         // Let the catch path fire.
         releaseDeactivate();
 
-        // Both awaiters must reject with the same root cause — neither hangs.
+        // Both awaiters must reject with the same root cause, neither hangs.
         await assert.rejects(reconnect1, /deactivate failed/);
         await assert.rejects(reconnect2, /deactivate failed/);
         assert.strictEqual(wsService.isConnectingState, false, 'state machine must exit connecting');
     });
 
-    // ========================================================================
-    // Catch path with NO concurrent awaiter must not orphan the deferred
-    // ========================================================================
-    //
-    // Companion to the concurrent-awaiter test: when only a single caller
-    // hits the catch path, the deferred is never observed by anyone else.
-    // It still has to settle cleanly without producing an unhandled
-    // promise rejection.
+    // Companion to the concurrent-awaiter test: when a single caller hits the
+    // catch path, nobody else observes the deferred, yet it still has to settle
+    // cleanly rather than surface as an unhandled rejection.
     test('catch path with single caller does not emit unhandled rejection', async () => {
         const rejections: unknown[] = [];
         const onUnhandled = (reason: unknown): void => { rejections.push(reason); };
@@ -1181,32 +972,27 @@ suite('WebSocket Race Condition Fixes', () => {
         }
     });
 
-    // ========================================================================
-    // Bug 5: _isDisconnecting resets if deactivate() throws
-    // ========================================================================
     test('_isDisconnecting resets if deactivate() throws', async () => {
-        // Connect first
         const p = wsService.connect();
         await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
-        // Make deactivate throw
         wsService.mockClient!.deactivate = async () => {
             throw new Error('deactivate failed');
         };
 
-        // Start a new connect — the deactivation of the existing client will throw
-        try {
-            const p2 = wsService.connect();
-            await new Promise(resolve => setTimeout(resolve, 0));
-            await p2;
-        } catch {
-            // Expected — deactivate threw
-        }
+        // A new connect() deactivates the existing client, which now throws.
+        // Await the rejection immediately: handing the rejected promise a
+        // handler only after a macrotask hop leaves it unhandled long enough
+        // for the extension host to report it, and a swallow-all catch would
+        // let this test pass even if connect() resolved.
+        const p2 = wsService.connect();
+        await assert.rejects(p2, /deactivate failed/);
 
-        // _isDisconnecting should NOT be stuck as true
         assert.strictEqual(wsService.isDisconnectingState, false,
             '_isDisconnecting should be reset even when deactivate() throws');
+        assert.strictEqual(wsService.lifecycleState, 'disconnected',
+            'failed reconnect must land in disconnected, not stay in connecting');
     });
 });

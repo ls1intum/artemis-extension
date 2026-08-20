@@ -5,7 +5,7 @@ import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shar
 import type { ArtemisApiService } from '@extension/api';
 import type { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewActionHandler } from '@extension/controller/types';
-import type { AuthManager } from '@extension/services/auth';
+import type { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -17,6 +17,8 @@ export type CommandMap = Record<string, CommandHandler>;
 export interface CommandContext {
     authManager: AuthManager;
     artemisApi: ArtemisApiService;
+    oidcLoginService: OidcLoginService;
+    authCancellation: AuthCancellationService;
     appStateManager: AppStateManager;
     actionHandler: WebViewActionHandler;
     sendMessage(message: ExtensionToWebviewMessage): void;

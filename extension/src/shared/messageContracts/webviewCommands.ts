@@ -9,11 +9,13 @@ export const WebviewMsgType = {
     Error: 'error',
 } as const;
 
-/** All Webview->Extension command types */
 export const WebviewCmd = {
     // Auth
     Login: 'login',
     Logout: 'logout',
+    CheckLoginOptions: 'checkLoginOptions',
+    StartOidcLogin: 'startOidcLogin',
+    CancelLogin: 'cancelLogin',
 
     // Navigation
     BackToDashboard: 'backToDashboard',
@@ -77,8 +79,8 @@ export const WebviewCmd = {
     // Iris Chat
     SendMessage: 'sendMessage',
     ResetChatSessions: 'resetChatSessions',
-    // Conversation-first navigation. There is no `UndoNavigation` (cut 2):
-    // the notice `showChatNotice` reports is actionless.
+    // Conversation-first navigation. There is no `UndoNavigation`: the notice
+    // `showChatNotice` reports is actionless.
     SelectTopic: 'selectTopic',
     /**
      * Chat-side course refresh. Deliberately NOT `ReloadCourses`: that one is
@@ -121,14 +123,16 @@ export const WebviewCmd = {
     ProblemStatementSelection: 'problemStatementSelection',
 } as const;
 
-/** Union of all Webview->Extension command strings */
 export type WebviewCmd = (typeof WebviewCmd)[keyof typeof WebviewCmd];
 
 /** Payload definitions -- undefined means no payload */
 interface WebviewCmdPayloads {
     // Auth
-    login: { username: string; password: string; rememberMe: boolean };
+    login: { username: string; password: string; rememberMe: boolean; attemptId: number };
     logout: undefined;
+    checkLoginOptions: { username: string; attemptId: number };
+    startOidcLogin: { rememberMe: boolean };
+    cancelLogin: undefined;
 
     // Navigation
     backToDashboard: undefined;
@@ -284,6 +288,8 @@ interface WebviewCmdPayloads {
 /** Commands that require a non-undefined payload object. */
 export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.Login,
+    WebviewCmd.CheckLoginOptions,
+    WebviewCmd.StartOidcLogin,
     WebviewCmd.ViewCourseDetails,
     WebviewCmd.OpenExercise,
     WebviewCmd.OpenExerciseDetails,
@@ -324,7 +330,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     // NewConversation is deliberately absent: it carries no payload.
 ]);
 
-/** Auto-generated command messages */
 type WebviewCommandMessages = {
     [K in WebviewCmd]: WebviewCmdPayloads[K] extends undefined
         ? { type: 'command'; command: K }
@@ -333,7 +338,6 @@ type WebviewCommandMessages = {
             : { type: 'command'; command: K; payload: WebviewCmdPayloads[K] }
 }[WebviewCmd];
 
-/** Full Webview->Extension union (commands + non-command messages) */
 export type WebviewToExtensionMessage =
     | { type: typeof WebviewMsgType.Ready }
     | { type: typeof WebviewMsgType.RequestInit }
@@ -357,7 +361,6 @@ export function getCommand(message: WebviewToExtensionMessage): WebviewCmd | typ
         : message.type;
 }
 
-/** Post a typed command from webview to extension. */
 export function postCommand<K extends WebviewCmd>(
     vscodeApi: VsCodeApi,
     command: K,
@@ -380,7 +383,6 @@ export function requestInit(vscodeApi: VsCodeApi): void {
     vscodeApi.postMessage({ type: WebviewMsgType.RequestInit } as WebviewToExtensionMessage);
 }
 
-/** Extract a specific command message type */
 export type WebCmd<T extends WebviewCmd> = Extract<WebviewToExtensionMessage, { command: T }>;
 
 /** Extract typed payload from a command message. Throws if payload is missing. */
@@ -404,12 +406,10 @@ export function getOptionalPayload<T extends WebviewToExtensionMessage & { paylo
     return (message as { payload: unknown }).payload as T extends { payload?: infer P } ? P : never;
 }
 
-/** Named payload type aliases for test-results tracking commands */
 export type TestResultsOverviewOpenedPayload = WebviewCmdPayloads['testResultsOverviewOpened'];
 export type TestResultsOverviewClosedPayload = WebviewCmdPayloads['testResultsOverviewClosed'];
 export type TaskFeedbackOpenedPayload = WebviewCmdPayloads['taskFeedbackOpened'];
 export type TaskFeedbackClosedPayload = WebviewCmdPayloads['taskFeedbackClosed'];
 
-/** Named payload type aliases for problem-statement tracking commands */
 export type ProblemStatementScrollPayload = WebviewCmdPayloads['problemStatementScroll'];
 export type ProblemStatementSelectionPayload = WebviewCmdPayloads['problemStatementSelection'];

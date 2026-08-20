@@ -8,15 +8,14 @@ import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFile
 
 /**
  * Reads the workspace's uncommitted changes for attachment to a chat send.
- * Extracted out of `ChatMessageService` so it and `SendCoordinator` share ONE
- * implementation rather than a copy that drifts.
+ * The single implementation every send path shares; do not copy it into a
+ * caller.
  */
 export async function collectUncommittedFiles(
     postMessage: (message: ExtensionToWebviewMessage) => void,
 ): Promise<Map<string, string> | undefined> {
     let uncommittedFiles: Map<string, string> | undefined;
 
-    // Check if the user has enabled sending uncommitted changes
     const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
 
     if (!sendUncommittedChanges) {
@@ -27,7 +26,6 @@ export async function collectUncommittedFiles(
     try {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 
-        // Use unified checker with full options (content + filters + status)
         const result = await checkWorkspaceFiles(workspaceFolder, {
             includeContent: true,
             applyFilters: true,
@@ -36,7 +34,6 @@ export async function collectUncommittedFiles(
             includeDirty: true
         });
 
-        // Convert to Map for backward compatibility
         uncommittedFiles = new Map();
         result.files
             .filter(f => f.status === 'included' && f.content !== undefined)
@@ -45,7 +42,6 @@ export async function collectUncommittedFiles(
         if (uncommittedFiles.size > 0) {
             logger.irisChat(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
 
-            // Update display with detailed analysis
             const excludedFiles = result.files
                 .filter(f => f.status === 'excluded')
                 .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
@@ -61,7 +57,7 @@ export async function collectUncommittedFiles(
         return uncommittedFiles;
     } catch (error: unknown) {
         logger.error('Error collecting uncommitted files', LogCategory.IRIS_CHAT, error);
-        // Continue without uncommitted files - this is not a critical error
+        // Not critical: the send continues without uncommitted files.
         return undefined;
     }
 }

@@ -25,9 +25,7 @@ interface CourseDetailState {
     filteredExercises: () => ExerciseDetail[];
 }
 
-/**
- * Filter exercises by search term (case-insensitive, matches title or type).
- */
+/** Case-insensitive match against the exercise title or type. */
 function filterExercises(exercises: ExerciseDetail[], searchTerm: string): ExerciseDetail[] {
     const lowerSearchTerm = searchTerm.toLowerCase().trim();
     if (!lowerSearchTerm) {
@@ -41,9 +39,6 @@ function filterExercises(exercises: ExerciseDetail[], searchTerm: string): Exerc
     });
 }
 
-/**
- * Sort exercises based on selected sort option.
- */
 function sortExercises(exercises: ExerciseDetail[], sortBy: string): ExerciseDetail[] {
     const sorted = [...exercises];
 

@@ -41,7 +41,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const activeSessionId = useRef<string | null>(null);
     const isResearcher = authStatus.role === 'researcher';
 
-    // Video state
     const [videoSyncConfig, setVideoSyncConfig] = useState<VideoSyncConfig | null>(null);
     const [hasSubtitles, setHasSubtitles] = useState(false);
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -49,7 +48,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const videoTimeRef = useRef<number>(0);
     const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
-    // Live state
     const [toasts, setToasts] = useState<ActiveToast[]>([]);
     const nextToastId = useRef(0);
     const pushToast = useCallback((toast: AnnotationToast) => {
@@ -63,8 +61,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
 
     // Pending timeline marker position (click-to-place). The ref mirrors the
     // state synchronously so a label keypress immediately after a click reads
-    // the fresh value (an effect-based mirror would lag a commit and re-introduce
-    // the race).
+    // the fresh value; an effect-based mirror would lag a commit and race.
     const [pendingTimestamp, setPendingTimestamp] = useState<number | null>(null);
     const pendingTsRef = useRef<number | null>(null);
     const setPending = useCallback((ts: number | null) => {
@@ -90,7 +87,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setToasts([]);
-        setStickyLive(isLive); // immediate latch — bypasses polling cadence
+        setStickyLive(isLive); // immediate latch, bypasses the polling cadence
         try {
             const eventsUrl = isLive
                 ? null
@@ -198,8 +195,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         if (isLiveSession) {
             mutator.reset(annotations);
         }
-    // We INTENTIONALLY don't depend on `annotations` here — only on the latch
-    // edge. Mid-live edits flow through the controller already.
+    // Depends on the latch edge only, never on `annotations`: mid-live edits
+    // already flow through the controller.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLiveSession, mutator]);
 
@@ -223,8 +220,8 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setEndedLiveSessionId(id);
             setStickyLive(false);
             setTimeout(() => {
-                // Tail-limit the archive reload so a long session can't
-                // crash the tab a second time after live mode capped at 5k.
+                // Tail-limit the archive reload so a long session can't crash
+                // the tab; live mode caps the buffer at 5k for the same reason.
                 if (activeSessionId.current === id) void loadFromApi(id, false, 5000);
             }, 500);
         }
@@ -246,7 +243,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
 
     useLiveHotkeys(
         !isResearcher && session !== null,
-        // pendingTimestamp is intentionally NOT a dep — it is read via the ref so
+        // pendingTimestamp is deliberately not a dep: it is read via the ref so
         // the window keydown listener does not re-subscribe on pending changes.
         useCallback((label) => {
             // Resolve where the marker lands:
@@ -309,7 +306,6 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setSession(null);
     }, [mutator]);
 
-    // Video callbacks
     const handleVideoSeek = useCallback((timestamp: number) => {
         videoPlayerRef.current?.seekToSessionTimestamp(timestamp);
     }, []);
@@ -388,9 +384,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     }, [session, displayedEvents]);
 
     // Authoritative session start for the live elapsed timer: metadata.startTime,
-    // else the sessionStart event's timestamp. Deliberately NOT the generic
-    // earliest-event fallback above — on a late join that would understate
-    // elapsed. Latched per session so that once an authoritative start is seen
+    // else the sessionStart event's timestamp. Not the generic earliest-event
+    // fallback above, which understates elapsed time on a late join.
+    // Latched per session so that once an authoritative start is seen
     // it survives the live buffer trimming the sessionStart event out of the
     // sliding window. 0 (hidden) until a source is observed.
     const liveStartRef = useRef<{ id: string | null; start: number }>({ id: null, start: 0 });

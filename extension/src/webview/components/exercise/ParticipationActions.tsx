@@ -112,7 +112,6 @@ export function ParticipationActions({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isDropdownOpen]);
 
-  // Participation info section
   const renderParticipationInfo = () => {
     if (isProgramming) {
       return (
@@ -128,7 +127,6 @@ export function ParticipationActions({
         </div>
       );
     } else {
-      // Non-programming exercise info
       const exerciseTypeDisplay = exerciseType.charAt(0).toUpperCase() + exerciseType.slice(1).replace('-', ' ');
       return (
         <div className={styles.participationInfo}>
@@ -141,7 +139,6 @@ export function ParticipationActions({
     }
   };
 
-  // Practice mode indicator
   const renderPracticeModeIndicator = () => {
     if (!isPracticeMode) {return null;}
     return (
@@ -151,7 +148,6 @@ export function ParticipationActions({
     );
   };
 
-  // Workspace status indicator
   const renderWorkspaceStatus = () => {
     if (!isProgramming || !hasParticipation) {return null;}
 
@@ -165,7 +161,6 @@ export function ParticipationActions({
     );
   };
 
-  // Cloned repository notice
   const renderClonedNotice = () => {
     if (!showClonedNotice) {return null;}
     return (
@@ -178,7 +173,6 @@ export function ParticipationActions({
     );
   };
 
-  // Unsaved changes banner
   const renderUnsavedChangesBanner = () => {
     if (!hasUnsavedChanges) {return null;}
     return (
@@ -194,7 +188,6 @@ export function ParticipationActions({
     );
   };
 
-  // Submit button group
   const renderSubmitButtonGroup = () => {
     const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
     if (!isProgramming || !hasParticipation || !canSubmit || !isWorkspaceConnected) {return null;}
@@ -211,7 +204,6 @@ export function ParticipationActions({
     );
   };
 
-  // Commit message input
   const renderCommitMessageInput = () => {
     if (!showCommitMessageInput) {return null;}
     return (
@@ -227,11 +219,9 @@ export function ParticipationActions({
     );
   };
 
-  // Action buttons for programming exercises
   const renderProgrammingActions = () => {
     if (!isProgramming) {return null;}
 
-    // Practice available - show practice and browser buttons
     if (isPracticeAvailable) {
       return (
         <div className={clsx(styles.participationActions, styles.notParticipated, className)}>
@@ -247,7 +237,6 @@ export function ParticipationActions({
       );
     }
 
-    // Not participated - show start button
     if (!hasParticipation) {
       return (
         <div className={clsx(styles.participationActions, styles.notParticipated, className)}>
@@ -263,7 +252,6 @@ export function ParticipationActions({
       );
     }
 
-    // Participated - show full actions
     const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
 
     return (
@@ -293,7 +281,6 @@ export function ParticipationActions({
             </Button>
             {isDropdownOpen && (
               <div className={styles.moreDropdown}>
-                {/* Section: Workspace */}
                 <div className={styles.dropdownSection}>
                   {!isManagedEnvironment && isWorkspaceConnected && (
                     <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onClone?.(); }}>
@@ -317,10 +304,9 @@ export function ParticipationActions({
                   </button>
                 </div>
 
-                {/* Section: Share (only when at least one copy callback is available).
-                    Split-button when BOTH copy callbacks are provided.
-                    Single full-width item when only one is provided (preserves
-                    visible label + focus target). */}
+                {/* Split-button when BOTH copy callbacks are provided, one
+                    full-width item when only one is (keeps a visible label
+                    and a focus target either way). */}
                 {(onCopyCloneUrl || onCopyAuthenticatedCloneUrl) && (
                   <>
                     <div className={styles.dropdownDivider} />
@@ -365,7 +351,6 @@ export function ParticipationActions({
                   </>
                 )}
 
-                {/* Section: External */}
                 <div className={styles.dropdownDivider} />
                 <div className={styles.dropdownSection}>
                   <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
@@ -381,7 +366,6 @@ export function ParticipationActions({
     );
   };
 
-  // Action buttons for non-programming exercises
   const renderNonProgrammingActions = () => {
     if (isProgramming) {return null;}
 
@@ -405,7 +389,6 @@ export function ParticipationActions({
   );
 }
 
-// Helper function for default workspace status messages
 function getDefaultWorkspaceMessage(status: WorkspaceStatus): string {
   switch (status) {
     case 'clean':

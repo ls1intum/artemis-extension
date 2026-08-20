@@ -18,7 +18,6 @@ const STATE_TO_VIEW: Record<AppState, string> = {
     'git-credentials': 'gitCredentials',
 };
 
-/** Returns the React webview HTML for the given application state. */
 export function getViewHtml(state: AppState, extensionUri: vscode.Uri, webview: vscode.Webview): string {
     const viewName = STATE_TO_VIEW[state];
     return getReactWebviewHtml(webview, extensionUri, viewName);

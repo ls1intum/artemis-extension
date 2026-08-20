@@ -7,16 +7,15 @@
  *
  * Both return `null` on any shape failure so the replay command can skip
  * the offending session / line instead of letting downstream code dereference
- * `undefined`. The contract used to be `JSON.parse(...) as SessionMetadata`
- * (a blind cast) — see #183 for the audit that surfaced it.
+ * `undefined`.
  *
  * The `RecordedEvent` validator is strict per-variant: every `type` literal in
  * the union has a dedicated validator, wired through the `EVENT_PARSERS` table.
  * That table is `satisfies Record<RecordedEvent['type'], EventParser>`, so
  * adding a new event variant to `recording/types.ts` without adding its parser
- * here fails to compile — schema drift cannot silently land. The same table's
+ * here fails to compile, so schema drift cannot silently land. The same table's
  * keys are re-exported as `KNOWN_EVENT_TYPES` so `scripts/validate-recording.ts`
- * shares one list instead of maintaining its own (see #215).
+ * shares one list instead of maintaining its own.
  */
 
 import {
@@ -78,8 +77,6 @@ import type {
 } from './types';
 import { INTERVENTION_RECORD_ACTIONS } from './types';
 
-// ── Primitive guards ──────────────────────────────────────────────────
-
 function isObject(v: unknown): v is Record<string, unknown> {
     return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
@@ -132,8 +129,6 @@ function stripUndefined<T extends object>(obj: T): T {
     return out as T;
 }
 
-// ── Sub-shape parsers ─────────────────────────────────────────────────
-
 function parseSerializedRange(data: unknown): SerializedRange | null {
     if (!isObject(data)) { return null; }
     if (!isFiniteNumber(data.startLine) || !isFiniteNumber(data.startCharacter)
@@ -178,11 +173,9 @@ function parseSerializedErrorSnapshot(data: unknown): SerializedErrorSnapshot | 
     };
 }
 
-// ── Per-variant parsers ───────────────────────────────────────────────
-//
-// Each takes a pre-validated `Record<string, unknown>` (the dispatcher has
-// already confirmed `type` is a string and `timestamp` is finite) and either
-// returns the typed event or `null` if any required field is malformed.
+// Each per-variant parser takes a pre-validated `Record<string, unknown>` (the
+// dispatcher has already confirmed `type` is a string and `timestamp` is finite)
+// and either returns the typed event or `null` if any required field is malformed.
 // The dispatcher re-asserts `timestamp` per variant by inlining the cast,
 // which keeps the per-variant signatures uniform.
 
@@ -695,8 +688,6 @@ function parseSubmission(d: Record<string, unknown>, timestamp: number): Submiss
     });
 }
 
-// ── Public dispatcher ─────────────────────────────────────────────────
-
 type EventParser = (d: Record<string, unknown>, timestamp: number) => RecordedEvent | null;
 
 /**
@@ -706,9 +697,6 @@ type EventParser = (d: Record<string, unknown>, timestamp: number) => RecordedEv
  * table EXHAUSTIVE at compile time: adding a variant to the `RecordedEvent`
  * union without registering a parser here is a TYPE ERROR (missing key), and a
  * typo'd key that is not a real event type is also a TYPE ERROR (excess key).
- * This replaces the previous prose-only "remember to add a case" affordance —
- * which silently failed for `debugSession` / `breakpointChange` in PR #233,
- * letting them land on disk with no validator.
  */
 const EVENT_PARSERS = {
     textChange: parseTextChange,
@@ -755,7 +743,7 @@ const EVENT_PARSERS = {
 // table's keys so it cannot drift from the parser. Typed as
 // `ReadonlySet<string>` (not `ReadonlySet<RecordedEvent['type']>`) so consumers
 // like `scripts/validate-recording.ts` can call `.has(ev.type)` on an untrusted
-// string read off disk without a cast. See #215.
+// string read off disk without a cast.
 export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.keys(EVENT_PARSERS));
 
 /**
@@ -770,8 +758,7 @@ export function parseRecordedEvent(data: unknown): RecordedEvent | null {
     // Own-property check FIRST: EVENT_PARSERS is a plain object literal, so a
     // bare `EVENT_PARSERS[data.type]` would resolve inherited Object.prototype
     // members for adversarial `type` values like 'toString' / 'constructor' /
-    // '__proto__' (returning garbage or throwing). The old `switch` returned
-    // null for those; this preserves that exact behaviour.
+    // '__proto__' (returning garbage or throwing).
     if (!Object.prototype.hasOwnProperty.call(EVENT_PARSERS, data.type)) { return null; }
     const parser = (EVENT_PARSERS as Record<string, EventParser>)[data.type];
     return parser(data, data.timestamp);

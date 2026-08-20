@@ -4,7 +4,7 @@ import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shar
 import { getCommand } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api';
-import { AuthManager } from '@extension/services/auth';
+import { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -44,6 +44,8 @@ export class WebViewMessageHandler {
     constructor(
         private readonly authManager: AuthManager,
         private readonly artemisApi: ArtemisApiService,
+        private readonly oidcLoginService: OidcLoginService,
+        private readonly authCancellation: AuthCancellationService,
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
         extensionContext: vscode.ExtensionContext,
@@ -57,6 +59,8 @@ export class WebViewMessageHandler {
         const context: CommandContext = {
             authManager: this.authManager,
             artemisApi: this.artemisApi,
+            oidcLoginService: this.oidcLoginService,
+            authCancellation: this.authCancellation,
             appStateManager: this.appStateManager,
             actionHandler: this.actionHandler,
             sendMessage: (message: ExtensionToWebviewMessage) => this._sendMessage(message),
@@ -118,9 +122,6 @@ export class WebViewMessageHandler {
         return task;
     }
 
-    /**
-     * Process a message received from the webview.
-     */
     public async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
         const command = getCommand(message);
         try {
@@ -137,23 +138,14 @@ export class WebViewMessageHandler {
         }
     }
 
-    /**
-     * Dispose the handler and its command modules.
-     */
     public dispose(): void {
         this.repositoryStatusModule.dispose();
     }
 
-    /**
-     * Set the authentication context updater function.
-     */
     public setAuthContextUpdater(updater: (isAuthenticated: boolean) => Promise<void>): void {
         this._authContextUpdater = updater;
     }
 
-    /**
-     * Set the method for sending messages to the webview.
-     */
     public setMessageSender(sendMessage: (message: ExtensionToWebviewMessage) => void): void {
         this._sendMessage = sendMessage;
     }

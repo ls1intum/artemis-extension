@@ -47,7 +47,6 @@ function MessageBubbleComponent({
     const isUser = message.role === 'user';
     const streamdownComponents = useStreamdownConfig();
 
-    // Compute relative timestamp
     const relativeTime = useMemo(() => formatRelativeTime(message.timestamp), [message.timestamp]);
 
     const handleFeedback = (feedback: 'positive' | 'negative') => {
@@ -168,11 +167,9 @@ function MessageBubbleComponent({
     );
 }
 
-// Custom comparator for React.memo. We include `errorReason` because it
-// drives `retryDisabled` derivations one layer up; if it changes, the
-// parent's recomputed `retryDisabled` will already differ and trigger a
-// re-render via that prop — but keeping it here makes the equality check
-// honest about which fields actually matter to this component.
+// Custom comparator for React.memo. `errorReason` is listed even though a
+// change to it already arrives via the parent's recomputed `retryDisabled`, so
+// that the check names every field this component reads.
 const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
     return (
         prev.message.localId === next.message.localId &&

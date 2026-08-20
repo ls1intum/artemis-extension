@@ -6,14 +6,14 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__hel
 import { useChatStore } from '@webview/stores/useChatStore';
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
 
-// Mock streamdown — ESM-only package
+// ESM-only package.
 vi.mock('streamdown', () => ({
 	Streamdown: ({ children }: { children?: string }) => (
 		<span data-testid="streamdown">{children}</span>
 	),
 }));
 
-// Mock use-stick-to-bottom — ESM package (must include scrollToBottom fn)
+// ESM package; the mock must include scrollToBottom.
 vi.mock('use-stick-to-bottom', () => ({
 	useStickToBottom: vi.fn().mockReturnValue({
 		scrollRef: { current: null },
@@ -157,11 +157,10 @@ describe('IrisChatView', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Open history first.
 			await userEvent.click(screen.getByRole('button', { name: 'View past conversations' }));
 			expect(screen.getAllByRole('dialog')).toHaveLength(1);
 
-			// Now open the picker. History must unmount; exactly one dialog remains.
+			// Opening the picker unmounts history; exactly one dialog remains.
 			await userEvent.click(screen.getByRole('button', { name: 'Choose topic' }));
 
 			await waitFor(() => {
@@ -296,7 +295,7 @@ describe('IrisChatView', () => {
 					command: 'sendMessage',
 					payload: expect.objectContaining({
 						text: 'Hello Iris',
-						// #178: payload carries the optimistic message's localId
+						// The payload carries the optimistic message's localId
 						// and the active local session UUID so the host can echo
 						// them back on rejection without races.
 						localId: expect.any(String),
@@ -420,9 +419,7 @@ describe('IrisChatView', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// The previous bug (#219) left the loader spinning forever when
-			// the chat became unavailable. The banner is the terminal state
-			// — no spinner should coexist with it.
+			// The banner is the terminal state: no spinner may coexist with it.
 			expect(screen.queryByText(/Loading conversation/i)).not.toBeInTheDocument();
 		});
 
@@ -448,7 +445,7 @@ describe('IrisChatView', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// The unavailable banner already has the Retry action — surfacing
+			// The unavailable banner already has the Retry action; surfacing
 			// the websocket banner alongside would give the user two
 			// competing recovery affordances for the same underlying problem.
 			expect(screen.queryByText('WebSocket disconnected')).not.toBeInTheDocument();
@@ -463,9 +460,9 @@ describe('IrisChatView', () => {
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Disabled is the more specific signal, so it wins. The store
-			// cross-clears in normal flow, so this state shouldn't arise —
-			// but if it ever does, the user must not be told two
-			// contradictory things at once.
+			// cross-clears in normal flow, so this state should not arise, but
+			// if it ever does the user must not be told two contradictory
+			// things at once.
 			expect(screen.getByText('Iris chat is not enabled for this exercise.')).toBeInTheDocument();
 			expect(screen.queryByText('Iris is temporarily unavailable.')).not.toBeInTheDocument();
 		});
@@ -506,7 +503,7 @@ describe('IrisChatView', () => {
 	});
 
 	describe('Message hydration loader', () => {
-		// Helper to set up a state where there IS an active session waiting for hydration.
+		// An open conversation whose transcript has not been loaded yet.
 		const seedActiveSession = (sessionId: number) => {
 			useChatStore.setState({
 				courseId: 10,
@@ -522,9 +519,7 @@ describe('IrisChatView', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Welcome state should NOT be shown while we wait for hydration.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
-			// Loader is identified by its 'Loading conversation' text.
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 		});
 
@@ -553,7 +548,6 @@ describe('IrisChatView', () => {
 				],
 			});
 
-			// Stale message must not appear; loader stays; store keeps no record of the stale load.
 			expect(screen.queryByText('stale')).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 			expect(useChatStore.getState().loadedSessionId).toBeNull();
@@ -565,7 +559,6 @@ describe('IrisChatView', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// The open conversation hydrates with one message.
 			dispatchExtensionMessage({
 				type: 'loadMessages',
 				sessionId: 99,
@@ -876,8 +869,8 @@ describe('IrisChatView', () => {
 	});
 
 	it('replaces the transcript when a new conversation is opened', async () => {
-		// There is no "clear" message any more: a navigation delivers the new
-		// conversation's transcript, which replaces the old one wholesale.
+		// A navigation delivers the new conversation's transcript, which
+		// replaces the old one wholesale; there is no separate clear message.
 		useChatStore.setState({
 			...HYDRATED,
 			messages: [

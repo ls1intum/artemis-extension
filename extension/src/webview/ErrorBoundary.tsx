@@ -25,10 +25,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 	}
 
 	componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-		// Store errorInfo for display
 		this.setState({ errorInfo });
 
-		// Report error to extension host via postMessage
 		this.props.vscodeApi.postMessage({
 			type: WebviewMsgType.Error,
 			payload: {

@@ -2,14 +2,12 @@ import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
-import type { AuthManager } from '@extension/services/auth';
+import type { AuthCancellationService, AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
 import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
-
-// ── Individual command registrations ─────────────────────────────────
 
 function registerLoginCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.login', () => {
@@ -22,13 +20,22 @@ function registerLogoutCommand(
     artemisApiService: ArtemisApiService,
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
     artemisWebviewProvider: ArtemisWebviewProvider,
+    authCancellation: AuthCancellationService,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.logout', async () => {
+        // Both captured before the first await. A sign-in racing this logout must be stopped now, and
+        // the credential this logout is entitled to remove is the one that exists at this moment.
+        const revision = authManager.currentCredentialRevision();
+        const cancelled = authCancellation.cancelAll();
+
         try {
-            // Best-effort server-side logout before clearing local state.
-            // Never throws — local cleanup proceeds regardless.
+            await cancelled;
             await artemisApiService.logoutFromServer();
-            await authManager.clear();
+            const cleared = await authManager.clearIfUnchanged(revision);
+            if (!cleared) {
+                logger.info('Logout superseded by a newer sign-in', LogCategory.AUTH);
+                return;
+            }
             await updateAuthContext(false);
             vscode.window.showInformationMessage('Successfully logged out of Artemis');
             artemisWebviewProvider.showLogin();
@@ -40,11 +47,9 @@ function registerLogoutCommand(
 }
 
 function registerReloadIrisChatCommand(chatWebviewProvider: ChatWebviewProvider): vscode.Disposable {
-    // Kept as an escape hatch for a wedged client: drop everything local and
-    // re-read from the server. It no longer pretends to own conversations,
-    // which live on Artemis, so the command id stays (no keybinding breaks)
-    // while the modal confirmation goes: there is nothing destructive left to
-    // confirm.
+    // Escape hatch for a wedged client: drop everything local and re-read from
+    // the server. Conversations live on Artemis, so nothing here is
+    // destructive and no confirmation is needed.
     return vscode.commands.registerCommand('artemis.resetIrisChat', async () => {
         try {
             await vscode.window.withProgress({
@@ -191,9 +196,9 @@ async function collectWebSocketStatus(
             };
         }
     } catch (error) {
-        // Auth errors in diagnostics are non-fatal — the snapshot still shows
-        // 'hasCookie: false' which is the diagnostically useful signal. Log
-        // at warn so it shows up in the output channel during a diagnostics
+        // Auth errors in diagnostics are non-fatal: the snapshot still shows
+        // 'hasCookie: false', which is the diagnostically useful signal. Log at
+        // warn so it shows up in the output channel during a diagnostics
         // session (this code path runs only on explicit user request).
         logger.warn(`Auth header lookup failed during WS diagnostics: ${extractErrorMessage(error)}`, LogCategory.WEBSOCKET);
     }
@@ -425,6 +430,70 @@ const KNOWN_SERVERS: ReadonlyArray<{ label: string; url: string }> = [
     { label: 'Local Development (localhost:8080)',                   url: 'http://localhost:8080' },
 ];
 
+const CURRENTLY_SELECTED_DETAIL = '$(check) Currently selected';
+
+/**
+ * Shows the server list with the row the user is already on highlighted.
+ *
+ * `showQuickPick` always opens on the first row, which is the production server. Someone
+ * working against a test instance would find their own server further down and could
+ * switch themselves to production by reflex. `createQuickPick` is the only way to set the
+ * initially active row, which costs this promise wrapper.
+ */
+function pickServer(
+    items: vscode.QuickPickItem[],
+    currentItem: vscode.QuickPickItem | undefined,
+    currentUrl: string,
+): Promise<vscode.QuickPickItem | undefined> {
+    return new Promise(resolve => {
+        const quickPick = vscode.window.createQuickPick();
+        quickPick.title = 'Select Artemis Server';
+        quickPick.placeholder = `Current: ${currentUrl || 'not set'}`;
+        quickPick.items = items;
+        if (currentItem) {
+            quickPick.activeItems = [currentItem];
+        }
+        quickPick.onDidAccept(() => {
+            resolve(quickPick.selectedItems[0]);
+            quickPick.hide();
+        });
+        // Also the accept path's second half: hiding after an accept re-resolves a settled
+        // promise, which is a no-op, and disposing here covers cancellation too.
+        quickPick.onDidHide(() => {
+            resolve(undefined);
+            quickPick.dispose();
+        });
+        quickPick.show();
+    });
+}
+
+/**
+ * Sets `artemis.defaultClonePath` from a folder dialog.
+ *
+ * The dialog options match the "Set Default Folder" branch of the clone flow, so both
+ * routes to this setting look the same to a student.
+ */
+function registerSetDefaultClonePathCommand(): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.setDefaultClonePath', async () => {
+        const folderUri = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Set as Default',
+            title: 'Select default folder for all exercise repositories',
+        });
+
+        const folderPath = folderUri?.[0]?.fsPath;
+        if (!folderPath) {
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        await config.update(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, folderPath, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`✓ All exercises will now be cloned to: ${folderPath}`);
+    });
+}
+
 function registerSetServerUrlCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.setServerUrl', async () => {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -432,6 +501,9 @@ function registerSetServerUrlCommand(): vscode.Disposable {
         const hasCustomCurrent = currentUrl.length > 0 && !KNOWN_SERVERS.some(s => s.url === currentUrl);
 
         const items: vscode.QuickPickItem[] = [];
+        // Tracked while the list is built rather than searched for afterwards, so the
+        // highlighted row is decided by the URL itself and not by matching on a label.
+        let currentItem: vscode.QuickPickItem | undefined;
 
         if (hasCustomCurrent) {
             let hostname = currentUrl;
@@ -440,31 +512,33 @@ function registerSetServerUrlCommand(): vscode.Disposable {
             } catch {
                 // Fall back to the raw value if it fails to parse.
             }
+            currentItem = {
+                label: `Custom (${hostname})`,
+                description: currentUrl,
+                detail: CURRENTLY_SELECTED_DETAIL,
+            };
             items.push(
-                {
-                    label: `Custom (${hostname})`,
-                    description: currentUrl,
-                    detail: '$(check) Currently selected',
-                },
+                currentItem,
                 { label: '', kind: vscode.QuickPickItemKind.Separator },
             );
         }
 
-        items.push(...KNOWN_SERVERS.map(server => ({
+        const knownItems = KNOWN_SERVERS.map(server => ({
             label: server.label,
             description: server.url,
-            detail: server.url === currentUrl ? '$(check) Currently selected' : undefined,
-        })));
+            detail: server.url === currentUrl ? CURRENTLY_SELECTED_DETAIL : undefined,
+        }));
+        items.push(...knownItems);
+        if (!currentItem) {
+            currentItem = knownItems.find(item => item.description === currentUrl);
+        }
 
         items.push(
             { label: '', kind: vscode.QuickPickItemKind.Separator },
             { label: '$(edit) Enter custom URL...', description: 'Use your own Artemis server URL' },
         );
 
-        const selection = await vscode.window.showQuickPick(items, {
-            title: 'Select Artemis Server',
-            placeHolder: `Current: ${currentUrl || 'not set'}`,
-        });
+        const selection = await pickServer(items, currentItem, currentUrl);
 
         if (!selection) {
             return;
@@ -530,8 +604,8 @@ function registerStruggleScoreCommand(telemetryManager: ITelemetryManager): vsco
  * setting both at the menu level (commandPalette `when` clause) and at runtime
  * (defense-in-depth against direct invocation via `vscode.commands.executeCommand`).
  *
- * The full token is NEVER shown in the UI or written to logs — only a masked
- * preview appears in the notification, and the full value lands in the clipboard.
+ * The full token is NEVER shown in the UI or written to logs. Only a masked
+ * preview appears in the notification; the full value lands in the clipboard.
  */
 function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.showJwtToken', async () => {
@@ -569,9 +643,9 @@ function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposabl
 }
 
 /**
- * Diagnostic command: dumps the detected Theia environment so we can verify
- * managed-deployment activation (esp. for #109). Token is masked, GIT_URI
- * is reduced to its host so embedded credentials never leak into the UI.
+ * Diagnostic command: dumps the detected Theia environment to verify
+ * managed-deployment activation. Token is masked and GIT_URI is reduced to its
+ * host so embedded credentials never leak into the UI.
  */
 function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.showTheiaEnvironment', async () => {
@@ -668,8 +742,6 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
     });
 }
 
-// ── Aggregate registration ───────────────────────────────────────────
-
 interface CommandDeps {
     context: vscode.ExtensionContext;
     authManager: AuthManager;
@@ -679,18 +751,20 @@ interface CommandDeps {
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
+    authCancellation: AuthCancellationService;
 }
 
 export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
     return vscode.Disposable.from(
         registerLoginCommand(),
-        registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
+        registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider, deps.authCancellation),
         registerReloadIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.chatWebviewProvider),
         registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerGoToSourceErrorCommand(),
         registerSetServerUrlCommand(),
+        registerSetDefaultClonePathCommand(),
         registerClearTrustedDomainsCommand(deps.context),
         registerStruggleScoreCommand(deps.telemetryManager),
         registerShowJwtTokenCommand(deps.authManager),

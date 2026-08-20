@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as sinon from 'sinon';
 
 import { ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
@@ -337,6 +339,59 @@ suite('RepositoryCloneCommands', () => {
         sinon.assert.calledOnce(cloneRepositoryProgrammatic);
         const repoPathArg = cloneRepositoryProgrammatic.firstCall.args[1] as string;
         assert.ok(repoPathArg.startsWith('/theia-ws'), `Expected repoPath to start with /theia-ws; got: ${repoPathArg}`);
+    });
+
+    test('_resolveCloneDestination expands a leading tilde in the configured default-clone-path', async () => {
+        // `~/artemis-exercises` is the example the clone modal itself suggests, so it has to work.
+        configValues.set('defaultClonePath', '~/artemis-exercises');
+        configValues.set('showSetDefaultClonePathPrompt', false);
+        statAsync.resolves({ isDirectory: () => true } as fs.Stats);
+        showInformationMessage.resolves('Skip' as never);
+
+        const { ctx } = buildContext();
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CloneRepository]({
+            type: 'command',
+            command: WebviewCmd.CloneRepository,
+            payload: { participationId: 7, repositoryUri: 'https://x/y.git', exerciseTitle: 'Ex' },
+        } as never);
+
+        const expandedRoot = path.join(os.homedir(), 'artemis-exercises');
+        sinon.assert.calledWith(statAsync, expandedRoot);
+        sinon.assert.notCalled(showOpenDialog);
+        sinon.assert.calledOnce(cloneRepositoryProgrammatic);
+        const repoPathArg = cloneRepositoryProgrammatic.firstCall.args[1] as string;
+        assert.ok(
+            repoPathArg.startsWith(expandedRoot),
+            `Expected the clone to land under the expanded home path; got: ${repoPathArg}`,
+        );
+    });
+
+    test('_resolveCloneDestination names the expanded path when a tilde path does not exist, and expands after trimming', async () => {
+        // The warning has to name the path that was actually checked, not what was typed.
+        // The padding also pins the order: expanding before trimming would leave the `~` in place.
+        configValues.set('defaultClonePath', '  ~/does-not-exist  ');
+        configValues.set('showSetDefaultClonePathPrompt', true);
+        statAsync.rejects(new Error('ENOENT'));
+        showOpenDialog.resolves(undefined);
+
+        const { ctx } = buildContext();
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CloneRepository]({
+            type: 'command',
+            command: WebviewCmd.CloneRepository,
+            payload: { participationId: 8, repositoryUri: 'https://x/y.git', exerciseTitle: 'Ex' },
+        } as never);
+
+        sinon.assert.calledOnce(showWarningMessage);
+        const warnMsg = showWarningMessage.firstCall.args[0] as string;
+        assert.ok(
+            warnMsg.includes(path.join(os.homedir(), 'does-not-exist')),
+            `Expected the warning to name the expanded path; got: ${warnMsg}`,
+        );
+        assert.ok(!warnMsg.includes('~'), `Expected no raw tilde in the warning; got: ${warnMsg}`);
     });
 
     test('_resolveCloneDestination warns and falls back to picker when the configured default-clone-path does not exist', async () => {

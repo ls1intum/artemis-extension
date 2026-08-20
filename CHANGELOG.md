@@ -4,6 +4,27 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-20
+
+### Added
+
+- **Get Started tour:** A new "Get Started with Artemis" walkthrough guides you through choosing your Artemis server, signing in, picking where exercises are cloned to, and meeting the Iris tutor, with a final step for reviewing Iris and Artemis preferences. It opens once on your first run of the extension and is reachable afterwards from VS Code's own Get Started page. It is not included in the Open VSX build.
+- **Set Default Exercise Folder:** A new command opens a folder picker and stores the result as your default clone location, so you can set it without typing a path. The Get Started tour uses it, and on desktop it is also available from the command palette.
+
+### Changed
+
+- **Login:** Signing in now starts with your username on its own. Artemis then decides how you continue: accounts it manages itself get the password field as before, and accounts managed by an identity provider get a "Sign in with TUM Login" button that finishes the sign-in in your browser. If you go back, the browser sign-in is cancelled rather than left able to log you in afterwards, and declining "Remember me on this device" now really does forget an earlier session instead of leaving it stored.
+- **Login:** Signing in now shows what it is doing. A spinner names the current step instead of the form sitting there looking untouched, and a slow sign-in is no longer a dead end: a Cancel button stops the attempt, at both the username and the password step. Cancelling, going back or logging out is no longer quietly undone by a sign-in that was already on its way, and logging out no longer forgets a session you started right after it. A server that does not answer in time now says so instead of reporting a raw timeout.
+- **Exercise folder:** A default clone folder written as `~/artemis-exercises` now works. The leading `~` is expanded to your home folder instead of failing at the first clone.
+- **Start page:** The suggestion to always open your workspace exercise no longer appears after you have already chosen a start page yourself.
+- **Server setting:** Correcting the Artemis server address by adding a trailing slash, or by spelling out the default port, no longer signs you out. The address is now recognised by which server it means rather than by its exact text.
+- **Server picker:** Selecting an Artemis server now opens on the server you are currently using instead of always on production, so confirming your choice does not mean scrolling to find it first.
+
+### Internal
+
+- **Extension host tests in CI:** The 1511 tests that run inside a real VS Code instance had never been executed by any workflow, so they could break without CI noticing. They now run on every pull request and block merges. Their failures are also readable again: the reporter in use wrote only a machine-readable file, so a red run named no test.
+- **Code comments:** Removed comments that documented the history of the code rather than the code itself ("used to race", "the removed X command", "kept for backwards compat"), along with comments restating the line below them, JSDoc that only re-spelled the signature, and Arrange/Act/Assert labels in tests. Where a historical note carried a constraint that still holds, the constraint was rewritten in the present tense instead of deleted. Comments only, no behaviour change.
+
 ## [0.4.10] - 2026-08-09
 
 ### Changed

@@ -13,11 +13,11 @@ This framework allows you to:
 ## Quick Start
 
 ```bash
-# Run all struggle detection tests
-npm run pretest && npm test
+# Run only the struggle detection suite
+npm run test:struggle
 
-# Or run only the struggle detection suite
-npm run pretest && npx vscode-test --label unit --grep "Struggle Detection"
+# Or run every extension host test, these included
+npm run compile-tests && node esbuild.js && npm run test:vscode
 ```
 
 ## Architecture

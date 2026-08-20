@@ -109,9 +109,8 @@ export class CourseCatalog implements vscode.Disposable {
     private _dashboard: CourseDashboardEntry[] | undefined;
     /**
      * The rest of the last dashboard response. `CourseDashboardResponse` has
-     * an index signature, and the cache this replaces returned the response
-     * whole; rebuilding only `{ courses }` would quietly drop any other
-     * top-level field a consumer might one day read.
+     * an index signature, so rebuilding only `{ courses }` would quietly drop
+     * any other top-level field a consumer reads.
      */
     private _dashboardExtras: Omit<CourseDashboardResponse, 'courses'> | undefined;
     private readonly _supplemental = new Map<string, SupplementalRecord>();
@@ -171,8 +170,8 @@ export class CourseCatalog implements vscode.Disposable {
         try {
             return await run;
         } finally {
-            // Only if it is still OURS. The old unscoped cleanup let a newer
-            // request's handle be erased by an older one settling.
+            // Only if it is still OURS: an older request settling must not
+            // erase a newer request's handle.
             if (this._inflight === run) { this._inflight = undefined; }
         }
     }
@@ -216,9 +215,8 @@ export class CourseCatalog implements vscode.Disposable {
     public injectEntry(entry: CourseDashboardEntry, epoch: number): void {
         const id = courseIdOf(entry);
         if (id === undefined) { return; }
-        // The same no-op the cache this replaces performed: a course already
-        // recorded is not injected again, and above all does not refire the event
-        // that drives the registry rebuild and workspace detection.
+        // A course already recorded is not injected again, and above all does not
+        // refire the event that drives the registry rebuild and workspace detection.
         if (this._dashboard?.some(e => courseIdOf(e) === id)) { return; }
         if (this._supplemental.get(`c:${id}`)?.kind === 'course') { return; }
         this.upsertSupplemental({ kind: 'course', entry }, epoch);
@@ -355,7 +353,7 @@ export class CourseCatalog implements vscode.Disposable {
         return getEntryExercises(entry).some(e => e.id === exerciseId) ? id : undefined;
     }
 
-    /** Compatibility with the cache this replaces: `clear()` keeps the epoch. */
+    /** Drops everything this session knew but keeps the current epoch. */
     public clear(): void {
         this.resetTo(this._epoch);
     }

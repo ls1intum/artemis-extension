@@ -933,16 +933,13 @@ describe('useChatStore', () => {
 
 		it('does not release the buffer when markMessageFailed does not actually mark a bubble failed', () => {
 			// The bubble the echo is waiting on can leave the messages array
-			// some other way (e.g. a reconnect wholesale-replacing it)
-			// without going through removeMessage's owner-bound release AND
-			// without going through applyLoadedMessages (which now clears the
-			// buffer itself, see the "drops a held echo when the transcript
-			// is replaced" test, so it can no longer stand in for this
-			// scenario). Forced directly via setState to isolate exactly
-			// that: the bubble is gone, the buffer is untouched. A later,
-			// stale markMessageFailed for that localId must not release the
-			// buffer either: the buffer is supposed to honour the exact same
-			// staleness rule the function's own guard already enforces.
+			// some other way (e.g. a reconnect wholesale-replacing it),
+			// bypassing both removeMessage's owner-bound release and
+			// applyLoadedMessages, which clears the buffer itself. Forced
+			// directly via setState to isolate exactly that: the bubble is
+			// gone, the buffer is untouched. A later, stale markMessageFailed
+			// for that localId must not release the buffer either: the buffer
+			// honours the same staleness rule the function's own guard enforces.
 			const store = useChatStore.getState();
 			store.setIrisState(makeIrisState({ currentSessionId: 7 }));
 			store.addMessage({ localId: 'local-1', role: 'user', content: 'hi', timestamp: 1, status: 'sending' }, 7);
@@ -1057,11 +1054,10 @@ describe('useChatStore', () => {
 			});
 
 			it('setIrisState mirrors detectionState, defaulting to settled when the wire omits it', () => {
-				// Unlike the fields above, 'settled' is not the wire's own
-				// absent value (the real presenter always sends a real one):
-				// it is what keeps a test double that predates this field
-				// behaving like an already-resolved snapshot, not a
-				// permanently pending detection.
+				// Unlike the fields above, 'settled' is not the wire's own absent
+				// value (the real presenter always sends a real one): it keeps a
+				// snapshot that omits the field behaving like an already-resolved
+				// detection, not a permanently pending one.
 				useChatStore.getState().setIrisState(makeIrisState({ detectionState: 'unavailable' }));
 				expect(useChatStore.getState().detectionState).toBe('unavailable');
 

@@ -43,7 +43,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         filteredCourses,
     } = useCourseListStore();
 
-    // Restore persisted state on mount
     useEffect(() => {
         const persistedState = vscodeApi.getState<CourseListPersistedState>();
         if (persistedState) {
@@ -54,7 +53,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         }
     }, [vscodeApi, setSearchTerm, setTypeFilter, setSemesterFilter, setSortBy]);
 
-    // Listen for courseList messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.CourseListInit) {
             setCourses(msg.courses ?? [], msg.archivedCourses);
@@ -63,7 +61,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         }
     }, [vscodeApi, setCourses, setArchivedCourses]);
 
-    // Persist filter state whenever it changes
     useEffect(() => {
         const state: CourseListPersistedState = {
             searchTerm,
@@ -74,12 +71,10 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         vscodeApi.setState(state);
     }, [searchTerm, typeFilter, semesterFilter, sortBy, vscodeApi]);
 
-    // Get filtered courses
     const filtered = filteredCourses();
     const visibleActiveCourses = typeFilter !== 'archived' ? filtered.active : [];
     const visibleArchivedCourses = typeFilter !== 'active' ? filtered.archived : [];
 
-    // Extract unique semesters for filter dropdown
     const semesterOptions: DropdownOption[] = useMemo(() => {
         const semesters = new Set<string>();
 
@@ -97,10 +92,10 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
             }
         });
 
-        // Sort semesters (newest first) - descending order for newest first
+        // Reverse alphabetical, an approximation of newest-first: it orders
+        // years descending within a term type, but sorts every WS label ahead
+        // of every SS one regardless of year.
         const sortedSemesters = Array.from(semesters).sort((a, b) => {
-            // We need semester comparison, but we can just sort alphabetically for now
-            // WS24/25 > SS25 > WS23/24 naturally in reverse alpha
             return b.localeCompare(a);
         });
 
@@ -110,7 +105,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         ];
     }, [courses, archivedCourses]);
 
-    // Check if any filters are active
     const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all' || semesterFilter !== 'all' || sortBy !== 'semester-desc';
 
     const handleReloadCourses = () => {
@@ -145,7 +139,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         clearFilters();
     };
 
-    // Render loading state
     if (isLoading && courses.length === 0) {
         return (
             <div className={styles.courseListContainer}>
@@ -160,7 +153,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         );
     }
 
-    // Search results info
     const searchResultsInfo = hasActiveFilters ? (
         visibleActiveCourses.length === 0 && visibleArchivedCourses.length === 0 ? (
             <div className={styles.searchResultsInfo}>No courses found matching your criteria.</div>

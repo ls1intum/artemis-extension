@@ -1,7 +1,5 @@
 export const PROFILE_IRIS = 'iris';
 
-// --- Server Profile ---
-
 export interface ProfileInfo {
     readonly activeProfiles: string[];
     readonly activeModuleFeatures: string[];
@@ -24,9 +22,15 @@ export function parseProfileInfo(data: unknown): ProfileInfo {
     };
 }
 
-// --- Authentication ---
-
 export interface AuthenticationResult {
     readonly success: boolean;
+    /** The cookie string the server issued, for the caller to validate and then commit. */
+    readonly token: string;
 }
+export type LoginMethod = 'PASSWORD' | 'OIDC' | 'SAML2';
 
+export interface LoginOptionsResponse {
+    loginMethod: LoginMethod;
+    /** Null for accounts that sign in with a password, so the client supplies its own label. */
+    idpName: string | null;
+}

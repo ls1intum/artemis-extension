@@ -18,10 +18,10 @@ export function deriveDisplayStatus(
         case 'connecting':
             return wasConnectedOnce ? 'reconnecting' : 'connecting';
         case 'disconnected':
-            // Between retry attempts when we have a previous successful connection
+            // Between retry attempts with a previous successful connection
             // counts as reconnecting from the user's perspective. A first-ever
             // disconnected state (no prior connection) is the brief idle window
-            // before connect() is invoked — show it as connecting.
+            // before connect() is invoked, so it shows as connecting.
             return wasConnectedOnce ? 'reconnecting' : 'connecting';
         case 'gave-up':
             return 'disconnected';

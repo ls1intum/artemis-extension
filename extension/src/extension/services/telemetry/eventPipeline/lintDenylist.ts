@@ -1,5 +1,5 @@
 /**
- * Lint source denylist — these sources produce errors that are NOT compilation errors.
+ * Lint sources whose errors are NOT compilation errors.
  * [ADAPTATION] Paper had no linter; filter is engineering-necessary.
  *
  * Extracted to a standalone module so replay code can import without pulling in VS Code deps.

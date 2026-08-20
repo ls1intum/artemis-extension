@@ -44,12 +44,10 @@ suite('WebSocketStatusBarService', () => {
     setup(() => {
         sandbox = sinon.createSandbox();
 
-        // Default config values
         configValues = {
             developerMode: false,
         };
 
-        // Mock status bar item
         mockStatusBarItem = {
             text: '',
             backgroundColor: undefined,
@@ -60,10 +58,8 @@ suite('WebSocketStatusBarService', () => {
             dispose: sandbox.spy(),
         };
 
-        // Stub createStatusBarItem
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(mockStatusBarItem as unknown as vscode.StatusBarItem);
 
-        // Stub getConfiguration to return controllable values
         const mockConfig = {
             get: <T>(key: string, defaultValue?: T): T => {
                 if (key in configValues) {
@@ -80,15 +76,13 @@ suite('WebSocketStatusBarService', () => {
             return { dispose: () => {} } as vscode.Disposable;
         });
 
-        // Stub registerCommand
         sandbox.stub(vscode.commands, 'registerCommand').callsFake(() => {
             return { dispose: () => {} } as vscode.Disposable;
         });
 
-        // Build mock websocket service. The status bar now reads its UI status
-        // from getDisplayStatus(); the callback only signals "something
-        // changed, refresh". So the test must set the stub return value
-        // before firing the callback. driveState() encapsulates that.
+        // The status bar reads its UI status from getDisplayStatus(); the callback only
+        // signals "something changed, refresh". The test must therefore set the stub
+        // return value before firing the callback, which driveState() encapsulates.
         let currentStatus: WebSocketDisplayStatus = 'disconnected';
         mockWsService = {
             onDidChangeConnectionState: sandbox.stub().callsFake((cb: (event: { connected: boolean; wasEverConnected: boolean }) => void) => {
@@ -124,9 +118,8 @@ suite('WebSocketStatusBarService', () => {
         sandbox.restore();
     });
 
-    // Helper to create the service. Defaults to authenticated=true so the
-    // existing logged-in visibility scenarios behave as before; pass false
-    // explicitly to exercise the logged-out gate.
+    // Defaults to authenticated=true for the logged-in visibility scenarios; pass
+    // false explicitly to exercise the logged-out gate.
     function createService(authenticated = true): WebSocketStatusBarService {
         const service = new WebSocketStatusBarService(mockWsService as unknown as ArtemisWebsocketService);
         service.setAuthenticated(authenticated);
@@ -189,7 +182,7 @@ suite('WebSocketStatusBarService', () => {
             mockStatusBarItem.show.resetHistory();
             mockStatusBarItem.hide.resetHistory();
 
-            // 'disconnected' display status now folds gave-up into the same UI state
+            // The 'disconnected' display status folds gave-up into the same UI state.
             driveState('disconnected');
 
             assert.ok(mockStatusBarItem.show.called, 'Status bar MUST be shown when retries are exhausted');
@@ -216,19 +209,17 @@ suite('WebSocketStatusBarService', () => {
             createService();
             driveState('connected');
 
-            // Verify student label is showing
             assert.ok(
                 mockStatusBarItem.text.includes('Artemis: connected'),
                 `precondition: expected student label, got: ${mockStatusBarItem.text}`
             );
 
-            // Toggle developerMode on via config change — no intervening driveState
+            // Toggle developerMode on via config change, with no intervening driveState.
             configValues.developerMode = true;
             capturedConfigCallback({
                 affectsConfiguration: (section: string) => section === 'artemis.developerMode',
             } as vscode.ConfigurationChangeEvent);
 
-            // Text must switch to dev label immediately
             assert.ok(
                 mockStatusBarItem.text.includes('WS Connected'),
                 `expected "WS Connected" after enabling devMode, got: ${mockStatusBarItem.text}`
@@ -238,7 +229,6 @@ suite('WebSocketStatusBarService', () => {
                 `student label must be gone after enabling devMode, got: ${mockStatusBarItem.text}`
             );
 
-            // Tooltip must switch to dev diagnostics (MarkdownString with serverUrl)
             const tooltip = mockStatusBarItem.tooltip;
             const tooltipText = typeof tooltip === 'string' ? tooltip : (tooltip?.value ?? '');
             assert.ok(
@@ -253,19 +243,17 @@ suite('WebSocketStatusBarService', () => {
             createService();
             driveState('disconnected');
 
-            // Verify dev label is showing
             assert.ok(
                 mockStatusBarItem.text.includes('WS Disconnected'),
                 `precondition: expected dev label, got: ${mockStatusBarItem.text}`
             );
 
-            // Toggle developerMode off via config change — no intervening driveState
+            // Toggle developerMode off via config change, with no intervening driveState.
             configValues.developerMode = false;
             capturedConfigCallback({
                 affectsConfiguration: (section: string) => section === 'artemis.developerMode',
             } as vscode.ConfigurationChangeEvent);
 
-            // Text must switch to student label immediately
             assert.ok(
                 mockStatusBarItem.text.includes('Artemis: offline'),
                 `expected "Artemis: offline" after disabling devMode, got: ${mockStatusBarItem.text}`
@@ -275,7 +263,6 @@ suite('WebSocketStatusBarService', () => {
                 `dev label must be gone after disabling devMode, got: ${mockStatusBarItem.text}`
             );
 
-            // Tooltip must switch to student disconnected message
             const tooltip = mockStatusBarItem.tooltip;
             const tooltipText = typeof tooltip === 'string' ? tooltip : (tooltip?.value ?? '');
             assert.ok(
@@ -368,20 +355,15 @@ suite('WebSocketStatusBarService', () => {
             try {
                 createService();
 
-                // First simulate reconnecting
                 driveState('reconnecting');
                 mockStatusBarItem.hide.resetHistory();
 
-                // Then simulate successful reconnect
                 driveState('connected');
 
-                // Status bar should still be shown immediately (flash)
                 assert.ok(!mockStatusBarItem.hide.called, 'Should not hide immediately on reconnect');
 
-                // Advance time by 2 seconds
                 clock.tick(2000);
 
-                // Now it should be hidden
                 assert.ok(mockStatusBarItem.hide.called, 'Should hide after 2s when setting is off');
             } finally {
                 clock.restore();
@@ -427,7 +409,6 @@ suite('WebSocketStatusBarService', () => {
                 mockStatusBarItem.hide.resetHistory();
                 service.dispose();
 
-                // Advance time — timeout should be cleared, hide should NOT be called
                 clock.tick(3000);
 
                 assert.ok(!mockStatusBarItem.hide.called, 'Should not hide after dispose even when timeout elapses');
@@ -480,7 +461,6 @@ suite('WebSocketStatusBarService', () => {
             mockStatusBarItem.show.resetHistory();
             mockStatusBarItem.hide.resetHistory();
 
-            // Transition: user logs in
             service.setAuthenticated(true);
 
             // With developerMode off + logged in + state disconnected → needs attention → show
@@ -499,7 +479,6 @@ suite('WebSocketStatusBarService', () => {
             mockStatusBarItem.show.resetHistory();
             mockStatusBarItem.hide.resetHistory();
 
-            // Transition: user logs out
             service.setAuthenticated(false);
 
             assert.ok(
@@ -598,8 +577,7 @@ suite('WebSocketStatusBarService', () => {
 
     suite('reconnectAttempts getter', () => {
         test('reconnectAttempts getter returns the internal counter value', () => {
-            // This tests that the getter is accessible on the service
-            // We test via the status bar text which reads reconnectAttempts
+            // Asserted via the status bar text, which reads reconnectAttempts.
             configValues.developerMode = false;
             mockWsService.reconnectAttempts = 7;
 
