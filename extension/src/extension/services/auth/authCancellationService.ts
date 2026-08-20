@@ -13,12 +13,11 @@ export class AuthCancellationService {
     constructor(private readonly oidcLoginService: OidcLoginService) {}
 
     /**
-     * Take ownership of a password attempt. Starting one retires any attempt still running, of either
-     * kind, so at most one is live.
+     * Take ownership of a password attempt. Starting one retires any pending OIDC attempt, so
+     * starting either kind of attempt retracts a pending attempt of the other kind.
      *
-     * The OIDC half is retired fire-and-forget: `OidcLoginService.cancel()` marks the attempt invalidated
-     * synchronously, before its first `await`, so that part of the retraction is not lost by not awaiting
-     * the call here; only its SecretStorage cleanup continues in the background, same as `cancelAll()`.
+     * The OIDC retraction is fire-and-forget: `OidcLoginService.cancel()` marks the attempt invalidated
+     * synchronously, before its first `await`, so that part is not lost by not awaiting here.
      */
     public register(controller: AbortController): void {
         this.pending?.abort();
@@ -34,9 +33,8 @@ export class AuthCancellationService {
     }
 
     /**
-     * Announce that an OIDC attempt is starting. Retires any password attempt still running, so at most
-     * one kind is live; `OidcLoginService.start()` already retires an earlier OIDC attempt itself via
-     * "last start wins".
+     * Announce that an OIDC attempt is starting. Retires any pending password attempt.
+     * The OIDC-to-OIDC lifecycle is handled by `OidcLoginService.start()`.
      */
     public registerOidcStart(): void {
         this.pending?.abort();
